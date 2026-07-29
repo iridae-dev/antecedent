@@ -315,16 +315,16 @@ impl Rpcmci {
             });
         }
 
-        let algorithm = AlgorithmRecord {
-            id: Arc::from("rpcmci"),
-            config: Arc::from(format!(
+        let algorithm = crate::pipeline::algorithm_record(
+            "rpcmci",
+            format!(
                 "regimes={},min_len={},nested={},alternating={}",
                 graphs.len(),
                 self.min_regime_len,
                 self.pcmci_plus.engine().constraints.temporal.max_lag.raw(),
                 self.alternating_iters
-            )),
-        };
+            ),
+        );
         diagnostics.push(DiscoveryDiagnostic {
             code: Arc::from("rpcmci.graphs"),
             message: Arc::from(format!("produced {} per-regime temporal CPDAGs", graphs.len())),

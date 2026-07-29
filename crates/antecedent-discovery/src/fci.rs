@@ -38,9 +38,8 @@ use crate::orientation::{OrientationError, OrientationState};
 use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
-    ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
@@ -339,12 +338,7 @@ impl Fci {
             adj.retain(|k, ()| kept.contains(k));
         }
 
-        let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index
-                .get(&v)
-                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-            Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
-        };
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
@@ -479,16 +473,16 @@ impl Fci {
         Ok(DiscoveryResult {
             evidence,
             review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("fci"),
-                config: Arc::from(format!(
+            algorithm: crate::pipeline::algorithm_record(
+                "fci",
+                format!(
                     "alpha={},max_cond={},fdr={},pds_max={}",
                     alpha,
                     max_cond,
                     self.fdr.is_some(),
                     self.pds_max_nodes
-                )),
-            },
+                ),
+            ),
             assumptions: AssumptionSet::default(),
             iterations,
             diagnostics,

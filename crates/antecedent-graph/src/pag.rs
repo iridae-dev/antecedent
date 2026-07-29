@@ -121,16 +121,7 @@ impl Pag {
         if edge.a == edge.b {
             return Err(GraphError::InvalidEndpoints { message: "Pag rejects self-loops" });
         }
-        if self.has_edge(edge.a, edge.b) {
-            return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
-        }
-        if let Some((from, to)) = edge.parent_child() {
-            if self.reaches_directed(to, from) {
-                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-            }
-        }
-        marked_storage::push_marked_pair(&mut self.adj, edge);
-        Ok(())
+        marked_storage::insert_marked_finish(&mut self.adj, edge)
     }
 
     /// Directed `from -> to`.
@@ -211,7 +202,7 @@ impl Pag {
         &self,
         id: DenseNodeId,
     ) -> impl Iterator<Item = (DenseNodeId, Endpoint, Endpoint)> + '_ {
-        self.adj[id.as_usize()].iter().map(|e| (e.neighbor, e.at_self, e.at_neighbor))
+        marked_storage::neighbors(&self.adj, id)
     }
 
     /// Set marks on an existing edge (from `a`'s perspective).
@@ -233,18 +224,7 @@ impl Pag {
         }
         let previous =
             marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
-        let edge = MarkedEdge { a, b, at_a, at_b, middle: previous.middle };
-        if let Some((from, to)) = edge.parent_child() {
-            marked_storage::remove_edge(&mut self.adj, a, b);
-            let cycle = self.reaches_directed(to, from);
-            if cycle {
-                marked_storage::push_marked_pair(&mut self.adj, previous);
-                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-            }
-            marked_storage::push_marked_pair(&mut self.adj, edge);
-            return Ok(());
-        }
-        marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
+        marked_storage::set_marks_finish(&mut self.adj, a, b, at_a, at_b, previous)
     }
 
     /// Mark an existing edge as a pinned baseline `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).

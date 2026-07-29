@@ -38,9 +38,8 @@ use crate::orientation::{
     run_static_orientation_to_fixed_point,
 };
 use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
-    ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
 };
 
 /// Static PC discovery result (`Cpdag` evidence + review).
@@ -344,12 +343,7 @@ impl Pc {
                     .map_err(DiscoveryError::from)?;
             }
         }
-        let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index
-                .get(&v)
-                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-            Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
-        };
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
         for &(lo, hi) in adj.keys() {
             let a = dense_of(VariableId::from_raw(lo))?;
             let b = dense_of(VariableId::from_raw(hi))?;
@@ -419,15 +413,10 @@ impl Pc {
         Ok(DiscoveryResult {
             evidence,
             review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("pc"),
-                config: Arc::from(format!(
-                    "alpha={},max_cond={},fdr={}",
-                    alpha,
-                    max_cond,
-                    self.fdr.is_some()
-                )),
-            },
+            algorithm: crate::pipeline::algorithm_record(
+                "pc",
+                format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
+            ),
             assumptions: AssumptionSet::default(),
             iterations,
             diagnostics,

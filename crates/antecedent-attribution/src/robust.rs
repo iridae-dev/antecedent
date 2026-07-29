@@ -128,25 +128,17 @@ pub fn distribution_change_robust(
         (v0, v_full, estimate)
     };
     let total_change = v_full - v0;
-    let mc_stderr = estimate.monte_carlo_stderr;
-    let component_mc = estimate.component_mc_stderr.clone().map(Arc::from);
-    let cache_stats = estimate.cache_stats.clone();
-    let budget = estimate.budget.clone();
-    let contributions = Arc::from(estimate.into_contributions());
-
-    Ok(ChangeAttributionResult {
-        outcome: query.outcome,
+    // `estimate` here always comes from `estimate_shapley` (never `sequential_allocate`,
+    // enforced above by `require_shapley_config`), which always returns an empty
+    // `interactions` vec — so deriving `interactions` via `pack_change_result` is
+    // equivalent to the previously hardcoded `Arc::from([])`.
+    Ok(crate::change_common::pack_change_result(
+        query.outcome,
         total_change,
-        contributions,
-        interactions: Arc::from([]),
-        path_breakdown: Arc::from([]),
-        unidentified: Arc::from([]),
-        graph_sensitivity: None,
-        budget,
-        monte_carlo_stderr: mc_stderr,
-        component_mc_stderr: component_mc,
-        cache_stats,
-    })
+        estimate,
+        Arc::from([]),
+        Arc::from([]),
+    ))
 }
 
 fn model_slot_is_linear(

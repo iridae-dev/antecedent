@@ -265,21 +265,7 @@ impl FrontDoorTwoStage {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
     }
 
     fn point_estimate(

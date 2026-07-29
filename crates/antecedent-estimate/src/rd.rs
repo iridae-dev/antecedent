@@ -39,9 +39,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
-};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -305,21 +303,7 @@ impl SharpRegressionDiscontinuity {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -332,12 +316,8 @@ impl SharpRegressionDiscontinuity {
         let mut x_boot = vec![0.0; n * RD_NCOLS];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x5D0C_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                y_boot[r] = problem.outcome[src];
-                for c in 0..RD_NCOLS {
-                    x_boot[c * n + r] = problem.matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(&mut x_boot, &problem.matrix, n, RD_NCOLS, idx);
             match self.backend.least_squares(&x_boot, n, RD_NCOLS, &y_boot, &mut workspace.ols) {
                 Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
                 Err(_) => Ok(None),
@@ -360,9 +340,7 @@ fn build_rd_matrix(treated: &[f64], centered: &[f64]) -> Vec<f64> {
 }
 
 fn analytic_se_treatment(x_colmajor: &[f64], nrows: usize, sigma2: f64) -> f64 {
-    let mut xtx = vec![0.0; RD_NCOLS * RD_NCOLS];
-    form_xtx(x_colmajor, nrows, RD_NCOLS, &mut xtx);
-    let Some(inv) = invert_square(&xtx, RD_NCOLS) else {
+    let Some(inv) = crate::util::xtx_inverse(x_colmajor, nrows, RD_NCOLS) else {
         return f64::NAN;
     };
     (sigma2 * inv[RD_TREATMENT_COL * RD_NCOLS + RD_TREATMENT_COL].max(0.0)).sqrt()

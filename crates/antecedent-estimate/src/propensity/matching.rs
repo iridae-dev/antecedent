@@ -28,7 +28,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::{AnalyticSeKind, influence_se_kind};
 use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
 
@@ -253,30 +253,17 @@ impl PropensityMatching {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let overlap_report = Some(OverlapReport::from_propensities(
+        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+            problem,
             &model.fit.scores,
             None,
-            problem.overlap,
-            Some(&problem.treatment),
             ipw_target,
-            problem.target_weights.as_deref(),
         ));
 
-        Ok(EffectEstimate {
-            ate: result.ate,
-            se_analytic: result.se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_overlap_report(overlap_report)
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -293,13 +280,15 @@ impl PropensityMatching {
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x51E7_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(
+                &mut x_boot,
+                &problem.design_matrix,
+                n,
+                ncols,
+                idx,
+            );
             let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,

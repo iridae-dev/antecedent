@@ -157,6 +157,20 @@ impl EffectEstimate {
         self
     }
 
+    /// Attach propensity overlap diagnostics (propensity-based estimators only).
+    #[must_use]
+    pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
+        self.overlap_report = overlap_report;
+        self
+    }
+
+    /// Attach the estimated retained-memory cost of fitted scratch (bytes), when known.
+    #[must_use]
+    pub fn with_retained_memory_bytes(mut self, retained_memory_bytes: Option<u64>) -> Self {
+        self.retained_memory_bytes = retained_memory_bytes;
+        self
+    }
+
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
     #[must_use]
     pub fn with_bootstrap(mut self, boot: Option<crate::util::BootstrapSeResult>) -> Self {
@@ -441,20 +455,7 @@ impl LinearAdjustmentAte {
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: None,
-        })
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap))
     }
 
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).

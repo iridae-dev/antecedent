@@ -20,9 +20,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
-};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -162,9 +160,7 @@ impl ConditionalLinearAdjustment {
             .map_err(crate::util::stats_err)?;
         let coef = fit.coefficients;
 
-        let mut xtx = vec![0.0; ncols * ncols];
-        form_xtx(&design, n, ncols, &mut xtx);
-        let inv = invert_square(&xtx, ncols)
+        let inv = crate::util::xtx_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
 
         let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
@@ -180,20 +176,12 @@ impl ConditionalLinearAdjustment {
 
         let _ = Arc::clone(&estimand.method);
 
-        Ok(EffectEstimate {
-            ate: point,
+        Ok(EffectEstimate::new(
+            point,
             se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions: AssumptionSet::default(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            overlap_report: None,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: None,
-        })
+            AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        ))
     }
 }
 

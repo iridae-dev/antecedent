@@ -199,20 +199,12 @@ impl TemporalMediationEstimator {
         }
 
         Ok(TemporalMediationEstimate {
-            effect: EffectEstimate {
-                ate: point,
+            effect: EffectEstimate::new(
+                point,
                 se_analytic,
-                se_bootstrap: None,
-                bootstrap_replicates_ok: None,
-                bootstrap_replicates_failed: None,
-                bootstrap_cancelled: false,
-                bootstrap_early_stopped: false,
                 assumptions,
-                overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
-                overlap_report: None,
-                first_stage_diagnostics: None,
-                retained_memory_bytes: None,
-            },
+                crate::overlap::OverlapPolicy::ExplicitOverride,
+            ),
             total: Some(total),
             direct: Some(direct),
             mediated: Some(mediated),

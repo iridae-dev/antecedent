@@ -10,10 +10,28 @@ use std::collections::HashMap;
 use std::hash::BuildHasher;
 use std::sync::Arc;
 
+use antecedent_core::VariableId;
 use antecedent_graph::{DenseNodeId, NodeRef};
 
+use crate::error::DiscoveryError;
 use crate::orientation::OrientationState;
 use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryPerformanceRecord, PcSepsets};
+
+/// Resolve `v`'s dense id from a `VariableId -> array index` map (index == dense id when
+/// variables were added to the graph in that same order).
+///
+/// # Errors
+///
+/// `v` not present in `var_index`.
+pub(crate) fn dense_of(
+    var_index: &HashMap<VariableId, usize>,
+    v: VariableId,
+) -> Result<DenseNodeId, DiscoveryError> {
+    let idx = *var_index
+        .get(&v)
+        .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
+    Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
+}
 
 /// Map lagged `(variable, lag)` pairs — and context nodes as `(variable, 0)` — to dense ids.
 #[must_use]

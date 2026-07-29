@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
-use antecedent_graph::{DenseNodeId, MarkedEdge, NodeRef, TemporalCpdagReview};
+use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 
 use crate::combinations::for_each_combination;
@@ -34,8 +34,9 @@ use crate::evidence::{
     threshold_scored_links,
 };
 use crate::orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule, OrientationState,
-    RuleDelta, run_orientation_to_fixed_point, try_orient_undirected,
+    ColliderLegState, ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule,
+    OrientationState, RuleDelta, classify_collider_leg, run_orientation_to_fixed_point,
+    try_orient_undirected,
 };
 use crate::pcmci_family::pcmci_family_builders;
 use crate::pipeline::{
@@ -579,20 +580,22 @@ fn orient_majority_leg(
     c: DenseNodeId,
     premise: impl Into<Arc<str>>,
 ) -> Result<(), DiscoveryError> {
-    let current = graph.edge_between(endpoint, c);
-    let oriented = current.and_then(MarkedEdge::parent_child);
-    if oriented == Some((endpoint, c)) || current.is_some_and(MarkedEdge::is_conflict) {
-        // Already oriented endpoint → c by an earlier pair sharing this leg, or already
-        // pinned as a conflict by one; either way, nothing to do.
-    } else if oriented == Some((c, endpoint)) {
-        // Oriented the opposite way — conflict.
-        state.record_conflict(delta, endpoint, c, "opposite_direction");
-        if graph.mark_conflict(endpoint, c).is_ok() {
-            delta.edges_changed += 1;
-            delta.fixed_point = false;
+    match classify_collider_leg(graph, endpoint, c) {
+        ColliderLegState::Settled => {
+            // Already oriented endpoint → c by an earlier pair sharing this leg, or already
+            // pinned as a conflict by one; either way, nothing to do.
         }
-    } else {
-        let _ = try_orient_undirected(graph, state, delta, endpoint, c, premise)?;
+        ColliderLegState::Opposite => {
+            // Oriented the opposite way — conflict.
+            state.record_conflict(delta, endpoint, c, "opposite_direction");
+            if graph.mark_conflict(endpoint, c).is_ok() {
+                delta.edges_changed += 1;
+                delta.fixed_point = false;
+            }
+        }
+        ColliderLegState::Undirected => {
+            let _ = try_orient_undirected(graph, state, delta, endpoint, c, premise)?;
+        }
     }
     Ok(())
 }

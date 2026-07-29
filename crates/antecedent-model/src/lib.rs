@@ -15,6 +15,7 @@ pub mod error;
 pub mod evaluate;
 pub mod lgssm;
 pub mod mechanism;
+pub mod model_collection;
 pub mod overlay;
 pub mod registry;
 pub mod sample;
@@ -41,10 +42,10 @@ pub use mechanism::{
     infer_noise_column_rng, log_prob_column, sample_column, sample_noise_batch,
     sample_noise_column,
 };
+pub use model_collection::ModelCollection;
 pub use overlay::{InterventionOverlay, ModelView};
 pub use registry::{
-    MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, ModelCollection,
-    SelectionPolicy,
+    MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, SelectionPolicy,
 };
 pub use sample::{
     sample_conditional_interventional, sample_interventional, sample_observational,
