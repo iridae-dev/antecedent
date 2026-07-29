@@ -1297,6 +1297,7 @@ fn analyze_ate_admg(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -1336,6 +1337,7 @@ fn analyze_ate_discover(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1345,6 +1347,11 @@ fn analyze_ate_discover(
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
     drop(columns);
     let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     let soft_weight = soft_weight.to_string();
@@ -1358,11 +1365,26 @@ fn analyze_ate_discover(
         let ctx = py_execution_context(seed, threads);
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
         let soft = match soft_weight.as_str() {
@@ -1552,11 +1574,14 @@ fn analyze_ate_discover(
             };
             Study::tabular(data).graph(accepted)
         };
-        let mut builder = builder
-            .query(query)
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
+        let mut builder = builder.query(query).refute(suite).custom_validators(custom_validators);
+        // A configured estimator already carries its own (default-or-overridden) bootstrap
+        // count; combining it with an explicit `StudyBuilder::bootstrap_replicates` call is
+        // refused at `build()` time (`CausalError::Conflict`), so skip that call here — same
+        // rule `analyze_ate` follows for the static-graph path.
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
+        }
         // Names at the boundary, ids on the hot path: an unknown strategy name is
         // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
@@ -1565,7 +1590,9 @@ fn analyze_ate_discover(
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
         }
-        if let Some(est) = estimator {
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
             builder = builder.estimator(
                 est.parse::<antecedent::EstimatorId>()
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
