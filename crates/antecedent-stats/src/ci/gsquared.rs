@@ -70,13 +70,23 @@ impl ConditionalIndependenceTest for GSquared {
                     (p, ci)
                 }
                 super::types::SignificanceMethod::BlockShuffle { replicates, block_size } => {
+                    // Blocking is only implemented for the unconditional case; with a
+                    // conditioning set the null is a within-stratum exchange that cannot
+                    // preserve serial structure. Silently falling back there returned an
+                    // anticonservative p-value for exactly the autocorrelated data the
+                    // parameter exists to protect.
+                    if block_size > 1 && !z.is_empty() {
+                        return Err(StatsError::Unsupported {
+                            message: "G² block-preserving permutation is only implemented for an                                       empty conditioning set; with conditioning variables the null                                       is a within-stratum exchange. Set block_size = 1 to accept                                       it explicitly.",
+                        });
+                    }
                     let n_perm = replicates.max(1) as usize;
                     let strata = gsq_strata(request.columns, z, n);
                     let mut y_perm = request.columns[q.y].to_vec();
                     let mut rng = ctx.rng.stream(0x65C0_u64.wrapping_add(qi as u64));
                     let mut null_ge = 0u32;
                     for _ in 0..n_perm {
-                        if block_size > 1 && z.is_empty() {
+                        if block_size > 1 {
                             block_shuffle_y(&mut y_perm, block_size, &mut rng);
                         } else {
                             for rows in &strata {

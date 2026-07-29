@@ -269,6 +269,14 @@ fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
     !vals.is_empty() && vals.len() <= max_levels
 }
 
+/// Residual variance above which [`MechanismFamily::Constant`] is inadmissible.
+///
+/// `Constant` claims the variable is deterministic. Scored on conditional-mean fit alone it
+/// ties — and then beats, on the `sigma` tie-break — the correct marginal for any parentless
+/// node, which silently strips every root of its distribution. Anything above numerical noise
+/// means the claim is false.
+const CONSTANT_FAMILY_MAX_VARIANCE: f64 = 1e-12;
+
 fn score_family(
     family: MechanismFamily,
     gather: &ParentGatherPlan,
@@ -288,7 +296,22 @@ fn score_family(
         }
         MechanismSlot::Constant { value } => {
             let mse = y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / y.len().max(1) as f64;
-            -mse
+            // A `Constant` mechanism asserts the variable is *deterministic*: it samples the
+            // same value every draw and carries no distribution at all. Every other family is
+            // scored on conditional-mean fit, and on that measure `Constant` ties the
+            // best-fitting alternative for a parentless node — a root's `LinearGaussian` fit is
+            // `intercept = mean, coeffs = [], sigma = SD`, whose residual MSE is exactly this
+            // `mse`. `Constant` then won on the tie-break, because `LinearGaussian` alone pays
+            // the `sigma` penalty above.
+            //
+            // That made every root deterministic. Interventional and attribution paths that
+            // swap a root's mechanism between populations became no-ops, since both fits are
+            // `Constant{mean}` and neither carries the variance that actually changed.
+            //
+            // Mean-squared error cannot see this: it compares point predictions, and a point
+            // mass predicts the mean perfectly. So gate on the claim `Constant` is making —
+            // it is only admissible when the target really is degenerate.
+            if mse > CONSTANT_FAMILY_MAX_VARIANCE { f64::NEG_INFINITY } else { -mse }
         }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => match logit_coeffs {
             None => {
@@ -1292,6 +1315,86 @@ mod tests {
     /// regardless of how well LGSSM actually predicts one step ahead. With the fix, LGSSM's
     /// score uses the Kalman one-step-ahead predictive residual, which is small for this
     /// series, so `BestScore` correctly prefers LGSSM.
+    /// A root with real variance must be fit as a *distribution*, not a point mass.
+    ///
+    /// Every family is scored on conditional-mean fit. For a parentless node the
+    /// `LinearGaussian` fit is `intercept = mean, coeffs = [], sigma = SD` — the correct
+    /// marginal — and its residual MSE is exactly `Constant`'s MSE. `Constant` then won the
+    /// tie, because `LinearGaussian` alone pays the `sigma` penalty. Every root therefore
+    /// became deterministic, and swapping a root's mechanism between two populations was a
+    /// no-op even when its variance had changed — which is what made
+    /// `AttributionComponents::InputsAndMechanisms` unable to attribute input change at all.
+    ///
+    /// MSE cannot see this: a point mass predicts the mean perfectly. The scoring now gates
+    /// `Constant` on the claim it is actually making — that the target is degenerate.
+    #[test]
+    fn root_with_variance_is_fit_as_a_distribution_not_a_constant() {
+        fn fit_single_column(values: Vec<f64>) -> MechanismSlot {
+            let n = values.len();
+            let mut b = CausalSchemaBuilder::new();
+            b.add_variable(
+                "x",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            let schema = b.build().unwrap();
+            let cols = vec![OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )];
+            let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+            let data = TabularData::new(storage);
+            let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+            let (store, _) = MechanismRegistry::standard()
+                .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+                .unwrap();
+            store.slots[0].clone()
+        }
+
+        // A root that genuinely varies: continuous ramp, sample SD ≈ 2.9.
+        let spread: Vec<f64> = (0..100).map(|i| f64::from(i) * 0.1).collect();
+        let mean = spread.iter().sum::<f64>() / spread.len() as f64;
+        let var =
+            spread.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (spread.len() - 1) as f64;
+        let sd = var.sqrt();
+        match fit_single_column(spread) {
+            MechanismSlot::LinearGaussian { intercept, ref coeffs, sigma } => {
+                assert!(coeffs.is_empty(), "a root has no parents");
+                assert!((intercept - mean).abs() < 1e-9, "intercept {intercept} != mean {mean}");
+                assert!(
+                    sigma > 0.5 * sd,
+                    "root sigma {sigma} must carry the marginal spread (SD {sd}), not collapse"
+                );
+            }
+            other => panic!("root with variance fit as {other:?}; expected a real marginal"),
+        }
+
+        // A genuinely degenerate column must still get a deterministic mechanism — the gate
+        // keys on `Constant`'s claim being true, not on banning the family. A zero-variance
+        // column is low-cardinality, so it is routed to the discrete family list and
+        // `Discrete{support:[v], probs:[1.0]}` ties `Constant` at score 0 and wins on order.
+        // That representation is an equally exact point mass, and it is what this path
+        // selected before the gate existed too (mse = 0 scores identically either way), so
+        // assert the invariant that matters rather than a particular family tag.
+        match fit_single_column(vec![7.0; 100]) {
+            MechanismSlot::Constant { value } => assert!((value - 7.0).abs() < 1e-12),
+            MechanismSlot::Discrete { ref support, ref probs, logit_coeffs: None } => {
+                assert_eq!(support.len(), 1, "degenerate column must have a single support point");
+                assert!((support[0] - 7.0).abs() < 1e-12);
+                assert!((probs[0] - 1.0).abs() < 1e-12);
+            }
+            other => panic!("constant column fit as {other:?}; expected a deterministic mechanism"),
+        }
+    }
+
     #[test]
     fn best_score_prefers_lgssm_over_linear_gaussian_on_lgssm_generated_data() {
         use antecedent_core::CausalRng;

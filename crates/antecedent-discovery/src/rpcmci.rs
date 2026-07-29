@@ -11,7 +11,8 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
-    clippy::needless_range_loop
+    clippy::needless_range_loop,
+    clippy::too_many_lines
 )]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,7 +21,9 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
 use antecedent_data::{ColumnView, LaggedFrame, TableView, TimeSeriesData};
 use antecedent_graph::TemporalCpdag;
-use antecedent_stats::ConditionalIndependence;
+use antecedent_stats::{
+    ConditionalIndependence, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
+};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
@@ -226,12 +229,36 @@ impl Rpcmci {
                 });
                 break;
             }
-            assignment = updated;
-            last = self.discover_regimes(data, variables, &assignment, workspace, ctx)?;
-            diagnostics.push(DiscoveryDiagnostic {
-                code: Arc::from("rpcmci.alternating"),
-                message: Arc::from(format!("completed alternating refinement {}", iter + 1)),
-            });
+            // Refinement is an optional improvement, so it must not be able to turn a run
+            // that already succeeded into a hard failure. On data with no real regime
+            // structure the fitted models agree, every row is a near-tie, and the labels
+            // legitimately collapse toward one regime — leaving the others below
+            // `min_regime_len`. Keep the last good result and say why, rather than
+            // propagating "all regimes too short".
+            match self.discover_regimes(data, variables, &updated, workspace, ctx) {
+                Ok(next) => {
+                    assignment = updated;
+                    last = next;
+                    diagnostics.push(DiscoveryDiagnostic {
+                        code: Arc::from("rpcmci.alternating"),
+                        message: Arc::from(format!(
+                            "completed alternating refinement {}",
+                            iter + 1
+                        )),
+                    });
+                }
+                Err(e) => {
+                    diagnostics.push(DiscoveryDiagnostic {
+                        code: Arc::from("rpcmci.alternating_rejected"),
+                        message: Arc::from(format!(
+                            "refinement {} discarded — re-discovery on the refined labels \
+                             failed ({e}); keeping the previous assignment",
+                            iter + 1
+                        )),
+                    });
+                    break;
+                }
+            }
         }
         diagnostics.extend(last.diagnostics);
         Ok(RpcmciDiscoveryResult {
@@ -454,21 +481,78 @@ fn reassign_by_lag1_residual(
         return Ok(None);
     }
 
+    // Fit each regime's retained lag-1 links on the rows currently assigned to that regime,
+    // so "which regime explains this observation best" is asked of a real model.
+    let backend = FaerBackend;
+    let mut fits: Vec<(RegimeId, Vec<RegimeTargetFit>)> = Vec::with_capacity(regime_links.len());
+    for (regime, links) in &regime_links {
+        if links.is_empty() {
+            continue;
+        }
+        // One equation per target, over that target's lag-1 parents.
+        let mut by_target: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for &(ti, si) in links {
+            let parents = by_target.entry(ti).or_default();
+            if !parents.contains(&si) {
+                parents.push(si);
+            }
+        }
+        let rows: Vec<usize> = (1..n).filter(|&t| current.regimes[t] == *regime).collect();
+        let mut target_fits = Vec::with_capacity(by_target.len());
+        for (ti, parents) in by_target {
+            // Need more rows than free parameters (intercept + one per parent) for the fit
+            // to be identified; otherwise this regime cannot score that target.
+            if rows.len() <= parents.len() + 1 {
+                continue;
+            }
+            let ncols = parents.len() + 1;
+            let mut design = Vec::with_capacity(rows.len() * ncols);
+            // Column-major: intercept column first, then one lagged parent per column.
+            design.extend(std::iter::repeat_n(1.0, rows.len()));
+            for &si in &parents {
+                for &t in &rows {
+                    design.push(cols[si][t - 1]);
+                }
+            }
+            let y: Vec<f64> = rows.iter().map(|&t| cols[ti][t]).collect();
+            let mut ws = LeastSquaresWorkspace::default();
+            let Ok(fit) = backend.least_squares(&design, rows.len(), ncols, &y, &mut ws) else {
+                continue;
+            };
+            if fit.coefficients.iter().any(|c| !c.is_finite()) {
+                continue;
+            }
+            target_fits.push(RegimeTargetFit {
+                target: ti,
+                parents,
+                coefficients: fit.coefficients.clone(),
+            });
+        }
+        if !target_fits.is_empty() {
+            fits.push((*regime, target_fits));
+        }
+    }
+    if fits.is_empty() {
+        return Ok(None);
+    }
+
     let mut out = current.regimes.to_vec();
     for t in 1..n {
         let mut best_r = out[t];
         let mut best_err = f64::INFINITY;
-        for (regime, links) in &regime_links {
-            if links.is_empty() {
-                continue;
-            }
+        for (regime, target_fits) in &fits {
             let mut err = 0.0;
-            for &(ti, si) in links {
-                let pred = cols[si][t - 1];
-                let resid = cols[ti][t] - pred;
+            for f in target_fits {
+                let mut pred = f.coefficients[0];
+                for (k, &si) in f.parents.iter().enumerate() {
+                    pred += f.coefficients[k + 1] * cols[si][t - 1];
+                }
+                let resid = cols[f.target][t] - pred;
                 err += resid * resid;
             }
-            err /= links.len() as f64;
+            // Mean squared residual per equation, so regimes with different numbers of
+            // retained targets stay comparable.
+            err /= target_fits.len() as f64;
             if err < best_err {
                 best_err = err;
                 best_r = *regime;
@@ -478,6 +562,14 @@ fn reassign_by_lag1_residual(
     }
     out[0] = out[1];
     Ok(Some(RegimeAssignment { regimes: Arc::from(out) }))
+}
+
+/// One fitted lag-1 equation for a regime: `target ~ intercept + Σ β_k · parent_k(t−1)`.
+struct RegimeTargetFit {
+    target: usize,
+    parents: Vec<usize>,
+    /// `[intercept, β₁, …]`, aligned with `parents`.
+    coefficients: Vec<f64>,
 }
 
 /// Seed helper for regime discovery benches: build a two-regime assignment map.
@@ -594,6 +686,104 @@ mod tests {
         assert!(result.graphs.get(RegimeId::from_raw(0)).is_some());
         assert!(result.graphs.get(RegimeId::from_raw(1)).is_some());
         assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "rpcmci.masked_ci"));
+    }
+
+    /// Two regimes that share a link structure but differ in coefficient magnitude.
+    ///
+    /// `x` follows the same process throughout, so the only thing distinguishing the halves
+    /// is the strength of `x_{t-1} → y_t`.
+    fn coefficient_shift_series(n: usize) -> TimeSeriesData {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mid = n / 2;
+        for t in 1..n {
+            x[t] = 0.5 * x[t - 1] + (t as f64 * 0.7).sin();
+            // Same parent, very different strength: neither coefficient is near 1.
+            y[t] = if t < mid { 0.2 * x[t - 1] } else { 4.0 * x[t - 1] };
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap()
+    }
+
+    /// Alternating reassignment must distinguish regimes by fitted strength, not just by
+    /// which links were retained.
+    ///
+    /// The refinement step used `pred = x_{t-1}` — the raw parent value, i.e. an implicit
+    /// coefficient of exactly 1 and no intercept, with nothing ever fit. Two regimes that
+    /// retain the *same* links then score every timestep identically, the strict `<`
+    /// comparison always keeps the first, and every row collapses into one regime no matter
+    /// what the data says. Fitting each regime's equation on its own rows is what makes the
+    /// comparison mean anything.
+    #[test]
+    fn alternating_reassignment_separates_regimes_by_fitted_strength() {
+        let n = 200;
+        let data = coefficient_shift_series(n);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let assign = two_regime_half_split(n);
+        let algo = Rpcmci::new().with_min_regime_len(40).with_alternating_iters(1).with_pcmci_plus(
+            PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha: 0.3,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            }),
+        );
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let result = algo.run(&data, &vars, &assign, &mut ws, &ctx).unwrap();
+
+        assert_eq!(
+            result.assignments.unique_regimes().len(),
+            2,
+            "refinement collapsed every row into one regime; assignment={:?}",
+            result.assignments.regimes
+        );
+        // Refinement seeded from the true split should broadly agree with it.
+        let agree = (1..n)
+            .filter(|&t| {
+                let truth = if t < n / 2 { RegimeId::from_raw(0) } else { RegimeId::from_raw(1) };
+                result.assignments.regimes[t] == truth
+            })
+            .count();
+        assert!(agree * 10 >= (n - 1) * 7, "only {agree}/{} rows kept their true regime", n - 1);
     }
 
     #[test]

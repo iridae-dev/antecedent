@@ -570,3 +570,59 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     assert!(report.comparison > 0.0);
     assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
 }
+
+/// The sensitivity grid is a *partial* R², so the injected confounder must be scaled by the
+/// residual SD of `T` given `Z` — not its marginal SD.
+///
+/// Using the marginal SD calibrates against the wrong variance: the realized partial R² then
+/// exceeds the nominal grid value by `Var(T)/Var(T|Z)`, so a run reported as "explained away
+/// at partial R² = 0.2" actually required a far stronger confounder. In `toy_confounded`,
+/// `T = 1{Z > 0.5}` is largely explained by `Z`, so the two SDs are far apart and the
+/// distinction is unmissable.
+#[test]
+fn sensitivity_scales_by_residual_not_marginal_sd() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(7);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem {
+        data: &data,
+        estimand: &estimand,
+        query: &query,
+        original: &original,
+        estimator: Some("linear.adjustment.ate"),
+        temporal: None,
+    };
+
+    let ids = vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let mask = data.complete_case_mask(&ids).unwrap();
+    let t = data.float64_masked(VariableId::from_raw(0), &mask).unwrap();
+    let z = data.float64_masked(VariableId::from_raw(2), &mask).unwrap();
+
+    // Independent reference: simple OLS of t on z, residual SD.
+    let n = t.len() as f64;
+    let (mt, mz) = (t.iter().sum::<f64>() / n, z.iter().sum::<f64>() / n);
+    let cov_tz: f64 = t.iter().zip(&z).map(|(&a, &b)| (a - mt) * (b - mz)).sum();
+    let var_z: f64 = z.iter().map(|&b| (b - mz) * (b - mz)).sum();
+    let beta = cov_tz / var_z;
+    let resid: Vec<f64> = t.iter().zip(&z).map(|(&a, &b)| a - (mt + beta * (b - mz))).collect();
+    let expected = crate::common::sample_sd(&resid);
+    let marginal = crate::common::sample_sd(&t);
+
+    let got =
+        crate::sensitivity::residual_sd_on_adjustment(&problem, VariableId::from_raw(0), &mask)
+            .unwrap();
+
+    assert!(
+        (got - expected).abs() < 1e-9,
+        "residual SD {got} != independently computed {expected}"
+    );
+    assert!(
+        got < 0.8 * marginal,
+        "Z explains most of T here, so residual SD {got} must be well below marginal {marginal}"
+    );
+}

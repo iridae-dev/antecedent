@@ -284,17 +284,42 @@ fn al_value_and_grad(
         ws.grad[i] = ws.xtx_w[i] - ws.xtx[i];
     }
 
-    // L1 subgradient
-    for i in 0..d2 {
-        let w = ws.w[i];
-        ws.grad[i] += lambda * w.signum();
-    }
-
-    // AL: (ρ h + α) ∇h
+    // AL: (ρ h + α) ∇h  — added before the L1 term so the subgradient below sees the full
+    // smooth gradient at each coordinate.
     grad_h(&ws.w[..d2], d, &mut ws.acyclicity);
     let coeff = rho * h + alpha;
     for i in 0..d2 {
         ws.grad[i] += coeff * ws.acyclicity.grad[i];
+    }
+
+    // L1 subgradient, with the |w| kink at 0 handled properly.
+    //
+    // `w.signum()` is +1 at `+0.0` (IEEE), so the previous `grad += lambda * w.signum()`
+    // pushed every zero coordinate in the −λ direction regardless of what the smooth part
+    // wanted. `W` starts at all zeros, so on the first inner solve any coordinate with
+    // `0 < g < λ` — exactly those whose optimal weight *is* 0 — was driven off zero, which
+    // undermines the sparsity the L1 penalty exists to produce.
+    //
+    // The subdifferential of `λ|w|` at 0 is the interval `[−λ, λ]`, so the whole objective's
+    // subdifferential there is `[g − λ, g + λ]`. Take its minimum-norm element: that is 0
+    // whenever `|g| ≤ λ` (the coordinate is already stationary and must stay at zero), and
+    // the soft-thresholded value otherwise.
+    for i in 0..d2 {
+        let w = ws.w[i];
+        if w > 0.0 {
+            ws.grad[i] += lambda;
+        } else if w < 0.0 {
+            ws.grad[i] -= lambda;
+        } else {
+            let g = ws.grad[i];
+            ws.grad[i] = if g > lambda {
+                g - lambda
+            } else if g < -lambda {
+                g + lambda
+            } else {
+                0.0
+            };
+        }
     }
 
     for i in 0..d2 {
@@ -436,6 +461,77 @@ fn inf_norm(v: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// At `W = 0` the L1 term must not push coordinates the penalty should hold at zero.
+    ///
+    /// The subdifferential of `λ|w|` at 0 is `[−λ, λ]`, so the objective's subdifferential
+    /// there is `[g − λ, g + λ]` for smooth gradient `g`. Its minimum-norm element is 0
+    /// whenever `|g| ≤ λ` — the coordinate is stationary and belongs at zero. The previous
+    /// code used `w.signum()`, which IEEE defines as `+1` at `+0.0`, so it reported `g + λ`
+    /// for *every* zero coordinate regardless of `g`: a nonzero gradient claiming a
+    /// stationary point is not.
+    ///
+    /// Asserted on the gradient directly rather than through `solve_notears`, because
+    /// L-BFGS backtracking rejects steps that raise the objective and can mask the wrong
+    /// gradient in the fitted weights.
+    #[test]
+    fn l1_subgradient_is_zero_for_stationary_zero_coordinates() {
+        // Two columns with a small but nonzero cross-product, so 0 < |G_01| < λ.
+        let n = 4;
+        let d = 2;
+        // Column-major: col0 = x, col1 = y.
+        let x = vec![1.0, -1.0, 1.0, -1.0, 0.2, -0.2, 0.2, -0.2];
+        let frozen = [true, false, false, true];
+        let mut ws = NotearsWorkspace::default();
+        ws.free_idx.clear();
+        for (idx, &f) in frozen.iter().enumerate() {
+            if !f {
+                ws.free_idx.push(idx);
+            }
+        }
+        ws.prepare(n, d, ws.free_idx.len(), 8);
+        form_xtx_over_n(&x, n, d, &mut ws.xtx);
+        let g01 = ws.xtx[1].abs();
+        assert!(g01 > 0.0, "fixture must have a nonzero cross-product");
+
+        // λ strictly above |G_01| ⇒ both off-diagonals are stationary at zero.
+        let lambda = g01 + 0.5;
+        for v in &mut ws.w {
+            *v = 0.0;
+        }
+        for v in &mut ws.free {
+            *v = 0.0;
+        }
+        al_value_and_grad(&x, n, d, lambda, 0.0, 1.0, &mut ws).unwrap();
+        for &idx in &[1usize, 2] {
+            assert_eq!(
+                ws.grad[idx], 0.0,
+                "grad[{idx}] = {} at W=0 with |G|={g01} < λ={lambda}; a stationary zero \
+                 coordinate must report zero gradient",
+                ws.grad[idx]
+            );
+        }
+
+        // λ strictly below |G_01| ⇒ the coordinate should move, soft-thresholded.
+        let lambda = g01 / 2.0;
+        for v in &mut ws.w {
+            *v = 0.0;
+        }
+        for v in &mut ws.free {
+            *v = 0.0;
+        }
+        al_value_and_grad(&x, n, d, lambda, 0.0, 1.0, &mut ws).unwrap();
+        assert!(
+            ws.grad[1].abs() > 0.0,
+            "a coordinate whose smooth gradient exceeds λ must not be pinned at zero"
+        );
+        assert!(
+            (ws.grad[1].abs() - (g01 - lambda)).abs() < 1e-12,
+            "expected soft-thresholded magnitude {}, got {}",
+            g01 - lambda,
+            ws.grad[1].abs()
+        );
+    }
 
     #[test]
     fn solve_zero_dim_rejected() {

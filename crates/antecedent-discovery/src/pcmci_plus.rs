@@ -27,7 +27,9 @@ use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 
 use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
-use crate::engine::{DiscoveryWorkspace, PcmciEngine, mci_conditioning, parents_of_target};
+use crate::engine::{
+    DiscoveryWorkspace, PcmciEngine, mci_conditioning, mci_conditioning_bounded, parents_of_target,
+};
 use crate::error::DiscoveryError;
 use crate::evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, symmetrize_contemporaneous_links,
@@ -47,6 +49,10 @@ use crate::result::{
     CpdagDiscoveryResult, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     LaggedLink, PcSepsets, ScoredLink,
 };
+
+/// Column budget for one MCI conditioning set (kernel cap `MAX_CI_COLS` minus the pair
+/// under test).
+const MAX_MCI_COND: usize = 30;
 
 /// PCMCI+ discovery: contemporaneous + lagged links → oriented [`antecedent_graph::TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -384,19 +390,33 @@ pub(crate) fn contemp_mci_phase(
 
                 let lagged_tgt = parents_of_target(lagged_parents, target);
                 let lagged_src = parents_of_target(lagged_parents, src);
-                truncated += mci_conditioning(link, lagged_tgt, lagged_src, &mut workspace.others);
-                // Prepend contemporaneous S (not already present).
-                for &c in &contemp_others {
-                    if !workspace.others.contains(&c) {
-                        workspace.others.insert(0, c);
+                // Reserve room for S *before* building the lagged MCI block, rather than
+                // appending S and truncating the combined set. Truncation drops from the
+                // tail, which is the lagged block — the fixed control set that makes the MCI
+                // test valid under autocorrelation — so the old order evicted mandatory
+                // conditions in favour of the optional candidate set.
+                let s_budget = MAX_MCI_COND.saturating_sub(contemp_others.len());
+                truncated += mci_conditioning_bounded(
+                    link,
+                    lagged_tgt,
+                    lagged_src,
+                    s_budget,
+                    &mut workspace.others,
+                );
+                // S first, strongest candidate first: `contemp_others` is already sorted by
+                // descending |stat|, so pushing it as a block preserves that order. The old
+                // `insert(0, …)` per element reversed it, inverting the ranking the sort
+                // exists to establish.
+                let mut merged: Vec<(VariableId, Lag)> =
+                    Vec::with_capacity(contemp_others.len() + workspace.others.len());
+                merged.extend_from_slice(&contemp_others);
+                for &c in &workspace.others {
+                    if !merged.contains(&c) {
+                        merged.push(c);
                     }
                 }
-                // Cap again after inserting S.
-                if workspace.others.len() > 30 {
-                    let drop = workspace.others.len() - 30;
-                    workspace.others.truncate(30);
-                    truncated += drop as u64;
-                }
+                workspace.others = merged;
+                debug_assert!(workspace.others.len() <= MAX_MCI_COND);
 
                 let cond = std::mem::take(&mut workspace.others);
                 let result = engine.ci_statistic(

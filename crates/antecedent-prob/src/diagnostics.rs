@@ -114,8 +114,14 @@ impl InferenceDiagnostics {
         }
         // Stan/Vehtari: rank-normalized / folded R̂ ≤ 1.01.
         let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
-        let ess_bulk_ok = self.ess_bulk_min.is_some_and(|e| e.is_finite() && e >= 100.0);
-        let ess_tail_ok = self.ess_tail_min.is_some_and(|e| e.is_finite() && e >= 100.0);
+        // Stan/ArviZ guidance is ~100 bulk- and tail-ESS **per chain**, not in total. A flat
+        // 100 is reachable with 25 effective draws per chain at the 4-chain default used
+        // throughout `antecedent-estimate::bayesian`, which is far too thin for the 2.5% /
+        // 97.5% quantiles a credible interval reports. Scaling by `n_chains` also lands on
+        // the 400 floor this codebase documents elsewhere for reliable MCMC inference.
+        let ess_floor = 100.0 * f64::from(self.n_chains.unwrap_or(1));
+        let ess_bulk_ok = self.ess_bulk_min.is_some_and(|e| e.is_finite() && e >= ess_floor);
+        let ess_tail_ok = self.ess_tail_min.is_some_and(|e| e.is_finite() && e >= ess_floor);
         let div_ok = self.n_postwarmup_divergences.is_some_and(|n| n == 0);
         let moved_ok = self.all_chains_moved == Some(true);
         let accept_ok = self.mean_accept_prob.is_some_and(f64::is_finite);
@@ -185,8 +191,10 @@ mod tests {
             backend_id: Arc::from("hmc"),
             n_chains: Some(4),
             n_warmup: Some(100),
-            ess_bulk_min: Some(200.0),
-            ess_tail_min: Some(150.0),
+            // Healthy baseline for the 4 chains below: the publication gate requires ~100
+            // bulk/tail ESS *per chain*, so a genuinely well-mixed 4-chain run clears 400.
+            ess_bulk_min: Some(500.0),
+            ess_tail_min: Some(450.0),
             rhat_max: Some(1.005),
             n_divergences: Some(0),
             mean_accept_prob: Some(0.8),
@@ -231,7 +239,7 @@ mod tests {
         assert!(d.allows_posterior());
         d.ess_bulk_min = Some(50.0);
         assert!(!d.allows_posterior());
-        d.ess_bulk_min = Some(200.0);
+        d.ess_bulk_min = Some(500.0);
         d.n_postwarmup_divergences = Some(1);
         assert!(!d.allows_posterior());
         d.n_postwarmup_divergences = Some(0);
@@ -242,6 +250,34 @@ mod tests {
         assert!(!d.allows_posterior());
         d.rhat_max = Some(1.01);
         assert!(d.allows_posterior());
+    }
+
+    /// The ESS floor must scale with chain count, not sit at a flat total.
+    ///
+    /// Stan/ArviZ state the ~100 bulk/tail-ESS guidance **per chain**. A flat 100 total is
+    /// satisfied by 25 effective draws per chain at the 4-chain default, which is far too
+    /// thin for the 2.5%/97.5% quantiles a credible interval reports. The same total ESS
+    /// therefore has to pass with few chains and fail with many.
+    #[test]
+    fn ess_gate_scales_with_chain_count() {
+        let with_chains = |n_chains: u32, ess: f64| {
+            let mut d = mcmc_ok_base();
+            d.n_chains = Some(n_chains);
+            d.ess_bulk_min = Some(ess);
+            d.ess_tail_min = Some(ess);
+            d.allows_posterior()
+        };
+
+        // 250 total ESS: fine across 2 chains (125 each), too thin across 4 (62.5 each).
+        assert!(with_chains(2, 250.0), "250 ESS over 2 chains is 125/chain and should pass");
+        assert!(!with_chains(4, 250.0), "250 ESS over 4 chains is 62.5/chain and must not pass");
+
+        // The 4-chain case passes once it genuinely clears 100/chain.
+        assert!(!with_chains(4, 399.0));
+        assert!(with_chains(4, 401.0));
+
+        // A flat-100 gate would have accepted every case above; pin that it does not.
+        assert!(!with_chains(4, 100.0), "a flat 100-total floor must not be what gates this");
     }
 
     #[test]
