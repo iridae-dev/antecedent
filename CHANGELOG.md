@@ -5,13 +5,29 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] — 2026-07-29
+## [0.4.0] — 2026-07-30
 
-Python API-surface freeze. This release does not change any estimator, discovery,
-or Bayesian math — it reorganizes and tightens the **Python facade** ahead of a 1.0
-freeze. The migration policy is a **silent hard break**: there are no deprecated
-aliases and no shims for the old spellings. This changelog entry is the only
-migration document; read the whole breaking-changes section before upgrading.
+API-surface freeze on **both** language surfaces, plus an algorithmic correctness
+pass. Three bodies of work landed in this release:
+
+1. The **Rust facade** is restructured: `CausalAnalysis` is now `Study`, the
+   discovery-to-estimation path is staged behind `AcceptedGraph`, `identify()` works
+   without data, estimators carry configuration via `EstimatorSpec` and `with_*`
+   setters, `IdentifierId`/`EstimatorId` are closed enums validated at parse time,
+   and the whole workspace shares one error hierarchy. See *Breaking changes*.
+2. The **Python facade** is reorganized and frozen: the root namespace drops from
+   206 names to 41 around three verbs, with everything else on stage modules.
+3. A systematic audit of the **algorithmic and numerical core** fixed 25 confirmed
+   defects, several of which changed returned values. See *Correctness*.
+
+The migration policy on both surfaces is a **silent hard break**: there are no
+deprecated aliases and no shims for the old spellings. Read the whole
+breaking-changes section before upgrading. If you are comparing numbers against
+0.3.x, read *Correctness* too — some differences are intended corrections, not
+regressions.
+
+A narrative version of this entry, aimed at readers deciding whether to adopt or
+upgrade, is in [`docs/release-notes/v0.4.0.md`](docs/release-notes/v0.4.0.md).
 
 ### Why this release
 
@@ -192,12 +208,124 @@ moves everything else onto **stage modules** (`antecedent.discovery`,
   above), and the `results/` package (the view dataclasses plus `_repr_html_`
   rendering).
 
+### Correctness
+
+An audit of the algorithmic and numerical core fixed 25 confirmed defects. Each has a
+regression test that was verified to fail against the previous code. Grouped by what a
+caller would have observed.
+
+**Results that were silently wrong**
+
+- *Path-specific identification could be unearned.* `Dag::directed_paths` truncated at
+  `max_paths` / `max_len` and returned `Ok` with no signal, but the recanting-witness
+  criterion concludes identifiability from the *absence* of a witness — so a witness on a
+  dropped path was invisible and the effect could be reported
+  `NonparametricallyIdentified` against Avin–Shpitser–Pearl. Added
+  `directed_paths_with_budget`; identification now fails closed on truncation.
+- *Generalized adjustment over a PAG overclaimed.* `CompletionSampler` yields a
+  deterministic low-mask prefix, not a sample. With the default cap the envelope examined
+  32 of 729 valid MAG completions on a 7-node chain and reported `unidentified_weight = 0`
+  with no truncation signal. It now reports the cap and downgrades
+  `NonparametricallyIdentified` to `PartiallyIdentified` rather than asserting a class-wide
+  property from a prefix.
+- *A non-mixing graph-MCMC chain published as converged.* Identical edge traces yield
+  R̂ = 1.0 and ESS = `n_chains·n_draws`; `all_chains_moved` is the only field that separates
+  that from real convergence, and the gate computed it without reading it.
+- *G² p-values drifted at large df.* `gamma_p_series` capped iterations at a fixed 500 with
+  no convergence check, returning a partial sum: 0.739 against SciPy's 0.500 at df = 10⁶,
+  with error appearing from ~10⁴. Now scales as `500 + 10√a`.
+- *Binary and parentless variables were fit as point masses.* Mechanism selection scored
+  families on conditional-mean fit, where `Constant` is unbeatable, so it won for every
+  root and every binary column — sampling a binary treatment returned its mean. Selection
+  now gates `Constant` on the claim it makes (that the target is deterministic).
+- *`DbnPosterior` ignored lagged constraints.* `edge_forbidden` builds its `LaggedLink` with
+  both endpoints pinned to lag 0, so a forbidden `X_{t-1} → Y_t` was a no-op and carried
+  0.99999 posterior mass. Added lag-aware constraint checks.
+- *RPCMCI regime reassignment fit nothing.* It used the raw parent value as its prediction —
+  an implicit unit coefficient — so regimes sharing a link structure scored identically and
+  every row collapsed into one. Now fits per-regime OLS.
+- *LPCMCI could converge early*, before the X side had exhausted its conditioning pool.
+- *PCMCI+ conditioning truncation evicted the mandatory MCI control set* in favour of
+  optional contemporaneous candidates.
+- *NOTEARS reported a nonzero gradient at a stationary point*: the L1 subgradient used
+  `signum(0) = +1`, driving coordinates that belong at zero off it.
+- *Distribution-change attribution collapsed players to a point mass*, which also made the
+  mechanism swap dead code.
+- *Sensitivity analysis was calibrated against the wrong variance.* The grid is documented
+  as partial R² but was scaled by the marginal SD, so a nominal 0.2 realized as 0.556 when
+  covariates predict the treatment.
+- *Four CI tests accepted `BlockShuffle`'s `block_size` and permuted exchangeably*,
+  under-dispersing the null for the autocorrelated data the parameter exists to protect.
+  They now reject it rather than silently ignoring it.
+
+**Statistics that did not mean what they were called**
+
+- *Anomaly scores* were a negative log density presented as an information-theoretic score.
+  A density is unbounded, carries units, and moves under rescaling — multiplying the outcome
+  by 100 shifted every score by exactly `ln(100)`. Now a tail probability.
+- *Arrow strength* was `|β|`, ignoring parent variance, and ranked a parent that barely
+  moves above one that dominates. Now `β²·Var(parent)` (Janzing et al. 2013), with variance
+  propagated from the model in topological order.
+- *Mechanism-change detection* had no multiple-testing correction across targets (~40%
+  family-wise false-positive rate at ten targets). Benjamini–Hochberg is now applied by
+  default, with raw and adjusted p-values reported separately.
+- *ESS* was floored at 1 and clamped to N, unlike Stan/ArviZ, understating well-mixed
+  chains; the publication gate used a flat 100 rather than the per-chain convention.
+- *GAM `edf_approx`* double-counted the constant, one per smooth term.
+- *`WeightingDoSampler`* ran self-normalized importance sampling with no ESS diagnostic.
+- *`mcmc_graph_diagnostics`* reported a fabricated `mean_accept_prob = 1.0`.
+- *`normal_ppf`*, *`regularized_incomplete_beta`*, and *`ln_gamma`* accuracy and domain
+  handling at the tails and poles.
+
+**Checks that existed but never ran**
+
+- Simulation-based calibration and posterior interval coverage were implemented, exported,
+  and had zero call sites. Both are now wired into `scripts/gate_calibration.sh`, alongside
+  a new coverage test for the sharp-RD analytic standard error.
+- SBC gated on the rank mean while ignoring its own uniformity statistic, which passes the
+  U- and M-shaped rank distributions SBC exists to catch.
+- Predictive checks reduced to the predictive mean, so a model with the right mean and
+  5× wrong variance passed. A dispersion axis now participates in the verdict.
+- Conditional sampling guarded only hard-set conditioning nodes, returning a biased estimate
+  for soft/stochastic overrides instead of an error.
+
+**Behaviour changes that follow from the above**
+
+- Counterfactual abduction reports `PosteriorNoise` rather than `Invertible` on any model
+  containing a discrete node, because discrete mechanisms are no longer mis-fit as
+  `Constant`.
+- The propensity caliper is interpreted on the **logit** scale by default, which is what the
+  0.2 rule of thumb (Rosenbaum–Rubin 1985; Austin 2011) means. Pass
+  `caliper_scale=CaliperScale::Raw` for the previous behaviour.
+- Anomaly scores and arrow strengths are on new scales. Rankings are more trustworthy;
+  absolute values are not comparable to 0.3.x.
+- `MechanismChangeDetection` gains `adjusted_p_value`; `ArrowStrength` gains `coefficient`;
+  `DoSampleResult` gains `ess`.
+
 ### Known limitations
 
-- Same experimental surfaces as `0.3.0` (graph MCMC gate looser than HMC; discovery
-  / temporal / attribution still evolving).
+- **Scope, not maturity.** Antecedent does not implement double machine learning, ML-based
+  heterogeneous effect estimation, PAG-native full ID/IDC, or unsupervised regime discovery.
+  These are documented boundaries — see [`docs/comparison.md`](docs/comparison.md) — not
+  work in progress.
+- The graph-MCMC publication gate uses a looser R̂ bound (1.2) and ESS floor than the HMC
+  gate, because binary edge indicators mix more slowly than continuous parameters. Both now
+  require every chain to have moved.
+- The `gaussian-process` mechanism family remains behind a non-default cargo feature: its
+  fit path uses a fixed hyperparameter grid with no gradient search, and it is documented as
+  experimental rather than enabled.
+- `JPCMCIPlus` and `RPCMCI` raise `CausalUnsupportedError` rather than producing an
+  `AcceptedGraph`; use their per-regime results directly.
 - No deprecation shims exist for any renamed or removed spelling in this release —
   see "Breaking changes" above for the complete migration list.
+- The Python package has import cycles between the root facade and its stage modules
+  (`_analyze` ↔ `estimation` ↔ `discovery` ↔ `_coerce` ↔ `accepted_graph`). They resolve
+  correctly — `__init__.py` fixes the order, and the suite exercises it on every supported
+  CPython — but they are a real architectural constraint, and CodeQL's `py/cyclic-import`
+  and `py/unsafe-cyclic-import` rules are excluded in
+  `.github/codeql/codeql-config.yml` rather than fixed, because untangling them is a package
+  restructure and the 0.4.0 surface is frozen. The Rust analysis runs the full
+  security-and-quality suite with zero findings and no exclusions.
 
 ### Feedback we want
 

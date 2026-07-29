@@ -70,8 +70,9 @@ pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorksp
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,
+    CaliperScale, DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace,
+    PropensityMatching, PropensityModel, PropensityStratification, PropensityWeighting,
+    default_propensity_overlap,
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;

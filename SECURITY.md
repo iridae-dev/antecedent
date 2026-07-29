@@ -2,10 +2,13 @@
 
 ## Supported Versions
 
-This project is pre-1.0. Security fixes are prioritized for:
-- `main` (latest)
+| Version | Supported |
+|---------|-----------|
+| 0.4.x   | Yes — fixes land on `main` and ship in the next release |
+| < 0.4   | No — upgrade to the latest release |
 
-Older revisions may not receive backported fixes.
+Security fixes are made on `main` and released from there. Fixes are not backported to
+earlier minor versions; the supported upgrade path is to the latest release.
 
 ## Reporting a Vulnerability
 

@@ -46,8 +46,9 @@ class Bayesian:
     backend:
         Inference backend: ``laplace`` (default), ``conjugate``, or ``hmc``.
         The ``hmc`` backend needs several thousand draws to clear the native
-        MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100); under-specified
-        draw counts are floored in Rust.
+        MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100 **per chain**, so
+        400 total at the 4-chain default, and every chain must have moved);
+        under-specified draw counts are floored in Rust.
     """
 
     n_draws: int = 1000

@@ -13,3 +13,41 @@ paths-ignore:
   - "**/.codeql-results/**"
   - "**/conformance/**/data.csv"
   - "**/parity/fixtures/**"
+
+# Excluded *quality* rules (no security rule is excluded, and the Rust analysis runs the
+# full suite with zero findings). Each exclusion is a false positive on a deliberate Python
+# idiom that cannot be satisfied without making the code worse. Rationale is recorded here
+# rather than in scattered inline comments so the set stays auditable.
+query-filters:
+  # `...` is the standard body for a `Protocol` / stub method — CodeQL reads the Ellipsis
+  # expression as a statement with no effect. Also fires on `with pytest.raises(...): obj[k]`,
+  # where raising *is* the effect being tested.
+  - exclude:
+      id: py/ineffectual-statement
+
+  # Compatibility aliases (e.g. `NativeAnalysisResult`, `_wrap_temporal` in `estimation.py`)
+  # are consumed by `from .estimation import ...` in sibling modules. CodeQL's per-module
+  # view cannot see the cross-module use and reports them as dead.
+  - exclude:
+      id: py/unused-global-variable
+
+  # A test module legitimately needs both `import antecedent` (to exercise the root facade)
+  # and `from antecedent import _coerce` (to reach a private module under test).
+  - exclude:
+      id: py/import-and-import-from
+
+  # The public Python package is a deliberately staged facade: `analyze` / `identify` /
+  # `estimate` sit at the root while the stages they dispatch to (`discovery`,
+  # `estimation`, `accepted_graph`, `_coerce`) must refer back to shared result and
+  # coercion types. That produces import cycles which resolve correctly because
+  # `__init__.py` fixes the import order, and which the full test suite exercises on every
+  # supported CPython. `py/unsafe-cyclic-import` additionally fires on `TYPE_CHECKING`-only
+  # imports that never execute at runtime.
+  #
+  # This is a suppression, not a clean bill of health: the cycle topology is a real
+  # architectural constraint and untangling it is a package restructure, deliberately not
+  # attempted while the 0.4.0 API surface is frozen. Revisit when that freeze lifts.
+  - exclude:
+      id: py/cyclic-import
+  - exclude:
+      id: py/unsafe-cyclic-import

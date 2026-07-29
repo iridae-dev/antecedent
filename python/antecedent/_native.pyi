@@ -413,6 +413,7 @@ class MechanismChangeDetection:
     node: str
     statistic: float
     p_value: float
+    adjusted_p_value: float | None
     changed: bool
 
 class FeatureRelevance:
