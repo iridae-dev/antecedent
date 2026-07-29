@@ -3,32 +3,36 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::io::{
-    admg_from_dot as facade_admg_from_dot, admg_from_gml as facade_admg_from_gml,
-    admg_from_json as facade_admg_from_json,
-    admg_from_networkx_node_link as facade_admg_from_networkx_node_link,
     admg_to_dot as facade_admg_to_dot, admg_to_gml as facade_admg_to_gml,
     admg_to_json as facade_admg_to_json,
     admg_to_networkx_node_link as facade_admg_to_networkx_node_link,
-    cpdag_from_dot as facade_cpdag_from_dot, cpdag_from_gml as facade_cpdag_from_gml,
-    cpdag_from_json as facade_cpdag_from_json,
-    cpdag_from_networkx_node_link as facade_cpdag_from_networkx_node_link,
+    admg_with_names_from_dot as facade_admg_with_names_from_dot,
+    admg_with_names_from_gml as facade_admg_with_names_from_gml,
+    admg_with_names_from_json as facade_admg_with_names_from_json,
+    admg_with_names_from_networkx_node_link as facade_admg_with_names_from_networkx_node_link,
     cpdag_to_dot as facade_cpdag_to_dot, cpdag_to_gml as facade_cpdag_to_gml,
     cpdag_to_json as facade_cpdag_to_json,
     cpdag_to_networkx_node_link as facade_cpdag_to_networkx_node_link,
-    dag_from_dot as facade_dag_from_dot, dag_from_gml as facade_dag_from_gml,
-    dag_from_json as facade_dag_from_json,
-    dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
-    dag_from_networkx_node_link as facade_dag_from_networkx_node_link,
+    cpdag_with_names_from_dot as facade_cpdag_with_names_from_dot,
+    cpdag_with_names_from_gml as facade_cpdag_with_names_from_gml,
+    cpdag_with_names_from_json as facade_cpdag_with_names_from_json,
+    cpdag_with_names_from_networkx_node_link as facade_cpdag_with_names_from_networkx_node_link,
     dag_to_dot as facade_dag_to_dot, dag_to_gml as facade_dag_to_gml,
     dag_to_json as facade_dag_to_json,
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency,
     dag_to_networkx_node_link as facade_dag_to_networkx_node_link,
-    pag_from_dot as facade_pag_from_dot, pag_from_gml as facade_pag_from_gml,
-    pag_from_json as facade_pag_from_json,
-    pag_from_networkx_node_link as facade_pag_from_networkx_node_link,
+    dag_with_names_from_dot as facade_dag_with_names_from_dot,
+    dag_with_names_from_gml as facade_dag_with_names_from_gml,
+    dag_with_names_from_json as facade_dag_with_names_from_json,
+    dag_with_names_from_networkx_adjacency as facade_dag_with_names_from_networkx_adjacency,
+    dag_with_names_from_networkx_node_link as facade_dag_with_names_from_networkx_node_link,
     pag_to_dot as facade_pag_to_dot, pag_to_gml as facade_pag_to_gml,
     pag_to_json as facade_pag_to_json,
     pag_to_networkx_node_link as facade_pag_to_networkx_node_link,
+    pag_with_names_from_dot as facade_pag_with_names_from_dot,
+    pag_with_names_from_gml as facade_pag_with_names_from_gml,
+    pag_with_names_from_json as facade_pag_with_names_from_json,
+    pag_with_names_from_networkx_node_link as facade_pag_with_names_from_networkx_node_link,
 };
 use antecedent_core::{Lag, VariableId};
 use antecedent_graph::{
@@ -78,8 +82,19 @@ fn cpdag_mark_str(edge: MarkedEdge) -> &'static str {
     }
 }
 
-fn default_names(n: usize) -> Vec<String> {
-    (0..n).map(|i| i.to_string()).collect()
+/// Validate that a names list matches the graph's node count.
+///
+/// Every constructor that builds a graph from parsed names (as opposed to
+/// user-supplied names checked elsewhere) must uphold this invariant.
+fn check_names_len(names: &[String], node_count: usize) -> PyResult<()> {
+    if names.len() != node_count {
+        return Err(PyValueError::new_err(format!(
+            "names length {} must equal node_count {}",
+            names.len(),
+            node_count
+        )));
+    }
+    Ok(())
 }
 
 /// Format a lagged node as ``"name[t]"`` (lag 0) or ``"name[t-N]"`` (lag > 0).
@@ -117,13 +132,7 @@ impl Dag {
     }
 
     pub(crate) fn from_rust(dag: RustDag, names: Vec<String>) -> PyResult<Self> {
-        if names.len() != dag.node_count() {
-            return Err(PyValueError::new_err(format!(
-                "names length {} must equal node_count {}",
-                names.len(),
-                dag.node_count()
-            )));
-        }
+        check_names_len(&names, dag.node_count())?;
         Ok(Self { dag, names })
     }
 }
@@ -148,9 +157,8 @@ impl Dag {
 
     #[classmethod]
     fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
-        let dag = facade_dag_from_dot(dot).map_err(py_err)?;
-        let names = default_names(dag.node_count());
-        Ok(Self { dag, names })
+        let (dag, names) = facade_dag_with_names_from_dot(dot).map_err(py_err)?;
+        Self::from_rust(dag, names)
     }
 
     fn nodes(&self) -> Vec<String> {
@@ -188,9 +196,8 @@ impl Dag {
 
     #[classmethod]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let dag = facade_dag_from_json(json).map_err(py_err)?;
-        let names = default_names(dag.node_count());
-        Ok(Self { dag, names })
+        let (dag, names) = facade_dag_with_names_from_json(json).map_err(py_err)?;
+        Self::from_rust(dag, names)
     }
 
     fn to_json(&self) -> PyResult<String> {
@@ -199,9 +206,8 @@ impl Dag {
 
     #[classmethod]
     fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
-        let dag = facade_dag_from_gml(gml).map_err(py_err)?;
-        let names = default_names(dag.node_count());
-        Ok(Self { dag, names })
+        let (dag, names) = facade_dag_with_names_from_gml(gml).map_err(py_err)?;
+        Self::from_rust(dag, names)
     }
 
     fn to_gml(&self) -> PyResult<String> {
@@ -210,9 +216,8 @@ impl Dag {
 
     #[classmethod]
     fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let dag = facade_dag_from_networkx_node_link(json).map_err(py_err)?;
-        let names = default_names(dag.node_count());
-        Ok(Self { dag, names })
+        let (dag, names) = facade_dag_with_names_from_networkx_node_link(json).map_err(py_err)?;
+        Self::from_rust(dag, names)
     }
 
     fn to_networkx_node_link(&self) -> PyResult<String> {
@@ -221,9 +226,8 @@ impl Dag {
 
     #[classmethod]
     fn from_networkx_adjacency(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let dag = facade_dag_from_networkx_adjacency(json).map_err(py_err)?;
-        let names = default_names(dag.node_count());
-        Ok(Self { dag, names })
+        let (dag, names) = facade_dag_with_names_from_networkx_adjacency(json).map_err(py_err)?;
+        Self::from_rust(dag, names)
     }
 
     fn to_networkx_adjacency(&self) -> PyResult<String> {
@@ -397,8 +401,8 @@ impl Cpdag {
 
     #[classmethod]
     fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
-        let g = facade_cpdag_from_dot(dot).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_cpdag_with_names_from_dot(dot).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { cpdag: g, names })
     }
 
@@ -408,8 +412,8 @@ impl Cpdag {
 
     #[classmethod]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_cpdag_from_json(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_cpdag_with_names_from_json(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { cpdag: g, names })
     }
 
@@ -419,8 +423,8 @@ impl Cpdag {
 
     #[classmethod]
     fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
-        let g = facade_cpdag_from_gml(gml).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_cpdag_with_names_from_gml(gml).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { cpdag: g, names })
     }
 
@@ -430,8 +434,8 @@ impl Cpdag {
 
     #[classmethod]
     fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_cpdag_from_networkx_node_link(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_cpdag_with_names_from_networkx_node_link(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { cpdag: g, names })
     }
 
@@ -528,8 +532,8 @@ impl Pag {
 
     #[classmethod]
     fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
-        let g = facade_pag_from_dot(dot).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_pag_with_names_from_dot(dot).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { pag: g, names })
     }
 
@@ -539,8 +543,8 @@ impl Pag {
 
     #[classmethod]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_pag_from_json(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_pag_with_names_from_json(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { pag: g, names })
     }
 
@@ -550,8 +554,8 @@ impl Pag {
 
     #[classmethod]
     fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
-        let g = facade_pag_from_gml(gml).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_pag_with_names_from_gml(gml).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { pag: g, names })
     }
 
@@ -561,8 +565,8 @@ impl Pag {
 
     #[classmethod]
     fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_pag_from_networkx_node_link(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_pag_with_names_from_networkx_node_link(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { pag: g, names })
     }
 
@@ -679,8 +683,8 @@ impl Admg {
 
     #[classmethod]
     fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
-        let g = facade_admg_from_dot(dot).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_admg_with_names_from_dot(dot).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { admg: g, names })
     }
 
@@ -690,8 +694,8 @@ impl Admg {
 
     #[classmethod]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_admg_from_json(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_admg_with_names_from_json(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { admg: g, names })
     }
 
@@ -701,8 +705,8 @@ impl Admg {
 
     #[classmethod]
     fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
-        let g = facade_admg_from_gml(gml).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_admg_with_names_from_gml(gml).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { admg: g, names })
     }
 
@@ -712,8 +716,8 @@ impl Admg {
 
     #[classmethod]
     fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        let g = facade_admg_from_networkx_node_link(json).map_err(py_err)?;
-        let names = default_names(g.node_count());
+        let (g, names) = facade_admg_with_names_from_networkx_node_link(json).map_err(py_err)?;
+        check_names_len(&names, g.node_count())?;
         Ok(Self { admg: g, names })
     }
 

@@ -22,8 +22,23 @@ use crate::wire::DagWire;
 ///
 /// Malformed DOT, undirected edges, cycles, or empty graphs.
 pub fn dag_from_dot(dot: &str) -> Result<Dag, IoError> {
-    let wire = dag_wire_from_dot(dot)?;
-    dag_from_wire(&wire)
+    dag_with_names_from_dot(dot).map(|(dag, _names)| dag)
+}
+
+/// Parse a DOT digraph into a [`Dag`] plus its node labels.
+///
+/// Labels are returned in dense-id order. When every label is numeric and
+/// forms a contiguous `0..n` set (see [`dag_from_dot`]), dense ids follow
+/// those numeric values and the returned names are the dense-index strings,
+/// since the document carries no distinct name information in that case.
+///
+/// # Errors
+///
+/// Malformed DOT, undirected edges, cycles, or empty graphs.
+pub fn dag_with_names_from_dot(dot: &str) -> Result<(Dag, Vec<String>), IoError> {
+    let (wire, names) = dag_wire_and_names_from_dot(dot)?;
+    let dag = dag_from_wire(&wire)?;
+    Ok((dag, names))
 }
 
 /// Serialize a [`Dag`] to a DOT digraph string.
@@ -41,6 +56,11 @@ pub fn dag_to_dot(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError
 
 /// Parse DOT into [`DagWire`] (shared with JSON path for tests).
 pub fn dag_wire_from_dot(dot: &str) -> Result<DagWire, IoError> {
+    dag_wire_and_names_from_dot(dot).map(|(wire, _names)| wire)
+}
+
+/// Parse DOT into [`DagWire`] plus node labels in dense-id order.
+fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoError> {
     let mut lexer = Lexer::new(dot);
     lexer.skip_ws_and_comments();
     let kw = lexer.expect_ident()?.to_ascii_lowercase();
@@ -112,10 +132,18 @@ pub fn dag_wire_from_dot(dot: &str) -> Result<DagWire, IoError> {
 
     // Prefer numeric dense ids when every label is an integer in 0..n.
     let remapped = remap_numeric_dense(&order, &edges)?;
-    Ok(remapped.unwrap_or(DagWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        edges,
-    }))
+    match remapped {
+        // Dense id == numeric label in this case, so the label carries no
+        // information beyond the dense index; fall back to index strings.
+        Some(wire) => {
+            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+            Ok((wire, names))
+        }
+        None => {
+            let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+            Ok((DagWire { node_count, edges }, order))
+        }
+    }
 }
 
 /// Emit DOT from [`DagWire`].
@@ -421,6 +449,24 @@ mod tests {
         let back = dag_from_dot(&s).unwrap();
         assert_eq!(back.node_count(), 3);
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn with_names_round_trip_preserves_labels() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let names = vec!["x".to_string(), "y".to_string()];
+        let s = dag_to_dot(&dag, Some(&names)).unwrap();
+        let (back, back_names) = dag_with_names_from_dot(&s).unwrap();
+        assert_eq!(back.node_count(), 2);
+        assert_eq!(back_names, names);
+    }
+
+    #[test]
+    fn with_names_nameless_numeric_falls_back_to_dense_index() {
+        let (dag, names) = dag_with_names_from_dot("digraph { 0 -> 1; 1 -> 2; }").unwrap();
+        assert_eq!(dag.node_count(), 3);
+        assert_eq!(names, vec!["0".to_string(), "1".to_string(), "2".to_string()]);
     }
 
     #[test]
