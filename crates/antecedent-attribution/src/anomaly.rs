@@ -286,28 +286,121 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     }
 }
 
-/// Direct arrow strength: `|β|` for linear-family edges (`LinearGaussian` /
-/// `HierarchicalLinear` / `Bvar`). Non-linear mechanisms error — use
-/// [`population_do_contrast`] for interventional influence.
+/// Arrow strength for a linear-family edge: the variance the edge contributes,
+/// `β² · Var(parent)` (Janzing et al. 2013, *Quantifying causal influences*).
+///
+/// Not `|β|`, which this returned previously. A bare coefficient is not a measure of
+/// influence, because it says nothing about how much the parent actually varies: a parent
+/// with `β = 2.5` and `Var = 0.001` moves its child by almost nothing, while `β = 0.75`
+/// with `Var = 100` dominates it — yet `|β|` ranks them the other way round, off by a
+/// factor of ~9000 in that example. `β²·Var(parent)` is the variance of the child that
+/// flows through the edge, which is what "strength" is asking for.
+///
+/// `Var(parent)` is implied by the model, not measured from data: variances propagate in
+/// topological order from the roots' own noise. This is exact when the child's parents are
+/// mutually uncorrelated; with correlated parents it remains the standard linear-Gaussian
+/// arrow strength, reporting each edge's own contribution and not the cross terms.
+///
+/// Non-linear mechanisms error — use [`population_do_contrast`] for interventional
+/// influence.
 #[derive(Clone, Debug)]
 pub struct ArrowStrength {
     /// Parent variable.
     pub parent: VariableId,
     /// Child variable.
     pub child: VariableId,
-    /// Strength.
+    /// `β² · Var(parent)`.
     pub strength: f64,
+    /// The edge coefficient itself, retained because it carries the *sign* and direction
+    /// of the effect that the (non-negative) strength deliberately discards.
+    pub coefficient: f64,
+}
+
+/// Model-implied variance of every node, indexed by dense id.
+///
+/// Linear-family mechanisms compose as `Var(j) = Σ_i Σ_l β_i β_l Cov(pa_i, pa_l) + σ_j²`, so
+/// the full covariance has to be carried along in topological order — the diagonal alone is
+/// not enough once a node has two parents that share an ancestor.
+fn model_implied_variances(model: &CompiledCausalModel) -> Result<Vec<f64>, AttributionError> {
+    use antecedent_model::MechanismSlot;
+
+    let n = model.n_nodes();
+    let mut cov = vec![0.0; n * n];
+    let mut settled: Vec<DenseNodeId> = Vec::with_capacity(n);
+
+    for &node in model.node_order.iter() {
+        let j = node.as_usize();
+        let gather =
+            model.gather_for(node).ok_or(AttributionError::MissingArtifact("missing gather"))?;
+
+        // (parent dense index, coefficient) pairs plus this node's own noise variance.
+        let (betas, own_var): (Vec<(usize, f64)>, f64) = match model.mechanisms.get(node) {
+            MechanismSlot::LinearGaussian { coeffs, sigma, .. }
+            | MechanismSlot::HierarchicalLinear { coeffs, sigma, .. }
+            | MechanismSlot::Bvar { coeffs, sigma, .. } => (
+                gather
+                    .parents
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &p)| (p.as_usize(), coeffs.get(i).copied().unwrap_or(0.0)))
+                    .collect(),
+                sigma * sigma,
+            ),
+            // Deterministic: contributes no variance and depends on nothing.
+            MechanismSlot::Constant { .. } => (Vec::new(), 0.0),
+            // An unconditional categorical ignores its parents entirely, so it behaves as an
+            // independent draw with the variance of its own support.
+            MechanismSlot::Discrete { support, probs, logit_coeffs: None } => {
+                let total: f64 = probs.iter().sum();
+                if total <= 0.0 || !total.is_finite() {
+                    return Err(AttributionError::NonLinearGaussianMechanism);
+                }
+                let mean: f64 = support.iter().zip(probs.iter()).map(|(s, p)| s * p / total).sum();
+                let var: f64 = support
+                    .iter()
+                    .zip(probs.iter())
+                    .map(|(s, p)| (s - mean) * (s - mean) * p / total)
+                    .sum();
+                (Vec::new(), var)
+            }
+            // Parent-conditional discrete, GP, LGSSM, unfitted: no closed-form variance.
+            _ => return Err(AttributionError::NonLinearGaussianMechanism),
+        };
+
+        // Cross-covariances with everything already settled (all parents are among them,
+        // since `node_order` is topological).
+        for &prev in &settled {
+            let k = prev.as_usize();
+            let c: f64 = betas.iter().map(|&(p, b)| b * cov[p * n + k]).sum();
+            cov[j * n + k] = c;
+            cov[k * n + j] = c;
+        }
+
+        let mut var = own_var;
+        for &(p, bp) in &betas {
+            for &(q, bq) in &betas {
+                var += bp * bq * cov[p * n + q];
+            }
+        }
+        cov[j * n + j] = var;
+        settled.push(node);
+    }
+
+    Ok((0..n).map(|i| cov[i * n + i]).collect())
 }
 
 /// Compute arrow strengths for all edges in the compiled model.
 ///
 /// # Errors
 ///
-/// [`AttributionError::NonLinearGaussianMechanism`] when a child with parents is
-/// not a linear-family mechanism.
+/// [`AttributionError::NonLinearGaussianMechanism`] when a child with parents is not a
+/// linear-family mechanism, or when any node's variance is not available in closed form
+/// (the strength of an edge depends on its parent's variance, so an unusable mechanism
+/// anywhere upstream makes the answer unavailable rather than approximate).
 pub fn arrow_strengths(
     model: &CompiledCausalModel,
 ) -> Result<Vec<ArrowStrength>, AttributionError> {
+    let variances = model_implied_variances(model)?;
     let mut out = Vec::new();
     for gather in model.parent_gathers.iter() {
         let child_var = model.output_layout.variables[gather.child.as_usize()];
@@ -323,8 +416,9 @@ pub fn arrow_strengths(
         };
         for (i, &p) in gather.parents.iter().enumerate() {
             let parent = model.output_layout.variables[p.as_usize()];
-            let s = coeffs.get(i).copied().unwrap_or(0.0).abs();
-            out.push(ArrowStrength { parent, child: child_var, strength: s });
+            let beta = coeffs.get(i).copied().unwrap_or(0.0);
+            let strength = beta * beta * variances[p.as_usize()];
+            out.push(ArrowStrength { parent, child: child_var, strength, coefficient: beta });
         }
     }
     Ok(out)
@@ -548,7 +642,27 @@ mod tests {
 
     #[derive(Deserialize)]
     struct ArrowFixture {
+        parents: Vec<FixtureParent>,
+        child: FixtureChild,
         edges: Vec<ExpectedEdge>,
+        tolerance: FixtureTolerance,
+    }
+
+    #[derive(Deserialize)]
+    struct FixtureParent {
+        raw: u32,
+        sigma: f64,
+        variance: f64,
+    }
+
+    #[derive(Deserialize)]
+    struct FixtureChild {
+        sigma: f64,
+    }
+
+    #[derive(Deserialize)]
+    struct FixtureTolerance {
+        absolute: f64,
     }
 
     #[derive(Deserialize)]
@@ -559,8 +673,17 @@ mod tests {
         strength: f64,
     }
 
+    /// Arrow strength is `β²·Var(parent)`, and the fixture is built so `|β|` ranks the two
+    /// edges the wrong way round.
+    ///
+    /// Parent 0 has the smaller coefficient (0.75 against 2.5) but a variance four orders of
+    /// magnitude larger (100 against 0.001), so it genuinely dominates the child by ~9000×.
+    /// Ranking by `|β|` puts parent 1 first, which is exactly backwards. The fixture's
+    /// previous revision could not catch this: it built both parents as `Constant{0.0}`,
+    /// which has no variance at all, so every edge's true strength was 0 and only the
+    /// coefficient was observable.
     #[test]
-    fn arrow_strength_matches_absolute_linear_coefficients() {
+    fn arrow_strength_is_variance_weighted_not_bare_coefficient() {
         let fixture: ArrowFixture = serde_json::from_str(include_str!(
             "../../../conformance/attribution/arrow_strength/expected.json"
         ))
@@ -570,17 +693,37 @@ mod tests {
         graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
         let compiled = CompiledCausalModel::compile(graph).unwrap();
         let coefficients: Vec<f64> = fixture.edges.iter().map(|edge| edge.coefficient).collect();
+        // Roots are linear-Gaussian with no parents, so each carries variance sigma^2.
+        let root = |sigma: f64| MechanismSlot::LinearGaussian {
+            intercept: 0.0,
+            coeffs: Arc::from([]),
+            sigma,
+        };
         let model = compiled.with_mechanisms(CompiledMechanismStore {
             slots: Arc::from([
-                MechanismSlot::Constant { value: 0.0 },
-                MechanismSlot::Constant { value: 0.0 },
+                root(fixture.parents[0].sigma),
+                root(fixture.parents[1].sigma),
                 MechanismSlot::LinearGaussian {
                     intercept: 1.0,
                     coeffs: Arc::from(coefficients),
-                    sigma: 0.0,
+                    sigma: fixture.child.sigma,
                 },
             ]),
         });
+
+        // The propagated variances must match the pinned closed form first; the strengths
+        // depend on them.
+        let variances = model_implied_variances(&model).unwrap();
+        for p in &fixture.parents {
+            let got = variances[p.raw as usize];
+            assert!(
+                (got - p.variance).abs() < fixture.tolerance.absolute,
+                "Var(node {}) = {got}, expected {}",
+                p.raw,
+                p.variance
+            );
+        }
+
         let actual = arrow_strengths(&model).unwrap();
         assert_eq!(actual.len(), fixture.edges.len());
         for expected in &fixture.edges {
@@ -591,7 +734,72 @@ mod tests {
                         && edge.child == VariableId::from_raw(expected.child_raw)
                 })
                 .unwrap();
-            assert!((got.strength - expected.strength).abs() < 1e-12);
+            assert!(
+                (got.strength - expected.strength).abs() < fixture.tolerance.absolute,
+                "edge {}→{} strength {} != expected {}",
+                expected.parent_raw,
+                expected.child_raw,
+                got.strength,
+                expected.strength
+            );
+            assert!((got.coefficient - expected.coefficient).abs() < fixture.tolerance.absolute);
         }
+
+        // The ranking must follow influence, not coefficient magnitude.
+        let by_parent = |raw: u32| {
+            actual.iter().find(|e| e.parent == VariableId::from_raw(raw)).expect("edge present")
+        };
+        let (e0, e1) = (by_parent(0), by_parent(1));
+        assert!(
+            e0.strength > e1.strength,
+            "parent 0 (beta={}, var=100) must outrank parent 1 (beta={}, var=0.001); got {} vs {}",
+            e0.coefficient,
+            e1.coefficient,
+            e0.strength,
+            e1.strength
+        );
+        assert!(
+            e0.coefficient.abs() < e1.coefficient.abs(),
+            "fixture must keep |beta| pointing the other way, or it proves nothing"
+        );
+    }
+
+    /// Variance must compose through a chain, not just come off the roots.
+    ///
+    /// `x → m → y` with `Var(x) = 4`, `m = 3x + N(0, 1)` gives `Var(m) = 9·4 + 1 = 37`, so the
+    /// `m → y` edge with `β = 2` has strength `4·37 = 148`. A diagonal-only propagation that
+    /// forgot to carry `m`'s inherited variance would report `4·1 = 4`.
+    #[test]
+    fn variance_propagates_through_a_chain() {
+        let mut graph = Dag::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let model = compiled.with_mechanisms(CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([]), sigma: 2.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([3.0]),
+                    sigma: 1.0,
+                },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([2.0]),
+                    sigma: 1.0,
+                },
+            ]),
+        });
+        let variances = model_implied_variances(&model).unwrap();
+        assert!((variances[0] - 4.0).abs() < 1e-12, "Var(x)={}", variances[0]);
+        assert!((variances[1] - 37.0).abs() < 1e-12, "Var(m)={}", variances[1]);
+        assert!((variances[2] - 149.0).abs() < 1e-12, "Var(y)={}", variances[2]);
+
+        let arrows = arrow_strengths(&model).unwrap();
+        let m_to_y = arrows
+            .iter()
+            .find(|e| e.parent == VariableId::from_raw(1) && e.child == VariableId::from_raw(2))
+            .unwrap();
+        assert!((m_to_y.strength - 148.0).abs() < 1e-12, "m→y strength={}", m_to_y.strength);
     }
 }
