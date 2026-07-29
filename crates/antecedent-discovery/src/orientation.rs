@@ -967,17 +967,49 @@ fn apply_orient_collider<G: CpdagOps>(
                             }
                         }
                         LegKind::Undirected => {
-                            let premise = format!(
-                                "collider: {}→{}←{} (c not in sepset)",
-                                a.raw(),
-                                c.raw(),
-                                b.raw()
-                            );
-                            if try_orient_undirected(
-                                graph, state, &mut delta, endpoint, *c, premise,
-                            )? {
-                                changed.push(endpoint);
-                                changed.push(*c);
+                            // `legs` was snapshotted once per center `c` before this
+                            // nested loop started, so a leg recorded `Undirected` here
+                            // may have already been oriented (or conflicted) by an
+                            // earlier pair in this same loop that shares the leg.
+                            // Re-read the edge's current state instead of trusting the
+                            // stale `kind`.
+                            let current = graph.edge_between(endpoint, *c);
+                            let oriented = current.and_then(MarkedEdge::parent_child);
+                            if oriented == Some((endpoint, *c))
+                                || current.is_some_and(MarkedEdge::is_conflict)
+                            {
+                                // Already oriented endpoint → c by an earlier pair
+                                // sharing this leg, or already pinned as a conflict by
+                                // one; either way, consistent with this collider's
+                                // conclusion (or a prior conflict) — nothing to do.
+                            } else if oriented == Some((*c, endpoint)) {
+                                // Oriented the opposite way — conflict, same handling
+                                // as the `LegKind::OutOfC` arm above.
+                                state.record_conflict(
+                                    &mut delta,
+                                    endpoint,
+                                    *c,
+                                    "opposite_direction",
+                                );
+                                if graph.mark_conflict(endpoint, *c).is_ok() {
+                                    delta.edges_changed += 1;
+                                    delta.fixed_point = false;
+                                    changed.push(endpoint);
+                                    changed.push(*c);
+                                }
+                            } else {
+                                let premise = format!(
+                                    "collider: {}→{}←{} (c not in sepset)",
+                                    a.raw(),
+                                    c.raw(),
+                                    b.raw()
+                                );
+                                if try_orient_undirected(
+                                    graph, state, &mut delta, endpoint, *c, premise,
+                                )? {
+                                    changed.push(endpoint);
+                                    changed.push(*c);
+                                }
                             }
                         }
                         LegKind::IntoC => {}

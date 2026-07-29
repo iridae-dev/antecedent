@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
-use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
+use antecedent_graph::{DenseNodeId, MarkedEdge, NodeRef, TemporalCpdagReview};
 use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 
 use crate::combinations::for_each_combination;
@@ -545,7 +545,7 @@ pub(crate) fn orient_majority_colliders(
                             c.raw(),
                             b.raw()
                         );
-                        let _ = try_orient_undirected(graph, state, &mut delta, a, c, premise)?;
+                        orient_majority_leg(graph, state, &mut delta, a, c, premise)?;
                     }
                     if b_und {
                         let premise = format!(
@@ -554,13 +554,47 @@ pub(crate) fn orient_majority_colliders(
                             c.raw(),
                             b.raw()
                         );
-                        let _ = try_orient_undirected(graph, state, &mut delta, b, c, premise)?;
+                        orient_majority_leg(graph, state, &mut delta, b, c, premise)?;
                     }
                 }
             }
         }
     }
     Ok(delta)
+}
+
+/// Orient leg `endpoint → c` if the edge is still undirected.
+///
+/// `legs` in [`orient_majority_colliders`] is snapshotted once per center `c` before its
+/// nested pair loop runs, so a leg flagged undirected there may already have been oriented
+/// by an earlier pair in the same loop that shares it. Re-read the edge's current state
+/// instead of trusting that stale flag: no-op if already oriented `endpoint → c`
+/// (consistent with this collider's conclusion), record a conflict if somehow oriented the
+/// opposite way, and otherwise orient it as before.
+fn orient_majority_leg(
+    graph: &mut antecedent_graph::TemporalCpdag,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
+    endpoint: DenseNodeId,
+    c: DenseNodeId,
+    premise: impl Into<Arc<str>>,
+) -> Result<(), DiscoveryError> {
+    let current = graph.edge_between(endpoint, c);
+    let oriented = current.and_then(MarkedEdge::parent_child);
+    if oriented == Some((endpoint, c)) || current.is_some_and(MarkedEdge::is_conflict) {
+        // Already oriented endpoint → c by an earlier pair sharing this leg, or already
+        // pinned as a conflict by one; either way, nothing to do.
+    } else if oriented == Some((c, endpoint)) {
+        // Oriented the opposite way — conflict.
+        state.record_conflict(delta, endpoint, c, "opposite_direction");
+        if graph.mark_conflict(endpoint, c).is_ok() {
+            delta.edges_changed += 1;
+            delta.fixed_point = false;
+        }
+    } else {
+        let _ = try_orient_undirected(graph, state, delta, endpoint, c, premise)?;
+    }
+    Ok(())
 }
 
 fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
