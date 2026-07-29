@@ -382,6 +382,7 @@ def handle_static_ate_discover(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    estimator_config: Mapping[str, Any] | None,
 ) -> Any:
     from .estimation import (
         _bayesian_inference_kwargs,
@@ -429,6 +430,7 @@ def handle_static_ate_discover(
         thin=cfg.get("thin", 1),
         soft_weight=cfg.get("soft_weight", "none"),
         require_diagnostics_gate=cfg.get("require_diagnostics_gate", True),
+        estimator_config=dict(estimator_config) if estimator_config is not None else None,
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
@@ -1312,6 +1314,7 @@ def analyze(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            estimator_config=estimator_config,
         )
 
     if discovery is not None and kind == "average":

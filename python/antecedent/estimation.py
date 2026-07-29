@@ -43,7 +43,7 @@ from .discovery import (
     graph_posterior_map_edges,
     run_static_discovery,
 )
-from .errors import PendingEdge, build_review_error
+from .errors import CausalUnsupportedError, PendingEdge, build_review_error
 from .graph import Cpdag, Dag, TemporalDag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
@@ -438,8 +438,39 @@ def _reject_unsupported_temporal(
     validators: Sequence[Any] | None,
 ) -> None:
     # Bayesian, refute, and validators are supported on series Pulse/Sustained.
-    _ = (inference, refute, validators)
-    return
+    _ = (refute, validators)
+    if not isinstance(inference, Bayesian):
+        return
+    # The temporal Rust entry points (`python/src/temporal_api.rs`,
+    # `apply_temporal_inference`) only read `inference`/`n_draws`/`prior_scale`/
+    # `prior_artifact` off `_temporal_inference_kwargs`'s dict — unlike the static
+    # ATE path (`ate_api.rs::analyze_ate`), none of them accept `composed_prior`
+    # or `prior_mapping`. Passing either used to reach the native call unguarded
+    # and surface as a raw `TypeError: ...got an unexpected keyword argument
+    # 'composed_prior'`. Reject both here instead, before any native call is
+    # ever made, naming the unsupported option and the supported alternative.
+    if inference.prior_from is not None:
+        from .priors import ComposedPrior
+
+        if isinstance(inference.prior_from, ComposedPrior):
+            raise CausalUnsupportedError(
+                "Bayesian(prior_from=ComposedPrior(...)) is not supported on the "
+                "temporal (Pulse/Sustained) estimate path; the native temporal "
+                "entry points do not accept composed_prior. Use a plain "
+                "Bayesian(...) (isotropic prior_scale=, or prior_from=<posterior "
+                "artifact bytes>) on the temporal path, or move the "
+                "ComposedPrior query to the static ATE path "
+                "(analyze(..., query=AverageEffect(...)))."
+            )
+    if inference.mapping is not None:
+        raise CausalUnsupportedError(
+            "Bayesian(mapping=PriorMapping(...)) is not supported on the "
+            "temporal (Pulse/Sustained) estimate path; the native temporal "
+            "entry points do not accept prior_mapping. Use a plain "
+            "Bayesian(...) (isotropic prior_scale=) on the temporal path, or "
+            "move the mapped-prior query to the static ATE path "
+            "(analyze(..., query=AverageEffect(...)))."
+        )
 
 
 def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:

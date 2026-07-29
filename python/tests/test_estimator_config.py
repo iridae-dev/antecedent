@@ -14,6 +14,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent._native import analyze_ate
+from antecedent.estimators import GlmOptions, PropensityWeighting
 
 
 def _confounded_data(seed: int = 7, n: int = 400):
@@ -349,3 +350,73 @@ def test_public_analyze_rejects_bad_estimator_config(config, needle):
             estimator_config=config,
         )
     assert needle in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# estimator_config on the discovery= path (regression for the bug where
+# `handle_static_ate_discover` / `analyze_ate_discover` silently dropped
+# `estimator_config`, so a configured estimator silently fell back to its
+# defaults whenever `discovery=` was used instead of `graph=`).
+#
+# The reliable trick: `GlmOptions(max_iter=3)` starves propensity.weighting's
+# GLM IRLS fit of iterations on `_confounded_data()` (a near-separable binary
+# treatment threshold — exactly the pathological case IRLS struggles to
+# converge on quickly). With the config honored this raises
+# `CausalEstimateError` ("GLM IRLS did not converge"); with it silently
+# dropped, the call falls back to the estimator's own default `max_iter` and
+# succeeds, returning a plausible-but-wrong point estimate instead of failing
+# loudly.
+# ---------------------------------------------------------------------------
+
+
+def test_estimator_config_reaches_estimator_on_discovery_path():
+    names, columns, edges = _confounded_data()
+    data = dict(zip(names, columns, strict=True))
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    cfg = PropensityWeighting(glm_options=GlmOptions(max_iter=3))
+
+    # Reference case: on the graph= path, the config is already known to reach
+    # the estimator and force non-convergence.
+    with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
+        antecedent.analyze(
+            data, graph=edges, query=query, estimator=cfg, refute=False, bootstrap=0, seed=1
+        )
+
+    # Regression case: the same config object, reached through discovery=
+    # instead of graph=, must raise identically — not silently fall back to
+    # estimator defaults and succeed.
+    with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.LiNGAM(),
+            accept_discovered=True,
+            query=query,
+            estimator=cfg,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+
+
+def test_estimator_config_dict_reaches_estimator_on_discovery_path():
+    """Same regression as above, but through the raw `estimator_config=` dict
+    spelling (rather than a typed `antecedent.estimators` dataclass) and
+    directly against `handle_static_ate_discover`'s native call, to pin the
+    fix at the `_analyze.py` dispatch layer independent of `estimator._wire()`.
+    """
+    names, columns, edges = _confounded_data()
+    data = dict(zip(names, columns, strict=True))
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+    with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.LiNGAM(),
+            accept_discovered=True,
+            query=query,
+            estimator="propensity.weighting",
+            estimator_config={"glm_options": {"max_iter": 3}},
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
