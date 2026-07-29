@@ -76,7 +76,15 @@ impl DataSubsetRefuter {
                 ctx,
                 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r)),
             )?;
-            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+            let est = refit_effect(
+                problem,
+                &data,
+                problem.estimand,
+                &[],
+                &self.estimator,
+                workspace,
+                ctx,
+            )?;
             ates.push(est.ate);
         }
         let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);

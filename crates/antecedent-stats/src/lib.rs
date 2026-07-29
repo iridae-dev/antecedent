@@ -81,6 +81,7 @@ pub use regularized::{
     LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
 };
 pub use special::{
-    digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf, trigamma,
+    digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,
+    student_t_sf, trigamma,
 };
-pub use twosls::{TwoSlsFit, fit_2sls, fit_wls};
+pub use twosls::{FirstStageDiagnostics, TwoSlsFit, fit_2sls, fit_wls};

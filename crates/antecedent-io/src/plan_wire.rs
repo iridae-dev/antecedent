@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
-    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord, VariableId,
+    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
 use serde::{Deserialize, Serialize};
 
@@ -285,7 +285,3 @@ pub fn performance_from_wire(w: &ExecutionPerformanceWire) -> ExecutionPerforman
         early_stopped: w.early_stopped,
     }
 }
-
-/// Silence unused import when only re-exported.
-#[allow(dead_code)]
-fn _keep_variable_id(_: VariableId) {}

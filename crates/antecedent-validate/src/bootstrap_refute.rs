@@ -104,7 +104,15 @@ impl BootstrapRefute {
                 *slot = valid[unbiased_index(&mut rng, valid.len())];
             }
             let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
-            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+            let est = refit_effect(
+                problem,
+                &data,
+                problem.estimand,
+                &[],
+                &self.estimator,
+                workspace,
+                ctx,
+            )?;
             ates.push(est.ate);
         }
         ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));

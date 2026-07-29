@@ -7,6 +7,18 @@
 //! Bandwidth is explicit configuration in — no data-driven bandwidth selector
 //! (Imbens–Kalyanaraman, cross-validation, etc.) is implemented yet.
 //!
+//! The window is a rectangular (uniform-kernel) local-linear fit: every row within
+//! `bandwidth` of the cutoff gets equal weight, and rows outside it get none. This means:
+//! - **Boundary bias is larger than a triangular-kernel local-linear fit would give.** A
+//!   triangular (or other kernel that downweights rows farther from the cutoff) reduces the
+//!   influence of observations near the edge of the window, which is where local-linear
+//!   extrapolation error is largest; the uniform kernel here does not.
+//! - **A too-wide caller-supplied `bandwidth` biases the estimate with no diagnostic.**
+//!   Since there is no data-driven selector, nothing warns the caller that a wide window is
+//!   pulling in curvature away from the cutoff and biasing the local-linear approximation.
+//!   Callers are responsible for choosing (and, ideally, sensitivity-checking across) a
+//!   defensible bandwidth themselves.
+//!
 //! Uses the dedicated method tag `"rd.sharp"` rather than `backdoor.adjustment`, since RD
 //! identification does not rely on a backdoor adjustment set: [`prepare`](SharpRegressionDiscontinuity::prepare)
 //! accepts any [`IdentifiedEstimand`] carrying that tag, including a synthetic one built for
@@ -304,6 +316,7 @@ impl SharpRegressionDiscontinuity {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         }
         .with_bootstrap(boot))

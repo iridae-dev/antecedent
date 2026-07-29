@@ -64,7 +64,8 @@ impl RandomCommonCause {
             && problem.temporal.is_some();
         if !static_ok && !temporal_ok {
             return Err(ValidationError::NotApplicable {
-                message: "random common cause requires backdoor.adjustment or temporal.backdoor.unfolded",
+                message: "random common cause requires backdoor.adjustment or \
+                          temporal.backdoor.unfolded",
             });
         }
         let n = problem.data.row_count();
@@ -78,10 +79,18 @@ impl RandomCommonCause {
                 Arc::<[f64]>::from(noise.clone()),
             )?;
             let est = if temporal_ok {
-                refit_effect(problem, &data, problem.estimand, &[new_id], workspace, ctx)?
+                refit_effect(
+                    problem,
+                    &data,
+                    problem.estimand,
+                    &[new_id],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?
             } else {
                 let estimand = extend_adjustment(problem.estimand, new_id);
-                refit_effect(problem, &data, &estimand, &[], workspace, ctx)?
+                refit_effect(problem, &data, &estimand, &[], &self.estimator, workspace, ctx)?
             };
             ates.push(est.ate);
         }

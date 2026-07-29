@@ -222,6 +222,46 @@ pub fn student_t_sf(t: f64, df: f64) -> f64 {
     if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
+/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`].
+///
+/// Returns `t` such that `P(T <= t) = p` for `T ~ Student-t(df)`. `p` must lie strictly
+/// inside `(0, 1)`; returns `NaN` otherwise.
+///
+/// `df <= 0` (or non-finite `df`) returns `f64::INFINITY`: a zero- or negative-degrees-of-
+/// freedom Student-t has no meaningful critical value, and callers that combine this with
+/// an already-infinite standard error (e.g. a single Monte Carlo draw, which has no sample
+/// variance) want an unbounded — not NaN — critical multiplier out of `INFINITY * INFINITY`.
+#[must_use]
+pub fn student_t_ppf(p: f64, df: f64) -> f64 {
+    if !(p.is_finite() && p > 0.0 && p < 1.0) {
+        return f64::NAN;
+    }
+    if !(df.is_finite() && df > 0.0) {
+        return f64::INFINITY;
+    }
+    if (p - 0.5).abs() < 1e-15 {
+        return 0.0;
+    }
+    // student_t_sf(t, df) is strictly decreasing in t, from 1 (t -> -inf) to 0 (t -> +inf).
+    // Solve for the non-negative root and mirror by symmetry for p < 0.5.
+    let target_sf = if p > 0.5 { 1.0 - p } else { p };
+    let mut lo = 0.0_f64;
+    let mut hi = 1.0_f64;
+    while student_t_sf(hi, df) > target_sf && hi < 1e15 {
+        hi *= 2.0;
+    }
+    for _ in 0..200 {
+        let mid = 0.5 * (lo + hi);
+        if student_t_sf(mid, df) > target_sf {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let t = 0.5 * (lo + hi);
+    if p > 0.5 { t } else { -t }
+}
+
 /// Regularized upper incomplete gamma `Q(a, x)`.
 #[must_use]
 pub fn gamma_q(a: f64, x: f64) -> f64 {
@@ -395,5 +435,53 @@ mod tests {
             let got = student_t_sf(t, df);
             assert!((got - expected).abs() < 1e-8, "t={t} df={df}: got={got} expected={expected}");
         }
+    }
+
+    #[test]
+    fn student_t_ppf_golden_values() {
+        // Well-known two-sided-95%/90% critical-value table entries (t_{alpha,df}), to the
+        // precision commonly tabulated in textbooks. A generous 1e-3 tolerance guards
+        // against transcription imprecision in the reference digits while still catching a
+        // grossly wrong implementation.
+        let cases =
+            [(0.975, 1.0, 12.706), (0.975, 5.0, 2.571), (0.975, 30.0, 2.042), (0.95, 10.0, 1.812)];
+        for &(p, df, expected) in &cases {
+            let got = student_t_ppf(p, df);
+            assert!((got - expected).abs() < 1e-3, "ppf({p}, {df}): got={got} expected={expected}");
+        }
+        // Exact closed form at df == 1: Student-t(1) is the standard Cauchy distribution,
+        // whose CDF inverts to t = tan(pi * (p - 0.5)).
+        let exact_df1 = (std::f64::consts::PI * (0.975 - 0.5)).tan();
+        assert!(
+            (student_t_ppf(0.975, 1.0) - exact_df1).abs() < 1e-9,
+            "df=1 closed form: got={} exact={exact_df1}",
+            student_t_ppf(0.975, 1.0)
+        );
+    }
+
+    #[test]
+    fn student_t_ppf_symmetric_and_matches_normal_at_large_df() {
+        for &df in &[1.0, 5.0, 30.0] {
+            for &p in &[0.6, 0.75, 0.9, 0.99] {
+                let hi = student_t_ppf(p, df);
+                let lo = student_t_ppf(1.0 - p, df);
+                assert!((hi + lo).abs() < 1e-6, "asymmetry p={p} df={df}: hi={hi} lo={lo}");
+            }
+        }
+        // Student-t converges to the standard normal as df -> infinity.
+        let t_large_df = student_t_ppf(0.975, 1e7);
+        let z = normal_ppf(0.975);
+        assert!((t_large_df - z).abs() < 1e-3, "t={t_large_df} z={z}");
+    }
+
+    #[test]
+    fn student_t_ppf_degenerate_df_is_infinite_not_nan() {
+        // df <= 0 (e.g. a single-sample Monte Carlo estimate, n_samples - 1 == 0) must
+        // return +inf, not NaN, so combining with an already-infinite stderr in a
+        // downstream CI computation stays inf * inf = inf rather than inf * NaN = NaN.
+        assert!(student_t_ppf(0.975, 0.0).is_infinite() && student_t_ppf(0.975, 0.0) > 0.0);
+        assert!(student_t_ppf(0.975, -1.0).is_infinite() && student_t_ppf(0.975, -1.0) > 0.0);
+        assert!(student_t_ppf(1.5, 5.0).is_nan());
+        assert!(student_t_ppf(0.0, 5.0).is_nan());
     }
 }

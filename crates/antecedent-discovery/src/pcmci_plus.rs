@@ -637,10 +637,14 @@ fn majority_sep_counts(
     let (vc, lc) = node_var_lag(graph, c)
         .ok_or_else(|| DiscoveryError::unsupported("majority collider: missing node c"))?;
 
-    // Candidate contemporaneous neighbors of a (excl b) and of b (excl a).
+    // Candidate contemporaneous neighbors of a (excl b) and of b (excl a). `c` itself must
+    // remain eligible: the majority vote asks "of the subsets that separate a and b, what
+    // fraction contain c?", so excluding c from `cand` would make that fraction always 0.
+    // `c` may not turn up via `undirected_neighbors` at all (a leg into c can already be
+    // directed), so it is added explicitly below rather than merely un-excluded here.
     let mut cand: Vec<(VariableId, Lag)> = Vec::new();
     for n in graph.undirected_neighbors(a) {
-        if n == b || n == c {
+        if n == b {
             continue;
         }
         if let Some((v, l)) = node_var_lag(graph, n) {
@@ -650,7 +654,7 @@ fn majority_sep_counts(
         }
     }
     for n in graph.undirected_neighbors(b) {
-        if n == a || n == c {
+        if n == a {
             continue;
         }
         if let Some((v, l)) = node_var_lag(graph, n) {
@@ -658,6 +662,9 @@ fn majority_sep_counts(
                 cand.push((v, l));
             }
         }
+    }
+    if lc.is_contemporaneous() && !cand.contains(&(vc, lc)) {
+        cand.push((vc, lc));
     }
 
     let mut n_sep = 0u32;
@@ -706,6 +713,12 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
+    };
+
+    use antecedent_graph::TemporalCpdag;
+    use antecedent_stats::{
+        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
+        PreparedCiTest, StatsError,
     };
 
     use super::*;
@@ -785,5 +798,215 @@ mod tests {
         assert_eq!(result.review.graph.node_count(), result.evidence.graph.node_count());
         assert!(result.algorithm.config.as_ref().contains("collider=majority"));
         assert!(result.algorithm.config.as_ref().contains("meek=r1-r4-contemp"));
+    }
+
+    /// CI test double whose verdict depends only on whether `c_col` is present in the
+    /// tested conditioning set — never on the data. Drives the majority-rule vote in
+    /// [`majority_sep_counts`] deterministically in both directions:
+    /// - `independent_iff_c_present = true`: `a ⫫ b | S` iff `c ∈ S` — chain/fork ground
+    ///   truth (`a→c→b` or `a←c→b`): dependent marginally, independent once you condition
+    ///   on `c`.
+    /// - `independent_iff_c_present = false`: `a ⫫ b | S` iff `c ∉ S` — collider ground
+    ///   truth (`a→c←b`): independent marginally, dependent once you condition on the
+    ///   collider `c`.
+    ///
+    /// [`antecedent_stats::OracleCi`] can't exercise this: it decides purely from the
+    /// `(x, y)` column pair and ignores the conditioning set, so every subset would return
+    /// the same verdict and the vote would stay degenerate regardless of the fix.
+    struct SepGivenC {
+        c_col: usize,
+        independent_iff_c_present: bool,
+    }
+
+    impl ConditionalIndependence for SepGivenC {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = &prepared.bind_request(request);
+            let results = request
+                .queries
+                .iter()
+                .map(|q| {
+                    let cond = &request.z_flat[q.z_start..q.z_start + q.z_len];
+                    let has_c = cond.contains(&self.c_col);
+                    let independent = has_c == self.independent_iff_c_present;
+                    CiResult {
+                        statistic: if independent { 0.0 } else { 1.0 },
+                        p_value: if independent { 1.0 } else { 0.0 },
+                        df: 0.0,
+                        ci: None,
+                    }
+                })
+                .collect();
+            Ok(CiBatchResult { results })
+        }
+    }
+
+    /// Three contemporaneous variables `a`, `c`, `b`. Values are arbitrary — [`SepGivenC`]
+    /// decides purely from which columns are in the conditioning set, never from the data.
+    fn tiny_abc(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["a", "c", "b"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let cols = (0..3u32)
+            .map(|i| {
+                let vals: Vec<f64> = (0..n).map(|t| t as f64 + f64::from(i)).collect();
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(i),
+                        Arc::from(vals),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        (data, vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)])
+    }
+
+    /// Unshielded triple `a — c — b` (no `a — b` edge) as a bare graph, plus the
+    /// `DenseNodeId`s for `a`, `c`, `b` in that order.
+    fn unshielded_triple() -> (TemporalCpdag, DenseNodeId, DenseNodeId, DenseNodeId) {
+        let mut graph = TemporalCpdag::empty();
+        let a = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let c = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let b = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_undirected(a, c).unwrap();
+        graph.insert_undirected(c, b).unwrap();
+        (graph, a, c, b)
+    }
+
+    /// Regression for "the majority rule never votes": `cand` used to exclude `c` from
+    /// every candidate conditioning subset, so `n_with_c` was always 0 and `frac` could
+    /// never land anywhere but < 0.5. With `c` correctly eligible, the vote swings both
+    /// ways depending on whether the true separating set contains `c`.
+    #[test]
+    fn majority_sep_counts_votes_both_ways() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_abc(5);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let c_col = frame.column_index(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let (graph, a, c, b) = unshielded_triple();
+
+        // Collider ground truth: only the empty set separates a, b, and it never contains
+        // c ⇒ vote must conclude collider (frac < 0.5).
+        let collider_engine = PcmciEngine::new()
+            .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: false }));
+        let mut ws = DiscoveryWorkspace::default();
+        let (n_sep, n_with_c) = majority_sep_counts(
+            &collider_engine,
+            &frame,
+            &[],
+            &graph,
+            a,
+            b,
+            c,
+            1,
+            0.05,
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!((n_sep, n_with_c), (1, 0), "collider case: c must never appear in a sepset");
+        assert!(f64::from(n_with_c) / f64::from(n_sep) < 0.5);
+
+        // Chain/fork ground truth: only {c} separates a, b ⇒ vote must conclude
+        // non-collider (frac > 0.5) — unreachable before the fix.
+        let chain_engine = PcmciEngine::new()
+            .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: true }));
+        let mut ws = DiscoveryWorkspace::default();
+        let (n_sep, n_with_c) = majority_sep_counts(
+            &chain_engine,
+            &frame,
+            &[],
+            &graph,
+            a,
+            b,
+            c,
+            1,
+            0.05,
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!((n_sep, n_with_c), (1, 1), "chain/fork case: every sepset must contain c");
+        assert!(f64::from(n_with_c) / f64::from(n_sep) > 0.5);
+    }
+
+    /// End-to-end: a true chain/fork `a — c — b` must NOT be oriented as a collider by
+    /// [`orient_majority_colliders`]. Before the fix this always fired as a collider,
+    /// since `frac` was stuck at 0.0 regardless of ground truth.
+    #[test]
+    fn majority_vote_leaves_chain_undirected() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_abc(5);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let c_col = frame.column_index(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let (mut graph, a, c, b) = unshielded_triple();
+        let engine = PcmciEngine::new()
+            .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: true }))
+            .with_constraints(DiscoveryConstraints {
+                alpha: 0.05,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            });
+        let mut state = OrientationState::default();
+        let mut ws = DiscoveryWorkspace::default();
+        orient_majority_colliders(&engine, &frame, &[], &mut graph, &mut state, &mut ws, &ctx)
+            .unwrap();
+
+        assert!(
+            graph.edge_between(a, c).unwrap().parent_child().is_none(),
+            "a—c must stay undirected"
+        );
+        assert!(
+            graph.edge_between(b, c).unwrap().parent_child().is_none(),
+            "b—c must stay undirected"
+        );
+    }
+
+    /// End-to-end: a true collider `a → c ← b` IS oriented as a collider.
+    #[test]
+    fn majority_vote_orients_true_collider() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_abc(5);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let c_col = frame.column_index(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let (mut graph, a, c, b) = unshielded_triple();
+        let engine = PcmciEngine::new()
+            .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: false }))
+            .with_constraints(DiscoveryConstraints {
+                alpha: 0.05,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            });
+        let mut state = OrientationState::default();
+        let mut ws = DiscoveryWorkspace::default();
+        orient_majority_colliders(&engine, &frame, &[], &mut graph, &mut state, &mut ws, &ctx)
+            .unwrap();
+
+        assert_eq!(graph.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
+        assert_eq!(graph.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     }
 }

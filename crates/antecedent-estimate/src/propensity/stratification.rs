@@ -200,6 +200,7 @@ impl PropensityStratification {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            first_stage_diagnostics: None,
             retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         }
         .with_bootstrap(boot))

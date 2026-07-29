@@ -577,6 +577,45 @@ fn validate_query_vars_in_pag(
     Ok(())
 }
 
+fn validate_query_vars_in_temporal_dag(
+    dag: &TemporalDag,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<(), CausalError> {
+    // A node-less DAG is the placeholder the graph-posterior path supplies: the
+    // structure lives in the `GraphPosterior` mixture, not here, so there is no
+    // membership to check and rejecting would be a false negative.
+    if dag.nodes().is_empty() {
+        return Ok(());
+    }
+    let mut has_t = false;
+    let mut has_y = false;
+    for node in dag.nodes() {
+        // Temporal graphs carry `Lagged` nodes, and `Context` nodes when an
+        // environment is attached; both name a variable the query may reference.
+        let variable = match node {
+            antecedent_graph::NodeRef::Lagged { variable, .. }
+            | antecedent_graph::NodeRef::Context { variable, .. } => *variable,
+            antecedent_graph::NodeRef::Static(v) => *v,
+        };
+        if variable == treatment {
+            has_t = true;
+        }
+        if variable == outcome {
+            has_y = true;
+        }
+    }
+    if !has_t || !has_y {
+        return Err(CausalError::Compile {
+            message: format!(
+                "query variables not in temporal DAG (treatment present={has_t}, outcome \
+                 present={has_y})"
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Compile logical plan for a temporal effect with a supplied temporal graph.
 ///
 /// # Errors
@@ -606,13 +645,14 @@ pub fn compile_logical_temporal_effect(
 /// Query validation failures.
 pub fn compile_logical_temporal_effect_classified(
     data: &TimeSeriesData,
-    _graph: &TemporalDag,
+    graph: &TemporalDag,
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
     data_classification: DataClassification,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    validate_query_vars_in_temporal_dag(graph, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: format!(
@@ -930,6 +970,85 @@ mod tests {
                 )));
         let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
         assert!(matches!(err, CausalError::Compile { .. }));
+    }
+
+    #[test]
+    fn refuses_temporal_query_vars_not_in_temporal_dag() {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        use antecedent_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+            ValidityBitmap,
+        };
+        use std::sync::Arc as StdArc;
+
+        let n = 8usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        // A populated temporal DAG that does NOT name the query variables: the plan must
+        // fail at compile time rather than silently accepting an unfounded query
+        // (target_population is left at the default AllObserved so the later population
+        // check cannot be the one firing).
+        //
+        // The DAG must be non-empty: a node-less TemporalDag is the placeholder the
+        // graph-posterior path supplies, and is deliberately exempt from this check —
+        // see `validate_query_vars_in_temporal_dag`.
+        let mut graph = TemporalDag::empty();
+        graph.add_lagged(VariableId::from_raw(7), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        graph.add_lagged(VariableId::from_raw(8), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
+        let CausalError::Compile { message } = err else {
+            panic!("expected CausalError::Compile, got {err:?}");
+        };
+        assert!(
+            message.contains("not in temporal DAG"),
+            "expected a temporal-DAG membership error, got: {message}"
+        );
     }
 
     #[test]
