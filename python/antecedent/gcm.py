@@ -10,12 +10,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ._data import as_columns
-from ._native import (
-    anomaly_attribution,
-    attribute_distribution_change,
-    attribute_paths,
-    fit_gcm,
-)
+from ._native import fit_gcm
 from .discovery import (
     FCI,
     GES,
@@ -70,14 +65,15 @@ def attribute_paths_discovered(
     seed: int = 1,
     threads: int = 1,
 ):
-    """``fit_gcm_discovered`` then ``attribute_paths``. Returns ``(result, graph_edges)``."""
+    """``fit_gcm_discovered`` then ``FittedGcm.attribute_paths``. Returns ``(result, graph_edges)``.
+
+    Calls the fitted model's own ``attribute_paths`` instead of the
+    module-level ``attribute_paths(names, columns, edges, ...)`` native
+    function, which would otherwise silently re-fit the GCM from scratch —
+    ``fit_gcm_discovered`` already paid for one fit; this reuses it.
+    """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
-    _ = fitted
-    names, columns = as_columns(data)
-    result = attribute_paths(
-        names,
-        columns,
-        edges,
+    result = fitted.attribute_paths(
         list(sources),
         outcome,
         max_paths=max_paths,
@@ -97,11 +93,13 @@ def anomaly_attribution_discovered(
     seed: int = 1,
     threads: int = 1,
 ):
-    """``fit_gcm_discovered`` then ``anomaly_attribution``. Returns ``(result, graph_edges)``."""
+    """``fit_gcm_discovered`` then ``FittedGcm.anomaly_attribution``. Returns ``(result, graph_edges)``.
+
+    See :func:`attribute_paths_discovered` for why this calls the fitted
+    model's own method rather than the module-level free function.
+    """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
-    _ = fitted
-    names, columns = as_columns(data)
-    result = anomaly_attribution(names, columns, edges, list(outcomes), max_units=max_units)
+    result = fitted.anomaly_attribution(list(outcomes), max_units=max_units)
     return result, edges
 
 
@@ -118,14 +116,13 @@ def attribute_distribution_change_discovered(
     seed: int = 1,
     threads: int = 1,
 ):
-    """Compose discover → DAG → ``attribute_distribution_change``."""
+    """Compose discover → DAG → ``FittedGcm.attribute_distribution_change``.
+
+    See :func:`attribute_paths_discovered` for why this calls the fitted
+    model's own method rather than the module-level free function.
+    """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
-    _ = fitted
-    names, columns = as_columns(data)
-    result = attribute_distribution_change(
-        names,
-        columns,
-        edges,
+    result = fitted.attribute_distribution_change(
         outcome,
         baseline_start,
         baseline_end,

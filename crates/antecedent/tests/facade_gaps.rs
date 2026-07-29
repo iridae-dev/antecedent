@@ -106,6 +106,10 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     let plan = analysis.compile(&ctx).unwrap();
     let result = analysis.execute(&plan, &ctx).unwrap();
     assert!(result.estimate.ate.is_finite());
+    // Same `chain_table(80)` fixture and estimator as `pag_ate_via_generalized_adjustment`
+    // above (only the input PAG's mark differs: circle-arrow here vs. directed there), so
+    // the identified ATE must match that known ground truth, not merely be finite.
+    assert!((result.estimate.ate - 2.0).abs() < 0.2);
 }
 
 #[test]
@@ -291,6 +295,9 @@ fn pag_compile_ready() {
     let analysis =
         Study::tabular(data).graph(pag).query(q).refute(RefuteSuite::None).build().unwrap();
     // `compile` returns a usable `PhysicalExecutionPlan` directly (no `CompiledAnalysis::Ready`
-    // variant anymore) — succeeding here is the "ready" assertion.
-    let _compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
+    // variant anymore) — succeeding here is the "ready" assertion. Beyond that, assert the
+    // plan actually resolved the supplied static PAG rather than silently compiling an empty
+    // or default plan.
+    let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
+    assert!(compiled.static_pag().is_some());
 }

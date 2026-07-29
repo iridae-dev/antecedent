@@ -20,9 +20,21 @@ def _lag1_unit(n: int = 100, seed: int = 3):
 
 
 def test_panel_pooled_pcmci_smoke():
+    """Inline discovery on pooled panel data fails closed with a documented refusal.
+
+    Two documented gates can fire on this path: panel analysis wants a supplied
+    `TemporalDag` rather than an inline-discovered graph, and temporal unfolding
+    refuses to certify backdoor identification once confounder ancestry crosses its
+    history cap. Which one is reached first depends on unit count, so both messages
+    are accepted — what is pinned is that the call fails closed with one of them
+    rather than returning a number.
+    """
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
-    try:
-        result = antecedent.analyze(
+    with pytest.raises(
+        (antecedent.errors.CausalCompileError, antecedent.errors.CausalIdentifyError),
+        match="panel data supports only a supplied TemporalDag|not certified",
+    ):
+        antecedent.analyze(
             panel,
             discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
@@ -36,9 +48,6 @@ def test_panel_pooled_pcmci_smoke():
             seed=1,
             refute=False,
         )
-        assert isinstance(result.ate, float)
-    except Exception as exc:  # noqa: BLE001 — review/ID may fail closed
-        assert str(exc), "expected a non-empty error from the wired path"
 
 
 def test_panel_pooled_rejects_rpcmci():

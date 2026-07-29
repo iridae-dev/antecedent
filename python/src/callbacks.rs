@@ -314,7 +314,15 @@ impl Utility<f64, f64> for PyUtility {
             out[..expected].copy_from_slice(&slice[..expected]);
             Ok(())
         });
-        if result.is_err() {
+        if let Err(err) = &result {
+            // `Utility::evaluate_batch` returns `()` (a hot per-batch call in the
+            // design-ranking loop), so a failing `utility` callback cannot be
+            // propagated as a `Result` without a trait-wide signature change. Surface
+            // the failure mode (raised exception, wrong return shape, non-contiguous
+            // array) via PyO3's traceback-to-stderr path before falling back to NaN,
+            // so a broken callback is diagnosable instead of a mysterious silent NaN
+            // flowing into downstream design-ranking math.
+            Python::attach(|py| err.print(py));
             out[..expected].fill(f64::NAN);
         }
     }
@@ -494,7 +502,17 @@ impl PyProgressSink {
 impl antecedent_core::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
-            let _ = self.callback.bind(py).call1((fraction, stage));
+            // `ProgressSink::report` returns `()` and is invoked from hot per-replicate
+            // / per-sample loops (bootstrap, Shapley, discovery search) across several
+            // crates, so propagating a `Result` here would mean threading a fallible
+            // signature through every call site outside the files this change owns.
+            // Surface the failure the same way an uncaught Python exception normally
+            // would instead of silently discarding it: print the traceback to stderr
+            // (this also sets `sys.last_*`), so a broken `on_progress` callback is
+            // diagnosable rather than appearing to just stop firing.
+            if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
+                err.print(py);
+            }
         });
     }
 }
@@ -551,7 +569,12 @@ impl antecedent::StageResultSink for PyStageResultSink {
                     d
                 }
             };
-            let _ = self.callback.bind(py).call1((event.stage_id(), payload));
+            // See `PyProgressSink::report` above: `StageResultSink::on_stage` also
+            // returns `()`, so surface a failing `on_stage` callback via PyO3's
+            // traceback-to-stderr path rather than discarding it silently.
+            if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload)) {
+                err.print(py);
+            }
         });
     }
 }

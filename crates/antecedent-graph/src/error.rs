@@ -55,6 +55,19 @@ pub enum GraphError {
         /// Lag value.
         lag: Lag,
     },
+    /// Edge points from the future into the past (source lag nearer the present
+    /// than target lag).
+    #[error("edge {from}->{to} points from the future ({from_lag}) into the past ({to_lag})")]
+    FutureToPast {
+        /// Source dense id.
+        from: u32,
+        /// Target dense id.
+        to: u32,
+        /// Source lag.
+        from_lag: Lag,
+        /// Target lag.
+        to_lag: Lag,
+    },
     /// Node capacity exceeded.
     #[error("too many nodes")]
     TooManyNodes,

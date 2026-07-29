@@ -72,6 +72,7 @@ from ._native import (
 from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 if TYPE_CHECKING:
     from .accepted_graph import AcceptedGraph
@@ -355,6 +356,35 @@ class JPCMCIPlus:
             max_cond_size=self.max_cond_size,
         )
 
+    def accept(
+        self,
+        names: list[str],
+        env_columns: Sequence[Sequence[Any]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AcceptedGraph:
+        """Not supported yet — raises rather than silently building a wrong graph.
+
+        Every sibling ``accept()`` runs discovery then calls
+        ``AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)``.
+        That dispatch only recognizes the short algorithm ids ``"pcmci"`` /
+        ``"pcmci+"`` / ``"lpcmci"`` as temporal (lagged) results; this config's
+        id (``"jpcmci_plus"``) would fall through to the *static* graph path,
+        which would silently misinterpret a lagged, multi-environment result
+        as an unlagged one — worse than an ``AttributeError``. Teaching
+        ``AcceptedGraph.from_discovery`` about J-PCMCI+'s result shape is the
+        right long-term fix; it is out of scope here. Call :meth:`run`
+        directly and hold the result yourself in the meantime.
+        """
+        raise CausalUnsupportedError(
+            "JPCMCIPlus.accept() is not supported yet: AcceptedGraph.from_discovery's "
+            "dispatch only recognizes 'pcmci'/'pcmci+'/'lpcmci' as temporal (lagged) "
+            "algorithm ids; this config's 'jpcmci_plus' id would fall through to the "
+            "static graph path and silently misinterpret the lagged, multi-environment "
+            "result. Call .run(...) directly and hold the result yourself."
+        )
+
 
 @dataclass(frozen=True)
 class RPCMCI:
@@ -408,6 +438,34 @@ class RPCMCI:
             weights=weights,
             threads=threads,
             max_cond_size=self.max_cond_size,
+        )
+
+    def accept(
+        self,
+        data: Any,
+        *,
+        regimes: Sequence[int],
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AcceptedGraph:
+        """Not supported — ``RpcmciDiscoverySummary`` carries no edge-level detail.
+
+        Unlike every other discovery config's result, :meth:`run`'s
+        ``RpcmciDiscoverySummary`` exposes only regime-level edge *counts*
+        (``directed_edges`` / ``undirected_edges``: ``list[int]``, one count
+        per regime) — no node names and no individual edge endpoints. There
+        is nothing here from which :class:`antecedent.AcceptedGraph` could
+        build a graph artifact, so this raises rather than silently returning
+        something wrong (or a bare ``AttributeError``). Call :meth:`run`
+        directly and consume the summary, or use ``PCMCI`` / ``PCMCIPlus`` /
+        ``LPCMCI`` per-regime if a holdable structure is needed.
+        """
+        raise CausalUnsupportedError(
+            "RPCMCI.accept() is not supported: RpcmciDiscoverySummary carries only "
+            "regime-level edge counts (directed_edges/undirected_edges: list[int]), "
+            "not node names or edge endpoints, so there is no edge detail to build "
+            "an AcceptedGraph from. Call .run(...) directly and consume the summary, "
+            "or use PCMCI/PCMCIPlus/LPCMCI for a holdable structure."
         )
 
 
@@ -671,6 +729,26 @@ class OrderMcmc:
 
 @dataclass(frozen=True)
 class StructureMcmc:
+    """Structure-MCMC graph posterior.
+
+    Unlike its sibling :class:`OrderMcmc`, this config has **no**
+    ``require_diagnostics_gate`` field: the native ``discover_structure_mcmc``
+    entry point takes no such parameter, so there is nothing here to plumb it
+    through to. Concretely, this means R-hat / ESS convergence diagnostics are
+    **never gated** on a ``StructureMcmc`` posterior the way they can be on
+    ``OrderMcmc(require_diagnostics_gate=True)`` (the default there) — a
+    non-converged chain's posterior is returned exactly the same as a
+    converged one. This package cannot add the parameter from the Python side
+    (it would require a change to the Rust ``discover_structure_mcmc``
+    signature, which is out of scope for a ``python/antecedent`` change); the
+    long-term fix is adding a ``require_diagnostics_gate`` parameter to
+    ``discover_structure_mcmc`` in Rust to match ``discover_order_mcmc``, then
+    threading it through here the same way :class:`OrderMcmc` already does.
+    Callers that need a diagnostics gate today should use
+    ``GraphPosterior.converged`` / ``.rejected_invalid`` /
+    ``.ess`` on the returned posterior themselves, or prefer ``OrderMcmc``.
+    """
+
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
@@ -820,7 +898,7 @@ def discovery_to_dag(result: DiscoveryResult) -> Dag:
         elif e.at_source == "arrow" and e.at_target == "tail":
             directed.append((e.target, e.source))
         else:
-            raise ValueError(
+            raise CausalValueError(
                 f"cannot coerce edge {e.source}->{e.target} "
                 f"({e.at_source}/{e.at_target}) into a DAG; "
                 "use graph_edges or a CPDAG/PAG constructor"
@@ -878,7 +956,7 @@ def run_static_discovery(
     ``analyze``, ``AcceptedGraph``, and GCM compose helpers.
     """
     if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
-        raise TypeError(f"unsupported static discovery type: {type(discovery)!r}")
+        raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
     runnable = _without_callable_ci(discovery)
     return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
@@ -892,7 +970,7 @@ def run_temporal_discovery(
 ) -> tuple[DiscoveryResult, str]:
     """Dispatch a PCMCI-family discovery config to its ``run()``."""
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
-        raise TypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
+        raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
     runnable = _without_callable_ci(discovery)
     return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
@@ -900,7 +978,7 @@ def run_temporal_discovery(
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:
     """Serialize a discovery config dataclass into kwargs for native analyze paths."""
     if not isinstance(discovery, _ALL_DISCOVERY_TYPES):
-        raise TypeError(f"unsupported discovery config: {type(discovery)!r}")
+        raise CausalTypeError(f"unsupported discovery config: {type(discovery)!r}")
     return discovery._wire()
 
 
@@ -909,7 +987,7 @@ def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
     import numpy as np
 
     if post.n_graphs < 1 or not post.weights:
-        raise ValueError("GraphPosterior has no graphs")
+        raise CausalValueError("GraphPosterior has no graphs")
     i = int(np.argmax(np.asarray(post.weights, dtype=np.float64)))
     mask = int(post.adjacency[i])
     n = int(post.n_vars)
@@ -942,7 +1020,7 @@ def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list
     from .graph import Cpdag
 
     if not isinstance(cpdag, Cpdag):
-        raise TypeError(f"expected Cpdag, got {type(cpdag)!r}")
+        raise CausalTypeError(f"expected Cpdag, got {type(cpdag)!r}")
     directed: list[tuple[str, str]] = []
     undirected = 0
     for src, tgt, kind in cpdag.edges():
@@ -953,7 +1031,7 @@ def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list
         else:
             undirected += 1
     if undirected and require_oriented:
-        raise ValueError(
+        raise CausalValueError(
             f"CPDAG has {undirected} undirected/ambiguous edge(s); orient before "
             "PathSpecific/Interventional queries (require_oriented=True)"
         )
@@ -961,7 +1039,7 @@ def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list
         try:
             dag = cpdag.try_into_dag()
         except Exception as exc:  # noqa: BLE001
-            raise ValueError(
+            raise CausalValueError(
                 "CPDAG is not fully oriented; cannot coerce to DAG for path/distribution queries"
             ) from exc
         return list(dag.edges())

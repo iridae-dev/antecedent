@@ -43,7 +43,13 @@ from .discovery import (
     graph_posterior_map_edges,
     run_static_discovery,
 )
-from .errors import CausalUnsupportedError, PendingEdge, build_review_error
+from .errors import (
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+    PendingEdge,
+    build_review_error,
+)
 from .graph import Cpdag, Dag, TemporalDag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
@@ -393,7 +399,7 @@ def _resolve_latency_budget(
     elif key == "report":
         mapped_boot, mapped_refute = 200, "full"
     else:
-        raise ValueError(f"unknown latency={latency!r}; use interactive|standard|report")
+        raise CausalValueError(f"unknown latency={latency!r}; use interactive|standard|report")
     # refute default True means "use mode mapping" when latency is set unless
     # the caller chose a non-default refute value.
     out_refute: bool | Literal["full", "placebo", "none", "cheap"] = (
@@ -411,7 +417,7 @@ def _static_edges(
     graph: Dag | Cpdag | Sequence[tuple[str, str]] | None,
 ) -> list[tuple[str, str]]:
     if graph is None:
-        raise ValueError("graph= is required")
+        raise CausalValueError("graph= is required")
     if isinstance(graph, Dag):
         return [(str(a), str(b)) for a, b in graph.edges()]
     if isinstance(graph, Cpdag):
@@ -425,7 +431,7 @@ def _lagged_edges(
     graph: TemporalDag | Sequence[tuple[str, int, str, int]] | None,
 ) -> list[tuple[str, int, str, int]]:
     if graph is None:
-        raise ValueError("graph= lagged edges are required")
+        raise CausalValueError("graph= lagged edges are required")
     if isinstance(graph, TemporalDag):
         return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph.edges()]
     return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph]
@@ -482,7 +488,7 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     elif backend == "hmc":
         inference_s = "hmc"
     else:
-        raise ValueError(
+        raise CausalValueError(
             f"unknown Bayesian backend {inference.backend!r}; use laplace|conjugate|hmc"
         )
     kw: dict[str, Any] = {
@@ -544,7 +550,7 @@ def _resolve_static_discovery_edges(
                 )
             ]
             if accept_discovered:
-                raise ValueError(
+                raise CausalValueError(
                     f"{algorithm}: accept_discovered=True but graph is incomplete "
                     f"({len(pending_list)} non-directed marks); cannot invent orientations. {exc}"
                 ) from exc
@@ -583,7 +589,7 @@ def _resolve_static_discovery_edges(
                     "PathSpecific/Interventional do not run generalized PAG adjustment"
                 ),
             )
-        raise ValueError(
+        raise CausalValueError(
             f"{algo}: PathSpecific/Interventional require a fully oriented DAG; "
             "use PC/GES/LiNGAM/NOTEARS or supply graph= edges "
             "(accept_discovered cannot invent PAG orientations)"
@@ -592,7 +598,7 @@ def _resolve_static_discovery_edges(
         result, algo = run_static_discovery(data, discovery, seed=seed, threads=threads)
         kind = "static_dag" if algo in ("lingam", "notears") else "static_cpdag"
         return _require_oriented(result, kind=kind, algorithm=algo)
-    raise TypeError(f"unsupported discovery type for path/distribution: {type(discovery)!r}")
+    raise CausalTypeError(f"unsupported discovery type for path/distribution: {type(discovery)!r}")
 
 
 def analyze_many(
@@ -624,9 +630,9 @@ def analyze_many(
         :func:`antecedent._coerce.coerce_refute`.
     """
     if not queries:
-        raise ValueError("analyze_many requires at least one query")
+        raise CausalValueError("analyze_many requires at least one query")
     if not all(isinstance(q, AverageEffect) for q in queries):
-        raise TypeError("analyze_many currently supports AverageEffect queries only")
+        raise CausalTypeError("analyze_many currently supports AverageEffect queries only")
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
     names, columns = as_columns(data)
@@ -676,7 +682,7 @@ def identify(
         edges = list(graph.edges())
     else:
         if names is None:
-            raise ValueError("identify(edge_list) requires names=")
+            raise CausalValueError("identify(edge_list) requires names=")
         node_names = list(names)
         edges = list(graph)
     status, method, adjustment = _identify_ate(
@@ -719,7 +725,7 @@ class PreparedAnalysis:
     ) -> PreparedAnalysis:
         """Compile a durable plan for static ATE on a supplied DAG."""
         if not isinstance(query, AverageEffect):
-            raise TypeError("PreparedAnalysis supports AverageEffect only")
+            raise CausalTypeError("PreparedAnalysis supports AverageEffect only")
         inference = inference or Frequentist()
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
@@ -838,7 +844,6 @@ __all__ = [
     "IdentificationView",
     "IdentifyResult",
     "MediationEffectsSummary",
-    "NativeAnalysisResult",
     "PerformanceView",
     "PhysicalPlanView",
     "PlanView",
@@ -847,7 +852,6 @@ __all__ = [
     "PreparedAnalysis",
     "PriorSensitivityReport",
     "RefutationReport",
-    "TemporalAnalysisResult",
     "ValidationView",
     "analyze_many",
     "identify",
