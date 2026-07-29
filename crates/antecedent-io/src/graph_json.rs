@@ -59,14 +59,33 @@ impl DagJson {
 ///
 /// JSON parse errors or invalid DAG structure.
 pub fn dag_from_json(json: &str) -> Result<Dag, IoError> {
+    dag_with_names_from_json(json).map(|(dag, _names)| dag)
+}
+
+/// Parse a JSON DAG document into a [`Dag`] plus its node names.
+///
+/// When the document has no `variable_names`, dense-index strings (`"0"`,
+/// `"1"`, ...) are returned instead, since the document carries no distinct
+/// name information in that case.
+///
+/// # Errors
+///
+/// JSON parse errors, invalid DAG structure, or a `variable_names` length
+/// mismatch.
+pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoError> {
     let doc: DagJson =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
-    if let Some(names) = &doc.variable_names {
-        if names.len() != doc.node_count as usize {
-            return Err(IoError::Convert("variable_names length must equal node_count".into()));
+    let names = match &doc.variable_names {
+        Some(names) => {
+            if names.len() != doc.node_count as usize {
+                return Err(IoError::Convert("variable_names length must equal node_count".into()));
+            }
+            names.clone()
         }
-    }
-    dag_from_wire(&doc.to_wire())
+        None => (0..doc.node_count).map(|i| i.to_string()).collect(),
+    };
+    let dag = dag_from_wire(&doc.to_wire())?;
+    Ok((dag, names))
 }
 
 /// Serialize a [`Dag`] to JSON.
@@ -116,5 +135,25 @@ mod tests {
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         let doc = dag_json_from_str(&s).unwrap();
         assert_eq!(doc.variable_names.as_deref(), Some(names.as_slice()));
+    }
+
+    #[test]
+    fn with_names_round_trip_preserves_labels() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let names = vec!["x".to_string(), "y".to_string()];
+        let s = dag_to_json(&dag, Some(&names)).unwrap();
+        let (back, back_names) = dag_with_names_from_json(&s).unwrap();
+        assert_eq!(back.node_count(), 2);
+        assert_eq!(back_names, names);
+    }
+
+    #[test]
+    fn with_names_nameless_falls_back_to_dense_index() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let s = dag_to_json(&dag, None).unwrap();
+        let (_back, names) = dag_with_names_from_json(&s).unwrap();
+        assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
     }
 }

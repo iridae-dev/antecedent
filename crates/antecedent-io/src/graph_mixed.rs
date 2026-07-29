@@ -116,9 +116,22 @@ macro_rules! graph_to_json {
 ///
 /// JSON / structure errors.
 pub fn pag_from_json(json: &str) -> Result<Pag, IoError> {
+    pag_with_names_from_json(json).map(|(g, _names)| g)
+}
+
+/// Parse JSON into a [`Pag`] plus its node names.
+///
+/// When the document has no `variable_names`, dense-index strings are
+/// returned instead.
+///
+/// # Errors
+///
+/// JSON / structure errors.
+pub fn pag_with_names_from_json(json: &str) -> Result<(Pag, Vec<String>), IoError> {
     let doc: PagJson = json_from_str(json)?;
-    check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
-    pag_from_wire(&PagWire { node_count: doc.node_count, edges: doc.edges })
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
+    let g = pag_from_wire(&PagWire { node_count: doc.node_count, edges: doc.edges })?;
+    Ok((g, names))
 }
 
 graph_to_json!(pag_to_json, Pag, pag_to_wire, PagJson, pag_kind(), { edges });
@@ -129,13 +142,26 @@ graph_to_json!(pag_to_json, Pag, pag_to_wire, PagJson, pag_kind(), { edges });
 ///
 /// JSON / structure errors.
 pub fn cpdag_from_json(json: &str) -> Result<Cpdag, IoError> {
+    cpdag_with_names_from_json(json).map(|(g, _names)| g)
+}
+
+/// Parse JSON into a [`Cpdag`] plus its node names.
+///
+/// When the document has no `variable_names`, dense-index strings are
+/// returned instead.
+///
+/// # Errors
+///
+/// JSON / structure errors.
+pub fn cpdag_with_names_from_json(json: &str) -> Result<(Cpdag, Vec<String>), IoError> {
     let doc: CpdagJson = json_from_str(json)?;
-    check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
-    cpdag_from_wire(&CpdagWire {
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
+    let g = cpdag_from_wire(&CpdagWire {
         node_count: doc.node_count,
         directed: doc.directed,
         undirected: doc.undirected,
-    })
+    })?;
+    Ok((g, names))
 }
 
 graph_to_json!(
@@ -153,13 +179,26 @@ graph_to_json!(
 ///
 /// JSON / structure errors.
 pub fn admg_from_json(json: &str) -> Result<Admg, IoError> {
+    admg_with_names_from_json(json).map(|(g, _names)| g)
+}
+
+/// Parse JSON into an [`Admg`] plus its node names.
+///
+/// When the document has no `variable_names`, dense-index strings are
+/// returned instead.
+///
+/// # Errors
+///
+/// JSON / structure errors.
+pub fn admg_with_names_from_json(json: &str) -> Result<(Admg, Vec<String>), IoError> {
     let doc: AdmgJson = json_from_str(json)?;
-    check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
-    admg_from_wire(&AdmgWire {
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
+    let g = admg_from_wire(&AdmgWire {
         node_count: doc.node_count,
         directed: doc.directed,
         bidirected: doc.bidirected,
-    })
+    })?;
+    Ok((g, names))
 }
 
 graph_to_json!(
@@ -183,6 +222,12 @@ fn check_optional_names(names: Option<&[String]>, node_count: u32) -> Result<(),
     Ok(())
 }
 
+/// Validated names, or dense-index strings when the document carries none.
+fn names_or_default(names: Option<&[String]>, node_count: u32) -> Result<Vec<String>, IoError> {
+    check_optional_names(names, node_count)?;
+    Ok(names.map_or_else(|| (0..node_count).map(|i| i.to_string()).collect(), <[String]>::to_vec))
+}
+
 // ── DOT ─────────────────────────────────────────────────────────────────────
 
 /// Parse DOT into a [`Cpdag`] (`->` directed, `--` undirected).
@@ -191,6 +236,16 @@ fn check_optional_names(names: Option<&[String]>, node_count: u32) -> Result<(),
 ///
 /// Malformed DOT or illegal CPDAG marks.
 pub fn cpdag_from_dot(dot: &str) -> Result<Cpdag, IoError> {
+    cpdag_with_names_from_dot(dot).map(|(g, _names)| g)
+}
+
+/// Parse DOT into a [`Cpdag`] (`->` directed, `--` undirected) plus its node
+/// labels, in dense-id order.
+///
+/// # Errors
+///
+/// Malformed DOT or illegal CPDAG marks.
+pub fn cpdag_with_names_from_dot(dot: &str) -> Result<(Cpdag, Vec<String>), IoError> {
     let parsed = parse_dot(dot, true)?;
     let mut directed = Vec::new();
     let mut undirected = Vec::new();
@@ -203,7 +258,8 @@ pub fn cpdag_from_dot(dot: &str) -> Result<Cpdag, IoError> {
             }
         }
     }
-    cpdag_from_wire(&CpdagWire { node_count: parsed.node_count, directed, undirected })
+    let g = cpdag_from_wire(&CpdagWire { node_count: parsed.node_count, directed, undirected })?;
+    Ok((g, parsed.names))
 }
 
 /// Serialize a [`Cpdag`] to DOT.
@@ -235,6 +291,18 @@ pub fn cpdag_to_dot(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
 ///
 /// Malformed DOT or illegal PAG marks.
 pub fn pag_from_dot(dot: &str) -> Result<Pag, IoError> {
+    pag_with_names_from_dot(dot).map(|(g, _names)| g)
+}
+
+/// Parse DOT into a [`Pag`] plus its node labels, in dense-id order.
+///
+/// Plain `->` is tail→arrow; `--` is undirected; `dir=both` is bidirected;
+/// otherwise `mark_a` / `mark_b` attributes.
+///
+/// # Errors
+///
+/// Malformed DOT or illegal PAG marks.
+pub fn pag_with_names_from_dot(dot: &str) -> Result<(Pag, Vec<String>), IoError> {
     let parsed = parse_dot(dot, true)?;
     let mut edges = Vec::new();
     for e in parsed.edges {
@@ -248,7 +316,8 @@ pub fn pag_from_dot(dot: &str) -> Result<Pag, IoError> {
             if e.from <= e.to { (e.from, e.to, at_a, at_b) } else { (e.to, e.from, at_b, at_a) };
         edges.push(MarkedEdgeWire { a, b, at_a, at_b });
     }
-    pag_from_wire(&PagWire { node_count: parsed.node_count, edges })
+    let g = pag_from_wire(&PagWire { node_count: parsed.node_count, edges })?;
+    Ok((g, parsed.names))
 }
 
 /// Serialize a [`Pag`] to DOT.
@@ -324,6 +393,16 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
 ///
 /// Malformed DOT or illegal ADMG structure.
 pub fn admg_from_dot(dot: &str) -> Result<Admg, IoError> {
+    admg_with_names_from_dot(dot).map(|(g, _names)| g)
+}
+
+/// Parse DOT into an [`Admg`] (`->` directed; `dir=both` bidirected) plus
+/// its node labels, in dense-id order.
+///
+/// # Errors
+///
+/// Malformed DOT or illegal ADMG structure.
+pub fn admg_with_names_from_dot(dot: &str) -> Result<(Admg, Vec<String>), IoError> {
     let parsed = parse_dot(dot, false)?;
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
@@ -341,7 +420,8 @@ pub fn admg_from_dot(dot: &str) -> Result<Admg, IoError> {
             }
         }
     }
-    admg_from_wire(&AdmgWire { node_count: parsed.node_count, directed, bidirected })
+    let g = admg_from_wire(&AdmgWire { node_count: parsed.node_count, directed, bidirected })?;
+    Ok((g, parsed.names))
 }
 
 /// Serialize an [`Admg`] to DOT.
@@ -386,6 +466,8 @@ struct DotEdge {
 struct DotGraph {
     node_count: u32,
     edges: Vec<DotEdge>,
+    /// Node labels in dense-id order.
+    names: Vec<String>,
 }
 
 fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
@@ -468,9 +550,13 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
                 kind: e.kind,
             })
             .collect();
-        return Ok(DotGraph { node_count: remapped.node_count, edges });
+        // Dense id == numeric label in this case, so the label carries no
+        // information beyond the dense index; fall back to index strings.
+        let names = (0..remapped.node_count).map(|i| i.to_string()).collect();
+        return Ok(DotGraph { node_count: remapped.node_count, edges, names });
     }
-    Ok(DotGraph { node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?, edges })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    Ok(DotGraph { node_count, edges, names: order })
 }
 
 fn classify_edge(directed: bool, attrs: &HashMap<String, String>) -> Result<DotKind, IoError> {
@@ -491,12 +577,23 @@ fn classify_edge(directed: bool, attrs: &HashMap<String, String>) -> Result<DotK
 ///
 /// Malformed GML.
 pub fn cpdag_from_gml(gml: &str) -> Result<Cpdag, IoError> {
+    cpdag_with_names_from_gml(gml).map(|(g, _names)| g)
+}
+
+/// Parse GML into a [`Cpdag`] (edge attr `undirected 1`) plus its node
+/// labels, in dense-id order.
+///
+/// # Errors
+///
+/// Malformed GML.
+pub fn cpdag_with_names_from_gml(gml: &str) -> Result<(Cpdag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    cpdag_from_wire(&CpdagWire {
+    let cpdag = cpdag_from_wire(&CpdagWire {
         node_count: g.node_count,
         directed: g.directed,
         undirected: g.undirected,
-    })
+    })?;
+    Ok((cpdag, g.names))
 }
 
 /// Serialize a [`Cpdag`] to GML.
@@ -520,6 +617,16 @@ pub fn cpdag_to_gml(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
 ///
 /// Malformed GML.
 pub fn pag_from_gml(gml: &str) -> Result<Pag, IoError> {
+    pag_with_names_from_gml(gml).map(|(g, _names)| g)
+}
+
+/// Parse GML into a [`Pag`] (edge attrs `mark_a` / `mark_b`) plus its node
+/// labels, in dense-id order.
+///
+/// # Errors
+///
+/// Malformed GML.
+pub fn pag_with_names_from_gml(gml: &str) -> Result<(Pag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
     let mut edges = g.marked;
     for &(a, b) in &g.directed {
@@ -531,7 +638,8 @@ pub fn pag_from_gml(gml: &str) -> Result<Pag, IoError> {
     for &(a, b) in &g.bidirected {
         edges.push(MarkedEdgeWire { a, b, at_a: EndpointWire::Arrow, at_b: EndpointWire::Arrow });
     }
-    pag_from_wire(&PagWire { node_count: g.node_count, edges })
+    let pag = pag_from_wire(&PagWire { node_count: g.node_count, edges })?;
+    Ok((pag, g.names))
 }
 
 /// Serialize a [`Pag`] to GML.
@@ -555,12 +663,23 @@ pub fn pag_to_gml(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
 ///
 /// Malformed GML.
 pub fn admg_from_gml(gml: &str) -> Result<Admg, IoError> {
+    admg_with_names_from_gml(gml).map(|(g, _names)| g)
+}
+
+/// Parse GML into an [`Admg`] (edge attr `bidirected 1`) plus its node
+/// labels, in dense-id order.
+///
+/// # Errors
+///
+/// Malformed GML.
+pub fn admg_with_names_from_gml(gml: &str) -> Result<(Admg, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    admg_from_wire(&AdmgWire {
+    let admg = admg_from_wire(&AdmgWire {
         node_count: g.node_count,
         directed: g.directed,
         bidirected: g.bidirected,
-    })
+    })?;
+    Ok((admg, g.names))
 }
 
 /// Serialize an [`Admg`] to GML.
@@ -584,6 +703,8 @@ struct GmlGraph {
     undirected: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
     marked: Vec<MarkedEdgeWire>,
+    /// Node labels in dense-id order.
+    names: Vec<String>,
 }
 
 struct GmlParseState {
@@ -603,6 +724,7 @@ impl GmlParseState {
             undirected: self.undirected,
             bidirected: self.bidirected,
             marked: self.marked,
+            names: self.order,
         })
     }
 }
@@ -782,6 +904,18 @@ fn emit_gml(
 ///
 /// Malformed JSON.
 pub fn cpdag_from_networkx_node_link(json: &str) -> Result<Cpdag, IoError> {
+    cpdag_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+}
+
+/// Parse `NetworkX` node-link JSON into a [`Cpdag`] plus its node names
+/// (the document's node `id` values, stringified, in dense-id order).
+///
+/// # Errors
+///
+/// Malformed JSON.
+pub fn cpdag_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(Cpdag, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut directed = Vec::new();
     let mut undirected = Vec::new();
@@ -792,11 +926,9 @@ pub fn cpdag_from_networkx_node_link(json: &str) -> Result<Cpdag, IoError> {
             directed.push((link.from, link.to));
         }
     }
-    cpdag_from_wire(&CpdagWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        directed,
-        undirected,
-    })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    let g = cpdag_from_wire(&CpdagWire { node_count, directed, undirected })?;
+    Ok((g, order))
 }
 
 /// Serialize a [`Cpdag`] to `NetworkX` node-link JSON.
@@ -825,6 +957,16 @@ pub fn cpdag_to_networkx_node_link(
 ///
 /// Malformed JSON.
 pub fn pag_from_networkx_node_link(json: &str) -> Result<Pag, IoError> {
+    pag_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+}
+
+/// Parse `NetworkX` node-link JSON into a [`Pag`] plus its node names (the
+/// document's node `id` values, stringified, in dense-id order).
+///
+/// # Errors
+///
+/// Malformed JSON.
+pub fn pag_with_names_from_networkx_node_link(json: &str) -> Result<(Pag, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut edges = Vec::new();
     for link in links {
@@ -846,10 +988,9 @@ pub fn pag_from_networkx_node_link(json: &str) -> Result<Pag, IoError> {
         };
         edges.push(MarkedEdgeWire { a, b, at_a, at_b });
     }
-    pag_from_wire(&PagWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        edges,
-    })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    let g = pag_from_wire(&PagWire { node_count, edges })?;
+    Ok((g, order))
 }
 
 /// Serialize a [`Pag`] to `NetworkX` node-link JSON.
@@ -883,6 +1024,16 @@ pub fn pag_to_networkx_node_link(pag: &Pag, names: Option<&[String]>) -> Result<
 ///
 /// Malformed JSON.
 pub fn admg_from_networkx_node_link(json: &str) -> Result<Admg, IoError> {
+    admg_with_names_from_networkx_node_link(json).map(|(g, _names)| g)
+}
+
+/// Parse `NetworkX` node-link JSON into an [`Admg`] plus its node names
+/// (the document's node `id` values, stringified, in dense-id order).
+///
+/// # Errors
+///
+/// Malformed JSON.
+pub fn admg_with_names_from_networkx_node_link(json: &str) -> Result<(Admg, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
@@ -895,11 +1046,9 @@ pub fn admg_from_networkx_node_link(json: &str) -> Result<Admg, IoError> {
             directed.push((link.from, link.to));
         }
     }
-    admg_from_wire(&AdmgWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        directed,
-        bidirected,
-    })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    let g = admg_from_wire(&AdmgWire { node_count, directed, bidirected })?;
+    Ok((g, order))
 }
 
 /// Serialize an [`Admg`] to `NetworkX` node-link JSON.
@@ -1209,5 +1358,83 @@ mod tests {
         );
         assert_eq!(admg_from_gml(&admg_to_gml(&g, None).unwrap()).unwrap().node_count(), 3);
         assert_eq!(admg_from_dot(&admg_to_dot(&g, None).unwrap()).unwrap().node_count(), 3);
+    }
+
+    #[test]
+    fn cpdag_with_names_round_trip_preserves_labels_all_codecs() {
+        let mut g = Cpdag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let names = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+
+        let (_g, back) =
+            cpdag_with_names_from_json(&cpdag_to_json(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) =
+            cpdag_with_names_from_dot(&cpdag_to_dot(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) =
+            cpdag_with_names_from_gml(&cpdag_to_gml(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = cpdag_with_names_from_networkx_node_link(
+            &cpdag_to_networkx_node_link(&g, Some(&names)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(back, names);
+    }
+
+    #[test]
+    fn pag_with_names_round_trip_preserves_labels_all_codecs() {
+        let mut g = Pag::with_variables(2);
+        g.insert_marked(MarkedEdge {
+            a: DenseNodeId::from_raw(0),
+            b: DenseNodeId::from_raw(1),
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Arrow,
+            middle: MiddleMark::Empty,
+        })
+        .unwrap();
+        let names = vec!["x".to_string(), "y".to_string()];
+
+        let (_g, back) = pag_with_names_from_json(&pag_to_json(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = pag_with_names_from_dot(&pag_to_dot(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = pag_with_names_from_gml(&pag_to_gml(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = pag_with_names_from_networkx_node_link(
+            &pag_to_networkx_node_link(&g, Some(&names)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(back, names);
+    }
+
+    #[test]
+    fn admg_with_names_round_trip_preserves_labels_all_codecs() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let names = vec!["z".to_string(), "t".to_string(), "y".to_string()];
+
+        let (_g, back) =
+            admg_with_names_from_json(&admg_to_json(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = admg_with_names_from_dot(&admg_to_dot(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = admg_with_names_from_gml(&admg_to_gml(&g, Some(&names)).unwrap()).unwrap();
+        assert_eq!(back, names);
+        let (_g, back) = admg_with_names_from_networkx_node_link(
+            &admg_to_networkx_node_link(&g, Some(&names)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(back, names);
+    }
+
+    #[test]
+    fn with_names_nameless_falls_back_to_dense_index() {
+        let mut g = Cpdag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let (_g, names) = cpdag_with_names_from_json(&cpdag_to_json(&g, None).unwrap()).unwrap();
+        assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
     }
 }
