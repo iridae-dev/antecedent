@@ -218,6 +218,37 @@ def _wire_glm_options(glm_options: GlmOptions | None) -> dict[str, Any]:
     return {"glm_options": sub} if sub else {}
 
 
+def _wire_se_common(
+    *,
+    bootstrap: int | None,
+    se: SeKind | None,
+    se_lag: int | None,
+    cluster_ids: Sequence[int] | None,
+    multiway_ids: Sequence[Sequence[int]] | None = None,
+    panel_times: Sequence[int] | None = None,
+) -> dict[str, Any]:
+    """``bootstrap``/``se``/``se_lag``/``cluster_ids``/``multiway_ids``/``panel_times`` wiring
+    shared by every estimator config that carries these fields.
+
+    ``multiway_ids``/``panel_times`` default to ``None`` so callers whose dataclass has no
+    such field (``FrontdoorTwoStage``) can simply omit them rather than inventing values.
+    """
+    out: dict[str, Any] = {}
+    if bootstrap is not None:
+        out["bootstrap_replicates"] = bootstrap
+    if se is not None:
+        out["se_kind"] = se
+    if se_lag is not None:
+        out["se_lag"] = se_lag
+    if cluster_ids is not None:
+        out["cluster_ids"] = list(cluster_ids)
+    if multiway_ids is not None:
+        out["multiway_ids"] = [list(group) for group in multiway_ids]
+    if panel_times is not None:
+        out["panel_times"] = list(panel_times)
+    return out
+
+
 # --- Estimator configs -----------------------------------------------------------------
 
 
@@ -254,19 +285,14 @@ class LinearAdjustment:
         return str(Estimator.LINEAR_ADJUSTMENT_ATE)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
+        out = _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
         if self.fit is not None:
             out["fit_kind"] = self.fit
         if self.fit_lambda is not None:
@@ -332,19 +358,14 @@ class PropensityMatching:
         return str(Estimator.PROPENSITY_MATCHING)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
+        out = _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
         out.update(_wire_glm_options(self.glm_options))
         if self.caliper is not None:
             out["caliper"] = self.caliper
@@ -405,19 +426,14 @@ class DistanceMatching:
         return str(Estimator.DISTANCE_MATCHING)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
+        out = _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
         out.update(_wire_glm_options(self.glm_options))
         if self.caliper is not None:
             out["caliper"] = self.caliper
@@ -450,19 +466,14 @@ class Aipw:
         return str(Estimator.AIPW)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
+        out = _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
         out.update(_wire_glm_options(self.glm_options))
         return out
 
@@ -494,19 +505,14 @@ class GlmAdjustment:
         return str(Estimator.GLM_ADJUSTMENT)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
+        out = _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
             out["family"] = self.family
@@ -537,16 +543,12 @@ class FrontdoorTwoStage:
         return str(Estimator.FRONTDOOR_TWO_STAGE)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        return out
+        return _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -574,20 +576,14 @@ class IvWald:
         return str(Estimator.IV_WALD)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
-        return out
+        return _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -615,20 +611,14 @@ class Iv2Sls:
         return str(Estimator.IV_2SLS)
 
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.bootstrap is not None:
-            out["bootstrap_replicates"] = self.bootstrap
-        if self.se is not None:
-            out["se_kind"] = self.se
-        if self.se_lag is not None:
-            out["se_lag"] = self.se_lag
-        if self.cluster_ids is not None:
-            out["cluster_ids"] = list(self.cluster_ids)
-        if self.multiway_ids is not None:
-            out["multiway_ids"] = [list(group) for group in self.multiway_ids]
-        if self.panel_times is not None:
-            out["panel_times"] = list(self.panel_times)
-        return out
+        return _wire_se_common(
+            bootstrap=self.bootstrap,
+            se=self.se,
+            se_lag=self.se_lag,
+            cluster_ids=self.cluster_ids,
+            multiway_ids=self.multiway_ids,
+            panel_times=self.panel_times,
+        )
 
 
 @dataclass(frozen=True, slots=True)

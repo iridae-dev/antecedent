@@ -467,6 +467,28 @@ class AcceptedGraph:
     # for two is worse than no __eq__ at all.
 
 
+def accept_discovery(
+    config: _AnyDiscovery,
+    data: Any,
+    *,
+    seed: int = 1,
+    threads: int = 1,
+) -> AcceptedGraph:
+    """Run a discovery config and accept its result as a session artifact.
+
+    Shared body for the nine discovery configs (PC, PCMCI, PCMCIPlus, LPCMCI,
+    GES, LiNGAM, NOTEARS, FCI, RFCI) whose ``accept()`` methods all run
+    ``config.run(data, seed=seed, threads=threads)`` then pass the result to
+    :meth:`AcceptedGraph.from_discovery`. Lives here (rather than duplicated on
+    each ``discovery.Config`` class) because this module already owns
+    ``from_discovery``; ``discovery.py`` reaches this via a function-local
+    import in each ``accept()`` to avoid the module-level import cycle (this
+    module already imports from ``.discovery`` at module scope).
+    """
+    result = config.run(data, seed=seed, threads=threads)
+    return AcceptedGraph.from_discovery(result, algorithm_id=config.algorithm_id)
+
+
 def _encode_graph(graph: _GraphTypes) -> tuple[str, Any]:
     if isinstance(graph, TemporalDag):
         return "temporal_dag", {

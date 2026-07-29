@@ -558,6 +558,57 @@ def handle_static_ate(
     return _wrap_ate(raw)
 
 
+def _analyze_jpcmci_plus_discover(
+    names: list[str],
+    env_columns: Sequence[Sequence[Any]],
+    query: PulseEffect | SustainedEffect,
+    *,
+    policy: str,
+    cfg: dict[str, Any],
+    accept_discovered: bool,
+    bayes_kw: dict[str, Any],
+    seed: int,
+    bootstrap: int | None,
+    threads: int,
+) -> Any:
+    """Shared ``_analyze_temporal_discover`` call for J-PCMCI+ multi-environment discovery.
+
+    Used by both ``handle_temporal_pulse``'s ``MultiEnvFrame`` branch (``names``/
+    ``env_columns`` come straight off the frame) and ``_handle_series_discover``'s
+    ``"jpcmci_plus"`` branch (``names``/``env_columns`` come from
+    ``as_multi_env_columns(data)``); those two callers differ only in how they
+    obtain ``names``/``env_columns``, so this holds the ~20 kwargs common to both.
+    """
+    return _analyze_temporal_discover(
+        names,
+        env_columns[0],
+        query.treatment,
+        query.outcome,
+        algorithm="jpcmci_plus",
+        max_lag=cfg["max_lag"],
+        alpha=cfg["alpha"],
+        max_cond_size=cfg.get("max_cond_size", 2),
+        fdr=cfg["fdr"],
+        accept_discovered=accept_discovered,
+        treatment_lag=query.treatment_lag,
+        horizon_steps=query.horizon_steps,
+        active_level=query.active_level,
+        policy=policy,
+        **bayes_kw,
+        seed=seed,
+        bootstrap=bootstrap,
+        threads=threads,
+        env_columns=env_columns,
+        context_names=cfg["context_names"],
+        include_space_dummy=cfg["include_space_dummy"],
+        include_time_dummy=cfg["include_time_dummy"],
+        space_dummy_ci=cfg["space_dummy_ci"],
+        time_dummy_encoding=cfg["time_dummy_encoding"],
+        time_dummy_ci=cfg["time_dummy_ci"],
+        ci=cfg.get("ci"),
+    )
+
+
 def handle_temporal_pulse(
     data: Any,
     query: PulseEffect | SustainedEffect,
@@ -620,33 +671,17 @@ def handle_temporal_pulse(
         if discovery is None or not isinstance(discovery, JPCMCIPlus):
             raise TypeError("MultiEnvFrame requires discovery=JPCMCIPlus(...)")
         cfg = _discovery_algorithm(discovery)
-        raw = _analyze_temporal_discover(
+        raw = _analyze_jpcmci_plus_discover(
             data.names,
-            data.env_columns[0],
-            query.treatment,
-            query.outcome,
-            algorithm="jpcmci_plus",
-            max_lag=cfg["max_lag"],
-            alpha=cfg["alpha"],
-            max_cond_size=cfg.get("max_cond_size", 2),
-            fdr=cfg["fdr"],
-            accept_discovered=accept_discovered,
-            treatment_lag=query.treatment_lag,
-            horizon_steps=query.horizon_steps,
-            active_level=query.active_level,
+            data.env_columns,
+            query,
             policy=policy,
-            **bayes_kw,
+            cfg=cfg,
+            accept_discovered=accept_discovered,
+            bayes_kw=bayes_kw,
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
-            env_columns=data.env_columns,
-            context_names=cfg["context_names"],
-            include_space_dummy=cfg["include_space_dummy"],
-            include_time_dummy=cfg["include_time_dummy"],
-            space_dummy_ci=cfg["space_dummy_ci"],
-            time_dummy_encoding=cfg["time_dummy_encoding"],
-            time_dummy_ci=cfg["time_dummy_ci"],
-            ci=cfg.get("ci"),
         )
         return _wrap_temporal(raw)
     if discovery is not None:
@@ -966,33 +1001,17 @@ def _handle_series_discover(
                 "environment mappings/DataFrames"
             )
         names, env_columns = as_multi_env_columns(data)
-        raw = _analyze_temporal_discover(
+        raw = _analyze_jpcmci_plus_discover(
             names,
-            env_columns[0],
-            query.treatment,
-            query.outcome,
-            algorithm=algo,
-            max_lag=cfg["max_lag"],
-            alpha=cfg["alpha"],
-            max_cond_size=cfg.get("max_cond_size", 2),
-            fdr=cfg["fdr"],
-            accept_discovered=accept_discovered,
-            treatment_lag=query.treatment_lag,
-            horizon_steps=query.horizon_steps,
-            active_level=query.active_level,
+            env_columns,
+            query,
             policy=policy,
-            **bayes_kw,
+            cfg=cfg,
+            accept_discovered=accept_discovered,
+            bayes_kw=bayes_kw,
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
-            env_columns=env_columns,
-            context_names=cfg["context_names"],
-            include_space_dummy=cfg["include_space_dummy"],
-            include_time_dummy=cfg["include_time_dummy"],
-            space_dummy_ci=cfg["space_dummy_ci"],
-            time_dummy_encoding=cfg["time_dummy_encoding"],
-            time_dummy_ci=cfg["time_dummy_ci"],
-            ci=cfg.get("ci"),
         )
         return _wrap_temporal(raw)
     if algo == "rpcmci":
@@ -1047,97 +1066,57 @@ def _handle_series_discover(
     return _wrap_temporal(raw)
 
 
-def _dispatch_conditional(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_conditional(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        inference=kw["inference"],
-        refute=kw["refute"],
-        validators=kw["validators"],
-        seed=kw["seed"],
-        bootstrap=kw["bootstrap"],
-        threads=kw["threads"],
-    )
-
-
-def _dispatch_temporal_mediation(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_temporal_mediation(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        inference=kw["inference"],
-        seed=kw["seed"],
-        bootstrap=kw["bootstrap"],
-        threads=kw["threads"],
-    )
-
-
-def _dispatch_mediation(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_mediation(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        refute=kw["refute"],
-        seed=kw["seed"],
-        bootstrap=kw["bootstrap"],
-        threads=kw["threads"],
-    )
-
-
-def _dispatch_counterfactual(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_counterfactual(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        seed=kw["seed"],
-        threads=kw["threads"],
-    )
-
-
-def _dispatch_distribution(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_distribution(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        accept_discovered=kw["accept_discovered"],
-        seed=kw["seed"],
-        threads=kw["threads"],
-    )
-
-
-def _dispatch_path_specific(data: Any, query: Any, kw: dict[str, Any]) -> Any:
-    return handle_path_specific(
-        data,
-        query,
-        graph=kw["graph"],
-        discovery=kw["discovery"],
-        accept_discovered=kw["accept_discovered"],
-        seed=kw["seed"],
-        bootstrap=kw["bootstrap"],
-        threads=kw["threads"],
-    )
-
-
 # Kinds whose routing is a pure function of `query.kind` — the handler never
 # depends on `discovery`'s *type*. "average" / "pulse" / "sustained" are
 # deliberately NOT here: a static/graph-posterior `discovery=` value changes
 # which handler runs (or raises) ahead of the query kind for those three, so
 # they stay as explicit sequential checks below, in the original ladder's
 # order, to keep that interaction visible rather than hidden in a table.
-_KIND_HANDLERS: dict[str, Callable[[Any, Any, dict[str, Any]], Any]] = {
-    "conditional": _dispatch_conditional,
-    "temporal_mediation": _dispatch_temporal_mediation,
-    "mediation": _dispatch_mediation,
-    "counterfactual": _dispatch_counterfactual,
-    "distribution": _dispatch_distribution,
-    "path_specific": _dispatch_path_specific,
+#
+# Each entry pairs a `handle_*` function with the exact subset of the shared
+# `kw` dict (built in `analyze()`) that its keyword-only parameters accept —
+# the per-kind key set is the only information the old `_dispatch_*` wrappers
+# carried, so it is kept explicit here rather than dispatched dynamically.
+_KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
+    "conditional": (
+        handle_conditional,
+        (
+            "graph",
+            "discovery",
+            "inference",
+            "refute",
+            "validators",
+            "seed",
+            "bootstrap",
+            "threads",
+        ),
+    ),
+    "temporal_mediation": (
+        handle_temporal_mediation,
+        ("graph", "discovery", "inference", "seed", "bootstrap", "threads"),
+    ),
+    "mediation": (
+        handle_mediation,
+        ("graph", "discovery", "refute", "seed", "bootstrap", "threads"),
+    ),
+    "counterfactual": (
+        handle_counterfactual,
+        ("graph", "discovery", "seed", "threads"),
+    ),
+    "distribution": (
+        handle_distribution,
+        ("graph", "discovery", "accept_discovered", "seed", "threads"),
+    ),
+    "path_specific": (
+        handle_path_specific,
+        ("graph", "discovery", "accept_discovered", "seed", "bootstrap", "threads"),
+    ),
 }
+
+
+def _dispatch_kind(data: Any, query: Any, kind: str, kw: dict[str, Any]) -> Any:
+    handler, keys = _KIND_HANDLER_KEYS[kind]
+    return handler(data, query, **{key: kw[key] for key in keys})
 
 
 def analyze(
@@ -1244,7 +1223,7 @@ def analyze(
     # Single source of truth for "is this one of the nine known query types" —
     # see `_coerce.coerce_query`'s docstring. Everything past this point in
     # `analyze()` already implicitly requires one of those nine (the
-    # `_KIND_HANDLERS` dispatch plus the AverageEffect / Pulse-or-Sustained
+    # `_KIND_HANDLER_KEYS` dispatch plus the AverageEffect / Pulse-or-Sustained
     # ladder below cover exactly the same nine kinds), so this makes the
     # final `raise TypeError` at the bottom of this function unreachable in
     # practice; it stays as a defensive fallback rather than being deleted.
@@ -1282,11 +1261,11 @@ def analyze(
 
     kind = getattr(query, "kind", "")
 
-    handler = _KIND_HANDLERS.get(kind) if kind else None
-    if handler is not None:
-        return handler(
+    if kind and kind in _KIND_HANDLER_KEYS:
+        return _dispatch_kind(
             data,
             query,
+            kind,
             {
                 "graph": graph,
                 "discovery": discovery,
