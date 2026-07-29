@@ -574,7 +574,6 @@ fn attribute_distribution_change_robust(
     seed: u64,
     threads: u32,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let _ = n_samples;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -592,10 +591,13 @@ fn attribute_distribution_change_robust(
             },
             components: AttributionComponents::Mechanisms,
             allocation: AllocationMethod::Shapley {
-                approximation: ShapleyConfig::monte_carlo(200),
+                approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             },
             max_components: 64,
         };
+        // `RobustChangeOptions` only exposes `max_rows`; it has no `n_samples`/`seed`
+        // fields to thread through (unlike `DistributionChangeOptions`), so the fix
+        // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
         let opts = antecedent::gcm::RobustChangeOptions::default();
         let ctx = py_execution_context(seed, threads);
         let result =
