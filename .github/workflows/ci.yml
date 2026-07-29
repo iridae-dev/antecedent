@@ -70,6 +70,76 @@ jobs:
             echo "No crate manifest changes; skipping publish dry-run"
           fi
 
+  # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
+  # schema check plus the eight feature gates (estimate_ci, bayesian, gcm, pag,
+  # context, attribution, design_state, upstream_names). Previously none of these
+  # ran on a PR, so numerical parity and the public-repo name check were
+  # unenforced between weekly runs.
+  gates:
+    name: Domain gates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Release gate
+        run: bash scripts/gate_release.sh
+
+  # Python lint / type check. `scripts/gate_python_lint.sh` is the local
+  # equivalent but requires python/.venv, so CI invokes the same three checks
+  # directly through uv.
+  python-lint:
+    name: Python lint and types
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dev environment
+        working-directory: python
+        run: uv sync --group dev
+
+      - name: Build native extension
+        working-directory: python
+        run: uv run maturin develop
+
+      - name: ruff check
+        working-directory: python
+        run: uv run ruff check antecedent tests ../examples/python
+
+      - name: ruff format --check
+        working-directory: python
+        run: uv run ruff format --check antecedent tests ../examples/python
+
+      - name: mypy
+        working-directory: python
+        run: uv run mypy
+
+      - name: pytest with coverage floor
+        working-directory: python
+        run: uv run pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+
   # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
   # macOS arm64; Windows x86_64. Default faer path (no system BLAS).
   python-wheels:
@@ -175,23 +245,14 @@ jobs:
           set -euo pipefail
           # Install from repo root, then import/test outside python/ so the
           # source tree does not shadow the wheel on sys.path.
-          pip install python/dist/*.whl numpy pytest
+          pip install python/dist/*.whl numpy pandas pyarrow pytest
           cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
-          # Point pytest at the repo tests while keeping cwd off python/
+          # Run the WHOLE suite against the installed wheel. Do not reintroduce a
+          # hand-maintained file allowlist here: the previous 11-of-56 list silently
+          # excluded every test added by the 0.4.0 refactor.
           ROOT="${{ github.workspace }}"
-          pytest -q \
-            "$ROOT/python/tests/test_arrow_copy_gate.py" \
-            "$ROOT/python/tests/test_graph_interchange.py" \
-            "$ROOT/python/tests/test_analyze_ate_estimate.py" \
-            "$ROOT/python/tests/test_discover_pcmci.py" \
-            "$ROOT/python/tests/test_discover_pcmci_plus.py" \
-            "$ROOT/python/tests/test_gcm_rich_returns.py" \
-            "$ROOT/python/tests/test_panel_bayesian.py" \
-            "$ROOT/python/tests/test_temporal_bayesian_pulse.py" \
-            "$ROOT/python/tests/test_prior_bank.py" \
-            "$ROOT/python/tests/test_eventframe_discovery.py" \
-            "$ROOT/python/tests/test_panel_pooled_discovery.py"
+          pytest -q "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
