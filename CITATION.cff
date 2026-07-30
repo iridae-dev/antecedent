@@ -17,7 +17,9 @@ doi: 10.5281/zenodo.21556247
 date-released: "2026-07-30"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
-license: "MIT OR Apache-2.0"
+license:
+  - MIT
+  - Apache-2.0
 keywords:
   - causal inference
   - identification
