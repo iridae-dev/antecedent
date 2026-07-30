@@ -32,7 +32,7 @@ use crate::overlap::OverlapRefuter;
 use crate::overlap_rule::OverlapRuleRefuter;
 use crate::placebo::PlaceboTreatment;
 use crate::rcc::RandomCommonCause;
-use crate::reisz::ReiszSensitivity;
+use crate::riesz::RieszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 use crate::validator::run_validator;
@@ -112,8 +112,8 @@ pub enum ValidatorId {
     PartialLinearSensitivity,
     /// Nonparametric sensitivity.
     NonparametricSensitivity,
-    /// Reisz-representer sensitivity.
-    Reisz,
+    /// Riesz-representer sensitivity.
+    Riesz,
     /// Prior predictive check (Bayesian).
     PriorPredictive,
     /// Posterior predictive check (Bayesian).
@@ -204,7 +204,7 @@ impl ValidationSuite {
             .with(ValidatorId::LinearSensitivity)
             .with(ValidatorId::PartialLinearSensitivity)
             .with(ValidatorId::NonparametricSensitivity)
-            .with(ValidatorId::Reisz)
+            .with(ValidatorId::Riesz)
     }
 
     /// Run all configured validators.
@@ -483,15 +483,15 @@ impl ValidationSuite {
                 workspace,
                 ctx,
             )?)),
-            ValidatorId::Reisz => {
+            ValidatorId::Riesz => {
                 if problem.temporal.is_some() {
                     return Ok(na(
                         id,
-                        "ReiszSensitivity not applicable to temporal unfolded designs",
+                        "RieszSensitivity not applicable to temporal unfolded designs",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
-                    &ReiszSensitivity::new(),
+                    &RieszSensitivity::new(),
                     problem,
                     workspace,
                     ctx,

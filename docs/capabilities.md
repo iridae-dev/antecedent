@@ -245,7 +245,7 @@ Sensitivity methods:
 * linear sensitivity;
 * partial-linear sensitivity;
 * nonparametric sensitivity;
-* Reisz sensitivity.
+* Riesz sensitivity.
 
 Bayesian validation:
 

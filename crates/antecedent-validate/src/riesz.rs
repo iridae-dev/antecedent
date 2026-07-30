@@ -1,6 +1,6 @@
-//! Reisz-representer diagnostics for binary ATE.
+//! Riesz-representer diagnostics for binary ATE.
 //!
-//! For binary treatment the Riesz representer of the ATE functional under
+//! For binary treatment the Riesz representer (Chernozhukov, Newey & Singh 2022) of the ATE functional under
 //! unconfoundedness is
 //!
 //! ```text
@@ -36,9 +36,9 @@ fn default_delta_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]
 }
 
-/// Reisz-representer robustness diagnostics for binary ATE.
+/// Riesz-representer robustness diagnostics for binary ATE.
 #[derive(Clone, Debug)]
-pub struct ReiszSensitivity {
+pub struct RieszSensitivity {
     /// Ascending grid of residual confounding strengths `δ`, in units of `sd(Y)` so the
     /// verdict is invariant to outcome units.
     pub delta_grid: Vec<f64>,
@@ -50,13 +50,13 @@ pub struct ReiszSensitivity {
     pub glm_options: GlmOptions,
 }
 
-impl Default for ReiszSensitivity {
+impl Default for RieszSensitivity {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ReiszSensitivity {
+impl RieszSensitivity {
     /// Defaults: delta grid through 1.0, pass threshold 0.1, clip 0.01.
     #[must_use]
     pub fn new() -> Self {
@@ -68,7 +68,7 @@ impl ReiszSensitivity {
         }
     }
 
-    /// Run Reisz-representer sensitivity.
+    /// Run Riesz-representer sensitivity.
     ///
     /// # Errors
     ///
@@ -81,7 +81,7 @@ impl ReiszSensitivity {
     ) -> Result<RefutationReport, ValidationError> {
         if self.delta_grid.is_empty() {
             return Err(ValidationError::NotApplicable {
-                message: "Reisz sensitivity requires a non-empty delta_grid",
+                message: "Riesz sensitivity requires a non-empty delta_grid",
             });
         }
         let (alpha, y, ipw_ate) = self.representer_and_ipw(problem)?;
@@ -90,7 +90,7 @@ impl ReiszSensitivity {
         let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
         if alpha_l2 < 1e-15 {
             return Err(ValidationError::NotApplicable {
-                message: "Reisz representer has near-zero L2 norm",
+                message: "Riesz representer has near-zero L2 norm",
             });
         }
 
@@ -117,7 +117,7 @@ impl ReiszSensitivity {
         }
         let passed = robustness >= self.pass_threshold;
         Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.reisz"),
+            refuter: Arc::from("sensitivity.riesz"),
             original_ate: problem.original.ate,
             refuted_ate: last_bound_ate,
             comparison: robustness,
@@ -127,7 +127,7 @@ impl ReiszSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "Reisz bound explains away effect at δ={robustness} (||α||₂={alpha_l2}), \
+                    "Riesz bound explains away effect at δ={robustness} (||α||₂={alpha_l2}), \
                      below threshold {}",
                     self.pass_threshold
                 )))
@@ -147,7 +147,7 @@ impl ReiszSensitivity {
         for &ti in &cols.treatment {
             if !(ti == 0.0 || ti == 1.0) {
                 return Err(ValidationError::NotApplicable {
-                    message: "ReiszSensitivity requires binary 0/1 treatment",
+                    message: "RieszSensitivity requires binary 0/1 treatment",
                 });
             }
         }
@@ -252,9 +252,9 @@ mod tests {
     }
 
     #[test]
-    fn reisz_reports_positive_robustness() {
+    fn riesz_reports_positive_robustness() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/validate/reisz_sensitivity/expected.json"
+            "../../../conformance/validate/riesz_sensitivity/expected.json"
         ))
         .unwrap();
         assert_eq!(fixture["balanced_case"]["alpha_l2"].as_f64().unwrap(), 2.0);
@@ -274,8 +274,8 @@ mod tests {
             estimator: Some("linear.adjustment.ate"),
             temporal: None,
         };
-        let report = ReiszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
-        assert_eq!(report.refuter.as_ref(), "sensitivity.reisz");
+        let report = RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(report.refuter.as_ref(), "sensitivity.riesz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);
         assert!(
             fixture["delta_grid"]

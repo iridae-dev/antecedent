@@ -230,11 +230,11 @@ python_facade = "full"
 [[capabilities]]
 id = "estimate.refute.sensitivity"
 group = "refutation_and_sensitivity"
-description = "Linear, partial-linear, nonparametric, and Reisz-representer sensitivity"
+description = "Linear, partial-linear, nonparametric, and Riesz-representer sensitivity"
 status = "done"
 owner = "estimate"
 python_facade = "full"
-notes = "Nonparametric = NW residualization + partial-R² grid; Reisz = IPW representer L2 bounds."
+notes = "Nonparametric = NW residualization + partial-R² grid; Riesz = IPW representer L2 bounds."
 
 [[capabilities]]
 id = "gcm.do_sampling"

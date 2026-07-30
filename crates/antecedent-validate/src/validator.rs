@@ -19,7 +19,7 @@ use crate::overlap::OverlapRefuter;
 use crate::overlap_rule::OverlapRuleRefuter;
 use crate::placebo::PlaceboTreatment;
 use crate::rcc::RandomCommonCause;
-use crate::reisz::ReiszSensitivity;
+use crate::riesz::RieszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 
@@ -145,7 +145,7 @@ impl_effect_validator!(PartialLinearSensitivity, |this: &PartialLinearSensitivit
 impl_effect_validator!(NonparametricSensitivity, |this: &NonparametricSensitivity, p, ws, ctx| {
     this.refute(p, ws, ctx)
 });
-impl_effect_validator!(ReiszSensitivity, |this: &ReiszSensitivity, p, ws, ctx| {
+impl_effect_validator!(RieszSensitivity, |this: &RieszSensitivity, p, ws, ctx| {
     this.refute(p, ws, ctx)
 });
 

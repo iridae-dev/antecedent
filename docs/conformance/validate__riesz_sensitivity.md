@@ -1,6 +1,6 @@
-# reisz_sensitivity
+# riesz_sensitivity
 
-**Suite path:** `conformance/validate/reisz_sensitivity`
+**Suite path:** `conformance/validate/riesz_sensitivity`
 
 ## Expected summary
 

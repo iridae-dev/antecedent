@@ -416,7 +416,7 @@ pub(crate) struct DiagnosticPropensityColumns {
 
 /// Diagnostic-only logistic propensity on treatment + adjustment covariates.
 ///
-/// Used by overlap / Reisz validators when the original estimate has no propensity report.
+/// Used by overlap / Riesz validators when the original estimate has no propensity report.
 pub(crate) fn fit_diagnostic_propensity(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
