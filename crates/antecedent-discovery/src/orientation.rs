@@ -1,6 +1,7 @@
 //! Orientation rules and local delta queues.
 //!
-//! Rules enqueue only neighbors of changed edges — never a full-graph edge scan.
+//! CPDAG completion rules R1-R4 are Meek 1995. Rules enqueue only neighbors of
+//! changed edges — never a full-graph edge scan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

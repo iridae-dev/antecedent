@@ -1,4 +1,4 @@
-//! Robust, weighted, and multivariate partial-correlation CI tests .
+//! Robust, weighted, and multivariate partial-correlation CI tests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

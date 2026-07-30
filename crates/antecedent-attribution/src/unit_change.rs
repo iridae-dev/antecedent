@@ -18,9 +18,10 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 /// Attribute per-unit outcome change to input / mechanism components.
 ///
 /// Abduces exogenous noise once, then evaluates the outcome mechanism on
-/// coalition-mixed parent values with that fixed noise (Budhathoki-style factual
-/// vs reference decomposition). Shapley values therefore attribute the real
-/// mechanism payoff, not a linear surrogate.
+/// coalition-mixed parent values with that fixed noise (the factual-vs-reference,
+/// counterfactual Shapley decomposition of Budhathoki, Michailidis & Janzing 2022).
+/// Shapley values therefore attribute the real mechanism payoff, not a linear
+/// surrogate.
 ///
 /// # Errors
 ///

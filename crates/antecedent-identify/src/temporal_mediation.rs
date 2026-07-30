@@ -1,4 +1,4 @@
-//! Linear temporal mediation identification on stationary templates .
+//! Linear temporal mediation identification on stationary templates.
 //!
 //! For a linear SEM on a [`TemporalDag`], total / direct / mediated effects
 //! decompose via path products once a mediator set participates on treatment→

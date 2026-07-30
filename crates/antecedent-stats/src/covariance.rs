@@ -37,17 +37,17 @@ pub enum SandwichKind<'a> {
         /// Cluster id per row (length `nrows`).
         groups: &'a [u32],
     },
-    /// Multiway cluster-robust (Cameron–Gelbach–Miller inclusion–exclusion).
+    /// Multiway cluster-robust (Cameron–Gelbach–Miller 2011 inclusion–exclusion).
     Multiway {
         /// One group-id slice per clustering dimension (each length `nrows`).
         dimensions: &'a [&'a [u32]],
     },
-    /// Newey–West HAC with Bartlett kernel and given max lag.
+    /// Newey–West (1987) HAC with Bartlett kernel and given max lag.
     NeweyWest {
         /// Maximum lag (inclusive).
         lag: usize,
     },
-    /// Panel cluster + within-unit temporal HAC (Arellano-style).
+    /// Panel cluster + within-unit temporal HAC (Arellano 1987-style).
     ///
     /// Lag products use explicit integer `time` labels within each unit.
     /// Cross-unit lag products are never formed. Finite-sample cluster DF

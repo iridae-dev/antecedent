@@ -50,7 +50,7 @@ pub enum MechanismFamily {
     HierarchicalGlm,
     /// Single-equation Bayesian VAR (Minnesota prior).
     Bvar,
-    /// Linear Gaussian state-space observation mechanism (Kalman EM fit).
+    /// Linear Gaussian state-space observation mechanism (Kalman 1960 filter, EM fit).
     LinearGaussianStateSpace,
     /// Gaussian-process regression mechanism (feature `gaussian-process`).
     GaussianProcess,
@@ -690,7 +690,8 @@ fn fit_bvar_minnesota(
     Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
 }
 
-/// Scalar LGSSM on parent-adjusted residuals via EM (Kalman filter/smoother).
+/// Scalar LGSSM on parent-adjusted residuals via EM (Kalman 1960 filter / Rauch–Tung–Striebel
+/// 1965 smoother).
 fn fit_lgssm_kalman_em(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,

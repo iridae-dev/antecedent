@@ -15,7 +15,7 @@ mod sealed {
 
 impl sealed::Sealed for crate::adjustment::LinearAdjustmentAte {}
 
-/// Estimator preparation + fit .
+/// Estimator preparation + fit.
 ///
 /// Extension / dispatch surface. Most concrete estimators expose inherent
 /// `prepare` / `fit` with estimator-specific prepared types, workspaces, and

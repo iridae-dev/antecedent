@@ -52,8 +52,8 @@ pub struct DoSampleResult {
 /// Weighting do-sampler for hard `do(T=t)`.
 ///
 /// - **Root treatment:** empirical outcomes among units with `T ≈ t`.
-/// - **Confounded continuous treatment:** Horvitz–Thompson with a **shrinking** Gaussian
-///   kernel on the treatment margin (Silverman bandwidth) over the fitted conditional
+/// - **Confounded continuous treatment:** Horvitz–Thompson (1952) with a **shrinking** Gaussian
+///   kernel on the treatment margin (Silverman 1986 bandwidth) over the fitted conditional
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
 ///   Dirac interventional law, so the kernel is the localization numerator (there is no
 ///   separate `lp_do` term).
@@ -74,7 +74,7 @@ impl WeightingDoSampler {
         Self { treatment, outcome }
     }
 
-    /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson on fitted model densities.
+    /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson (1952) on fitted model densities.
     ///
     /// # Errors
     ///
@@ -224,7 +224,7 @@ impl WeightingDoSampler {
 pub struct KdeDoSampler {
     /// Outcome variable.
     pub outcome: VariableId,
-    /// Bandwidth (Silverman's rule if None).
+    /// Bandwidth (Silverman's (1986) rule if None).
     pub bandwidth: Option<f64>,
 }
 
@@ -294,7 +294,7 @@ fn silverman_bandwidth(x: &[f64]) -> f64 {
 
 /// Random-walk Metropolis–Hastings on the **outcome margin**.
 ///
-/// The chain targets a Silverman Gaussian KDE fitted to a pilot batch of interventional
+/// The chain targets a Silverman (1986) Gaussian KDE fitted to a pilot batch of interventional
 /// ancestral draws — a smoothed proxy of the interventional law of `outcome`, not the
 /// joint mechanism density. Proposals are Gaussian random walks (`proposal_sd`); this is
 /// **not** independent MH, and is exact for the interventional law only in the large-pilot

@@ -1,4 +1,4 @@
-//! Front-door two-stage (product-of-coefficients) regression estimator .
+//! Front-door two-stage (product-of-coefficients) regression estimator.
 //!
 //! Requires a `"frontdoor"` estimand with a non-empty [`IdentifiedEstimand::mediators`] set
 //! (see `antecedent_identify::frontdoor`). Supports one or more mediators `M₁…Mₖ`; the front-door

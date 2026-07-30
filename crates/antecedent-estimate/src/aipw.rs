@@ -1,4 +1,4 @@
-//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator .
+//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator.
 //!
 //! Combines an outcome regression (μ0(Z), μ1(Z), fit separately per treatment arm) with
 //! inverse-probability weighting of the residuals, so the estimator is consistent if *either*

@@ -54,7 +54,7 @@ pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 
 /// J-PCMCI+ discovery over [`MultiEnvironmentData`].
 ///
-/// Own type (not a PCMCI+ flag). Implements Günther et al. pooled four-phase search.
+/// Own type (not a PCMCI+ flag). Implements Günther et al. 2023 pooled four-phase search.
 #[derive(Clone, Debug)]
 pub struct JpcmciPlus {
     /// Shared engine (`min_lag` typically 0; crate-private — use builders / [`Self::engine`]).

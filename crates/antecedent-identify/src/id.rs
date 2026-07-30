@@ -1,4 +1,4 @@
-//! Shpitser–Pearl ID algorithm for semi-Markovian models.
+//! Shpitser & Pearl (2006) ID algorithm for semi-Markovian models.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

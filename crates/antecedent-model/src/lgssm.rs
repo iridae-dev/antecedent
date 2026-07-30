@@ -1,4 +1,5 @@
-//! Scalar linear-Gaussian state-space helpers (Kalman / RTS / innovation packing).
+//! Scalar linear-Gaussian state-space helpers (Kalman 1960 filter / Rauch–Tung–Striebel 1965
+//! smoother / innovation packing).
 //!
 //! Model: `x_t = a x_{t-1} + σ_proc ε_t`, `y_t = x_t + σ_obs η_t` with `ε, η ~ N(0,1)`.
 //!
@@ -49,7 +50,7 @@ pub fn sample_lgssm_noise(
     Ok(())
 }
 
-/// Forward Kalman filter for a scalar LGSSM.
+/// Forward Kalman (1960) filter for a scalar LGSSM.
 ///
 /// Returns filtered means/variances and one-step predictive means/variances.
 #[must_use]
@@ -83,7 +84,7 @@ pub fn kalman_filter(
     (x_f, p_f, x_pred, p_pred)
 }
 
-/// Rauch–Tung–Striebel smoother given filter outputs.
+/// Rauch–Tung–Striebel (1965) smoother given filter outputs.
 ///
 /// Returns smoothed means, variances, and lag-1 cross-covariances `p_lag[t] = Cov(x_t, x_{t-1})`.
 #[must_use]

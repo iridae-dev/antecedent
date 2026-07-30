@@ -1,4 +1,5 @@
-//! Robust distribution-change attribution (`pinned baseline` `distribution_change_robust`).
+//! Robust distribution-change attribution, a regression-hybrid variant of the
+//! Budhathoki, Janzing, Bloebaum & Ng (2021) mechanism-Shapley decomposition.
 //!
 //! Uses fitted mechanism hybrids (same topology as [`distribution_change`]) with a
 //! structural-mean payoff. Linear-family mechanisms use a fast OLS path; nonlinear

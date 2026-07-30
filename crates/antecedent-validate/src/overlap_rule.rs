@@ -2,7 +2,8 @@
 //!
 //! Distinct from [`crate::OverlapRefuter`]: that check reports propensity range / ESS.
 //! This module evaluates a **trimming / common-support rule** — whether enough mass remains
-//! after excluding extreme propensities under a declared rule (Crump-style fixed band or
+//! after excluding extreme propensities under a declared rule (Crump-style (Crump et al. 2009)
+//! fixed band or
 //! minimum retained support fraction).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -35,7 +36,7 @@ impl Default for OverlapRuleRefuter {
 }
 
 impl OverlapRuleRefuter {
-    /// Defaults: `rule_eps = 0.1` (Crump-style), `min_retained_fraction = 0.5`.
+    /// Defaults: `rule_eps = 0.1` (Crump-style, Crump et al. 2009), `min_retained_fraction = 0.5`.
     #[must_use]
     pub fn new() -> Self {
         Self { rule_eps: 0.1, min_retained_fraction: 0.5, glm_options: GlmOptions::default() }

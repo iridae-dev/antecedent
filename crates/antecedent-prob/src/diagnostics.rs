@@ -112,7 +112,7 @@ impl InferenceDiagnostics {
         if self.factorization != HessianFactorization::Mcmc {
             return false;
         }
-        // Stan/Vehtari: rank-normalized / folded R̂ ≤ 1.01.
+        // Stan/Vehtari (2021): rank-normalized / folded R̂ ≤ 1.01.
         let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
         // Stan/ArviZ guidance is ~100 bulk- and tail-ESS **per chain**, not in total. A flat
         // 100 is reachable with 25 effective draws per chain at the 4-chain default used

@@ -1,6 +1,6 @@
 //! Classic static FCI over [`TabularData`] → [`Pag`].
 //!
-//! Phases (Spirtes et al.):
+//! Phases (Spirtes, Meek & Richardson 1995):
 //! 1. PC-style adjacency skeleton
 //! 2. Unshielded collider orientation
 //! 3. Possible-D-Sep adjacency (further edge removals)

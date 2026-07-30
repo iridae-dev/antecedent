@@ -1,4 +1,4 @@
-//! Linear temporal mediation effects .
+//! Linear temporal mediation effects.
 //!
 //! Path-product decomposition on lagged samples: total = direct + mediated
 //! under a linear SEM with a single mediator.
@@ -261,7 +261,7 @@ fn ols_fit(
     Ok(fit.coefficients)
 }
 
-/// Temporal effect surface aligning with pinned baseline (direct / total / mediated / conditional).
+/// Temporal effect surface: direct, total, mediated, and (optional) conditional effects.
 #[derive(Clone, Debug)]
 pub struct TemporalEffectSurface {
     /// Total effect.
@@ -275,7 +275,7 @@ pub struct TemporalEffectSurface {
 }
 
 impl TemporalMediationEstimator {
-    /// Convenience: return the full pinned baseline-style effect surface.
+    /// Convenience: return the full direct/total/mediated/conditional effect surface.
     ///
     /// # Errors
     ///

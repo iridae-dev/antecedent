@@ -1,7 +1,12 @@
 //! `DirectLiNGAM` → static [`Dag`] (Shimizu et al. 2011).
 //!
-//! Causal-order search by residual–predictor independence (distance correlation),
-//! then OLS coefficient pruning. Does not use ICA or the Meek/PC orientation stack.
+//! Causal-order search by residual–predictor independence, then OLS coefficient
+//! pruning. Does not use ICA or the Meek/PC orientation stack.
+//!
+//! Deviation from the paper: independence is scored with distance correlation
+//! (Székely, Rizzo & Bakirov 2007) rather than the paper's kernel-based mutual-
+//! information statistic `T_kernel` (Section 3.2, Eqs. 9-14). The causal-order
+//! search procedure itself follows the paper; only the independence measure differs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
