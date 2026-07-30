@@ -14,6 +14,6 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated residualized Gaussian samples",
- "exercised end-to-end via PCMCI conformance (conformance/tigramite/pcmci_lag1)",
+ "independently generated residualized Gaussian samples (crates/antecedent-stats/src/ci/parcorr.rs unit tests)",
+ "exercised end-to-end via PCMCI conformance (conformance/discovery/pcmci_lag1)",
 ]

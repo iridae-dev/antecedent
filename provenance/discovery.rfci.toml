@@ -1,0 +1,17 @@
+feature_id = "discovery.rfci"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Learning High-Dimensional Directed Acyclic Graphs with Latent and Selection Variables", doi = "10.1214/11-AOS940", sections = ["RFCI algorithm", "Lemma 3.1 (unshielded-triple local CI)", "Lemma 3.2 (discriminating-path CI check)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/rfci.rs unit tests",
+ "conformance/discovery/rfci",
+]

@@ -5,13 +5,25 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+# Scope: this record covers ONLY DesignObjective::ReduceGraphEntropy
+# (crates/antecedent-design/src/objective.rs) and its scorer
+# ranker.rs::eig_graph_entropy — the signed Shannon-entropy-reduction Monte Carlo estimator
+# `H(prior) - H(p(G|y))` over the discrete graph-posterior observation channel. It does NOT
+# cover the other three DesignRankConfig objectives implemented elsewhere in ranker.rs:
+# - effect_width_reduction (Gram-matrix SE reduction) — see design.effect_width_reduction.toml
+# - model_distinguish_score (expected log-lik gap between models) — see design.model_distinguish.toml
+# - decision_regret_reduction (Bayesian decision-regret reduction) — covered by design.decision.toml
 papers = [
- { title = "Elements of Information Theory (Cover & Thomas)", doi = "10.1002/047174882X", sections = ["mutual information / entropy"] },
+ { title = "On a Measure of the Information Provided by an Experiment", doi = "10.1214/aoms/1177728069", sections = ["Expected reduction in Shannon entropy from an experiment"] },
+ { title = "Bayesian Experimental Design: A Review", doi = "10.1214/ss/1177009939", sections = ["Section 3: Shannon-information design criteria (review, catalogs Lindley's criterion)"] },
+ { title = "Elements of Information Theory (Cover & Thomas)", doi = "10.1002/047174882X", sections = ["Mutual information / entropy definitions (secondary textbook treatment)"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "independently generated synthetic graph posteriors",
- " ranking requirements",
+ "crates/antecedent-design/src/ranker.rs::eig_graph_entropy unit tests",
+ "crates/antecedent-design/tests/design_oracle.rs (fixed_budget_scores_match_exact_expected_information_gain, candidate_ranking_replays_and_calibrates_across_seed_grid)",
+ "conformance/design/expected_information_gain",
+ "conformance/design/candidate_ranking",
 ]

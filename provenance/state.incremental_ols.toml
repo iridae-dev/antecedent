@@ -5,13 +5,22 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "Linear regression sufficient statistics (standard OLS)", doi = "", sections = ["normal equations"] },
-]
+# Read crates/antecedent-state/src/suff_stats.rs and its dependency
+# crates/antecedent-stats/src/gram.rs::accumulate_xtx_xty_row before writing this record.
+# The incremental update is a direct running accumulation of X'X and X'y (each new row's
+# outer product added into the Gram matrices), NOT Welford's (1962) or Chan/Golub/LeVeque's
+# (1983) numerically-stable one-pass recurrences — those specifically avoid the
+# catastrophic-cancellation failure mode of naive sum accumulation via a different update
+# rule (deviation-from-running-mean), which this code does not use. Citing either would
+# misattribute a specific numerical-stability paper to code that doesn't implement its
+# algorithm. The normal equations themselves (X'X beta = X'y) are closed-form linear algebra
+# with no single attributable origin paper, so this is left honestly as textbook material
+# rather than forcing a citation.
+
+papers = []
 
 upstream_implementations_observed = []
 
 test_sources = [
- "independently generated synthetic design matrices",
- "incremental vs full recompute fixtures",
+ "conformance/design_state/incremental_ols_match (exercised via crates/antecedent/tests/design_state.rs)",
 ]

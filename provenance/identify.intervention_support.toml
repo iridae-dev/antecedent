@@ -1,0 +1,20 @@
+feature_id = "identify.intervention_support"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Normalizes Soft(constant)/Soft(additive_shift)/Shift/degenerate-Stochastic/
+# Sequence interventions to hard do(Set) so identifiers written against the
+# do-operator (Pearl's Causality, already cited by identify.backdoor.toml /
+# identify.frontdoor.toml / identify.iv.toml) can consume them. This is a
+# normalization utility, not a distinct published estimation method.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-identify/src/intervention_support.rs)",
+ "unsupported-intervention rejection case (conformance/identify/auto_envelopes)",
+]

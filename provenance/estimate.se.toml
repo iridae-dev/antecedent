@@ -1,0 +1,20 @@
+feature_id = "estimate.se"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity", doi = "10.2307/1912934", sections = ["HC0 heteroskedasticity-consistent covariance matrix"] },
+ { title = "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix", doi = "10.2307/1913610", sections = ["HAC covariance matrix with Bartlett kernel weights"] },
+ { title = "Computing Robust Standard Errors for Within-groups Estimators", doi = "10.1111/j.1468-0084.1987.mp49004006.x", sections = ["cluster-robust / panel within-group variance"] },
+ { title = "Robust Inference With Multiway Clustering", doi = "10.1198/jbes.2010.07136", sections = ["multiway cluster-robust variance via inclusion-exclusion"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "conformance/estimate/uncertainty_routing (statsmodels-oracle routing/identity fixture; numeric tolerances inherit conformance/stats/sandwich_covariance)",
+ "in-crate unit tests (crates/antecedent-estimate/src/se.rs): one/multiway/panel-HAC IF-vs-sandwich parity, demeaning correctness, dimension-permutation and relabeling invariance",
+]

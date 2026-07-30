@@ -1,0 +1,27 @@
+feature_id = "kernels.special_functions"
+implementation_crate = "antecedent-kernels"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The CODY_A/B/C/D and CODY_P/Q rational-approximation coefficients in
+# crates/antecedent-kernels/src/special.rs are transcribed from Cody's published paper,
+# cited below — the paper IS the source, and its coefficient tables are the citable
+# artifact. The SPECFUN CALERF Fortran routine implements the same published
+# coefficients, so it is disclosed here for completeness, but it was not the source:
+# exposure is "none" because the implementation derives from the publication rather
+# than from that library's source. Recorded deliberately, not by default.
+
+papers = [
+ { title = "Rational Chebyshev Approximations for the Error Function", doi = "10.1090/S0025-5718-1969-0247736-4", sections = ["erf coefficients for |x| <= 0.46875", "erfc coefficients for 0.46875 < |x| <= 4 and |x| > 4"] },
+]
+
+upstream_implementations_observed = [
+ { project = "SPECFUN (CALERF)", exposure = "none" },
+]
+
+test_sources = [
+ "crates/antecedent-kernels/src/special.rs unit tests",
+ "conformance/stats/rng_gaussian (SciPy statistical battery, exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+]

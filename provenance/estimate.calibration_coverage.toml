@@ -1,0 +1,22 @@
+feature_id = "estimate.calibration_coverage"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# This module is Monte Carlo calibration-gate infrastructure, not a novel
+# estimator: it re-simulates the SCMs already used by the estimators under
+# test and checks that each estimator's own analytic/bootstrap SE (already
+# cited in estimate.se.toml, estimate.aipw.toml, estimate.linear_adjustment.toml,
+# etc.) produces nominal 95% CI coverage. No single paper introduces "simulate
+# and check binomial CI coverage of a confidence interval" as a method; it is
+# standard statistical practice, so `papers` is left empty rather than citing
+# a paper for a technique that isn't algorithmic.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "in-crate #[ignore] calibration tests (crates/antecedent-estimate/src/calibration_coverage.rs), run via scripts/gate_calibration.sh: linear_adjustment (analytic + HC1), ipw_hajek (bootstrap + analytic), aipw, matching, wald_iv (homoskedastic + HC1), rd_sharp analytic CI coverage",
+]

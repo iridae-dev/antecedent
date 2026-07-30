@@ -1,0 +1,19 @@
+feature_id = "ci.parcorr_variants"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Relations Between Two Sets of Variates", doi = "10.1093/biomet/28.3-4.321", sections = ["canonical correlation via whitened cross-covariance"] },
+ { title = "Certain Generalizations in the Analysis of Variance", doi = "10.1093/biomet/24.3-4.471", sections = ["Wilks' Lambda"] },
+ { title = "Further Aspects of the Theory of Multiple Regression", doi = "10.1017/S0305004100019897", sections = ["chi-square approximation to -[(n-q)-(p+q+1)/2] ln(Lambda)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "robust/weighted/multivariate unit tests (crates/antecedent-stats/src/ci/parcorr_variants.rs::tests)",
+ "multivariate_block_calibration_gate (crates/antecedent-stats/src/ci/calibration.rs)",
+]

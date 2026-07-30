@@ -1,0 +1,32 @@
+feature_id = "validate.discovery_stability"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Covers crates/antecedent-validate/src/stability/*.rs: block-bootstrap orientation and
+# link-frequency stability, regime stability, false-positive checks via permutation /
+# phase-randomization surrogates, synthetic-null FPR calibration, environment holdout, and
+# PCMCI parameter grids. The underlying resampling and surrogate primitives have primary
+# sources (below); running discovery repeatedly under those perturbations and reporting
+# retention frequencies / FPR calibration is a standard discovery-robustness pattern with
+# no single introducing paper distinct from the primitives themselves. Honestly reported
+# rather than inventing a wrapper-methodology citation — see report for detail.
+papers = [
+ { title = "The Stationary Bootstrap", doi = "10.1080/01621459.1994.10476870", sections = ["Moving-block resampling for dependent time series (block-bootstrap stability)"] },
+ { title = "Testing for Nonlinearity in Time Series: The Method of Surrogate Data", doi = "10.1016/0167-2789(92)90102-S", sections = ["Permutation and phase-randomized surrogate nulls"] },
+]
+
+upstream_implementations_observed = [
+ { project = "tigramite", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-validate/src/stability/orientation.rs unit tests",
+ "crates/antecedent-validate/src/stability/regime.rs unit tests",
+ "crates/antecedent-validate/src/stability/false_positive.rs unit tests",
+ "crates/antecedent-validate/src/stability/null_calibration.rs unit tests",
+ "crates/antecedent-validate/src/stability/env_holdout.rs unit tests",
+ "crates/antecedent-validate/src/stability/pcmci_grid.rs unit tests",
+]

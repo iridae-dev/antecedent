@@ -1,0 +1,23 @@
+feature_id = "stats.robust_covariance"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity", doi = "10.2307/1912934", sections = ["HC0"] },
+ { title = "Some Heteroskedasticity-Consistent Covariance Matrix Estimators with Improved Finite Sample Properties", doi = "10.1016/0304-4076(85)90158-7", sections = ["HC1", "HC2", "HC3"] },
+ { title = "Robust Inference With Multiway Clustering", doi = "10.1198/jbes.2010.07136", sections = ["multiway cluster-robust inclusion-exclusion"] },
+ { title = "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix", doi = "10.2307/1913610", sections = ["Bartlett-kernel HAC"] },
+ { title = "Computing Robust Standard Errors for Within-Groups Estimators", doi = "10.1111/j.1468-0084.1987.mp49004006.x", sections = ["panel cluster + within-unit temporal HAC"] },
+]
+
+upstream_implementations_observed = [
+ { project = "statsmodels", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-stats/src/cluster.rs unit tests",
+ "conformance/stats/sandwich_covariance (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+]

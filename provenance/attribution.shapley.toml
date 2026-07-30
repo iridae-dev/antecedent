@@ -1,3 +1,25 @@
-algorithm = "attribution.shapley"
-status = "implemented"
-notes = "Exact and Monte Carlo Shapley with coalition cache"
+feature_id = "attribution.shapley"
+implementation_crate = "antecedent-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ # Internal section numbering not independently verified for either paper below: both are
+ # old/short works only accessible as scanned or access-gated PDFs, so I could not read the
+ # actual section headings the way I did for the other records in this batch. Located by page
+ # range / general description instead of asserting an unverified section number.
+ { title = "A Value for n-Person Games", doi = "10.1515/9781400829156-012", sections = ["the three value axioms and the resulting permutation-sum formula (pp. 307-317 of the Contributions to the Theory of Games II chapter; internal section number not independently verified)"] },
+ { title = "Polynomial calculation of the Shapley value based on sampling", doi = "10.1016/j.cor.2008.04.004", sections = ["the sampling-based polynomial estimator for the Shapley value (pp. 1726-1730; internal section number not independently verified)"] },
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-attribution/src/shapley.rs (in-module unit tests: efficiency, symmetry, Monte Carlo stderr convergence)",
+ "conformance/attribution/arrow_strength",
+ "crates/antecedent/tests/attribution.rs",
+]

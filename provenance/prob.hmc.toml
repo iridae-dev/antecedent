@@ -1,0 +1,20 @@
+feature_id = "prob.hmc"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Hybrid Monte Carlo", doi = "10.1016/0370-2693(87)91197-X", sections = ["leapfrog integrator", "Metropolis correction"] },
+ { title = "MCMC Using Hamiltonian Dynamics", doi = "10.1201/b10905-6", sections = ["Section 5.2 (leapfrog)", "Section 5.3 (fixed-trajectory HMC)"] },
+ { title = "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo", doi = "10.48550/arXiv.1111.4246", sections = ["Algorithm 5/6 (dual-averaging step-size adaptation) only — this module uses fixed-length leapfrog trajectories, not the NUTS tree-doubling trajectory selection"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "leapfrog reversibility unit test (crates/antecedent-prob/src/hmc.rs::tests::leapfrog_is_reversible)",
+ "Gaussian-target HMC vs conjugate-Gaussian moment agreement (crates/antecedent-prob/src/hmc.rs::tests)",
+ "conformance/bayesian/laplace_glm (shared Bayesian GLM fixture family)",
+]

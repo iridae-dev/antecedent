@@ -1,0 +1,26 @@
+feature_id = "attribution.mechanism_change_detection"
+implementation_crate = "antecedent-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ # Both papers below are only accessible to me as scanned/image PDFs (Benjamini & Hochberg
+ # 1995) or without a readable full-text mirror (Gretton 2012); I could not independently
+ # confirm exact section numbers the way I did for the arXiv papers elsewhere in this batch.
+ # Kept from memory/secondary sources with that caveat rather than dropping to no section at
+ # all, since a described-but-unverified location is more useful than silence and the papers'
+ # identities and relevance are not in question.
+ { title = "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing", doi = "10.1111/j.2517-6161.1995.tb02031.x", sections = ["Section 2 (definition of the FDR and the linear step-up procedure, Theorem 1); exact section number not independently verified — source is a scanned/image PDF"] },
+ { title = "A Kernel Two-Sample Test", sections = ["Section 2 (empirical biased/V-statistic MMD^2 estimator); exact section number not independently verified. RBF kernel + median-heuristic bandwidth is a practical choice discussed in the paper's numerical-experiments section, not part of the Section 2 definition — corrected from the earlier record, which conflated the two"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "conformance/attribution/mechanism_change_detect",
+ "conformance/attribution/mechanism_change_kernel_shift",
+ "conformance/attribution/mechanism_change_change_point",
+ "crates/antecedent/tests/attribution.rs",
+]

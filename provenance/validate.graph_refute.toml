@@ -1,0 +1,20 @@
+feature_id = "validate.graph_refute"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Leave-one-out adjustment-covariate sensitivity (drop each backdoor covariate in turn,
+# refit, report worst relative ATE change). This is an ad hoc robustness diagnostic on the
+# *chosen adjustment set*, not a check tied to a specific published methodology; no single
+# primary paper introduces it as a named method. Honestly left uncited rather than
+# retrofitting a plausible-sounding source — see report for detail.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-validate/src/graph_refute.rs unit tests",
+ "conformance/validate/overlap_graph_refutation",
+]

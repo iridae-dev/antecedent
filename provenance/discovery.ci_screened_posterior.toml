@@ -1,0 +1,20 @@
+feature_id = "discovery.ci_screened_posterior"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "An Algorithm for Fast Recovery of Sparse Causal Graphs", doi = "10.1177/089443939100900106", sections = ["PC skeleton used as the candidate-edge screen"] },
+ { title = "Bayesian Graphical Models for Discrete Data", doi = "10.2307/1403615", sections = ["MC^3 structure-MCMC restricted to the screened candidate edges"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/ci_screened_posterior.rs unit tests",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
+ "conformance/discovery/graph_mcmc_exact",
+]

@@ -1,0 +1,17 @@
+feature_id = "validate.evalue"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Sensitivity Analysis in Observational Research: Introducing the E-Value", doi = "10.7326/M16-2607", sections = ["E-value formula", "risk-ratio conversion for continuous outcomes"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-validate/src/evalue.rs unit tests",
+ "conformance/validate/refuters",
+]

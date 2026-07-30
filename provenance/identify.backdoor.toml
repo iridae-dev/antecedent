@@ -6,7 +6,6 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Causal Inference in Statistics: A Primer", doi = "10.1002/9781119186844", sections = ["back-door criterion"] },
   { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.1"] },
 ]
 
@@ -17,5 +16,5 @@ upstream_implementations_observed = [
 test_sources = [
   "independently generated synthetic SCMs",
   "property tests vs path-enumeration d-separation oracle",
-  "black-box comparison against pinned DoWhy baseline (conformance/dowhy/linear_gaussian_ate)",
+  "black-box comparison against pinned DoWhy baseline (conformance/estimate/linear_gaussian_ate)",
 ]

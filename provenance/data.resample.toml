@@ -1,0 +1,18 @@
+feature_id = "data.resample"
+implementation_crate = "antecedent-data"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Stationary Bootstrap", doi = "10.1080/01621459.1994.10476870", sections = ["Stationary block bootstrap (geometric block lengths)"] },
+ { title = "Algorithm 235: Random permutation", doi = "10.1145/364520.364540", sections = ["In-place random shuffle"] },
+ { title = "Statistical Tables for Biological, Agricultural and Medical Research", sections = ["Random permutation by successive random draws (Example 12, the origin of the Fisher-Yates shuffle)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-data/src/resample.rs unit tests",
+]

@@ -1,0 +1,17 @@
+feature_id = "stats.fdr"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing", doi = "10.1111/j.2517-6161.1995.tb02031.x", sections = ["step-up FDR procedure"] },
+ { title = "The Control of the False Discovery Rate in Multiple Testing Under Dependency", doi = "10.1214/aos/1013699998", sections = ["harmonic-sum FDR correction under arbitrary dependence"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/fdr.rs unit tests",
+]

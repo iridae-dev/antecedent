@@ -1,0 +1,19 @@
+feature_id = "identify.hedge"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", sections = ["Algorithm ID, line 5 (hedge / R-rooted C-forest pair)"] },
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "hedge certificate case in clean-room ID oracle (conformance/identify/id_hedge)",
+ "black-box comparison against DoWhy non-identifiable case (conformance/identify/general_id_hedge)",
+]
