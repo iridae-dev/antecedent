@@ -864,6 +864,14 @@ def identify_ate(
     *,
     identifier: str | None = None,
 ) -> tuple[str, str, list[str]]: ...
+def identify_ate_admg(
+    names: list[str],
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    *,
+    identifier: str | None = None,
+) -> tuple[str, str, list[str]]: ...
 def analyze_temporal_mediation(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
