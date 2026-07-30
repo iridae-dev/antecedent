@@ -319,13 +319,22 @@ impl super::Study {
         self.execute(&compiled, ctx)
     }
 
-    /// Identify only (no estimation). Supports static DAG average-effect / related queries.
+    /// Identify only (no estimation). Supports static DAG and ADMG average-effect
+    /// / related queries.
+    ///
+    /// The ADMG path matters for correctness, not just coverage: a DAG cannot
+    /// express "this variable is unobservable", so a latent common cause
+    /// flattened into one is identified by adjusting on a variable no study can
+    /// measure. Routing an ADMG through general ID lets that case report
+    /// `NotIdentified` instead. Mirrors `execute()`: an ADMG with no bidirected
+    /// edges is just a DAG, and is coerced rather than forced down the general
+    /// ID path.
     ///
     /// # Errors
     ///
-    /// Missing DAG structure, unsupported graph class, or identification failure.
+    /// Missing graph structure, unsupported graph class, or identification failure.
     pub fn identify_only(&self) -> Result<IdentificationResult, CausalError> {
-        use crate::strategy_table::{DEFAULT_IDENTIFIER_ID, identify_static_query};
+        use crate::strategy_table::{DEFAULT_IDENTIFIER_ID, identify_admg, identify_static_query};
 
         if self.graph_posterior.is_some() {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
@@ -335,10 +344,31 @@ impl super::Study {
                           identification runs per-graph inside execute()",
             });
         }
-        let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-            message: "identify_only currently supports static DAG graphs only",
-        })?;
         let id = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
+
+        if let Some(admg) = self.graph.as_admg() {
+            if admg_has_bidirected(admg) {
+                let CausalQuery::AverageEffect(query) = &self.query else {
+                    return Err(CausalError::Unsupported {
+                        message: "identify_only on an ADMG supports average-effect queries only",
+                    });
+                };
+                // Only general ID handles bidirected structure; the default
+                // identifier is a backdoor strategy that would ignore it.
+                let identifier =
+                    if self.identifier.is_some() { id } else { IdentifierId::GeneralId };
+                return identify_admg(identifier, admg, query);
+            }
+            // No bidirected edges: this ADMG *is* a DAG. Coercing keeps the
+            // caller's identifier choice meaningful instead of forcing general
+            // ID on a graph with no latent structure to reason about.
+            let coerced = admg_to_dag(admg)?;
+            return identify_static_query(id, &coerced, &self.query);
+        }
+
+        let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
+            message: "identify_only currently supports static DAG and ADMG graphs only",
+        })?;
         identify_static_query(id, graph, &self.query)
     }
 

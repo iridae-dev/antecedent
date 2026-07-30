@@ -26,6 +26,9 @@ from ._native import (
 from ._native import (
     identify_ate as _identify_ate,
 )
+from ._native import (
+    identify_ate_admg as _identify_ate_admg,
+)
 from .discovery import (
     FCI,
     GES,
@@ -50,7 +53,7 @@ from .errors import (
     PendingEdge,
     build_review_error,
 )
-from .graph import Cpdag, Dag, TemporalDag
+from .graph import Admg, Cpdag, Dag, TemporalDag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -665,18 +668,34 @@ class IdentifyResult:
 
 def identify(
     *,
-    graph: Dag | Sequence[tuple[str, str]],
+    graph: Dag | Admg | Sequence[tuple[str, str]],
     query: AverageEffect,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> IdentifyResult:
     """Identify without estimating.
 
-    Pass ``names`` when ``graph`` is an edge list (variable order). With a
-    ``Dag``, names are taken from ``graph.nodes()``.
+    Accepts a ``Dag``, an ``Admg``, or an edge list. Pass ``names`` with an edge
+    list (variable order); with a typed graph the names come from
+    ``graph.nodes()``.
+
+    Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
+    to say a variable cannot be observed, so a latent common cause flattened
+    into one is treated as an ordinary adjustable node and the effect is
+    reported identified by adjusting on something no study can measure.
+    ``Dag.latent_project(observed)`` produces the ``Admg`` for that graph.
     """
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
+    if isinstance(graph, Admg):
+        status, method, adjustment = _identify_ate_admg(
+            list(graph.nodes()),
+            graph,
+            query.treatment,
+            query.outcome,
+            identifier=identifier,
+        )
+        return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
     if isinstance(graph, Dag):
         node_names = list(graph.nodes())
         edges = list(graph.edges())
