@@ -1,6 +1,6 @@
 # Artifact format
 
-Library package version is **0.4.0**. Durable artifact format is frozen at
+Library package version is **0.4.1**. Durable artifact format is frozen at
 **`FormatVersion { major: 0, minor: 2 }`** (`antecedent_io::STABLE_FORMAT`).
 
 ## Container

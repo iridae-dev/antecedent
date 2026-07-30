@@ -17,12 +17,12 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.4.0", path = "../antecedent-core" }
-antecedent-data = { version = "0.4.0", path = "../antecedent-data" }
-antecedent-graph = { version = "0.4.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "0.4.0", path = "../antecedent-prob" }
-antecedent-state = { version = "0.4.0", path = "../antecedent-state" }
-antecedent-stats = { version = "0.4.0", path = "../antecedent-stats" }
+antecedent-core = { version = "0.4.1", path = "../antecedent-core" }
+antecedent-data = { version = "0.4.1", path = "../antecedent-data" }
+antecedent-graph = { version = "0.4.1", path = "../antecedent-graph" }
+antecedent-prob = { version = "0.4.1", path = "../antecedent-prob" }
+antecedent-state = { version = "0.4.1", path = "../antecedent-state" }
+antecedent-stats = { version = "0.4.1", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
