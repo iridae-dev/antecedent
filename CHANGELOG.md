@@ -166,6 +166,23 @@ moves everything else onto **stage modules** (`antecedent.discovery`,
   deprecated alias is added. **Rust-only** — this field is not touched by any
   Python binding file, so Python callers are unaffected.
 
+- **`ReiszSensitivity` renamed to `RieszSensitivity`** — a spelling correction.
+  Frigyes Riesz's name was misspelled throughout the public surface. This renames
+  the re-exported type, the `antecedent_validate::reisz` module (now `riesz`), and
+  the `ValidatorId::Reisz` variant (now `ValidatorId::Riesz`). Per this release's
+  hard-break policy, no deprecated alias is added. **Rust-only** — the name was
+  never exposed through any Python binding, so Python callers are unaffected.
+
+  The **emitted refuter identifier also changes**, from `"sensitivity.reisz"` to
+  `"sensitivity.riesz"`. This appears in the `refuter` field of refutation reports
+  and therefore in serialized analysis artifacts, so it is a data-format change as
+  well as an API one: code that matches on the old string literal, or that compares
+  new artifacts against ones stored by 0.3.x, must be updated. Nothing inside the
+  library matches on the value — it is written and round-tripped opaquely — so no
+  migration is required for library behaviour itself. The conformance fixture
+  directory `conformance/validate/reisz_sensitivity` and the
+  `validate.reisz_sensitivity` parity id are renamed to match.
+
 - **Unified error model** (`b9c232d`). Rust and Python errors are
   consolidated onto one hierarchy — `CausalError` (Rust) and `CausalError`
   plus typed subclasses (Python) — gathered in the new `errors.py` module
