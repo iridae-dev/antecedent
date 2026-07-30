@@ -5,6 +5,45 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-07-30
+
+Patch release. One correctness fix on the identify-only path; no API removals,
+no behaviour change for existing callers.
+
+### Fixed
+
+- **`identify()` accepts an `Admg`, so latent confounding can fail honestly.**
+  `identify()` previously took only a `Dag` or an edge list. A `Dag` has no way
+  to express that a variable is unobservable, so a latent common cause flattened
+  into one was treated as an ordinary adjustable node: on `T <- U -> Y` with `U`
+  unmeasured, identification returned `NonparametricallyIdentified` with
+  adjustment set `["U"]` — an effect reported identified by adjusting on
+  something no study can measure. `analyze()` already accepted an `Admg` and got
+  this right; only the identify-only path was missing it, so callers who
+  identified before estimating got the wrong answer with no signal.
+
+  `Study::identify_only` now mirrors `execute()`'s ADMG handling: a graph with
+  bidirected edges routes through general ID (the only identifier that reasons
+  about bidirected structure — the default is a backdoor strategy that would
+  ignore it), and a graph without them is coerced to a DAG, which keeps an
+  explicitly requested identifier meaningful rather than forcing general ID on a
+  graph with no latent structure to reason about.
+
+  Build `Dag.latent_project(observed)` to get the ADMG for a graph whose
+  unobserved variables you want identification to respect.
+
+### Added
+
+- `identify_ate_admg` PyO3 binding and its typed stub.
+- `identify()` and `Identification.graph` widened to `Dag | Admg | Sequence[...]`
+  on both the staged and one-shot Python wrappers.
+
+### Compatibility
+
+`Dag` and edge-list inputs take exactly the same path as before. Code that was
+passing a `Dag` containing a variable it treats as latent will now get a
+different — and correct — answer once it switches to `latent_project`.
+
 ## [0.4.0] — 2026-07-30
 
 API-surface freeze on both languages, plus an algorithmic correctness pass.
@@ -633,6 +672,7 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
+[0.4.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.1
 [0.4.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.0
 [0.3.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.3.0
 [0.2.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.2.0

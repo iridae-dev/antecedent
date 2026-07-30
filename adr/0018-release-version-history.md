@@ -8,7 +8,7 @@
 
 ADR 0017 (2026-07-21) decided to keep crate and Python package versions at
 **0.1.0** and freeze the artifact format at `FormatVersion { major: 0, minor:
-1 }` as part of 1.0 preparation. Three releases have since shipped, each
+1 }` as part of 1.0 preparation. Four releases have since shipped, each
 documented in `CHANGELOG.md`:
 
 - **0.2.0** (2026-07-24) — correctness cut (sandwich/AIPW/HMC publication
@@ -17,6 +17,9 @@ documented in `CHANGELOG.md`:
   binding maintainability pass.
 - **0.4.0** (2026-07-29) — Python API-surface freeze (root namespace frozen
   to 41 names; silent hard break, no deprecated aliases).
+- **0.4.1** (2026-07-30) — patch: `identify()` accepts an `Admg`, so latent
+  confounding fails honestly instead of resolving to an adjustment set the
+  study cannot measure.
 
 The artifact format moved to `FormatVersion { major: 0, minor: 2 }`
 (`antecedent_io::STABLE_FORMAT`, `crates/antecedent-io/src/migrate.rs`)
@@ -40,10 +43,11 @@ independently needed correction to match reality.
   **0.4.0** (2026-07-30, Python API-surface freeze + algorithmic correctness
   pass: 25 confirmed defects fixed across identification, discovery,
   estimation, attribution, and diagnostics — see the 0.4.0 `CHANGELOG.md`
-  entry's *Correctness* section and `docs/release-notes/v0.4.0.md`).
+  entry's *Correctness* section and `docs/release-notes/v0.4.0.md`) →
+  **0.4.1** (2026-07-30, patch: identify-only accepts an `Admg`).
 - Record the actual artifact format freeze: `FormatVersion { major: 0,
   minor: 2 }` (`antecedent_io::STABLE_FORMAT`), unchanged from 0.2.0 through
-  0.4.0. `FormatVersion { major: 0, minor: 1 }` remains a supported *source*
+  0.4.1. `FormatVersion { major: 0, minor: 1 }` remains a supported *source*
   format for migration, not the frozen target.
 - Future version bumps continue to be recorded in `CHANGELOG.md` (breaking
   changes called out per the 0.4.0 entry's convention) rather than requiring
