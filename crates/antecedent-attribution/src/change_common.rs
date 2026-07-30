@@ -21,7 +21,8 @@ pub enum DifferenceMeasure {
     /// Variance difference.
     VarianceDiff,
     /// Gaussian KL `KL(N(μ_S, σ_S²) ‖ N(μ₀, σ₀²))` of the hybrid outcome law vs the
-    /// all-baseline coalition (pinned baseline's default target functional).
+    /// all-baseline coalition (the default target functional in Budhathoki, Janzing,
+    /// Bloebaum & Ng 2021).
     GaussianKl,
 }
 

@@ -22,7 +22,7 @@ use crate::table::TableView;
 /// Null / permutation scheme for [`ResamplingPlan::Permutation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PermutationScheme {
-    /// Full Fisher–Yates shuffle of row indexes `0..n`.
+    /// Full Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964) shuffle of row indexes `0..n`.
     Full,
     /// Shuffle within each cluster (ids supplied to the fill helper).
     WithinCluster,
@@ -53,7 +53,7 @@ pub enum ResamplingPlan {
         /// Variable that holds cluster membership labels.
         cluster: VariableId,
     },
-    /// Stationary block bootstrap (Politis–Romano geometric lengths).
+    /// Stationary block bootstrap (Politis & Romano 1994 geometric lengths).
     StationaryBlock {
         /// Expected block length (mean of geometric distribution).
         expected_length: f64,

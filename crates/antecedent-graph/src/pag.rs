@@ -227,7 +227,7 @@ impl Pag {
         marked_storage::set_marks_finish(&mut self.adj, a, b, at_a, at_b, previous)
     }
 
-    /// Mark an existing edge as a pinned baseline `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
     ///
     /// # Errors
     ///

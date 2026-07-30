@@ -1,4 +1,4 @@
-//! Anomaly attribution via ancestor-noise Shapley (Janzing et al. 2020; ).
+//! Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022).
 //!
 //! # Scoring
 //!
@@ -130,7 +130,7 @@ pub struct AnomalyScores {
 }
 
 /// Score anomalies and attribute them to ancestor noise terms via Shapley
-/// (Janzing et al. 2020): replace noise coordinates outside the coalition with
+/// (Budhathoki, Minorics, Bloebaum & Janzing 2022): replace noise coordinates outside the coalition with
 /// reference draws (0 for additive noise) and redistribute the target's IT score
 /// (see the module docs for why that is a tail probability and not a density).
 ///
@@ -287,7 +287,14 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
 }
 
 /// Arrow strength for a linear-family edge: the variance the edge contributes,
-/// `β² · Var(parent)` (Janzing et al. 2013, *Quantifying causal influences*).
+/// `β² · Var(parent)` (Janzing et al. 2013, *Quantifying causal influences*, Section 6,
+/// "Causal strength for linear structural equations").
+///
+/// This is the first-order (small-`β²·Var(parent)/Var(child)`) approximation of that
+/// section's exact causal-strength formula
+/// `CS = −½·log(1 − β²·Var(parent)/Var(child))`, not the log/KL expression itself — the
+/// log form is recovered from this variance term only in the limit where the edge's
+/// contributed variance is small relative to the child's total variance.
 ///
 /// Not `|β|`, which this returned previously. A bare coefficient is not a measure of
 /// influence, because it says nothing about how much the parent actually varies: a parent

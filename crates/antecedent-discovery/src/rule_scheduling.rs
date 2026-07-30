@@ -902,8 +902,9 @@ impl LpcmciOrientationRule for LpcmciR9 {
 /// FCI R10′: `a o→ c` with **two node-disjoint** uncovered PD paths into two
 /// distinct parents of `c` (`→` or `o→`) → orient `a → c`.
 ///
-/// A single path into one parent is not sufficient (Zhang 2008 R10′); the prior
-/// one-path rule could over-orient.
+/// A single path into one parent is not sufficient (R10′, generalized from Zhang
+/// 2008's unprimed R10 by Gerhardus & Runge 2020); the prior one-path rule could
+/// over-orient.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR10;
 

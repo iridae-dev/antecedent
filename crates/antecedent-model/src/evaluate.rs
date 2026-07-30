@@ -325,7 +325,7 @@ fn permutation_baseline(
     let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
     for _ in 0..n_perm {
-        // Fisher–Yates
+        // Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964)
         for i in (1..y.len()).rev() {
             let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;
             y.swap(i, j.min(i));

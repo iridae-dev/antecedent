@@ -158,7 +158,7 @@ pub(crate) fn solve_notears(
     // comparison `h_new > 0.25 * h` does not immediately escalate ρ.
     let mut h_val = f64::INFINITY;
 
-    // Augmented Lagrangian (NOTEARS / Zheng et al.): dual ascent on h(W)=0 with
+    // Augmented Lagrangian (NOTEARS / Zheng et al. 2018): dual ascent on h(W)=0 with
     // ρ adaptation — re-solve while |h_new| > 0.25 |h_old|, else accept and update α.
     for _outer in 0..cfg.max_iter {
         let h_old = h_val;

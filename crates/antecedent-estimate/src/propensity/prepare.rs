@@ -118,7 +118,7 @@ impl Default for MatchingIndexKey {
 
 /// Reusable scratch for propensity estimators.
 ///
-/// Point estimates retain a [`MatchingIndex`] across compatible donor geometries .
+/// Point estimates retain a [`MatchingIndex`] across compatible donor geometries.
 /// Bootstrap replicates rebuild the index whenever resampled donors change the geometry key.
 #[derive(Clone, Debug, Default)]
 pub struct PropensityEstimationWorkspace {
@@ -159,7 +159,7 @@ impl PropensityEstimationWorkspace {
         Ok(())
     }
 
-    /// Estimated retained bytes for propensity + matching scratch .
+    /// Estimated retained bytes for propensity + matching scratch.
     #[must_use]
     pub fn retained_memory_bytes(&self) -> u64 {
         let mut bytes = 0u64;

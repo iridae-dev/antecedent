@@ -1,4 +1,4 @@
-//! Name → CI test factory for discovery / Python selection .
+//! Name → CI test factory for discovery / Python selection.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

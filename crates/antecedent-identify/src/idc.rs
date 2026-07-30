@@ -1,4 +1,4 @@
-//! Shpitser–Pearl IDC for conditional interventional distributions.
+//! Shpitser & Pearl (2006) IDC for conditional interventional distributions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use antecedent_core::VariableId;
 use antecedent_graph::{BitSet, DenseNodeId};
 
-/// Witness that `P(Y | do(X))` is not identifiable (Shpitser–Pearl hedge).
+/// Witness that `P(Y | do(X))` is not identifiable (Shpitser & Pearl 2006 hedge).
 ///
 /// Recovered from ID line 5: the pair `(F, F')` of R-rooted C-forests where
 /// `F` is the current subgraph `G` and `F'` is the C-component `S` of `G[V\X]`.

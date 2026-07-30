@@ -4,7 +4,7 @@
 //! path certificate when nodes are d-connected given the conditioning set.
 //!
 //! Algorithm: ancestral subgraph → moralize → remove conditioning → undirected
-//! reachability (Lauritzen et al. / Pearl).
+//! reachability (Lauritzen et al. 1990 / Pearl 1988).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -234,7 +234,7 @@ impl TemporalPag {
         marked_storage::set_marks_finish(&mut self.adj, a, b, at_a, at_b, previous)
     }
 
-    /// Mark an existing edge as a pinned baseline `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
     ///
     /// # Errors
     ///
@@ -302,7 +302,7 @@ impl TemporalPag {
         Ok(())
     }
 
-    /// Force all middle marks to [`MiddleMark::Empty`] (pinned baseline finalization).
+    /// Force all middle marks to [`MiddleMark::Empty`] (LPCMCI finalization).
     pub fn clear_middle_marks(&mut self) {
         for list in &mut self.adj {
             for e in list.iter_mut() {

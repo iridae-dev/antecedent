@@ -1,6 +1,6 @@
 //! Shared cluster / multiway / panel-HAC primitives.
 //!
-//! Exact tuple interning (no lossy `u32` packing), Cameron–Gelbach–Miller subset
+//! Exact tuple interning (no lossy `u32` packing), Cameron–Gelbach–Miller (2011) subset
 //! signs, Bartlett/`L_eff` helpers, and within-unit panel HAC meat.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

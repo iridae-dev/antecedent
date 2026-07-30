@@ -1,4 +1,4 @@
-//! Path-restricted natural-effect identification (Avin–Shpitser–Pearl).
+//! Path-restricted natural-effect identification (Avin, Shpitser & Pearl 2005).
 //!
 //! Enumerate directed paths π from treatment to outcome, reject recanting
 //! descendants, surgically delete treatment out-edges not on π, then run
@@ -101,7 +101,7 @@ impl PathSpecificIdentifier {
         // The recanting-witness test below concludes "identifiable" from the *absence* of a
         // witness. That inference is only valid over the complete path set: a witness sitting
         // on a path the budget dropped would be missed, and the effect declared
-        // nonparametrically identified when Avin–Shpitser–Pearl says it is not. Fail closed.
+        // nonparametrically identified when Avin, Shpitser & Pearl (2005) say it is not. Fail closed.
         if paths_truncated {
             derivation.push(
                 "path_specific.truncated",

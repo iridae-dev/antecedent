@@ -3,7 +3,8 @@
 //! [`LinearSensitivity`] and [`PartialLinearSensitivity`] simulate a confounder `U` with a
 //! configurable *partial R²* on treatment and outcome under a linear (Gaussian) or
 //! partial-linear (bounded) shape. [`NonparametricSensitivity`] first residualizes treatment
-//! and outcome on adjustment covariates with Nadaraya–Watson kernel regression, then runs the
+//! and outcome on adjustment covariates with Nadaraya–Watson (Nadaraya 1964; Watson 1964) kernel
+//! regression, then runs the
 //! same partial-R² grid on the residualized series — a production nonparametric path distinct
 //! from the partial-linear shape stand-in.
 //!
@@ -380,7 +381,7 @@ pub struct NonparametricSensitivity {
     pub partial_r2_grid: Vec<f64>,
     /// Pass if the robustness value exceeds this threshold.
     pub pass_threshold: f64,
-    /// Optional bandwidth override; `None` uses Silverman's rule of thumb.
+    /// Optional bandwidth override; `None` uses Silverman's (1986) rule of thumb.
     pub bandwidth: Option<f64>,
 }
 

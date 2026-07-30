@@ -166,7 +166,7 @@ impl Cpdag {
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
 
-    /// Mark an existing edge as a pinned baseline `x-x` conflict.
+    /// Mark an existing edge as an `x-x` conflict.
     ///
     /// # Errors
     ///
@@ -585,7 +585,7 @@ impl TemporalCpdag {
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
 
-    /// Mark an existing edge as a pinned baseline `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
     ///
     /// # Errors
     ///
