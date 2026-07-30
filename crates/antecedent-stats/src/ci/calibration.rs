@@ -775,6 +775,144 @@ mod tests {
         assert!(report.power() > 0.90, "power={}", report.power());
     }
 
+    /// AR(1) series `v[0] = N(0,1)`, `v[t] = phi*v[t-1] + sqrt(1-phi^2)*N(0,1)`
+    /// (unit marginal variance, lag-1 autocorrelation `phi`).
+    fn ar1_series(n: usize, phi: f64, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        let mut v = Vec::with_capacity(n);
+        let mut prev = standard_normal(rng);
+        v.push(prev);
+        for _ in 1..n {
+            let eps = standard_normal(rng);
+            let cur = phi * prev + (1.0 - phi * phi).sqrt() * eps;
+            v.push(cur);
+            prev = cur;
+        }
+        v
+    }
+
+    /// GPDC block-shuffle Type I error under autocorrelated, conditionally independent data.
+    ///
+    /// An exchangeable shuffle under-disperses the permutation null exactly when the residual
+    /// series carries serial dependence, inflating Type I error — precisely the autocorrelated
+    /// case `block_size` exists to protect. A null that *looks* right (finite p-values in range,
+    /// ordered null < alt) but under-disperses is indistinguishable from a correct one by
+    /// inspection alone; only a measured rejection-rate gate like this one catches it.
+    ///
+    /// Construction: Z, and independent per-arm noise `ex`/`ey`, are all AR(1) with `phi = 0.7`.
+    /// `X = 0.5*Z + ex`, `Y = 0.5*Z + ey`. Since `ex` and `ey` are drawn independently,
+    /// `X ⊥ Y | Z` holds exactly by construction — but each series, and each GP residual after Z
+    /// is removed, carries serial dependence, which is the condition under which an exchangeable
+    /// null becomes anticonservative.
+    ///
+    /// This gate is known to discriminate, measured rather than assumed: on this construction the
+    /// element-wise null (`block_size = 1`) rejects at **0.20** against nominal 0.05, while the
+    /// contiguous-block null at `block_size = 20` rejects at **0.047**. `phi = 0.7` has integral
+    /// time scale `(1 + phi) / (1 - phi) ≈ 5.7`, so a block of 20 spans ~3.5 correlation lengths
+    /// — long enough to carry the dependence — while `n = 200` still leaves 10 blocks, so the
+    /// null has ample permutation support and is not calibrated by coarseness. Blocks much longer
+    /// than this turn mildly conservative (0.02–0.03), which is valid but wastes power.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_block_shuffle_autocorrelated_type_i_gate() {
+        let trials = 200u32;
+        let alpha = 0.05;
+        let n = 200usize;
+        let phi = 0.7;
+        let block_size = 20usize;
+        let replicates = 99u32;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(89);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let gpdc = crate::ci::Gpdc::new();
+        let mut null_rej = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream(0x6165_u64.wrapping_add(u64::from(t)));
+            let z = ar1_series(n, phi, &mut rng);
+            let ex = ar1_series(n, phi, &mut rng);
+            let ey = ar1_series(n, phi, &mut rng);
+            let x: Vec<f64> = z.iter().zip(&ex).map(|(&zt, &e)| 0.5 * zt + e).collect();
+            let y: Vec<f64> = z.iter().zip(&ey).map(|(&zt, &e)| 0.5 * zt + e).collect();
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates, block_size },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = gpdc.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                null_rej += 1;
+            }
+        }
+        let type_i = f64::from(null_rej) / f64::from(trials);
+        // Three-SE band only, no additional slack: the parameters above are calibrated
+        // (measured 0.047), so widening the band would only let a regression through. The
+        // failure this guards against is inflation — 0.20 for the element-wise null — which is
+        // ~10 SE outside nominal.
+        assert!(
+            type_i_within_three_se(type_i, alpha, trials),
+            "GPDC block-shuffle type I off nominal under AR(1) data: {type_i} \
+             (n={n}, phi={phi}, block_size={block_size}, trials={trials}, alpha={alpha})"
+        );
+    }
+
+    /// `KnnDependence` block-shuffle Type I error on autocorrelated *unconditional* data.
+    ///
+    /// `KnnDependence` honours `block_size` only when the conditioning set is empty, where
+    /// `coarse_z_strata` degenerates to a single stratum holding every row in original time order
+    /// and a contiguous-block permutation is well defined. (With conditioning the strata are
+    /// rank-bin hashes scattered across time and the request is an error — see
+    /// `block_preserving_requests_honoured_or_refused_per_conditioning_set`.)
+    ///
+    /// That carve-out is a claim about calibration, so it is measured here rather than argued
+    /// from the shape of the code. X and Y are independent AR(1) series with `phi = 0.7`, so
+    /// `X ⊥ Y` holds by construction while both carry serial dependence — the condition under
+    /// which an exchangeable null becomes anticonservative. Parameters match the GPDC gate above.
+    ///
+    /// Measured, so the gate is known to discriminate: the contiguous-block null rejects at
+    /// **0.047**, the element-wise null (`block_size = 1`) at **0.12**, which fails this
+    /// assertion.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn knn_unconditional_block_shuffle_autocorrelated_type_i_gate() {
+        let trials = 200u32;
+        let alpha = 0.05;
+        let n = 200usize;
+        let phi = 0.7;
+        let block_size = 20usize;
+        let replicates = 99u32;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(31);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let knn = crate::ci::KnnDependence::new(5);
+        let mut null_rej = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream(0x4B4E_u64.wrapping_add(u64::from(t)));
+            let x = ar1_series(n, phi, &mut rng);
+            let y = ar1_series(n, phi, &mut rng);
+            let cols: [&[f64]; 2] = [&x, &y];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &[],
+                significance: SignificanceMethod::BlockShuffle { replicates, block_size },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = knn.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                null_rej += 1;
+            }
+        }
+        let type_i = f64::from(null_rej) / f64::from(trials);
+        assert!(
+            type_i_within_three_se(type_i, alpha, trials),
+            "KnnDependence unconditional block-shuffle type I off nominal under AR(1) data: \
+             {type_i} (n={n}, phi={phi}, block_size={block_size}, trials={trials}, alpha={alpha})"
+        );
+    }
+
     #[test]
     fn mixed_symbolic_gpdc_dependence_ordering() {
         let mut ws = CiWorkspace::default();

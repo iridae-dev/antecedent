@@ -10,11 +10,36 @@
     clippy::trivially_copy_pass_by_ref
 )]
 
-use antecedent_core::{ExecutionContext, KernelPolicy};
-use antecedent_kernels::partial_correlation;
+use antecedent_core::{CausalRng, ExecutionContext, KernelPolicy};
+use antecedent_kernels::{partial_correlation, shuffle};
 
 use super::types::{CiQuery, CiWorkspace};
 use crate::error::StatsError;
+
+/// Permute `y` in place by contiguous blocks of `block_size` rather than by individual
+/// elements: split `y` into `ceil(len / block_size)` contiguous chunks (the last one
+/// possibly short), Fisher–Yates shuffle the chunk order, then reassemble in that order.
+///
+/// This is the block-preserving primitive behind
+/// [`SignificanceMethod::BlockShuffle`](super::types::SignificanceMethod): elements never move
+/// relative to their neighbors within a block, so serial dependence inside each block survives
+/// the permutation. `block_size <= 1` degenerates to an ordinary element-wise permutation.
+pub(crate) fn block_permute_contiguous(y: &mut [f64], block_size: usize, rng: &mut CausalRng) {
+    let n = y.len();
+    let bs = block_size.max(1).min(n);
+    let n_blocks = n.div_ceil(bs);
+    let mut order: Vec<usize> = (0..n_blocks).collect();
+    shuffle(rng, &mut order);
+    let original = y.to_vec();
+    let mut dest = 0;
+    for &bi in &order {
+        let start = bi * bs;
+        let end = (start + bs).min(n);
+        let len = end - start;
+        y[dest..dest + len].copy_from_slice(&original[start..end]);
+        dest += len;
+    }
+}
 
 pub(crate) fn block_shuffle_pvalue(
     policy: &KernelPolicy,

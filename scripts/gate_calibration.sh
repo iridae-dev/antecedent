@@ -38,6 +38,8 @@ run_ignored antecedent-stats parcorr_perm_pvalue_uniformity_gate
 run_ignored antecedent-stats knn_perm_pvalue_uniformity_gate
 run_ignored antecedent-stats multivariate_block_calibration_gate
 run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate
+run_ignored antecedent-stats gpdc_block_shuffle_autocorrelated_type_i_gate
+run_ignored antecedent-stats knn_unconditional_block_shuffle_autocorrelated_type_i_gate
 
 echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha

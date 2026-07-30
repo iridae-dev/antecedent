@@ -1,4 +1,4 @@
-//! G-squared and regression CI tests .
+//! G-squared and regression CI tests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,9 +17,10 @@
 
 use std::collections::HashMap;
 
-use antecedent_core::{CausalRng, ExecutionContext, KernelPolicy};
-use antecedent_kernels::{shuffle, unbiased_index};
+use antecedent_core::{ExecutionContext, KernelPolicy};
+use antecedent_kernels::unbiased_index;
 
+use super::block_shuffle::block_permute_contiguous;
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -87,7 +88,7 @@ impl ConditionalIndependenceTest for GSquared {
                     let mut null_ge = 0u32;
                     for _ in 0..n_perm {
                         if block_size > 1 {
-                            block_shuffle_y(&mut y_perm, block_size, &mut rng);
+                            block_permute_contiguous(&mut y_perm, block_size, &mut rng);
                         } else {
                             for rows in &strata {
                                 for i in (1..rows.len()).rev() {
@@ -141,23 +142,6 @@ fn gsq_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
     let mut keys: Vec<u64> = strata.keys().copied().collect();
     keys.sort_unstable();
     keys.into_iter().filter_map(|k| strata.remove(&k)).collect()
-}
-
-fn block_shuffle_y(y: &mut [f64], block_size: usize, rng: &mut CausalRng) {
-    let n = y.len();
-    let bs = block_size.max(1).min(n);
-    let n_blocks = n.div_ceil(bs);
-    let mut order: Vec<usize> = (0..n_blocks).collect();
-    shuffle(rng, &mut order);
-    let original = y.to_vec();
-    let mut dest = 0;
-    for &bi in &order {
-        let start = bi * bs;
-        let end = (start + bs).min(n);
-        let len = end - start;
-        y[dest..dest + len].copy_from_slice(&original[start..end]);
-        dest += len;
-    }
 }
 
 fn g_squared_statistic(
