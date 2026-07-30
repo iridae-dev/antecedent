@@ -267,8 +267,15 @@ caller would have observed.
   as partial R² but was scaled by the marginal SD, so a nominal 0.2 realized as 0.556 when
   covariates predict the treatment.
 - *Four CI tests accepted `BlockShuffle`'s `block_size` and permuted exchangeably*,
-  under-dispersing the null for the autocorrelated data the parameter exists to protect.
-  They now reject it rather than silently ignoring it.
+  under-dispersing the null for the autocorrelated data the parameter exists to protect. On
+  AR(1) data at φ=0.7 that inflated Type I error to 0.20 against a nominal 0.05. Each now
+  either honours the parameter or refuses it, and which one is no longer a matter of opinion:
+  GPDC honours it because it residualizes on Z before permuting; `GSquared`, `KnnDependence`
+  and `SymbolicCmi` honour it when the conditioning set is empty, where their strata collapse
+  to a single time-ordered block. With a conditioning set those three refuse, because
+  preserving `Y|Z` needs permutation within index sets scattered across time while preserving
+  serial dependence needs contiguous runs — a structural limit, not a missing feature, and the
+  error says so. Two scheduled calibration gates hold the honoured paths to nominal.
 
 **Statistics that did not mean what they were called**
 

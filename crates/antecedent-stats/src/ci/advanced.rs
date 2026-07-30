@@ -21,10 +21,11 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, KernelPolicy};
 use antecedent_kernels::{shuffle, unbiased_index};
 
+use super::block_shuffle::block_permute_contiguous;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
-    reject_unsupported_block_size,
+    reject_unsupported_block_size, requested_block_size,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -120,11 +121,20 @@ impl ConditionalIndependenceTest for KnnDependence {
         if workspace.block_perm.len() != n {
             workspace.block_perm = workspace.knn.perm.clone();
         }
-        reject_unsupported_block_size(request.significance, "KnnDependence")?;
         let n_perm = nonparametric_permutation_count(request.significance);
+        let block_size = requested_block_size(request.significance);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            // Blocking is well defined only for an empty conditioning set, where
+            // `coarse_z_strata` degenerates to one stratum holding every row in original time
+            // order. With conditioning the strata are rank-bin hashes scattered across time, so
+            // preserving `Y|Z` and preserving serial dependence cannot both hold — that case is
+            // rejected rather than silently downgraded to an exchangeable null. Checked per
+            // query because `z` varies across a batch.
+            if block_size > 1 && !z.is_empty() {
+                reject_unsupported_block_size(request.significance, "KnnDependence")?;
+            }
             let dim = 2 + z.len();
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             let builds_before = workspace.knn.index_builds;
@@ -137,10 +147,14 @@ impl ConditionalIndependenceTest for KnnDependence {
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                for rows in &strata {
-                    for i in (1..rows.len()).rev() {
-                        let j = unbiased_index(&mut rng, i + 1);
-                        y_perm.swap(rows[i], rows[j]);
+                if block_size > 1 {
+                    block_permute_contiguous(&mut y_perm, block_size, &mut rng);
+                } else {
+                    for rows in &strata {
+                        for i in (1..rows.len()).rev() {
+                            let j = unbiased_index(&mut rng, i + 1);
+                            y_perm.swap(rows[i], rows[j]);
+                        }
                     }
                 }
                 let mut cols: Vec<&[f64]> = request.columns.to_vec();
@@ -383,14 +397,25 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             let strata = symbol_strata_sorted(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
-            reject_unsupported_block_size(request.significance, "SymbolicCmi")?;
+            // As for `KnnDependence`: blocking is well defined only when the conditioning set
+            // is empty, where `symbol_strata_sorted` yields a single time-ordered stratum. With
+            // conditioning, the strata are Z-symbol hashes scattered across time and blocking is
+            // structurally impossible, so the request is refused.
+            let block_size = requested_block_size(request.significance);
+            if block_size > 1 && !z.is_empty() {
+                reject_unsupported_block_size(request.significance, "SymbolicCmi")?;
+            }
             let n_perm = nonparametric_permutation_count(request.significance);
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                for rows in &strata {
-                    for i in (1..rows.len()).rev() {
-                        let j = unbiased_index(&mut rng, i + 1);
-                        y_perm.swap(rows[i], rows[j]);
+                if block_size > 1 {
+                    block_permute_contiguous(&mut y_perm, block_size, &mut rng);
+                } else {
+                    for rows in &strata {
+                        for i in (1..rows.len()).rev() {
+                            let j = unbiased_index(&mut rng, i + 1);
+                            y_perm.swap(rows[i], rows[j]);
+                        }
                     }
                 }
                 let mut cols: Vec<&[f64]> = request.columns.to_vec();
@@ -520,7 +545,13 @@ impl ConditionalIndependenceTest for Gpdc {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
-        reject_unsupported_block_size(request.significance, "Gpdc")?;
+        // Unlike KnnDependence / SymbolicCmi, GPDC residualizes X and Y on Z through the GP
+        // regression *before* permuting (see `gp_residual`), so by the time the null is built
+        // there is nothing left to stratify — Z's influence is already removed from both
+        // residual series. That makes a contiguous-block permutation of the Y residual a
+        // direct, valid substitution for the exchangeable shuffle, the same architecture
+        // ParCorr's block-shuffle path already uses. So `block_size` is honoured, not rejected.
+        let block_size = requested_block_size(request.significance);
         let n_perm = nonparametric_permutation_count(request.significance);
         let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
@@ -529,13 +560,19 @@ impl ConditionalIndependenceTest for Gpdc {
             let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
             let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
             let dcor = distance_correlation(policy, &rx, &ry);
-            // Permutation null: shuffle the Y residuals (Z influence already removed)
-            // and recompute dCor; add-one p-value keeps it in (0, 1].
+            // Permutation null: permute the Y residuals (Z influence already removed) and
+            // recompute dCor; add-one p-value keeps it in (0, 1]. `block_size > 1` permutes
+            // contiguous blocks so the residual's serial dependence survives into the null;
+            // otherwise it is an ordinary exchangeable shuffle.
             let mut ry_perm = ry.clone();
             let mut rng = ctx.rng.stream(0x69DC_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                shuffle(&mut rng, &mut ry_perm);
+                if block_size > 1 {
+                    block_permute_contiguous(&mut ry_perm, block_size, &mut rng);
+                } else {
+                    shuffle(&mut rng, &mut ry_perm);
+                }
                 if distance_correlation(policy, &rx, &ry_perm) >= dcor {
                     null_ge = null_ge.saturating_add(1);
                 }
@@ -614,7 +651,7 @@ fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
     if dvarx <= 0.0 || dvary <= 0.0 {
         return 0.0;
     }
-    // Székely dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
+    // Székely et al. (2007) dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
     (dcov2.max(0.0) / (dvarx * dvary).sqrt()).sqrt()
 }
 
@@ -648,53 +685,91 @@ mod tests {
         CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
     };
 
-    /// Tests whose null permutes exchangeably must refuse `block_size > 1`, not discard it.
+    /// A test that cannot honour `block_size` must refuse it rather than discard it — but these
+    /// three draw that line in different places, and this pins all three.
     ///
-    /// `KnnDependence`, `SymbolicCmi`, and `Gpdc` read only the *replicate count* out of
-    /// `SignificanceMethod::BlockShuffle` and then permute exchangeably (a full shuffle, or a
-    /// within-Z-stratum exchange). A caller asking for `block_size = 20` to preserve 20-step
-    /// serial dependence silently received an ordinary permutation null, which under-disperses
-    /// relative to the true sampling distribution and inflates Type I error for autocorrelated
-    /// data — the one case the parameter exists for. `block_size = 1` requests no blocking and
-    /// stays accepted.
+    /// `KnnDependence` and `SymbolicCmi` build their null as an exchange within Z strata
+    /// (`coarse_z_strata` / `symbol_strata_sorted`). **With a conditioning set** those strata are
+    /// rank-bin or symbol hashes whose members are scattered across time: preserving `Y|Z` needs
+    /// permutation within scattered index sets, preserving serial dependence needs contiguous
+    /// runs, and the two cannot both hold. A caller asking for `block_size = 20` to preserve
+    /// 20-step serial dependence must not silently receive an ordinary within-stratum exchange,
+    /// which under-disperses the null and inflates Type I error for autocorrelated data — the one
+    /// case the parameter exists for. So that request is an error.
+    ///
+    /// **With an empty conditioning set** the conflict disappears: both stratifiers degenerate to
+    /// a single stratum holding every row in original time order, so a contiguous-block
+    /// permutation is exactly as well defined as it is for `ParCorr`, and both tests honour it.
+    /// That is not a corner case — PC1's first level (`cond_size = 0`) tests unconditionally, and
+    /// `GSquared` already drew the line here.
+    ///
+    /// `Gpdc` honours `block_size` in both shapes because it residualizes X and Y on Z via GP
+    /// regression *before* permuting (`gp_residual`), leaving nothing to stratify.
+    ///
+    /// `block_size = 1` requests no blocking and is always accepted.
     #[test]
-    fn exchangeable_tests_refuse_block_preserving_requests() {
+    fn block_preserving_requests_honoured_or_refused_per_conditioning_set() {
+        static UNCONDITIONAL: [CiQuery; 1] = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        static CONDITIONAL: [CiQuery; 1] = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+
         let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin()).collect();
         let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos()).collect();
-        let cols: [&[f64]; 2] = [&x, &y];
-        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let z: Vec<f64> = (0..60).map(|i| (i as f64 * 0.11).sin()).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let z_flat = [2usize];
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
 
-        let req_for = |block_size: usize| CiBatchRequest {
+        let req_for = |queries: &'static [CiQuery], block_size: usize| CiBatchRequest {
             columns: &cols,
-            queries: &queries,
-            z_flat: &[],
+            queries,
+            z_flat: &z_flat,
             significance: SignificanceMethod::BlockShuffle { replicates: 19, block_size },
             confidence: ConfidenceMethod::default(),
         };
+        let conditional: &'static [CiQuery] = &CONDITIONAL;
+        let unconditional: &'static [CiQuery] = &UNCONDITIONAL;
 
         for block_size in [5usize, 20] {
-            let req = req_for(block_size);
+            // Conditioned: the stratifying tests must refuse; Gpdc must not.
+            let req = req_for(conditional, block_size);
             assert!(
                 KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
-                "KnnDependence accepted block_size={block_size} it cannot honour"
+                "KnnDependence accepted block_size={block_size} with a conditioning set, \
+                 which it cannot honour"
             );
             assert!(
                 SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
-                "SymbolicCmi accepted block_size={block_size} it cannot honour"
+                "SymbolicCmi accepted block_size={block_size} with a conditioning set, \
+                 which it cannot honour"
             );
             assert!(
-                Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
-                "Gpdc accepted block_size={block_size} it cannot honour"
+                Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok(),
+                "Gpdc refused block_size={block_size}, which it honours by residualizing"
             );
+
+            // Unconditional: a single time-ordered stratum, so all three honour blocking.
+            let req = req_for(unconditional, block_size);
+            assert!(
+                KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_ok(),
+                "KnnDependence refused block_size={block_size} with an empty conditioning set, \
+                 where a contiguous-block permutation is well defined"
+            );
+            assert!(
+                SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok(),
+                "SymbolicCmi refused block_size={block_size} with an empty conditioning set, \
+                 where a contiguous-block permutation is well defined"
+            );
+            assert!(Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
         }
 
-        // block_size = 1 imposes no blocking, so it must still run.
-        let req = req_for(1);
-        assert!(KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
-        assert!(SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
-        assert!(Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+        // block_size = 1 imposes no blocking, so it must still run in both shapes.
+        for queries in [conditional, unconditional] {
+            let req = req_for(queries, 1);
+            assert!(KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+            assert!(SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+            assert!(Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+        }
     }
 
     #[test]
