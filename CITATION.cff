@@ -17,7 +17,9 @@ doi: 10.5281/zenodo.21556247
 date-released: "2026-07-30"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
-license: "MIT OR Apache-2.0"
+license:
+  - MIT
+  - Apache-2.0
 keywords:
   - causal inference
   - identification
@@ -28,3 +30,6 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.21556247
     description: Concept DOI (always resolves to the latest version)
+  - type: doi
+    value: 10.5281/zenodo.21702494
+    description: Version DOI for 0.4.0
