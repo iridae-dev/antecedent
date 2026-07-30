@@ -9,7 +9,6 @@ use antecedent_estimate::BayesianBackendKind;
 
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::GraphInput;
 
 use super::builder::RefuteSuite;
 
@@ -172,29 +171,6 @@ pub fn refuse_non_report_hmc(
     Ok(())
 }
 
-/// Refuse inline discovery on the Interactive estimate click path.
-///
-/// Discovery is evidence and must run once (or on explicit rediscover), then the
-/// accepted graph is supplied for estimate clicks. Standard/Report one-shot
-/// `Discover*` builds remain valid for scripts.
-///
-/// # Errors
-///
-/// [`CausalError::Unsupported`] when Interactive pairs with any `Discover*` graph.
-pub fn refuse_discovery_under_interactive(
-    mode: LatencyMode,
-    graph: &GraphInput,
-) -> Result<(), CausalError> {
-    if mode == LatencyMode::Interactive && graph.is_discovery() {
-        return Err(CausalError::Unsupported {
-            message: "discovery graphs are not on the Interactive estimate path; \
-                discover once, accept the graph, then supply GraphInput::Static/Cpdag/Pag \
-                (or prepare) under LatencyMode::Interactive",
-        });
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,24 +225,5 @@ mod tests {
             )
             .is_ok()
         );
-    }
-
-    #[test]
-    fn interactive_refuses_discovery_graph() {
-        let discover = GraphInput::DiscoverPc {
-            alpha: 0.05,
-            max_cond_size: 3,
-            fdr: None,
-            accept_discovered: true,
-        };
-        let err =
-            refuse_discovery_under_interactive(LatencyMode::Interactive, &discover).unwrap_err();
-        assert!(
-            matches!(err, CausalError::Unsupported { message } if message.contains("Interactive"))
-        );
-        assert!(refuse_discovery_under_interactive(LatencyMode::Standard, &discover).is_ok());
-        assert!(refuse_discovery_under_interactive(LatencyMode::Report, &discover).is_ok());
-        let supplied = GraphInput::Static(antecedent_graph::Dag::with_variables(1));
-        assert!(refuse_discovery_under_interactive(LatencyMode::Interactive, &supplied).is_ok());
     }
 }

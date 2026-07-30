@@ -1,14 +1,21 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "oracle": {
     "kind": "closed_form_linear_sem",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "Direct linear arrow strength is the absolute parent coefficient; a do contrast of width delta is abs(beta*delta)."
+    "generator": "closed form, computed by hand from the pinned parameters below",
+    "formula": "Arrow strength is the variance the edge contributes: strength = beta^2 * Var(parent) (Janzing et al. 2013). Var of a linear-Gaussian root with no parents is sigma^2. A do contrast of width delta is abs(beta*delta).",
+    "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. The two edges below are chosen so the two definitions rank them in opposite orders: parent 0 has the smaller coefficient but much the larger variance, and genuinely dominates the child."
   },
-  "edges": [
-    {"parent_raw": 0, "child_raw": 2, "coefficient": -2.5, "strength": 2.5},
-    {"parent_raw": 1, "child_raw": 2, "coefficient": 0.75, "strength": 0.75}
+  "parents": [
+    {"raw": 0, "sigma": 10.0, "variance": 100.0},
+    {"raw": 1, "sigma": 0.03162277660168379, "variance": 0.001}
   ],
+  "child": {"raw": 2, "sigma": 1.0},
+  "edges": [
+    {"parent_raw": 0, "child_raw": 2, "coefficient": 0.75, "strength": 56.25},
+    {"parent_raw": 1, "child_raw": 2, "coefficient": 2.5, "strength": 0.00625}
+  ],
+  "abs_beta_ranking_is_inverted": true,
   "do_contrast": {"coefficient": -2.5, "delta": 2.0, "expected": 5.0},
-  "tolerance": {"absolute": 1e-12}
+  "tolerance": {"absolute": 1e-9}
 }

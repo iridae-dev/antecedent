@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash scripts/gate_parity_schema.sh
+
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -67,7 +69,7 @@ for path in [
     "conformance/attribution/arrow_strength/expected.json",
     "conformance/validate/refuters/expected.json",
     "conformance/validate/confounding_sensitivity/expected.json",
-    "conformance/validate/reisz_sensitivity/expected.json",
+    "conformance/validate/riesz_sensitivity/expected.json",
     "conformance/validate/overlap_graph_refutation/expected.json",
     "conformance/attribution/distribution_change_y_shift/expected.json",
     "conformance/attribution/structure_change_parent_swap/expected.json",

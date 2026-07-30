@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade.
+//! Unified `Study` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,23 +20,13 @@ use antecedent_core::{
     InterventionSequence, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
     ProvenanceNode, SequencedIntervention, VERSION, VariableId,
 };
-use antecedent_data::{
-    IdRemap, MultiEnvironmentData, TableView, TabularData, TimeSeriesData, dedupe_variable_ids,
-};
+use antecedent_data::{IdRemap, TableView, TabularData, dedupe_variable_ids};
 use antecedent_estimate::{CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy};
 use antecedent_expr::{IdentifiedEstimand, RdDesignParams};
-use antecedent_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
 use antecedent_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
-use crate::discovery::{
-    DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
-    discover_lingam, discover_lpcmci, discover_notears, discover_pc, discover_pcmci,
-    discover_pcmci_plus, discover_rfci, discover_rpcmci,
-};
-use crate::discovery_defaults::resolve_ci;
 use crate::error::CausalError;
-use crate::result::CausalAnalysisResult;
-use antecedent_discovery::{MultiDatasetConstraints, RegimeAssignment};
+use crate::result::StudyResult;
 
 use super::builder::RefuteSuite;
 
@@ -77,14 +67,14 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) early_stopped: bool,
 }
 
-pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
+pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
     let copy_count = args
         .physical
         .materializations
         .iter()
         .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
         .count() as u64;
-    CausalAnalysisResult {
+    StudyResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,
@@ -139,217 +129,6 @@ pub(crate) fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> Prov
     provenance
 }
 
-pub(crate) fn run_pcmci_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalGraphReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_pcmci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_pcmci_plus_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_jpcmci_plus_review(
-    data: &MultiEnvironmentData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    multi_dataset: &MultiDatasetConstraints,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let system: Vec<VariableId> =
-        vars.into_iter().filter(|v| !multi_dataset.is_context(*v)).collect();
-    if system.is_empty() {
-        return Err(CausalError::Compile {
-            message: "jpcmci+ needs ≥1 system variable after excluding context_variables".into(),
-        });
-    }
-    let params = DiscoverParams { max_lag, alpha, fdr, ci, multi_dataset: multi_dataset.clone() };
-    let result = discover_jpcmci_plus(data, &system, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_rpcmci_discovery(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    assignment: &RegimeAssignment,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_discovery::RpcmciDiscoveryResult, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    if assignment.len() != data.row_count() {
-        return Err(CausalError::Compile {
-            message: format!(
-                "RPCMCI regime_assignment length {} != series length {}",
-                assignment.len(),
-                data.row_count()
-            ),
-        });
-    }
-    discover_rpcmci(data, &vars, assignment, &params, None, ctx)
-}
-
-pub(crate) fn run_lpcmci_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_graph::TemporalPagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_lpcmci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_pc_review(
-    data: &TabularData,
-    alpha: f64,
-    max_cond_size: usize,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<CpdagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params =
-        StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
-    let result = discover_pc(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_ges_review(
-    data: &TabularData,
-    alpha: f64,
-    max_cond_size: usize,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<CpdagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params =
-        StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
-    let result = discover_ges(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_lingam_review(
-    data: &TabularData,
-    max_cond_size: usize,
-    prune_threshold: f64,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_graph::DagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = StaticDiscoverParams {
-        alpha: 0.05,
-        max_cond_size,
-        fdr: None,
-        ci: resolve_ci("parcorr", None)?,
-        screen_pc: false,
-        max_subset: None,
-    };
-    let result = discover_lingam(data, &vars, &params, prune_threshold, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_notears_review(
-    data: &TabularData,
-    max_cond_size: usize,
-    lambda: f64,
-    threshold: f64,
-    standardize: bool,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_graph::DagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = StaticDiscoverParams {
-        alpha: 0.05,
-        max_cond_size,
-        fdr: None,
-        ci: resolve_ci("parcorr", None)?,
-        screen_pc: false,
-        max_subset: None,
-    };
-    let result = discover_notears(data, &vars, &params, lambda, threshold, standardize, ctx)?;
-    Ok(result.discovery.review)
-}
-
-pub(crate) fn run_fci_review(
-    data: &TabularData,
-    alpha: f64,
-    max_cond_size: usize,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_graph::PagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params =
-        StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
-    let result = discover_fci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-pub(crate) fn run_rfci_review(
-    data: &TabularData,
-    alpha: f64,
-    max_cond_size: usize,
-    fdr: Option<antecedent_stats::FdrAdjustment>,
-    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
-    ctx: &ExecutionContext,
-) -> Result<antecedent_graph::PagReview, CausalError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params =
-        StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
-    let result = discover_rfci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
 pub(crate) fn run_refuters(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -392,15 +171,6 @@ pub(crate) fn run_refuters(
         None => validation.run(&problem, workspace, ctx).map_err(CausalError::from)?,
     };
     Ok(ValidationSuite::reports_only(&outcomes))
-}
-
-pub(crate) fn resolve_analysis_ci(
-    discovery_ci: Option<&Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>>,
-) -> Result<Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>, CausalError> {
-    match discovery_ci {
-        Some(ci) => Ok(Arc::clone(ci)),
-        None => resolve_ci("parcorr", None),
-    }
 }
 
 pub(crate) fn effect_from_posterior(

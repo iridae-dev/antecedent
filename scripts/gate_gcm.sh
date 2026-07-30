@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash scripts/gate_parity_schema.sh
+
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -34,6 +36,14 @@ EVIDENCE = {
     "gcm.model.registry_fit": "crates/antecedent-model/src/registry.rs",
     "gcm.model.sampling": "crates/antecedent-model/src/sample.rs",
     "gcm.do_sampling": "crates/antecedent/tests/gcm.rs",
+    # Additive shift do(X := X + delta): overlay accumulation is the primary
+    # implementation. Harness: crates/antecedent-model/src/overlay.rs
+    # (`overlay::tests::shift_overlay_accumulates_and_is_independent_of_hard_set`,
+    # via `cargo test -p antecedent-model --lib` below) plus
+    # crates/antecedent/tests/gcm.rs::gcm_shift_intervention_differs_from_hard_set
+    # (via `cargo test -p antecedent --test gcm` below), which shows shift and hard
+    # set are observably different on a linear-Gaussian fixture.
+    "gcm.do_sampling.shift": "crates/antecedent-model/src/overlay.rs",
     "gcm.model.falsification": "crates/antecedent-model/src/evaluate.rs",
     "gcm.counterfactual.aap": "crates/antecedent/tests/gcm.rs",
     "gcm.attribution.basic": "crates/antecedent/tests/gcm.rs",

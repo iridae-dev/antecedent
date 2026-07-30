@@ -7,10 +7,10 @@
 /// Multiple-testing adjustment procedure.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum MultipleTestingMethod {
-    /// Benjamini–Hochberg FDR (independent / positive regression dependence).
+    /// Benjamini–Hochberg (1995) FDR (independent / positive regression dependence).
     #[default]
     BenjaminiHochberg,
-    /// Benjamini–Yekutieli FDR (arbitrary dependence; multiplies by harmonic sum).
+    /// Benjamini–Yekutieli (2001) FDR (arbitrary dependence; multiplies by harmonic sum).
     BenjaminiYekutieli,
     /// Bonferroni family-wise error control: `min(1, m · p)`.
     Bonferroni,

@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_io::{graph_dot, graph_gml, graph_json, graph_mixed, graph_networkx};
+
 use crate::error::CausalError;
 
 /// Parse a DOT digraph into a [`antecedent_graph::Dag`].
@@ -11,6 +13,17 @@ use crate::error::CausalError;
 /// [`CausalError::Serialization`] on malformed DOT or invalid DAG structure.
 pub fn dag_from_dot(dot: &str) -> Result<antecedent_graph::Dag, CausalError> {
     antecedent_io::dag_from_dot(dot).map_err(CausalError::from)
+}
+
+/// Parse a DOT digraph into a [`antecedent_graph::Dag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed DOT or invalid DAG structure.
+pub fn dag_with_names_from_dot(
+    dot: &str,
+) -> Result<(antecedent_graph::Dag, Vec<String>), CausalError> {
+    graph_dot::dag_with_names_from_dot(dot).map_err(CausalError::from)
 }
 
 /// Serialize a DAG to DOT.
@@ -34,6 +47,17 @@ pub fn dag_from_json(json: &str) -> Result<antecedent_graph::Dag, CausalError> {
     antecedent_io::dag_from_json(json).map_err(CausalError::from)
 }
 
+/// Parse a JSON DAG document into a [`antecedent_graph::Dag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_with_names_from_json(
+    json: &str,
+) -> Result<(antecedent_graph::Dag, Vec<String>), CausalError> {
+    graph_json::dag_with_names_from_json(json).map_err(CausalError::from)
+}
+
 /// Serialize a DAG to JSON.
 ///
 /// # Errors
@@ -53,6 +77,17 @@ pub fn dag_to_json(
 /// [`CausalError::Serialization`] on malformed GML or invalid DAG structure.
 pub fn dag_from_gml(gml: &str) -> Result<antecedent_graph::Dag, CausalError> {
     antecedent_io::dag_from_gml(gml).map_err(CausalError::from)
+}
+
+/// Parse a GML digraph into a [`antecedent_graph::Dag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed GML or invalid DAG structure.
+pub fn dag_with_names_from_gml(
+    gml: &str,
+) -> Result<(antecedent_graph::Dag, Vec<String>), CausalError> {
+    graph_gml::dag_with_names_from_gml(gml).map_err(CausalError::from)
 }
 
 /// Serialize a DAG to GML.
@@ -76,6 +111,18 @@ pub fn dag_from_networkx_node_link(json: &str) -> Result<antecedent_graph::Dag, 
     antecedent_io::dag_from_networkx_node_link(json).map_err(CausalError::from)
 }
 
+/// Parse `NetworkX` `node_link_data` JSON into a [`antecedent_graph::Dag`] plus
+/// its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(antecedent_graph::Dag, Vec<String>), CausalError> {
+    graph_networkx::dag_with_names_from_networkx_node_link(json).map_err(CausalError::from)
+}
+
 /// Serialize a DAG to `NetworkX` `node_link_data` JSON.
 ///
 /// # Errors
@@ -95,6 +142,18 @@ pub fn dag_to_networkx_node_link(
 /// [`CausalError::Serialization`] on malformed JSON or invalid DAG structure.
 pub fn dag_from_networkx_adjacency(json: &str) -> Result<antecedent_graph::Dag, CausalError> {
     antecedent_io::dag_from_networkx_adjacency(json).map_err(CausalError::from)
+}
+
+/// Parse `NetworkX` `adjacency_data` JSON into a [`antecedent_graph::Dag`] plus
+/// its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_with_names_from_networkx_adjacency(
+    json: &str,
+) -> Result<(antecedent_graph::Dag, Vec<String>), CausalError> {
+    graph_networkx::dag_with_names_from_networkx_adjacency(json).map_err(CausalError::from)
 }
 
 /// Serialize a DAG to `NetworkX` `adjacency_data` JSON.
@@ -117,6 +176,16 @@ pub fn dag_to_networkx_adjacency(
 pub fn pag_from_dot(dot: &str) -> Result<antecedent_graph::Pag, CausalError> {
     antecedent_io::pag_from_dot(dot).map_err(CausalError::from)
 }
+/// Parse DOT into a [`antecedent_graph::Pag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn pag_with_names_from_dot(
+    dot: &str,
+) -> Result<(antecedent_graph::Pag, Vec<String>), CausalError> {
+    graph_mixed::pag_with_names_from_dot(dot).map_err(CausalError::from)
+}
 /// Serialize a PAG to DOT.
 ///
 /// # Errors
@@ -135,6 +204,16 @@ pub fn pag_to_dot(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn pag_from_json(json: &str) -> Result<antecedent_graph::Pag, CausalError> {
     antecedent_io::pag_from_json(json).map_err(CausalError::from)
+}
+/// Parse JSON into a [`antecedent_graph::Pag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn pag_with_names_from_json(
+    json: &str,
+) -> Result<(antecedent_graph::Pag, Vec<String>), CausalError> {
+    graph_mixed::pag_with_names_from_json(json).map_err(CausalError::from)
 }
 /// Serialize a PAG to JSON.
 ///
@@ -155,6 +234,16 @@ pub fn pag_to_json(
 pub fn pag_from_gml(gml: &str) -> Result<antecedent_graph::Pag, CausalError> {
     antecedent_io::pag_from_gml(gml).map_err(CausalError::from)
 }
+/// Parse GML into a [`antecedent_graph::Pag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn pag_with_names_from_gml(
+    gml: &str,
+) -> Result<(antecedent_graph::Pag, Vec<String>), CausalError> {
+    graph_mixed::pag_with_names_from_gml(gml).map_err(CausalError::from)
+}
 /// Serialize a PAG to GML.
 ///
 /// # Errors
@@ -173,6 +262,17 @@ pub fn pag_to_gml(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn pag_from_networkx_node_link(json: &str) -> Result<antecedent_graph::Pag, CausalError> {
     antecedent_io::pag_from_networkx_node_link(json).map_err(CausalError::from)
+}
+/// Parse `NetworkX` node-link JSON into a [`antecedent_graph::Pag`] plus its
+/// node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn pag_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(antecedent_graph::Pag, Vec<String>), CausalError> {
+    graph_mixed::pag_with_names_from_networkx_node_link(json).map_err(CausalError::from)
 }
 /// Serialize a PAG to `NetworkX` node-link JSON.
 ///
@@ -194,6 +294,16 @@ pub fn pag_to_networkx_node_link(
 pub fn cpdag_from_dot(dot: &str) -> Result<antecedent_graph::Cpdag, CausalError> {
     antecedent_io::cpdag_from_dot(dot).map_err(CausalError::from)
 }
+/// Parse DOT into a [`antecedent_graph::Cpdag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn cpdag_with_names_from_dot(
+    dot: &str,
+) -> Result<(antecedent_graph::Cpdag, Vec<String>), CausalError> {
+    graph_mixed::cpdag_with_names_from_dot(dot).map_err(CausalError::from)
+}
 /// Serialize a CPDAG to DOT.
 ///
 /// # Errors
@@ -212,6 +322,16 @@ pub fn cpdag_to_dot(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn cpdag_from_json(json: &str) -> Result<antecedent_graph::Cpdag, CausalError> {
     antecedent_io::cpdag_from_json(json).map_err(CausalError::from)
+}
+/// Parse JSON into a [`antecedent_graph::Cpdag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn cpdag_with_names_from_json(
+    json: &str,
+) -> Result<(antecedent_graph::Cpdag, Vec<String>), CausalError> {
+    graph_mixed::cpdag_with_names_from_json(json).map_err(CausalError::from)
 }
 /// Serialize a CPDAG to JSON.
 ///
@@ -232,6 +352,16 @@ pub fn cpdag_to_json(
 pub fn cpdag_from_gml(gml: &str) -> Result<antecedent_graph::Cpdag, CausalError> {
     antecedent_io::cpdag_from_gml(gml).map_err(CausalError::from)
 }
+/// Parse GML into a [`antecedent_graph::Cpdag`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn cpdag_with_names_from_gml(
+    gml: &str,
+) -> Result<(antecedent_graph::Cpdag, Vec<String>), CausalError> {
+    graph_mixed::cpdag_with_names_from_gml(gml).map_err(CausalError::from)
+}
 /// Serialize a CPDAG to GML.
 ///
 /// # Errors
@@ -250,6 +380,17 @@ pub fn cpdag_to_gml(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn cpdag_from_networkx_node_link(json: &str) -> Result<antecedent_graph::Cpdag, CausalError> {
     antecedent_io::cpdag_from_networkx_node_link(json).map_err(CausalError::from)
+}
+/// Parse `NetworkX` node-link JSON into a [`antecedent_graph::Cpdag`] plus its
+/// node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn cpdag_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(antecedent_graph::Cpdag, Vec<String>), CausalError> {
+    graph_mixed::cpdag_with_names_from_networkx_node_link(json).map_err(CausalError::from)
 }
 /// Serialize a CPDAG to `NetworkX` node-link JSON.
 ///
@@ -271,6 +412,16 @@ pub fn cpdag_to_networkx_node_link(
 pub fn admg_from_dot(dot: &str) -> Result<antecedent_graph::Admg, CausalError> {
     antecedent_io::admg_from_dot(dot).map_err(CausalError::from)
 }
+/// Parse DOT into a [`antecedent_graph::Admg`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn admg_with_names_from_dot(
+    dot: &str,
+) -> Result<(antecedent_graph::Admg, Vec<String>), CausalError> {
+    graph_mixed::admg_with_names_from_dot(dot).map_err(CausalError::from)
+}
 /// Serialize an ADMG to DOT.
 ///
 /// # Errors
@@ -289,6 +440,16 @@ pub fn admg_to_dot(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn admg_from_json(json: &str) -> Result<antecedent_graph::Admg, CausalError> {
     antecedent_io::admg_from_json(json).map_err(CausalError::from)
+}
+/// Parse JSON into a [`antecedent_graph::Admg`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn admg_with_names_from_json(
+    json: &str,
+) -> Result<(antecedent_graph::Admg, Vec<String>), CausalError> {
+    graph_mixed::admg_with_names_from_json(json).map_err(CausalError::from)
 }
 /// Serialize an ADMG to JSON.
 ///
@@ -309,6 +470,16 @@ pub fn admg_to_json(
 pub fn admg_from_gml(gml: &str) -> Result<antecedent_graph::Admg, CausalError> {
     antecedent_io::admg_from_gml(gml).map_err(CausalError::from)
 }
+/// Parse GML into a [`antecedent_graph::Admg`] plus its node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn admg_with_names_from_gml(
+    gml: &str,
+) -> Result<(antecedent_graph::Admg, Vec<String>), CausalError> {
+    graph_mixed::admg_with_names_from_gml(gml).map_err(CausalError::from)
+}
 /// Serialize an ADMG to GML.
 ///
 /// # Errors
@@ -327,6 +498,17 @@ pub fn admg_to_gml(
 /// [`CausalError::Serialization`] on malformed input.
 pub fn admg_from_networkx_node_link(json: &str) -> Result<antecedent_graph::Admg, CausalError> {
     antecedent_io::admg_from_networkx_node_link(json).map_err(CausalError::from)
+}
+/// Parse `NetworkX` node-link JSON into a [`antecedent_graph::Admg`] plus its
+/// node names.
+///
+/// # Errors
+///
+/// [`CausalError::Serialization`] on malformed input.
+pub fn admg_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(antecedent_graph::Admg, Vec<String>), CausalError> {
+    graph_mixed::admg_with_names_from_networkx_node_link(json).map_err(CausalError::from)
 }
 /// Serialize an ADMG to `NetworkX` node-link JSON.
 ///

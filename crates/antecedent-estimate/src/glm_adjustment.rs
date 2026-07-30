@@ -1,4 +1,4 @@
-//! Generalized linear model (logistic) adjustment ATE estimator for binary outcomes .
+//! Generalized linear model (logistic) adjustment ATE estimator for binary outcomes.
 //!
 //! Fits a logistic GLM `Y ~ T + Z` and recovers the ATE by finite-difference g-computation:
 //! the fitted model is evaluated at `T = active` and `T = control` for every row (holding `Z`
@@ -30,7 +30,7 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm, form_xtx, invert_square, score_coefficient_covariance,
+    fit_glm, score_coefficient_covariance,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -117,6 +117,73 @@ impl GlmAdjustmentAte {
             multiway_ids: None,
             panel_times: None,
         }
+    }
+
+    /// Set the dense linear-algebra backend used by the IRLS inner loop.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — this is a
+    /// regression (not propensity-based) path.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options (max iterations, convergence tolerance).
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the outcome family / link (default [`GlmFamily::BinomialLogit`]).
+    #[must_use]
+    pub const fn with_family(mut self, family: GlmFamily) -> Self {
+        self.family = family;
+        self
+    }
+
+    /// Set the analytic SE kind (default [`AnalyticSeKind::Homoskedastic`], the Fisher
+    /// delta-method).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids for cluster / panel sandwich SE.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels for panel HAC sandwich SE.
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
     }
 
     /// Prepare design from tabular data, identified estimand, and query levels.
@@ -304,20 +371,7 @@ impl GlmAdjustmentAte {
             Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -332,12 +386,8 @@ impl GlmAdjustmentAte {
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0xC17A_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                y_boot[r] = problem.design.outcome[src];
-                for c in 0..p {
-                    x_boot[c * n + r] = problem.design.matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.design.outcome, idx);
+            crate::util::gather_bootstrap_design(&mut x_boot, &problem.design.matrix, n, p, idx);
             let Ok(fit) = fit_glm(
                 problem.family,
                 GlmDesignRef { x_colmajor: &x_boot, nrows: n, ncols: p, y: &y_boot },
@@ -461,9 +511,7 @@ fn gcomp_delta_method_se(
             x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
         }
     }
-    let mut info = vec![0.0; ncols * ncols];
-    form_xtx(&x_w, nrows, ncols, &mut info);
-    let Some(cov_unscaled) = invert_square(&info, ncols) else {
+    let Some(cov_unscaled) = crate::util::xtx_inverse(&x_w, nrows, ncols) else {
         return f64::NAN;
     };
     let n = nrows as f64;
@@ -476,37 +524,8 @@ fn gcomp_delta_method_se(
         | GlmFamily::NegativeBinomial => 1.0,
     };
 
-    // Gradient of the mean g-computation contrast w.r.t. the coefficient vector.
-    let mut grad = vec![0.0; ncols];
-    for r in 0..nrows {
-        let mut eta_active = 0.0;
-        let mut eta_control = 0.0;
-        for c in 0..ncols {
-            let coef = coefficients[c];
-            if c == t_col {
-                eta_active += active * coef;
-                eta_control += control * coef;
-            } else {
-                let val = x_colmajor[c * nrows + r];
-                eta_active += val * coef;
-                eta_control += val * coef;
-            }
-        }
-        let d1 = mean_derivative(family, eta_active);
-        let d0 = mean_derivative(family, eta_control);
-        for c in 0..ncols {
-            let (x1, x0) = if c == t_col {
-                (active, control)
-            } else {
-                let val = x_colmajor[c * nrows + r];
-                (val, val)
-            };
-            grad[c] += d1 * x1 - d0 * x0;
-        }
-    }
-    for g in &mut grad {
-        *g /= n;
-    }
+    let grad =
+        gcomp_gradient(family, x_colmajor, nrows, ncols, t_col, coefficients, active, control);
 
     let mut quad = 0.0;
     for i in 0..ncols {

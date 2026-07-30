@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::estimator_spec::EstimatorSpec;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_static(
         &self,
         data: &TabularData,
@@ -10,12 +11,13 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
-        let estimator_id = EstimatorId::parse(estimator);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
 
         // rd.sharp has no graph-based identification step; dispatch to its
         // own path before touching `graph`.
@@ -29,17 +31,17 @@ impl super::CausalAnalysis {
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
         let rd = self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
         let identification = identify_static_query_with_rd(
-            identifier,
+            identifier_id,
             graph,
             &CausalQuery::AverageEffect(query.clone()),
             rd,
         )?;
-        let estimand = select_estimand(&identification, estimator_id.clone())?;
+        let estimand = select_estimand(&identification, estimator_id)?;
         let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Identify {
+            &super::super::stage::StageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
             },
@@ -57,8 +59,13 @@ impl super::CausalAnalysis {
             });
         }
         let mut estimate_ws = StaticEstimateWorkspaces::default();
+        // A caller-configured estimator wins; otherwise select by id and let the
+        // study fill bootstrap/overlap defaults. The builder refuses the ambiguous
+        // case (both set) at `build()` time, so there is nothing to reconcile here.
+        let estimator_spec =
+            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
         let point = estimate_static_effect(
-            estimator,
+            &estimator_spec,
             &data_est,
             &estimand_est,
             &query_est,
@@ -72,7 +79,7 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Point { estimate: point.clone() },
+            &super::super::stage::StageEvent::Point { estimate: point.clone() },
         );
 
         // Uncertainty: bootstrap fills (real work when replicates > 0).
@@ -85,9 +92,7 @@ impl super::CausalAnalysis {
                 clock.finish(super::super::stage::STAGE_UNCERTAINTY);
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: point.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: point.clone() },
                 );
                 point
             }
@@ -102,9 +107,17 @@ impl super::CausalAnalysis {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                let mut est = LinearAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                est.overlap = OverlapPolicy::ExplicitOverride;
+                // Reuse the caller's configured estimator when there is one, so the
+                // warm-workspace bootstrap path cannot silently diverge from the
+                // point-estimate path above.
+                let est = if let EstimatorSpec::LinearAdjustmentAte(cfg) = &estimator_spec {
+                    (**cfg).clone()
+                } else {
+                    let mut est = LinearAdjustmentAte::new();
+                    est.bootstrap_replicates = self.bootstrap_replicates;
+                    est.overlap = OverlapPolicy::ExplicitOverride;
+                    est
+                };
                 let prep =
                     est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
                 let filled = est
@@ -118,9 +131,7 @@ impl super::CausalAnalysis {
                 }
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: filled.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -136,7 +147,7 @@ impl super::CausalAnalysis {
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
                 let filled = estimate_static_effect(
-                    estimator,
+                    &estimator_spec,
                     &data_est,
                     &estimand_est,
                     &query_est,
@@ -155,9 +166,7 @@ impl super::CausalAnalysis {
                 }
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: filled.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -195,7 +204,7 @@ impl super::CausalAnalysis {
             clock.finish(super::super::stage::STAGE_VALIDATE);
             super::super::stage::emit_stage(
                 self.stage_sink.as_ref(),
-                &super::super::stage::AnalysisStageEvent::Validate {
+                &super::super::stage::StageEvent::Validate {
                     refutations: reports.clone(),
                     predictive_checks: Vec::new(),
                 },
@@ -203,8 +212,8 @@ impl super::CausalAnalysis {
             reports
         };
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
@@ -252,7 +261,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier = physical
             .logical
@@ -262,7 +271,9 @@ impl super::CausalAnalysis {
             .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
         let estimator =
             physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
-        if !matches!(EstimatorId::parse(estimator), EstimatorId::FunctionalDistribution) {
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if !matches!(estimator_id, EstimatorId::FunctionalDistribution) {
             return Err(CausalError::Compile {
                 message: format!(
                     "Distribution execute requires estimator functional.distribution; got {estimator}"
@@ -271,8 +282,8 @@ impl super::CausalAnalysis {
         }
 
         let cq = CausalQuery::Distribution(query.clone());
-        let identification = identify_static_query(identifier, graph, &cq)?;
-        let estimand = select_estimand(&identification, EstimatorId::parse(estimator))?;
+        let identification = identify_static_query(identifier_id, graph, &cq)?;
+        let estimand = select_estimand(&identification, estimator_id)?;
 
         let est = FunctionalDistribution {
             bootstrap_replicates: self.bootstrap_replicates,
@@ -346,8 +357,8 @@ impl super::CausalAnalysis {
             Vec::new()
         };
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
@@ -393,13 +404,15 @@ impl super::CausalAnalysis {
         query: &antecedent_core::PathSpecificEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
         let estimator =
             physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_PATH_ESTIMATOR);
-        if !matches!(EstimatorId::parse(estimator), EstimatorId::FunctionalEffect) {
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
                 message: format!(
                     "PathSpecific execute requires estimator functional.effect; got {estimator}"
@@ -408,8 +421,8 @@ impl super::CausalAnalysis {
         }
 
         let cq = CausalQuery::PathSpecific(query.clone());
-        let identification = identify_static_query(identifier, graph, &cq)?;
-        let estimand = select_estimand(&identification, EstimatorId::parse(estimator))?;
+        let identification = identify_static_query(identifier_id, graph, &cq)?;
+        let estimand = select_estimand(&identification, estimator_id)?;
 
         let mut extra = vec![query.treatment, query.outcome];
         extra.extend(query.path_nodes.iter().copied());
@@ -448,8 +461,8 @@ impl super::CausalAnalysis {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
@@ -494,7 +507,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let rd = self.rd.ok_or_else(|| CausalError::Compile {
             message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
@@ -578,10 +591,11 @@ impl super::CausalAnalysis {
         query: &antecedent_core::ConditionalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identifier, _) = self.resolve_conditional_pair();
-        let identification = identify_static(identifier.as_ref(), graph, &query.inner)?;
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let identification = identify_static(identifier_id, graph, &query.inner)?;
         let estimand = select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
         let est = ConditionalLinearAdjustment::new();
         let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
@@ -601,7 +615,7 @@ impl super::CausalAnalysis {
             &self.custom_validators,
             None,
         )?;
-        let (id_artifact, id_op) = identify_provenance_step(identifier.as_ref());
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (
@@ -650,7 +664,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if !matches!(query.contrast, MediationContrast::Total) {
             return Err(CausalError::Unsupported {
@@ -665,11 +679,11 @@ impl super::CausalAnalysis {
             query.active.clone(),
             query.target_population.clone(),
         );
-        let identification = identify_static("frontdoor", graph, &ate)?;
+        let identification = identify_static(IdentifierId::Frontdoor, graph, &ate)?;
         let estimand = select_estimand(&identification, EstimatorId::FrontDoorTwoStage)?;
         let mut estimate_ws = StaticEstimateWorkspaces::default();
         let estimate = estimate_static_effect(
-            EstimatorId::FrontDoorTwoStage,
+            &EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage),
             data,
             &estimand,
             &ate,

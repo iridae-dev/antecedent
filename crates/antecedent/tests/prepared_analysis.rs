@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use antecedent::{CausalAnalysis, LatencyMode, PreparedAnalysis, RefuteSuite};
+use antecedent::{LatencyMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -91,9 +91,8 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     (TabularData::new(storage), dag, query)
 }
 
-fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> CausalAnalysis {
-    CausalAnalysis::builder()
-        .data(data)
+fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
+    Study::tabular(data)
         .graph(dag)
         .query(query)
         .latency_mode(LatencyMode::Interactive)
@@ -212,22 +211,90 @@ fn prepared_second_shot_cheaper_than_full_run() {
 }
 
 #[test]
-fn prepare_refuses_discovery_graph() {
-    use antecedent::{DiscoveryAccept, FdrControl};
-    let (data, _, query) = confounded_scm(100, 37);
-    // Discovery under Interactive is refused at build; Standard one-shot still
-    // reaches prepare, which refuses Discover* graphs.
-    let err = CausalAnalysis::builder()
-        .data(data)
-        .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
-        .query(query)
-        .latency_mode(LatencyMode::Standard)
+fn prepare_refuses_temporal_graph() {
+    // MIGRATION NOTE: this test used to be `prepare_refuses_discovery_graph`, asserting
+    // that `.prepare()` refused a graph tagged internally as coming from inline builder
+    // discovery (`.discover_pc(..)`, an old `GraphInput::Discover*` variant), with an
+    // error message containing "supplied static". That distinction is retired, not
+    // relocated: `.discover_pc(..)` and the old `GraphInput` enum are deleted, and a
+    // graph produced by standalone discovery + `AcceptedGraph::accept(..)` is, once
+    // accepted, an ordinary `AcceptedGraph` of some `GraphClass` — indistinguishable
+    // from one supplied directly (`AcceptedGraph::algorithm_id()` is set by discovery
+    // but has no reader in `ensure_prepared_supported`,
+    // `crates/antecedent/src/analysis/prepared.rs:199-217`). The only structural
+    // refusal `PreparedStudy::prepare` still performs is on graph *class*
+    // (`is_supplied_static_graph`): temporal classes are refused as "not
+    // session-refreshable here" — a different condition, with different wording, than
+    // the one this test used to assert. No reachable call path reproduces the original
+    // "supplied static" message substring. Rewritten to cover the refusal that actually
+    // still exists; see the migration report for the retired behavior.
+    use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
+    use antecedent_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
+    use antecedent_graph::{TemporalDag, ensure_lagged};
+
+    let n = 60usize;
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "x",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        x[t] = ((t as f64) * 0.05).sin();
+        y[t] = 0.5 * x[t - 1];
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut g = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(x1, y0).unwrap();
+    let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+
+    let err = Study::series(series)
+        .graph(g)
+        .temporal_query(q)
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
         .prepare(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    assert!(err.to_string().contains("supplied static"), "unexpected: {err}");
+    // `prepare` is a tabular + AverageEffect session handle; a temporal study is
+    // refused at that gate, before graph class is ever considered.
+    let msg = err.to_string();
+    assert!(msg.contains("tabular") && msg.contains("AverageEffect"), "unexpected: {err}");
 }
 
 #[test]
@@ -235,7 +302,7 @@ fn refresh_updates_retained_data() {
     let (data1, dag, query) = confounded_scm(400, 41);
     let (data2, _, _) = confounded_scm(400, 43);
     let ctx = ExecutionContext::for_tests(1);
-    let mut prepared: PreparedAnalysis =
+    let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
     let a = prepared.refresh(data1, &ctx).unwrap().estimate.ate;
     let b = prepared.refresh(data2, &ctx).unwrap().estimate.ate;

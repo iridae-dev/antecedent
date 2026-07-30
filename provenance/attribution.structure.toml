@@ -1,0 +1,45 @@
+feature_id = "attribution.structure"
+implementation_crate = "antecedent-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+# `papers = []` is deliberate, not an oversight (see provenance/README.md).
+#
+# What this module does: parent-set / structural-change attribution via a dual-graph
+# coalition game. `structure_change.rs` builds hybrid DAGs (`hybrid_structure_dag`) that
+# swap whole parent-edge sets between the baseline and comparison graphs per coalition,
+# re-fits mechanisms under each hybrid, and Shapley-attributes the outcome-marginal change
+# to the nodes whose parent sets differ.
+#
+# Why no paper is cited: Budhathoki, Janzing, Bloebaum & Ng 2021 ("Why did the distribution
+# change?", see attribution.distribution_change.toml) fixes the causal graph and
+# Shapley-attributes over changes to the conditional distributions P(X_i | pa_i) —
+# coalitions there never touch parent sets, and the formalism has no notion of a hybrid
+# graph invalidating the topology. Here the coalition operation swaps entire edge sets and
+# can produce a cyclic hybrid graph, which `structure_change.rs:169-341` handles as an
+# explicit error — that cycle risk is the tell that this is a materially different coalition
+# game (the value function changes structurally, not parametrically), not a restatement of
+# the 2021 paper's construction under a new label. Sharing the generic Shapley-value tool
+# with dozens of other papers is not evidence any one of them covers this specific
+# dual-graph construction, and no closer match was found. Flagging as an honest gap rather
+# than force-fitting a citation.
+#
+# Related citation: see provenance/attribution.distribution_change.toml for the
+# mechanism-parameter variant that Budhathoki et al. 2021 genuinely does cover.
+
+upstream_implementations_observed = []
+# Both backing fixtures (conformance/attribution/structure_change_grid,
+# conformance/attribution/structure_change_parent_swap) are closed-form / clean-room
+# synthetic SCMs, not dowhy-oracle comparisons (checked their expected.json: oracle.kind /
+# generator are "closed_form_linear_scm" / "temporary clean-room harness", no
+# reference.project = "dowhy" block). No upstream comparator observed for this capability.
+
+test_sources = [
+ "conformance/attribution/structure_change_grid",
+ "conformance/attribution/structure_change_parent_swap",
+ "crates/antecedent/tests/attribution.rs",
+]

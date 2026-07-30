@@ -10,6 +10,7 @@ use thiserror::Error;
 
 /// Estimation failures.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EstimationError {
     /// Data/schema issue.
     #[error(transparent)]
@@ -47,9 +48,6 @@ pub enum EstimationError {
         /// Explanation.
         message: &'static str,
     },
-    /// Legacy / dynamic unsupported detail (prefer [`Self::Unsupported`]).
-    #[error("{0}")]
-    UnsupportedQuery(String),
 }
 
 impl EstimationError {

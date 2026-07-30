@@ -7,7 +7,7 @@ copied_tests = false
 
 papers = [
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["7.2 Instrumental variables"] },
- { title = "Instrumental Variables in Causal Inference and Machine Learning", doi = "10.48550/arXiv.2212.05778", sections = ["graphical IV criteria"] },
+ { title = "Instrumental Variables in Causal Inference and Machine Learning: A Survey", doi = "10.48550/arXiv.2212.05778", sections = ["graphical IV criteria"] },
 ]
 
 upstream_implementations_observed = [

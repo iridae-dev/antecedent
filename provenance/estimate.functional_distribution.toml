@@ -1,0 +1,24 @@
+feature_id = "estimate.functional_distribution"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Tian & Pearl's AAAI-02 ID paper has no resolving DOI: AAAI/UAI proceedings of this
+# era were not assigned registered DOIs, the ACM Digital Library `10.5555/...`
+# identifiers 404 at doi.org, and no arXiv mirror exists (`10.48550/arXiv.1301.2312`
+# is a different Tian & Pearl paper, "Causal Discovery from Changes"). Omitted rather
+# than asserted. The IDC paper does have an arXiv mirror, used below and shared with
+# identify.idc.toml.
+papers = [
+ { title = "A General Identification Condition for Causal Effects", sections = ["ID algorithm"] },
+ { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "conformance/estimate/functional_plugin (clean-room fixture: known interventional mean under backdoor confounding)",
+ "in-crate unit tests (crates/antecedent-estimate/src/functional_distribution.rs): plug-in matches known interventional mean, bootstrap SE finiteness, no-bootstrap replicate-count invariant",
+]

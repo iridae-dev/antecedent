@@ -48,7 +48,7 @@ fn parse_prior_mapping(
 
 fn run_static_ate_from_builder(
     names: &[String],
-    mut builder: antecedent::CausalAnalysisBuilder,
+    mut builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
@@ -164,7 +164,7 @@ type PosteriorSummary = (
 );
 
 fn posterior_summary_from_result(
-    result: &antecedent::CausalAnalysisResult,
+    result: &antecedent::StudyResult,
     include_artifact: bool,
 ) -> PyResult<PosteriorSummary> {
     if let Some(post) = result.posterior.as_ref() {
@@ -190,9 +190,7 @@ fn posterior_summary_from_result(
     }
 }
 
-fn prior_sensitivity_from_result(
-    result: &antecedent::CausalAnalysisResult,
-) -> PriorSensitivityFields {
+fn prior_sensitivity_from_result(result: &antecedent::StudyResult) -> PriorSensitivityFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(sens) = post.prior_sensitivity.as_ref() {
             let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
@@ -208,9 +206,7 @@ fn prior_sensitivity_from_result(
     (None, None, None, None)
 }
 
-fn conflict_summary_from_result(
-    result: &antecedent::CausalAnalysisResult,
-) -> ConflictSummaryFields {
+fn conflict_summary_from_result(result: &antecedent::StudyResult) -> ConflictSummaryFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(cs) = post.conflict_summary.as_ref() {
             return (
@@ -250,24 +246,88 @@ pub(crate) fn panel_multi_dataset_constraints(
     })
 }
 
+/// Run standalone discovery over panel data and return a builder already seeded with the
+/// accepted graph via [`Study::panel`] + [`antecedent::StudyBuilder::graph`].
+///
+/// `pcmci`/`pcmci_plus`/`lpcmci` pool all units into one series first (matches the
+/// preprocessing the old lazy `Study::compile()` applied to these algorithms over
+/// `PanelData`); `jpcmci_plus` uses the panel's per-unit multi-environment view directly.
 pub(crate) fn panel_discovery_builder(
-    builder: antecedent::CausalAnalysisBuilder,
+    panel: PanelData,
     algo: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     multi_dataset: MultiDatasetConstraints,
-) -> PyResult<antecedent::CausalAnalysisBuilder> {
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<antecedent::StudyBuilder> {
+    let fdr = fdr_ctrl.adjustment();
     match algo {
         "jpcmci_plus" | "jpcmci+" => {
-            Ok(builder.discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset))
+            let multi = panel.as_multi_env().map_err(py_err)?;
+            let vars: Vec<VariableId> = multi.schema().variables().iter().map(|v| v.id).collect();
+            let params =
+                DiscoverParams { max_lag, alpha, fdr, ci: ci_impl, multi_dataset, max_cond_size };
+            let found = facade_discover_jpcmci_plus(&multi, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
         }
-        "pcmci" => Ok(builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept)),
+        "pcmci" => {
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_pcmci(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_graph_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
+        }
         "pcmci_plus" | "pcmci+" => {
-            Ok(builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept))
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_pcmci_plus(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
         }
-        "lpcmci" => Ok(builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept)),
+        "lpcmci" => {
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_lpcmci(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted = accept_temporal_pag_review(
+                found.evidence.graph.clone(),
+                found.review,
+                accept_discovered,
+            )
+            .map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
+        }
         other => Err(PyValueError::new_err(format!(
             "unknown panel discovery algorithm {other:?}; use jpcmci_plus|pcmci|pcmci_plus|lpcmci"
         ))),
@@ -347,8 +407,8 @@ fn parse_population_registry(
 
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
 /// `None` preserves the default (`backdoor.adjustment` + `linear.adjustment.ate`).
-/// See [`antecedent::CausalAnalysisBuilder::identifier`] and
-/// [`antecedent::CausalAnalysisBuilder::estimator`] for the supported ids.
+/// See [`antecedent::StudyBuilder::identifier`] and
+/// [`antecedent::StudyBuilder::estimator`] for the supported ids.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
 /// summary out. No per-row callbacks. Releases the GIL during native work.
@@ -375,6 +435,7 @@ fn parse_population_registry(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1,
@@ -409,6 +470,7 @@ fn analyze_ate(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -438,12 +500,19 @@ fn analyze_ate(
     let cancel_token = cancel.map(|c| c.inner);
     let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
+    // Parsed with the GIL held (dict access requires it); the result is plain owned data
+    // that crosses into `detach_catch` via `move` like `estimator`/`bootstrap` already do.
     let latency_mode = match latency.as_deref() {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
@@ -460,20 +529,39 @@ fn analyze_ate(
             query = query.with_target_population(pop);
         }
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
+            .custom_validators(custom_validators);
+        // A configured estimator already carries its own (default-or-overridden) bootstrap
+        // count; combining it with an explicit `StudyBuilder::bootstrap_replicates` call is
+        // refused at `build()` time (`CausalError::Conflict`), so skip that call here.
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
+        }
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
         }
@@ -483,11 +571,21 @@ fn analyze_ate(
         if let Some(reg) = registry {
             builder = builder.population_registry(reg);
         }
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
-            builder = builder.identifier(id);
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
-        if let Some(est) = estimator {
-            builder = builder.estimator(est);
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -535,6 +633,7 @@ fn analyze_ate(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1,
@@ -565,6 +664,7 @@ fn analyze_ate_arrow_c(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -590,6 +690,11 @@ fn analyze_ate_arrow_c(
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
 
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -599,28 +704,54 @@ fn analyze_ate_arrow_c(
 
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
+            .custom_validators(custom_validators);
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
+        }
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
         }
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
-            builder = builder.identifier(id);
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
-        if let Some(est) = estimator {
-            builder = builder.estimator(est);
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -694,15 +825,21 @@ fn analyze_ate_many(
             ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
         }
         let mut batch =
-            antecedent::BatchAnalysis::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
+            antecedent::BatchStudy::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
         if let Some(mode) = latency_mode {
             batch = batch.latency_mode(mode);
         }
         if let Some(id) = identifier {
-            batch = batch.identifier(id);
+            batch = batch.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some(est) = estimator {
-            batch = batch.estimator(est);
+            batch = batch.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         let ctx = py_execution_context(seed, threads);
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
@@ -729,11 +866,22 @@ fn prepare_ate_tabular_preamble(
     Ok((batch, suite, custom_validators, threads))
 }
 
+/// Static graph input for the shared `analyze_ate_{pag,cpdag,admg}` dispatch helper.
+///
+/// Local replacement for the old crate-level `GraphInput` enum (removed along with the
+/// facade's `Study::builder()` refactor): a bare dispatch tag over the three typed static
+/// graph classes these three Python entry points accept, nothing more.
+enum StaticGraphInput {
+    Pag(Pag),
+    Cpdag(Cpdag),
+    Admg(antecedent_graph::Admg),
+}
+
 fn analyze_ate_typed_graph(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
-    graph: GraphInput,
+    graph: StaticGraphInput,
     treatment: String,
     outcome: String,
     control_level: f64,
@@ -749,6 +897,8 @@ fn analyze_ate_typed_graph(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -759,6 +909,17 @@ fn analyze_ate_typed_graph(
         refute.as_ref(),
         validators.as_ref(),
         threads,
+    )?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
+    };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
     )?;
     detach_catch(py, move || {
         run_ate_with_graph_input(
@@ -780,6 +941,8 @@ fn analyze_ate_typed_graph(
             running_variable,
             cutoff,
             bandwidth,
+            parsed_estimator_config,
+            latency_mode,
             seed,
             bootstrap,
             threads,
@@ -787,10 +950,11 @@ fn analyze_ate_typed_graph(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ate_with_graph_input(
     names: &[String],
     batch: RecordBatch,
-    graph: GraphInput,
+    graph: StaticGraphInput,
     treatment: String,
     outcome: String,
     control_level: f64,
@@ -806,6 +970,8 @@ fn run_ate_with_graph_input(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    parsed_estimator_config: crate::estimator_config::ParsedEstimatorConfig,
+    latency_mode: Option<antecedent::LatencyMode>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -815,36 +981,60 @@ fn run_ate_with_graph_input(
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
     let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-    let rd_ids = parse_rd_config(
-        estimator.as_deref(),
-        running_variable.as_deref(),
+    let crate::estimator_config::ParsedEstimatorConfig {
+        spec: configured_spec,
+        rd_running_variable: configured_rv,
+        rd_cutoff: configured_cutoff,
+        rd_bandwidth: configured_bandwidth,
+    } = parsed_estimator_config;
+    let (merged_rv, merged_cutoff, merged_bandwidth) = crate::estimator_config::merge_rd_triple(
+        running_variable,
         cutoff,
         bandwidth,
+        configured_rv,
+        configured_cutoff,
+        configured_bandwidth,
+    )?;
+    let rd_ids = parse_rd_config(
+        estimator.as_deref(),
+        merged_rv.as_deref(),
+        merged_cutoff,
+        merged_bandwidth,
         |rv| data.schema().id_of(rv).map_err(py_err),
     )?;
-    let mut builder = CausalAnalysis::builder()
-        .data(data)
-        .query(query)
-        .refute(suite)
-        .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap);
-    builder = match graph {
-        GraphInput::Static(dag) => builder.graph(dag),
-        GraphInput::Pag(pag) => builder.pag(pag),
-        GraphInput::Cpdag(cpdag) => builder.cpdag(cpdag),
-        GraphInput::Admg(admg) => builder.admg(admg),
-        _other => {
-            return Err(PyValueError::new_err("unsupported static graph input for analyze_ate_*"));
-        }
-    };
-    if let Some(id) = identifier {
-        builder = builder.identifier(id);
+    let mut builder =
+        Study::tabular(data).query(query).refute(suite).custom_validators(custom_validators);
+    if configured_spec.is_none() {
+        builder = builder.bootstrap_replicates(bootstrap);
     }
-    if let Some(est) = estimator {
-        builder = builder.estimator(est);
+    builder = match graph {
+        StaticGraphInput::Pag(pag) => builder.graph(pag),
+        StaticGraphInput::Cpdag(cpdag) => {
+            let accepted = AcceptedGraph::cpdag(cpdag).map_err(py_err)?;
+            builder.graph(accepted)
+        }
+        StaticGraphInput::Admg(admg) => builder.graph(admg),
+    };
+    // Names at the boundary, ids on the hot path.
+    if let Some(id) = identifier {
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(spec) = configured_spec {
+        builder = builder.estimator(spec);
+    } else if let Some(est) = estimator {
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
     }
     if let Some((rv_id, cut, bw)) = rd_ids {
         builder = builder.rd_config(rv_id, cut, bw);
+    }
+    if let Some(mode) = latency_mode {
+        builder = builder.latency_mode(mode);
     }
     run_static_ate_from_builder(
         names,
@@ -873,8 +1063,11 @@ fn run_ate_with_graph_input(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_pag(
     py: Python<'_>,
     names: Vec<String>,
@@ -895,6 +1088,8 @@ fn analyze_ate_pag(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -903,7 +1098,7 @@ fn analyze_ate_pag(
         py,
         names,
         columns,
-        GraphInput::Pag(graph.pag),
+        StaticGraphInput::Pag(graph.pag),
         treatment,
         outcome,
         control_level,
@@ -919,6 +1114,8 @@ fn analyze_ate_pag(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -935,8 +1132,11 @@ fn analyze_ate_pag(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_cpdag(
     py: Python<'_>,
     names: Vec<String>,
@@ -957,6 +1157,8 @@ fn analyze_ate_cpdag(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -965,7 +1167,7 @@ fn analyze_ate_cpdag(
         py,
         names,
         columns,
-        GraphInput::Cpdag(graph.cpdag),
+        StaticGraphInput::Cpdag(graph.cpdag),
         treatment,
         outcome,
         control_level,
@@ -981,6 +1183,8 @@ fn analyze_ate_cpdag(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -997,8 +1201,11 @@ fn analyze_ate_cpdag(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_admg(
     py: Python<'_>,
     names: Vec<String>,
@@ -1019,6 +1226,8 @@ fn analyze_ate_admg(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1027,7 +1236,7 @@ fn analyze_ate_admg(
         py,
         names,
         columns,
-        GraphInput::Admg(graph.admg),
+        StaticGraphInput::Admg(graph.admg),
         treatment,
         outcome,
         control_level,
@@ -1043,6 +1252,8 @@ fn analyze_ate_admg(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -1086,6 +1297,7 @@ fn analyze_ate_admg(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -1125,6 +1337,7 @@ fn analyze_ate_discover(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1134,6 +1347,11 @@ fn analyze_ate_discover(
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
     drop(columns);
     let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     let soft_weight = soft_weight.to_string();
@@ -1144,17 +1362,31 @@ fn analyze_ate_discover(
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let accept =
-            if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
+        let ctx = py_execution_context(seed, threads);
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder().data(data);
         let soft = match soft_weight.as_str() {
             "none" | "" => antecedent::discovery::CiSoftWeight::None,
             "bayes_factor" | "bf" => antecedent::discovery::CiSoftWeight::BayesFactor,
@@ -1167,53 +1399,204 @@ fn analyze_ate_discover(
                 )));
             }
         };
-        builder = match algo.as_str() {
-            "pc" => builder.discover_pc(alpha, max_cond_size, fdr_ctrl, accept),
-            "ges" => builder.discover_ges(alpha, max_cond_size, fdr_ctrl, accept),
-            "lingam" => builder.discover_lingam(max_cond_size, prune_threshold, accept),
-            "notears" => {
-                builder.discover_notears(max_cond_size, l1, threshold, standardize, accept)
-            }
-            "fci" => builder.discover_fci(alpha, max_cond_size, fdr_ctrl, accept),
-            "rfci" => builder.discover_rfci(alpha, max_cond_size, fdr_ctrl, accept),
-            "exact_dag_posterior" | "exact" => builder.discover_exact_dag_posterior(),
-            "order_mcmc" => builder.discover_order_mcmc(
-                n_chains,
-                n_warmup,
-                mcmc_draws,
-                thin,
-                require_diagnostics_gate,
-            ),
-            "structure_mcmc" => {
-                builder.discover_structure_mcmc(n_chains, n_warmup, mcmc_draws, thin)
-            }
-            "ci_screened_posterior" | "ci_screened" => builder.discover_ci_screened_posterior(
-                alpha,
-                max_cond_size,
-                fdr_ctrl,
-                soft,
-                n_chains,
-                n_warmup,
-                mcmc_draws,
-                thin,
-            ),
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown static discovery algorithm {other:?};                      use pc|ges|lingam|notears|fci|rfci|exact_dag_posterior|order_mcmc|                     structure_mcmc|ci_screened_posterior"
-                )));
-            }
+
+        // Bayesian graph-posterior discovery: no discrete graph to review — wire the
+        // posterior directly. Frequentist inference + a posterior is refused by the
+        // library itself (checked inside `build`/`run`, not here).
+        let is_graph_posterior = matches!(
+            algo.as_str(),
+            "exact_dag_posterior"
+                | "exact"
+                | "order_mcmc"
+                | "structure_mcmc"
+                | "ci_screened_posterior"
+                | "ci_screened"
+        );
+        let builder = if is_graph_posterior {
+            let params = antecedent::discovery::BayesianDiscoverParams::default();
+            let gp = match algo.as_str() {
+                "exact_dag_posterior" | "exact" => {
+                    antecedent::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx)
+                        .map_err(py_err)?
+                }
+                "order_mcmc" => {
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_order_mcmc(
+                        &data,
+                        &vars,
+                        &params,
+                        &schedule,
+                        require_diagnostics_gate,
+                        &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+                "structure_mcmc" => {
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_structure_mcmc(
+                        &data, &vars, &params, &schedule, &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+                _ => {
+                    // "ci_screened_posterior" | "ci_screened"
+                    let screen = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_ci_screened_posterior(
+                        &data, &vars, &params, &screen, &schedule, soft, &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+            };
+            Study::tabular(data).graph_posterior(gp)
+        } else {
+            let accepted = match algo.as_str() {
+                "pc" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_pc(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "ges" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_ges(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "lingam" => {
+                    // LiNGAM ignores `params.ci`/`params.fdr` (independence-of-residuals is
+                    // internal to the algorithm); a fresh partial-correlation stub satisfies
+                    // the required field without invoking a possibly-slow Python `ci=`.
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: None,
+                        ci: Arc::new(antecedent_stats::PartialCorrelation),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found =
+                        facade_discover_lingam(&data, &vars, &params, prune_threshold, &ctx)
+                            .map_err(py_err)?;
+                    accept_dag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "notears" => {
+                    // NOTEARS ignores `params.ci`/`params.fdr` (continuous-SEM solver); see
+                    // the `lingam` arm above for why a stub CI is passed here.
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: None,
+                        ci: Arc::new(antecedent_stats::PartialCorrelation),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_notears(
+                        &data,
+                        &vars,
+                        &params,
+                        l1,
+                        threshold,
+                        standardize,
+                        &ctx,
+                    )
+                    .map_err(py_err)?;
+                    accept_dag_review(found.discovery.review, accept_discovered).map_err(py_err)?
+                }
+                "fci" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_fci(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_pag_review(found.evidence.graph.clone(), found.review, accept_discovered)
+                        .map_err(py_err)?
+                }
+                "rfci" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found =
+                        facade_discover_rfci(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_pag_review(found.evidence.graph.clone(), found.review, accept_discovered)
+                        .map_err(py_err)?
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown static discovery algorithm {other:?}; use pc|ges|lingam|notears|\
+                         fci|rfci|exact_dag_posterior|order_mcmc|structure_mcmc|\
+                         ci_screened_posterior"
+                    )));
+                }
+            };
+            Study::tabular(data).graph(accepted)
         };
-        let mut builder = builder
-            .discovery_ci(ci_impl)
-            .query(query)
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
-        if let Some(id) = identifier {
-            builder = builder.identifier(id);
+        let mut builder = builder.query(query).refute(suite).custom_validators(custom_validators);
+        // A configured estimator already carries its own (default-or-overridden) bootstrap
+        // count; combining it with an explicit `StudyBuilder::bootstrap_replicates` call is
+        // refused at `build()` time (`CausalError::Conflict`), so skip that call here — same
+        // rule `analyze_ate` follows for the static-graph path.
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
         }
-        if let Some(est) = estimator {
-            builder = builder.estimator(est);
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
+        if let Some(id) = identifier {
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
+        }
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -1282,8 +1665,7 @@ fn analyze_distribution(
             query = query.with_conditioning(z);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
@@ -1351,8 +1733,7 @@ fn analyze_path_specific(
             query = query.with_path_nodes(ids);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
@@ -1368,7 +1749,7 @@ fn analyze_path_specific(
 
 pub(crate) fn ate_result_from_analysis(
     names: &[String],
-    result: antecedent::CausalAnalysisResult,
+    result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let adjustment_set: Vec<String> = result
@@ -1410,19 +1791,79 @@ pub(crate) fn ate_result_from_analysis(
         conflict_summary_from_result(&result);
     let posterior_unidentified_mass = result.posterior.as_ref().map(|p| p.unidentified_mass);
 
+    // Values shared between an existing flat field and its new nested-section
+    // counterpart are computed once here, then cloned into the section so the
+    // flat field and the section can never drift apart.
+    let identification_status = format!("{:?}", result.identification.status);
+    let method = result.estimand.method.to_string();
+    let refutations: Vec<RefutationReportView> =
+        result.refutations.iter().map(RefutationReportView::from).collect();
+    let plan_id = result.logical_plan.plan_id.to_string();
+    let modality = format!("{:?}", result.logical_plan.data_classification);
+    let latency_mode =
+        result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
+    let bootstrap_replicates_ok =
+        result.performance.bootstrap_replicates_ok.or(result.estimate.bootstrap_replicates_ok);
+    let cancelled = result.performance.cancelled || result.estimate.bootstrap_cancelled;
+    let stage_timings: Vec<(String, u64)> =
+        result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
+
+    let identification = IdentificationSection {
+        status: identification_status.clone(),
+        method: method.clone(),
+        adjustment_set: adjustment_set.clone(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    };
+    let estimate = EstimateSection {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        estimator_id: estimator_id.clone(),
+        method: method.clone(),
+        overlap_ess,
+        overlap_propensity_min,
+    };
+    let posterior = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend.clone(),
+        artifact: posterior_artifact.clone(),
+        unidentified_mass: posterior_unidentified_mass,
+    };
+    let validation = ValidationSection::from_reports(refutations.clone());
+    let performance = PerformanceSection {
+        plan_id: plan_id.clone(),
+        modality: modality.clone(),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        latency_mode: latency_mode.clone(),
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        bootstrap_replicates_ok,
+        n_draws: result.performance.n_draws,
+        cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings: stage_timings.clone(),
+    };
+
     Ok(AteAnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
         adjustment_set,
-        identification_status: format!("{:?}", result.identification.status),
+        identification_status,
         refutation_passed,
         refutation_ran,
-        refutation_count: result.refutations.len(),
+        refutation_count: refutations.len(),
+        refutations,
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
-        method: result.estimand.method.to_string(),
+        method,
         estimator_id,
         overlap_ess,
         overlap_propensity_min,
@@ -1440,8 +1881,8 @@ pub(crate) fn ate_result_from_analysis(
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        plan_id: result.logical_plan.plan_id.to_string(),
-        modality: format!("{:?}", result.logical_plan.data_classification),
+        plan_id,
+        modality,
         discovery_algorithm: result
             .logical_plan
             .discovery_algorithm
@@ -1484,26 +1925,19 @@ pub(crate) fn ate_result_from_analysis(
         conflict_alphas_requested,
         conflict_alphas_applied,
         posterior_unidentified_mass,
-        latency_mode: result
-            .performance
-            .latency_mode
-            .as_ref()
-            .map(std::string::ToString::to_string),
+        latency_mode,
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        bootstrap_replicates_ok: result
-            .performance
-            .bootstrap_replicates_ok
-            .or(result.estimate.bootstrap_replicates_ok),
+        bootstrap_replicates_ok,
         n_draws_effort: result.performance.n_draws,
-        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
+        cancelled,
         early_stopped: result.performance.early_stopped,
-        stage_timings: result
-            .performance
-            .stage_timings_ns
-            .iter()
-            .map(|(s, ns)| (s.to_string(), *ns))
-            .collect(),
+        stage_timings,
+        identification,
+        estimate,
+        posterior,
+        validation,
+        performance,
     })
 }
 
@@ -1565,8 +1999,7 @@ fn analyze_conditional(
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::ConditionalEffect(cq))
             .refute(suite)
@@ -1630,8 +2063,7 @@ fn analyze_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::Mediation(q))
             .refute(suite)
@@ -1663,13 +2095,15 @@ fn identify_ate(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut builder = CausalAnalysis::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(AverageEffectQuery::binary_ate(t_id, y_id))
             .refute(RefuteSuite::None);
         if let Some(id) = identifier {
-            builder = builder.identifier(id.as_str());
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         let analysis = builder.build().map_err(py_err)?;
         let id_res = analysis.identify_only().map_err(py_err)?;

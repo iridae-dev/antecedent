@@ -1,0 +1,45 @@
+{
+  "power": {
+    "baseline_mean": 0.0,
+    "baseline_variance": 4.0,
+    "source_mean": 2.0,
+    "source_variance": 1.0,
+    "alpha": 0.5,
+    "ess": 40.0,
+    "expected_effective_ess": [20.0],
+    "expected_composed_ess": 20.0,
+    "expected_kish_ess": 1.0
+  },
+  "power_partial_coverage": {
+    "baseline_mean": 0.0,
+    "baseline_variance": 4.0,
+    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
+    "source_b": {"mean": 3.0, "variance": 1.0, "alpha": 0.25, "ess": null},
+    "expected_effective_ess": [20.0, null],
+    "expected_composed_ess": null,
+    "expected_kish_ess": 1.8
+  },
+  "power_dropped_source": {
+    "baseline_mean": 0.0,
+    "baseline_variance": 4.0,
+    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
+    "source_b": {"mean": 5.0, "variance": 1.0, "alpha": 0.0, "ess": 999.0},
+    "expected_effective_ess": [20.0, 0.0],
+    "expected_composed_ess": 20.0,
+    "expected_kish_ess": 1.0
+  },
+  "mixture": {
+    "baseline_mean": 0.0,
+    "baseline_variance": 100.0,
+    "source_mean": 10.0,
+    "source_variance": 1.0,
+    "alpha": 1.0,
+    "mixture_weight": 0.4,
+    "ess": 50.0,
+    "expected_effective_ess": [50.0],
+    "expected_composed_ess": null,
+    "expected_kish_ess": 1.0
+  },
+  "tol": 1e-12,
+  "notes": "Prior-strength ESS accounting: effective_ess = alpha_applied*ess per source; composed_ess sums it on the power path only when every contributing source declares ess (None otherwise, and always None on the mixture path since moment-matching folds in between-component spread); kish_ess is a Kish (1965) concentration diagnostic over the weights actually used (applied alphas on the power path, mixture weights on the mixture path)."
+}

@@ -15,5 +15,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic linear SCMs with known ATE",
- "black-box comparison against pinned DoWhy baseline (conformance/dowhy/linear_gaussian_ate)",
+ "conformance/estimate/linear_gaussian_ate (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
 ]

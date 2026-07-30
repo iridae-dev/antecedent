@@ -1,0 +1,19 @@
+feature_id = "graph.cpdag_completion"
+implementation_crate = "antecedent-graph"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["same-skeleton / same-v-structure Markov equivalence characterization"] },
+ { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["acyclicity / no-new-unshielded-collider orientation constraints"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-graph/src/cpdag_completion.rs)",
+ "clean-room exhaustive small-DAG MEC enumeration oracle (conformance/graph/cpdag_operations)",
+ "crates/antecedent-graph/tests/oracle_closure.rs",
+]

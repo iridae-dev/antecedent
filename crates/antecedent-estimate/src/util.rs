@@ -249,6 +249,40 @@ pub(crate) fn coefficient_variance(
     sigma2 * inv[col * ncols + col].max(0.0)
 }
 
+/// Compute `(XᵀX)⁻¹` for a column-major `nrows × ncols` design, or `None` if singular.
+///
+/// Shared `form_xtx` → `invert_square` idiom used by every analytic-SE helper that needs the
+/// unscaled inverse-information matrix.
+pub(crate) fn xtx_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
+    invert_square(&xtx, ncols)
+}
+
+/// Gather `idx`-selected entries of `src` into `out` (a reused scratch buffer) for one IID
+/// bootstrap resample: `out[r] = src[idx[r]]`.
+pub(crate) fn gather_bootstrap_vector(out: &mut [f64], src: &[f64], idx: &[usize]) {
+    for (r, &i) in idx.iter().enumerate() {
+        out[r] = src[i];
+    }
+}
+
+/// Gather `idx`-selected rows of a column-major `n × ncols` matrix `src` into `out` (a reused
+/// scratch buffer) for one IID bootstrap resample: `out[c*n+r] = src[c*n+idx[r]]`.
+pub(crate) fn gather_bootstrap_design(
+    out: &mut [f64],
+    src: &[f64],
+    n: usize,
+    ncols: usize,
+    idx: &[usize],
+) {
+    for (r, &i) in idx.iter().enumerate() {
+        for c in 0..ncols {
+            out[c * n + r] = src[c * n + i];
+        }
+    }
+}
+
 /// Delta-method SE for a linear contrast `gᵀ β`: `sqrt(σ² · gᵀ (XᵀX)⁻¹ g)`.
 ///
 /// Returns `NaN` if the Gram matrix is singular or the quadratic form is non-finite.

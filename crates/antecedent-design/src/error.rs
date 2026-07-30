@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Errors from experiment / measurement design evaluation.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DesignError {
     /// Empty candidate list.
     #[error("no candidate designs to rank")]

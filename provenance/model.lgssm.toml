@@ -1,0 +1,19 @@
+feature_id = "model.lgssm"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A New Approach to Linear Filtering and Prediction Problems", doi = "10.1115/1.3662552", sections = ["Recursive forward filter (Kalman filter)"] },
+ { title = "Maximum Likelihood Estimates of Linear Dynamic Systems", doi = "10.2514/3.3166", sections = ["Fixed-interval smoother (Rauch-Tung-Striebel recursion)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-model/src/lgssm.rs unit tests (generative_abduction_recovers_observations, infer_lgssm_innovations_seeds_initial_variance_from_process_std)",
+ "conformance/gcm/lgssm",
+ "crates/antecedent-model/tests/scm_oracle.rs (kalman_filter_and_rts_smoother_match_clean_room_recursion)",
+]

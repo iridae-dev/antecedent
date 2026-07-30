@@ -92,9 +92,8 @@ fn main() -> Result<(), CausalError> {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
 
-    let result = CausalAnalysis::builder()
-        .series(series)
-        .temporal_graph(g)
+    let result = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .bootstrap_replicates(0)
         .refute(RefuteSuite::None)

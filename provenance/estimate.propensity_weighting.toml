@@ -7,7 +7,7 @@ copied_tests = false
 
 papers = [
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["Weighting estimators"] },
- { title = "Large Sample Properties of Matching Estimators for Average Treatment Effects", doi = "10.1111/1468-0262.00442", sections = ["IPW / Hajek normalization"] },
+ { title = "Efficient Estimation of Average Treatment Effects Using the Estimated Propensity Score", doi = "10.1111/1468-0262.00442", sections = ["efficiency gain from weighting by the estimated (not true) propensity score"] },
 ]
 
 upstream_implementations_observed = [
@@ -16,5 +16,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic confounded SCM with known ATE/ATT",
- "black-box comparison against pinned DoWhy baseline (parity/dowhy.toml)",
+ "conformance/estimate/propensity_ipw (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
 ]

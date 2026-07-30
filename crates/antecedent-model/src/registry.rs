@@ -33,7 +33,7 @@ use crate::compile::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
 };
 use crate::error::ModelError;
-use crate::mechanism::log_prob_column;
+use crate::mechanism::{gp_predictive_mean_column, log_prob_column};
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -50,7 +50,7 @@ pub enum MechanismFamily {
     HierarchicalGlm,
     /// Single-equation Bayesian VAR (Minnesota prior).
     Bvar,
-    /// Linear Gaussian state-space observation mechanism (Kalman EM fit).
+    /// Linear Gaussian state-space observation mechanism (Kalman 1960 filter, EM fit).
     LinearGaussianStateSpace,
     /// Gaussian-process regression mechanism (feature `gaussian-process`).
     GaussianProcess,
@@ -60,16 +60,7 @@ impl MechanismFamily {
     /// Registry id string.
     #[must_use]
     pub const fn id(self) -> &'static str {
-        match self {
-            Self::LinearGaussian => "linear_gaussian",
-            Self::Constant => "constant",
-            Self::Discrete => "discrete",
-            Self::HierarchicalLinear => "hierarchical_linear",
-            Self::HierarchicalGlm => "hierarchical_glm",
-            Self::Bvar => "bvar",
-            Self::LinearGaussianStateSpace => "lgssm",
-            Self::GaussianProcess => "gaussian_process",
-        }
+        mechanism_family_id(self)
     }
 }
 
@@ -115,6 +106,25 @@ pub struct MechanismRegistry {
 impl Default for MechanismRegistry {
     fn default() -> Self {
         Self::standard()
+    }
+}
+
+/// Registry id string per family, kept next to the family preset lists
+/// ([`MechanismRegistry::standard`] / [`MechanismRegistry::with_bayesian_families`]) so
+/// adding a family updates the preset(s) and this table in the same place.
+///
+/// Purely descriptive — [`score_family`] and [`fit_family`] stay exhaustive `match`es
+/// (each family's fit is a distinct statistical procedure) and are not table-driven.
+const fn mechanism_family_id(family: MechanismFamily) -> &'static str {
+    match family {
+        MechanismFamily::LinearGaussian => "linear_gaussian",
+        MechanismFamily::Constant => "constant",
+        MechanismFamily::Discrete => "discrete",
+        MechanismFamily::HierarchicalLinear => "hierarchical_linear",
+        MechanismFamily::HierarchicalGlm => "hierarchical_glm",
+        MechanismFamily::Bvar => "bvar",
+        MechanismFamily::LinearGaussianStateSpace => "lgssm",
+        MechanismFamily::GaussianProcess => "gaussian_process",
     }
 }
 
@@ -259,6 +269,14 @@ fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
     !vals.is_empty() && vals.len() <= max_levels
 }
 
+/// Residual variance above which [`MechanismFamily::Constant`] is inadmissible.
+///
+/// `Constant` claims the variable is deterministic. Scored on conditional-mean fit alone it
+/// ties — and then beats, on the `sigma` tie-break — the correct marginal for any parentless
+/// node, which silently strips every root of its distribution. Anything above numerical noise
+/// means the claim is false.
+const CONSTANT_FAMILY_MAX_VARIANCE: f64 = 1e-12;
+
 fn score_family(
     family: MechanismFamily,
     gather: &ParentGatherPlan,
@@ -278,7 +296,22 @@ fn score_family(
         }
         MechanismSlot::Constant { value } => {
             let mse = y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / y.len().max(1) as f64;
-            -mse
+            // A `Constant` mechanism asserts the variable is *deterministic*: it samples the
+            // same value every draw and carries no distribution at all. Every other family is
+            // scored on conditional-mean fit, and on that measure `Constant` ties the
+            // best-fitting alternative for a parentless node — a root's `LinearGaussian` fit is
+            // `intercept = mean, coeffs = [], sigma = SD`, whose residual MSE is exactly this
+            // `mse`. `Constant` then won on the tie-break, because `LinearGaussian` alone pays
+            // the `sigma` penalty above.
+            //
+            // That made every root deterministic. Interventional and attribution paths that
+            // swap a root's mechanism between populations became no-ops, since both fits are
+            // `Constant{mean}` and neither carries the variance that actually changed.
+            //
+            // Mean-squared error cannot see this: it compares point predictions, and a point
+            // mass predicts the mean perfectly. So gate on the claim `Constant` is making —
+            // it is only admissible when the target really is degenerate.
+            if mse > CONSTANT_FAMILY_MAX_VARIANCE { f64::NEG_INFINITY } else { -mse }
         }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => match logit_coeffs {
             None => {
@@ -287,12 +320,38 @@ fn score_family(
             }
             Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
         },
-        MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
-            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            // Kalman one-step-ahead predictive residual, on the same fitted-residual scale as
+            // the other families (was: mean(y²), the raw second moment of the target — not a
+            // fitted residual at all, and incomparable across families).
+            let q = (process_std * process_std).max(1e-16);
+            let r_var = (obs_std * obs_std).max(1e-16);
+            let (_, _, x_pred, _) = crate::lgssm::kalman_filter(y, *a, q, r_var, *initial_mean, q);
+            let mse = y.iter().zip(x_pred.iter()).map(|(yi, xp)| (yi - xp).powi(2)).sum::<f64>()
+                / y.len().max(1) as f64;
             -mse - (process_std + obs_std).ln().abs() * 0.01
         }
-        MechanismSlot::GaussianProcess { noise_std, .. } => {
-            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            noise_std,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+        } => {
+            let mse = gp_residual_mse(
+                gather,
+                model,
+                data,
+                y,
+                *length_scale,
+                *variance,
+                x_train,
+                *n_train,
+                *n_parents,
+                alpha,
+            )?;
             -mse - noise_std.ln().abs() * 0.01
         }
         _ => f64::NEG_INFINITY,
@@ -631,7 +690,8 @@ fn fit_bvar_minnesota(
     Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
 }
 
-/// Scalar LGSSM on parent-adjusted residuals via EM (Kalman filter/smoother).
+/// Scalar LGSSM on parent-adjusted residuals via EM (Kalman 1960 filter / Rauch–Tung–Striebel
+/// 1965 smoother).
 fn fit_lgssm_kalman_em(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
@@ -949,6 +1009,45 @@ fn residual_mse(
     Ok(sse / n.max(1) as f64)
 }
 
+/// Fitted-residual MSE for a GP mechanism, on the same scale as [`residual_mse`]: uses the
+/// dual-form predictive mean (shared with `evaluate_column` / `log_prob_column`), not the raw
+/// second moment of `y`.
+#[allow(clippy::too_many_arguments)]
+fn gp_residual_mse(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    length_scale: f64,
+    variance: f64,
+    x_train: &[f64],
+    n_train: usize,
+    n_parents: usize,
+    alpha: &[f64],
+) -> Result<f64, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let mut parent_mat = vec![0.0; n * p.max(1)];
+    for (pi, col) in parent_cols.iter().enumerate() {
+        parent_mat[pi * n..pi * n + n].copy_from_slice(&col[..n]);
+    }
+    let parents =
+        ParentBatch { n_rows: n, n_parents: p, values: &parent_mat[..p.saturating_mul(n)] };
+    let mut pred = vec![0.0; n];
+    gp_predictive_mean_column(
+        length_scale,
+        variance,
+        x_train,
+        n_train,
+        n_parents,
+        alpha,
+        parents,
+        &mut pred,
+    )?;
+    Ok(y.iter().zip(pred.iter()).map(|(yi, m)| (yi - m).powi(2)).sum::<f64>() / n.max(1) as f64)
+}
+
 fn discrete_mean_loglik(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
@@ -975,57 +1074,6 @@ fn discrete_mean_loglik(
     let mut lp = vec![0.0; n];
     log_prob_column(&slot, y, parents, &mut lp)?;
     Ok(lp.iter().sum::<f64>() / n.max(1) as f64)
-}
-
-/// Collection of fitted models weighted by graph posterior mass.
-#[derive(Clone, Debug)]
-pub struct ModelCollection {
-    /// Per-graph compiled models.
-    pub models: Arc<[CompiledCausalModel]>,
-    /// Graph keys aligned with `models`.
-    pub graph_keys: Arc<[u64]>,
-    /// Normalized weights (sum to 1 over identified graphs).
-    pub weights: Arc<[f64]>,
-}
-
-impl ModelCollection {
-    /// Build from parallel arrays.
-    ///
-    /// # Errors
-    ///
-    /// Length mismatch or non-positive weight sum.
-    pub fn new(
-        models: impl Into<Arc<[CompiledCausalModel]>>,
-        graph_keys: impl Into<Arc<[u64]>>,
-        weights: impl Into<Arc<[f64]>>,
-    ) -> Result<Self, ModelError> {
-        let models = models.into();
-        let graph_keys = graph_keys.into();
-        let weights = weights.into();
-        if models.len() != graph_keys.len() || models.len() != weights.len() {
-            return Err(ModelError::Shape { message: "ModelCollection length mismatch".into() });
-        }
-        let sum: f64 = weights.iter().sum();
-        if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-            return Err(ModelError::Shape {
-                message: "ModelCollection weights non-positive".into(),
-            });
-        }
-        let weights: Arc<[f64]> = Arc::from(weights.iter().map(|w| w / sum).collect::<Vec<_>>());
-        Ok(Self { models, graph_keys, weights })
-    }
-
-    /// Number of graphs.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.models.len()
-    }
-
-    /// Empty check.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.models.is_empty()
-    }
 }
 
 #[cfg(test)]
@@ -1258,5 +1306,158 @@ mod tests {
         assert_eq!(length_scale, fixture["reference"]["length_scale"].as_f64().unwrap());
         assert_eq!(noise_std, fixture["reference"]["noise_std"].as_f64().unwrap());
         assert_ne!(length_scale, 0.5, "must not select the diagonal-proxy length scale");
+    }
+
+    /// MM-A1: LGSSM/GP scoring must use a genuine fitted residual, on the same scale as the
+    /// linear families — not `mean(y²)`, the raw second moment of the target. On data
+    /// generated from a persistent near-random-walk LGSSM with a large offset, `mean(y²)`
+    /// is dominated by `mean(y)² ≈ 25`, which was always far worse than the intercept-only
+    /// `LinearGaussian` residual MSE (≈ the small variance around the slowly-drifting level)
+    /// regardless of how well LGSSM actually predicts one step ahead. With the fix, LGSSM's
+    /// score uses the Kalman one-step-ahead predictive residual, which is small for this
+    /// series, so `BestScore` correctly prefers LGSSM.
+    /// A root with real variance must be fit as a *distribution*, not a point mass.
+    ///
+    /// Every family is scored on conditional-mean fit. For a parentless node the
+    /// `LinearGaussian` fit is `intercept = mean, coeffs = [], sigma = SD` — the correct
+    /// marginal — and its residual MSE is exactly `Constant`'s MSE. `Constant` then won the
+    /// tie, because `LinearGaussian` alone pays the `sigma` penalty. Every root therefore
+    /// became deterministic, and swapping a root's mechanism between two populations was a
+    /// no-op even when its variance had changed — which is what made
+    /// `AttributionComponents::InputsAndMechanisms` unable to attribute input change at all.
+    ///
+    /// MSE cannot see this: a point mass predicts the mean perfectly. The scoring now gates
+    /// `Constant` on the claim it is actually making — that the target is degenerate.
+    #[test]
+    fn root_with_variance_is_fit_as_a_distribution_not_a_constant() {
+        fn fit_single_column(values: Vec<f64>) -> MechanismSlot {
+            let n = values.len();
+            let mut b = CausalSchemaBuilder::new();
+            b.add_variable(
+                "x",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            let schema = b.build().unwrap();
+            let cols = vec![OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )];
+            let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+            let data = TabularData::new(storage);
+            let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+            let (store, _) = MechanismRegistry::standard()
+                .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+                .unwrap();
+            store.slots[0].clone()
+        }
+
+        // A root that genuinely varies: continuous ramp, sample SD ≈ 2.9.
+        let spread: Vec<f64> = (0..100).map(|i| f64::from(i) * 0.1).collect();
+        let mean = spread.iter().sum::<f64>() / spread.len() as f64;
+        let var =
+            spread.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (spread.len() - 1) as f64;
+        let sd = var.sqrt();
+        match fit_single_column(spread) {
+            MechanismSlot::LinearGaussian { intercept, ref coeffs, sigma } => {
+                assert!(coeffs.is_empty(), "a root has no parents");
+                assert!((intercept - mean).abs() < 1e-9, "intercept {intercept} != mean {mean}");
+                assert!(
+                    sigma > 0.5 * sd,
+                    "root sigma {sigma} must carry the marginal spread (SD {sd}), not collapse"
+                );
+            }
+            other => panic!("root with variance fit as {other:?}; expected a real marginal"),
+        }
+
+        // A genuinely degenerate column must still get a deterministic mechanism — the gate
+        // keys on `Constant`'s claim being true, not on banning the family. A zero-variance
+        // column is low-cardinality, so it is routed to the discrete family list and
+        // `Discrete{support:[v], probs:[1.0]}` ties `Constant` at score 0 and wins on order.
+        // That representation is an equally exact point mass, and it is what this path
+        // selected before the gate existed too (mse = 0 scores identically either way), so
+        // assert the invariant that matters rather than a particular family tag.
+        match fit_single_column(vec![7.0; 100]) {
+            MechanismSlot::Constant { value } => assert!((value - 7.0).abs() < 1e-12),
+            MechanismSlot::Discrete { ref support, ref probs, logit_coeffs: None } => {
+                assert_eq!(support.len(), 1, "degenerate column must have a single support point");
+                assert!((support[0] - 7.0).abs() < 1e-12);
+                assert!((probs[0] - 1.0).abs() < 1e-12);
+            }
+            other => panic!("constant column fit as {other:?}; expected a deterministic mechanism"),
+        }
+    }
+
+    #[test]
+    fn best_score_prefers_lgssm_over_linear_gaussian_on_lgssm_generated_data() {
+        use antecedent_core::CausalRng;
+        use antecedent_kernels::standard_normal;
+
+        let n = 60usize;
+        let a = 0.95_f64;
+        let process_std = 0.05_f64;
+        let obs_std = 0.05_f64;
+        let initial_mean = 5.0_f64;
+        let mut rng = CausalRng::from_seed(11);
+        let mut yv = vec![0.0; n];
+        let mut x = initial_mean;
+        for i in 0..n {
+            x = if i == 0 {
+                initial_mean + process_std * standard_normal(&mut rng)
+            } else {
+                a * x + process_std * standard_normal(&mut rng)
+            };
+            yv[i] = x + obs_std * standard_normal(&mut rng);
+        }
+
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(yv), validity).unwrap(),
+        )];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+
+        let registry = MechanismRegistry::with_bayesian_families();
+        let (_, assigns) =
+            registry.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap();
+        assert_eq!(assigns.len(), 1);
+        let assignment = &assigns[0];
+        let lg_candidate = assignment
+            .candidates
+            .iter()
+            .find(|c| c.family == MechanismFamily::LinearGaussian)
+            .expect("LinearGaussian candidate present");
+        let lgssm_candidate = assignment
+            .candidates
+            .iter()
+            .find(|c| c.family == MechanismFamily::LinearGaussianStateSpace)
+            .expect("LGSSM candidate present");
+        assert!(
+            lgssm_candidate.score > lg_candidate.score,
+            "lgssm={} linear={}",
+            lgssm_candidate.score,
+            lg_candidate.score
+        );
+        assert_eq!(assignment.selected, MechanismFamily::LinearGaussianStateSpace);
     }
 }

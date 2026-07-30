@@ -1,0 +1,888 @@
+"""External prior bank: catalog metadata and compatibility filtering."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
+
+from ._native import (
+    beta_from_mean_and_ess as _beta_from_mean_and_ess,
+)
+from ._native import (
+    beta_from_moments as _beta_from_moments,
+)
+from ._native import (
+    compose_external_priors as _compose_external_priors,
+)
+from ._native import (
+    conflict_shrink_alpha as _shrink_alpha,
+)
+from ._native import (
+    decode_prior_source_meta as _decode_meta,
+)
+from ._native import (
+    encode_prior_source_meta as _encode_meta,
+)
+from ._native import (
+    gamma_from_mean_and_ess as _gamma_from_mean_and_ess,
+)
+from ._native import (
+    gamma_from_moments as _gamma_from_moments,
+)
+from ._native import (
+    prior_catalog_filter as _filter,
+)
+from ._native import (
+    prior_catalog_rank as _rank,
+)
+
+#: Caller convention for population / environment tags on ``PriorSourceMeta.tags``.
+POPULATION_TAG_KEY = "population"
+
+
+@dataclass(frozen=True)
+class EstimandFingerprint:
+    """Query kind + treatment/outcome names for catalog matching."""
+
+    query_kind: str
+    treatment: str
+    outcome: str
+
+
+@dataclass(frozen=True)
+class DesignVariable:
+    """One variable in a prior-source design summary."""
+
+    name: str
+    role: Literal["treatment", "outcome", "covariate", "other"]
+
+
+@dataclass(frozen=True)
+class PriorMapping:
+    """Declared bridge from a banked source into a target design prior.
+
+    Use the constructors for the common shapes; hydrate happens inside
+    ``Bayesian(prior_from=..., mapping=...)``.
+    """
+
+    kind: Literal[
+        "identical_coefficient_subspace",
+        "effect_functional",
+        "named_parameters",
+    ]
+    source_quantity: str | None = None
+    pairs: tuple[tuple[str, str], ...] = ()
+
+    @classmethod
+    def identical(cls) -> PriorMapping:
+        return cls(kind="identical_coefficient_subspace")
+
+    @classmethod
+    def effect_functional(cls, source_quantity: str = "ate") -> PriorMapping:
+        return cls(kind="effect_functional", source_quantity=source_quantity)
+
+    @classmethod
+    def named_parameters(cls, pairs: Sequence[tuple[str, str]]) -> PriorMapping:
+        return cls(kind="named_parameters", pairs=tuple((a, b) for a, b in pairs))
+
+    def to_dict(self) -> dict[str, Any]:
+        m: dict[str, Any] = {"kind": self.kind}
+        if self.source_quantity is not None:
+            m["source_quantity"] = self.source_quantity
+        if self.pairs:
+            m["pairs"] = [list(p) for p in self.pairs]
+        return m
+
+
+@dataclass(frozen=True)
+class ConflictPolicy:
+    """Shrink external prior α from prior-PPC / KL conflict signals.
+
+    Applied α is ``α · 1{p > p_min} · exp(−kl_scale · kl)``, never increased.
+    Defaults: ``p_min=0.05``, ``kl_scale=1.0``.
+    """
+
+    p_min: float = 0.05
+    kl_scale: float = 1.0
+
+    def to_dict(self) -> dict[str, float]:
+        return {"p_min": self.p_min, "kl_scale": self.kl_scale}
+
+    def shrink_alpha(
+        self,
+        alpha: float,
+        *,
+        p_value: float | None = None,
+        kl: float | None = None,
+    ) -> float:
+        return float(
+            _shrink_alpha(
+                float(alpha),
+                p_value=p_value,
+                kl=kl,
+                p_min=self.p_min,
+                kl_scale=self.kl_scale,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class TransportPolicy:
+    """Explicit invariance claim for cross-population prior transfer.
+
+    Required when source and target ``population`` tags differ. Never inferred.
+    """
+
+    kind: Literal[
+        "invariant_conditional_outcome",
+        "invariant_effect_modifiers",
+        "invariant_propensity",
+    ]
+
+    @classmethod
+    def invariant_conditional_outcome(cls) -> TransportPolicy:
+        return cls(kind="invariant_conditional_outcome")
+
+    @classmethod
+    def invariant_effect_modifiers(cls) -> TransportPolicy:
+        return cls(kind="invariant_effect_modifiers")
+
+    @classmethod
+    def invariant_propensity(cls) -> TransportPolicy:
+        return cls(kind="invariant_propensity")
+
+    def to_wire(self) -> str:
+        return self.kind
+
+
+@dataclass(frozen=True)
+class ExternalPriorWeight:
+    """Per-source power-prior α and optional mixture weight."""
+
+    alpha: float = 1.0
+    mixture_weight: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"alpha": self.alpha, "mixture_weight": self.mixture_weight}
+
+
+@dataclass(frozen=True)
+class ExternalPriorSourceSpec:
+    """One hydrated Gaussian coefficient prior for composition.
+
+    ``ess`` is an optional caller-declared **prior-strength** sample size for
+    this source (e.g. the original study's N, or an effective N after a
+    design discount). It is distinct from MCMC effective sample size and from
+    Kish importance-weighting ESS (see ``ComposedPrior.kish_ess``) — see
+    :mod:`antecedent.priors` module docs.
+    """
+
+    id: str
+    mean: tuple[float, ...]
+    variance: tuple[float, ...]
+    weight: ExternalPriorWeight = field(default_factory=ExternalPriorWeight)
+    ess: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "mean": list(self.mean),
+            "variance": list(self.variance),
+            "alpha": self.weight.alpha,
+            "mixture_weight": self.weight.mixture_weight,
+            "ess": self.ess,
+        }
+
+
+@dataclass(frozen=True)
+class ComposedPrior:
+    """Result of ``compose_external_priors``; usable as ``Bayesian(prior_from=...)``.
+
+    Three distinct effective-sample-size conventions appear across this
+    library; none are interchangeable:
+
+    * ``effective_ess`` / ``composed_ess`` below are **prior-strength ESS** —
+      the sample size implied by how much precision a source (or the
+      composed prior) contributes, via ``alpha * ess``.
+    * MCMC / autocorrelation ESS (on posterior diagnostics) measures how many
+      effectively independent draws a chain produced.
+    * ``kish_ess`` below is a Kish (1965) importance-weighting diagnostic —
+      how concentrated a trust/weight vector is, ``(sum(w))**2 / sum(w**2)``.
+    """
+
+    mean: tuple[float, ...]
+    variance: tuple[float, ...]
+    source_ids: tuple[str, ...]
+    alphas_requested: tuple[float, ...]
+    alphas_applied: tuple[float, ...]
+    mixture_weights: tuple[float | None, ...]
+    sources: tuple[ExternalPriorSourceSpec, ...]
+    conflict: ConflictPolicy | None = None
+    conflict_p_values: tuple[float | None, ...] = ()
+    conflict_kl_values: tuple[float | None, ...] = ()
+    assumption_ids: tuple[str, ...] = ()
+    transport: TransportPolicy | None = None
+    #: Per-source prior-strength ESS after alpha discount (``alpha_applied *
+    #: ess``); ``None`` entries mean that source declared no ``ess``. Zero for
+    #: sources dropped from composition regardless of a declared ``ess``.
+    effective_ess: tuple[float | None, ...] = ()
+    #: Composed prior-strength ESS. On the power path, ``sum(alpha_k * ess_k)``
+    #: over contributing sources when *every* contributing source declared an
+    #: ``ess`` (``None`` otherwise — a partial sum would misstate it). Always
+    #: ``None`` on the mixture path: moment-matching folds in between-component
+    #: spread, so the composed prior is weaker than a precision-sum implies and
+    #: summing source ESS would overstate composed strength.
+    composed_ess: float | None = None
+    #: Kish concentration-of-trust diagnostic over the weight vector actually
+    #: used in composition (applied alphas on the power path, mixture weights
+    #: on the mixture path; dropped sources zeroed). ``None`` only when there
+    #: are no sources to diagnose.
+    kish_ess: float | None = None
+
+    def to_native_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "mean": list(self.mean),
+            "variance": list(self.variance),
+            "source_ids": list(self.source_ids),
+            "alphas_requested": list(self.alphas_requested),
+            "alphas_applied": list(self.alphas_applied),
+            "mixture_weights": list(self.mixture_weights),
+            "sources": [s.to_dict() for s in self.sources],
+            "effective_ess": list(self.effective_ess),
+            "composed_ess": self.composed_ess,
+            "kish_ess": self.kish_ess,
+        }
+        if self.conflict is not None:
+            d["conflict"] = self.conflict.to_dict()
+        if self.conflict_p_values:
+            d["conflict_p_values"] = list(self.conflict_p_values)
+        if self.conflict_kl_values:
+            d["conflict_kl_values"] = list(self.conflict_kl_values)
+        if self.assumption_ids:
+            d["assumption_ids"] = list(self.assumption_ids)
+        if self.transport is not None:
+            d["transport"] = self.transport.to_wire()
+        return d
+
+
+@dataclass(frozen=True)
+class BetaHyperparameters:
+    """``Beta(alpha, beta)`` conjugate hyperparameters.
+
+    Produced by one of two constructors with distinct, honest contracts:
+
+    * :func:`beta_from_moments` matches ``(mean, variance)`` exactly;
+      :attr:`ess` is whatever those moments imply, a derived consequence
+      rather than a request.
+    * :func:`beta_from_mean_and_ess` matches ``mean`` and a caller-declared
+      prior-strength ``ess`` exactly; there is no ``variance`` parameter,
+      because ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``.
+
+    This is a **standalone converter, not a coefficient prior** — no
+    inference backend in this library consumes a Beta prior over a bounded
+    proportion (they all take a Gaussian coefficient design-matrix prior),
+    so it is not accepted by ``compose_external_priors`` or
+    ``Bayesian(prior_from=...)``.
+
+    ESS convention: ``ess = alpha + beta - 2``, chosen so the flat reference
+    prior ``Beta(1, 1)`` maps to ``ess = 0`` — which is what makes
+    ``beta_from_mean_and_ess(mean, 0.0)`` degrade to a
+    ``Beta(1,1)``-equivalent-strength prior at the requested mean rather
+    than to something vanishing or improper. Some references instead report
+    ``alpha + beta`` (under which ``Beta(1,1)`` is ``ess = 2``); this module
+    never uses that convention. See also the three distinct ESS conventions
+    documented on :class:`ComposedPrior` — this is the same prior-strength
+    notion, applied to a conjugate family instead of a Gaussian
+    coefficient's precision.
+
+    :attr:`ess` can be **negative** on a :func:`beta_from_moments` result:
+    any ``(mean, variance)`` pair weaker than the flat reference (total
+    concentration ``< 2``) yields ``alpha + beta - 2 < 0`` while ``alpha``
+    and ``beta`` stay positive and proper. That is a truthful report of a
+    prior weaker than ``Beta(1, 1)``, not an error.
+    """
+
+    alpha: float
+    beta: float
+
+    @property
+    def mean(self) -> float:
+        return self.alpha / (self.alpha + self.beta)
+
+    @property
+    def variance(self) -> float:
+        total = self.alpha + self.beta
+        return (self.alpha * self.beta) / (total * total * (total + 1.0))
+
+    @property
+    def ess(self) -> float:
+        return self.alpha + self.beta - 2.0
+
+
+@dataclass(frozen=True)
+class GammaHyperparameters:
+    """``Gamma(shape, rate)`` conjugate hyperparameters.
+
+    Produced by one of two constructors with distinct, honest contracts,
+    mirroring :class:`BetaHyperparameters`:
+
+    * :func:`gamma_from_moments` matches ``(mean, variance)`` exactly;
+      :attr:`ess` is whatever those moments imply.
+    * :func:`gamma_from_mean_and_ess` matches ``mean`` and a caller-declared
+      prior-strength ``ess`` exactly; no ``variance`` parameter.
+
+    Like :class:`BetaHyperparameters`, this is a standalone converter, not a
+    coefficient prior accepted elsewhere in this library.
+
+    ESS convention: ``ess = shape - 1``, chosen so the reference exponential
+    prior ``Gamma(shape=1, ...)`` maps to ``ess = 0``. Some references
+    instead report ``shape`` directly (under which ``Gamma(1, ...)`` is
+    ``ess = 1``); this module never uses that convention.
+
+    :attr:`ess` can be **negative** on a :func:`gamma_from_moments` result
+    (``shape < 1``, i.e. ``variance > mean ** 2``) while ``shape`` and
+    ``rate`` stay positive and proper — a truthful report of a prior weaker
+    than the reference exponential, not an error.
+    """
+
+    shape: float
+    rate: float
+
+    @property
+    def mean(self) -> float:
+        return self.shape / self.rate
+
+    @property
+    def variance(self) -> float:
+        return self.shape / (self.rate * self.rate)
+
+    @property
+    def ess(self) -> float:
+        return self.shape - 1.0
+
+
+def beta_from_moments(mean: float, variance: float) -> BetaHyperparameters:
+    """Moment-match a Beta prior on a bounded proportion to ``(mean, variance)``.
+
+    Matches both moments exactly. The result's ``ess`` (``alpha + beta -
+    2``; see :class:`BetaHyperparameters`) is whatever those moments imply —
+    a derived consequence, not a caller input. It can be negative (a proper
+    prior weaker than the flat reference ``Beta(1, 1)``); that is a
+    truthful report, not an error. Use :func:`beta_from_mean_and_ess` to
+    request a specific prior strength instead of reading one back.
+
+    Out-of-support input is rejected, never silently clamped:
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and strictly inside ``(0, 1)``; or
+        ``variance`` is not finite and > 0, or is `>= mean * (1 - mean)`
+        (no Beta distribution has those moments — the comparison is exact,
+        with no epsilon slack at the boundary).
+    """
+    alpha, beta = _beta_from_moments(float(mean), float(variance))
+    return BetaHyperparameters(alpha=alpha, beta=beta)
+
+
+def beta_from_mean_and_ess(mean: float, ess: float) -> BetaHyperparameters:
+    """Build a Beta prior on a bounded proportion from ``mean`` and a
+    caller-declared prior-strength ``ess``.
+
+    Matches ``mean`` and ``ess`` (``alpha + beta - 2``; see
+    :class:`BetaHyperparameters`) exactly. There is no ``variance``
+    parameter: ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``,
+    so a ``variance`` argument would have nothing to do. ``ess=0`` returns a
+    prior with the same strength as the flat reference ``Beta(1, 1)`` at
+    ``mean`` — never a vanishing or improper one. Every ``(mean, ess >=
+    0)`` request is satisfiable; unlike :func:`beta_from_moments`, there is
+    no support gate to violate.
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and strictly inside ``(0, 1)``; or ``ess`` is
+        not finite and >= 0.
+    """
+    alpha, beta = _beta_from_mean_and_ess(float(mean), float(ess))
+    return BetaHyperparameters(alpha=alpha, beta=beta)
+
+
+def gamma_from_moments(mean: float, variance: float) -> GammaHyperparameters:
+    """Moment-match a Gamma prior on a non-negative rate to ``(mean, variance)``.
+
+    Matches both moments exactly. The result's ``ess`` (``shape - 1``; see
+    :class:`GammaHyperparameters`) is whatever those moments imply — a
+    derived consequence, not a caller input. It can be negative (a proper
+    prior weaker than the reference exponential ``Gamma(shape=1, ...)``);
+    that is a truthful report, not an error. Use
+    :func:`gamma_from_mean_and_ess` to request a specific prior strength
+    instead of reading one back.
+
+    Out-of-support input is rejected, never silently clamped:
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and > 0; or ``variance`` is not finite and >
+        0.
+    """
+    shape, rate = _gamma_from_moments(float(mean), float(variance))
+    return GammaHyperparameters(shape=shape, rate=rate)
+
+
+def gamma_from_mean_and_ess(mean: float, ess: float) -> GammaHyperparameters:
+    """Build a Gamma prior on a non-negative rate from ``mean`` and a
+    caller-declared prior-strength ``ess``.
+
+    Matches ``mean`` and ``ess`` (``shape - 1``; see
+    :class:`GammaHyperparameters`) exactly. There is no ``variance``
+    parameter: ``mean`` and ``ess`` alone determine ``shape`` and ``rate``
+    (``rate = shape / mean``), so a ``variance`` argument would have
+    nothing to do. ``ess=0`` returns ``Gamma(shape=1, ...)`` — the reference
+    exponential prior — at ``mean``, never a vanishing or improper one.
+    Every ``(mean, ess >= 0)`` request is satisfiable.
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and > 0; or ``ess`` is not finite and >= 0.
+    """
+    shape, rate = _gamma_from_mean_and_ess(float(mean), float(ess))
+    return GammaHyperparameters(shape=shape, rate=rate)
+
+
+def _normalize_weights(
+    sources: Sequence[ExternalPriorSourceSpec],
+    weights: Sequence[ExternalPriorWeight | float] | None,
+) -> list[ExternalPriorSourceSpec]:
+    if weights is None:
+        return list(sources)
+    if len(weights) != len(sources):
+        raise ValueError("weights length must match sources")
+    out: list[ExternalPriorSourceSpec] = []
+    for src, w in zip(sources, weights, strict=True):
+        if isinstance(w, ExternalPriorWeight):
+            wt = w
+        else:
+            wt = ExternalPriorWeight(alpha=src.weight.alpha, mixture_weight=float(w))
+        out.append(
+            ExternalPriorSourceSpec(
+                id=src.id,
+                mean=src.mean,
+                variance=src.variance,
+                weight=wt,
+                ess=src.ess,
+            )
+        )
+    return out
+
+
+def populations_from_prior_sources(
+    sources: Sequence[PriorSource],
+) -> list[str | None]:
+    """Read ``tags["population"]`` from each catalog source (``None`` if unset)."""
+    return [s.meta.tags.get(POPULATION_TAG_KEY) for s in sources]
+
+
+def compose_external_priors(
+    sources: Sequence[ExternalPriorSourceSpec],
+    weights: Sequence[ExternalPriorWeight | float] | None = None,
+    *,
+    baseline: tuple[Sequence[float], Sequence[float]] | None = None,
+    conflict: ConflictPolicy | None = None,
+    conflict_signals: Sequence[Mapping[str, float | None]] | None = None,
+    transport: TransportPolicy | None = None,
+    target_population: str | None = None,
+    source_populations: Sequence[str | None] | None = None,
+    prior_sources: Sequence[PriorSource] | None = None,
+    unit_effects: Sequence[float] | None = None,
+    transport_weights: Sequence[float] | None = None,
+    coef_index: int | None = None,
+) -> ComposedPrior:
+    """Compose external Gaussian priors with power-prior / mixture weights.
+
+    Parameters
+    ----------
+    sources:
+        Hydrated coefficient priors (same dimension as the target design).
+    weights:
+        Per-source ``ExternalPriorWeight`` or mixture floats (α kept from source).
+    baseline:
+        ``(mean, variance)`` for leftover / precision-add baseline. Defaults to
+        weakly informative isotropic ``V0=100`` (scale 10) at the source dimension.
+    conflict:
+        Optional policy; with ``conflict_signals``, shrinks α offline. When used
+        as ``Bayesian(prior_from=...)``, the same policy re-evaluates after data bind.
+    conflict_signals:
+        Optional per-source ``{"p_value": ..., "kl": ...}`` for offline shrink.
+    transport:
+        Required when ``source_populations`` differ from ``target_population``.
+    target_population:
+        Target analysis population tag (caller convention; matches meta tag
+        ``population``).
+    source_populations:
+        Per-source population tags (same length as ``sources``). When omitted,
+        tags are read from ``prior_sources`` when that argument is provided.
+    prior_sources:
+        Catalog entries aligned with ``sources``; used to auto-fill
+        ``source_populations`` from ``meta.tags["population"]`` when
+        ``source_populations`` is unset.
+    unit_effects / transport_weights:
+        Optional unit-level effect contributions and target-alignment weights
+        for importance-weighted moment adjustment.
+    coef_index:
+        Coefficient index rewritten under reweight (default: last).
+
+    Set ``ess`` on each ``ExternalPriorSourceSpec`` to get prior-strength
+    effective-sample-size accounting back on the result: per-source
+    ``ComposedPrior.effective_ess``, the path-dependent ``composed_ess``, and
+    the ``kish_ess`` concentration-of-trust diagnostic. See ``ComposedPrior``
+    for what each one means and why they are not interchangeable.
+    """
+    srcs = _normalize_compose_sources(sources, weights)
+    baseline_mean, baseline_var = _compose_baseline(srcs, baseline)
+    pop_list = _resolve_source_populations(
+        srcs, source_populations=source_populations, prior_sources=prior_sources
+    )
+    raw = _invoke_compose_native(
+        srcs,
+        baseline_mean,
+        baseline_var,
+        conflict=conflict,
+        conflict_signals=conflict_signals,
+        transport=transport,
+        target_population=target_population,
+        source_populations=pop_list,
+        unit_effects=unit_effects,
+        transport_weights=transport_weights,
+        coef_index=coef_index,
+    )
+    return _composed_prior_from_native(raw, srcs, conflict=conflict, transport=transport)
+
+
+def _normalize_compose_sources(
+    sources: Sequence[ExternalPriorSourceSpec],
+    weights: Sequence[ExternalPriorWeight | float] | None,
+) -> list[ExternalPriorSourceSpec]:
+    srcs = _normalize_weights(sources, weights)
+    if not srcs:
+        raise ValueError("compose_external_priors requires at least one source")
+    return srcs
+
+
+def _compose_baseline(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    baseline: tuple[Sequence[float], Sequence[float]] | None,
+) -> tuple[list[float], list[float]]:
+    n = len(srcs[0].mean)
+    if baseline is None:
+        return [0.0] * n, [100.0] * n
+    return list(baseline[0]), list(baseline[1])
+
+
+def _resolve_source_populations(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    *,
+    source_populations: Sequence[str | None] | None,
+    prior_sources: Sequence[PriorSource] | None,
+) -> list[str | None] | None:
+    if source_populations is not None:
+        return [None if p is None else str(p) for p in source_populations]
+    if prior_sources is not None:
+        if len(prior_sources) != len(srcs):
+            raise ValueError("prior_sources length must match sources")
+        return populations_from_prior_sources(prior_sources)
+    return None
+
+
+def _invoke_compose_native(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    baseline_mean: Sequence[float],
+    baseline_var: Sequence[float],
+    *,
+    conflict: ConflictPolicy | None,
+    conflict_signals: Sequence[Mapping[str, float | None]] | None,
+    transport: TransportPolicy | None,
+    target_population: str | None,
+    source_populations: Sequence[str | None] | None,
+    unit_effects: Sequence[float] | None,
+    transport_weights: Sequence[float] | None,
+    coef_index: int | None,
+) -> dict[str, Any]:
+    return _compose_external_priors(
+        [s.to_dict() for s in srcs],
+        list(baseline_mean),
+        list(baseline_var),
+        conflict=conflict.to_dict() if conflict is not None else None,
+        conflict_signals=[dict(s) for s in conflict_signals]
+        if conflict_signals is not None
+        else None,
+        transport=transport.to_wire() if transport is not None else None,
+        target_population=target_population,
+        source_populations=list(source_populations) if source_populations is not None else None,
+        unit_effects=list(unit_effects) if unit_effects is not None else None,
+        transport_weights=list(transport_weights) if transport_weights is not None else None,
+        coef_index=coef_index,
+    )
+
+
+def _composed_prior_from_native(
+    raw: Mapping[str, Any],
+    srcs: Sequence[ExternalPriorSourceSpec],
+    *,
+    conflict: ConflictPolicy | None,
+    transport: TransportPolicy | None,
+) -> ComposedPrior:
+    out_sources = tuple(srcs)
+    if raw.get("sources"):
+        rebuilt: list[ExternalPriorSourceSpec] = []
+        for row in raw["sources"]:
+            rebuilt.append(
+                ExternalPriorSourceSpec(
+                    id=str(row["id"]),
+                    mean=tuple(float(x) for x in row["mean"]),
+                    variance=tuple(float(x) for x in row["variance"]),
+                    weight=ExternalPriorWeight(
+                        alpha=float(row["alpha"]),
+                        mixture_weight=(
+                            None
+                            if row.get("mixture_weight") is None
+                            else float(row["mixture_weight"])
+                        ),
+                    ),
+                    ess=(None if row.get("ess") is None else float(row["ess"])),
+                )
+            )
+        out_sources = tuple(rebuilt)
+    return ComposedPrior(
+        mean=tuple(float(x) for x in raw["mean"]),
+        variance=tuple(float(x) for x in raw["variance"]),
+        source_ids=tuple(str(x) for x in raw["source_ids"]),
+        alphas_requested=tuple(float(x) for x in raw["alphas_requested"]),
+        alphas_applied=tuple(float(x) for x in raw["alphas_applied"]),
+        mixture_weights=tuple(None if w is None else float(w) for w in raw["mixture_weights"]),
+        sources=out_sources,
+        effective_ess=tuple(
+            None if x is None else float(x) for x in raw.get("effective_ess") or ()
+        ),
+        composed_ess=(None if raw.get("composed_ess") is None else float(raw["composed_ess"])),
+        kish_ess=(None if raw.get("kish_ess") is None else float(raw["kish_ess"])),
+        conflict=conflict,
+        conflict_p_values=tuple(
+            None if x is None else float(x) for x in raw.get("conflict_p_values") or ()
+        ),
+        conflict_kl_values=tuple(
+            None if x is None else float(x) for x in raw.get("conflict_kl_values") or ()
+        ),
+        assumption_ids=tuple(str(x) for x in raw.get("assumption_ids") or ()),
+        transport=transport,
+    )
+
+
+@dataclass(frozen=True)
+class PriorSourceMeta:
+    """Metadata for one prior-bank source."""
+
+    artifact_id: str
+    estimand: EstimandFingerprint
+    identification: str
+    tags: Mapping[str, str] = field(default_factory=dict)
+    design: Sequence[DesignVariable] = ()
+    contrast: str | None = None
+    provenance: Mapping[str, str] = field(default_factory=dict)
+    declared_mapping: PriorMapping | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "artifact_id": self.artifact_id,
+            "estimand": asdict(self.estimand),
+            "identification": self.identification,
+            "tags": dict(self.tags),
+            "design": [asdict(v) for v in self.design],
+        }
+        if self.contrast is not None:
+            d["contrast"] = self.contrast
+        if self.provenance:
+            d["provenance"] = dict(self.provenance)
+        if self.declared_mapping is not None:
+            d["declared_mapping"] = self.declared_mapping.to_dict()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> PriorSourceMeta:
+        est = d["estimand"]
+        mapping = None
+        if d.get("declared_mapping"):
+            md = d["declared_mapping"]
+            pairs = tuple(tuple(p) for p in md.get("pairs", ()))
+            mapping = PriorMapping(
+                kind=md["kind"],
+                source_quantity=md.get("source_quantity"),
+                pairs=pairs,
+            )
+        return cls(
+            artifact_id=d["artifact_id"],
+            estimand=EstimandFingerprint(
+                query_kind=est["query_kind"],
+                treatment=est["treatment"],
+                outcome=est["outcome"],
+            ),
+            identification=d["identification"],
+            tags=dict(d.get("tags") or {}),
+            design=tuple(
+                DesignVariable(name=row["name"], role=row["role"]) for row in d.get("design") or ()
+            ),
+            contrast=d.get("contrast"),
+            provenance=dict(d.get("provenance") or {}),
+            declared_mapping=mapping,
+        )
+
+    def to_cbor(self) -> bytes:
+        return bytes(_encode_meta(self.to_dict()))
+
+    @classmethod
+    def from_cbor(cls, raw: bytes) -> PriorSourceMeta:
+        return cls.from_dict(_decode_meta(bytes(raw)))
+
+
+@dataclass(frozen=True)
+class PriorSource:
+    """One catalog entry: meta plus optional posterior artifact bytes."""
+
+    meta: PriorSourceMeta
+    artifact: bytes | None = None
+
+
+@dataclass(frozen=True)
+class CompatibilityReport:
+    """Result of checking one source against a target design."""
+
+    status: Literal["compatible", "partial", "rejected"]
+    artifact_id: str
+    missing: tuple[str, ...] = ()
+    mappable: tuple[str, ...] = ()
+    reason: Mapping[str, Any] | None = None
+
+    @property
+    def is_usable(self) -> bool:
+        return self.status in ("compatible", "partial")
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> CompatibilityReport:
+        return cls(
+            status=d["status"],
+            artifact_id=d["artifact_id"],
+            missing=tuple(d.get("missing") or ()),
+            mappable=tuple(d.get("mappable") or ()),
+            reason=d.get("reason"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "status": self.status,
+            "artifact_id": self.artifact_id,
+        }
+        if self.missing:
+            out["missing"] = list(self.missing)
+        if self.mappable:
+            out["mappable"] = list(self.mappable)
+        if self.reason is not None:
+            out["reason"] = dict(self.reason)
+        return out
+
+
+def _query_estimand(query: Any) -> EstimandFingerprint:
+    kind = getattr(query, "kind", None) or "ate"
+    query_kind = {
+        "average": "ate",
+        "pulse": "pulse",
+        "sustained": "sustained",
+    }.get(kind, str(kind))
+    treatment = getattr(query, "treatment", None)
+    outcome = getattr(query, "outcome", None)
+    if treatment is None or outcome is None:
+        raise TypeError("query must expose treatment and outcome names")
+    return EstimandFingerprint(
+        query_kind=query_kind,
+        treatment=str(treatment),
+        outcome=str(outcome),
+    )
+
+
+class PriorCatalog:
+    """Catalog of prior sources with compatibility filter and ranking."""
+
+    def __init__(self, sources: Sequence[PriorSource] | None = None) -> None:
+        self._sources: list[PriorSource] = list(sources or ())
+
+    @classmethod
+    def from_sources(cls, sources: Sequence[PriorSource]) -> PriorCatalog:
+        return cls(sources)
+
+    def add(self, source: PriorSource) -> None:
+        self._sources.append(source)
+
+    @property
+    def sources(self) -> tuple[PriorSource, ...]:
+        return tuple(self._sources)
+
+    def compatible_with(
+        self,
+        *,
+        query: Any,
+        variables: Sequence[str] = (),
+        tags: Mapping[str, str] | None = None,
+        allow_unidentified: bool = False,
+    ) -> list[CompatibilityReport]:
+        """Return one report per source for the target query/design."""
+        target = {
+            "estimand": asdict(_query_estimand(query)),
+            "variables": list(variables),
+            "tags": dict(tags or {}),
+            "allow_unidentified": allow_unidentified,
+        }
+        payload = []
+        for src in self._sources:
+            entry: dict[str, Any] = {"meta": src.meta.to_dict()}
+            if src.artifact is not None:
+                entry["artifact"] = bytes(src.artifact)
+            payload.append(entry)
+        raw = _filter(payload, target)
+        return [CompatibilityReport.from_dict(r) for r in raw]
+
+    def rank(
+        self,
+        reports: Sequence[CompatibilityReport],
+        scores: Mapping[str, float],
+    ) -> list[CompatibilityReport]:
+        """Stable-rank usable reports by caller similarity scores."""
+        payload = [r.to_dict() for r in reports]
+        ranked = _rank(payload, dict(scores))
+        return [CompatibilityReport.from_dict(r) for r in ranked]
+
+
+__all__ = [
+    "BetaHyperparameters",
+    "CompatibilityReport",
+    "ComposedPrior",
+    "ConflictPolicy",
+    "DesignVariable",
+    "EstimandFingerprint",
+    "ExternalPriorSourceSpec",
+    "ExternalPriorWeight",
+    "GammaHyperparameters",
+    "POPULATION_TAG_KEY",
+    "PriorCatalog",
+    "PriorMapping",
+    "PriorSource",
+    "PriorSourceMeta",
+    "TransportPolicy",
+    "beta_from_mean_and_ess",
+    "beta_from_moments",
+    "compose_external_priors",
+    "gamma_from_mean_and_ess",
+    "gamma_from_moments",
+    "populations_from_prior_sources",
+]

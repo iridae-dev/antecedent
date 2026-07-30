@@ -121,6 +121,54 @@ fn gcm_interventional_distribution_query() {
     assert!((mean - true_mean).abs() < tol, "mean={mean} true={true_mean}");
 }
 
+/// Additive shift `do(X := X + delta)` moves the downstream mean by `coefficient * delta`
+/// relative to the (unintervened) baseline, whereas a hard `do(X := delta)` pins the
+/// downstream mean to `coefficient * delta` regardless of baseline — the two intervention
+/// kinds are observably different, which is the point of exposing `Intervention::Shift`
+/// alongside `Intervention::Set`.
+#[test]
+fn gcm_shift_intervention_differs_from_hard_set() {
+    let (data, g) = chain_data(40, false);
+    let fitted = fit_gcm(g, &data).unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let x = VariableId::from_raw(0);
+    let delta = 5.0;
+
+    let mut rng = CausalRng::from_seed(11);
+    let baseline = sample_do(&fitted.model, &[], 200, &mut rng, &ctx).unwrap();
+    let baseline_y = baseline.column(1).unwrap();
+    let baseline_mean = baseline_y.iter().sum::<f64>() / baseline_y.len() as f64;
+
+    let mut rng = CausalRng::from_seed(11);
+    let shifted =
+        sample_do(&fitted.model, &[Intervention::shift(x, Value::f64(delta))], 200, &mut rng, &ctx)
+            .unwrap();
+    let shifted_y = shifted.column(1).unwrap();
+    let shifted_mean = shifted_y.iter().sum::<f64>() / shifted_y.len() as f64;
+
+    // y = 1 + 2x (fitted); shifting x by delta should move y's mean by ~2*delta.
+    let observed_delta = shifted_mean - baseline_mean;
+    let expected_delta = 2.0 * delta;
+    assert!(
+        (observed_delta - expected_delta).abs() < 0.5,
+        "observed={observed_delta} expected={expected_delta}"
+    );
+
+    let mut rng = CausalRng::from_seed(11);
+    let hard =
+        sample_do(&fitted.model, &[Intervention::set(x, Value::f64(delta))], 200, &mut rng, &ctx)
+            .unwrap();
+    let hard_y = hard.column(1).unwrap();
+    let hard_mean = hard_y.iter().sum::<f64>() / hard_y.len() as f64;
+
+    // Hard set pins x = delta regardless of its baseline distribution; shift instead adds
+    // delta on top of the baseline x. On this fixture the two land far apart.
+    assert!(
+        (hard_mean - shifted_mean).abs() > 1.0,
+        "hard={hard_mean} shifted={shifted_mean} should differ"
+    );
+}
+
 #[test]
 fn gcm_path_specific_query() {
     use antecedent::gcm::attribute_path_specific;

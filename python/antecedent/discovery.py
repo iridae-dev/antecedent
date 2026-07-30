@@ -1,14 +1,21 @@
-"""Discovery algorithm configuration and helpers."""
+"""Discovery algorithm configuration and helpers.
+
+Each config dataclass below owns its own wire-serialization (``_wire``),
+native dispatch (``run``), and — for the algorithms that produce a holdable
+graph artifact — session acceptance (``accept``). ``run_static_discovery`` /
+``run_temporal_discovery`` / ``discovery_algorithm`` are thin dispatchers kept
+for the external callers (``estimation.py``, ``_analyze.py``, ``gcm.py``,
+``accepted_graph.py``) that already depend on their exact signatures and
+return types; the per-algorithm knowledge itself lives on the config classes.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-import numpy as np
-from numpy.typing import NDArray
-
+from ._coerce import coerce_data
 from ._native import (
     DiscoveredLink,
     GraphEdge,
@@ -65,11 +72,30 @@ from ._native import (
 from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+
+# Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
+# `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
+from .graph import cpdag_oriented_edges, discovery_to_dag
 
 if TYPE_CHECKING:
-    from .graph import Cpdag, Dag
+    from .accepted_graph import AcceptedGraph
+    from .graph import Dag
 
 CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
+
+
+def _ci_str(ci: CiSpec) -> str:
+    """Collapse a possibly-callable ``ci`` to a plain string.
+
+    Only the ``run_static_discovery`` / ``run_temporal_discovery`` dispatchers
+    apply this, because the ``analyze`` and ``AcceptedGraph.rediscover`` paths
+    behind them have never carried a Python callable across. ``Config.run()``
+    forwards ``ci`` raw — native supports a callable there (``ci_name`` comes
+    back as ``python.callback``), and collapsing it would silently substitute
+    a different independence test.
+    """
+    return ci if isinstance(ci, str) else "parcorr"
 
 
 @dataclass(frozen=True)
@@ -80,6 +106,35 @@ class PC:
     max_cond_size: int = 2
     kind: Literal["pc"] = "pc"
 
+    algorithm_id: ClassVar[str] = "pc"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "pc",
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_pc(
+            names,
+            cols,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            threads=threads,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
+
 
 @dataclass(frozen=True)
 class PCMCI:
@@ -87,7 +142,47 @@ class PCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["pcmci"] = "pcmci"
+
+    algorithm_id: ClassVar[str] = "pcmci"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "pcmci",
+            "max_lag": self.max_lag,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        weights: list[float] | None = None,
+    ) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_pcmci(
+            names,
+            cols,
+            max_lag=self.max_lag,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            ci=self.ci,
+            weights=weights,
+            threads=threads,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -96,7 +191,51 @@ class PCMCIPlus:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["pcmci_plus"] = "pcmci_plus"
+
+    # NB: asymmetric on purpose. ``run_temporal_discovery`` has always
+    # returned the short form "pcmci+" as this config's algorithm id, while
+    # ``discovery_algorithm``/``_wire()`` has always used the long form
+    # "pcmci_plus" as the native "algorithm" wire value. Both are preserved.
+    algorithm_id: ClassVar[str] = "pcmci+"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "pcmci_plus",
+            "max_lag": self.max_lag,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        weights: list[float] | None = None,
+    ) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_pcmci_plus(
+            names,
+            cols,
+            max_lag=self.max_lag,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            ci=self.ci,
+            weights=weights,
+            threads=threads,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -105,7 +244,47 @@ class LPCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["lpcmci"] = "lpcmci"
+
+    algorithm_id: ClassVar[str] = "lpcmci"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "lpcmci",
+            "max_lag": self.max_lag,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        weights: list[float] | None = None,
+    ) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_lpcmci(
+            names,
+            cols,
+            max_lag=self.max_lag,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            ci=self.ci,
+            weights=weights,
+            threads=threads,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -120,12 +299,96 @@ class JPCMCIPlus:
     space_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
     time_dummy_encoding: Literal["integer", "one_hot"] = "integer"
     time_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
+    max_cond_size: int = 2
     kind: Literal["jpcmci_plus"] = "jpcmci_plus"
+
+    algorithm_id: ClassVar[str] = "jpcmci_plus"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "jpcmci_plus",
+            "max_lag": self.max_lag,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "context_names": list(self.context_names),
+            "include_space_dummy": self.include_space_dummy,
+            "include_time_dummy": self.include_time_dummy,
+            "space_dummy_ci": self.space_dummy_ci,
+            "time_dummy_encoding": self.time_dummy_encoding,
+            "time_dummy_ci": self.time_dummy_ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(
+        self,
+        names: list[str],
+        env_columns: Sequence[Sequence[Any]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        weights: list[float] | None = None,
+    ) -> PcmciDiscoveryResult:
+        """Multi-environment discovery: takes ``names``/``env_columns`` directly.
+
+        Unlike the single-table configs, J-PCMCI+ has no single-table ``data``
+        shape to coerce (``coerce_data`` deliberately does not accept
+        ``MultiEnvFrame`` — see its docstring); build ``env_columns`` with
+        :func:`antecedent._data.as_multi_env_columns` or
+        :func:`antecedent.data.multi_env`.
+        """
+        return _discover_jpcmci_plus(
+            list(names),
+            [list(cols) for cols in env_columns],
+            max_lag=self.max_lag,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            ci=self.ci,
+            weights=weights,
+            threads=threads,
+            context_names=list(self.context_names) if self.context_names else None,
+            include_space_dummy=self.include_space_dummy,
+            include_time_dummy=self.include_time_dummy,
+            space_dummy_ci=self.space_dummy_ci,
+            time_dummy_encoding=self.time_dummy_encoding,
+            time_dummy_ci=self.time_dummy_ci,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(
+        self,
+        names: list[str],
+        env_columns: Sequence[Sequence[Any]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AcceptedGraph:
+        """Not supported yet — raises rather than silently building a wrong graph.
+
+        Every sibling ``accept()`` runs discovery then calls
+        ``AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)``.
+        That dispatch only recognizes the short algorithm ids ``"pcmci"`` /
+        ``"pcmci+"`` / ``"lpcmci"`` as temporal (lagged) results; this config's
+        id (``"jpcmci_plus"``) would fall through to the *static* graph path,
+        which would silently misinterpret a lagged, multi-environment result
+        as an unlagged one — worse than an ``AttributeError``. Teaching
+        ``AcceptedGraph.from_discovery`` about J-PCMCI+'s result shape is the
+        right long-term fix; it is out of scope here. Call :meth:`run`
+        directly and hold the result yourself in the meantime.
+        """
+        raise CausalUnsupportedError(
+            "JPCMCIPlus.accept() is not supported yet: AcceptedGraph.from_discovery's "
+            "dispatch only recognizes 'pcmci'/'pcmci+'/'lpcmci' as temporal (lagged) "
+            "algorithm ids; this config's 'jpcmci_plus' id would fall through to the "
+            "static graph path and silently misinterpret the lagged, multi-environment "
+            "result. Call .run(...) directly and hold the result yourself."
+        )
 
 
 @dataclass(frozen=True)
 class RPCMCI:
-    """Regime-PCMCI. Pass ``regimes=`` to ``analyze`` / ``discover_rpcmci`` (required).
+    """Regime-PCMCI. Pass ``regimes=`` to ``analyze`` / ``run()`` (required).
 
     Use ``two_regime_half_split(n)`` when a simple half-split label vector is enough.
     """
@@ -134,7 +397,76 @@ class RPCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["rpcmci"] = "rpcmci"
+
+    algorithm_id: ClassVar[str] = "rpcmci"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "rpcmci",
+            "max_lag": self.max_lag,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(
+        self,
+        data: Any,
+        *,
+        regimes: Sequence[int],
+        seed: int = 1,
+        threads: int = 1,
+        weights: list[float] | None = None,
+    ) -> RpcmciDiscoverySummary:
+        """``regimes`` is required (length = series length); no silent half-split.
+
+        Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
+        """
+        names, cols = coerce_data(data)
+        return _discover_rpcmci(
+            names,
+            cols,
+            regimes=list(regimes),
+            max_lag=self.max_lag,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            ci=self.ci,
+            weights=weights,
+            threads=threads,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(
+        self,
+        data: Any,
+        *,
+        regimes: Sequence[int],
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AcceptedGraph:
+        """Not supported — ``RpcmciDiscoverySummary`` carries no edge-level detail.
+
+        Unlike every other discovery config's result, :meth:`run`'s
+        ``RpcmciDiscoverySummary`` exposes only regime-level edge *counts*
+        (``directed_edges`` / ``undirected_edges``: ``list[int]``, one count
+        per regime) — no node names and no individual edge endpoints. There
+        is nothing here from which :class:`antecedent.AcceptedGraph` could
+        build a graph artifact, so this raises rather than silently returning
+        something wrong (or a bare ``AttributeError``). Call :meth:`run`
+        directly and consume the summary, or use ``PCMCI`` / ``PCMCIPlus`` /
+        ``LPCMCI`` per-regime if a holdable structure is needed.
+        """
+        raise CausalUnsupportedError(
+            "RPCMCI.accept() is not supported: RpcmciDiscoverySummary carries only "
+            "regime-level edge counts (directed_edges/undirected_edges: list[int]), "
+            "not node names or edge endpoints, so there is no edge detail to build "
+            "an AcceptedGraph from. Call .run(...) directly and consume the summary, "
+            "or use PCMCI/PCMCIPlus/LPCMCI for a holdable structure."
+        )
 
 
 @dataclass(frozen=True)
@@ -147,12 +479,71 @@ class GES:
     max_subset: int | None = None
     kind: Literal["ges"] = "ges"
 
+    algorithm_id: ClassVar[str] = "ges"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "ges",
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_ges(
+            names,
+            cols,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            threads=threads,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+            screen_pc=self.screen_pc,
+            max_subset=self.max_subset,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
+
 
 @dataclass(frozen=True)
 class LiNGAM:
     prune_threshold: float = 0.05
     max_cond_size: int = 8
     kind: Literal["lingam"] = "lingam"
+
+    algorithm_id: ClassVar[str] = "lingam"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "lingam",
+            "prune_threshold": self.prune_threshold,
+            "max_cond_size": self.max_cond_size,
+            "alpha": 0.05,
+            "fdr": True,
+            "ci": "parcorr",
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_lingam(
+            names,
+            cols,
+            prune_threshold=self.prune_threshold,
+            seed=seed,
+            max_cond_size=self.max_cond_size,
+            threads=threads,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -163,6 +554,38 @@ class NOTEARS:
     max_cond_size: int = 8
     kind: Literal["notears"] = "notears"
 
+    algorithm_id: ClassVar[str] = "notears"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "notears",
+            "lambda": self.l1,
+            "threshold": self.threshold,
+            "standardize": self.standardize,
+            "max_cond_size": self.max_cond_size,
+            "alpha": 0.05,
+            "fdr": True,
+            "ci": "parcorr",
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_notears(
+            names,
+            cols,
+            l1=self.l1,
+            threshold=self.threshold,
+            standardize=self.standardize,
+            seed=seed,
+            max_cond_size=self.max_cond_size,
+            threads=threads,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
+
 
 @dataclass(frozen=True)
 class FCI:
@@ -171,6 +594,35 @@ class FCI:
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
     kind: Literal["fci"] = "fci"
+
+    algorithm_id: ClassVar[str] = "fci"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "fci",
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_fci(
+            names,
+            cols,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            threads=threads,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -181,6 +633,35 @@ class RFCI:
     max_cond_size: int = 2
     kind: Literal["rfci"] = "rfci"
 
+    algorithm_id: ClassVar[str] = "rfci"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "rfci",
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+        names, cols = coerce_data(data)
+        return _discover_rfci(
+            names,
+            cols,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            seed=seed,
+            threads=threads,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+        )
+
+    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+        from .accepted_graph import accept_discovery
+
+        return accept_discovery(self, data, seed=seed, threads=threads)
+
 
 @dataclass(frozen=True)
 class ExactDagPosterior:
@@ -188,12 +669,21 @@ class ExactDagPosterior:
 
     For more variables use ``OrderMcmc``, ``StructureMcmc``, or ``CiScreenedPosterior``.
 
-    Standalone: ``discover_exact_dag_posterior(...)`` returns a ``GraphPosterior``.
+    Standalone: ``ExactDagPosterior().run(...)`` returns a ``GraphPosterior``.
     Composed: pass ``discovery=ExactDagPosterior()`` with ``inference=Bayesian(...)``
     to ``analyze`` to mix effect draws over the graph posterior (P1-D).
     """
 
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
+
+    algorithm_id: ClassVar[str] = "exact_dag_posterior"
+
+    def _wire(self) -> dict[str, Any]:
+        return {"algorithm": "exact_dag_posterior"}
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -205,14 +695,84 @@ class OrderMcmc:
     require_diagnostics_gate: bool = True
     kind: Literal["order_mcmc"] = "order_mcmc"
 
+    algorithm_id: ClassVar[str] = "order_mcmc"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "order_mcmc",
+            "n_chains": self.n_chains,
+            "n_warmup": self.n_warmup,
+            "mcmc_draws": self.n_draws,
+            "thin": self.thin,
+            "require_diagnostics_gate": self.require_diagnostics_gate,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_order_mcmc(
+            names,
+            cols,
+            n_chains=self.n_chains,
+            n_warmup=self.n_warmup,
+            n_draws=self.n_draws,
+            thin=self.thin,
+            require_diagnostics_gate=self.require_diagnostics_gate,
+            seed=seed,
+            threads=threads,
+        )
+
 
 @dataclass(frozen=True)
 class StructureMcmc:
+    """Structure-MCMC graph posterior.
+
+    Unlike its sibling :class:`OrderMcmc`, this config has **no**
+    ``require_diagnostics_gate`` field: the native ``discover_structure_mcmc``
+    entry point takes no such parameter, so there is nothing here to plumb it
+    through to. Concretely, this means R-hat / ESS convergence diagnostics are
+    **never gated** on a ``StructureMcmc`` posterior the way they can be on
+    ``OrderMcmc(require_diagnostics_gate=True)`` (the default there) — a
+    non-converged chain's posterior is returned exactly the same as a
+    converged one. This package cannot add the parameter from the Python side
+    (it would require a change to the Rust ``discover_structure_mcmc``
+    signature, which is out of scope for a ``python/antecedent`` change); the
+    long-term fix is adding a ``require_diagnostics_gate`` parameter to
+    ``discover_structure_mcmc`` in Rust to match ``discover_order_mcmc``, then
+    threading it through here the same way :class:`OrderMcmc` already does.
+    Callers that need a diagnostics gate today should use
+    ``GraphPosterior.converged`` / ``.rejected_invalid`` /
+    ``.ess`` on the returned posterior themselves, or prefer ``OrderMcmc``.
+    """
+
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
     thin: int = 1
     kind: Literal["structure_mcmc"] = "structure_mcmc"
+
+    algorithm_id: ClassVar[str] = "structure_mcmc"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "structure_mcmc",
+            "n_chains": self.n_chains,
+            "n_warmup": self.n_warmup,
+            "mcmc_draws": self.n_draws,
+            "thin": self.thin,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_structure_mcmc(
+            names,
+            cols,
+            n_chains=self.n_chains,
+            n_warmup=self.n_warmup,
+            n_draws=self.n_draws,
+            thin=self.thin,
+            seed=seed,
+            threads=threads,
+        )
 
 
 @dataclass(frozen=True)
@@ -228,6 +788,40 @@ class CiScreenedPosterior:
     thin: int = 1
     kind: Literal["ci_screened_posterior"] = "ci_screened_posterior"
 
+    algorithm_id: ClassVar[str] = "ci_screened_posterior"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "ci_screened_posterior",
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+            "soft_weight": self.soft_weight,
+            "n_chains": self.n_chains,
+            "n_warmup": self.n_warmup,
+            "mcmc_draws": self.n_draws,
+            "thin": self.thin,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_ci_screened_posterior(
+            names,
+            cols,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+            soft_weight=self.soft_weight,
+            n_chains=self.n_chains,
+            n_warmup=self.n_warmup,
+            n_draws=self.n_draws,
+            thin=self.thin,
+            seed=seed,
+            threads=threads,
+        )
+
 
 @dataclass(frozen=True)
 class DbnPosterior:
@@ -236,7 +830,7 @@ class DbnPosterior:
     Exact enumeration only when ``p ≤ 4`` and ``max_lag ≤ 2``; larger templates
     automatically use MCMC (or set ``force_mcmc=True``).
 
-    Standalone: ``discover_dbn_posterior(...)`` returns a ``GraphPosterior``.
+    Standalone: ``DbnPosterior(...).run(...)`` returns a ``GraphPosterior``.
     Composed: pass ``discovery=DbnPosterior(...)`` with ``inference=Bayesian(...)``
     and ``PulseEffect``/``SustainedEffect`` to mix temporal effect draws (P1-D).
     """
@@ -248,81 +842,72 @@ class DbnPosterior:
     n_draws: int = 400
     kind: Literal["dbn_posterior"] = "dbn_posterior"
 
+    algorithm_id: ClassVar[str] = "dbn_posterior"
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "dbn_posterior",
+            "max_lag": self.max_lag,
+            "force_mcmc": self.force_mcmc,
+            "n_chains": self.n_chains,
+            "n_warmup": self.n_warmup,
+            "mcmc_draws": self.n_draws,
+        }
+
+    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_dbn_posterior(
+            names,
+            cols,
+            max_lag=self.max_lag,
+            force_mcmc=self.force_mcmc,
+            n_chains=self.n_chains,
+            n_warmup=self.n_warmup,
+            n_draws=self.n_draws,
+            seed=seed,
+            threads=threads,
+        )
+
 
 # Alias: DiscoveryResult is the preferred name; PcmciDiscoveryResult kept for compat.
 DiscoveryResult = PcmciDiscoveryResult
 
 
-def discovery_to_dag(result: DiscoveryResult) -> Dag:
-    """Build a ``Dag`` from a discovery result's directed ``graph_edges``.
-
-    Raises ``ValueError`` if any undirected/circle marks remain.
-    """
-    from .graph import Dag
-
-    names: list[str] = []
-    seen: set[str] = set()
-    directed: list[tuple[str, str]] = []
-    for e in result.graph_edges:
-        for n in (e.source, e.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
-        if e.at_source == "tail" and e.at_target == "arrow":
-            directed.append((e.source, e.target))
-        elif e.at_source == "arrow" and e.at_target == "tail":
-            directed.append((e.target, e.source))
-        else:
-            raise ValueError(
-                f"cannot coerce edge {e.source}->{e.target} "
-                f"({e.at_source}/{e.at_target}) into a DAG; "
-                "use graph_edges or a CPDAG/PAG constructor"
-            )
-    return Dag.from_edges(names, directed)
-
-
-def _coerce_tabular(
-    names_or_data: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    names: list[str] | None = None,
-) -> tuple[list[str], list[NDArray[np.float64]]]:
-    """Accept ``discover_*(data)``, ``discover_*(names, columns)``, or kwargs."""
-    from ._data import as_columns, coerce_data_args, to_f64
-
-    if data is not None:
-        return as_columns(data)
-    if columns is not None:
-        if names_or_data is None:
-            raise TypeError("columns= requires names as the first argument")
-        return [str(n) for n in names_or_data], [to_f64(c) for c in columns]
-    if names is not None:
-        # names= kw-only without columns — need columns via coerce
-        return coerce_data_args(None, names=names, columns=None)
-    if names_or_data is not None:
-        return as_columns(names_or_data)
-    raise TypeError("provide data=… or names + columns")
-
-
-def _call_discover(
-    fn: Callable[..., DiscoveryResult],
-    names_or_data: Any | None,
-    columns,
-    *,
-    data=None,
-    **kwargs: Any,
-) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names_or_data, columns, data=data)
-    return fn(n, cols, **kwargs)
-
-
-def _ci_str(ci: CiSpec) -> str:
-    return ci if isinstance(ci, str) else "parcorr"
-
-
 StaticDiscovery = PC | GES | LiNGAM | NOTEARS | FCI | RFCI
 TemporalDiscovery = PCMCI | PCMCIPlus | LPCMCI
+
+_STATIC_DISCOVERY_TYPES = (PC, GES, LiNGAM, NOTEARS, FCI, RFCI)
+_TEMPORAL_DISCOVERY_TYPES = (PCMCI, PCMCIPlus, LPCMCI)
+_ALL_DISCOVERY_TYPES = (
+    PC,
+    GES,
+    LiNGAM,
+    NOTEARS,
+    FCI,
+    RFCI,
+    PCMCI,
+    PCMCIPlus,
+    LPCMCI,
+    JPCMCIPlus,
+    RPCMCI,
+    ExactDagPosterior,
+    OrderMcmc,
+    StructureMcmc,
+    CiScreenedPosterior,
+    DbnPosterior,
+)
+
+
+def _without_callable_ci(discovery: Any) -> Any:
+    """Config with a callable ``ci`` collapsed to its string form.
+
+    Preserves the dispatcher paths' long-standing behavior; ``run()`` itself
+    forwards a callable unchanged.
+    """
+    ci = getattr(discovery, "ci", None)
+    if ci is None or isinstance(ci, str):
+        return discovery
+    return replace(discovery, ci=_ci_str(ci))
 
 
 def run_static_discovery(
@@ -332,90 +917,15 @@ def run_static_discovery(
     seed: int = 1,
     threads: int = 1,
 ) -> tuple[DiscoveryResult, str]:
-    """Dispatch a static discovery config to the matching ``discover_*`` helper.
+    """Dispatch a static discovery config to its ``run()``.
 
     Single source of truth for PC/GES/LiNGAM/NOTEARS/FCI/RFCI used by
     ``analyze``, ``AcceptedGraph``, and GCM compose helpers.
     """
-    if isinstance(discovery, PC):
-        return (
-            discover_pc(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "pc",
-        )
-    if isinstance(discovery, GES):
-        return (
-            discover_ges(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-                max_cond_size=discovery.max_cond_size,
-                screen_pc=discovery.screen_pc,
-                max_subset=discovery.max_subset,
-            ),
-            "ges",
-        )
-    if isinstance(discovery, LiNGAM):
-        return (
-            discover_lingam(
-                data,
-                prune_threshold=discovery.prune_threshold,
-                max_cond_size=discovery.max_cond_size,
-                seed=seed,
-                threads=threads,
-            ),
-            "lingam",
-        )
-    if isinstance(discovery, NOTEARS):
-        return (
-            discover_notears(
-                data,
-                l1=discovery.l1,
-                threshold=discovery.threshold,
-                standardize=discovery.standardize,
-                max_cond_size=discovery.max_cond_size,
-                seed=seed,
-                threads=threads,
-            ),
-            "notears",
-        )
-    if isinstance(discovery, FCI):
-        return (
-            discover_fci(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "fci",
-        )
-    if isinstance(discovery, RFCI):
-        return (
-            discover_rfci(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "rfci",
-        )
-    raise TypeError(f"unsupported static discovery type: {type(discovery)!r}")
+    if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
+        raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
+    runnable = _without_callable_ci(discovery)
+    return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
 
 def run_temporal_discovery(
@@ -425,627 +935,18 @@ def run_temporal_discovery(
     seed: int = 1,
     threads: int = 1,
 ) -> tuple[DiscoveryResult, str]:
-    """Dispatch a PCMCI-family discovery config to the matching ``discover_*`` helper."""
-    if isinstance(discovery, PCMCI):
-        return (
-            discover_pcmci(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-            ),
-            "pcmci",
-        )
-    if isinstance(discovery, PCMCIPlus):
-        return (
-            discover_pcmci_plus(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-            ),
-            "pcmci+",
-        )
-    if isinstance(discovery, LPCMCI):
-        return (
-            discover_lpcmci(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=_ci_str(discovery.ci),
-            ),
-            "lpcmci",
-        )
-    raise TypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
+    """Dispatch a PCMCI-family discovery config to its ``run()``."""
+    if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
+        raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
+    runnable = _without_callable_ci(discovery)
+    return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
 
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:
     """Serialize a discovery config dataclass into kwargs for native analyze paths."""
-    if isinstance(discovery, PCMCI):
-        return {
-            "algorithm": "pcmci",
-            "max_lag": discovery.max_lag,
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-        }
-    if isinstance(discovery, PCMCIPlus):
-        return {
-            "algorithm": "pcmci_plus",
-            "max_lag": discovery.max_lag,
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-        }
-    if isinstance(discovery, LPCMCI):
-        return {
-            "algorithm": "lpcmci",
-            "max_lag": discovery.max_lag,
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-        }
-    if isinstance(discovery, JPCMCIPlus):
-        return {
-            "algorithm": "jpcmci_plus",
-            "max_lag": discovery.max_lag,
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "context_names": list(discovery.context_names),
-            "include_space_dummy": discovery.include_space_dummy,
-            "include_time_dummy": discovery.include_time_dummy,
-            "space_dummy_ci": discovery.space_dummy_ci,
-            "time_dummy_encoding": discovery.time_dummy_encoding,
-            "time_dummy_ci": discovery.time_dummy_ci,
-        }
-    if isinstance(discovery, RPCMCI):
-        return {
-            "algorithm": "rpcmci",
-            "max_lag": discovery.max_lag,
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-        }
-    if isinstance(discovery, PC):
-        return {
-            "algorithm": "pc",
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "max_cond_size": discovery.max_cond_size,
-        }
-    if isinstance(discovery, GES):
-        return {
-            "algorithm": "ges",
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "max_cond_size": discovery.max_cond_size,
-        }
-    if isinstance(discovery, LiNGAM):
-        return {
-            "algorithm": "lingam",
-            "prune_threshold": discovery.prune_threshold,
-            "max_cond_size": discovery.max_cond_size,
-            "alpha": 0.05,
-            "fdr": True,
-            "ci": "parcorr",
-        }
-    if isinstance(discovery, NOTEARS):
-        return {
-            "algorithm": "notears",
-            "lambda": discovery.l1,
-            "threshold": discovery.threshold,
-            "standardize": discovery.standardize,
-            "max_cond_size": discovery.max_cond_size,
-            "alpha": 0.05,
-            "fdr": True,
-            "ci": "parcorr",
-        }
-    if isinstance(discovery, FCI):
-        return {
-            "algorithm": "fci",
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "max_cond_size": discovery.max_cond_size,
-        }
-    if isinstance(discovery, RFCI):
-        return {
-            "algorithm": "rfci",
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "max_cond_size": discovery.max_cond_size,
-        }
-    if isinstance(discovery, ExactDagPosterior):
-        return {"algorithm": "exact_dag_posterior"}
-    if isinstance(discovery, OrderMcmc):
-        return {
-            "algorithm": "order_mcmc",
-            "n_chains": discovery.n_chains,
-            "n_warmup": discovery.n_warmup,
-            "mcmc_draws": discovery.n_draws,
-            "thin": discovery.thin,
-            "require_diagnostics_gate": discovery.require_diagnostics_gate,
-        }
-    if isinstance(discovery, StructureMcmc):
-        return {
-            "algorithm": "structure_mcmc",
-            "n_chains": discovery.n_chains,
-            "n_warmup": discovery.n_warmup,
-            "mcmc_draws": discovery.n_draws,
-            "thin": discovery.thin,
-        }
-    if isinstance(discovery, CiScreenedPosterior):
-        return {
-            "algorithm": "ci_screened_posterior",
-            "alpha": discovery.alpha,
-            "fdr": discovery.fdr,
-            "ci": discovery.ci,
-            "max_cond_size": discovery.max_cond_size,
-            "soft_weight": discovery.soft_weight,
-            "n_chains": discovery.n_chains,
-            "n_warmup": discovery.n_warmup,
-            "mcmc_draws": discovery.n_draws,
-            "thin": discovery.thin,
-        }
-    if isinstance(discovery, DbnPosterior):
-        return {
-            "algorithm": "dbn_posterior",
-            "max_lag": discovery.max_lag,
-            "force_mcmc": discovery.force_mcmc,
-            "n_chains": discovery.n_chains,
-            "n_warmup": discovery.n_warmup,
-            "mcmc_draws": discovery.n_draws,
-        }
-    raise TypeError(f"unsupported discovery config: {type(discovery)!r}")
-
-
-def discover_pc(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    max_cond_size: int = 2,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_pc,
-        names,
-        columns,
-        data=data,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        max_cond_size=max_cond_size,
-        threads=threads,
-    )
-
-
-def discover_ges(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    max_cond_size: int = 2,
-    threads: int = 1,
-    screen_pc: bool = False,
-    max_subset: int | None = None,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_ges,
-        names,
-        columns,
-        data=data,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        max_cond_size=max_cond_size,
-        threads=threads,
-        screen_pc=screen_pc,
-        max_subset=max_subset,
-    )
-
-
-def discover_lingam(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    prune_threshold: float = 0.05,
-    seed: int = 1,
-    max_cond_size: int = 8,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_lingam,
-        names,
-        columns,
-        data=data,
-        prune_threshold=prune_threshold,
-        seed=seed,
-        max_cond_size=max_cond_size,
-        threads=threads,
-    )
-
-
-def discover_notears(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    l1: float = 0.1,
-    threshold: float = 0.3,
-    standardize: bool = True,
-    seed: int = 1,
-    max_cond_size: int = 8,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_notears,
-        names,
-        columns,
-        data=data,
-        l1=l1,
-        threshold=threshold,
-        standardize=standardize,
-        seed=seed,
-        max_cond_size=max_cond_size,
-        threads=threads,
-    )
-
-
-def discover_fci(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    max_cond_size: int = 2,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_fci,
-        names,
-        columns,
-        data=data,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        max_cond_size=max_cond_size,
-        threads=threads,
-    )
-
-
-def discover_rfci(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    max_cond_size: int = 2,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_rfci,
-        names,
-        columns,
-        data=data,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        max_cond_size=max_cond_size,
-        threads=threads,
-    )
-
-
-def discover_pcmci(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    max_lag: int = 1,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    weights: list[float] | None = None,
-    threads: int = 1,
-) -> DiscoveryResult:
-    return _call_discover(
-        _discover_pcmci,
-        names,
-        columns,
-        data=data,
-        max_lag=max_lag,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        weights=weights,
-        threads=threads,
-    )
-
-
-def discover_pcmci_plus(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    max_lag: int = 1,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    weights: list[float] | None = None,
-    threads: int = 1,
-) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_pcmci_plus(
-        n,
-        cols,
-        max_lag=max_lag,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        weights=weights,
-        threads=threads,
-    )
-
-
-def discover_lpcmci(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    max_lag: int = 1,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    weights: list[float] | None = None,
-    threads: int = 1,
-) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_lpcmci(
-        n,
-        cols,
-        max_lag=max_lag,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        weights=weights,
-        threads=threads,
-    )
-
-
-def discover_jpcmci_plus(
-    names: list[str],
-    env_columns: Sequence[Sequence[NDArray[np.float64]]],
-    *,
-    max_lag: int = 1,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    weights: list[float] | None = None,
-    threads: int = 1,
-    context_names: Sequence[str] | None = None,
-    include_space_dummy: bool = True,
-    include_time_dummy: bool = False,
-    space_dummy_ci: str = "scalar",
-    time_dummy_encoding: str = "integer",
-    time_dummy_ci: str = "scalar",
-) -> PcmciDiscoveryResult:
-    return _discover_jpcmci_plus(
-        names,
-        [list(cols) for cols in env_columns],
-        max_lag=max_lag,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        weights=weights,
-        threads=threads,
-        context_names=list(context_names) if context_names is not None else None,
-        include_space_dummy=include_space_dummy,
-        include_time_dummy=include_time_dummy,
-        space_dummy_ci=space_dummy_ci,
-        time_dummy_encoding=time_dummy_encoding,
-        time_dummy_ci=time_dummy_ci,
-    )
-
-
-def discover_rpcmci(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    regimes: Sequence[int],
-    max_lag: int = 1,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    weights: list[float] | None = None,
-    threads: int = 1,
-) -> RpcmciDiscoverySummary:
-    """Run RPCMCI. ``regimes`` is required (length = series length); no silent half-split.
-
-    Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
-    """
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_rpcmci(
-        n,
-        cols,
-        regimes=list(regimes),
-        max_lag=max_lag,
-        alpha=alpha,
-        fdr=fdr,
-        seed=seed,
-        ci=ci,
-        weights=weights,
-        threads=threads,
-    )
-
-
-def discover_exact_dag_posterior(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    seed: int = 1,
-    threads: int = 1,
-) -> GraphPosterior:
-    """Exact DAG posterior (hard limit n ≤ 6). Prefer MCMC helpers for larger graphs."""
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_exact_dag_posterior(n, cols, seed=seed, threads=threads)
-
-
-def discover_order_mcmc(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    n_chains: int = 4,
-    n_warmup: int = 500,
-    n_draws: int = 1000,
-    thin: int = 1,
-    require_diagnostics_gate: bool = True,
-    seed: int = 1,
-    threads: int = 1,
-) -> GraphPosterior:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_order_mcmc(
-        n,
-        cols,
-        n_chains=n_chains,
-        n_warmup=n_warmup,
-        n_draws=n_draws,
-        thin=thin,
-        require_diagnostics_gate=require_diagnostics_gate,
-        seed=seed,
-        threads=threads,
-    )
-
-
-def discover_structure_mcmc(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    n_chains: int = 4,
-    n_warmup: int = 500,
-    n_draws: int = 1000,
-    thin: int = 1,
-    seed: int = 1,
-    threads: int = 1,
-) -> GraphPosterior:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_structure_mcmc(
-        n,
-        cols,
-        n_chains=n_chains,
-        n_warmup=n_warmup,
-        n_draws=n_draws,
-        thin=thin,
-        seed=seed,
-        threads=threads,
-    )
-
-
-def discover_ci_screened_posterior(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    alpha: float = 0.05,
-    fdr: bool = True,
-    seed: int = 1,
-    ci: str = "parcorr",
-    max_cond_size: int = 2,
-    soft_weight: str = "none",
-    n_chains: int = 2,
-    n_warmup: int = 300,
-    n_draws: int = 600,
-    thin: int = 1,
-    threads: int = 1,
-) -> GraphPosterior:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_ci_screened_posterior(
-        n,
-        cols,
-        alpha=alpha,
-        fdr=fdr,
-        ci=ci,
-        max_cond_size=max_cond_size,
-        soft_weight=soft_weight,
-        n_chains=n_chains,
-        n_warmup=n_warmup,
-        n_draws=n_draws,
-        thin=thin,
-        seed=seed,
-        threads=threads,
-    )
-
-
-def discover_dbn_posterior(
-    names: Any | None = None,
-    columns: Sequence[NDArray[np.float64]] | None = None,
-    *,
-    data: Any | None = None,
-    max_lag: int = 1,
-    force_mcmc: bool = False,
-    n_chains: int = 2,
-    n_warmup: int = 200,
-    n_draws: int = 400,
-    seed: int = 1,
-    threads: int = 1,
-) -> GraphPosterior:
-    """DBN template posterior; exact only for p ≤ 4 and max_lag ≤ 2, else MCMC."""
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_dbn_posterior(
-        n,
-        cols,
-        max_lag=max_lag,
-        force_mcmc=force_mcmc,
-        n_chains=n_chains,
-        n_warmup=n_warmup,
-        n_draws=n_draws,
-        seed=seed,
-        threads=threads,
-    )
+    if not isinstance(discovery, _ALL_DISCOVERY_TYPES):
+        raise CausalTypeError(f"unsupported discovery config: {type(discovery)!r}")
+    return discovery._wire()
 
 
 def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
@@ -1053,7 +954,7 @@ def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
     import numpy as np
 
     if post.n_graphs < 1 or not post.weights:
-        raise ValueError("GraphPosterior has no graphs")
+        raise CausalValueError("GraphPosterior has no graphs")
     i = int(np.argmax(np.asarray(post.weights, dtype=np.float64)))
     mask = int(post.adjacency[i])
     n = int(post.n_vars)
@@ -1081,37 +982,6 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
     return Dag.from_edges(names, edges)
 
 
-def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list[tuple[str, str]]:
-    """Return directed edges from a CPDAG; error if undirected remain when required."""
-    from .graph import Cpdag
-
-    if not isinstance(cpdag, Cpdag):
-        raise TypeError(f"expected Cpdag, got {type(cpdag)!r}")
-    directed: list[tuple[str, str]] = []
-    undirected = 0
-    for src, tgt, kind in cpdag.edges():
-        if kind == "directed":
-            directed.append((src, tgt))
-        elif kind == "undirected":
-            undirected += 1
-        else:
-            undirected += 1
-    if undirected and require_oriented:
-        raise ValueError(
-            f"CPDAG has {undirected} undirected/ambiguous edge(s); orient before "
-            "PathSpecific/Interventional queries (require_oriented=True)"
-        )
-    if require_oriented:
-        try:
-            dag = cpdag.try_into_dag()
-        except Exception as exc:  # noqa: BLE001
-            raise ValueError(
-                "CPDAG is not fully oriented; cannot coerce to DAG for path/distribution queries"
-            ) from exc
-        return list(dag.edges())
-    return directed
-
-
 __all__ = [
     "CiScreenedPosterior",
     "DbnPosterior",
@@ -1135,22 +1005,6 @@ __all__ = [
     "RPCMCI",
     "RpcmciDiscoverySummary",
     "StructureMcmc",
-    "discover_ci_screened_posterior",
-    "discover_dbn_posterior",
-    "discover_exact_dag_posterior",
-    "discover_jpcmci_plus",
-    "discover_lpcmci",
-    "discover_order_mcmc",
-    "discover_pc",
-    "discover_ges",
-    "discover_lingam",
-    "discover_notears",
-    "discover_fci",
-    "discover_rfci",
-    "discover_pcmci",
-    "discover_pcmci_plus",
-    "discover_rpcmci",
-    "discover_structure_mcmc",
     "cpdag_oriented_edges",
     "discovery_algorithm",
     "discovery_to_dag",

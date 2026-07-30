@@ -102,8 +102,7 @@ fn main() -> Result<(), CausalError> {
     let (data_b, _, _) = batch(180, 2);
     let _ = dag_b;
 
-    let batch_a = CausalAnalysis::builder()
-        .data(data_a)
+    let batch_a = Study::tabular(data_a)
         .graph(dag.clone())
         .query(query.clone())
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128)))
@@ -115,8 +114,7 @@ fn main() -> Result<(), CausalError> {
     let mean_a = post_a.summaries.mean[post_a.effect_column().unwrap()];
     let artifact = encode_causal_posterior_bytes(post_a, "batch-a")?;
 
-    let batch_b = CausalAnalysis::builder()
-        .data(data_b)
+    let batch_b = Study::tabular(data_b)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(

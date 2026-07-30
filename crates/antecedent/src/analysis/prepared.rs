@@ -13,31 +13,32 @@ use antecedent_core::{CausalQuery, CausalSchema, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::EstimationWorkspace;
 
+use crate::accepted::GraphClass;
 use crate::error::CausalError;
-use crate::planner::{CompiledAnalysis, GraphInput, PhysicalExecutionPlan};
-use crate::result::CausalAnalysisResult;
+use crate::planner::PhysicalExecutionPlan;
+use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
 use super::builder::{DataInput, RefuteSuite};
-use super::execute::CausalAnalysis;
+use super::execute::Study;
 use super::helpers::{project_for_ate_estimate, run_refuters};
 use super::stage::{STAGE_VALIDATE, StageClock};
 
 /// Durable handle: fixed schema, graph, query, and estimator; swap data and re-estimate.
 ///
-/// Created via [`CausalAnalysis::prepare`]. Discovery / review-required graphs are refused —
+/// Created via [`Study::prepare`]. Discovery / review-required graphs are refused —
 /// prepare is for the interactive estimate click path on an already-accepted artifact.
 #[derive(Clone, Debug)]
-pub struct PreparedAnalysis {
+pub struct PreparedStudy {
     /// Frozen analysis config (data slot replaced on each estimate).
-    analysis: CausalAnalysis,
+    analysis: Study,
     /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
     plan: PhysicalExecutionPlan,
     /// Schema fingerprint from prepare-time tabular data.
     schema: CausalSchema,
 }
 
-impl PreparedAnalysis {
+impl PreparedStudy {
     /// Borrow the frozen schema fingerprint.
     #[must_use]
     pub fn schema(&self) -> &CausalSchema {
@@ -59,11 +60,11 @@ impl PreparedAnalysis {
         &self,
         data: &TabularData,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let mut analysis = self.analysis.clone();
         analysis.data = DataInput::Tabular(data.clone());
-        analysis.execute(&CompiledAnalysis::Ready(self.plan.clone()), ctx)
+        analysis.execute(&self.plan, ctx)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -75,10 +76,10 @@ impl PreparedAnalysis {
         &mut self,
         data: TabularData,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(&data)?;
         self.analysis.data = DataInput::Tabular(data);
-        self.analysis.execute(&CompiledAnalysis::Ready(self.plan.clone()), ctx)
+        self.analysis.execute(&self.plan, ctx)
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -92,15 +93,15 @@ impl PreparedAnalysis {
     /// Schema mismatch, missing AverageEffect query, cancel, or validator failures.
     pub fn refute(
         &self,
-        prior: &CausalAnalysisResult,
+        prior: &StudyResult,
         data: &TabularData,
         suite: RefuteSuite,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let CausalQuery::AverageEffect(query) = &self.analysis.query else {
             return Err(CausalError::Unsupported {
-                message: "PreparedAnalysis::refute requires AverageEffect",
+                message: "PreparedStudy::refute requires AverageEffect",
             });
         };
         if prior.treatment != query.treatment || prior.outcome != query.outcome {
@@ -170,8 +171,8 @@ impl PreparedAnalysis {
     }
 }
 
-impl CausalAnalysis {
-    /// Compile once into a durable [`PreparedAnalysis`] for re-estimate-many.
+impl Study {
+    /// Compile once into a durable [`PreparedStudy`] for re-estimate-many.
     ///
     /// Requires tabular data, an average-effect query, and a **supplied** static graph
     /// (`Dag` / `Cpdag` / `Pag` / `Admg`). Discovery inputs and review-required compiles
@@ -180,72 +181,58 @@ impl CausalAnalysis {
     /// # Errors
     ///
     /// Unsupported combination, compile failure, or review-required plan.
-    pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedAnalysis, CausalError> {
+    pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
-        let compiled = self.compile(ctx)?;
-        let CompiledAnalysis::Ready(plan) = compiled else {
-            return Err(CausalError::Compile {
-                message: "prepare requires a Ready plan; complete graph review first \
-                    (discovery / incomplete CPDAG/PAG are not session-refreshable)"
-                    .into(),
-            });
-        };
+        let plan = self.compile(ctx)?;
         let schema = match &self.data {
             DataInput::Tabular(data) => data.schema().clone(),
             _ => {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedAnalysis requires tabular data",
+                    message: "PreparedStudy requires tabular data",
                 });
             }
         };
-        Ok(PreparedAnalysis { analysis: self.clone(), plan, schema })
+        Ok(PreparedStudy { analysis: self.clone(), plan, schema })
     }
 }
 
-fn ensure_prepared_supported(analysis: &CausalAnalysis) -> Result<(), CausalError> {
+fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     let DataInput::Tabular(_) = &analysis.data else {
         return Err(CausalError::Unsupported {
-            message: "PreparedAnalysis requires tabular data and AverageEffect",
+            message: "PreparedStudy requires tabular data and AverageEffect",
         });
     };
     if !matches!(analysis.query, CausalQuery::AverageEffect(_)) {
         return Err(CausalError::Unsupported {
-            message: "PreparedAnalysis currently supports AverageEffect only",
+            message: "PreparedStudy currently supports AverageEffect only",
         });
     }
-    if !is_supplied_static_graph(&analysis.graph) {
+    if !is_supplied_static_graph(analysis.graph.class()) {
         return Err(CausalError::Unsupported {
-            message: "PreparedAnalysis requires a supplied static Dag/Cpdag/Pag/Admg \
-                (discovery graphs stay on one-shot analyze / review)",
+            message: "PreparedStudy requires a static Dag/Cpdag/Pag/Admg structure \
+                (temporal classes are not session-refreshable here)",
         });
     }
     Ok(())
 }
 
-fn is_supplied_static_graph(graph: &GraphInput) -> bool {
-    matches!(
-        graph,
-        GraphInput::Static(_) | GraphInput::Cpdag(_) | GraphInput::Pag(_) | GraphInput::Admg(_)
-    )
+fn is_supplied_static_graph(class: GraphClass) -> bool {
+    matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
 }
 
 #[cfg(test)]
 mod tests {
     use super::is_supplied_static_graph;
-    use crate::planner::GraphInput;
-    use antecedent_graph::{Admg, Cpdag, Dag, Pag};
+    use crate::accepted::GraphClass;
 
     #[test]
     fn supplied_static_graphs_only() {
-        assert!(is_supplied_static_graph(&GraphInput::Static(Dag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Cpdag(Cpdag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Pag(Pag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Admg(Admg::with_variables(1))));
-        assert!(!is_supplied_static_graph(&GraphInput::DiscoverPc {
-            alpha: 0.05,
-            max_cond_size: 3,
-            fdr: None,
-            accept_discovered: true,
-        }));
+        assert!(is_supplied_static_graph(GraphClass::Dag));
+        assert!(is_supplied_static_graph(GraphClass::Cpdag));
+        assert!(is_supplied_static_graph(GraphClass::Pag));
+        assert!(is_supplied_static_graph(GraphClass::Admg));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalDag));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalCpdag));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
     }
 }

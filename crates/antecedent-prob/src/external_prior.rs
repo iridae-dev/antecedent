@@ -3,6 +3,20 @@
 //! Heterogeneous sources are composed into a single [`PriorSet`] usable as a
 //! Bayesian coefficient prior. Priors never upgrade nonparametric identification.
 //!
+//! ## Three distinct effective-sample-size conventions
+//!
+//! [`ComposedPrior`] reports **prior-strength ESS**: the sample size implied by
+//! how much precision a source (or the composed prior) contributes, via
+//! `α · ess`. This is *not* interchangeable with:
+//!
+//! * MCMC / autocorrelation ESS (`crate::mcmc_stats`, `InferenceDiagnostics`) —
+//!   how many effectively independent draws a chain produced.
+//! * Kish importance-weighting ESS ([`kish_ess`]) — how concentrated an
+//!   importance/trust weight vector is, `(Σw)² / Σw²`.
+//!
+//! Conflating any of the three misreports how much evidence a posterior or
+//! prior actually carries; keep them in separate fields with separate names.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -14,6 +28,20 @@ use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
 /// Floor on conjugate-scale variance after composition.
 const COMPOSE_VAR_FLOOR: f64 = 1e-12;
+
+/// Kish (1965) effective sample size: `(Σw)² / Σw²`.
+///
+/// A concentration-of-trust diagnostic over an importance/trust weight
+/// vector — distinct from MCMC/autocorrelation ESS and from the
+/// **prior-strength ESS** reported on [`ComposedPrior`] (precision-based, not
+/// weight-based; see the module docs). Guards `Σw² > 0`, returning `0.0`
+/// otherwise (e.g. all-zero weights).
+#[must_use]
+pub fn kish_ess(weights: &[f64]) -> f64 {
+    let sum: f64 = weights.iter().sum();
+    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
+    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+}
 
 /// Per-source trust knobs for external prior composition.
 ///
@@ -89,6 +117,30 @@ pub struct ExternalPriorSource {
     pub prior: PriorSet,
     /// Power / mixture weights for this source.
     pub weight: ExternalPriorWeight,
+    /// Caller-declared **prior-strength ESS** for this source (e.g. the
+    /// original study's sample size, or an effective N after a design
+    /// discount). `None` when the caller has no such figure. Distinct from
+    /// MCMC ESS and from Kish importance-weighting ESS — see the module docs.
+    pub ess: Option<f64>,
+}
+
+impl ExternalPriorSource {
+    /// Validate the trust weight and optional prior-strength `ess`.
+    ///
+    /// # Errors
+    ///
+    /// Invalid `weight`, or `ess` that is non-finite or negative.
+    pub fn validate(&self) -> Result<(), ProbError> {
+        self.weight.validate()?;
+        if let Some(ess) = self.ess {
+            if !ess.is_finite() || ess < 0.0 {
+                return Err(ProbError::InvalidPrior {
+                    message: "external prior source ess must be finite and >= 0",
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Result of composing external sources with a baseline prior.
@@ -104,6 +156,32 @@ pub struct ComposedPrior {
     pub alphas_applied: Arc<[f64]>,
     /// Mixture weights (mirrors inputs; `None` entries mean power-only path).
     pub mixture_weights: Arc<[Option<f64>]>,
+    /// Per-source **prior-strength ESS** after α discount: `α_applied · ess`
+    /// (`None` when that source declared no `ess`). Forced to `0.0` for
+    /// sources dropped from composition (`α == 0` on the power path; `α <= 0`
+    /// or the mixture weight `<= 0` on the mixture path) even when a nonzero
+    /// `ess` was declared, so this always agrees with the arithmetic that
+    /// actually ran.
+    pub effective_ess: Arc<[Option<f64>]>,
+    /// Composed **prior-strength ESS** — path-dependent, unlike
+    /// `effective_ess` above:
+    ///
+    /// * **Power path**: precision genuinely adds (`Λ = Λ₀ + Σ αₖΛₖ`), so
+    ///   `Σ αₖ · essₖ` over contributing sources (`α > 0`) is sound. Reported
+    ///   as `Some` only when *every* contributing source declared an `ess`;
+    ///   otherwise `None` — a partial sum would misrepresent it as complete.
+    /// * **Mixture path**: always `None`. The result is moment-matched and
+    ///   its variance includes between-component spread (`second − μ²`), so
+    ///   the composed prior is *weaker* than a precision-sum would imply;
+    ///   summing source ESS here would overstate composed strength.
+    pub composed_ess: Option<f64>,
+    /// Kish concentration-of-trust diagnostic ([`kish_ess`]) over the weight
+    /// vector actually used in composition: **applied alphas** on the power
+    /// path, **mixture weights** on the mixture path — both with dropped
+    /// sources zeroed, matching the arithmetic that ran. `None` only when
+    /// there are no sources to diagnose. An importance-weighting diagnostic,
+    /// distinct from the prior-strength ESS fields above and from MCMC ESS.
+    pub kish_ess: Option<f64>,
 }
 
 impl ComposedPrior {
@@ -170,7 +248,7 @@ pub fn compose_external_priors_with_alphas(
         }
     }
     for src in sources {
-        src.weight.validate()?;
+        src.validate()?;
     }
     validate_mixture_weights(sources)?;
 
@@ -225,6 +303,13 @@ pub fn compose_external_priors_with_alphas(
     let source_ids: Vec<Arc<str>> = sources.iter().map(|s| Arc::clone(&s.id)).collect();
     let mixture_weights: Vec<Option<f64>> =
         sources.iter().map(|s| s.weight.mixture_weight).collect();
+    let effective_ess = effective_ess_per_source(sources, alphas_applied, use_mixture);
+    let composed_ess = if use_mixture { None } else { power_composed_ess(sources, alphas_applied) };
+    let kish_ess_diag = if sources.is_empty() {
+        None
+    } else {
+        Some(kish_ess(&kish_weights_for_composition(sources, alphas_applied, use_mixture)))
+    };
 
     Ok(ComposedPrior {
         prior,
@@ -232,7 +317,70 @@ pub fn compose_external_priors_with_alphas(
         alphas_requested: Arc::from(alphas_requested.to_vec()),
         alphas_applied: Arc::from(alphas_applied.to_vec()),
         mixture_weights: Arc::from(mixture_weights),
+        effective_ess: Arc::from(effective_ess),
+        composed_ess,
+        kish_ess: kish_ess_diag,
     })
+}
+
+/// Per-source **prior-strength ESS** after α discount (`α_applied · ess`);
+/// `None` when a source declared no `ess`. Zeroed for sources dropped from
+/// composition so this always agrees with the arithmetic that actually ran —
+/// see [`ComposedPrior::effective_ess`].
+fn effective_ess_per_source(
+    sources: &[ExternalPriorSource],
+    alphas_applied: &[f64],
+    use_mixture: bool,
+) -> Vec<Option<f64>> {
+    sources
+        .iter()
+        .zip(alphas_applied.iter())
+        .map(|(src, &alpha)| {
+            let dropped = if use_mixture {
+                alpha <= 0.0 || src.weight.mixture_weight.unwrap_or(0.0) <= 0.0
+            } else {
+                alpha == 0.0
+            };
+            src.ess.map(|ess| if dropped { 0.0 } else { alpha * ess })
+        })
+        .collect()
+}
+
+/// `Σ αₖ · essₖ` over power-path sources that actually contribute (`α > 0`);
+/// `None` unless every contributing source declared an `ess` — see
+/// [`ComposedPrior::composed_ess`].
+fn power_composed_ess(sources: &[ExternalPriorSource], alphas_applied: &[f64]) -> Option<f64> {
+    let mut total = 0.0;
+    for (src, &alpha) in sources.iter().zip(alphas_applied.iter()) {
+        if alpha == 0.0 {
+            continue;
+        }
+        total += alpha * src.ess?;
+    }
+    Some(total)
+}
+
+/// Weight vector actually used in composition, for the [`kish_ess`]
+/// concentration diagnostic: applied alphas on the power path, mixture
+/// weights (zeroed for `α <= 0`) on the mixture path.
+fn kish_weights_for_composition(
+    sources: &[ExternalPriorSource],
+    alphas_applied: &[f64],
+    use_mixture: bool,
+) -> Vec<f64> {
+    if use_mixture {
+        sources
+            .iter()
+            .zip(alphas_applied.iter())
+            .map(
+                |(src, &alpha)| {
+                    if alpha <= 0.0 { 0.0 } else { src.weight.mixture_weight.unwrap_or(0.0) }
+                },
+            )
+            .collect()
+    } else {
+        alphas_applied.to_vec()
+    }
 }
 
 fn validate_mixture_weights(sources: &[ExternalPriorSource]) -> Result<(), ProbError> {
@@ -394,11 +542,13 @@ mod tests {
                 id: Arc::from("a"),
                 prior: gauss(1.0, 1.0),
                 weight: ExternalPriorWeight::power_mixture(1.0, 0.7).unwrap(),
+                ess: None,
             },
             ExternalPriorSource {
                 id: Arc::from("b"),
                 prior: gauss(2.0, 1.0),
                 weight: ExternalPriorWeight::power_mixture(1.0, 0.5).unwrap(),
+                ess: None,
             },
         ];
         let err = compose_external_priors(&sources, &baseline).unwrap_err();
@@ -415,6 +565,7 @@ mod tests {
             id: Arc::from("old"),
             prior: gauss(2.0, 1.0),
             weight: ExternalPriorWeight::power(0.5).unwrap(),
+            ess: None,
         }];
         let composed = compose_external_priors(&sources, &baseline).unwrap();
         let coef = composed.prior.gaussian_coefficients().unwrap();
@@ -433,6 +584,7 @@ mod tests {
             id: Arc::from("s"),
             prior: gauss(10.0, 1.0),
             weight: ExternalPriorWeight::power_mixture(1.0, 0.4).unwrap(),
+            ess: None,
         }];
         let composed = compose_external_priors(&sources, &baseline).unwrap();
         let coef = composed.prior.gaussian_coefficients().unwrap();
@@ -450,6 +602,7 @@ mod tests {
             id: Arc::from("old"),
             prior: gauss(2.0, 1.0),
             weight: ExternalPriorWeight::power(1.0).unwrap(),
+            ess: None,
         }];
         let composed =
             compose_external_priors_with_alphas(&sources, &[1.0], &[0.0], &baseline).unwrap();
@@ -469,13 +622,187 @@ mod tests {
                 id: Arc::from("a"),
                 prior: gauss(1.0, 1.0),
                 weight: ExternalPriorWeight::power(1.0).unwrap(),
+                ess: None,
             },
             ExternalPriorSource {
                 id: Arc::from("b"),
                 prior: gauss(2.0, 1.0),
                 weight: ExternalPriorWeight::power_mixture(1.0, 0.5).unwrap(),
+                ess: None,
             },
         ];
         assert!(compose_external_priors(&sources, &baseline).is_err());
+    }
+
+    #[test]
+    fn power_prior_ess_sums_over_contributing_sources() {
+        // Same numbers as `power_prior_precision_add_analytic`, plus a declared
+        // source ess=40: effective_ess = α·ess = 0.5*40 = 20; single positive
+        // weight ⇒ kish_ess = 1.
+        let baseline = gauss(0.0, 4.0);
+        let sources = [ExternalPriorSource {
+            id: Arc::from("old"),
+            prior: gauss(2.0, 1.0),
+            weight: ExternalPriorWeight::power(0.5).unwrap(),
+            ess: Some(40.0),
+        }];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert_eq!(composed.effective_ess.len(), 1);
+        assert!((composed.effective_ess[0].unwrap() - 20.0).abs() < 1e-12);
+        assert!((composed.composed_ess.unwrap() - 20.0).abs() < 1e-12);
+        assert!((composed.kish_ess.unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn power_prior_composed_ess_none_without_full_ess_coverage() {
+        // Source `b` contributes (α=0.25 > 0) but declares no ess: a partial
+        // sum over only `a` would misrepresent composed strength, so
+        // composed_ess must be None even though `a`'s own effective_ess is Some.
+        let baseline = gauss(0.0, 4.0);
+        let sources = [
+            ExternalPriorSource {
+                id: Arc::from("a"),
+                prior: gauss(2.0, 1.0),
+                weight: ExternalPriorWeight::power(0.5).unwrap(),
+                ess: Some(40.0),
+            },
+            ExternalPriorSource {
+                id: Arc::from("b"),
+                prior: gauss(3.0, 1.0),
+                weight: ExternalPriorWeight::power(0.25).unwrap(),
+                ess: None,
+            },
+        ];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert!((composed.effective_ess[0].unwrap() - 20.0).abs() < 1e-12);
+        assert!(composed.effective_ess[1].is_none());
+        assert!(composed.composed_ess.is_none());
+        // kish_ess over alphas_applied=[0.5, 0.25]: (0.75)^2 / (0.25+0.0625) = 1.8.
+        assert!((composed.kish_ess.unwrap() - 1.8).abs() < 1e-12);
+    }
+
+    #[test]
+    fn power_prior_dropped_source_contributes_no_ess() {
+        // `b` is dropped (α=0) despite declaring a large ess; its effective_ess
+        // must report 0, and it must not appear in composed_ess at all (so a
+        // missing ess on a dropped source cannot poison the sum).
+        let baseline = gauss(0.0, 4.0);
+        let sources = [
+            ExternalPriorSource {
+                id: Arc::from("a"),
+                prior: gauss(2.0, 1.0),
+                weight: ExternalPriorWeight::power(0.5).unwrap(),
+                ess: Some(40.0),
+            },
+            ExternalPriorSource {
+                id: Arc::from("b"),
+                prior: gauss(5.0, 1.0),
+                weight: ExternalPriorWeight::power(0.0).unwrap(),
+                ess: Some(999.0),
+            },
+        ];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert!((composed.effective_ess[0].unwrap() - 20.0).abs() < 1e-12);
+        assert!((composed.effective_ess[1].unwrap() - 0.0).abs() < 1e-12);
+        assert!((composed.composed_ess.unwrap() - 20.0).abs() < 1e-12);
+        // kish_ess over [0.5, 0.0]: (0.5)^2 / (0.25) = 1.0.
+        assert!((composed.kish_ess.unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mixture_composed_ess_is_none_but_effective_ess_reported_per_source() {
+        // Same numbers as `mixture_preserves_leftover_baseline_mass`. The
+        // moment-matched result is weaker than a precision sum implies, so
+        // composed_ess must be None even though this source declares an ess
+        // and its own effective_ess is reported.
+        let baseline = gauss(0.0, 100.0);
+        let sources = [ExternalPriorSource {
+            id: Arc::from("s"),
+            prior: gauss(10.0, 1.0),
+            weight: ExternalPriorWeight::power_mixture(1.0, 0.4).unwrap(),
+            ess: Some(50.0),
+        }];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert!(composed.composed_ess.is_none());
+        assert!((composed.effective_ess[0].unwrap() - 50.0).abs() < 1e-12);
+        // kish_ess over mixture weights [0.4]: 1.0 (single positive weight).
+        assert!((composed.kish_ess.unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mixture_dropped_source_contributes_no_effective_ess() {
+        // `b` has mixture_weight=0 (dropped: folds into leftover baseline mass)
+        // despite declaring a large ess; effective_ess must report 0 for it.
+        let baseline = gauss(0.0, 100.0);
+        let sources = [
+            ExternalPriorSource {
+                id: Arc::from("a"),
+                prior: gauss(10.0, 1.0),
+                weight: ExternalPriorWeight::power_mixture(1.0, 0.4).unwrap(),
+                ess: Some(50.0),
+            },
+            ExternalPriorSource {
+                id: Arc::from("b"),
+                prior: gauss(20.0, 1.0),
+                weight: ExternalPriorWeight::power_mixture(1.0, 0.0).unwrap(),
+                ess: Some(999.0),
+            },
+        ];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert!((composed.effective_ess[0].unwrap() - 50.0).abs() < 1e-12);
+        assert!((composed.effective_ess[1].unwrap() - 0.0).abs() < 1e-12);
+        assert!(composed.composed_ess.is_none());
+        // kish_ess over mixture weights [0.4, 0.0]: (0.4)^2 / (0.16) = 1.0.
+        assert!((composed.kish_ess.unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sources_without_ess_report_none_effective_and_composed() {
+        // Neither source declares an ess: every effective_ess entry is None
+        // and composed_ess is None, but kish_ess (a weight-only diagnostic)
+        // is still reported.
+        let baseline = gauss(0.0, 4.0);
+        let sources = [
+            ExternalPriorSource {
+                id: Arc::from("a"),
+                prior: gauss(2.0, 1.0),
+                weight: ExternalPriorWeight::power(0.5).unwrap(),
+                ess: None,
+            },
+            ExternalPriorSource {
+                id: Arc::from("b"),
+                prior: gauss(3.0, 1.0),
+                weight: ExternalPriorWeight::power(0.3).unwrap(),
+                ess: None,
+            },
+        ];
+        let composed = compose_external_priors(&sources, &baseline).unwrap();
+        assert!(composed.effective_ess.iter().all(Option::is_none));
+        assert!(composed.composed_ess.is_none());
+        let kish = composed.kish_ess.unwrap();
+        assert!(kish.is_finite() && kish > 0.0);
+    }
+
+    #[test]
+    fn rejects_negative_ess() {
+        let sources = [ExternalPriorSource {
+            id: Arc::from("a"),
+            prior: gauss(1.0, 1.0),
+            weight: ExternalPriorWeight::power(1.0).unwrap(),
+            ess: Some(-1.0),
+        }];
+        let err = sources[0].validate().unwrap_err();
+        assert!(matches!(err, ProbError::InvalidPrior { .. }));
+        let baseline = PriorSet::weakly_informative(1);
+        assert!(compose_external_priors(&sources, &baseline).is_err());
+    }
+
+    #[test]
+    fn kish_ess_matches_transport_adjustment_formula() {
+        // Free function agrees with TransportAdjustment::kish_ess for the same
+        // weights (the latter now delegates to this one).
+        use crate::transport::TransportAdjustment;
+        let adj = TransportAdjustment::new([1.0, 2.0, 3.0], [0.5, 0.25, 0.25]).unwrap();
+        assert!((kish_ess(&[0.5, 0.25, 0.25]) - adj.kish_ess()).abs() < 1e-12);
     }
 }

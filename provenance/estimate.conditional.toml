@@ -1,0 +1,17 @@
+feature_id = "estimate.conditional"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["interaction-term / heterogeneous-effects regression"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "in-crate unit tests (crates/antecedent-estimate/src/conditional.rs): noiseless interaction recovery and finite analytic SE under noise",
+ "conformance/estimate/conditional_effects (statsmodels-oracle fixture)",
+]

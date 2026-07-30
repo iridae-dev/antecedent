@@ -6,7 +6,9 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Prior and posterior predictive checking", "Sensitivity analysis"] },
+ { title = "Sampling and Bayes' Inference in Scientific Modelling and Robustness", doi = "10.2307/2982063", sections = ["Prior predictive checking"] },
+ { title = "Posterior Predictive Assessment of Model Fitness via Realized Discrepancies", sections = ["Posterior predictive p-values"] },
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Ch. 6: Model checking (secondary textbook treatment)"] },
 ]
 
 upstream_implementations_observed = []
@@ -15,4 +17,5 @@ test_sources = [
  "crates/antecedent-validate/src/bayesian_checks.rs unit tests",
  "conformance/bayesian/ppc",
  "conformance/bayesian/prior_sensitivity",
+ "conformance/validate/bayesian_checks",
 ]

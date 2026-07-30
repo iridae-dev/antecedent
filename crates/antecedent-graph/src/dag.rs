@@ -210,6 +210,11 @@ impl Dag {
     ///
     /// Bounded by `max_paths` and `max_len` (number of nodes on the path).
     ///
+    /// The returned set is silently truncated when either bound binds. Callers whose
+    /// correctness depends on seeing *every* path — e.g. a recanting-witness test, which
+    /// concludes "no witness exists" from the absence of one — must use
+    /// [`Self::directed_paths_with_budget`] and fail closed on truncation instead.
+    ///
     /// # Errors
     ///
     /// Unknown nodes.
@@ -220,15 +225,38 @@ impl Dag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<Vec<Vec<DenseNodeId>>, GraphError> {
+        self.directed_paths_with_budget(from, to, max_paths, max_len).map(|(paths, _)| paths)
+    }
+
+    /// [`Self::directed_paths`] plus a flag reporting whether enumeration was cut short.
+    ///
+    /// The flag is `true` when `max_paths` stopped the search with candidates still
+    /// pending, or when `max_len` pruned a partial path that had not yet reached `to`.
+    /// It is deliberately conservative: `true` means "the path set may be incomplete",
+    /// never "it is definitely incomplete".
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes.
+    pub fn directed_paths_with_budget(
+        &self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<(Vec<Vec<DenseNodeId>>, bool), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
         let mut out = Vec::new();
         if max_paths == 0 || max_len == 0 {
-            return Ok(out);
+            // A zero budget cannot certify that no path exists.
+            return Ok((out, true));
         }
+        let mut truncated = false;
         let mut stack = vec![vec![from]];
         while let Some(path) = stack.pop() {
             if out.len() >= max_paths {
+                truncated = true;
                 break;
             }
             let last = *path.last().expect("nonempty");
@@ -241,6 +269,8 @@ impl Dag {
                 continue;
             }
             if path.len() >= max_len {
+                // Pruned before reaching `to`; a longer completion may exist.
+                truncated = true;
                 continue;
             }
             for &c in self.children(last) {
@@ -252,13 +282,50 @@ impl Dag {
                 stack.push(next);
             }
         }
-        Ok(out)
+        Ok((out, truncated))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directed_paths_reports_max_paths_truncation() {
+        // t→c→y, t→w→b→y, t→w→a→y : three directed paths.
+        let mut g = Dag::with_variables(6);
+        for (u, v) in [(0, 4), (4, 5), (0, 1), (1, 3), (3, 5), (1, 2), (2, 5)] {
+            g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        let (t, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(5));
+
+        let (all, truncated) = g.directed_paths_with_budget(t, y, 64, 16).unwrap();
+        assert_eq!(all.len(), 3);
+        assert!(!truncated, "a budget that comfortably fits every path must not report truncation");
+
+        for cap in 1..=2 {
+            let (paths, truncated) = g.directed_paths_with_budget(t, y, cap, 16).unwrap();
+            assert_eq!(paths.len(), cap);
+            assert!(truncated, "max_paths={cap} dropped paths but reported none");
+        }
+    }
+
+    #[test]
+    fn directed_paths_reports_max_len_truncation() {
+        // Single path 0→1→2→3 needs 4 nodes; max_len=3 prunes it before it reaches the target.
+        let mut g = Dag::with_variables(4);
+        for (u, v) in [(0, 1), (1, 2), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        let (t, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(3));
+        let (paths, truncated) = g.directed_paths_with_budget(t, y, 64, 3).unwrap();
+        assert!(paths.is_empty());
+        assert!(truncated, "max_len pruned the only path but reported no truncation");
+
+        let (paths, truncated) = g.directed_paths_with_budget(t, y, 64, 4).unwrap();
+        assert_eq!(paths.len(), 1);
+        assert!(!truncated);
+    }
 
     #[test]
     fn rejects_cycles() {

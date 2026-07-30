@@ -12,6 +12,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::standard_normal;
 
+use super::parcorr_variants::MultivariatePartialCorrelation;
 use crate::ci::types::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
     SignificanceMethod,
@@ -117,6 +118,150 @@ pub fn calibrate_parcorr_like(
         alt_rejections: alt_rej,
         alpha,
     })
+}
+
+/// Run multivariate/CCA `ParCorr`-style calibration: independent Gaussian `px`-column
+/// X block and `py`-column Y block under the null, `Y` block driven by a shared linear
+/// factor of `X` under the alternative. Significance is analytic, via
+/// [`MultivariatePartialCorrelation::test_blocks`].
+///
+/// The null is unambiguous — every X and Y column is an independent standard normal
+/// and the conditioning set is empty — so a correct test must reject at ~alpha.
+///
+/// # Errors
+///
+/// Propagates CI failures.
+#[allow(clippy::many_single_char_names)]
+pub fn calibrate_multivariate_parcorr_block(
+    n: usize,
+    px: usize,
+    py: usize,
+    trials: u32,
+    alpha: f64,
+    seed: u64,
+) -> Result<CalibrationReport, StatsError> {
+    let mut ws = CiWorkspace::default();
+    let ctx = ExecutionContext::for_tests(seed);
+    let mv = MultivariatePartialCorrelation::new();
+    let mut null_rej = 0u32;
+    let mut alt_rej = 0u32;
+
+    for t in 0..trials {
+        let mut rng = ctx.rng.stream(0xCC15_u64.wrapping_add(u64::from(t)));
+        let x_cols: Vec<Vec<f64>> =
+            (0..px).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
+        let y_null: Vec<Vec<f64>> =
+            (0..py).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
+        let p_null = multivariate_block_pvalue(&mv, &x_cols, &y_null, &mut ws, &ctx)?;
+        if p_null < alpha {
+            null_rej += 1;
+        }
+
+        let y_alt: Vec<Vec<f64>> = (0..py)
+            .map(|k| {
+                let src = &x_cols[k % px];
+                src.iter().map(|&xi| 0.7 * xi + 0.3 * standard_normal(&mut rng)).collect()
+            })
+            .collect();
+        let p_alt = multivariate_block_pvalue(&mv, &x_cols, &y_alt, &mut ws, &ctx)?;
+        if p_alt < alpha {
+            alt_rej += 1;
+        }
+    }
+
+    Ok(CalibrationReport {
+        null_trials: trials,
+        null_rejections: null_rej,
+        alt_trials: trials,
+        alt_rejections: alt_rej,
+        alpha,
+    })
+}
+
+/// Type I / power for the multivariate block path under `BlockShuffle` significance.
+///
+/// Same null and alternative construction as
+/// [`calibrate_multivariate_parcorr_block`], routed through the permutation path.
+///
+/// # Errors
+///
+/// Propagates CI-test failures.
+pub fn calibrate_multivariate_parcorr_block_shuffle(
+    n: usize,
+    px: usize,
+    py: usize,
+    trials: u32,
+    alpha: f64,
+    seed: u64,
+) -> Result<CalibrationReport, StatsError> {
+    let mut ws = CiWorkspace::default();
+    let ctx = ExecutionContext::for_tests(seed);
+    let mv = MultivariatePartialCorrelation::new();
+    let sig = SignificanceMethod::BlockShuffle { replicates: 199, block_size: 1 };
+    let mut null_rej = 0u32;
+    let mut alt_rej = 0u32;
+
+    for t in 0..trials {
+        let mut rng = ctx.rng.stream(0xCC16_u64.wrapping_add(u64::from(t)));
+        let x_cols: Vec<Vec<f64>> =
+            (0..px).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
+        let y_null: Vec<Vec<f64>> =
+            (0..py).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
+        if multivariate_block_pvalue_with(&mv, &x_cols, &y_null, sig, &mut ws, &ctx)? < alpha {
+            null_rej += 1;
+        }
+
+        let y_alt: Vec<Vec<f64>> = (0..py)
+            .map(|k| {
+                let src = &x_cols[k % px];
+                src.iter().map(|&xi| 0.7 * xi + 0.3 * standard_normal(&mut rng)).collect()
+            })
+            .collect();
+        if multivariate_block_pvalue_with(&mv, &x_cols, &y_alt, sig, &mut ws, &ctx)? < alpha {
+            alt_rej += 1;
+        }
+    }
+
+    Ok(CalibrationReport {
+        null_trials: trials,
+        null_rejections: null_rej,
+        alt_trials: trials,
+        alt_rejections: alt_rej,
+        alpha,
+    })
+}
+
+fn multivariate_block_pvalue_with(
+    mv: &MultivariatePartialCorrelation,
+    x_cols: &[Vec<f64>],
+    y_cols: &[Vec<f64>],
+    significance: SignificanceMethod,
+    ws: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, StatsError> {
+    let mut cols: Vec<&[f64]> = Vec::with_capacity(x_cols.len() + y_cols.len());
+    cols.extend(x_cols.iter().map(Vec::as_slice));
+    cols.extend(y_cols.iter().map(Vec::as_slice));
+    let x_idx: Vec<usize> = (0..x_cols.len()).collect();
+    let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
+    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], significance, ws, ctx)?;
+    Ok(out.p_value)
+}
+
+fn multivariate_block_pvalue(
+    mv: &MultivariatePartialCorrelation,
+    x_cols: &[Vec<f64>],
+    y_cols: &[Vec<f64>],
+    ws: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, StatsError> {
+    let mut cols: Vec<&[f64]> = Vec::with_capacity(x_cols.len() + y_cols.len());
+    cols.extend(x_cols.iter().map(Vec::as_slice));
+    cols.extend(y_cols.iter().map(Vec::as_slice));
+    let x_idx: Vec<usize> = (0..x_cols.len()).collect();
+    let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
+    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], SignificanceMethod::Analytic, ws, ctx)?;
+    Ok(out.p_value)
 }
 
 /// Discrete G² calibration: independent categorical null + dependent alternative.
@@ -565,6 +710,207 @@ mod tests {
         assert!((report_reg.type_i_rate() - report_pc.type_i_rate()).abs() < 0.08);
         assert!(report_mv.power() > 0.40);
         assert!(report_reg.power() > 0.40);
+    }
+
+    /// Type I calibration for the block CCA path (`px, py > 1`): pins the actual,
+    /// known-biased behavior of the leading-canonical-correlation approximation
+    /// calibration for the multivariate/CCA block path.
+    ///
+    /// Mirrors `parcorr_calibration_type_i_near_alpha_and_power` for the scalar
+    /// path. Both X and Y columns are independent standard normals with an empty
+    /// conditioning set, so the null is unambiguous and a correct test must reject
+    /// at ~alpha. Loose every-PR smoke; the tighter pin and the larger block shapes
+    /// live in `multivariate_block_calibration_gate`.
+    #[test]
+    fn multivariate_block_calibration_smoke() {
+        let report = calibrate_multivariate_parcorr_block(150, 2, 2, 150, 0.05, 71).unwrap();
+        assert!(
+            report.type_i_rate() < 0.16,
+            "block ParCorr type I far above nominal 0.05: {}",
+            report.type_i_rate()
+        );
+        assert!(report.power() > 0.80, "power={}", report.power());
+    }
+
+    /// Tight Type I calibration across block shapes.
+    ///
+    /// Before the Bartlett/Wilks correction the analytic path reapplied a bivariate
+    /// t-test to the leading canonical correlation alone, giving a measured Type I
+    /// of ~0.34 at px=py=2 and ~0.81 at px=py=3 -- rising with n, so not a
+    /// small-sample artifact. This gate would have caught that immediately.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn multivariate_block_calibration_gate() {
+        let trials = 400u32;
+        let alpha = 0.05;
+        // Monte Carlo SE at alpha=0.05 over 400 trials is ~0.011, so a +/-4 SE band
+        // around nominal is [0.006, 0.094].
+        for &(n, px, py) in &[(200usize, 2usize, 2usize), (400, 2, 2), (400, 3, 3), (300, 4, 2)] {
+            let report =
+                calibrate_multivariate_parcorr_block(n, px, py, trials, alpha, 61).unwrap();
+            assert!(
+                (0.006..0.094).contains(&report.type_i_rate()),
+                "n={n} px={px} py={py}: type I {} outside +/-4 MC SE of nominal {alpha}",
+                report.type_i_rate()
+            );
+            assert!(report.power() > 0.95, "n={n} px={px} py={py}: power={}", report.power());
+        }
+    }
+
+    /// The block-shuffle path must be calibrated too.
+    ///
+    /// It previously permuted a leading-CCA projection fixed on the observed sample,
+    /// which kept that direction favourable under permutation and produced the same
+    /// anti-conservative bias as the analytic path (~0.33 at px=py=2).
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn multivariate_block_shuffle_calibration_gate() {
+        let report =
+            calibrate_multivariate_parcorr_block_shuffle(200, 2, 2, 200, 0.05, 83).unwrap();
+        assert!(
+            report.type_i_rate() < 0.12,
+            "block-shuffle type I far above nominal 0.05: {}",
+            report.type_i_rate()
+        );
+        assert!(report.power() > 0.90, "power={}", report.power());
+    }
+
+    /// AR(1) series `v[0] = N(0,1)`, `v[t] = phi*v[t-1] + sqrt(1-phi^2)*N(0,1)`
+    /// (unit marginal variance, lag-1 autocorrelation `phi`).
+    fn ar1_series(n: usize, phi: f64, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        let mut v = Vec::with_capacity(n);
+        let mut prev = standard_normal(rng);
+        v.push(prev);
+        for _ in 1..n {
+            let eps = standard_normal(rng);
+            let cur = phi * prev + (1.0 - phi * phi).sqrt() * eps;
+            v.push(cur);
+            prev = cur;
+        }
+        v
+    }
+
+    /// GPDC block-shuffle Type I error under autocorrelated, conditionally independent data.
+    ///
+    /// An exchangeable shuffle under-disperses the permutation null exactly when the residual
+    /// series carries serial dependence, inflating Type I error — precisely the autocorrelated
+    /// case `block_size` exists to protect. A null that *looks* right (finite p-values in range,
+    /// ordered null < alt) but under-disperses is indistinguishable from a correct one by
+    /// inspection alone; only a measured rejection-rate gate like this one catches it.
+    ///
+    /// Construction: Z, and independent per-arm noise `ex`/`ey`, are all AR(1) with `phi = 0.7`.
+    /// `X = 0.5*Z + ex`, `Y = 0.5*Z + ey`. Since `ex` and `ey` are drawn independently,
+    /// `X ⊥ Y | Z` holds exactly by construction — but each series, and each GP residual after Z
+    /// is removed, carries serial dependence, which is the condition under which an exchangeable
+    /// null becomes anticonservative.
+    ///
+    /// This gate is known to discriminate, measured rather than assumed: on this construction the
+    /// element-wise null (`block_size = 1`) rejects at **0.20** against nominal 0.05, while the
+    /// contiguous-block null at `block_size = 20` rejects at **0.047**. `phi = 0.7` has integral
+    /// time scale `(1 + phi) / (1 - phi) ≈ 5.7`, so a block of 20 spans ~3.5 correlation lengths
+    /// — long enough to carry the dependence — while `n = 200` still leaves 10 blocks, so the
+    /// null has ample permutation support and is not calibrated by coarseness. Blocks much longer
+    /// than this turn mildly conservative (0.02–0.03), which is valid but wastes power.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_block_shuffle_autocorrelated_type_i_gate() {
+        let trials = 200u32;
+        let alpha = 0.05;
+        let n = 200usize;
+        let phi = 0.7;
+        let block_size = 20usize;
+        let replicates = 99u32;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(89);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let gpdc = crate::ci::Gpdc::new();
+        let mut null_rej = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream(0x6165_u64.wrapping_add(u64::from(t)));
+            let z = ar1_series(n, phi, &mut rng);
+            let ex = ar1_series(n, phi, &mut rng);
+            let ey = ar1_series(n, phi, &mut rng);
+            let x: Vec<f64> = z.iter().zip(&ex).map(|(&zt, &e)| 0.5 * zt + e).collect();
+            let y: Vec<f64> = z.iter().zip(&ey).map(|(&zt, &e)| 0.5 * zt + e).collect();
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates, block_size },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = gpdc.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                null_rej += 1;
+            }
+        }
+        let type_i = f64::from(null_rej) / f64::from(trials);
+        // Three-SE band only, no additional slack: the parameters above are calibrated
+        // (measured 0.047), so widening the band would only let a regression through. The
+        // failure this guards against is inflation — 0.20 for the element-wise null — which is
+        // ~10 SE outside nominal.
+        assert!(
+            type_i_within_three_se(type_i, alpha, trials),
+            "GPDC block-shuffle type I off nominal under AR(1) data: {type_i} \
+             (n={n}, phi={phi}, block_size={block_size}, trials={trials}, alpha={alpha})"
+        );
+    }
+
+    /// `KnnDependence` block-shuffle Type I error on autocorrelated *unconditional* data.
+    ///
+    /// `KnnDependence` honours `block_size` only when the conditioning set is empty, where
+    /// `coarse_z_strata` degenerates to a single stratum holding every row in original time order
+    /// and a contiguous-block permutation is well defined. (With conditioning the strata are
+    /// rank-bin hashes scattered across time and the request is an error — see
+    /// `block_preserving_requests_honoured_or_refused_per_conditioning_set`.)
+    ///
+    /// That carve-out is a claim about calibration, so it is measured here rather than argued
+    /// from the shape of the code. X and Y are independent AR(1) series with `phi = 0.7`, so
+    /// `X ⊥ Y` holds by construction while both carry serial dependence — the condition under
+    /// which an exchangeable null becomes anticonservative. Parameters match the GPDC gate above.
+    ///
+    /// Measured, so the gate is known to discriminate: the contiguous-block null rejects at
+    /// **0.047**, the element-wise null (`block_size = 1`) at **0.12**, which fails this
+    /// assertion.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn knn_unconditional_block_shuffle_autocorrelated_type_i_gate() {
+        let trials = 200u32;
+        let alpha = 0.05;
+        let n = 200usize;
+        let phi = 0.7;
+        let block_size = 20usize;
+        let replicates = 99u32;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(31);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let knn = crate::ci::KnnDependence::new(5);
+        let mut null_rej = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream(0x4B4E_u64.wrapping_add(u64::from(t)));
+            let x = ar1_series(n, phi, &mut rng);
+            let y = ar1_series(n, phi, &mut rng);
+            let cols: [&[f64]; 2] = [&x, &y];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &[],
+                significance: SignificanceMethod::BlockShuffle { replicates, block_size },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = knn.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                null_rej += 1;
+            }
+        }
+        let type_i = f64::from(null_rej) / f64::from(trials);
+        assert!(
+            type_i_within_three_se(type_i, alpha, trials),
+            "KnnDependence unconditional block-shuffle type I off nominal under AR(1) data: \
+             {type_i} (n={n}, phi={phi}, block_size={block_size}, trials={trials}, alpha={alpha})"
+        );
     }
 
     #[test]

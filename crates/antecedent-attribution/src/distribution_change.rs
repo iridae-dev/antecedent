@@ -1,4 +1,4 @@
-//! Distribution-change attribution (pinned baseline-GCM parity; ).
+//! Distribution-change attribution (Budhathoki, Janzing, Bloebaum & Ng 2021).
 //!
 //! Fits mechanisms on baseline and comparison populations, then attributes the
 //! change in the outcome marginal to mechanism replacements via Shapley values
@@ -12,7 +12,7 @@ use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
     ShapleyConfig, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
@@ -20,7 +20,7 @@ use antecedent_model::{
 };
 use antecedent_stats::mean_var;
 
-use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::change_common::{ChangeOptions, run_change_allocation, total_change};
 use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
 use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
@@ -97,8 +97,6 @@ pub fn distribution_change(
         template: graph_model.clone(),
         baseline: baseline_mechs,
         comparison: comparison_mechs,
-        baseline_data,
-        comparison_data,
         players: players.clone(),
         player_kinds,
         outcome: outcome_dense,
@@ -157,14 +155,25 @@ pub(crate) fn mechanism_players(
     Ok(players)
 }
 
-/// Kind of Shapley player in joint change attribution.
+/// Why a node is a Shapley player in joint change attribution.
+///
+/// This records provenance, not behavior: on the [`distribution_change`] path every player
+/// is realized the same way — a coalition bit swaps that node's fitted mechanism. For a root
+/// the fitted mechanism *is* its marginal, so a mechanism swap already expresses an input
+/// change; for a non-root, swapping the conditional is the only intervention that keeps the
+/// causal factorization intact.
+///
+/// [`Input`](Self::Input) is currently unreachable here:
+/// [`require_mechanism_or_joint`] rejects [`AttributionComponents::Inputs`] before
+/// [`joint_players`] runs (that component set routes to `unit_change` instead), and
+/// [`AttributionComponents::All`] is rejected too. Only `Mechanism` and `Both` occur.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PlayerKind {
-    /// Swap fitted mechanism for this node.
+    /// Node has a fitted mechanism and is an ancestor of the outcome.
     Mechanism,
-    /// Replace observational draws with comparison/baseline empirical values.
+    /// Outcome parent reached without a mechanism player. Unreachable on this path.
     Input,
-    /// Both mechanism swap and empirical input mix.
+    /// Outcome parent that is also a mechanism player.
     Both,
 }
 
@@ -257,8 +266,6 @@ struct MechanismSwapPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
-    baseline_data: TabularData,
-    comparison_data: TabularData,
     players: Vec<ComponentId>,
     player_kinds: Vec<PlayerKind>,
     outcome: DenseNodeId,
@@ -271,24 +278,44 @@ struct MechanismSwapPayoff<'a> {
     baseline_law: Option<(f64, f64)>,
 }
 
+impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
+    fn measure(&self) -> DifferenceMeasure {
+        self.measure
+    }
+
+    fn baseline_law(&self) -> Option<(f64, f64)> {
+        self.baseline_law
+    }
+
+    fn set_baseline_law(&mut self, law: (f64, f64)) {
+        self.baseline_law = Some(law);
+    }
+
+    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+        self.sample_outcome_law(mask)
+    }
+}
+
 impl CoalitionPayoff for MechanismSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        if matches!(self.measure, DifferenceMeasure::GaussianKl) && self.baseline_law.is_none() {
-            let (mu0, var0) = self.sample_outcome_law(0)?;
-            self.baseline_law = Some((mu0, var0));
-            if mask == 0 {
-                return Ok(0.0);
-            }
-        }
-        let (mu, var) = self.sample_outcome_law(mask)?;
-        measure_value(self.measure, mask, mu, var, self.baseline_law)
+        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
     }
 }
 
 impl MechanismSwapPayoff<'_> {
+    /// Outcome law under the hybrid model selected by `mask`.
+    ///
+    /// A coalition bit means "use this player's comparison-fitted mechanism"; everything
+    /// else stays at baseline. That mechanism swap is the *only* lever, and deliberately so.
+    ///
+    /// This previously also hard-set every `Input`/`Both` player to its column mean via
+    /// `Intervention::set`, which `sample_with_overlay` realizes as `out.fill(v)` before
+    /// mechanism sampling, then `continue`s. Two consequences, both wrong: the swapped
+    /// mechanism for a `Both` player was never read (dead code), and the player's whole
+    /// distribution collapsed to a point mass, so a regime difference that preserved the
+    /// mean — a variance shift, a shape change — produced identical coalition values and was
+    /// attributed exactly zero.
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        use antecedent_core::{Intervention, Value};
-
         let store = hybrid_mechanisms(
             &self.baseline,
             &self.comparison,
@@ -297,34 +324,11 @@ impl MechanismSwapPayoff<'_> {
             &self.player_kinds,
             mask,
         );
+
         let model = self.template.clone().with_mechanisms(store);
         let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-
-        // Hard-set input/both players to the mean of the selected population.
-        let mut interventions = Vec::new();
-        for (i, &comp) in self.players.iter().enumerate() {
-            if !matches!(self.player_kinds[i], PlayerKind::Input | PlayerKind::Both) {
-                continue;
-            }
-            let data =
-                if mask & (1u64 << i) != 0 { &self.comparison_data } else { &self.baseline_data };
-            let col = data.float64_values(comp.variable())?;
-            let mean = col.iter().sum::<f64>() / col.len().max(1) as f64;
-            interventions.push(Intervention::set(comp.variable(), Value::f64(mean)));
-        }
-
-        let batch = if interventions.is_empty() {
-            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?
-        } else {
-            antecedent_model::sample_interventional(
-                &model,
-                &interventions,
-                self.n_samples.max(1),
-                &mut rng,
-                &mut self.ws,
-                self.ctx,
-            )?
-        };
+        let batch =
+            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
         let col = batch.column(self.outcome.as_usize())?;
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
@@ -334,6 +338,7 @@ impl MechanismSwapPayoff<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::change_common::measure_value;
     use antecedent_core::{
         AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder, MeasurementSpec,
         PopulationSelector, RoleHint, ShapleyConfig, SmallRoleSet, ToleranceClass, ValueType,
@@ -492,6 +497,67 @@ mod tests {
             result.total_change
         );
         assert!(result.total_change.is_finite() && result.total_change.abs() > 1.0);
+    }
+
+    /// `DifferenceMeasure::GaussianKl` end to end: exact-Shapley efficiency
+    /// (`Σφ == v(N) − v(∅) == total_change`) holds for the KL payoff exactly as it
+    /// does for `MeanDiff` — this is an algebraic identity of the coalition-cached
+    /// Shapley telescoping sum, independent of the (nonlinear) payoff shape.
+    #[test]
+    fn gaussian_kl_efficiency_holds_end_to_end() {
+        let (model, data) = two_period_chain();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::GaussianKl,
+            n_samples: 800,
+            seed: 13,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (phi_sum - result.total_change).abs() < 1e-6,
+            "Σφ={phi_sum} total_change={}",
+            result.total_change
+        );
+        // Gaussian KL >= 0 always; the +5 intercept shift on Y must register as a
+        // genuine, nonzero divergence for this test to be meaningful.
+        assert!(
+            result.total_change.is_finite() && result.total_change > 0.0,
+            "total_change={}",
+            result.total_change
+        );
+    }
+
+    /// `DifferenceMeasure::GaussianKl` payoff value, pinned against a hand-computed
+    /// closed-form Gaussian KL (not just checked for internal self-consistency).
+    /// `measure_value` is exactly the computation `MechanismSwapPayoff::value`
+    /// delegates to for the `GaussianKl` branch, so this pins the actual payoff
+    /// arithmetic that was previously untested.
+    #[test]
+    fn measure_value_gaussian_kl_matches_closed_form() {
+        // KL(N(2,3) ‖ N(0,1)) = 0.5 * (ln(1/3) + (3 + (2-0)^2)/1 - 1)
+        let expected = 0.5_f64 * ((1.0_f64 / 3.0).ln() + 7.0 - 1.0);
+        let got =
+            measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
+
+        // The all-baseline coalition (mask == 0) is defined as exactly zero
+        // divergence, regardless of the sampled (mu, var) passed in — matching
+        // `v(∅) == 0` used by the efficiency identity above.
+        let empty =
+            measure_value(DifferenceMeasure::GaussianKl, 0, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        assert!(empty.abs() < f64::EPSILON, "expected exact 0.0, got {empty}");
+
+        // Missing cached baseline law with a non-empty mask is a hard error, not a
+        // silent 0.0 — the payoff must have cached v(∅) first.
+        assert!(measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, None).is_err());
     }
 
     #[test]

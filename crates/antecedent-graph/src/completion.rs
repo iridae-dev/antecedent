@@ -75,6 +75,21 @@ impl CompletionSampler {
         self.circle_sites.len()
     }
 
+    /// Whether `max_completions` cut enumeration short with mask assignments still pending.
+    ///
+    /// Callers that reason over the *whole* Markov equivalence class — e.g. concluding an
+    /// effect is identified in every member because every member they saw was identified —
+    /// must consult this. Yielded completions are a deterministic low-mask prefix, not a
+    /// representative sample: high-index circle sites keep their `Tail` orientation
+    /// throughout the prefix, so an unexamined completion can differ structurally from
+    /// every examined one.
+    #[must_use]
+    pub fn hit_cap(&self) -> bool {
+        let n_sites = self.circle_sites.len();
+        let total = if n_sites == 0 { 1u64 } else { 1u64 << n_sites };
+        self.next_index >= self.max_completions && self.assign < total
+    }
+
     fn build_completion(&self, mask: u64) -> Option<Pag> {
         let mut g = self.base.clone();
         for (i, &(a, b, at_a_circle)) in self.circle_sites.iter().enumerate() {

@@ -15,13 +15,11 @@ def test_discover_ges_screen_pc_smoke():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.4
     y = 1.2 * t + z + rng.normal(size=n) * 0.4
-    result = antecedent.discover_ges(
-        data={"t": t, "y": y, "z": z},
+    result = antecedent.discovery.GES(
         alpha=0.2,
         fdr=False,
         screen_pc=True,
         max_subset=4,
-        seed=1,
-    )
+    ).run({"t": t, "y": y, "z": z}, seed=1)
     assert result.cpdag_nodes == 3
     assert isinstance(result.cpdag_directed_edges, int)

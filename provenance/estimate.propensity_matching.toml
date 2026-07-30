@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Large Sample Properties of Matching Estimators for Average Treatment Effects", doi = "10.1111/1468-0262.00442", sections = ["Nearest-neighbor matching estimators"] },
+ { title = "Large Sample Properties of Matching Estimators for Average Treatment Effects", doi = "10.1111/j.1468-0262.2006.00655.x", sections = ["Nearest-neighbor matching estimators"] },
+ { title = "On the Failure of the Bootstrap for Matching Estimators", doi = "10.3982/ECTA6474", sections = ["bootstrap invalidity for fixed-number-of-matches NN estimators"] },
 ]
 
 upstream_implementations_observed = [
@@ -15,5 +16,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic confounded SCM with known ATT",
- "black-box comparison against pinned DoWhy baseline (parity/dowhy.toml)",
+ "conformance/estimate/propensity_matching (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
 ]

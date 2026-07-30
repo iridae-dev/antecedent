@@ -1,6 +1,7 @@
 //! Orientation rules and local delta queues.
 //!
-//! Rules enqueue only neighbors of changed edges — never a full-graph edge scan.
+//! CPDAG completion rules R1-R4 are Meek 1995. Rules enqueue only neighbors of
+//! changed edges — never a full-graph edge scan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -197,6 +198,7 @@ impl PagOps for TemporalPag {
 
 /// Orientation-layer errors.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum OrientationError {
     /// Graph mutation failed.
     #[error(transparent)]
@@ -345,6 +347,43 @@ impl OrientationState {
         self.conflicts = self.conflicts.saturating_add(1);
         delta.conflicts = delta.conflicts.saturating_add(1);
         delta.premises.push(Arc::from(format!("conflict({kind}): {}—{}", key.0, key.1)));
+    }
+}
+
+/// Classification of a candidate collider leg `endpoint — c`, re-read against staleness.
+///
+/// Collider orientation snapshots each center's `legs` once before its nested pair loop
+/// runs, so a leg flagged undirected in that snapshot may already have been oriented (or
+/// conflicted) by an earlier pair in the same loop that shares it — the guard whose absence
+/// let a stale leg get re-oriented, tripping `orient_undirected`'s "already directed"
+/// precondition. Callers must re-read the edge via [`classify_collider_leg`] before acting on
+/// it, rather than trusting the snapshot.
+pub(crate) enum ColliderLegState {
+    /// Edge already oriented `endpoint → c` by an earlier pair sharing this leg, or already
+    /// pinned as a conflict by one — consistent with this collider's conclusion, nothing to do.
+    Settled,
+    /// Edge already oriented `c → endpoint` — the opposite direction; a conflict must be
+    /// recorded.
+    Opposite,
+    /// Edge still undirected (or otherwise unresolved) — safe to orient `endpoint → c`.
+    Undirected,
+}
+
+/// Re-read the current state of edge `endpoint — c` and classify it for the stale-legs
+/// collider guard (see [`ColliderLegState`]).
+pub(crate) fn classify_collider_leg<G: CpdagOps>(
+    graph: &G,
+    endpoint: DenseNodeId,
+    c: DenseNodeId,
+) -> ColliderLegState {
+    let current = graph.edge_between(endpoint, c);
+    let oriented = current.and_then(MarkedEdge::parent_child);
+    if oriented == Some((endpoint, c)) || current.is_some_and(MarkedEdge::is_conflict) {
+        ColliderLegState::Settled
+    } else if oriented == Some((c, endpoint)) {
+        ColliderLegState::Opposite
+    } else {
+        ColliderLegState::Undirected
     }
 }
 
@@ -966,17 +1005,51 @@ fn apply_orient_collider<G: CpdagOps>(
                             }
                         }
                         LegKind::Undirected => {
-                            let premise = format!(
-                                "collider: {}→{}←{} (c not in sepset)",
-                                a.raw(),
-                                c.raw(),
-                                b.raw()
-                            );
-                            if try_orient_undirected(
-                                graph, state, &mut delta, endpoint, *c, premise,
-                            )? {
-                                changed.push(endpoint);
-                                changed.push(*c);
+                            // `legs` was snapshotted once per center `c` before this
+                            // nested loop started, so a leg recorded `Undirected` here
+                            // may have already been oriented (or conflicted) by an
+                            // earlier pair in this same loop that shares the leg.
+                            // Re-read the edge's current state via
+                            // `classify_collider_leg` instead of trusting the stale
+                            // `kind`.
+                            match classify_collider_leg(graph, endpoint, *c) {
+                                ColliderLegState::Settled => {
+                                    // Already oriented endpoint → c by an earlier pair
+                                    // sharing this leg, or already pinned as a conflict
+                                    // by one; either way, consistent with this
+                                    // collider's conclusion (or a prior conflict) —
+                                    // nothing to do.
+                                }
+                                ColliderLegState::Opposite => {
+                                    // Oriented the opposite way — conflict, same
+                                    // handling as the `LegKind::OutOfC` arm above.
+                                    state.record_conflict(
+                                        &mut delta,
+                                        endpoint,
+                                        *c,
+                                        "opposite_direction",
+                                    );
+                                    if graph.mark_conflict(endpoint, *c).is_ok() {
+                                        delta.edges_changed += 1;
+                                        delta.fixed_point = false;
+                                        changed.push(endpoint);
+                                        changed.push(*c);
+                                    }
+                                }
+                                ColliderLegState::Undirected => {
+                                    let premise = format!(
+                                        "collider: {}→{}←{} (c not in sepset)",
+                                        a.raw(),
+                                        c.raw(),
+                                        b.raw()
+                                    );
+                                    if try_orient_undirected(
+                                        graph, state, &mut delta, endpoint, *c, premise,
+                                    )? {
+                                        changed.push(endpoint);
+                                        changed.push(*c);
+                                    }
+                                }
                             }
                         }
                         LegKind::IntoC => {}

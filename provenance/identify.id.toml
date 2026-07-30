@@ -1,0 +1,20 @@
+feature_id = "identify.id"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", sections = ["Algorithm ID"] },
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "clean-room Shpitser-Pearl ID recursion oracle (conformance/identify/id_hedge)",
+ "black-box comparison against DoWhy general identify() (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
+ "inline unit tests (crates/antecedent-identify/src/id.rs)",
+]

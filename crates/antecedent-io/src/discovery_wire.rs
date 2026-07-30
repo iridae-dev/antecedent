@@ -206,7 +206,7 @@ pub fn discovery_dag_from_sections(
             p_value: e.p_value,
             adjusted_p_value: e.adjusted_p_value,
             interval: e.interval,
-            separating_sets: Arc::from([]),
+            separating_set: None,
             provenance: e
                 .provenance
                 .iter()

@@ -91,7 +91,15 @@ impl GraphRefuter {
         let mut worst_dropped = problem.estimand.adjustment_set[0];
         for drop_idx in 0..problem.estimand.adjustment_set.len() {
             let reduced = drop_adjustment_at(problem.estimand, drop_idx);
-            let est = refit_effect(problem, problem.data, &reduced, &[], workspace, ctx)?;
+            let est = refit_effect(
+                problem,
+                problem.data,
+                &reduced,
+                &[],
+                &self.estimator,
+                workspace,
+                ctx,
+            )?;
             // Relative change with an sd-based floor on the denominator: a near-zero original
             // estimate that moves materially when a covariate is dropped is set-sensitive.
             let delta =

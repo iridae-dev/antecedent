@@ -51,7 +51,13 @@ class Latency(StrEnum):
 
 
 class Refute(StrEnum):
-    """Refutation suite ids (also accept ``bool`` at call sites)."""
+    """Refutation suite ids.
+
+    Call sites also accept ``bool`` at the ``False`` value only (meaning "no
+    refutation"); ``refute=True`` is rejected — it names no suite, so pass a
+    member of this enum (or the equivalent string) instead. See
+    :func:`antecedent._coerce.coerce_refute`.
+    """
 
     FULL = "full"
     PLACEBO = "placebo"

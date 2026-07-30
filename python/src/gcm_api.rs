@@ -35,7 +35,7 @@ use pyo3::types::PyModule;
 
 use crate::{
     GcmIteResult, GcmSampleResult, columns_to_batch, dag_from_named_edges, detach_catch, py_err,
-    py_execution_context,
+    py_execution_context, py_msg,
 };
 
 fn var_name(names: &[String], id: VariableId) -> String {
@@ -209,8 +209,13 @@ pub struct MechanismChangeDetection {
     pub node: String,
     #[pyo3(get)]
     pub statistic: f64,
+    /// Raw per-target p-value, before any multiple-testing correction.
     #[pyo3(get)]
     pub p_value: f64,
+    /// P-value after the correction applied across the target family, or `None` when no
+    /// correction was applied. `changed` is decided from this when present.
+    #[pyo3(get)]
+    pub adjusted_p_value: Option<f64>,
     #[pyo3(get)]
     pub changed: bool,
 }
@@ -219,8 +224,9 @@ pub struct MechanismChangeDetection {
 impl MechanismChangeDetection {
     fn __repr__(&self) -> String {
         format!(
-            "MechanismChangeDetection(node={:?}, statistic={}, p_value={}, changed={})",
-            self.node, self.statistic, self.p_value, self.changed
+            "MechanismChangeDetection(node={:?}, statistic={}, p_value={}, \
+             adjusted_p_value={:?}, changed={})",
+            self.node, self.statistic, self.p_value, self.adjusted_p_value, self.changed
         )
     }
 }
@@ -392,23 +398,45 @@ impl PyFittedGcm {
             .collect()
     }
 
-    /// Interventional ancestral sample under hard `do` values.
-    #[pyo3(signature = (interventions, n, *, seed=0, threads=1))]
+    /// Interventional ancestral sample under hard `do` values and/or additive shifts.
+    ///
+    /// `interventions` pins named variables to absolute values (`do(X := v)`).
+    /// `shifts` (optional) instead adds a delta to a variable's structural
+    /// assignment (`do(X := X + delta)`) without pinning it — useful for probing
+    /// a mechanism's sensitivity rather than overriding it outright. A variable
+    /// named in both maps is rejected: it cannot be simultaneously pinned and
+    /// shifted.
+    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=1))]
     fn sample_do(
         &self,
         py: Python<'_>,
         interventions: HashMap<String, f64>,
         n: usize,
+        shifts: Option<HashMap<String, f64>>,
         seed: u64,
         threads: u32,
     ) -> PyResult<GcmSampleResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
         let (flat, n_rows, n_nodes) = detach_catch(py, move || {
-            let mut ints = Vec::with_capacity(interventions.len());
-            for (name, value) in interventions {
+            if let Some(shifts) = &shifts {
+                if let Some(name) = interventions.keys().find(|k| shifts.contains_key(*k)) {
+                    return Err(py_msg(format!(
+                        "variable {name:?} is present in both `interventions` and `shifts`; \
+                         a variable cannot be simultaneously pinned (do(X := v)) and shifted \
+                         (do(X := X + delta))"
+                    )));
+                }
+            }
+            let mut ints =
+                Vec::with_capacity(interventions.len() + shifts.as_ref().map_or(0, HashMap::len));
+            for (name, value) in &interventions {
+                let id = data.schema().id_of(name).map_err(py_err)?;
+                ints.push(Intervention::set(id, Value::f64(*value)));
+            }
+            for (name, delta) in shifts.into_iter().flatten() {
                 let id = data.schema().id_of(&name).map_err(py_err)?;
-                ints.push(Intervention::set(id, Value::f64(value)));
+                ints.push(Intervention::shift(id, Value::f64(delta)));
             }
             let ctx = Self::ctx(seed, threads);
             let mut rng = CausalRng::from_seed(seed);
@@ -813,6 +841,7 @@ impl PyFittedGcm {
                     node: var_name(&names, d.variable),
                     statistic: d.statistic,
                     p_value: d.p_value,
+                    adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
                 })
                 .collect())

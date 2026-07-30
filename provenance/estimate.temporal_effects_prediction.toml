@@ -5,8 +5,19 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+# Robins (1986) is the origin of the g-computation substitution principle, but
+# its actual content is iterated g-computation for survival analysis with
+# time-varying confounders affected by earlier treatment (the healthy-worker
+# survivor effect). `prediction.rs:42-113` does none of that: it fits one
+# lag-1 OLS equation once and clamps the intervened column for a one-shot
+# plug-in into a static fitted equation — no iteration, no confounders
+# affected by prior treatment. `sections` below is scoped to disclaim the
+# iterated/time-varying machinery this module does not implement. Pearl's
+# *Causality* is added as the more literal match for the do-operator /
+# truncated-factorization semantics that "clamp then evaluate" actually is.
 papers = [
- { title = "Tigramite causal effects", sections = ["direct/total/mediated/prediction"] },
+ { title = "A new approach to causal inference in mortality studies with a sustained exposure period—application to control of the healthy worker survivor effect", doi = "10.1016/0270-0255(86)90088-6", sections = ["g-computation substitution principle only — this module does not implement the paper's iterated g-formula for time-varying, treatment-affected confounders"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["do-operator / truncated factorization (single-shot intervention-and-predict)"] },
 ]
 
 upstream_implementations_observed = [
@@ -14,5 +25,5 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "prediction intervene-and-predict unit test",
+ "crates/antecedent-estimate/src/prediction.rs unit test `intervene_and_predict_batch` (lag-1 linear SEM, batch predict under do())",
 ]

@@ -1,4 +1,4 @@
-//! Propensity-based estimators: weighting, stratification, and matching .
+//! Propensity-based estimators: weighting, stratification, and matching.
 //!
 //! All estimators here require propensity-based positivity diagnostics
 //! ([`OverlapPolicy::RequireDiagnostics`]) — [`OverlapPolicy::ExplicitOverride`] is refused
@@ -34,7 +34,7 @@ mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
-pub use matching::PropensityMatching;
+pub use matching::{CaliperScale, PropensityMatching};
 pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap,
@@ -45,6 +45,30 @@ pub(crate) use prepare::{
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;
+
+use crate::overlap::{IpwTarget, OverlapReport};
+
+/// Build the mandatory positivity [`OverlapReport`] shared by every propensity-based
+/// estimator's `fit`, from a prepared problem's `overlap`/`treatment`/`target_weights` fields.
+///
+/// `weights` carries computed IPW weights when the caller has them on hand — only
+/// [`weighting::PropensityWeighting`] does; every other propensity estimator (and AIPW) passes
+/// `None`.
+pub(crate) fn propensity_overlap_report(
+    problem: &PreparedPropensityProblem,
+    scores: &[f64],
+    weights: Option<&[f64]>,
+    ipw_target: Option<IpwTarget>,
+) -> OverlapReport {
+    OverlapReport::from_propensities(
+        scores,
+        weights,
+        problem.overlap,
+        Some(&problem.treatment),
+        ipw_target,
+        problem.target_weights.as_deref(),
+    )
+}
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]

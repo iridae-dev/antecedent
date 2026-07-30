@@ -59,7 +59,8 @@ pub fn sample_interventional(
 ///
 /// # Errors
 ///
-/// Mechanism failures.
+/// Mechanism failures, or an overlay with a node both hard-set and shifted
+/// (see [`InterventionOverlay::validate`]).
 pub fn sample_with_overlay(
     view: &ModelView<'_>,
     n_rows: usize,
@@ -69,6 +70,10 @@ pub fn sample_with_overlay(
     if n_rows == 0 {
         return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
     }
+    // Overlays reaching here need not have come from `from_interventions` — this is a
+    // public entry point taking a caller-built `ModelView`, so the invariant the hard-set
+    // branch below relies on is re-established rather than assumed.
+    view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
     let mut values_buf = vec![0.0; n_rows * n_nodes];
@@ -155,6 +160,19 @@ pub fn sample_conditional_interventional(
         if overlay.hard_set[idx].is_some() {
             return Err(ModelError::Unsupported {
                 message: "cannot condition on a hard-intervened node".into(),
+            });
+        }
+        // A soft/stochastic override on a condition node would make the importance weight
+        // below (`sample_conditional_interventional_lw`) inconsistent: the proposal draws
+        // for that node come from `overlay.soft`/`overlay.stochastic`, but the weight is
+        // computed against the model's *original* mechanism
+        // (`log_prob_column(model.mechanisms.get(node), ...)`), which never consults the
+        // overlay. That mismatch would silently bias the conditional estimate instead of
+        // erroring, so reject it here — matching the hard-set posture above — rather than
+        // letting it through.
+        if overlay.soft[idx].is_some() || overlay.stochastic[idx].is_some() {
+            return Err(ModelError::Unsupported {
+                message: "cannot condition on a soft- or stochastic-intervened node".into(),
             });
         }
     }
@@ -544,13 +562,15 @@ pub fn sample_stochastic(
 ///
 /// # Errors
 ///
-/// Mechanism failures.
+/// Mechanism failures, or an overlay with a node both hard-set and shifted
+/// (see [`InterventionOverlay::validate`]).
 pub fn sample_structural_with_overlay(
     view: &ModelView<'_>,
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<(ValueBatch, Vec<f64>), ModelError> {
+    view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
     let mut noise_buf = vec![0.0; n_rows * n_nodes];
@@ -673,5 +693,38 @@ mod tests {
         .unwrap();
         let col = batch.column(0).unwrap();
         assert!(col.iter().all(|&v| (v - 3.0).abs() < 1e-12));
+    }
+
+    /// Conditioning on a node that is *also* named with a `Stochastic` (or `Soft`) override
+    /// must be refused, matching the existing hard-set posture.
+    ///
+    /// Without this check, `sample_conditional_interventional_lw` would draw the condition
+    /// node's proposal values from the overlay's stochastic policy, but weight them under
+    /// `model.mechanisms.get(node)` -- the model's *original*, un-overridden mechanism. That
+    /// mismatch between what generated the draws and what scores them is an internally
+    /// inconsistent importance weight, silently biasing the conditional estimate instead of
+    /// erroring.
+    #[test]
+    fn conditioning_on_stochastic_intervened_node_is_refused() {
+        let model = fitted_chain();
+        let mut rng = CausalRng::from_seed(1);
+        let mut ws = MechanismWorkspace::default();
+        let y = VariableId::from_raw(1);
+        let y_node = DenseNodeId::from_raw(1);
+        let err = sample_conditional_interventional(
+            &model,
+            &[Intervention::Stochastic {
+                variable: y,
+                policy: StochasticPolicy::Gaussian { mean: 0.0, variance: 1.0 },
+            }],
+            &[y_node],
+            &[0.5],
+            10,
+            &mut rng,
+            &mut ws,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ModelError::Unsupported { .. }), "expected Unsupported, got {err:?}");
     }
 }

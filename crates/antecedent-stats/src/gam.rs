@@ -395,8 +395,15 @@ pub fn fit_gam(
             }
 
             if iter == 1 {
+                // `roughness_edf` is tr(S₁) for the *uncentered* smoother S₁ = B(BᵀB+λP)⁻¹Bᵀ.
+                // The B-spline basis is a partition of unity and P annihilates constant
+                // coefficient vectors, so S₁·1 = 1 exactly for every λ — the constant is an
+                // eigenvector with eigenvalue 1. The centering step above projects that
+                // direction out, so the smoother actually applied has tr(S₁) − 1 degrees of
+                // freedom. Without the −1 the constant is counted twice (once here, once in
+                // the intercept) and edf_approx runs high by exactly one per smooth term.
                 edf_approx +=
-                    roughness_edf(basis, nrows, spec.n_basis, lambda, &mut workspace.gram)?;
+                    roughness_edf(basis, nrows, spec.n_basis, lambda, &mut workspace.gram)? - 1.0;
             }
         }
         selected_lambda = true;
@@ -814,6 +821,67 @@ fn select_lambda_gcv(
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
+
+    /// `edf_approx` must equal the trace of the smoother actually applied.
+    ///
+    /// A GAM fit is a linear operator `fitted = H·y`, and effective degrees of freedom *is*
+    /// `tr(H)`. That makes this measurable without reimplementing anything: perturb `y[i]`,
+    /// refit, and read `∂fitted[i]/∂y[i]` off the difference. This is an independent check —
+    /// the conformance fixture's `edf` field is regenerated from this same code path, so it
+    /// cannot arbitrate its own correctness.
+    ///
+    /// The smooths are mean-centered (the intercept absorbs the level), and because the
+    /// B-spline basis is a partition of unity with constants in the penalty's null space,
+    /// each uncentered `tr(S₁)` already includes that constant. Counting the intercept
+    /// separately on top of it inflates the total by one per smooth term.
+    #[test]
+    fn edf_approx_matches_finite_difference_operator_trace() {
+        fn fit_for(y: &[f64], x: &[f64], nrows: usize, specs: &[SmoothSpec]) -> GamFit {
+            let mut ws = GamWorkspace::default();
+            fit_gam(
+                x,
+                nrows,
+                1,
+                y,
+                specs,
+                &GamOptions { max_iter: 5000, tol: 1e-12 },
+                &FaerBackend,
+                &mut ws,
+            )
+            .unwrap()
+        }
+
+        let nrows = 60usize;
+        let x: Vec<f64> = linspace(nrows, 0.0, 1.0);
+        let y: Vec<f64> =
+            x.iter().enumerate().map(|(i, &v)| (3.0 * v).sin() + 0.05 * (i % 7) as f64).collect();
+
+        for n_basis in [6usize, 10] {
+            for lambda in [0.01f64, 1.0, 25.0] {
+                let specs = [SmoothSpec::new(0, n_basis, lambda)];
+                let base = fit_for(&y, &x, nrows, &specs);
+
+                // tr(H) = Σ_i ∂fitted[i]/∂y[i], by central difference.
+                let h = 1e-6;
+                let mut trace = 0.0;
+                for i in 0..nrows {
+                    let mut up = y.clone();
+                    up[i] += h;
+                    let mut down = y.clone();
+                    down[i] -= h;
+                    let fu = fit_for(&up, &x, nrows, &specs);
+                    let fd = fit_for(&down, &x, nrows, &specs);
+                    trace += (fu.fitted[i] - fd.fitted[i]) / (2.0 * h);
+                }
+
+                assert!(
+                    (base.edf_approx - trace).abs() < 1e-4,
+                    "n_basis={n_basis} lambda={lambda}: edf_approx={} but measured tr(H)={trace}",
+                    base.edf_approx
+                );
+            }
+        }
+    }
 
     fn linspace(n: usize, a: f64, b: f64) -> Vec<f64> {
         (0..n).map(|i| a + (b - a) * (i as f64) / (n - 1) as f64).collect()

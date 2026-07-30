@@ -89,9 +89,16 @@ impl TemporalDag {
     /// node is always a [`GraphError::Cycle`]; lagged self-influence is modeled
     /// as an edge between two distinct nodes (e.g. `X@t-1 -> X@t`).
     ///
+    /// `from`'s lag must be greater than or equal to `to`'s lag: larger `Lag`
+    /// values sit further in the past (`Lag::CONTEMPORANEOUS` is the present),
+    /// so an edge is only valid running from the past (or same time) toward the
+    /// present. An edge whose source is nearer the present than its target
+    /// would point from the future into the past and is rejected.
+    ///
     /// # Errors
     ///
-    /// Unknown nodes, duplicates, cycles, or contemporaneous self-edges.
+    /// Unknown nodes, duplicates, cycles, contemporaneous self-edges, or edges
+    /// that point from the future into the past.
     pub fn insert_directed(
         &mut self,
         from: DenseNodeId,
@@ -106,6 +113,14 @@ impl TemporalDag {
         {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
+            }
+            if l1 < l2 {
+                return Err(GraphError::FutureToPast {
+                    from: from.raw(),
+                    to: to.raw(),
+                    from_lag: l1,
+                    to_lag: l2,
+                });
             }
         }
         if self.children[from.as_usize()].contains(&to) {
@@ -192,5 +207,14 @@ mod tests {
         let now = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         g.insert_directed(past, now).unwrap();
         assert!(g.reaches(past, now));
+    }
+
+    #[test]
+    fn rejects_future_to_past_edge() {
+        let mut g = TemporalDag::empty();
+        let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        // `now` (lag 0) -> `past` (lag 1) points from the present into the past.
+        assert!(matches!(g.insert_directed(now, past), Err(GraphError::FutureToPast { .. })));
     }
 }

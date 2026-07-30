@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Causal Inference in Statistics: A Primer", doi = "10.1002/9781119186844", sections = ["CPDAG / equivalence"] },
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["same-skeleton / same-v-structure Markov equivalence characterization"] },
+ { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation rules / MPDAG completion"] },
 ]
 
 upstream_implementations_observed = [

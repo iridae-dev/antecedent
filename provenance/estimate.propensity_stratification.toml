@@ -15,5 +15,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic confounded SCM with known ATE",
- "black-box comparison against pinned DoWhy baseline (parity/dowhy.toml)",
+ "conformance/estimate/propensity_stratification (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
 ]

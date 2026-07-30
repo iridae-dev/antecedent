@@ -45,12 +45,6 @@ impl PairwiseMultivariateCi {
         Self { inner: MultivariatePartialCorrelation::new(), column_blocks }
     }
 
-    /// Legacy alias for [`Self::with_column_blocks`] using only the X-side lists as blocks.
-    #[must_use]
-    pub fn with_blocks(x_blocks: Arc<[Arc<[usize]>]>, _y_blocks: Arc<[Arc<[usize]>]>) -> Self {
-        Self::with_column_blocks(x_blocks)
-    }
-
     fn expand_endpoint(&self, col: usize) -> Vec<usize> {
         for block in self.column_blocks.iter() {
             if block.iter().any(|&c| c == col) {

@@ -1,6 +1,6 @@
-//! Structural process generators for conformance / toys .
+//! Structural process generators for conformance fixtures and toy examples.
 //!
-//! Full SCM mechanism registry is ; this module covers lagged linear
+//! The full SCM mechanism registry lives in `antecedent-model`; this module covers lagged linear
 //! processes with known parents for fixtures and notebooks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

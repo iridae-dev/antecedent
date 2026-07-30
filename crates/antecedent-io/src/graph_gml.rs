@@ -11,6 +11,7 @@ use antecedent_graph::Dag;
 
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
+use crate::graph_dot;
 use crate::wire::DagWire;
 
 /// Parse a GML digraph into a [`Dag`].
@@ -19,7 +20,22 @@ use crate::wire::DagWire;
 ///
 /// Malformed GML, undirected graphs, cycles.
 pub fn dag_from_gml(gml: &str) -> Result<Dag, IoError> {
-    dag_from_wire(&dag_wire_from_gml(gml)?)
+    dag_with_names_from_gml(gml).map(|(dag, _names)| dag)
+}
+
+/// Parse a GML digraph into a [`Dag`] plus its node labels.
+///
+/// Labels are returned in dense-id order. When every label is numeric and
+/// forms a contiguous `0..n` set, dense ids follow those numeric values and
+/// the returned names are the dense-index strings, since the document
+/// carries no distinct name information in that case.
+///
+/// # Errors
+///
+/// Malformed GML, undirected graphs, cycles.
+pub fn dag_with_names_from_gml(gml: &str) -> Result<(Dag, Vec<String>), IoError> {
+    let (wire, names) = dag_wire_and_names_from_gml(gml)?;
+    Ok((dag_from_wire(&wire)?, names))
 }
 
 /// Serialize a [`Dag`] to GML.
@@ -37,6 +53,11 @@ pub fn dag_to_gml(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError
 ///
 /// Malformed / undirected GML.
 pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
+    dag_wire_and_names_from_gml(gml).map(|(wire, _names)| wire)
+}
+
+/// Parse GML into [`DagWire`] plus node labels in dense-id order.
+fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoError> {
     let tokens = tokenize(gml)?;
     let mut i = 0;
     expect_ident(&tokens, &mut i, "graph")?;
@@ -74,7 +95,7 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
                 expect_char(&tokens, &mut i, ']')?;
                 let name =
                     label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
-                intern(&name, &mut order, &mut index)?;
+                graph_dot::intern(&name, &mut order, &mut index)?;
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
                 i += 1;
@@ -93,8 +114,8 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
                 expect_char(&tokens, &mut i, ']')?;
                 let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
                 let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-                let from = intern(&s, &mut order, &mut index)?;
-                let to = intern(&t, &mut order, &mut index)?;
+                let from = graph_dot::intern(&s, &mut order, &mut index)?;
+                let to = graph_dot::intern(&t, &mut order, &mut index)?;
                 edges.push((from, to));
             }
             Tok::Ident(_) => {
@@ -118,8 +139,18 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
     }
 
     // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    let wire = remap_numeric_if_possible(&order, &edges);
-    Ok(wire)
+    match graph_dot::remap_numeric_dense(&order, &edges)? {
+        // Dense id == numeric label in this case, so the label carries no
+        // information beyond the dense index; fall back to index strings.
+        Some(wire) => {
+            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+            Ok((wire, names))
+        }
+        None => {
+            let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+            Ok((DagWire { node_count, edges }, order))
+        }
+    }
 }
 
 /// Emit GML from wire.
@@ -137,45 +168,6 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     }
     out.push(']');
     out
-}
-
-fn remap_numeric_if_possible(order: &[String], edges: &[(u32, u32)]) -> DagWire {
-    let Ok(n) = u32::try_from(order.len()) else {
-        return DagWire { node_count: 0, edges: edges.to_vec() };
-    };
-    let all_numeric = order.iter().all(|s| s.parse::<u32>().is_ok());
-    if all_numeric {
-        let mut vals: Vec<u32> = order.iter().map(|s| s.parse().unwrap()).collect();
-        vals.sort_unstable();
-        if vals.iter().copied().eq(0..n) {
-            let mut map = HashMap::new();
-            for (i, s) in order.iter().enumerate() {
-                if let Ok(i_u32) = u32::try_from(i) {
-                    map.insert(i_u32, s.parse::<u32>().unwrap());
-                }
-            }
-            let edges = edges
-                .iter()
-                .map(|&(a, b)| (*map.get(&a).unwrap(), *map.get(&b).unwrap()))
-                .collect();
-            return DagWire { node_count: n, edges };
-        }
-    }
-    DagWire { node_count: n, edges: edges.to_vec() }
-}
-
-fn intern(
-    name: &str,
-    order: &mut Vec<String>,
-    index: &mut HashMap<String, u32>,
-) -> Result<u32, IoError> {
-    if let Some(&id) = index.get(name) {
-        return Ok(id);
-    }
-    let id = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    order.push(name.to_owned());
-    index.insert(name.to_owned(), id);
-    Ok(id)
 }
 
 #[derive(Debug)]
@@ -332,6 +324,26 @@ mod tests {
         let out = dag_to_gml(&dag, Some(&["Z".into(), "X".into(), "Y".into()])).unwrap();
         let back = dag_from_gml(&out).unwrap();
         assert_eq!(back.node_count(), 3);
+    }
+
+    #[test]
+    fn with_names_round_trip_preserves_labels() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let names = vec!["x".to_string(), "y".to_string()];
+        let s = dag_to_gml(&dag, Some(&names)).unwrap();
+        let (back, back_names) = dag_with_names_from_gml(&s).unwrap();
+        assert_eq!(back.node_count(), 2);
+        assert_eq!(back_names, names);
+    }
+
+    #[test]
+    fn with_names_nameless_falls_back_to_dense_index() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let s = dag_to_gml(&dag, None).unwrap();
+        let (_back, names) = dag_with_names_from_gml(&s).unwrap();
+        assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
     }
 
     #[test]

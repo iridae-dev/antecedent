@@ -31,7 +31,7 @@ use crate::backend::{
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{GaussianTarget, PosteriorTarget, gaussian_target_from_model};
-use crate::laplace::{accumulate_likelihood, log_posterior_value, validate_design};
+use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
 use crate::mcmc_stats::{all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
@@ -924,8 +924,9 @@ mod tests {
             backend_id: Arc::from("hmc"),
             n_chains: Some(4),
             n_warmup: Some(100),
-            ess_bulk_min: Some(200.0),
-            ess_tail_min: Some(150.0),
+            // Healthy for the 4 chains below: the gate requires ~100 bulk/tail ESS per chain.
+            ess_bulk_min: Some(500.0),
+            ess_tail_min: Some(450.0),
             rhat_max: Some(1.0),
             n_divergences: Some(1),
             mean_accept_prob: Some(0.8),

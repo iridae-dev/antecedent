@@ -141,6 +141,51 @@ pub(crate) struct DiscoveredLink {
     /// Benjamini–Hochberg adjusted p-value when FDR ran; otherwise `None`.
     #[pyo3(get)]
     pub(crate) adjusted_p_value: Option<f64>,
+    /// Conditioning set recorded for this exact `(source, source_lag) -> target` pair,
+    /// as `(variable_name, lag)` pairs. Empty when the discovery run never recorded one
+    /// for this pair.
+    ///
+    /// Sourced from the discovery algorithm's separating-set map (keyed uniquely per
+    /// link, one set per key — never a list of alternative sets in the current PC /
+    /// PCMCI-family implementations, so this is exposed as a single set rather than a
+    /// list of sets). Semantics differ by algorithm and by whether the link survived:
+    ///
+    /// - PC / GES / FCI / RFCI / PCMCI+ / J-PCMCI+: a non-empty set here would mean the
+    ///   pair was found conditionally independent and removed, which is mutually
+    ///   exclusive with the link being retained (present in `links`) — so a *retained*
+    ///   link from these algorithms always reports an empty conditioning set here.
+    /// - Plain PCMCI: the PC1 phase records this set purely to prune conditioning
+    ///   candidates (`pa(target)`), not to test-and-remove the exact `(source,
+    ///   source_lag) -> target` link — MCI re-tests every candidate pair with its own
+    ///   (different) conditioning set regardless of the PC1 outcome. So a *retained*
+    ///   plain-PCMCI link can legitimately show a non-empty set here; it documents which
+    ///   candidate parents were pruned during PC1, not a separation certificate for the
+    ///   retained link's own MCI test.
+    /// - LPCMCI: the scored-link and separating-set accumulators are reconciled against
+    ///   the final PAG before being returned, so every entry in `links` corresponds to
+    ///   an edge in `graph_edges`, and a non-empty set here is populated only for a pair
+    ///   actually separated in the final PAG.
+    #[pyo3(get)]
+    pub(crate) conditioning_set: Vec<(String, u32)>,
+}
+
+#[pymethods]
+impl DiscoveredLink {
+    fn __repr__(&self) -> String {
+        format!(
+            "DiscoveredLink({}{} -> {}{}, p={:.3})",
+            self.source,
+            lagged_node_suffix(self.source_lag),
+            self.target,
+            lagged_node_suffix(self.target_lag),
+            self.p_value
+        )
+    }
+}
+
+/// Format a lag as ``"[t]"`` (lag 0) or ``"[t-N]"`` (lag > 0), for `__repr__` use.
+fn lagged_node_suffix(lag: u32) -> String {
+    if lag == 0 { "[t]".to_string() } else { format!("[t-{lag}]") }
 }
 
 /// Coarse-grained PCMCI discovery result (single boundary crossing).
@@ -175,6 +220,18 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
+}
+
+#[pymethods]
+impl PcmciDiscoveryResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "PcmciDiscoveryResult(algorithm={:?}, links={}, ci_tests={})",
+            self.algorithm_id,
+            self.links.len(),
+            self.ci_tests
+        )
+    }
 }
 
 pub(crate) fn series_from_batch(
@@ -230,23 +287,46 @@ pub(crate) fn tabular_from_batch(
     Ok((tabular, variables))
 }
 
-fn discovered_links(names: &[String], links: &[ScoredLink]) -> Vec<DiscoveredLink> {
+/// Resolve a `LaggedParent` conditioning set to Python-friendly `(variable_name, lag)` pairs.
+fn conditioning_set_parts(names: &[String], set: &[LaggedParent]) -> Vec<(String, u32)> {
+    set.iter()
+        .map(|&(variable, lag)| {
+            let name = names
+                .get(variable.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", variable.raw()));
+            (name, lag.raw())
+        })
+        .collect()
+}
+
+fn discovered_links(
+    names: &[String],
+    links: &[ScoredLink],
+    sepsets: &PcSepsets,
+) -> Vec<DiscoveredLink> {
     links
         .iter()
-        .map(|s| DiscoveredLink {
-            source: names
-                .get(s.link.source.as_usize())
-                .cloned()
-                .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
-            source_lag: s.link.source_lag.raw(),
-            target: names
-                .get(s.link.target.as_usize())
-                .cloned()
-                .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
-            target_lag: s.link.target_lag.raw(),
-            statistic: s.statistic,
-            p_value: s.p_value,
-            adjusted_p_value: s.adjusted_p_value,
+        .map(|s| {
+            let key = (s.link.source, s.link.source_lag, s.link.target, s.link.target_lag);
+            let conditioning_set =
+                sepsets.get(&key).map(|set| conditioning_set_parts(names, set)).unwrap_or_default();
+            DiscoveredLink {
+                source: names
+                    .get(s.link.source.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
+                source_lag: s.link.source_lag.raw(),
+                target: names
+                    .get(s.link.target.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
+                target_lag: s.link.target_lag.raw(),
+                statistic: s.statistic,
+                p_value: s.p_value,
+                adjusted_p_value: s.adjusted_p_value,
+                conditioning_set,
+            }
         })
         .collect()
 }
@@ -254,6 +334,7 @@ fn discovered_links(names: &[String], links: &[ScoredLink]) -> Vec<DiscoveredLin
 fn discovery_result_fields(
     names: &[String],
     links: &[ScoredLink],
+    sepsets: &PcSepsets,
     algorithm_id: &str,
     algorithm_config: &str,
     performance: &DiscoveryPerformanceRecord,
@@ -265,7 +346,7 @@ fn discovery_result_fields(
     graph_edges: Vec<GraphEdge>,
 ) -> PcmciDiscoveryResult {
     PcmciDiscoveryResult {
-        links: discovered_links(names, links),
+        links: discovered_links(names, links, sepsets),
         algorithm_id: algorithm_id.to_string(),
         algorithm_config: algorithm_config.to_string(),
         ci_tests: performance.ci_tests,
@@ -285,6 +366,7 @@ fn discovery_result_fields(
 fn pcmci_result_from_static_cpdag(
     names: &[String],
     links: &[ScoredLink],
+    sepsets: &PcSepsets,
     algorithm_id: &str,
     algorithm_config: &str,
     performance: &DiscoveryPerformanceRecord,
@@ -300,6 +382,7 @@ fn pcmci_result_from_static_cpdag(
     discovery_result_fields(
         names,
         links,
+        sepsets,
         algorithm_id,
         algorithm_config,
         performance,
@@ -318,7 +401,7 @@ fn pcmci_result_from_static_cpdag(
 /// unless `ci` is an explicit slow-path callable — ).
 /// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, max_cond_size=2))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -330,6 +413,7 @@ fn discover_pcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
+    max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -346,11 +430,13 @@ fn discover_pcmci(
                 fdr: fdr.then(FdrAdjustment::bh),
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
             };
             let result = facade_discover_pcmci(series, variables, &params, ctx).map_err(py_err)?;
             Ok(discovery_result_fields(
                 names,
                 &result.evidence.links,
+                &result.sepsets,
                 result.algorithm.id.as_ref(),
                 result.algorithm.config.as_ref(),
                 &result.performance,
@@ -399,6 +485,7 @@ fn discover_pc(
         Ok(pcmci_result_from_static_cpdag(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -446,6 +533,7 @@ fn discover_ges(
         Ok(pcmci_result_from_static_cpdag(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -494,6 +582,7 @@ fn discover_lingam(
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -547,6 +636,7 @@ fn discover_notears(
         Ok(discovery_result_fields(
             &names,
             &result.discovery.evidence.links,
+            &result.discovery.sepsets,
             result.discovery.algorithm.id.as_ref(),
             result.discovery.algorithm.config.as_ref(),
             &result.discovery.performance,
@@ -600,6 +690,7 @@ fn discover_fci(
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -653,6 +744,7 @@ fn discover_rfci(
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -668,7 +760,7 @@ fn discover_rfci(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, max_cond_size=2))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -680,6 +772,7 @@ fn discover_pcmci_plus(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
+    max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -696,6 +789,7 @@ fn discover_pcmci_plus(
                 fdr: fdr.then(FdrAdjustment::bh),
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
             };
             let result =
                 facade_discover_pcmci_plus(series, variables, &params, ctx).map_err(py_err)?;
@@ -708,6 +802,7 @@ fn discover_pcmci_plus(
             Ok(discovery_result_fields(
                 names,
                 &result.evidence.links,
+                &result.sepsets,
                 result.algorithm.id.as_ref(),
                 result.algorithm.config.as_ref(),
                 &result.performance,
@@ -724,7 +819,7 @@ fn discover_pcmci_plus(
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, max_cond_size=2))]
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -736,6 +831,7 @@ fn discover_lpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
+    max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -752,6 +848,7 @@ fn discover_lpcmci(
                 fdr: fdr.then(FdrAdjustment::bh),
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
             };
             let result = facade_discover_lpcmci(series, variables, &params, ctx).map_err(py_err)?;
             let pag = &result.evidence.graph;
@@ -761,6 +858,7 @@ fn discover_lpcmci(
             Ok(discovery_result_fields(
                 names,
                 &result.evidence.links,
+                &result.sepsets,
                 result.algorithm.id.as_ref(),
                 result.algorithm.config.as_ref(),
                 &result.performance,
@@ -798,6 +896,7 @@ fn discover_lpcmci(
     space_dummy_ci="scalar",
     time_dummy_encoding="integer",
     time_dummy_ci="scalar",
+    max_cond_size=2,
 ))]
 fn discover_jpcmci_plus(
     py: Python<'_>,
@@ -816,6 +915,7 @@ fn discover_jpcmci_plus(
     space_dummy_ci: &str,
     time_dummy_encoding: &str,
     time_dummy_ci: &str,
+    max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
@@ -874,6 +974,7 @@ fn discover_jpcmci_plus(
                 time_dummy_ci,
                 ..MultiDatasetConstraints::default()
             },
+            max_cond_size,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_jpcmci_plus(&multi, &system, &params, &ctx).map_err(py_err)?;
@@ -882,6 +983,7 @@ fn discover_jpcmci_plus(
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
+            &result.sepsets,
             result.algorithm.id.as_ref(),
             result.algorithm.config.as_ref(),
             &result.performance,
@@ -903,7 +1005,7 @@ fn two_regime_half_split_py(series_len: usize) -> Vec<u32> {
 
 /// RPCMCI with caller-supplied regimes (required; no silent half-split).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, max_cond_size=2))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -916,6 +1018,7 @@ fn discover_rpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
+    max_cond_size: usize,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
@@ -940,6 +1043,7 @@ fn discover_rpcmci(
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
             multi_dataset: MultiDatasetConstraints::default(),
+            max_cond_size,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)

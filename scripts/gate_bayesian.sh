@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash scripts/gate_parity_schema.sh
+
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -40,6 +42,7 @@ EVIDENCE = {
     "bayes.validate.prior_sensitivity": "crates/antecedent/tests/bayesian.rs",
     "bayes.data.bayesian_bootstrap": "provenance/data.bayesian_bootstrap.toml",
     "bayes.io.posterior_artifact": "crates/antecedent-io/src/posterior.rs",
+    "bayes.io.posterior_artifact_summary_only": "crates/antecedent-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/antecedent/src/inference.rs",
     "bayes.model.pcm_scm_registry": "crates/antecedent-model/src/lib.rs",
     "bayes.discovery.dag_posterior": "crates/antecedent-discovery/src/exact_enumeration.rs",
@@ -51,6 +54,8 @@ EVIDENCE = {
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conflict": "crates/antecedent-validate/src/conflict.rs",
     "bayes.prior_bank.transport": "crates/antecedent-prob/src/transport.rs",
+    "bayes.prior_bank.ess_accounting": "crates/antecedent-prob/src/external_prior.rs",
+    "bayes.prior_bank.conjugate_moment_match": "crates/antecedent-prob/src/conjugate_moment_match.rs",
 }
 
 missing = []
@@ -81,6 +86,8 @@ for path in [
     "conformance/bayesian/prior_bank_conflict_shrink/expected.json",
     "conformance/bayesian/prior_bank_transport/expected.json",
     "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
+    "conformance/bayesian/prior_bank_ess/expected.json",
+    "conformance/bayesian/prior_conjugate_moment_match/expected.json",
     "conformance/validate/bayesian_checks/expected.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",

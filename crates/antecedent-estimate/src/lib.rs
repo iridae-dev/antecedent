@@ -47,6 +47,7 @@ pub use adjustment::{
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
+pub use antecedent_stats::FirstStageDiagnostics;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,
@@ -69,8 +70,9 @@ pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorksp
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,
+    CaliperScale, DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace,
+    PropensityMatching, PropensityModel, PropensityStratification, PropensityWeighting,
+    default_propensity_overlap,
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;

@@ -232,6 +232,130 @@ fn data_subset_preserves_ate() {
     assert!((report.refuted_ate - original.ate).abs() < 0.3);
 }
 
+/// A non-default `LinearAdjustmentAte` config (e.g. `se_kind = AnalyticSeKind::Hc1`) set on a
+/// refuter's `estimator` field must actually reach the refit inside `refit_effect`/`fit_once`,
+/// not be silently discarded in favor of a fresh default (homoskedastic) estimator. Proven by
+/// calling `crate::common::refit_effect` directly with two configs that differ only in
+/// `se_kind`, on the same unmutated heteroskedastic design, and asserting the resulting
+/// `se_analytic` differs.
+#[test]
+fn refit_effect_honors_caller_se_kind() {
+    use antecedent_estimate::AnalyticSeKind;
+
+    // Heteroskedastic design: residual scale grows with z, so HC1 (heteroskedasticity-robust)
+    // and homoskedastic analytic SEs are visibly different — a deterministic (noise-free) `y`
+    // like `toy_confounded` would make the two indistinguishable.
+    let n = 400usize;
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "t",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "z",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::Context),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let ctx = ExecutionContext::for_tests(101);
+    let mut noise = vec![0.0; n];
+    crate::common::fill_gaussian(&mut noise, &ctx, 0x5EED_0001);
+    // Residual scale grows with z: near-zero at z=0, wide at z=1.
+    let y: Vec<f64> =
+        (0..n).map(|i| 1.0 + 2.0 * t[i] + 3.0 * z[i] + noise[i] * (0.05 + 4.0 * z[i])).collect();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TabularData::new(storage);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+    let problem = RefutationProblem {
+        data: &data,
+        estimand: &estimand,
+        query: &query,
+        original: &original,
+        estimator: Some("linear.adjustment.ate"),
+        temporal: None,
+    };
+
+    let homoskedastic = LinearAdjustmentAte::new();
+    assert_eq!(homoskedastic.se_kind, AnalyticSeKind::Homoskedastic);
+    let mut hc1 = LinearAdjustmentAte::new();
+    hc1.se_kind = AnalyticSeKind::Hc1;
+
+    // Same problem, same unmutated data: the only difference between these two calls is the
+    // caller-configured `se_kind`, isolating whether `refit_effect` honors it.
+    let home_effect =
+        crate::common::refit_effect(&problem, &data, &estimand, &[], &homoskedastic, &mut ws, &ctx)
+            .unwrap();
+    let hc1_effect =
+        crate::common::refit_effect(&problem, &data, &estimand, &[], &hc1, &mut ws, &ctx).unwrap();
+
+    assert!(
+        (home_effect.ate - hc1_effect.ate).abs() < 1e-9,
+        "se_kind must not change the point estimate"
+    );
+    assert!(home_effect.se_analytic.is_finite() && home_effect.se_analytic > 0.0);
+    assert!(hc1_effect.se_analytic.is_finite() && hc1_effect.se_analytic > 0.0);
+    assert!(
+        (home_effect.se_analytic - hc1_effect.se_analytic).abs() > 1e-6,
+        "expected caller-configured se_kind to change the refit SE: homoskedastic={} hc1={}",
+        home_effect.se_analytic,
+        hc1_effect.se_analytic,
+    );
+
+    // Regression guard on the plumbing change itself: a refuter whose `estimator` field is
+    // Hc1-configured must still run its full replicate loop (through `DataSubsetRefuter::refute`
+    // -> `refit_effect`) without error.
+    let mut refuter = DataSubsetRefuter::new();
+    refuter.estimator.se_kind = AnalyticSeKind::Hc1;
+    let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(report.informative);
+}
+
 #[test]
 fn dummy_outcome_near_zero() {
     let (data, estimand, _) = toy_confounded();
@@ -445,4 +569,60 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");
     assert!(report.comparison > 0.0);
     assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+}
+
+/// The sensitivity grid is a *partial* R², so the injected confounder must be scaled by the
+/// residual SD of `T` given `Z` — not its marginal SD.
+///
+/// Using the marginal SD calibrates against the wrong variance: the realized partial R² then
+/// exceeds the nominal grid value by `Var(T)/Var(T|Z)`, so a run reported as "explained away
+/// at partial R² = 0.2" actually required a far stronger confounder. In `toy_confounded`,
+/// `T = 1{Z > 0.5}` is largely explained by `Z`, so the two SDs are far apart and the
+/// distinction is unmissable.
+#[test]
+fn sensitivity_scales_by_residual_not_marginal_sd() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(7);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem {
+        data: &data,
+        estimand: &estimand,
+        query: &query,
+        original: &original,
+        estimator: Some("linear.adjustment.ate"),
+        temporal: None,
+    };
+
+    let ids = vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let mask = data.complete_case_mask(&ids).unwrap();
+    let t = data.float64_masked(VariableId::from_raw(0), &mask).unwrap();
+    let z = data.float64_masked(VariableId::from_raw(2), &mask).unwrap();
+
+    // Independent reference: simple OLS of t on z, residual SD.
+    let n = t.len() as f64;
+    let (mt, mz) = (t.iter().sum::<f64>() / n, z.iter().sum::<f64>() / n);
+    let cov_tz: f64 = t.iter().zip(&z).map(|(&a, &b)| (a - mt) * (b - mz)).sum();
+    let var_z: f64 = z.iter().map(|&b| (b - mz) * (b - mz)).sum();
+    let beta = cov_tz / var_z;
+    let resid: Vec<f64> = t.iter().zip(&z).map(|(&a, &b)| a - (mt + beta * (b - mz))).collect();
+    let expected = crate::common::sample_sd(&resid);
+    let marginal = crate::common::sample_sd(&t);
+
+    let got =
+        crate::sensitivity::residual_sd_on_adjustment(&problem, VariableId::from_raw(0), &mask)
+            .unwrap();
+
+    assert!(
+        (got - expected).abs() < 1e-9,
+        "residual SD {got} != independently computed {expected}"
+    );
+    assert!(
+        got < 0.8 * marginal,
+        "Z explains most of T here, so residual SD {got} must be well below marginal {marginal}"
+    );
 }

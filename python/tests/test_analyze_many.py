@@ -37,7 +37,7 @@ def test_analyze_many_matches_solo():
     data, edges = _two_treatment_scm()
     q1 = antecedent.AverageEffect(treatment="t1", outcome="y")
     q2 = antecedent.AverageEffect(treatment="t2", outcome="y")
-    batch = antecedent.analyze_many(
+    batch = antecedent.estimation.analyze_many(
         data,
         graph=edges,
         queries=[q1, q2],

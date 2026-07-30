@@ -21,6 +21,13 @@ run_ignored antecedent-estimate aipw_analytic_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
 run_ignored antecedent-estimate wald_iv_hc1_ci_coverage
+run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
+
+echo "== Bayesian posterior calibration (antecedent-validate) =="
+run_ignored antecedent-validate \
+  bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
+run_ignored antecedent-validate \
+  bayesian_checks::tests::calibration_gate::posterior_calibration_synthetic_scm_nominal_90_coverage
 
 echo "== CI Type I / permutation uniformity (antecedent-stats) =="
 run_ignored antecedent-stats robust_parcorr_calibration_gate
@@ -29,13 +36,14 @@ run_ignored antecedent-stats gsquared_calibration_gate
 run_ignored antecedent-stats knn_dependence_calibration_gate
 run_ignored antecedent-stats parcorr_perm_pvalue_uniformity_gate
 run_ignored antecedent-stats knn_perm_pvalue_uniformity_gate
+run_ignored antecedent-stats multivariate_block_calibration_gate
+run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate
+run_ignored antecedent-stats gpdc_block_shuffle_autocorrelated_type_i_gate
+run_ignored antecedent-stats knn_unconditional_block_shuffle_autocorrelated_type_i_gate
 
 echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
-
-echo "== Discovery synthetic-null validator (antecedent-validate) =="
-run_ignored antecedent-validate synthetic_null_fpr_near_alpha_gate
 
 echo "gate_calibration: ok"

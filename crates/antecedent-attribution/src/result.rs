@@ -109,8 +109,16 @@ pub struct MechanismChangeDetection {
     pub changed: bool,
     /// Test statistic.
     pub statistic: f64,
-    /// P-value (two-sided when applicable).
+    /// Raw per-target p-value (two-sided when applicable), before any multiple-testing
+    /// correction. Always the unadjusted quantity, so a caller can see what the individual
+    /// test said.
     pub p_value: f64,
+    /// P-value after the family-wise / FDR correction across `query.targets`, or `None` when
+    /// no correction was applied.
+    ///
+    /// [`Self::changed`] is decided from this when it is `Some`, and from [`Self::p_value`]
+    /// otherwise — so the flag and the number behind it always agree.
+    pub adjusted_p_value: Option<f64>,
     /// Method label (`likelihood_ratio`, `mean_diff`, `classifier_two_sample`, …).
     pub method: Arc<str>,
 }

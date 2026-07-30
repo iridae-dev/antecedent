@@ -309,7 +309,7 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
     (var_hat / w).sqrt()
 }
 
-/// Geyer IPS + IMS ESS on split-chain segments (segment-major layout).
+/// Geyer (1992) IPS + IMS ESS on split-chain segments (segment-major layout).
 fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let s = (m * n) as f64;
     let (var_hat, acov) = split_autocovariances(seg_major, m, n);
@@ -349,13 +349,17 @@ fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
             pairs[i] = pairs[i - 1];
         }
     }
-    // Stan/Vehtari: τ̂ = −1 + 2 Σ P_t' with P_t' = ρ̂_{2t'} + ρ̂_{2t'+1}.
+    // Stan/Vehtari (2021): τ̂ = −1 + 2 Σ P_t' with P_t' = ρ̂_{2t'} + ρ̂_{2t'+1}.
     let mut tau = -1.0;
     for &p in &pairs {
         tau += 2.0 * p;
     }
-    tau = tau.max(1.0);
-    (s / tau).min(s)
+    // Stan/ArviZ floor τ̂ at 1/log10(S), not 1, and do not clamp ESS to S: antithetic
+    // (negatively autocorrelated) chains are legitimately super-efficient and can exceed the
+    // raw draw count. Flooring at 1 and clamping at S understates ESS — safe for trusting a
+    // posterior, but it misreports sampler quality and can spuriously fail the ESS gate.
+    tau = tau.max(1.0 / s.log10().max(f64::MIN_POSITIVE));
+    s / tau
 }
 
 fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64>) {
@@ -394,7 +398,7 @@ fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64
     let var_hat = ((nf - 1.0) / nf) * w + b / nf;
 
     // Mean autocovariance across chains at each lag (unbiased within-chain).
-    // Stan/Vehtari: Â_0 = var̂⁺, Â_t = var̂⁺ − W + ā_t for t>0, so
+    // Stan/Vehtari (2021): Â_0 = var̂⁺, Â_t = var̂⁺ − W + ā_t for t>0, so
     // ρ̂_t = 1 − (W − ā_t)/var̂⁺ (not ā_t/var̂⁺, which ignores between-chain).
     let max_lag = n.saturating_sub(1);
     let mut acov = vec![0.0; max_lag + 1];
@@ -504,7 +508,7 @@ mod tests {
 
     #[test]
     fn disagreeing_chains_keep_ess_far_below_n() {
-        // Near-IID within each chain, but chain means differ: Stan/Vehtari ESS
+        // Near-IID within each chain, but chain means differ: Stan/Vehtari (2021) ESS
         // must stay ≪ N (ρ̂_t ≈ 1 − W/var̂⁺ for t>0), not collapse to ~N.
         let n_chains = 4;
         let n_draws = 200;

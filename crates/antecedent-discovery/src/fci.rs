@@ -1,6 +1,6 @@
 //! Classic static FCI over [`TabularData`] → [`Pag`].
 //!
-//! Phases (Spirtes et al.):
+//! Phases (Spirtes, Meek & Richardson 1995):
 //! 1. PC-style adjacency skeleton
 //! 2. Unshielded collider orientation
 //! 3. Possible-D-Sep adjacency (further edge removals)
@@ -35,12 +35,11 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::evidence::threshold_scored_links;
 use crate::orientation::{OrientationError, OrientationState};
-use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
+use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
-    ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
@@ -201,10 +200,9 @@ impl Fci {
         let mut depth = 0usize;
         loop {
             let mut depth_tests = 0u64;
-            let edges: Vec<(VariableId, VariableId)> = adj
-                .keys()
-                .map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi)))
-                .collect();
+            // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
+            // so traversal order must be deterministic for the skeleton to be reproducible.
+            let edges = sorted_edge_pairs(&adj);
 
             for &(x, y) in &edges {
                 if !adj.contains_key(&edge_key(x, y)) {
@@ -234,32 +232,31 @@ impl Fci {
                 cand_sets.dedup();
 
                 let mut independent = false;
-                let mut best_stat = f64::NAN;
-                let mut best_p = f64::NAN;
+                // `weakest_dep_stat`/`weakest_dep_p` summarize a *retained* edge (no
+                // conditioning set separated x and y): they hold the statistic/p-value of
+                // whichever tested z gave the weakest evidence of dependence (max p), not
+                // whichever z happened to be tested last. That's the conservative summary
+                // to feed BH-FDR downstream. If the loop instead finds a separating set, we
+                // report that test's own (stat, p) — the value that actually establishes
+                // independence — not the running max.
+                let mut weakest_dep_stat = f64::NAN;
+                let mut weakest_dep_p = f64::NAN;
                 let mut best_sep: Arc<[VariableId]> = Arc::from([]);
 
                 for z in &cand_sets {
                     let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
-                    best_stat = stat;
-                    best_p = p;
                     if p > alpha {
                         independent = true;
+                        weakest_dep_stat = stat;
+                        weakest_dep_p = p;
                         best_sep = Arc::from(z.as_slice());
                         break;
                     }
-                }
-
-                if depth == 0 && cand_sets.is_empty() {
-                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
-                    ci_tests += 1;
-                    depth_tests += 1;
-                    best_stat = stat;
-                    best_p = p;
-                    if p > alpha {
-                        independent = true;
-                        best_sep = Arc::from([]);
+                    if weakest_dep_p.is_nan() || p > weakest_dep_p {
+                        weakest_dep_stat = stat;
+                        weakest_dep_p = p;
                     }
                 }
 
@@ -267,7 +264,7 @@ impl Fci {
                 if independent {
                     adj.remove(&key);
                     record_sepset(&mut sepsets, x, y, &best_sep);
-                } else if best_p.is_finite() {
+                } else if weakest_dep_p.is_finite() {
                     let link = ScoredLink {
                         link: LaggedLink {
                             source: x,
@@ -275,14 +272,14 @@ impl Fci {
                             target: y,
                             target_lag: Lag::CONTEMPORANEOUS,
                         },
-                        statistic: best_stat,
-                        p_value: best_p,
+                        statistic: weakest_dep_stat,
+                        p_value: weakest_dep_p,
                         adjusted_p_value: None,
                     };
                     edge_scores
                         .entry(key)
                         .and_modify(|s| {
-                            if best_p < s.p_value {
+                            if weakest_dep_p < s.p_value {
                                 *s = link;
                             }
                         })
@@ -341,12 +338,7 @@ impl Fci {
             adj.retain(|k, ()| kept.contains(k));
         }
 
-        let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index
-                .get(&v)
-                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-            Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
-        };
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
@@ -361,10 +353,11 @@ impl Fci {
 
         // --- Phase 3: Possible-D-Sep adjacency ---
         let mut pds_tests = 0u64;
-        let edges_pds: Vec<(VariableId, VariableId)> = adj
-            .keys()
-            .map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi)))
-            .collect();
+        // Same reproducibility hazard as the Phase 1 skeleton loop (see `sorted_edge_pairs`
+        // doc): this loop mutates `pag` (via `pag.remove_edge` below) and later pairs'
+        // `possible_d_sep` traversals read that same `pag`, so which edge is processed
+        // first affects the result.
+        let edges_pds = sorted_edge_pairs(&adj);
         for &(x, y) in &edges_pds {
             if !adj.contains_key(&edge_key(x, y)) {
                 continue;
@@ -449,23 +442,21 @@ impl Fci {
         let edge_evidence: Vec<EdgeEvidence> = scored
             .iter()
             .map(|s| {
-                let seps = sepsets
+                let sepset = sepsets
                     .get(&(
                         s.link.source,
                         Lag::CONTEMPORANEOUS,
                         s.link.target,
                         Lag::CONTEMPORANEOUS,
                     ))
-                    .cloned()
-                    .into_iter()
-                    .collect::<Vec<_>>();
+                    .cloned();
                 EdgeEvidence {
                     link: s.link,
                     statistic: Some(s.statistic),
                     p_value: Some(s.p_value),
                     adjusted_p_value: s.adjusted_p_value,
                     interval: None,
-                    separating_sets: Arc::from(seps),
+                    separating_set: sepset,
                     provenance: Arc::from([Arc::from("fci")]),
                 }
             })
@@ -482,16 +473,16 @@ impl Fci {
         Ok(DiscoveryResult {
             evidence,
             review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("fci"),
-                config: Arc::from(format!(
+            algorithm: crate::pipeline::algorithm_record(
+                "fci",
+                format!(
                     "alpha={},max_cond={},fdr={},pds_max={}",
                     alpha,
                     max_cond,
                     self.fdr.is_some(),
                     self.pds_max_nodes
-                )),
-            },
+                ),
+            ),
             assumptions: AssumptionSet::default(),
             iterations,
             diagnostics,

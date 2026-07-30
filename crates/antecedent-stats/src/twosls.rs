@@ -49,6 +49,28 @@ pub fn fit_wls(
     backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)
 }
 
+/// Weak-instrument diagnostic: joint significance of the excluded instruments in the
+/// first-stage regression of the endogenous variable on `[instruments | exogenous]`.
+///
+/// This is purely informational — [`fit_2sls`] never hard-fails on a weak instrument
+/// (only on an EXACTLY degenerate one, at the caller level). A caller may compare
+/// `f_statistic` against a rule-of-thumb threshold itself (e.g. the Staiger-Stock /
+/// Stock-Yogo guideline of 10 for a single endogenous regressor); a future release could
+/// add an opt-in hard threshold on top of this diagnostic.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FirstStageDiagnostics {
+    /// F-statistic for the joint null that all excluded-instrument coefficients are zero,
+    /// controlling for the included exogenous regressors.
+    pub f_statistic: f64,
+    /// Numerator degrees of freedom (number of excluded instruments).
+    pub df1: usize,
+    /// Denominator degrees of freedom (first-stage residual df, `n − (df1 + x_ncols)`).
+    pub df2: usize,
+    /// Partial R² attributable to the excluded instruments:
+    /// `(RSS_restricted − RSS_full) / RSS_restricted`.
+    pub partial_r2: f64,
+}
+
 /// Result of two-stage least squares.
 #[derive(Clone, Debug)]
 pub struct TwoSlsFit {
@@ -64,6 +86,9 @@ pub struct TwoSlsFit {
     pub structural_rss: f64,
     /// Structural residuals `e_i = y_i − T_i β̂ − X_i γ̂` (same as RSS terms).
     pub structural_residuals: Vec<f64>,
+    /// Weak-instrument diagnostic for the excluded instrument set (see
+    /// [`FirstStageDiagnostics`]).
+    pub first_stage_diagnostics: FirstStageDiagnostics,
 }
 
 /// Two-stage least squares.
@@ -104,6 +129,16 @@ pub fn fit_2sls(
     x1[..z_nrows * z_ncols].copy_from_slice(&instruments_colmajor[..z_nrows * z_ncols]);
     x1[z_nrows * z_ncols..].copy_from_slice(&exogenous_colmajor[..z_nrows * x_ncols]);
     let first_stage = backend.least_squares(&x1, z_nrows, stage1_ncols, endogenous, workspace)?;
+    let first_stage_diagnostics = first_stage_f_test(
+        z_nrows,
+        z_ncols,
+        x_ncols,
+        exogenous_colmajor,
+        endogenous,
+        first_stage.rss,
+        backend,
+        workspace,
+    )?;
     let mut fitted = vec![0.0; z_nrows];
     for r in 0..z_nrows {
         let mut pred = 0.0;
@@ -140,7 +175,47 @@ pub fn fit_2sls(
         fitted_endogenous: fitted,
         structural_rss,
         structural_residuals,
+        first_stage_diagnostics,
     })
+}
+
+/// Partial F-test for the excluded-instrument block of a first-stage regression:
+/// compares the unrestricted fit `[instruments | exogenous]` (`full_rss`, already
+/// computed by the caller) against a restricted fit on `exogenous` alone (or the
+/// zero model when `x_ncols == 0`, i.e. `RSS = Σ endogenous²`).
+#[allow(clippy::too_many_arguments)]
+fn first_stage_f_test(
+    nrows: usize,
+    z_ncols: usize,
+    x_ncols: usize,
+    exogenous_colmajor: &[f64],
+    endogenous: &[f64],
+    full_rss: f64,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<FirstStageDiagnostics, StatsError> {
+    let restricted_rss = if x_ncols == 0 {
+        endogenous.iter().map(|v| v * v).sum::<f64>()
+    } else {
+        let restricted =
+            backend.least_squares(exogenous_colmajor, nrows, x_ncols, endogenous, workspace)?;
+        restricted.rss
+    };
+    let df1 = z_ncols;
+    let df2 = nrows.saturating_sub(z_ncols + x_ncols);
+    let f_statistic = if df1 == 0 || df2 == 0 {
+        f64::NAN
+    } else if full_rss > 0.0 {
+        ((restricted_rss - full_rss) / df1 as f64) / (full_rss / df2 as f64)
+    } else {
+        f64::INFINITY
+    };
+    let partial_r2 = if restricted_rss > 0.0 {
+        ((restricted_rss - full_rss) / restricted_rss).max(0.0)
+    } else {
+        0.0
+    };
+    Ok(FirstStageDiagnostics { f_statistic, df1, df2, partial_r2 })
 }
 
 #[cfg(test)]
@@ -231,6 +306,57 @@ mod tests {
         let fit = fit_2sls(&z, n, 1, &t, &x, 1, &y, &FaerBackend, &mut ws).unwrap();
         assert!((fit.second_stage.coefficients[0] - 2.0).abs() < 0.05);
         assert!(fit.structural_rss <= fit.second_stage.rss);
+    }
+
+    #[test]
+    fn first_stage_diagnostics_strong_vs_weak_instrument() {
+        // Same DGP shape (Z -> T -> Y, intercept-only exogenous block), varied only by how
+        // strongly Z drives T. Strong: T = Z + small noise (first stage explains most of
+        // T's variance). Weak: T = 0.001*Z + large noise (first stage explains ~none of
+        // it). The F-statistic must separate these cases sharply.
+        let n = 200usize;
+        let mut z = vec![0.0; n];
+        let mut x = vec![0.0; n];
+        for i in 0..n {
+            z[i] = (i as f64) / n as f64 - 0.5;
+            x[i] = 1.0;
+        }
+
+        let mut t_strong = vec![0.0; n];
+        let mut y_strong = vec![0.0; n];
+        let mut t_weak = vec![0.0; n];
+        let mut y_weak = vec![0.0; n];
+        for i in 0..n {
+            let small_noise = 0.01 * ((i % 7) as f64 - 3.0);
+            let large_noise = 1.0 * ((i % 7) as f64 - 3.0);
+            t_strong[i] = z[i] + small_noise;
+            y_strong[i] = 2.0 * t_strong[i] + 0.01 * ((i % 5) as f64 - 2.0);
+            t_weak[i] = 0.001 * z[i] + large_noise;
+            y_weak[i] = 2.0 * t_weak[i] + 0.01 * ((i % 5) as f64 - 2.0);
+        }
+
+        let mut ws = LeastSquaresWorkspace::default();
+        let strong =
+            fit_2sls(&z, n, 1, &t_strong, &x, 1, &y_strong, &FaerBackend, &mut ws).unwrap();
+        let weak = fit_2sls(&z, n, 1, &t_weak, &x, 1, &y_weak, &FaerBackend, &mut ws).unwrap();
+
+        assert_eq!(strong.first_stage_diagnostics.df1, 1);
+        assert_eq!(strong.first_stage_diagnostics.df2, n - 2);
+        assert_eq!(weak.first_stage_diagnostics.df1, 1);
+        assert_eq!(weak.first_stage_diagnostics.df2, n - 2);
+
+        assert!(
+            strong.first_stage_diagnostics.f_statistic > 1000.0,
+            "strong F={}",
+            strong.first_stage_diagnostics.f_statistic
+        );
+        assert!(
+            weak.first_stage_diagnostics.f_statistic < 5.0,
+            "weak F={}",
+            weak.first_stage_diagnostics.f_statistic
+        );
+        assert!(strong.first_stage_diagnostics.partial_r2 > 0.9);
+        assert!(weak.first_stage_diagnostics.partial_r2 < 0.1);
     }
 
     #[test]

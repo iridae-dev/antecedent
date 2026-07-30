@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::validate::PredictiveCheckKind as FacadeKind;
-use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -320,8 +320,7 @@ fn ppc() {
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let facade = CausalAnalysis::builder()
-        .data(data)
+    let facade = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(
@@ -447,9 +446,8 @@ fn temporal_pulse() {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
 
-    let analysis = CausalAnalysis::builder()
-        .series(series)
-        .temporal_graph(g)
+    let analysis = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
@@ -612,7 +610,7 @@ fn prior_bank_effect_map() {
 
     use antecedent::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
     use antecedent::io::encode_causal_posterior_bytes;
-    use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
+    use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
     use antecedent_core::{
         Assumption, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -635,8 +633,7 @@ fn prior_bank_effect_map() {
     dag_a.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag_a.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     dag_a.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let result_a = CausalAnalysis::builder()
-        .data(data_a)
+    let result_a = Study::tabular(data_a)
         .graph(dag_a)
         .query(AverageEffectQuery::binary_ate(t_a, y_a))
         .inference(InferenceMode::Bayesian(
@@ -701,8 +698,7 @@ fn prior_bank_effect_map() {
     dag_b.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
     dag_b.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
 
-    let baseline = CausalAnalysis::builder()
-        .data(data_b.clone())
+    let baseline = Study::tabular(data_b.clone())
         .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -716,8 +712,7 @@ fn prior_bank_effect_map() {
     let base_post = baseline.posterior.as_ref().unwrap();
     let base_mean = base_post.summaries.mean[base_post.effect_column().unwrap()];
 
-    let mapped = CausalAnalysis::builder()
-        .data(data_b.clone())
+    let mapped = Study::tabular(data_b.clone())
         .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -758,8 +753,7 @@ fn prior_bank_effect_map() {
     }
 
     // Unset mapping auto-selects EffectFunctional for heterogeneous designs.
-    let auto = CausalAnalysis::builder()
-        .data(data_b)
+    let auto = Study::tabular(data_b)
         .graph(dag_b)
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -829,6 +823,7 @@ fn prior_bank_power_mixture() {
         id: Arc::from("old"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
     let composed = compose_external_priors(&sources, &baseline).unwrap();
     let coef = composed.prior.gaussian_coefficients().unwrap();
@@ -845,6 +840,288 @@ fn prior_bank_power_mixture() {
             composed.prior.restrictions.iter().any(|r| r.id.as_ref() == needle),
             "missing restriction {needle}"
         );
+    }
+}
+
+#[test]
+fn prior_bank_ess_accounting() {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
+        compose_external_priors,
+    };
+
+    fn gauss(mean: f64, var: f64) -> PriorSet {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(1, mean, var).unwrap(),
+        ));
+        p
+    }
+
+    fn assert_opt_vec(actual: &[Option<f64>], expected: &serde_json::Value, tol: f64) {
+        let expected = expected.as_array().unwrap();
+        assert_eq!(actual.len(), expected.len());
+        for (a, e) in actual.iter().zip(expected.iter()) {
+            match (a, e.as_f64()) {
+                (Some(av), Some(ev)) => assert!((av - ev).abs() < tol, "{av} vs {ev}"),
+                (None, None) => {}
+                other => panic!("mismatch: {other:?}"),
+            }
+        }
+    }
+
+    fn assert_opt(actual: Option<f64>, expected: &serde_json::Value, tol: f64) {
+        match (actual, expected.as_f64()) {
+            (Some(av), Some(ev)) => assert!((av - ev).abs() < tol, "{av} vs {ev}"),
+            (None, None) => {}
+            other => panic!("mismatch: {other:?}"),
+        }
+    }
+
+    let expected = load_expected("prior_bank_ess");
+    let tol = expected["tol"].as_f64().unwrap();
+
+    // -- power: single contributing source sums exactly. --
+    let p = &expected["power"];
+    let baseline =
+        gauss(p["baseline_mean"].as_f64().unwrap(), p["baseline_variance"].as_f64().unwrap());
+    let sources = [ExternalPriorSource {
+        id: Arc::from("old"),
+        prior: gauss(p["source_mean"].as_f64().unwrap(), p["source_variance"].as_f64().unwrap()),
+        weight: ExternalPriorWeight::power(p["alpha"].as_f64().unwrap()).unwrap(),
+        ess: Some(p["ess"].as_f64().unwrap()),
+    }];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &p["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &p["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &p["expected_kish_ess"], tol);
+
+    // -- power_partial_coverage: a contributing source without ess forces
+    //    composed_ess to None, even though the other source's effective_ess
+    //    is reported. --
+    let pc = &expected["power_partial_coverage"];
+    let baseline =
+        gauss(pc["baseline_mean"].as_f64().unwrap(), pc["baseline_variance"].as_f64().unwrap());
+    let sa = &pc["source_a"];
+    let sb = &pc["source_b"];
+    let sources = [
+        ExternalPriorSource {
+            id: Arc::from("a"),
+            prior: gauss(sa["mean"].as_f64().unwrap(), sa["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sa["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sa["ess"].as_f64(),
+        },
+        ExternalPriorSource {
+            id: Arc::from("b"),
+            prior: gauss(sb["mean"].as_f64().unwrap(), sb["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sb["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sb["ess"].as_f64(),
+        },
+    ];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &pc["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &pc["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &pc["expected_kish_ess"], tol);
+
+    // -- power_dropped_source: a dropped (α=0) source with a declared ess
+    //    contributes nothing and cannot poison composed_ess. --
+    let pd = &expected["power_dropped_source"];
+    let baseline =
+        gauss(pd["baseline_mean"].as_f64().unwrap(), pd["baseline_variance"].as_f64().unwrap());
+    let sa = &pd["source_a"];
+    let sb = &pd["source_b"];
+    let sources = [
+        ExternalPriorSource {
+            id: Arc::from("a"),
+            prior: gauss(sa["mean"].as_f64().unwrap(), sa["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sa["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sa["ess"].as_f64(),
+        },
+        ExternalPriorSource {
+            id: Arc::from("b"),
+            prior: gauss(sb["mean"].as_f64().unwrap(), sb["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sb["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sb["ess"].as_f64(),
+        },
+    ];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &pd["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &pd["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &pd["expected_kish_ess"], tol);
+
+    // -- mixture: composed_ess is always None regardless of a declared ess. --
+    let m = &expected["mixture"];
+    let baseline =
+        gauss(m["baseline_mean"].as_f64().unwrap(), m["baseline_variance"].as_f64().unwrap());
+    let sources = [ExternalPriorSource {
+        id: Arc::from("s"),
+        prior: gauss(m["source_mean"].as_f64().unwrap(), m["source_variance"].as_f64().unwrap()),
+        weight: ExternalPriorWeight::power_mixture(
+            m["alpha"].as_f64().unwrap(),
+            m["mixture_weight"].as_f64().unwrap(),
+        )
+        .unwrap(),
+        ess: Some(m["ess"].as_f64().unwrap()),
+    }];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &m["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &m["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &m["expected_kish_ess"], tol);
+}
+
+#[test]
+fn prior_conjugate_moment_match() {
+    use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
+
+    let expected = load_expected("prior_conjugate_moment_match");
+    let tol = expected["tol"].as_f64().unwrap();
+
+    // -- beta_moment_match: from_moments matches (mean, variance) exactly;
+    //    the resulting ess is a derived consequence, not a request. --
+    let br = &expected["beta_moment_match"];
+    let h = BetaHyperparameters::from_moments(
+        br["mean"].as_f64().unwrap(),
+        br["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - br["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - br["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - br["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.variance() - br["expected_variance"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - br["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_moment_match_negative_ess: a proper moment match weaker than
+    //    the flat reference reports a negative ess -- truthful, not an
+    //    error. --
+    let bn = &expected["beta_moment_match_negative_ess"];
+    let h = BetaHyperparameters::from_moments(
+        bn["mean"].as_f64().unwrap(),
+        bn["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!(h.alpha > 0.0 && h.beta > 0.0);
+    assert!(h.ess() < 0.0);
+    assert!((h.mean() - bn["expected_mean"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_mean_and_ess_zero: from_mean_and_ess(mean, 0.0) degrades to
+    //    Beta(1,1)-equivalent strength at the requested mean, never
+    //    vanishing or improper. No variance argument exists to satisfy any
+    //    support check here. --
+    let bz = &expected["beta_mean_and_ess_zero"];
+    let h = BetaHyperparameters::from_mean_and_ess(
+        bz["mean"].as_f64().unwrap(),
+        bz["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - bz["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - bz["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - bz["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - bz["expected_ess"].as_f64().unwrap()).abs() < tol);
+    assert!(h.alpha > 0.0 && h.beta > 0.0);
+
+    // -- beta_mean_and_ess_matches_any_request: every (mean, ess >= 0) pair
+    //    is satisfiable -- no support gate to violate. --
+    let bm = &expected["beta_mean_and_ess_matches_any_request"];
+    let h = BetaHyperparameters::from_mean_and_ess(
+        bm["mean"].as_f64().unwrap(),
+        bm["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - bm["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - bm["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - bm["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_moment_match_rejected_inputs: out-of-support (mean, variance)
+    //    and out-of-range mean are rejected, never silently clamped. --
+    for row in expected["beta_moment_match_rejected_inputs"].as_array().unwrap() {
+        let err = BetaHyperparameters::from_moments(
+            row["mean"].as_f64().unwrap(),
+            row["variance"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- beta_mean_and_ess_rejected_inputs: out-of-range mean and negative
+    //    ess are rejected. --
+    for row in expected["beta_mean_and_ess_rejected_inputs"].as_array().unwrap() {
+        let err = BetaHyperparameters::from_mean_and_ess(
+            row["mean"].as_f64().unwrap(),
+            row["ess"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- gamma_moment_match: same exact-match contract for Gamma. --
+    let gr = &expected["gamma_moment_match"];
+    let h = GammaHyperparameters::from_moments(
+        gr["mean"].as_f64().unwrap(),
+        gr["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gr["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gr["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - gr["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.variance() - gr["expected_variance"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gr["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_moment_match_negative_ess: shape < 1 reports a negative ess,
+    //    truthfully, not as an error. --
+    let gn = &expected["gamma_moment_match_negative_ess"];
+    let h = GammaHyperparameters::from_moments(
+        gn["mean"].as_f64().unwrap(),
+        gn["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!(h.shape > 0.0 && h.rate > 0.0);
+    assert!(h.ess() < 0.0);
+    assert!((h.mean() - gn["expected_mean"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_mean_and_ess_zero: degrades to Gamma(shape=1, .), the
+    //    reference exponential prior, at the requested mean. --
+    let gz = &expected["gamma_mean_and_ess_zero"];
+    let h = GammaHyperparameters::from_mean_and_ess(
+        gz["mean"].as_f64().unwrap(),
+        gz["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gz["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gz["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - gz["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gz["expected_ess"].as_f64().unwrap()).abs() < tol);
+    assert!(h.shape > 0.0 && h.rate > 0.0);
+
+    // -- gamma_mean_and_ess_matches_any_request: every (mean, ess >= 0)
+    //    pair is satisfiable for Gamma too. --
+    let gm = &expected["gamma_mean_and_ess_matches_any_request"];
+    let h = GammaHyperparameters::from_mean_and_ess(
+        gm["mean"].as_f64().unwrap(),
+        gm["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gm["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gm["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gm["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_moment_match_rejected_inputs: non-positive mean/variance are
+    //    rejected. --
+    for row in expected["gamma_moment_match_rejected_inputs"].as_array().unwrap() {
+        let err = GammaHyperparameters::from_moments(
+            row["mean"].as_f64().unwrap(),
+            row["variance"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- gamma_mean_and_ess_rejected_inputs: non-positive mean and negative
+    //    ess are rejected. --
+    for row in expected["gamma_mean_and_ess_rejected_inputs"].as_array().unwrap() {
+        let err = GammaHyperparameters::from_mean_and_ess(
+            row["mean"].as_f64().unwrap(),
+            row["ess"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
     }
 }
 
@@ -877,6 +1154,7 @@ fn prior_bank_conflict_shrink() {
         id: Arc::from("src"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
 
     let conf = &expected["conflict"];
@@ -953,6 +1231,7 @@ fn prior_bank_transport() {
         id: Arc::from("src"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
 
     let missing = TransportContext {
@@ -1111,12 +1390,12 @@ fn prior_bank_alpha_sensitivity() {
         id: Arc::from("survey_a"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();
 
-    let result = CausalAnalysis::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(
@@ -1260,6 +1539,7 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
         id: Arc::from("temporal_bank"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(1.0).unwrap(),
+        ess: None,
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();
@@ -1267,9 +1547,8 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
 
     // Facade path: conflict re-shrink attaches (Full refute is separately limited on
     // temporal by DataSubset masks; α-grid is exercised directly below).
-    let result = CausalAnalysis::builder()
-        .series(series)
-        .temporal_graph(g)
+    let result = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed(

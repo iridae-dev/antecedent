@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Attribution errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AttributionError {
     /// Query / component / allocation combination not supported on this path.
     #[error("{message}")]

@@ -1,7 +1,7 @@
 //! Efficient backdoor adjustment-set selection.
 //!
-//! Selects the *optimal* adjustment set `O` (Henckel, Perković & Maathuis;
-//! the construction `pinned baseline`'s efficient backdoor implements): with
+//! Selects the *optimal* adjustment set `O` (Henckel, Perković & Maathuis 2022),
+//! the O-set construction this efficient backdoor implementation follows: with
 //! `cn = de(T) ∩ an(Y) \ {T}` (the nodes on proper causal paths from `T` to
 //! `Y`, including `Y`), `forb = de(cn) ∪ {T}`, the O-set is
 //! `O = pa(cn) \ forb`. Among all valid backdoor sets in a fully observed
@@ -293,7 +293,7 @@ impl EfficientBackdoorIdentifier {
     }
 }
 
-/// The O-set of Henckel, Perković & Maathuis (public for backdoor over-cap fallback).
+/// The O-set of Henckel, Perković & Maathuis (2022) (public for backdoor over-cap fallback).
 pub(crate) fn optimal_adjustment_set_pub(
     dag: &Dag,
     t: DenseNodeId,
@@ -303,7 +303,7 @@ pub(crate) fn optimal_adjustment_set_pub(
     optimal_adjustment_set(dag, t, y, gws)
 }
 
-/// The O-set of Henckel, Perković & Maathuis: `pa(cn) \ (de(cn) ∪ {T})`,
+/// The O-set of Henckel, Perković & Maathuis (2022): `pa(cn) \ (de(cn) ∪ {T})`,
 /// where `cn = de(T) ∩ an(Y) \ {T}` are the nodes on proper causal paths from
 /// `T` to `Y` (including `Y` itself). In a fully observed DAG this is the
 /// valid backdoor set with the smallest asymptotic variance.

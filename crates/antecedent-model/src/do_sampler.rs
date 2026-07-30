@@ -38,13 +38,22 @@ pub struct DoSampleResult {
     pub accept_rate: Option<f64>,
     /// Gaussian KDE bandwidth when the result carries a density estimate.
     pub bandwidth: Option<f64>,
+    /// Effective sample size of the (normalized) importance weights, `1 / Σwᵢ²`.
+    ///
+    /// Populated for the confounded / kernel-weighted branch of [`WeightingDoSampler`],
+    /// where post-normalization concentration is otherwise invisible to the caller (the
+    /// per-unit `1e6` cap only bounds pre-normalization weights, not how much of the
+    /// normalized mass ends up on a handful of units). `None` for branches where every
+    /// contributing unit already carries equal weight (root-treatment exact match, KDE
+    /// draws) and an ESS would be redundant with `n`.
+    pub ess: Option<f64>,
 }
 
 /// Weighting do-sampler for hard `do(T=t)`.
 ///
 /// - **Root treatment:** empirical outcomes among units with `T ≈ t`.
-/// - **Confounded continuous treatment:** Horvitz–Thompson with a **shrinking** Gaussian
-///   kernel on the treatment margin (Silverman bandwidth) over the fitted conditional
+/// - **Confounded continuous treatment:** Horvitz–Thompson (1952) with a **shrinking** Gaussian
+///   kernel on the treatment margin (Silverman 1986 bandwidth) over the fitted conditional
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
 ///   Dirac interventional law, so the kernel is the localization numerator (there is no
 ///   separate `lp_do` term).
@@ -65,7 +74,7 @@ impl WeightingDoSampler {
         Self { treatment, outcome }
     }
 
-    /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson on fitted model densities.
+    /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson (1952) on fitted model densities.
     ///
     /// # Errors
     ///
@@ -115,6 +124,7 @@ impl WeightingDoSampler {
                 notes,
                 accept_rate: None,
                 bandwidth: None,
+                ess: None,
             });
         }
 
@@ -158,6 +168,28 @@ impl WeightingDoSampler {
         for w in &mut weights {
             *w /= wsum;
         }
+        // ESS of the normalized weights, `1 / Σwᵢ²` (Kish 1965), same convention as
+        // `antecedent-state::particle_filter::ParticleFilter::ess`. The per-unit `1e6` cap
+        // above only bounds each weight *before* normalization; it does nothing to stop the
+        // normalized mass from concentrating on one or two units when `treatment_value` sits
+        // in the tail of the observed support (global Silverman bandwidth, not locally
+        // adaptive). We surface that concentration here rather than staying silent about it,
+        // because a caller reading only `weighted_mean` has no other way to tell a
+        // well-supported estimate from one that is effectively a single observation.
+        let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
+        let ess = if sum_sq > 0.0 { 1.0 / sum_sq } else { 0.0 };
+        // Flag degeneracy as a note instead of a hard error: this is a diagnostic, not a
+        // correctness failure, and different callers have different tolerance for a low-ESS
+        // estimate (e.g. exploratory analysis vs. a gated production report). A note keeps
+        // `estimate()` infallible for callers that already handle low support, while still
+        // making the condition impossible to miss for anyone inspecting `notes`/`ess`.
+        let min_ess_floor = (n as f64 * 0.05).max(2.0);
+        if ess < min_ess_floor {
+            notes.push(Arc::from(format!(
+                "degenerate weighting: ess={ess:.3} of n={n} (< floor {min_ess_floor:.3}); \
+                 estimate is dominated by a handful of units"
+            )));
+        }
         notes.push(Arc::from(format!("IPW / Silverman-kernel weighting (bandwidth={bw:.6})")));
         Ok(DoSampleResult {
             values: Arc::from(values),
@@ -166,6 +198,7 @@ impl WeightingDoSampler {
             notes,
             accept_rate: None,
             bandwidth: Some(bw),
+            ess: Some(ess),
         })
     }
 
@@ -191,7 +224,7 @@ impl WeightingDoSampler {
 pub struct KdeDoSampler {
     /// Outcome variable.
     pub outcome: VariableId,
-    /// Bandwidth (Silverman's rule if None).
+    /// Bandwidth (Silverman's (1986) rule if None).
     pub bandwidth: Option<f64>,
 }
 
@@ -229,6 +262,7 @@ impl KdeDoSampler {
             notes: Vec::new(),
             accept_rate: None,
             bandwidth: Some(bw),
+            ess: None,
         })
     }
 
@@ -260,7 +294,7 @@ fn silverman_bandwidth(x: &[f64]) -> f64 {
 
 /// Random-walk Metropolis–Hastings on the **outcome margin**.
 ///
-/// The chain targets a Silverman Gaussian KDE fitted to a pilot batch of interventional
+/// The chain targets a Silverman (1986) Gaussian KDE fitted to a pilot batch of interventional
 /// ancestral draws — a smoothed proxy of the interventional law of `outcome`, not the
 /// joint mechanism density. Proposals are Gaussian random walks (`proposal_sd`); this is
 /// **not** independent MH, and is exact for the interventional law only in the large-pilot
@@ -317,6 +351,7 @@ impl McmcDoSampler {
             notes: Vec::new(),
             accept_rate: None,
             bandwidth: Some(pilot_bw),
+            ess: None,
         };
 
         let mut current = pilot_col[0];
@@ -363,6 +398,7 @@ impl McmcDoSampler {
             notes: vec![Arc::from(format!("mh_accept_rate={rate}"))],
             accept_rate: Some(rate),
             bandwidth: kde.bandwidth,
+            ess: None,
         })
     }
 }
@@ -457,6 +493,107 @@ mod tests {
         let res = sampler.estimate(&model, &data, 1.0, &ctx).unwrap();
         let mean = WeightingDoSampler::weighted_mean(&res);
         assert!((mean - 2.0).abs() < 1e-9, "mean={mean}");
+    }
+
+    /// `z -> t -> y`, `z -> y`: `t` is a confounded continuous treatment with a fitted
+    /// conditional density `f(t | z)`, so `WeightingDoSampler::estimate` takes the
+    /// Horvitz-Thompson / kernel branch (`gather.n_parents() > 0`).
+    fn confounded_continuous_scm(n: usize) -> (CompiledCausalModel, TabularData) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["z", "t", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            // Confounder spread evenly over roughly [-5, 5]; t is z plus small residual noise
+            // (keeps the fitted conditional density non-degenerate); y depends on both.
+            z[i] = (i as f64 - (n as f64) / 2.0) * (10.0 / n as f64);
+            t[i] = z[i] + 0.1 * (i as f64 * 0.7).sin();
+            y[i] = t[i] + 0.5 * z[i] + 0.05 * (i as f64 * 0.3).cos();
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(z), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(t), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(y), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        (compiled.with_mechanisms(store), data)
+    }
+
+    /// Regression test for the confounded-continuous-treatment ESS gap: the weighting
+    /// sampler must report a small effective sample size when `treatment_value` sits far
+    /// into the tail of the observed treatment support (the global Silverman bandwidth
+    /// makes the kernel tiny everywhere but relatively largest for the one or two nearest
+    /// `T_i`, so the self-normalized weights concentrate almost entirely on them), and a
+    /// healthy ESS close to `n` when `treatment_value` is well inside the support.
+    #[test]
+    fn weighting_ess_flags_tail_degeneracy() {
+        let n = 200usize;
+        let (model, data) = confounded_continuous_scm(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let sampler = WeightingDoSampler::new(VariableId::from_raw(1), VariableId::from_raw(2));
+
+        // Well-supported: treatment_value near the center of the observed t range.
+        let healthy = sampler.estimate(&model, &data, 0.0, &ctx).unwrap();
+        let healthy_ess = healthy.ess.expect("weighted branch must report ess");
+
+        // Tail: treatment_value far beyond the observed t range (~[-5, 5]), but not so far
+        // that every kernel weight underflows to zero (which would instead trip the
+        // "zero weight mass" error path, not the degeneracy path this test targets).
+        let degenerate = sampler.estimate(&model, &data, 20.0, &ctx).unwrap();
+        let degenerate_ess = degenerate.ess.expect("weighted branch must report ess");
+
+        assert!(
+            healthy_ess > 0.2 * n as f64,
+            "expected healthy ess to be a healthy fraction of n={n}, got {healthy_ess}"
+        );
+        assert!(
+            degenerate_ess < 0.05 * n as f64,
+            "expected degenerate ess << n={n}, got {degenerate_ess}"
+        );
+        assert!(
+            degenerate_ess < healthy_ess,
+            "degenerate ess ({degenerate_ess}) should be far below healthy ess ({healthy_ess})"
+        );
+        assert!(
+            degenerate.notes.iter().any(|n| n.contains("degenerate weighting")),
+            "expected a degeneracy note, got {:?}",
+            degenerate.notes
+        );
+        assert!(
+            !healthy.notes.iter().any(|n| n.contains("degenerate weighting")),
+            "healthy case should not be flagged as degenerate, got {:?}",
+            healthy.notes
+        );
     }
 
     #[test]

@@ -32,8 +32,8 @@ use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, has_edge, kish_ess, log_prior_mask, mask_is_dag, n_directed_edges,
-    normalize_log_weights, parents_of, set_edge,
+    analytic_graph_diagnostics, has_edge, kish_ess, lagged_edge_forbidden, lagged_edge_required,
+    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -443,7 +443,19 @@ fn score_dbn_template(
         let mut pa: Vec<u32> = parents_of(cmask, p, j);
         for lag in 1..=max_lag {
             for i in 0..p {
-                if has_lag_edge(lmask, p, max_lag, lag, i, j) {
+                let present = has_lag_edge(lmask, p, max_lag, lag, i, j);
+                // `log_prior_mask` above enforces forbidden/required on the contemporaneous
+                // mask only — `edge_forbidden`/`edge_required` build their `LaggedLink` with
+                // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
+                // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
+                // was a complete no-op for this engine and could carry posterior mass.
+                if present && lagged_edge_forbidden(&prior.constraints, variables, i, lag, j) {
+                    return None;
+                }
+                if !present && lagged_edge_required(&prior.constraints, variables, i, lag, j) {
+                    return None;
+                }
+                if present {
                     // Column index for (i, lag) in lagged design.
                     pa.push((lag as usize * p + i) as u32);
                 }
@@ -602,5 +614,241 @@ mod tests {
         let lagged = post.lagged_edge_marginals.as_ref().unwrap();
         // lag-1 bit for from=0 → to=1 is index 0*4 + 0*2 + 1 = 1
         assert!(lagged[1] > 0.4, "P(x_{{t-1}}→y_t)={}", lagged[1]);
+    }
+
+    /// Two-variable series where the only dependence is at lag 2 (`y_t = f(x_{t-2})`,
+    /// no lag-1 dependence). Exercises the `max_lag ≥ 2` branch and the `block =
+    /// (lag - 1) * p * p` offset in [`lag_bit`] for `lag > 1`, which the lag-1-only
+    /// `dbn_recovers_lag1_edge` test above can never touch.
+    fn lag2_series(n_obs: usize) -> (TimeSeriesData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let vars: Vec<_> = (0..2).map(VariableId::from_raw).collect();
+        let mut rng = antecedent_core::CausalRng::from_seed(101);
+        let mut x = vec![0.0; n_obs];
+        let mut y = vec![0.0; n_obs];
+        x[0] = rng.next_f64() * 2.0 - 1.0;
+        x[1] = rng.next_f64() * 2.0 - 1.0;
+        y[0] = rng.next_f64() * 2.0 - 1.0;
+        y[1] = rng.next_f64() * 2.0 - 1.0;
+        for t in 2..n_obs {
+            x[t] = 0.2 * (rng.next_f64() * 2.0 - 1.0);
+            y[t] = 1.4 * x[t - 2] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(vars[0], Arc::from(x), ValidityBitmap::all_valid(n_obs))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(vars[1], Arc::from(y), ValidityBitmap::all_valid(n_obs))
+                    .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
+        )
+        .unwrap();
+        (data, vars)
+    }
+
+    #[test]
+    fn dbn_recovers_lag2_edge() {
+        let (data, vars) = lag2_series(220);
+        let eng = DbnPosterior::new(2);
+        let prior =
+            GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    max_lag: Lag::from_raw(2),
+                    min_lag: Lag::from_raw(2),
+                },
+                ..Default::default()
+            });
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(post.max_lag, Some(2));
+        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let p = 2usize;
+        let idx_lag1_xy = lag_bit(p, 2, 1, 0, 1) as usize;
+        let idx_lag2_xy = lag_bit(p, 2, 2, 0, 1) as usize;
+        assert!(
+            lagged[idx_lag2_xy] > 0.4,
+            "P(x_{{t-2}}→y_t)={} (index {idx_lag2_xy})",
+            lagged[idx_lag2_xy]
+        );
+        // The spurious lag-1 edge on the same (x, y) pair must not be inflated by an
+        // indexing mix-up between the lag-1 and lag-2 blocks.
+        assert!(
+            lagged[idx_lag1_xy] < lagged[idx_lag2_xy],
+            "lag-1 marginal ({}) should not exceed the true lag-2 edge ({})",
+            lagged[idx_lag1_xy],
+            lagged[idx_lag2_xy]
+        );
+    }
+
+    /// Three-variable series where `y_t` depends on *two* distinct lag-1 parents
+    /// (`x_{t-1}` and `z_{t-1}`). Exercises the `from` component of [`lag_bit`] so a
+    /// target with multiple lagged parents doesn't collide bits between sources.
+    fn multi_parent_lag_series(n_obs: usize) -> (TimeSeriesData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y", "z"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let mut rng = antecedent_core::CausalRng::from_seed(202);
+        let mut x = vec![0.0; n_obs];
+        let mut y = vec![0.0; n_obs];
+        let mut z = vec![0.0; n_obs];
+        x[0] = rng.next_f64() * 2.0 - 1.0;
+        y[0] = rng.next_f64() * 2.0 - 1.0;
+        z[0] = rng.next_f64() * 2.0 - 1.0;
+        for t in 1..n_obs {
+            x[t] = 0.2 * (rng.next_f64() * 2.0 - 1.0);
+            z[t] = 0.2 * (rng.next_f64() * 2.0 - 1.0);
+            y[t] = 0.9 * x[t - 1] + 0.9 * z[t - 1] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(vars[0], Arc::from(x), ValidityBitmap::all_valid(n_obs))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(vars[1], Arc::from(y), ValidityBitmap::all_valid(n_obs))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(vars[2], Arc::from(z), ValidityBitmap::all_valid(n_obs))
+                    .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
+        )
+        .unwrap();
+        (data, vars)
+    }
+
+    #[test]
+    fn dbn_recovers_multi_parent_lag_edges() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let eng = DbnPosterior::new(1);
+        let prior =
+            GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: Lag::from_raw(1),
+                },
+                ..Default::default()
+            });
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(post.max_lag, Some(1));
+        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let p = 3usize;
+        // x=0, y=1, z=2.
+        let idx_x_to_y = lag_bit(p, 1, 1, 0, 1) as usize;
+        let idx_z_to_y = lag_bit(p, 1, 1, 2, 1) as usize;
+        assert!(
+            lagged[idx_x_to_y] > 0.4,
+            "P(x_{{t-1}}→y_t)={} (index {idx_x_to_y})",
+            lagged[idx_x_to_y]
+        );
+        assert!(
+            lagged[idx_z_to_y] > 0.4,
+            "P(z_{{t-1}}→y_t)={} (index {idx_z_to_y})",
+            lagged[idx_z_to_y]
+        );
+    }
+
+    /// A forbidden *lagged* edge must carry zero posterior mass.
+    ///
+    /// `log_prior_mask` only screens the contemporaneous mask, and
+    /// `edge_forbidden`/`edge_required` build their `LaggedLink` through `static_link`, which
+    /// pins both endpoints to `Lag::CONTEMPORANEOUS` — so they structurally cannot express a
+    /// constraint on a lag > 0 edge. The lag-edge loop applied only `max_parents`, making
+    /// `forbidden` a complete no-op for this engine. This is the same fixture as
+    /// `dbn_recovers_multi_parent_lag_edges`, where `x_{t-1} → y_t` is strongly supported by
+    /// the data, so the constraint has to actively suppress it.
+    #[test]
+    fn dbn_honors_forbidden_lagged_edge() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let eng = DbnPosterior::new(1);
+        let mut constraints = crate::constraints::DiscoveryConstraints {
+            temporal: crate::constraints::TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::from_raw(1),
+            },
+            ..Default::default()
+        };
+        constraints.forbidden = Arc::from([crate::result::LaggedLink {
+            source: vars[0],
+            source_lag: Lag::from_raw(1),
+            target: vars[1],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let prior = GraphPrior::uniform().with_constraints(constraints);
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let p = 3usize;
+        let idx_x_to_y = lag_bit(p, 1, 1, 0, 1) as usize;
+        let idx_z_to_y = lag_bit(p, 1, 1, 2, 1) as usize;
+        assert!(
+            lagged[idx_x_to_y] == 0.0,
+            "forbidden x_{{t-1}}→y_t still carries mass {}",
+            lagged[idx_x_to_y]
+        );
+        // The unconstrained sibling must survive, so this is a targeted ban and not a
+        // collapse of the whole lagged posterior.
+        assert!(
+            lagged[idx_z_to_y] > 0.4,
+            "P(z_{{t-1}}→y_t)={} should be unaffected",
+            lagged[idx_z_to_y]
+        );
     }
 }

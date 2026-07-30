@@ -22,6 +22,15 @@ pub fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     let r = r.clamp(-1.0 + 1e-15, 1.0 - 1e-15);
+    if df <= 1.0 {
+        // Fisher-z SE = 1/sqrt(df - 1) is undefined (would divide by zero, or go
+        // imaginary) at df <= 1: with at most one residual degree of freedom the data
+        // carry no information to bound the correlation. Report the maximally-wide
+        // interval over the valid correlation range deliberately, rather than NaN
+        // (df <= 0.0 above is the "invalid input" case) or ±inf (which `z_to_r`'s
+        // clamp would silently collapse to ±1.0 anyway).
+        return (-1.0, 1.0);
+    }
     let z = 0.5 * ((1.0 + r) / (1.0 - r)).ln();
     let se = 1.0 / (df - 1.0).sqrt();
     // Approximate normal critical value via inverse erf for common levels.
@@ -56,5 +65,25 @@ mod tests {
         assert!((hi - expect_hi).abs() < 1e-4);
         assert!(lo < 0.5 && 0.5 < hi);
         let _ = normal_ppf(0.975);
+    }
+
+    /// `df == 1` must return the maximally-wide interval, not `NaN` (that's the `df <= 0.0`
+    /// case) and not `±inf` collapsed through `z_to_r`'s clamp. Pins the deliberate
+    /// degenerate-input behavior described at the `df <= 1.0` guard.
+    #[test]
+    fn ci_at_df_one_is_maximally_wide_not_nan() {
+        let (lo, hi) = analytic_parcorr_ci(0.5, 1.0, 0.95);
+        assert!((lo - -1.0).abs() < 1e-15 && (hi - 1.0).abs() < 1e-15, "lo={lo} hi={hi}");
+        // Any r at df == 1 hits the same degenerate branch.
+        let (lo2, hi2) = analytic_parcorr_ci(-0.9, 1.0, 0.95);
+        assert!((lo2 - -1.0).abs() < 1e-15 && (hi2 - 1.0).abs() < 1e-15, "lo2={lo2} hi2={hi2}");
+    }
+
+    /// `df <= 0.0` remains the distinct "invalid input" case (`NaN`), unaffected by the
+    /// new `df <= 1.0` degenerate-but-valid branch.
+    #[test]
+    fn ci_at_df_zero_is_still_nan() {
+        let (lo, hi) = analytic_parcorr_ci(0.5, 0.0, 0.95);
+        assert!(lo.is_nan() && hi.is_nan());
     }
 }

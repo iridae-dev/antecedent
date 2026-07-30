@@ -1,0 +1,20 @@
+feature_id = "discovery.orientation_rules"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["R1-R4 (collider propagation, R4 discriminating paths)", "R8-R10 (definite-path / uncovered-path rules, unprimed)"] },
+ { title = "High-recall causal discovery for autocorrelated time series with latent confounders", doi = "10.48550/arXiv.2007.01884", sections = ["R3', R9', R10' generalizations (weakly-minimal separating-set requirement on middle colliders); NOT present in Zhang 2008"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/rule_scheduling_tests.rs",
+ "crates/antecedent-discovery/src/discriminating_paths.rs unit tests",
+ "conformance/discovery/rfci",
+ "conformance/discovery/lpcmci_matrix",
+]

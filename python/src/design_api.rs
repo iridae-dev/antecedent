@@ -103,6 +103,52 @@ fn parse_candidate(item: &Bound<'_, PyAny>, default_tag: u64) -> PyResult<Candid
     })
 }
 
+/// Build a [`DesignObjective`] from an already-extracted `kind` string plus the
+/// optional id fields it may need. Shared by both `parse_objective` entry points
+/// (bare-string shortcut and full dict form) so the match ladder and error
+/// strings exist exactly once.
+fn objective_from_kind(
+    kind: &str,
+    query_id: Option<u32>,
+    model_ids: Option<Vec<u32>>,
+    decision_id: Option<u32>,
+) -> PyResult<DesignObjective> {
+    match kind {
+        "reduce_graph_entropy" | "eig" => Ok(DesignObjective::ReduceGraphEntropy),
+        "increase_identification_probability" | "id_probability" => {
+            let q = query_id.ok_or_else(|| {
+                PyValueError::new_err("increase_identification_probability requires query_id")
+            })?;
+            Ok(DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(q) })
+        }
+        "reduce_effect_posterior_width" | "effect_width" => {
+            let q = query_id.ok_or_else(|| {
+                PyValueError::new_err("reduce_effect_posterior_width requires query_id")
+            })?;
+            Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
+        }
+        "reduce_decision_regret" | "decision_regret" => {
+            let d = decision_id.ok_or_else(|| {
+                PyValueError::new_err("reduce_decision_regret requires decision_id")
+            })?;
+            Ok(DesignObjective::ReduceDecisionRegret {
+                decision: antecedent::design::DecisionProblemId::from_raw(d),
+            })
+        }
+        "distinguish_models" => {
+            let ids = model_ids
+                .ok_or_else(|| PyValueError::new_err("distinguish_models requires model_ids"))?;
+            if ids.len() < 2 {
+                return Err(PyValueError::new_err("distinguish_models needs ≥2 model_ids"));
+            }
+            Ok(DesignObjective::DistinguishModels {
+                models: Arc::from(ids.into_iter().map(ModelId::from_raw).collect::<Vec<_>>()),
+            })
+        }
+        other => Err(PyValueError::new_err(format!("unknown objective `{other}`"))),
+    }
+}
+
 fn parse_objective(
     objective: &Bound<'_, PyAny>,
     query_id: Option<u32>,
@@ -110,43 +156,7 @@ fn parse_objective(
     decision_id: Option<u32>,
 ) -> PyResult<DesignObjective> {
     if let Ok(name) = objective.extract::<String>() {
-        return match name.as_str() {
-            "reduce_graph_entropy" | "eig" => Ok(DesignObjective::ReduceGraphEntropy),
-            "increase_identification_probability" | "id_probability" => {
-                let q = query_id.ok_or_else(|| {
-                    PyValueError::new_err("increase_identification_probability requires query_id")
-                })?;
-                Ok(DesignObjective::IncreaseIdentificationProbability {
-                    query: QueryId::from_raw(q),
-                })
-            }
-            "reduce_effect_posterior_width" | "effect_width" => {
-                let q = query_id.ok_or_else(|| {
-                    PyValueError::new_err("reduce_effect_posterior_width requires query_id")
-                })?;
-                Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
-            }
-            "reduce_decision_regret" | "decision_regret" => {
-                let d = decision_id.ok_or_else(|| {
-                    PyValueError::new_err("reduce_decision_regret requires decision_id")
-                })?;
-                Ok(DesignObjective::ReduceDecisionRegret {
-                    decision: antecedent::design::DecisionProblemId::from_raw(d),
-                })
-            }
-            "distinguish_models" => {
-                let ids = model_ids.ok_or_else(|| {
-                    PyValueError::new_err("distinguish_models requires model_ids")
-                })?;
-                if ids.len() < 2 {
-                    return Err(PyValueError::new_err("distinguish_models needs ≥2 model_ids"));
-                }
-                Ok(DesignObjective::DistinguishModels {
-                    models: Arc::from(ids.into_iter().map(ModelId::from_raw).collect::<Vec<_>>()),
-                })
-            }
-            other => Err(PyValueError::new_err(format!("unknown objective `{other}`"))),
-        };
+        return objective_from_kind(&name, query_id, model_ids, decision_id);
     }
     let d = objective
         .cast::<PyDict>()
@@ -158,41 +168,7 @@ fn parse_objective(
     let q = d.get_item("query_id")?.map(|v| v.extract()).transpose()?.or(query_id);
     let mids = d.get_item("model_ids")?.map(|v| v.extract()).transpose()?.or(model_ids);
     let did = d.get_item("decision_id")?.map(|v| v.extract()).transpose()?.or(decision_id);
-    // Re-dispatch on kind string without re-binding PyAny.
-    match kind.as_str() {
-        "reduce_graph_entropy" | "eig" => Ok(DesignObjective::ReduceGraphEntropy),
-        "increase_identification_probability" | "id_probability" => {
-            let q = q.ok_or_else(|| {
-                PyValueError::new_err("increase_identification_probability requires query_id")
-            })?;
-            Ok(DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(q) })
-        }
-        "reduce_effect_posterior_width" | "effect_width" => {
-            let q = q.ok_or_else(|| {
-                PyValueError::new_err("reduce_effect_posterior_width requires query_id")
-            })?;
-            Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
-        }
-        "reduce_decision_regret" | "decision_regret" => {
-            let d = did.ok_or_else(|| {
-                PyValueError::new_err("reduce_decision_regret requires decision_id")
-            })?;
-            Ok(DesignObjective::ReduceDecisionRegret {
-                decision: antecedent::design::DecisionProblemId::from_raw(d),
-            })
-        }
-        "distinguish_models" => {
-            let ids =
-                mids.ok_or_else(|| PyValueError::new_err("distinguish_models requires model_ids"))?;
-            if ids.len() < 2 {
-                return Err(PyValueError::new_err("distinguish_models needs ≥2 model_ids"));
-            }
-            Ok(DesignObjective::DistinguishModels {
-                models: Arc::from(ids.into_iter().map(ModelId::from_raw).collect::<Vec<_>>()),
-            })
-        }
-        other => Err(PyValueError::new_err(format!("unknown objective `{other}`"))),
-    }
+    objective_from_kind(&kind, q, mids, did)
 }
 
 fn parse_unlock_vars(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<Vec<QueryVarUnlock>>> {

@@ -1,0 +1,22 @@
+feature_id = "design.decision"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Also covers DesignObjective::ReduceDecisionRegret / ranker.rs::decision_regret_reduction,
+# which scores candidate designs by their reduction in Bayesian decision regret using the
+# same expected-utility machinery as decision.rs.
+papers = [
+ { title = "Applied Statistical Decision Theory", sections = ["Expected utility over actions and chance outcomes; regret"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/src/decision.rs unit tests",
+ "crates/antecedent-design/src/ranker.rs unit tests (decision_regret_reduction_matches_closed_form_single_outcome, decision_regret_reduction_zero_for_unknown_decision)",
+ "crates/antecedent-design/tests/design_oracle.rs (decision_enumeration_matches_exact_feasibility_contract)",
+ "conformance/design/decision_ranking",
+]

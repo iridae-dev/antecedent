@@ -71,26 +71,3 @@ impl From<FdrAdjustment> for FdrControl {
         Self::On(value)
     }
 }
-
-/// Whether a discovery result may be auto-accepted into an analysis plan.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum DiscoveryAccept {
-    /// Leave as review-required.
-    Review,
-    /// Auto-accept when the algorithm permits (no pending undirected marks, etc.).
-    AutoAccept,
-}
-
-impl DiscoveryAccept {
-    /// Whether auto-accept is requested.
-    #[must_use]
-    pub const fn auto(self) -> bool {
-        matches!(self, Self::AutoAccept)
-    }
-}
-
-impl From<bool> for DiscoveryAccept {
-    fn from(value: bool) -> Self {
-        if value { Self::AutoAccept } else { Self::Review }
-    }
-}

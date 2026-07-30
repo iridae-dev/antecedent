@@ -407,6 +407,48 @@ fn mci_conditioning_shifts_source_parents_by_link_lag() {
     assert_eq!(out, vec![(y, Lag::from_raw(1)), (x, Lag::from_raw(3))]);
 }
 
+/// The budget must bind on the lagged block *before* a caller prepends its own conditions.
+///
+/// PCMCI+ appends a contemporaneous candidate set `S` to the MCI conditioning set. It used
+/// to prepend `S` and then truncate the combined vector to 30 — but truncation drops from
+/// the tail, which is the lagged MCI block. That block is the fixed control set that makes
+/// the MCI test valid under autocorrelation, so the optional candidates were evicting the
+/// mandatory ones. Reserving the budget up front keeps that from happening.
+#[test]
+fn mci_conditioning_bounded_reserves_room_for_caller_conditions() {
+    use crate::engine::mci_conditioning_bounded;
+
+    let y = VariableId::from_raw(99);
+    let link = LaggedLink {
+        source: VariableId::from_raw(98),
+        source_lag: Lag::from_raw(1),
+        target: y,
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    // 40 distinct lagged parents of the target — well past the 30-column cap.
+    let parents_target: Vec<(VariableId, Lag)> =
+        (0..40).map(|i| (VariableId::from_raw(i), Lag::from_raw(1))).collect();
+
+    // Unbounded: fills the full 30 and reports the overflow.
+    let mut out = Vec::new();
+    let dropped = mci_conditioning(link, &parents_target, &[], &mut out);
+    assert_eq!(out.len(), 30);
+    assert_eq!(dropped, 10);
+
+    // Reserving 3 slots for `S` leaves 27 lagged conditions and accounts for all 13 drops,
+    // so the caller's 3 conditions fit without evicting anything after the fact.
+    let mut out = Vec::new();
+    let dropped = mci_conditioning_bounded(link, &parents_target, &[], 27, &mut out);
+    assert_eq!(out.len(), 27);
+    assert_eq!(dropped, 13);
+
+    // A budget above the kernel cap is still clamped by it.
+    let mut out = Vec::new();
+    let dropped = mci_conditioning_bounded(link, &parents_target, &[], 1000, &mut out);
+    assert_eq!(out.len(), 30);
+    assert_eq!(dropped, 10);
+}
+
 #[test]
 fn mci_conditioning_keeps_shifted_autocorrelation_parent() {
     // Link X_{t-1} → Y_t with pa(X) = {(X,1)}: the unshifted parent would collide with

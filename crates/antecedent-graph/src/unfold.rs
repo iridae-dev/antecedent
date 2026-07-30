@@ -1,7 +1,7 @@
 //! Lazy finite unfolding of temporal DAGs and graph-review artifacts.
 //!
 //! Stationary algorithms query edges on demand via [`LazyUnfoldedTemporalGraph`].
-//! Full materialisation is available when a static [`Dag`] is required .
+//! Full materialisation is available when a static [`Dag`] is required.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

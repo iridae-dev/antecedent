@@ -7,7 +7,9 @@
 use std::sync::Arc;
 
 use antecedent::discovery::RegimeAssignment;
-use antecedent::discovery_defaults::{jpcmci_constraints, pcmci_constraints, resolve_ci};
+use antecedent::discovery_defaults::{
+    DEFAULT_MAX_COND_SIZE, jpcmci_constraints, pcmci_constraints, resolve_ci,
+};
 use antecedent_core::{Lag, RegimeId, VariableId};
 use antecedent_data::{EnvHoldoutSplit, MultiEnvironmentData, TableView};
 use antecedent_discovery::{
@@ -30,13 +32,13 @@ fn pcmci_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyResult<
     let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
     Ok(Pcmci::new()
         .with_fdr(fdr)
-        .with_constraints(pcmci_constraints(max_lag, alpha))
+        .with_constraints(pcmci_constraints(max_lag, alpha, DEFAULT_MAX_COND_SIZE))
         .with_ci(ci_impl))
 }
 
 fn pcmci_plus_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyResult<PcmciPlus> {
     let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
-    let mut constraints = pcmci_constraints(max_lag, alpha);
+    let mut constraints = pcmci_constraints(max_lag, alpha, DEFAULT_MAX_COND_SIZE);
     constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
     Ok(PcmciPlus::new().with_fdr(fdr).with_constraints(constraints).with_ci(ci_impl))
 }
@@ -465,6 +467,7 @@ fn validate_environment_holdout(
             .with_constraints(jpcmci_constraints(
                 max_lag,
                 alpha,
+                DEFAULT_MAX_COND_SIZE,
                 MultiDatasetConstraints::default(),
             ))
             .with_ci(ci_impl);

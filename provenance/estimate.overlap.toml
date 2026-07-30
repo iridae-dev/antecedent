@@ -1,0 +1,21 @@
+feature_id = "estimate.overlap"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Kish's effective-sample-size / design-effect formula (Kish, "Survey Sampling",
+# Wiley, 1965) is the basis for the ESS diagnostic but is a pre-DOI-era book;
+# no resolving DOI was found, so it is omitted rather than asserted (see
+# report: "Unverified DOIs / papers omitted").
+papers = [
+ { title = "Dealing with Limited Overlap in Estimation of Average Treatment Effects", doi = "10.1093/biomet/asn055", sections = ["propensity-score trimming for limited overlap"] },
+ { title = "Survey Sampling", sections = ["effective sample size / design effect"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "in-crate unit tests (crates/antecedent-estimate/src/overlap.rs): clip-sensitivity ESS grid matches production IPW weights, ATT/ATC label-flip symmetry, tiny-clip parity with production clamp_scores, Custom observation-weight grid",
+]

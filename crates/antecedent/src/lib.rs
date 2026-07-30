@@ -1,4 +1,4 @@
-//! Unified static/temporal `CausalAnalysis` facade (identify → estimate → refute).
+//! Unified static/temporal `Study` facade (identify → estimate → refute).
 //!
 //! Antecedent is an identification-first causal inference engine: identification
 //! is evaluated before estimation, refuters run against the estimate, and
@@ -28,8 +28,7 @@
 //! .unwrap();
 //! let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
 //! let q = AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-//! let result = CausalAnalysis::builder()
-//!     .data(data)
+//! let result = Study::tabular(data)
 //!     .graph(dag)
 //!     .query(q)
 //!     .refute(RefuteSuite::None)
@@ -49,12 +48,14 @@
 #![deny(missing_docs)]
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
+pub mod accepted;
 pub mod analysis;
 pub mod callback_plan;
 pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
 pub mod error;
+pub mod estimator_spec;
 pub mod gcm;
 pub mod inference;
 pub mod options;
@@ -68,25 +69,26 @@ pub mod strategy_table;
 pub mod estimate;
 pub mod graph;
 pub mod identify;
+pub mod identify_api;
 pub mod io;
 pub mod query;
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
+pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
-    LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
+    BatchStudy, ComputeBudget, LatencyMode, PreparedStudy, RdConfig, RefuteSuite, StageEvent,
+    StageResultSink, Study, StudyBuilder,
 };
-#[allow(deprecated)]
-pub use error::AnalysisError;
-pub use error::CausalError;
+pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
+pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
+pub use identify_api::{Identification, identify, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
-pub use options::{DiscoveryAccept, FdrControl};
-pub use planner::{CompiledAnalysis, GraphInput};
+pub use options::FdrControl;
 pub use query::*;
-pub use result::CausalAnalysisResult;
+pub use result::StudyResult;
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,
 // `antecedent::gcm`, `antecedent::io`, `antecedent::design`, `antecedent::state`, `antecedent::graph`,
@@ -103,7 +105,7 @@ mod tests {
         SmallRoleSet, Value, ValueType, VariableId,
     };
     use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_kernels::standard_normal;
@@ -188,8 +190,7 @@ mod tests {
     #[test]
     fn end_to_end_ate() {
         let (data, graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(graph)
             .query(query)
             .refute(RefuteSuite::PlaceboAndRcc)
@@ -216,8 +217,7 @@ mod tests {
     #[test]
     fn bayesian_ate_attaches_prior_and_posterior_predictive() {
         let (data, graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(graph)
             .query(query)
             .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
@@ -250,12 +250,25 @@ mod tests {
         assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"));
     }
 
+    // Bayesian graph-posterior discovery (exact / order / structure MCMC, CI-screened, DBN)
+    // is reachable from `Study` via `StudyBuilder::graph_posterior`, fed by a `GraphPosterior`
+    // the caller built directly from a free `discovery::discover_*` function (discovery is no
+    // longer run implicitly by the builder — see `StudyBuilder::graph_posterior`'s docs).
+
     #[test]
     fn bayesian_exact_dag_posterior_effect_envelope() {
         let (data, _graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
-            .data(data)
-            .discover_exact_dag_posterior()
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let gp = crate::discovery::discover_exact_dag_posterior(
+            &data,
+            &vars,
+            &crate::discovery::BayesianDiscoverParams::default(),
+            &ctx,
+        )
+        .unwrap();
+        let analysis = Study::tabular(data)
+            .graph_posterior(gp)
             .query(query)
             .inference(InferenceMode::Bayesian(
                 BayesianConfig::conjugate().n_draws(80).prior_scale(100.0),
@@ -263,7 +276,6 @@ mod tests {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        let ctx = ExecutionContext::for_tests(1);
         let result = analysis.run(&ctx).unwrap();
         let post = result.posterior.expect("mixture posterior");
         assert!((0.0..=1.0).contains(&post.unidentified_mass));
@@ -273,24 +285,97 @@ mod tests {
         assert!(post.draws.n_draws > 0);
     }
 
+    /// Every posterior producer must tag itself, and that tag must survive into the
+    /// plan record — which is surfaced to Python and serialized into CBOR artifacts.
+    ///
+    /// This is a regression gate. A refactor once made every posterior algorithm record
+    /// the generic label `"graph_posterior"`, and the whole suite stayed green because
+    /// nothing anywhere asserted `discovery_algorithm`. An analysis that cannot say
+    /// which structure-learning algorithm produced its posterior is not reproducible.
+    #[test]
+    fn graph_posterior_records_its_real_algorithm() {
+        let (data, _graph, query) = scm();
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let params = crate::discovery::BayesianDiscoverParams::default();
+
+        let exact =
+            crate::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
+        assert_eq!(exact.algorithm.as_deref(), Some("exact_dag_posterior"));
+
+        let schedule = crate::discovery::GraphMcmcSchedule {
+            n_chains: 2,
+            n_warmup: 20,
+            n_draws: 40,
+            ..Default::default()
+        };
+        let order =
+            crate::discovery::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
+                .unwrap();
+        assert_eq!(
+            order.algorithm.as_deref(),
+            Some("order_mcmc"),
+            "order MCMC must not report a generic posterior label"
+        );
+
+        // End-to-end: the tag reaches the plan record, not just the posterior struct.
+        let plan = Study::tabular(data)
+            .graph_posterior(order)
+            .query(query)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(40)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .plan(&ctx)
+            .unwrap();
+        assert_eq!(plan.logical.record.discovery_algorithm.as_deref(), Some("order_mcmc"));
+    }
+
     #[test]
     fn graph_posterior_discovery_rejects_frequentist() {
         let (data, _graph, query) = scm();
-        let err = CausalAnalysis::builder()
-            .data(data)
-            .discover_exact_dag_posterior()
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let gp = crate::discovery::discover_exact_dag_posterior(
+            &data,
+            &vars,
+            &crate::discovery::BayesianDiscoverParams::default(),
+            &ctx,
+        )
+        .unwrap();
+        let err = Study::tabular(data)
+            .graph_posterior(gp)
             .query(query)
             .inference(InferenceMode::Frequentist)
             .refute(RefuteSuite::None)
             .build()
             .unwrap()
-            .compile(&ExecutionContext::for_tests(1))
+            .compile(&ctx)
             .unwrap_err();
         let msg = err.to_string();
         assert!(
             msg.contains("Bayesian") || msg.contains("graph-posterior"),
             "unexpected error: {msg}"
         );
+    }
+
+    #[test]
+    fn graph_and_graph_posterior_together_conflicts() {
+        let (data, graph, query) = scm();
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let gp = crate::discovery::discover_exact_dag_posterior(
+            &data,
+            &vars,
+            &crate::discovery::BayesianDiscoverParams::default(),
+            &ctx,
+        )
+        .unwrap();
+        let err = Study::tabular(data).graph(graph).graph_posterior(gp).query(query).build();
+        match err {
+            Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "graph"),
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
     }
 
     #[test]
@@ -366,8 +451,7 @@ mod tests {
             VariableId::from_raw(1),
             [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
         );
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
@@ -442,8 +526,7 @@ mod tests {
         let query =
             PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
                 .with_path_nodes([VariableId::from_raw(1)]);
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
@@ -547,12 +630,11 @@ mod tests {
         // (`test_analyze_propensity_weighting_recovers_ate_and_overlap`): true ATE=2;
         // Rust band |ate−2|<0.3; shared cross-language floor is 0.4.
         let (data, graph, query) = confounded_scm(800, 1);
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(graph)
             .query(query)
-            .identifier("backdoor.adjustment")
-            .estimator("propensity.weighting")
+            .identifier(IdentifierId::BackdoorAdjustment)
+            .estimator(EstimatorId::PropensityWeighting)
             .bootstrap_replicates(30)
             .build()
             .unwrap();
@@ -560,7 +642,7 @@ mod tests {
         let result = analysis.run(&ctx).unwrap();
         assert!((result.estimate.ate - 2.0).abs() < 0.3, "ate={}", result.estimate.ate);
         // Placebo/RCC refuters are hardwired to LinearAdjustmentAte and are skipped for
-        // every non-default estimator (see `CausalAnalysis::execute_static`).
+        // every non-default estimator (see `Study::execute_static`).
         assert!(result.refutations.is_empty());
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("propensity.weighting"));
     }
@@ -655,12 +737,11 @@ mod tests {
     #[test]
     fn end_to_end_iv_two_stage_least_squares() {
         let (data, graph, query) = iv_scm(4000, 5);
-        let analysis = CausalAnalysis::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(graph)
             .query(query)
-            .identifier("iv")
-            .estimator("iv.2sls")
+            .identifier(IdentifierId::Iv)
+            .estimator(EstimatorId::Iv2Sls)
             .bootstrap_replicates(30)
             .build()
             .unwrap();
@@ -734,9 +815,8 @@ mod tests {
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
             .with_horizon_steps(1);
-        let analysis = CausalAnalysis::builder()
-            .series(series)
-            .temporal_graph(g)
+        let analysis = Study::series(series)
+            .graph(g)
             .temporal_query(q)
             .bootstrap_replicates(0)
             .build()
@@ -750,20 +830,8 @@ mod tests {
         assert!(!result.physical_plan.task_schedule.is_empty());
         assert!(!result.physical_plan.materializations.is_empty());
 
-        let compiled = analysis.compile(&ctx).unwrap();
-        match compiled {
-            CompiledAnalysis::Ready(plan) => {
-                assert!(plan.temporal_graph().is_some());
-                assert_eq!(plan.record.batch_size, Some(250));
-            }
-            CompiledAnalysis::ReviewRequired(_)
-            | CompiledAnalysis::ReviewRequiredCpdag(_)
-            | CompiledAnalysis::ReviewRequiredStaticCpdag(_)
-            | CompiledAnalysis::ReviewRequiredStaticDag(_)
-            | CompiledAnalysis::ReviewRequiredPag(_)
-            | CompiledAnalysis::ReviewRequiredStaticPag(_) => {
-                panic!("expected Ready")
-            }
-        }
+        let plan = analysis.compile(&ctx).unwrap();
+        assert!(plan.temporal_graph().is_some());
+        assert_eq!(plan.record.batch_size, Some(250));
     }
 }

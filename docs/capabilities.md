@@ -131,6 +131,24 @@ completions. Full PAG-native ID and IDC are outside the supported scope.
 * temporal mediation;
 * functional plug-in estimation.
 
+Three of these carry parametric scope conditions that the estimator cannot check
+at runtime:
+
+* **Front-door two-stage estimation** is the linear-SEM product-of-coefficients
+  estimator. It assumes linear structural equations and no direct treatment to
+  outcome edge. The general nonparametric front-door formula is reached through
+  the ID path and functional plug-in estimation, not through this estimator.
+* **Sharp regression discontinuity** uses a caller-supplied bandwidth with a
+  uniform kernel and reports a conventional, not bias-corrected, interval. There
+  is no data-driven bandwidth selector and no Calonico–Cattaneo–Titiunik robust
+  correction, so the estimate is only as defensible as the chosen bandwidth.
+* **Propensity-matching standard errors** use a pooled homoskedastic variance
+  proxy rather than the full Abadie–Imbens conditional variance estimator. Under
+  heteroskedastic outcome variance the reported standard error is biased.
+
+Applying the first two outside their assumed regime produces a biased estimate
+with no runtime signal.
+
 ### Bayesian
 
 * Bayesian g-computation;
@@ -227,7 +245,7 @@ Sensitivity methods:
 * linear sensitivity;
 * partial-linear sensitivity;
 * nonparametric sensitivity;
-* Reisz sensitivity.
+* Riesz sensitivity.
 
 Bayesian validation:
 

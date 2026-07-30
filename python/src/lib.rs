@@ -22,6 +22,7 @@ mod bayesian;
 mod callbacks;
 mod design_api;
 mod discovery_api;
+mod estimator_config;
 mod gcm_api;
 mod graph_build;
 mod graph_io;
@@ -39,8 +40,8 @@ pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
 pub(crate) use graph_build::{
-    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, schema_var_id,
-    series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
+    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, pool_panel_series,
+    schema_var_id, series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
     temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
 };
 pub(crate) use temporal_api::{
@@ -60,8 +61,8 @@ use std::sync::Arc;
 
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
-    DiscoverParams, DiscoveryPerformanceRecord, MultiDatasetConstraints, RegimeAssignment,
-    ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
+    DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
+    RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
     discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
     discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
     discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
@@ -70,6 +71,7 @@ use antecedent::discovery::{
     discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
     two_regime_half_split,
 };
+use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
 use antecedent::gcm::{
     CompiledCausalModel, DifferenceMeasure, DistributionChangeOptions, StructureChangeOptions,
@@ -91,9 +93,10 @@ use antecedent::io::{
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
     encode_causal_posterior_bytes,
 };
+use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
-    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
-    FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
+    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, EstimatorId, FdrControl,
+    IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
@@ -110,8 +113,9 @@ use antecedent_data::{
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
-    Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, Pag,
-    TemporalCpdag, TemporalPag,
+    Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark,
+    NodeRef, Pag, PagReview, TemporalCpdag, TemporalCpdagReview, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
 };
 use antecedent_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
@@ -119,33 +123,121 @@ use antecedent_io::{
 };
 use antecedent_stats::FdrAdjustment;
 use antecedent_stats::PartialCorrelation;
-use antecedent_validate::PredictiveCheckKind;
+use antecedent_validate::{PredictiveCheckKind, RefutationReport};
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::PyDict;
 
-create_exception!(causal._native, CausalError, PyException);
-create_exception!(causal._native, CausalIdentifyError, CausalError);
-create_exception!(causal._native, CausalEstimateError, CausalError);
-create_exception!(causal._native, CausalValidateError, CausalError);
-create_exception!(causal._native, CausalDiscoveryError, CausalError);
-create_exception!(causal._native, CausalModelError, CausalError);
-create_exception!(causal._native, CausalCounterfactualError, CausalError);
-create_exception!(causal._native, CausalAttributionError, CausalError);
-create_exception!(causal._native, CausalDataError, CausalError);
-create_exception!(causal._native, CausalGraphError, CausalError);
-create_exception!(causal._native, CausalDesignError, CausalError);
-create_exception!(causal._native, CausalStateError, CausalError);
-create_exception!(causal._native, CausalSerializationError, CausalError);
-create_exception!(causal._native, CausalCompileError, CausalError);
-create_exception!(causal._native, CausalResourceError, CausalError);
-create_exception!(causal._native, CausalReviewError, CausalError);
-create_exception!(causal._native, CausalUnsupportedError, CausalError);
-create_exception!(causal._native, CausalCancelledError, CausalError);
+create_exception!(antecedent._native, CausalError, PyException);
+create_exception!(antecedent._native, CausalIdentifyError, CausalError);
+create_exception!(antecedent._native, CausalEstimateError, CausalError);
+create_exception!(antecedent._native, CausalValidateError, CausalError);
+create_exception!(antecedent._native, CausalDiscoveryError, CausalError);
+create_exception!(antecedent._native, CausalModelError, CausalError);
+create_exception!(antecedent._native, CausalCounterfactualError, CausalError);
+create_exception!(antecedent._native, CausalAttributionError, CausalError);
+create_exception!(antecedent._native, CausalDataError, CausalError);
+create_exception!(antecedent._native, CausalGraphError, CausalError);
+create_exception!(antecedent._native, CausalDesignError, CausalError);
+create_exception!(antecedent._native, CausalStateError, CausalError);
+create_exception!(antecedent._native, CausalSerializationError, CausalError);
+create_exception!(antecedent._native, CausalCompileError, CausalError);
+create_exception!(antecedent._native, CausalResourceError, CausalError);
+create_exception!(antecedent._native, CausalReviewError, CausalError);
+create_exception!(antecedent._native, CausalUnsupportedError, CausalError);
+create_exception!(antecedent._native, CausalCancelledError, CausalError);
+
+/// One entry in a raised `ReviewRequired`'s `pending_edges` sequence.
+///
+/// Read-only wire type mirroring `antecedent::error::PendingEdge`, exposed to Python
+/// as plain attributes so `antecedent.errors.PendingEdge` (a frozen dataclass) can
+/// normalize instances of this into its own type without depending on this class's
+/// identity.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct CausalPendingEdge {
+    #[pyo3(get)]
+    source: String,
+    #[pyo3(get)]
+    target: String,
+    #[pyo3(get)]
+    at_source: String,
+    #[pyo3(get)]
+    at_target: String,
+}
+
+impl From<&FacadePendingEdge> for CausalPendingEdge {
+    fn from(edge: &FacadePendingEdge) -> Self {
+        Self {
+            source: edge.source.clone(),
+            target: edge.target.clone(),
+            at_source: edge.at_source.clone(),
+            at_target: edge.at_target.clone(),
+        }
+    }
+}
+
+/// The Python-defined `ReviewRequired` class, registered by `antecedent.errors` at
+/// import time via [`set_review_error_class`]. `None` when the native module is used
+/// standalone (e.g. `import antecedent._native` without the `antecedent` package),
+/// in which case [`review_required_py_err`] falls back to bare `CausalReviewError`.
+static REVIEW_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python `ReviewRequired` class the error mapper should instantiate for
+/// `CausalError::ReviewRequired`, collapsing what used to be ad hoc `setattr` calls at
+/// each Python-facing construction site into this one registration.
+///
+/// Called once by `antecedent.errors` at import time. A second call is a silent
+/// no-op: [`PyOnceLock`] only accepts the first `set`, and the intended caller is a
+/// single top-level import.
+#[pyfunction]
+fn set_review_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = REVIEW_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// Build the Python exception for `CausalError::ReviewRequired`.
+///
+/// Instantiates the registered `ReviewRequired` class (see [`set_review_error_class`])
+/// when available, so callers get the real class in `type(err).__mro__` plus a
+/// structured `pending_edges` attribute; falls back to bare `CausalReviewError` when
+/// nothing is registered. Either way this is the single place that builds a
+/// review-required Python exception — `kind` / `algorithm` / `pending_edge_count` /
+/// `pending_edges` / `hint` / `message` are attached identically in both branches, and
+/// `str(err)` stays byte-identical to `message`.
+fn review_required_py_err(
+    kind: String,
+    algorithm: Option<String>,
+    pending_edge_count: usize,
+    pending_edges: Arc<[FacadePendingEdge]>,
+    message: String,
+    hint: String,
+) -> PyErr {
+    Python::attach(|py| {
+        let edges: Vec<Py<CausalPendingEdge>> = pending_edges
+            .iter()
+            .filter_map(|e| Py::new(py, CausalPendingEdge::from(e)).ok())
+            .collect();
+
+        let err: PyErr = REVIEW_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalReviewError::new_err(message.clone()), PyErr::from_value);
+
+        let inst = err.value(py);
+        let _ = inst.setattr("kind", kind.as_str());
+        let _ = inst.setattr("algorithm", algorithm.as_deref());
+        let _ = inst.setattr("pending_edge_count", pending_edge_count);
+        let _ = inst.setattr("pending_edges", edges);
+        let _ = inst.setattr("hint", hint.as_str());
+        let _ = inst.setattr("message", message.as_str());
+        err
+    })
+}
 
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
@@ -172,6 +264,116 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
     Err(PyValueError::new_err(
         "refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")",
     ))
+}
+
+// --- Discovery review acceptance helpers -----------------------------------------
+//
+// The old `StudyBuilder` took a `DiscoveryAccept` flag (`AutoAccept` / `Review`) on each
+// `.discover_*()` setter and deferred the actual review gate to `compile()` time. The new
+// facade runs discovery standalone (see `antecedent::discovery`) and requires callers to
+// explicitly turn the resulting review artifact into an `AcceptedGraph` — via
+// `AcceptedGraph::accept(review)` (fallible; the review-artifact path) or the infallible
+// `From<Dag|Admg|Pag|TemporalDag|TemporalPag>` conversions.
+//
+// These helpers reproduce the Python-visible `accept_discovered: bool` semantics on top of
+// the new API, one per review-artifact shape:
+// - DAG-shaped (`DagReview`, `TemporalGraphReview`): `true` clears pending directed edges
+//   first (mirrors the old `DiscoveryAccept::AutoAccept`); `false` requires the graph to
+//   already be fully oriented.
+// - CPDAG-shaped (`CpdagReview`, `TemporalCpdagReview`): `true` clears directed pending
+//   edges only — undirected marks still block acceptance, matching the old
+//   `accept_all_directed` semantics (never silently orients ambiguous edges).
+// - PAG-shaped (`PagReview`, `TemporalPagReview`): circle marks are informational, not
+//   incompleteness (the class-aware identifiers handle them directly), so `true` accepts
+//   the discovered graph as-is via the infallible `From` conversion — mirroring the old
+//   unconditional `AutoAccept` success for FCI/RFCI/LPCMCI; `false` routes through the
+//   review artifact, which fails with `ReviewRequired` while circles remain unreviewed.
+
+/// DAG-shaped review (static `DagReview`; DirectLiNGAM, NOTEARS).
+pub(crate) fn accept_dag_review(
+    review: DagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let review = if accept_discovered { review.accept_all() } else { review };
+    AcceptedGraph::accept(review)
+}
+
+/// Temporal DAG-shaped review (`TemporalGraphReview`; PCMCI).
+pub(crate) fn accept_temporal_graph_review(
+    review: TemporalGraphReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let pending = PendingGraphReview::new(review);
+    let pending = if accept_discovered { pending.accept_all() } else { pending };
+    pending.finish()
+}
+
+/// Static CPDAG-shaped review (`CpdagReview`; PC, GES).
+pub(crate) fn accept_cpdag_review(
+    mut review: CpdagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    if accept_discovered {
+        review.pending_edges = std::sync::Arc::from([]);
+    }
+    AcceptedGraph::accept(review)
+}
+
+/// Temporal CPDAG-shaped review (`TemporalCpdagReview`; PCMCI+, J-PCMCI+, RPCMCI).
+pub(crate) fn accept_temporal_cpdag_review(
+    review: TemporalCpdagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let pending = PendingCpdagReview::new(review);
+    let pending = if accept_discovered { pending.accept_all_directed() } else { pending };
+    pending.finish()
+}
+
+/// Static PAG-shaped discovery output (FCI, RFCI).
+pub(crate) fn accept_pag_review(
+    graph: Pag,
+    review: PagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    // Static PAG circle marks are information the class-aware generalized-adjustment
+    // identifier consumes, so auto-accept is safe here.
+    if accept_discovered { Ok(AcceptedGraph::pag(graph)) } else { AcceptedGraph::accept(review) }
+}
+
+/// Temporal PAG-shaped discovery output (LPCMCI).
+pub(crate) fn accept_temporal_pag_review(
+    graph: TemporalPag,
+    review: TemporalPagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    // Unlike the static case, auto-accept cannot bypass the gate: no class-aware
+    // temporal PAG identifier exists, so a remaining circle mark genuinely blocks.
+    if accept_discovered {
+        AcceptedGraph::temporal_pag(graph)
+    } else {
+        AcceptedGraph::accept(review)
+    }
+}
+
+/// RPCMCI: reduce N per-regime CPDAG reviews to one accepted graph. A single accepted
+/// graph is only possible when discovery found exactly one regime — multiple regimes
+/// always require manual review (there is no single-graph collapse across regimes),
+/// mirroring the old `compile()`'s `result.per_regime.len() == 1` gate.
+pub(crate) fn accept_rpcmci_review(
+    result: &antecedent::discovery::RpcmciDiscoveryResult,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let Some(first) = result.per_regime.first() else {
+        return Err(RustCausalError::review_required_msg("RPCMCI discovered no regime graphs"));
+    };
+    if result.per_regime.len() != 1 {
+        return Err(RustCausalError::review_required_msg(format!(
+            "RPCMCI discovered {} regimes; a single accepted graph requires exactly one \
+             (review each regime's CPDAG separately)",
+            result.per_regime.len()
+        )));
+    }
+    accept_temporal_cpdag_review(first.review.clone(), accept_discovered)
 }
 
 trait IntoCausalPyErr {
@@ -241,20 +443,26 @@ impl IntoCausalPyErr for RustCausalError {
                 _ => CausalStateError::new_err(e.to_string()),
             },
             Self::Schema(e) => CausalDataError::new_err(e.to_string()),
+            // A structure that does not describe the table is a data problem, and
+            // callers should be able to catch it as one rather than the root class.
+            Self::SchemaMismatch { detail } => CausalDataError::new_err(detail),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
-            Self::ReviewRequired { kind, algorithm, pending_edge_count, message, hint } => {
-                let err = CausalReviewError::new_err(message.clone());
-                Python::attach(|py| {
-                    let inst = err.value(py);
-                    let _ = inst.setattr("kind", kind.as_str());
-                    let _ = inst.setattr("algorithm", algorithm.as_deref());
-                    let _ = inst.setattr("pending_edge_count", pending_edge_count);
-                    let _ = inst.setattr("hint", hint.as_str());
-                    let _ = inst.setattr("message", message.as_str());
-                });
-                err
-            }
+            Self::ReviewRequired {
+                kind,
+                algorithm,
+                pending_edge_count,
+                pending_edges,
+                message,
+                hint,
+            } => review_required_py_err(
+                kind,
+                algorithm,
+                pending_edge_count,
+                pending_edges,
+                message,
+                hint,
+            ),
             Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
@@ -262,6 +470,10 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Cancelled { stage } => {
                 CausalCancelledError::new_err(format!("cancelled during {stage}"))
             }
+            // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
+            // hierarchy root rather than failing the build. Give new variants an explicit
+            // arm above when their Python-facing category is decided.
+            ref other => CausalError::new_err(other.to_string()),
         }
     }
 }
@@ -368,6 +580,9 @@ pub(crate) struct AteAnalysisResult {
     refutation_ran: bool,
     #[pyo3(get)]
     refutation_count: usize,
+    /// Per-refuter records (name, comparison statistic, pass/fail), one per validator run.
+    #[pyo3(get)]
+    refutations: Vec<RefutationReportView>,
     #[pyo3(get)]
     assumption_count: usize,
     #[pyo3(get)]
@@ -493,6 +708,249 @@ pub(crate) struct AteAnalysisResult {
     early_stopped: bool,
     #[pyo3(get)]
     stage_timings: Vec<(String, u64)>,
+    /// Nested identification section (view onto the fields above of the same name).
+    #[pyo3(get)]
+    identification: IdentificationSection,
+    /// Nested estimate section.
+    #[pyo3(get)]
+    estimate: EstimateSection,
+    /// Nested posterior section.
+    #[pyo3(get)]
+    posterior: PosteriorSection,
+    /// Nested validation section.
+    #[pyo3(get)]
+    validation: ValidationSection,
+    /// Nested performance section.
+    #[pyo3(get)]
+    performance: PerformanceSection,
+}
+
+/// One refuter's record: which check ran, its comparison statistic, and pass/fail.
+///
+/// Exposes the fields of [`antecedent_validate::RefutationReport`] so callers can name the
+/// refuter that failed instead of only seeing an aggregate pass/fail flag.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone, Debug)]
+struct RefutationReportView {
+    /// Refuter id (e.g. `placebo.treatment`, `random.common_cause`, `bootstrap.ci_coverage`).
+    #[pyo3(get)]
+    refuter: String,
+    /// Original ATE before refutation.
+    #[pyo3(get)]
+    original_ate: f64,
+    /// Refuted / transformed ATE (mean across replicates when applicable).
+    #[pyo3(get)]
+    refuted_ate: f64,
+    /// Scale-free comparison statistic (meaning is refuter-specific; see
+    /// [`antecedent_validate::RefutationReport::comparison`]).
+    #[pyo3(get)]
+    comparison: f64,
+    /// Whether the check is informative for the estimator used.
+    #[pyo3(get)]
+    informative: bool,
+    /// Whether the check passed the configured threshold.
+    #[pyo3(get)]
+    passed: bool,
+    /// Failure condition description when `passed` is `False`.
+    #[pyo3(get)]
+    failure_condition: Option<String>,
+    /// Number of replicate estimates.
+    #[pyo3(get)]
+    replicates: u32,
+}
+
+impl From<&RefutationReport> for RefutationReportView {
+    fn from(r: &RefutationReport) -> Self {
+        Self {
+            refuter: r.refuter.to_string(),
+            original_ate: r.original_ate,
+            refuted_ate: r.refuted_ate,
+            comparison: r.comparison,
+            informative: r.informative,
+            passed: r.passed,
+            failure_condition: r.failure_condition.as_ref().map(std::string::ToString::to_string),
+            replicates: r.replicates,
+        }
+    }
+}
+
+#[pymethods]
+impl RefutationReportView {
+    fn __repr__(&self) -> String {
+        format!(
+            "RefutationReportView(refuter={:?}, passed={}, comparison={}, replicates={})",
+            self.refuter, self.passed, self.comparison, self.replicates
+        )
+    }
+}
+
+// --- Nested result sections --------------------------------------------------------
+//
+// `AteAnalysisResult` (static) and `temporal_api::AnalysisResult` are both flat DTOs
+// with a lot of field-name overlap. These section pyclasses give both a shared,
+// structured view — `result.identification`, `result.estimate`, `result.posterior`,
+// `result.validation`, `result.performance` — mirroring the nested dataclasses in
+// `antecedent.results._views` field-for-field, so the Python wrapper that used to
+// hand-copy ~60 flat attributes per DTO can instead copy one section object per view.
+//
+// Purely additive: every existing flat field on both DTOs stays exactly where it is.
+// These are read-only companions built from the same underlying `StudyResult`, not a
+// replacement wire format. The temporal DTO genuinely lacks some of the fields the
+// static one has (see each section's doc comment for which); those come through as
+// `None` on the temporal side rather than a fabricated zero or empty string.
+
+/// Identification section (mirrors `antecedent.results.IdentificationView`).
+///
+/// Identical shape on both DTOs — the temporal facade always populates every field.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct IdentificationSection {
+    /// Identification status string (e.g. `"NonparametricallyIdentified"`).
+    #[pyo3(get)]
+    status: String,
+    /// Identification/estimand method id.
+    #[pyo3(get)]
+    method: String,
+    /// Names of variables in the adjustment set.
+    #[pyo3(get)]
+    adjustment_set: Vec<String>,
+    /// Number of assumptions recorded for the estimate.
+    #[pyo3(get)]
+    assumption_count: usize,
+    /// Number of derivation steps in the identification proof.
+    #[pyo3(get)]
+    derivation_step_count: usize,
+}
+
+/// Estimate section (mirrors `antecedent.results.EstimateView`'s top-level scalar
+/// fields; `mediation` is assembled separately by the Python wrapper).
+///
+/// `overlap_ess` / `overlap_propensity_min` are `None` on the temporal DTO — the
+/// temporal facade has no overlap report to draw them from.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct EstimateSection {
+    #[pyo3(get)]
+    ate: f64,
+    #[pyo3(get)]
+    se_analytic: f64,
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    #[pyo3(get)]
+    estimator_id: String,
+    #[pyo3(get)]
+    method: String,
+    /// Effective sample size under overlap weighting. `None` on the temporal DTO.
+    #[pyo3(get)]
+    overlap_ess: Option<f64>,
+    /// Minimum estimated propensity score. `None` on the temporal DTO.
+    #[pyo3(get)]
+    overlap_propensity_min: Option<f64>,
+}
+
+/// Posterior section (mirrors the top-level scalar fields of
+/// `antecedent.results.PosteriorView`; `envelope` / `conflict` are assembled
+/// separately by the Python wrapper from other raw fields).
+///
+/// Always present as a section; every field is `None` when no posterior was
+/// computed (frequentist inference) — identical shape on both DTOs, since both
+/// flat DTOs already carry these fields as `Option`.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct PosteriorSection {
+    #[pyo3(get)]
+    effect_mean: Option<f64>,
+    #[pyo3(get)]
+    effect_sd: Option<f64>,
+    #[pyo3(get)]
+    q025: Option<f64>,
+    #[pyo3(get)]
+    q975: Option<f64>,
+    #[pyo3(get)]
+    n_draws: Option<usize>,
+    #[pyo3(get)]
+    p_below_zero: Option<f64>,
+    #[pyo3(get)]
+    backend: Option<String>,
+    /// Serialized posterior artifact bytes, when requested and available.
+    #[pyo3(get)]
+    artifact: Option<Vec<u8>>,
+    #[pyo3(get)]
+    unidentified_mass: Option<f64>,
+}
+
+/// Validation section (mirrors the `passed` / `ran` / `count` / `reports` fields of
+/// `antecedent.results.ValidationView`; `prior_predictive` / `posterior_predictive` /
+/// `prior_sensitivity` are assembled separately by the Python wrapper from other raw
+/// fields, which only the static DTO carries).
+///
+/// `passed` / `ran` follow the same aggregate rule on both DTOs: `ran` is whether any
+/// refuter ran at all, and `passed` is `ran && reports.iter().all(|r| r.passed)` —
+/// never `true` when nothing ran, matching the static `refutation_ran` /
+/// `refutation_passed` fields exactly.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct ValidationSection {
+    #[pyo3(get)]
+    passed: bool,
+    #[pyo3(get)]
+    ran: bool,
+    #[pyo3(get)]
+    count: usize,
+    /// Per-refuter records, one per validator run.
+    #[pyo3(get)]
+    reports: Vec<RefutationReportView>,
+}
+
+impl ValidationSection {
+    /// Build from a refutation-report slice, applying the shared pass/ran rule.
+    ///
+    /// The one place both DTOs compute `passed`/`ran` — see the struct doc for the
+    /// rule. Kept as a plain function (not tied to `RefutationReport` internals) so
+    /// both `ate_result_from_analysis` and `analysis_result_from_run` call the exact
+    /// same logic instead of maintaining two copies of the aggregate rule.
+    fn from_reports(reports: Vec<RefutationReportView>) -> Self {
+        let ran = !reports.is_empty();
+        let passed = ran && reports.iter().all(|r| r.passed);
+        let count = reports.len();
+        Self { passed, ran, count, reports }
+    }
+}
+
+/// Performance section (mirrors `antecedent.results.PerformanceView`).
+///
+/// Most fields are read straight from `StudyResult.performance`, which both the
+/// static and temporal execution paths populate. `bootstrap_replicates_ok`,
+/// `n_draws` (posterior draw effort), and `stage_timings` are the exception: no
+/// temporal execution path currently records them, so they come through as
+/// `None` / empty on the temporal DTO (see `analysis_result_from_run` in
+/// `temporal_api.rs` for exactly which fields and why).
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct PerformanceSection {
+    #[pyo3(get)]
+    plan_id: String,
+    #[pyo3(get)]
+    modality: String,
+    #[pyo3(get)]
+    peak_memory_bytes: Option<u64>,
+    #[pyo3(get)]
+    latency_mode: Option<String>,
+    #[pyo3(get)]
+    wall_time_ns: Option<u64>,
+    #[pyo3(get)]
+    bootstrap_replicates_requested: Option<u32>,
+    #[pyo3(get)]
+    bootstrap_replicates_ok: Option<u32>,
+    #[pyo3(get)]
+    n_draws: Option<u32>,
+    #[pyo3(get)]
+    cancelled: bool,
+    #[pyo3(get)]
+    early_stopped: bool,
+    /// `(stage name, elapsed nanoseconds)` pairs. Empty when not recorded.
+    #[pyo3(get)]
+    stage_timings: Vec<(String, u64)>,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -570,6 +1028,83 @@ impl PosteriorArtifact {
             hessian_condition,
             quantity_names,
         }
+    }
+
+    /// Build a summary-only artifact (mean / SD / quantiles, no draws).
+    ///
+    /// For callers who only hold posterior moments (e.g. from a conjugate update
+    /// computed elsewhere) and would otherwise have to fabricate a fake draws array
+    /// just to construct an artifact. `n_draws` records the draw count the moments
+    /// were computed from; no samples are stored. `encode_posterior_artifact` emits
+    /// `draws_encoding = "none"` for artifacts built this way, and
+    /// `decode_posterior_artifact` round-trips them back with an empty `draws`.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_draws,
+        mean,
+        sd,
+        q025,
+        q975,
+        backend_id,
+        identification,
+        quantity_names,
+        unidentified_mass=0.0,
+        converged=true,
+        hessian_condition=f64::NAN,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn from_moments(
+        n_draws: usize,
+        mean: Vec<f64>,
+        sd: Vec<f64>,
+        q025: Vec<f64>,
+        q975: Vec<f64>,
+        backend_id: String,
+        identification: String,
+        quantity_names: Vec<String>,
+        unidentified_mass: f64,
+        converged: bool,
+        hessian_condition: f64,
+    ) -> Self {
+        Self {
+            n_draws,
+            mean,
+            sd,
+            q025,
+            q975,
+            draws: Vec::new(),
+            backend_id,
+            identification,
+            unidentified_mass,
+            converged,
+            hessian_condition,
+            quantity_names,
+        }
+    }
+
+    /// Number of posterior draws (``n_draws``, independent of whether `draws` is populated).
+    fn __len__(&self) -> usize {
+        self.n_draws
+    }
+
+    /// NumPy array protocol — ``np.asarray(artifact)`` returns the flat posterior draws
+    /// directly, without needing ``np.asarray(artifact.draws)``.
+    ///
+    /// `dtype` and `copy` are accepted (and ignored) only to match the NumPy 2 calling
+    /// convention ``__array__(self, dtype=None, *, copy=None)``; this always builds a
+    /// fresh `float64` array from `draws`, so there is no NumPy-owned buffer to alias and
+    /// no in-place dtype cast to perform here — NumPy applies any further cast/copy on its
+    /// side after this returns.
+    #[pyo3(signature = (dtype=None, copy=None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<Bound<'py, PyAny>>,
+        copy: Option<Bound<'py, PyAny>>,
+    ) -> Bound<'py, PyArray1<f64>> {
+        let _ = dtype;
+        let _ = copy;
+        PyArray1::from_vec(py, self.draws.clone())
     }
 }
 
@@ -809,6 +1344,7 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     ate_api::register(m)?;
     discovery_api::register(m)?;
     temporal_api::register(m)?;
@@ -819,8 +1355,15 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<CausalPendingEdge>()?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<RefutationReportView>()?;
+    m.add_class::<IdentificationSection>()?;
+    m.add_class::<EstimateSection>()?;
+    m.add_class::<PosteriorSection>()?;
+    m.add_class::<ValidationSection>()?;
+    m.add_class::<PerformanceSection>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;

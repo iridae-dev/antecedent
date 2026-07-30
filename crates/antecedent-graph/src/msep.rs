@@ -179,7 +179,7 @@ impl Admg {
         self.moralize_ancestral_set(ws);
     }
 
-    /// Richardson moralization on `ws.ancestral`: directed + bidirected undirected
+    /// Richardson (2003) moralization on `ws.ancestral`: directed + bidirected undirected
     /// edges, then clique each bidirected district `C ∪ pa(C)`.
     fn moralize_ancestral_set(&self, ws: &mut DSeparationWorkspace) {
         let n = self.node_count();

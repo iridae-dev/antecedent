@@ -28,9 +28,28 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::{AnalyticSeKind, influence_se_kind};
 use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
+
+/// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
+/// is computed.
+///
+/// The field-standard convention (Rosenbaum & Rubin 1985; Austin 2011, "Optimal caliper
+/// widths for propensity-score matching") is that a caliper is applied to the **logit** of
+/// the propensity score, `logit(e) = ln(e / (1 - e))` — a caliper of 0.2 means "0.2 standard
+/// deviations of the logit propensity," not 0.2 of raw probability. The raw-probability scale
+/// compresses badly near 0 and 1 (exactly where matching quality matters most for units with
+/// extreme propensities), so a caller who follows the textbook 0.2 rule of thumb but matches
+/// on raw probability gets behavior very different from the convention they intended.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum CaliperScale {
+    /// Match on `logit(e) = ln(e / (1 - e))`. This is what the 0.2 rule of thumb means.
+    #[default]
+    Logit,
+    /// Match on the raw (clipped) propensity probability, `e ∈ [clip, 1 - clip]`.
+    Raw,
+}
 
 /// Propensity-score nearest-neighbor matching (Absolute distance, optional caliper).
 ///
@@ -39,6 +58,14 @@ use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
 ///
 /// Analytic SEs use Abadie–Imbens (2006) donor-reuse variance; see module docs for the
 /// bootstrap caveat (Abadie–Imbens 2008).
+///
+/// **Caliper scale:** [`Self::caliper`] is interpreted on [`Self::caliper_scale`], which
+/// defaults to [`CaliperScale::Logit`] — the field-standard convention (Rosenbaum & Rubin
+/// 1985; Austin 2011). A caliper of 0.2 under this default means 0.2 on the logit scale, per
+/// the literature's rule of thumb; see [`CaliperScale`] for why the raw-probability scale is
+/// not equivalent. This is a behavior change for callers who previously relied on the
+/// undocumented raw-probability matching distance; set `caliper_scale: CaliperScale::Raw`
+/// explicitly to keep the old behavior.
 #[derive(Clone, Debug)]
 pub struct PropensityMatching {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
@@ -49,8 +76,12 @@ pub struct PropensityMatching {
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
     pub glm_options: GlmOptions,
-    /// Optional maximum propensity distance for an accepted match.
+    /// Optional maximum matching distance for an accepted match, interpreted on
+    /// [`Self::caliper_scale`].
     pub caliper: Option<f64>,
+    /// Scale on which matching distance and `caliper` are computed. Defaults to
+    /// [`CaliperScale::Logit`] — see the type-level docs.
+    pub caliper_scale: CaliperScale,
     /// Analytic SE kind (Abadie–Imbens / hetero / cluster).
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids aligned to prepared complete-case rows.
@@ -79,12 +110,99 @@ impl PropensityMatching {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             caliper: None,
+            caliper_scale: CaliperScale::Logit,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
         }
+    }
+
+    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates (0 = skip bootstrap).
+    ///
+    /// Defaults to 200, but the nonparametric bootstrap is invalid for nearest-neighbor
+    /// matching CIs (Abadie–Imbens 2008) — see the module docs. Prefer the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options for the propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the maximum matching distance for an accepted match, interpreted on
+    /// [`Self::caliper_scale`] (default [`CaliperScale::Logit`] — see the type-level docs for
+    /// why 0.2 on that scale is the literature's rule of thumb).
+    ///
+    /// Defaults to `None` (no caliper): every query row is matched to its nearest donor
+    /// regardless of distance.
+    #[must_use]
+    pub const fn with_caliper(mut self, caliper: f64) -> Self {
+        self.caliper = Some(caliper);
+        self
+    }
+
+    /// Set the scale on which matching distance and [`Self::caliper`] are computed.
+    #[must_use]
+    pub const fn with_caliper_scale(mut self, caliper_scale: CaliperScale) -> Self {
+        self.caliper_scale = caliper_scale;
+        self
+    }
+
+    /// Set the analytic SE kind (Abadie–Imbens / hetero / cluster).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids aligned to prepared complete-case rows.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels for panel HAC.
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
     }
 
     /// Prepare the covariate design.
@@ -137,6 +255,7 @@ impl PropensityMatching {
             1,
             retained.as_deref(),
         );
+        let s_used = apply_caliper_scale(s_used, self.caliper_scale);
         let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
@@ -176,29 +295,17 @@ impl PropensityMatching {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let overlap_report = Some(OverlapReport::from_propensities(
+        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+            problem,
             &model.fit.scores,
             None,
-            problem.overlap,
-            Some(&problem.treatment),
             ipw_target,
-            problem.target_weights.as_deref(),
         ));
 
-        Ok(EffectEstimate {
-            ate: result.ate,
-            se_analytic: result.se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report,
-            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_overlap_report(overlap_report)
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -215,13 +322,15 @@ impl PropensityMatching {
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x51E7_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(
+                &mut x_boot,
+                &problem.design_matrix,
+                n,
+                ncols,
+                idx,
+            );
             let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,
@@ -243,6 +352,7 @@ impl PropensityMatching {
             };
             let (t_used, y_used, s_used) =
                 restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
+            let s_used = apply_caliper_scale(s_used, self.caliper_scale);
             match matching_contrast(
                 &t_used,
                 &y_used,
@@ -263,6 +373,21 @@ impl PropensityMatching {
             }
         })
     }
+}
+
+/// Transform clipped propensity scores onto `scale` for use as the `Absolute`-distance
+/// matching feature (and, transitively, the caliper comparison).
+///
+/// Scores passed in here are always the already-clipped `[clip, 1 - clip]` scores (default
+/// `[0.01, 0.99]`), so `logit(e) = ln(e / (1 - e))` is always finite — no additional epsilon
+/// guard against `e == 0` or `e == 1` is needed.
+fn apply_caliper_scale(mut scores: Vec<f64>, scale: CaliperScale) -> Vec<f64> {
+    if let CaliperScale::Logit = scale {
+        for s in &mut scores {
+            *s = (*s / (1.0 - *s)).ln();
+        }
+    }
+    scores
 }
 
 /// Match each `query` row to its nearest `donor` row; returns bias-corrected
@@ -671,5 +796,70 @@ mod tests {
         let se_reuse = se(&donors_reuse, 2);
         let se_unique = se(&donors_unique, 4);
         assert!(se_reuse > se_unique, "cluster reuse={se_reuse} unique={se_unique}");
+    }
+
+    /// Regression test for the caliper-scale defect: with a fixed numeric caliper of 0.2 and
+    /// propensity scores near the extremes of `[0, 1]`, `CaliperScale::Raw` and
+    /// `CaliperScale::Logit` must select materially different match sets. This is the
+    /// discriminating case the literature's 0.2 rule of thumb is about — raw-probability
+    /// caliper 0.2 is far too permissive near 0/1, while the logit-scale caliper (what 0.2
+    /// actually means per Rosenbaum & Rubin 1985 / Austin 2011) correctly excludes those
+    /// pairs.
+    #[test]
+    fn caliper_scale_logit_vs_raw_diverge_near_extremes() {
+        // Donor at each extreme plus one in the middle; queries just inside each extreme.
+        let donor_probs = vec![0.02, 0.5, 0.98];
+        let donor_y = vec![0.0, 0.0, 0.0];
+        let query_probs = vec![0.08, 0.5, 0.92];
+        let query_y = vec![0.0, 0.0, 0.0];
+        let caliper = Some(0.2);
+
+        let raw_donors = apply_caliper_scale(donor_probs.clone(), CaliperScale::Raw);
+        let raw_queries = apply_caliper_scale(query_probs.clone(), CaliperScale::Raw);
+        let mut ws_raw = PropensityEstimationWorkspace::default();
+        let (raw_diffs, _, _) = match_diffs(
+            &raw_donors,
+            &donor_y,
+            1,
+            MatchingDistance::Absolute,
+            &raw_queries,
+            &query_y,
+            caliper,
+            &mut ws_raw,
+        )
+        .unwrap();
+
+        let logit_donors = apply_caliper_scale(donor_probs, CaliperScale::Logit);
+        let logit_queries = apply_caliper_scale(query_probs, CaliperScale::Logit);
+        let mut ws_logit = PropensityEstimationWorkspace::default();
+        let (logit_diffs, _, _) = match_diffs(
+            &logit_donors,
+            &donor_y,
+            1,
+            MatchingDistance::Absolute,
+            &logit_queries,
+            &query_y,
+            caliper,
+            &mut ws_logit,
+        )
+        .unwrap();
+
+        // Raw-probability caliper 0.2 is loose everywhere: all three queries land within 0.2
+        // of a donor (|0.08-0.02|=0.06, |0.5-0.5|=0, |0.92-0.98|=0.06).
+        assert_eq!(
+            raw_diffs.len(),
+            3,
+            "raw-scale caliper=0.2 should admit all 3 near-extreme queries, got {}",
+            raw_diffs.len()
+        );
+        // Logit caliper 0.2 correctly rejects the extreme pairs: logit(0.08) to logit(0.02) is
+        // ~1.45 apart (>> 0.2), and symmetrically at the top; only the mid-range query (whose
+        // donor and query coincide, logit distance 0) survives.
+        assert_eq!(
+            logit_diffs.len(),
+            1,
+            "logit-scale caliper=0.2 should admit only the mid-range query, got {}",
+            logit_diffs.len()
+        );
     }
 }

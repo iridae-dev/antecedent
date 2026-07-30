@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_panel(
         &self,
         panel: &PanelData,
@@ -10,7 +10,7 @@ impl super::CausalAnalysis {
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let id_res = TemporalBackdoorIdentifier::new()
             .identify_temporal(graph, query)

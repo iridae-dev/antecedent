@@ -6,7 +6,8 @@
 
 use std::sync::Arc;
 
-use antecedent::{CausalAnalysis, RefuteSuite};
+use antecedent::EstimatorSpec;
+use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -93,8 +94,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 #[test]
 fn execute_static_refute_reuses_estimate_workspace() {
     let (data, dag, query) = confounded_scm(300, 3);
-    let result = CausalAnalysis::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(20)
@@ -112,8 +112,7 @@ fn execute_static_refute_reuses_estimate_workspace() {
 #[test]
 fn shared_workspace_placebo_parity_and_capacity() {
     let (data, dag, query) = confounded_scm(250, 5);
-    let id_run = CausalAnalysis::builder()
-        .data(data.clone())
+    let id_run = Study::tabular(data.clone())
         .graph(dag)
         .query(query.clone())
         .bootstrap_replicates(10)
@@ -166,13 +165,12 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     use antecedent::strategy_table::{
         EstimatorId, StaticEstimateWorkspaces, estimate_static_effect,
     };
-    use antecedent::{CausalAnalysis, RefuteSuite};
+    use antecedent::{RefuteSuite, Study};
     use antecedent_estimate::OverlapPolicy;
     use antecedent_validate::OverlapRefuter;
 
     let (data, dag, query) = confounded_scm(280, 7);
-    let id_run = CausalAnalysis::builder()
-        .data(data.clone())
+    let id_run = Study::tabular(data.clone())
         .graph(dag)
         .query(query.clone())
         .estimator(EstimatorId::PropensityWeighting)
@@ -187,7 +185,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
 
     let mut ws = StaticEstimateWorkspaces::default();
     let _ = estimate_static_effect(
-        EstimatorId::PropensityWeighting,
+        &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
         &data,
         &estimand,
         &query,
@@ -222,7 +220,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
 
     let mut ws2 = StaticEstimateWorkspaces::default();
     let aipw = estimate_static_effect(
-        EstimatorId::Aipw,
+        &EstimatorSpec::Default(EstimatorId::Aipw),
         &data,
         &estimand,
         &query,

@@ -18,9 +18,9 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
-    MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge, form_xtx, invert_square,
-    predict_lasso,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
+    LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
+    form_xtx, invert_square, predict_lasso,
 };
 
 use crate::error::EstimationError;
@@ -82,6 +82,10 @@ pub struct EffectEstimate {
     pub overlap: OverlapPolicy,
     /// Propensity overlap diagnostics when computed.
     pub overlap_report: Option<OverlapReport>,
+    /// Weak-instrument diagnostic (IV / 2SLS estimators only); `None` for every other
+    /// estimator family. Informational — never causes a hard failure on its own; see
+    /// [`FirstStageDiagnostics`].
+    pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
 }
@@ -106,6 +110,7 @@ impl EffectEstimate {
             assumptions,
             overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         }
     }
@@ -137,8 +142,33 @@ impl EffectEstimate {
             assumptions,
             overlap,
             overlap_report,
+            first_stage_diagnostics: None,
             retained_memory_bytes,
         }
+    }
+
+    /// Attach a weak-instrument diagnostic (IV / 2SLS estimators only).
+    #[must_use]
+    pub fn with_first_stage_diagnostics(
+        mut self,
+        diagnostics: Option<FirstStageDiagnostics>,
+    ) -> Self {
+        self.first_stage_diagnostics = diagnostics;
+        self
+    }
+
+    /// Attach propensity overlap diagnostics (propensity-based estimators only).
+    #[must_use]
+    pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
+        self.overlap_report = overlap_report;
+        self
+    }
+
+    /// Attach the estimated retained-memory cost of fitted scratch (bytes), when known.
+    #[must_use]
+    pub fn with_retained_memory_bytes(mut self, retained_memory_bytes: Option<u64>) -> Self {
+        self.retained_memory_bytes = retained_memory_bytes;
+        self
     }
 
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
@@ -237,6 +267,75 @@ impl LinearAdjustmentAte {
             panel_times: None,
             fit_kind: LinearFitKind::Ols,
         }
+    }
+
+    /// Set the dense linear-algebra backend used for the OLS / ridge / Huber fits.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
+    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`]).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. `prepare` requires [`OverlapPolicy::ExplicitOverride`] since
+    /// this is a regression (not propensity-based) path.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids (length must equal the prepared design's row count) for
+    /// [`AnalyticSeKind::Cluster`] / panel SE.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
+    /// [`AnalyticSeKind::Multiway`].
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels (length must equal the prepared design's row count) for
+    /// panel HAC standard errors.
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
+    }
+
+    /// Set the linear fit family (default [`LinearFitKind::Ols`]).
+    ///
+    /// **Lasso trap**: with `LinearFitKind::Lasso { .. }`, the analytic SE is permanently
+    /// `NaN` — classical / active-set sandwich SEs are invalid after selection, and debiased
+    /// Lasso changes the point estimator. Pair this with a nonzero
+    /// [`Self::with_bootstrap_replicates`] to get a usable SE; this setter stays dumb and
+    /// does not enforce that pairing.
+    #[must_use]
+    pub const fn with_fit_kind(mut self, fit_kind: LinearFitKind) -> Self {
+        self.fit_kind = fit_kind;
+        self
     }
 
     /// Prepare design from tabular data, identified estimand, and query levels.
@@ -356,19 +455,7 @@ impl LinearAdjustmentAte {
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        })
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap))
     }
 
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).

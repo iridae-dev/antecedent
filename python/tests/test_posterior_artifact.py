@@ -61,15 +61,15 @@ def test_posterior_artifact_round_trip_opt_in():
     assert result.posterior.n_draws == 128
     assert result.posterior.effect_mean is not None
 
-    art = antecedent.decode_posterior_artifact(result.posterior.artifact)
+    art = antecedent.inference.decode_posterior_artifact(result.posterior.artifact)
     assert art.n_draws == 128
     effect_idx = art.quantity_names.index("ate") if "ate" in art.quantity_names else -1
     assert abs(art.mean[effect_idx] - result.posterior.effect_mean) < 1e-12
     assert art.backend_id
     assert len(art.draws) == art.n_draws * len(art.quantity_names)
 
-    again = antecedent.encode_posterior_artifact(art)
-    art2 = antecedent.decode_posterior_artifact(again)
+    again = antecedent.inference.encode_posterior_artifact(art)
+    art2 = antecedent.inference.decode_posterior_artifact(again)
     assert art2.n_draws == art.n_draws
     assert art2.draws == art.draws
     assert art2.mean == art.mean
@@ -97,7 +97,7 @@ def test_posterior_artifact_payload_size_vs_summaries():
     )
     assert summary.posterior.artifact is None
     assert full.posterior.artifact is not None
-    art = antecedent.decode_posterior_artifact(full.posterior.artifact)
+    art = antecedent.inference.decode_posterior_artifact(full.posterior.artifact)
     assert len(art.draws) == art.n_draws * len(art.quantity_names)
     assert len(art.draws) > 0
     assert len(full.posterior.artifact) > len(art.mean) * 8

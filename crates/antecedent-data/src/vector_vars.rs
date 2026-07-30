@@ -1,4 +1,4 @@
-//! pinned baseline-style vector variable groups.
+//! Vector variable groups for multivariate conditional-independence testing.
 //!
 //! Components are separate Float64 columns. Logical discovery nodes are the
 //! first component of each group; [`column_blocks_for_frame`] builds per-lag
@@ -19,7 +19,7 @@ use crate::lagged_frame::LaggedFrame;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
-/// Ordered groups of component variable ids (pinned baseline `vector_vars` style).
+/// Ordered groups of component variable ids (a vector-variable grouping for multivariate CI).
 ///
 /// The first id in each group is the **logical** discovery node; remaining ids
 /// are CI-only components excluded from the search variable list.

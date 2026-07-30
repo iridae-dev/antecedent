@@ -1,4 +1,4 @@
-//! Linear temporal mediation identification on stationary templates .
+//! Linear temporal mediation identification on stationary templates.
 //!
 //! For a linear SEM on a [`TemporalDag`], total / direct / mediated effects
 //! decompose via path products once a mediator set participates on treatment→
@@ -220,7 +220,7 @@ impl TemporalMediationIdentifier {
             }
         }
         if !(has_t_to_m && has_m_to_y) {
-            return Err(IdentificationError::NotIdentified {
+            return Err(IdentificationError::NotCertified {
                 message: "no treatment–mediator–outcome path found in temporal template",
             });
         }
@@ -298,7 +298,7 @@ mod tests {
             MediationContrast::Mediated,
         );
         let err = TemporalMediationIdentifier::new().identify(&g, &q).unwrap_err();
-        assert!(matches!(err, IdentificationError::NotIdentified { .. }));
+        assert!(matches!(err, IdentificationError::NotCertified { .. }));
     }
 
     #[test]

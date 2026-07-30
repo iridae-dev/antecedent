@@ -112,8 +112,7 @@ fn fit_artifact(
     query: AverageEffectQuery,
     seed: u64,
 ) -> Result<(Vec<u8>, f64), CausalError> {
-    let result = CausalAnalysis::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)))
@@ -203,11 +202,13 @@ fn main() -> Result<(), CausalError> {
             prior: src_a,
             weight: ExternalPriorWeight::power_mixture(1.0, 0.6 * w_launch / w_sum)
                 .expect("weight"),
+            ess: None,
         },
         ExternalPriorSource {
             id: Arc::from("survey_retention"),
             prior: src_b,
             weight: ExternalPriorWeight::power_mixture(1.0, 0.6 * w_ret / w_sum).expect("weight"),
+            ess: None,
         },
     ]);
     let baseline = PriorSet::weakly_informative(3);
@@ -226,8 +227,7 @@ fn main() -> Result<(), CausalError> {
     // Clear offline conflict for fit; α' already applied.
     let prior_for_fit = composed.clone();
 
-    let target_result = CausalAnalysis::builder()
-        .data(data_t)
+    let target_result = Study::tabular(data_t)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(

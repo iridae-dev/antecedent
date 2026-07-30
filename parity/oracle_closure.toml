@@ -729,12 +729,12 @@ exit_disposition = "validated_with_limits"
 status = "closed"
 
 [[method]]
-id = "validate.reisz_sensitivity"
+id = "validate.riesz_sensitivity"
 audit_stage = 7
-audit_row = "Reisz/nonparametric sensitivity"
+audit_row = "Riesz/nonparametric sensitivity"
 oracle_project = "independent convex optimization"
 oracle_pin = "fixture-algorithm-v1"
-fixture_dir = "conformance/validate/reisz_sensitivity"
+fixture_dir = "conformance/validate/riesz_sensitivity"
 comparison = "numeric-and-statistical"
 case_profile = "statistical"
 gate = "scripts/gate_attribution.sh"

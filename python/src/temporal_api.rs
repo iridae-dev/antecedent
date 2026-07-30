@@ -151,6 +151,9 @@ pub(crate) struct AnalysisResult {
     pub(crate) provenance_node_count: usize,
     #[pyo3(get)]
     pub(crate) refutation_count: usize,
+    /// Per-refuter records (name, comparison statistic, pass/fail), one per validator run.
+    #[pyo3(get)]
+    pub(crate) refutations: Vec<RefutationReportView>,
     #[pyo3(get)]
     pub(crate) worker_threads: u32,
     #[pyo3(get)]
@@ -187,6 +190,29 @@ pub(crate) struct AnalysisResult {
     pub(crate) mediation_direct: Option<f64>,
     #[pyo3(get)]
     pub(crate) mediation_mediated: Option<f64>,
+    /// Nested identification section — every field is populated on the temporal path
+    /// (unlike `estimate`/`performance`, this DTO carries the full identification set).
+    #[pyo3(get)]
+    pub(crate) identification: IdentificationSection,
+    /// Nested estimate section. `overlap_ess` / `overlap_propensity_min` read `None`
+    /// in practice — every temporal path fixes `OverlapPolicy::ExplicitOverride`,
+    /// under which the shared estimator never computes an overlap report — but this
+    /// reads the real field rather than hardcoding the assumption.
+    #[pyo3(get)]
+    pub(crate) estimate: EstimateSection,
+    /// Nested posterior section — every field is populated on the temporal path.
+    #[pyo3(get)]
+    pub(crate) posterior: PosteriorSection,
+    /// Nested validation section, using the same pass/ran aggregate rule as the
+    /// static DTO.
+    #[pyo3(get)]
+    pub(crate) validation: ValidationSection,
+    /// Nested performance section. `bootstrap_replicates_ok`, `n_draws` (posterior
+    /// draw effort), and `stage_timings` are genuinely never populated on any
+    /// temporal execution path and read as `None` / empty; every other field is
+    /// read from the same `StudyResult.performance` record the static DTO uses.
+    #[pyo3(get)]
+    pub(crate) performance: PerformanceSection,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -263,9 +289,8 @@ fn analyze(
             active_level,
         )?;
 
-        let mut builder = CausalAnalysis::builder()
-            .series(series)
-            .temporal_graph(g)
+        let mut builder = Study::series(series)
+            .graph(g)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -284,7 +309,9 @@ fn analyze(
     })
 }
 
-/// Temporal effect with a typed [`TemporalPag`] (review-required; same as LPCMCI without auto-accept).
+/// Temporal effect with a typed [`TemporalPag`]. Circle marks are informational (handled
+/// directly by class-aware temporal identification, like the static PAG path) rather than
+/// pending review, so the supplied PAG is always accepted as-is.
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -350,9 +377,8 @@ fn analyze_temporal_pag(
             active_level,
         )?;
 
-        let mut builder = CausalAnalysis::builder()
-            .series(series)
-            .temporal_pag(graph.pag)
+        let mut builder = Study::series(series)
+            .graph(AcceptedGraph::temporal_pag(graph.pag).map_err(py_err)?)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -400,6 +426,7 @@ fn analyze_temporal_pag(
     algorithm=None,
     max_lag=1,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     regimes=None,
@@ -434,6 +461,7 @@ fn analyze_events(
     algorithm: Option<String>,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     regimes: Option<Vec<u32>>,
@@ -451,8 +479,6 @@ fn analyze_events(
     drop(columns);
     let policy = policy.to_string();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-    let accept =
-        if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let event = EventData::try_new(loaded.data.storage().clone(), Arc::from(event_times_ns))
@@ -467,26 +493,66 @@ fn analyze_events(
             horizon_steps,
             active_level,
         )?;
-        let graph = if algorithm.is_none() {
-            Some(temporal_dag_from_schema_edges(event.schema(), &edges)?)
-        } else {
-            None
-        };
-        let mut builder = CausalAnalysis::builder()
-            .events(event, align_interval_ns)
-            .temporal_query(q)
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap)
-            .discovery_ci(ci_impl);
-        if let Some(g) = graph {
-            builder = builder.temporal_graph(g);
-        } else if let Some(algo) = algorithm.as_deref() {
+        let ctx = py_execution_context(seed, threads);
+        let mut builder = if let Some(algo) = algorithm.as_deref() {
+            // Discovery needs the aligned series up front; `Study::events` re-runs the
+            // same (pure, deterministic) alignment internally so the built `Study` still
+            // reports `DataClassification::Event`.
+            let aligned = event.align_to_grid(align_interval_ns).map_err(py_err)?;
+            let vars: Vec<VariableId> = aligned.schema().variables().iter().map(|v| v.id).collect();
             let algo = algo.to_ascii_lowercase();
-            builder = match algo.as_str() {
-                "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
-                "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
-                "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+            let fdr = fdr_ctrl.adjustment();
+            let builder = Study::events(&event, align_interval_ns).map_err(py_err)?;
+            match algo.as_str() {
+                "pcmci" => {
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_pcmci(&aligned, &vars, &params, &ctx).map_err(py_err)?;
+                    let accepted = accept_temporal_graph_review(found.review, accept_discovered)
+                        .map_err(py_err)?;
+                    builder.graph(accepted)
+                }
+                "pcmci_plus" => {
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found = facade_discover_pcmci_plus(&aligned, &vars, &params, &ctx)
+                        .map_err(py_err)?;
+                    let accepted = accept_temporal_cpdag_review(found.review, accept_discovered)
+                        .map_err(py_err)?;
+                    builder.graph(accepted)
+                }
+                "lpcmci" => {
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_lpcmci(&aligned, &vars, &params, &ctx).map_err(py_err)?;
+                    let accepted = accept_temporal_pag_review(
+                        found.evidence.graph.clone(),
+                        found.review,
+                        accept_discovered,
+                    )
+                    .map_err(py_err)?;
+                    builder.graph(accepted)
+                }
                 "rpcmci" => {
                     let regimes = regimes.ok_or_else(|| {
                         PyValueError::new_err(
@@ -497,17 +563,50 @@ fn analyze_events(
                         regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
                     )
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                    builder.discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_rpcmci(&aligned, &vars, &assign, &params, None, &ctx)
+                            .map_err(py_err)?;
+                    let accepted =
+                        accept_rpcmci_review(&found, accept_discovered).map_err(py_err)?;
+                    builder.graph(accepted)
                 }
-                "dbn_posterior" => builder
-                    .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws),
+                "dbn_posterior" => {
+                    let params = antecedent::discovery::BayesianDiscoverParams::default();
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin: 1,
+                    };
+                    let gp = antecedent::discovery::discover_dbn_posterior(
+                        &aligned, &vars, &params, max_lag, force_mcmc, &schedule, &ctx,
+                    )
+                    .map_err(py_err)?;
+                    builder.graph_posterior(gp)
+                }
                 other => {
                     return Err(PyValueError::new_err(format!(
                         "EventFrame discovery algorithm {other:?} unsupported"
                     )));
                 }
-            };
-        }
+            }
+        } else {
+            let g = temporal_dag_from_schema_edges(event.schema(), &edges)?;
+            Study::events(&event, align_interval_ns).map_err(py_err)?.graph(g)
+        };
+        builder = builder
+            .temporal_query(q)
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(
             builder,
             inference.as_deref(),
@@ -516,7 +615,6 @@ fn analyze_events(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -601,9 +699,8 @@ fn analyze_panel(
             horizon_steps,
             active_level,
         )?;
-        let mut builder = CausalAnalysis::builder()
-            .panel(panel)
-            .temporal_graph(g)
+        let mut builder = Study::panel(panel)
+            .graph(g)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -634,6 +731,7 @@ fn analyze_panel(
     algorithm="jpcmci_plus",
     max_lag=3,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     treatment_lag=1,
@@ -654,7 +752,8 @@ fn analyze_panel(
     include_time_dummy=false,
     space_dummy_ci=false,
     time_dummy_encoding="integer",
-    time_dummy_ci=false
+    time_dummy_ci=false,
+    ci=None,
 ))]
 fn analyze_panel_discover(
     py: Python<'_>,
@@ -666,6 +765,7 @@ fn analyze_panel_discover(
     algorithm: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     treatment_lag: u32,
@@ -687,6 +787,7 @@ fn analyze_panel_discover(
     space_dummy_ci: bool,
     time_dummy_encoding: &str,
     time_dummy_ci: bool,
+    ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     if unit_columns.is_empty() {
         return Err(PyValueError::new_err("panel needs ≥1 unit"));
@@ -700,7 +801,8 @@ fn analyze_panel_discover(
     }
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     drop(unit_columns);
     let policy = policy.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
@@ -723,8 +825,6 @@ fn analyze_panel_discover(
             active_level,
         )?;
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let accept =
-            if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
         let multi_dataset = panel_multi_dataset_constraints(
             &panel,
             context_names.unwrap_or_default(),
@@ -735,14 +835,18 @@ fn analyze_panel_discover(
             time_dummy_ci,
         )?;
         let algo = algorithm.to_ascii_lowercase();
+        let ctx = py_execution_context(seed, threads);
         let builder = panel_discovery_builder(
-            CausalAnalysis::builder().panel(panel),
+            panel,
             algo.as_str(),
             max_lag,
             alpha,
+            max_cond_size,
             fdr_ctrl,
-            accept,
+            accept_discovered,
             multi_dataset,
+            ci_impl,
+            &ctx,
         )?;
         let mut builder = builder
             .temporal_query(q)
@@ -757,7 +861,6 @@ fn analyze_panel_discover(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -833,7 +936,7 @@ fn temporal_multi_env_dummy_modes(
 
 fn run_temporal_analysis(
     names: &[String],
-    analysis: antecedent::CausalAnalysis,
+    analysis: antecedent::Study,
     seed: u64,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
@@ -859,8 +962,9 @@ fn temporal_discover_jpcmci_plus(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -893,14 +997,24 @@ fn temporal_discover_jpcmci_plus(
     };
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = CausalAnalysis::builder()
-        .series_multi(multi)
+    let vars: Vec<VariableId> = multi.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset,
+        max_cond_size,
+    };
+    let found = facade_discover_jpcmci_plus(&multi, &vars, &params, &ctx).map_err(py_err)?;
+    let accepted = accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+    let analysis = Study::series_multi(multi)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl)
-        .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -918,8 +1032,9 @@ fn temporal_discover_rpcmci(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -944,14 +1059,25 @@ fn temporal_discover_rpcmci(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = CausalAnalysis::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
+    };
+    let found =
+        facade_discover_rpcmci(&series, &vars, &assign, &params, None, &ctx).map_err(py_err)?;
+    let accepted = accept_rpcmci_review(&found, accept_discovered).map_err(py_err)?;
+    let analysis = Study::series(series)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl)
-        .discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -969,8 +1095,9 @@ fn temporal_discover_pcmci_family(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -988,19 +1115,43 @@ fn temporal_discover_pcmci_family(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = CausalAnalysis::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
+    };
+    let accepted = match algo {
+        "pcmci" => {
+            let found = facade_discover_pcmci(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_graph_review(found.review, accept_discovered).map_err(py_err)?
+        }
+        "pcmci_plus" => {
+            let found =
+                facade_discover_pcmci_plus(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+        }
+        "lpcmci" => {
+            let found = facade_discover_lpcmci(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_pag_review(
+                found.evidence.graph.clone(),
+                found.review,
+                accept_discovered,
+            )
+            .map_err(py_err)?
+        }
+        _ => unreachable!(),
+    };
+    let mut builder = Study::series(series)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl);
-    builder = match algo {
-        "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
-        "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
-        "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
-        _ => unreachable!(),
-    };
+        .bootstrap_replicates(bootstrap);
     builder = apply_temporal_inference(builder, inference, n_draws, prior_scale, prior_artifact)?;
     let analysis = builder.build().map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -1036,18 +1187,33 @@ fn temporal_discover_dbn_posterior(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = CausalAnalysis::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = antecedent::discovery::BayesianDiscoverParams::default();
+    let schedule = antecedent::discovery::GraphMcmcSchedule {
+        n_chains,
+        n_warmup,
+        n_draws: mcmc_draws,
+        thin: 1,
+    };
+    let gp = antecedent::discovery::discover_dbn_posterior(
+        &series, &vars, &params, max_lag, force_mcmc, &schedule, &ctx,
+    )
+    .map_err(py_err)?;
+    let mut builder = Study::series(series)
+        .graph_posterior(gp)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap)
-        .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws);
+        .bootstrap_replicates(bootstrap);
     builder = apply_temporal_inference(builder, inference, n_draws, prior_scale, prior_artifact)?;
     let analysis = builder.build().map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
 }
 
+// Discovery config carried across the temporal dispatch helpers. The bools are
+// independent switches mirroring Python kwargs, not a state machine worth a type.
+#[allow(clippy::struct_excessive_bools)]
 struct TemporalDiscoverContext {
     names: Vec<String>,
     treatment: String,
@@ -1058,8 +1224,9 @@ struct TemporalDiscoverContext {
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -1139,8 +1306,9 @@ fn dispatch_temporal_jpcmci_plus(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1175,8 +1343,9 @@ fn dispatch_temporal_rpcmci(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1208,8 +1377,9 @@ fn dispatch_temporal_pcmci_family(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1274,6 +1444,7 @@ fn dispatch_temporal_dbn_posterior(
     algorithm="pcmci",
     max_lag=1,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     treatment_lag=1,
@@ -1312,6 +1483,7 @@ fn analyze_temporal_discover(
     algorithm: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     treatment_lag: u32,
@@ -1346,8 +1518,6 @@ fn analyze_temporal_discover(
     let suite = suite_from_refute(refute.as_ref())?;
     let policy = policy.to_ascii_lowercase();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-    let accept =
-        if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
     let context_names = context_names.unwrap_or_default();
     let space_dummy_ci = space_dummy_ci.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
@@ -1367,8 +1537,9 @@ fn analyze_temporal_discover(
             active_level,
             max_lag,
             alpha,
+            max_cond_size,
             fdr_ctrl,
-            accept,
+            accept_discovered,
             suite,
             custom_validators,
             bootstrap,
@@ -1398,7 +1569,7 @@ fn analyze_temporal_discover(
 
 fn analysis_result_from_run(
     names: &[String],
-    result: antecedent::CausalAnalysisResult,
+    result: antecedent::StudyResult,
 ) -> PyResult<AnalysisResult> {
     let adjustment_set: Vec<String> = result
         .estimand
@@ -1439,12 +1610,92 @@ fn analysis_result_from_run(
     } else {
         (None, None, None, None, None, None, None, None, None)
     };
+
+    // Values shared between an existing flat field and its new nested-section
+    // counterpart are computed once here, then cloned into the section so the flat
+    // field and the section can never drift apart. Mirrors `ate_result_from_analysis`
+    // in `ate_api.rs` — same shared values, same reason.
+    let plan_id = result.logical_plan.plan_id.to_string();
+    let modality = format!("{:?}", result.logical_plan.data_classification);
+    let identification_status = format!("{:?}", result.identification.status);
+    let method = result.estimand.method.to_string();
+    let refutations: Vec<RefutationReportView> =
+        result.refutations.iter().map(RefutationReportView::from).collect();
+
+    let identification = IdentificationSection {
+        status: identification_status.clone(),
+        method: method.clone(),
+        adjustment_set: adjustment_set.clone(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    };
+    let estimate = EstimateSection {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        estimator_id: estimator_id.clone(),
+        method: method.clone(),
+        // Every temporal path fixes `OverlapPolicy::ExplicitOverride`, under which
+        // the shared adjustment estimator never populates `overlap_report` — read
+        // it the same way the static DTO does rather than hardcoding `None`, so
+        // this stays correct if a temporal path ever computes one.
+        overlap_ess: result.estimate.overlap_report.as_ref().and_then(|r| r.ess),
+        overlap_propensity_min: result.estimate.overlap_report.as_ref().map(|r| r.propensity_min),
+    };
+    let posterior_section = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend.clone(),
+        artifact: posterior_artifact.clone(),
+        unidentified_mass: posterior_unidentified_mass,
+    };
+    let validation = ValidationSection::from_reports(refutations.clone());
+    let performance = PerformanceSection {
+        plan_id: plan_id.clone(),
+        modality: modality.clone(),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        // Every temporal execution path (`execute_temporal`, `execute_temporal_mediation`,
+        // `execute_panel`, ...) populates `result.performance.{wall_time_ns,latency_mode,
+        // bootstrap_replicates_requested,cancelled,early_stopped}` with real data — it is
+        // simply never wired into the flat temporal `AnalysisResult` fields. Read it
+        // straight from the underlying `StudyResult` rather than fabricating `None`.
+        latency_mode: result
+            .performance
+            .latency_mode
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        // `bootstrap_replicates_ok` / `n_draws` (draw effort) / per-stage timings are
+        // genuinely never populated on any temporal path (every `AssembleArgs` literal
+        // sets `bootstrap_replicates_ok: None`, `n_draws: None`, `stage_timings_ns:
+        // Vec::new()`) — `None` / empty here is accurate, not a placeholder.
+        bootstrap_replicates_ok: result.performance.bootstrap_replicates_ok,
+        n_draws: result.performance.n_draws,
+        // `execute_temporal`'s frequentist branch shares the same bootstrap machinery
+        // as the static path (`TemporalLinearAdjustment::inner: LinearAdjustmentAte`),
+        // so a bootstrap cancellation surfaces on `estimate.bootstrap_cancelled` here
+        // exactly as it does on the static DTO — OR it in the same way.
+        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings: result
+            .performance
+            .stage_timings_ns
+            .iter()
+            .map(|(s, ns)| (s.to_string(), *ns))
+            .collect(),
+    };
+
     Ok(AnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
-        plan_id: result.logical_plan.plan_id.to_string(),
-        modality: format!("{:?}", result.logical_plan.data_classification),
+        plan_id,
+        modality,
         discovery_algorithm: result
             .logical_plan
             .discovery_algorithm
@@ -1467,15 +1718,16 @@ fn analysis_result_from_run(
             .as_ref()
             .map(std::string::ToString::to_string),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-        identification_status: format!("{:?}", result.identification.status),
-        method: result.estimand.method.to_string(),
+        identification_status,
+        method,
         diagnostics: result
             .diagnostics
             .iter()
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        refutation_count: result.refutations.len(),
+        refutation_count: refutations.len(),
+        refutations,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
         adjustment_set,
@@ -1494,16 +1746,21 @@ fn analysis_result_from_run(
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        identification,
+        estimate,
+        posterior: posterior_section,
+        validation,
+        performance,
     })
 }
 
 fn apply_temporal_inference(
-    builder: antecedent::CausalAnalysisBuilder,
+    builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-) -> PyResult<antecedent::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
     };
@@ -1576,9 +1833,8 @@ fn analyze_temporal_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
-            .series(series)
-            .temporal_graph(g)
+        let analysis = Study::series(series)
+            .graph(g)
             .query(CausalQuery::Mediation(q))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(bootstrap)

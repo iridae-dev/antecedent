@@ -32,6 +32,9 @@ antecedent-attribution = { path = "../crates/antecedent-attribution" }
 antecedent-stats = { path = "../crates/antecedent-stats" }
 antecedent-validate = { path = "../crates/antecedent-validate" }
 antecedent-discovery = { path = "../crates/antecedent-discovery" }
+# Concrete estimator structs for the `estimator_config=` parser; the
+# `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
+antecedent-estimate = { path = "../crates/antecedent-estimate" }
 pyo3 = { workspace = true }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
