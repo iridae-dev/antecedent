@@ -1,0 +1,18 @@
+feature_id = "discovery.notears"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "DAGs with NO TEARS: Continuous Optimization for Structure Learning", doi = "10.48550/arXiv.1803.01422", sections = ["least-squares SEM loss", "tr(e^{W∘W})-d acyclicity characterization", "augmented Lagrangian solver"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/notears/ unit tests",
+ "crates/antecedent-discovery/tests/discovery_notears_chain.rs",
+ "conformance/discovery/notears_chain",
+]

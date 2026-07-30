@@ -1,0 +1,18 @@
+feature_id = "discovery.graph_mcmc"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the shared Gaussian score"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/graph_posterior.rs unit tests",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
+ "conformance/discovery/graph_mcmc_exact",
+]

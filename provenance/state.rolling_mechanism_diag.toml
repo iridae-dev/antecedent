@@ -1,0 +1,23 @@
+feature_id = "state.rolling_mechanism_diag"
+implementation_crate = "antecedent-state"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# crates/antecedent-state/src/mechanism_diag.rs composes two already-covered primitives —
+# the ring-buffered OLS normal-equations update from suff_stats.rs (see
+# state.incremental_ols.toml: textbook material, no single attributable paper) and the
+# max-|CUSUM| statistic from antecedent-stats::divergence (see stats.divergence.toml,
+# where it is likewise treated as a generic technique, not a citation of Page's 1954
+# sequential CUSUM control chart, since this is a fixed-window max-|partial sum| scan, not
+# a sequential control-chart procedure). No new algorithm is introduced by this module
+# beyond composing those two pieces under a bounded retention window.
+
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "conformance/design_state/rolling_mechanism_diag_match (exercised via crates/antecedent-state/tests/rolling_mechanism_oracle.rs)",
+]

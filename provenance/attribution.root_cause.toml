@@ -1,0 +1,24 @@
+feature_id = "attribution.root_cause"
+implementation_crate = "antecedent-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ # DOI resolves via DataCite to the arXiv preprint of this work: title there omits the hyphen
+ # ("structure based" vs. published "structure-based") and lists authors as Janzing, Budhathoki,
+ # Minorics, Bloebaum (preprint order) rather than the ICML 2022 published order (Budhathoki,
+ # Minorics, Bloebaum, Janzing). Title/author order kept as the published version; DOI points at
+ # the preprint of the same work.
+ { title = "Causal structure-based root cause analysis of outliers", doi = "10.48550/arXiv.1912.02724", sections = ["Section 5 (Shapley attribution of a target's outlier to ancestor noise terms, ranked by absolute contribution)"] },
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "conformance/attribution/anomaly_root_cause",
+ "crates/antecedent-attribution/src/root_cause.rs (in-module unit tests)",
+]

@@ -1,0 +1,19 @@
+feature_id = "prob.mcmc_diagnostics"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["rank-normalized split R-hat", "folded R-hat", "bulk/tail ESS"] },
+ { title = "Practical Markov Chain Monte Carlo", doi = "10.1214/ss/1177011137", sections = ["initial positive/monotone sequence ESS estimator"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "IID / AR(1) chain ESS-vs-analytic-target unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
+ "shifted-mean and unequal-scale rhat failure unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
+ "publication-gate unit tests (crates/antecedent-prob/src/hmc.rs::tests::postwarmup_divergence_fails_publication_gate)",
+]

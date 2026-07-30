@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "RPCMCI: Regime-PCMCI", sections = ["regime assignments / per-regime graphs"] },
+ { title = "Reconstructing regime-dependent causal relationships from observational time series", doi = "10.1063/5.0020538", sections = ["regime-learning phase + per-regime PCMCI causal-discovery phase"] },
 ]
 
 upstream_implementations_observed = [
@@ -14,6 +14,8 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "two-regime unit test",
- "conformance/tigramite/rpcmci_two_regime",
+ "crates/antecedent-discovery/src/rpcmci.rs unit tests",
+ "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs",
+ "conformance/discovery/rpcmci_two_regime",
+ "conformance/discovery/rpcmci_fixed_regime_matrix",
 ]

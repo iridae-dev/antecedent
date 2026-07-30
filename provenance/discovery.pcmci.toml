@@ -6,7 +6,6 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Causal discovery for time series from multiple and incomplete datasets with variable context", doi = "10.48550/arXiv.2007.01926", sections = ["PCMCI"] },
  { title = "Detecting and quantifying causal associations in large nonlinear time series datasets", doi = "10.1126/sciadv.aau4996", sections = ["PCMCI algorithm"] },
 ]
 
@@ -16,5 +15,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic lagged VAR / SCM with known parent",
- "black-box optional comparison against pinned Tigramite baseline (conformance/tigramite/pcmci_lag1)",
+ "black-box optional comparison against pinned Tigramite baseline (conformance/discovery/pcmci_lag1)",
 ]

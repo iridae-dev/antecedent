@@ -1,0 +1,21 @@
+feature_id = "design.effect_width_reduction"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# DesignObjective::ReduceEffectPosteriorWidth / ranker.rs::effect_width_reduction: reduction
+# in the standard error of a linear-Gaussian effect estimate from a Gram-matrix (X^T X)
+# update under a proposed measurement / intervention / environment-pooling plan. This is
+# standard closed-form Gaussian-linear-model variance arithmetic (Fisher information /
+# Gram-matrix update), not tied to a single distinct primary paper beyond ordinary
+# linear-regression theory. Honestly left with no `papers` entry rather than attaching a
+# textbook citation that would overclaim a specific methodological source.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/src/ranker.rs unit tests",
+]

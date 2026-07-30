@@ -1,0 +1,18 @@
+feature_id = "identify.path_specific"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Identifiability of Path-Specific Effects", sections = ["recanting witness criterion"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "clean-room edge-g formula and canonical mediation examples (conformance/identify/path_specific)",
+ "conformance/identify/path_specific_natural",
+ "inline unit tests (crates/antecedent-identify/src/path_specific.rs)",
+]

@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["m-separation", "Markov blankets via moralization"] },
+ { title = "Markov Properties for Acyclic Directed Mixed Graphs", doi = "10.1111/1467-9469.00323", sections = ["m-separation via moralization of the ancestral subgraph"] },
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["Markov blankets via moralization"] },
 ]
 
 upstream_implementations_observed = []

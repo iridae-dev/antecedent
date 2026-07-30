@@ -1,0 +1,26 @@
+feature_id = "validate.robustness_refuters"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Placebo-treatment, dummy-outcome, random-common-cause, and data-subset refuters are
+# standard robustness diagnostics in applied causal-inference practice (replace the
+# treatment/outcome with noise or an irrelevant covariate and check the estimate
+# collapses/holds as expected). No single paper introduces this exact battery of checks
+# as a formal methodology; it is folklore practice that predates and is independent of
+# any particular software implementation. Honestly left with no primary citation rather
+# than inventing one — see report for detail.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-validate/src/placebo.rs unit tests",
+ "crates/antecedent-validate/src/dummy_outcome.rs unit tests",
+ "crates/antecedent-validate/src/rcc.rs unit tests",
+ "crates/antecedent-validate/src/data_subset.rs unit tests",
+ "conformance/validate/refuters",
+ "crates/antecedent-validate/tests/refuters.rs",
+]

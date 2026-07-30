@@ -1,0 +1,19 @@
+feature_id = "identify.auto"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# AutoIdentifier is a dispatch/enumeration layer over the shipped identifiers
+# (backdoor, efficient backdoor, frontdoor, ID, IDC, IV, path-specific, sharp
+# RD), each of which has its own provenance record. It does not itself
+# implement a distinct published algorithm, so no primary paper is listed here.
+papers = []
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "clean-room composition of frozen backdoor/ID/IDC/IV/RD/envelope fixtures (conformance/identify/auto_envelopes)",
+ "inline unit tests (crates/antecedent-identify/src/auto.rs)",
+]

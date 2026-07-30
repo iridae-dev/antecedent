@@ -1,0 +1,19 @@
+feature_id = "discovery.pc"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "An Algorithm for Fast Recovery of Sparse Causal Graphs", doi = "10.1177/089443939100900106", sections = ["skeleton search via conditional-independence edge removal"] },
+ { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation rules R1-R4 (Meek rules)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/pc.rs unit tests",
+ "crates/antecedent-discovery/tests/discovery_pc_parcorr.rs",
+ "crates/antecedent-discovery/src/orientation_tests.rs",
+]

@@ -1,0 +1,19 @@
+feature_id = "stats.glm"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Generalized Linear Models", doi = "10.2307/2344614", sections = ["Fisher scoring / IRLS"] },
+ { title = "Generalized Linear Models", doi = "10.1007/978-1-4899-3242-6", sections = ["logit/probit binomial", "log-link Poisson", "NB2 dispersion", "IRLS convergence diagnostics"] },
+]
+
+upstream_implementations_observed = [
+ { project = "statsmodels", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "conformance/stats/glm_irls (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+]

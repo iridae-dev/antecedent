@@ -1,0 +1,22 @@
+feature_id = "discovery.fci"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Causal Inference in the Presence of Latent Variables and Selection Bias", doi = "10.48550/arXiv.1302.4983", sections = ["FCI phases 1-4: skeleton, unshielded colliders, Possible-D-Sep, edge reset"] },
+ { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["complete FCI orientation rule set (phase 5)"] },
+]
+
+upstream_implementations_observed = [
+ { project = "causal-learn", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-discovery/src/fci.rs unit tests",
+ "crates/antecedent-discovery/src/possible_d_sep.rs unit tests",
+ "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
+ "conformance/discovery/static_oracle_matrix",
+]
