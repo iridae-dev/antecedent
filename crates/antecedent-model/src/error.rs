@@ -9,6 +9,7 @@ use thiserror::Error;
 
 /// Errors from compiling, fitting, or sampling causal models.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModelError {
     /// Graph / shape inconsistency.
     #[error("model shape error: {message}")]

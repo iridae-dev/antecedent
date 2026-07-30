@@ -1,0 +1,18 @@
+feature_id = "graph.projection"
+implementation_crate = "antecedent-graph"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Equivalence and Synthesis of Causal Models", sections = ["latent projection (DAG marginalization to a mixed graph)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-graph/src/projection.rs)",
+ "clean-room independent latent-only path enumeration oracle (conformance/graph/latent_projection)",
+ "crates/antecedent-graph/tests/oracle_closure.rs",
+]

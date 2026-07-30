@@ -1,8 +1,8 @@
-//! Compile-once / re-estimate-many [`PreparedAnalysis`] Python OO surface.
+//! Compile-once / re-estimate-many [`PreparedStudy`] Python OO surface.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, PreparedAnalysis};
+use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, Study};
 use antecedent_core::AverageEffectQuery;
 use antecedent_data::{TableView, tabular_from_record_batch};
 use numpy::PyReadonlyArray1;
@@ -18,10 +18,10 @@ use crate::{
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
 #[pyclass(name = "PreparedAnalysis")]
 pub struct PyPreparedAnalysis {
-    inner: PreparedAnalysis,
+    inner: PreparedStudy,
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
-    last: Option<antecedent::CausalAnalysisResult>,
+    last: Option<antecedent::StudyResult>,
 }
 
 #[pymethods]
@@ -88,8 +88,7 @@ impl PyPreparedAnalysis {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            let mut builder = CausalAnalysis::builder()
-                .data(data)
+            let mut builder = Study::tabular(data)
                 .graph(dag)
                 .query(query)
                 .refute(suite)
@@ -98,10 +97,16 @@ impl PyPreparedAnalysis {
                 builder = builder.latency_mode(mode);
             }
             if let Some(id) = identifier {
-                builder = builder.identifier(id);
+                builder = builder.identifier(
+                    id.parse::<antecedent::IdentifierId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             if let Some(est) = estimator {
-                builder = builder.estimator(est);
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             if let Some(mode) = inference.as_deref() {
                 builder = apply_inference(builder, mode, n_draws, prior_scale)?;
@@ -266,11 +271,11 @@ impl PyPreparedAnalysis {
 }
 
 fn apply_inference(
-    builder: antecedent::CausalAnalysisBuilder,
+    builder: antecedent::StudyBuilder,
     mode: &str,
     n_draws: usize,
     prior_scale: f64,
-) -> PyResult<antecedent::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::StudyBuilder> {
     match mode.to_ascii_lowercase().as_str() {
         "bayesian" | "bayesian.laplace" | "laplace" => {
             let cfg = BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale);

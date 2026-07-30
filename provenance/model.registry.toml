@@ -1,0 +1,25 @@
+feature_id = "model.registry"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Mechanism auto-assignment: hierarchical/linear-Gaussian fits, baseline-category
+# multinomial logit MLE, scalar LGSSM via Kalman EM, and (feature `gaussian-process`)
+# RBF Gaussian-process regression by exact Cholesky NLML.
+papers = [
+ { title = "Conditional Logit Analysis of Qualitative Choice Behavior", sections = ["Multinomial logit maximum-likelihood estimation"] },
+ { title = "A New Approach to Linear Filtering and Prediction Problems", doi = "10.1115/1.3662552", sections = ["Kalman filter (used inside the EM fit for the LGSSM mechanism family)"] },
+ { title = "Maximum Likelihood Estimates of Linear Dynamic Systems", doi = "10.2514/3.3166", sections = ["Fixed-interval smoother (used inside the EM fit for the LGSSM mechanism family)"] },
+ { title = "Gaussian Processes for Machine Learning", doi = "10.7551/mitpress/3206.001.0001", sections = ["Ch. 2: GP regression, exact Cholesky-based marginal likelihood"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-model/tests/scm_oracle.rs (discrete_and_hierarchical_glm_match_their_independent_oracles, minnesota_bvar_matches_independent_augmented_ridge_solve, kalman_filter_and_rts_smoother_match_clean_room_recursion)",
+ "conformance/gcm/discrete_hierarchical_glm",
+ "conformance/gcm/gaussian_process",
+ "conformance/gcm/minnesota_bvar",
+]

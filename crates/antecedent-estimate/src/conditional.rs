@@ -1,4 +1,4 @@
-//! Conditional ATE with effect modifiers .
+//! Conditional ATE with effect modifiers.
 //!
 //! Fits `Y ~ 1 + T + W + T×W` and reports the average treatment effect
 //! marginalized over observed modifier values:
@@ -20,9 +20,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
-};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -49,6 +47,20 @@ impl ConditionalLinearAdjustment {
     #[must_use]
     pub fn new() -> Self {
         Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend }
+    }
+
+    /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`].
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the dense linear-algebra backend used for the interaction-model OLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
     }
 
     /// Estimate conditional ATE from a [`ConditionalEffectQuery`].
@@ -148,9 +160,7 @@ impl ConditionalLinearAdjustment {
             .map_err(crate::util::stats_err)?;
         let coef = fit.coefficients;
 
-        let mut xtx = vec![0.0; ncols * ncols];
-        form_xtx(&design, n, ncols, &mut xtx);
-        let inv = invert_square(&xtx, ncols)
+        let inv = crate::util::xtx_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
 
         let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
@@ -166,19 +176,12 @@ impl ConditionalLinearAdjustment {
 
         let _ = Arc::clone(&estimand.method);
 
-        Ok(EffectEstimate {
-            ate: point,
+        Ok(EffectEstimate::new(
+            point,
             se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions: AssumptionSet::default(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        })
+            AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        ))
     }
 }
 

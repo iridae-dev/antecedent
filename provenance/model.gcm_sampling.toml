@@ -6,13 +6,22 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "DoWhy-GCM: An Extension of DoWhy for Causal Graphical Models", doi = "10.48550/arXiv.2206.06821", sections = ["mechanisms", "interventions"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions (mutilated-model / do-operator sampling)"] },
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["Horvitz-Thompson estimator (weighting do-sampler)"] },
+ { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Ch. 3.4: rule-of-thumb bandwidth selection (weighting kernel / KDE do-sampler bandwidth)"] },
+ { title = "Survey Sampling", sections = ["Effective sample size of weighted estimators"] },
 ]
 
-upstream_implementations_observed = ["DoWhy-GCM"]
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "conformance/gcm/gcm_fit_intervene",
  "conformance/gcm/do_sampling_weighting",
+ "conformance/gcm/do_sampling_kde",
+ "conformance/gcm/do_sampling_mcmc",
+ "conformance/gcm/do_sampling_grid",
  "crates/antecedent-model/benches/sample_overlay.rs",
+ "crates/antecedent-model/src/do_sampler.rs unit tests (weighting_recovers_treated_mean, weighting_ess_flags_tail_degeneracy, kde_and_mcmc_run)",
 ]

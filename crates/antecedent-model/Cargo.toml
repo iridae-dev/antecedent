@@ -17,17 +17,31 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "0.3.0", path = "../antecedent-data" }
-antecedent-graph = { version = "0.3.0", path = "../antecedent-graph" }
-antecedent-kernels = { version = "0.3.0", path = "../antecedent-kernels" }
-antecedent-prob = { version = "0.3.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "0.3.0", path = "../antecedent-stats" }
+antecedent-core = { version = "0.4.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.4.0", path = "../antecedent-data" }
+antecedent-graph = { version = "0.4.0", path = "../antecedent-graph" }
+antecedent-kernels = { version = "0.4.0", path = "../antecedent-kernels" }
+antecedent-prob = { version = "0.4.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.4.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [features]
 default = []
-# Gaussian-process mechanism family.
+# Gaussian-process mechanism family (registry auto-fit path only — a deserialized
+# `MechanismSlot::GaussianProcess` always evaluates/samples regardless of this feature).
+#
+# EXPERIMENTAL — not enabled by any shipped configuration (no default, no workspace
+# member, no downstream Cargo.toml turns this on). The gated `fit_gaussian_process` in
+# `src/registry.rs` is numerically correct (exact Cholesky NLML, proper error handling,
+# no panics) but intentionally minimal relative to the other mechanism families:
+# hyperparameter search is a coarse fixed 5x4 grid (no continuous/gradient optimization),
+# `variance` is hardcoded to 1.0 (never fit), the kernel is a single fixed isotropic RBF
+# (no ARD/kernel selection), the exact-Cholesky fit is O(n^3) per grid cell with no
+# sparse/inducing-point path, and it has exactly one test
+# (`registry.rs::gaussian_process_matches_exact_logdet_oracle`), itself gated behind this
+# same feature so it does not run in default CI. Treat this as a research/prototype path,
+# not a production-ready auto-fit family, until hyperparameter optimization, kernel
+# choice, and scaling are revisited.
 gaussian-process = []
 
 [dev-dependencies]

@@ -241,6 +241,21 @@ fn binomial_diagnostics_at(
     (deviance, separated)
 }
 
+/// Validate that `y` matches `nrows` and `x_colmajor` holds at least `nrows * ncols` entries.
+///
+/// Shared shape guard for the `fit_*` entry points; family-specific outcome-domain
+/// checks (0/1, non-negativity, category range) are validated separately by each caller.
+fn validate_glm_shape(design: GlmDesignRef<'_>) -> Result<(), StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    Ok(())
+}
+
 /// NB2 deviance at `β` with fixed dispersion `α` (log link).
 fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
@@ -264,13 +279,8 @@ fn fit_gaussian(
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
     let fit = backend.least_squares(x_colmajor, nrows, ncols, y, workspace)?;
     Ok(GlmFit {
         coefficients: fit.coefficients,
@@ -289,13 +299,8 @@ fn fit_poisson(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
     for &yi in y {
         if !(yi.is_finite() && yi >= 0.0) {
             return Err(StatsError::Shape {
@@ -364,13 +369,8 @@ fn fit_logistic(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
     for &yi in y {
         if !(yi == 0.0 || yi == 1.0) {
             return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
@@ -448,13 +448,8 @@ fn fit_probit(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
     for &yi in y {
         if !(yi == 0.0 || yi == 1.0) {
             return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
@@ -535,13 +530,8 @@ fn fit_negbin(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
     for &yi in y {
         if !(yi.is_finite() && yi >= 0.0) {
             return Err(StatsError::Shape {
@@ -833,12 +823,7 @@ pub fn fit_glm_ridge(
             message: "ridge GLM currently requires a binomial family",
         });
     }
-    if design.y.len() != design.nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if design.x_colmajor.len() < design.nrows.saturating_mul(design.ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
+    validate_glm_shape(design)?;
     if !lambda.is_finite() || lambda <= 0.0 {
         return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
     }

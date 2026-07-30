@@ -6,11 +6,27 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "DoWhy-GCM: An Extension of DoWhy for Causal Graphical Models", doi = "10.48550/arXiv.2206.06821", sections = ["anomaly attribution", "intrinsic causal influence"] },
+ # DOI resolves via DataCite to the arXiv preprint of this work: title there omits the hyphen
+ # ("structure based" vs. published "structure-based") and lists authors as Janzing, Budhathoki,
+ # Minorics, Bloebaum (preprint order) rather than the ICML 2022 published order (Budhathoki,
+ # Minorics, Bloebaum, Janzing). Title/author order kept as the published version; DOI points at
+ # the preprint of the same work.
+ { title = "Causal structure-based root cause analysis of outliers", doi = "10.48550/arXiv.1912.02724", sections = ["Section 2 (information-theoretic outlier score definition)", "Section 5 (Shapley attribution of a target's outlier to ancestor noise terms)"] },
+ # Section 6 ("Causal strength for linear structural equations") gives the exact formula
+ # CS = -(1/2)*log(1 - beta^2*Var(parent)/Var(child)); anomaly.rs:420 computes only the
+ # first-order term beta^2*Var(parent), not the exact log-KL expression. Section 3
+ # ("Problems of known definitions") is a critique of prior measures and defines nothing used
+ # here.
+ { title = "Quantifying causal influences", doi = "10.1214/13-AOS1145", sections = ["Section 6 (causal strength for linear structural equations); implementation uses the first-order variance term beta^2*Var(parent), not the exact log-KL expression"] },
 ]
 
-upstream_implementations_observed = ["DoWhy-GCM"]
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "conformance/gcm/gcm_anomaly",
+ "conformance/attribution/anomaly_root_cause",
+ "conformance/attribution/arrow_strength",
+ "crates/antecedent-attribution/src/anomaly.rs (in-module unit tests: scale invariance, arrow-strength variance weighting, chained variance propagation)",
 ]

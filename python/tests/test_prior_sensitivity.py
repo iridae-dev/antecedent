@@ -43,7 +43,8 @@ def test_prior_sensitivity_skipped_on_default_refute():
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=32),
-        refute=True,
+        # "default refute" is spelled by leaving it unset; an explicit
+        # refute=True is a TypeError because it never said which suite.
         seed=2,
     )
     assert result.validation.prior_predictive is not None

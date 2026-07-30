@@ -182,9 +182,12 @@ mod tests {
         assert!(report.empirical_fpr >= 0.0);
     }
 
-    /// Scheduled calibration gate: empirical FPR near α under independent noise.
+    /// Empirical FPR near α under independent noise. Runs in well under a second
+    /// (`n_sim=40`, `n_obs=200`, `n_vars=3`), so it stays in the default `cargo
+    /// test` suite rather than the weekly `scripts/gate_calibration.sh` gate — a
+    /// regression in the PCMCI significance calibration should fail CI, not wait
+    /// a week to be caught.
     #[test]
-    #[ignore = "scheduled calibration gate; run via scripts/gate_calibration.sh"]
     fn synthetic_null_fpr_near_alpha_gate() {
         let constraints = DiscoveryConstraints {
             temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },

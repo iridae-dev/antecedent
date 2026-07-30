@@ -74,6 +74,10 @@ def test_sustained_vs_pulse_policy_accepted():
 
 
 def test_temporal_refute_runs_by_default():
+    # `refute=True` is now a TypeError (it carried no information beyond
+    # "unset" and was easy to confuse with an explicit choice) — leaving
+    # `refute` unspecified is the current spelling of "run the default suite",
+    # which is exactly the behavior this test pins.
     rng = np.random.default_rng(3)
     n = 120
     x = rng.normal(size=n)
@@ -85,12 +89,30 @@ def test_temporal_refute_runs_by_default():
         {"a": x, "b": y},
         graph=[("a", 1, "b", 0)],
         query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        refute=True,
         bootstrap=0,
         seed=1,
     )
     assert result.validation.ran
     assert result.validation.count >= 1
+
+
+def test_refute_true_is_rejected():
+    rng = np.random.default_rng(3)
+    n = 60
+    x = rng.normal(size=n)
+    y = np.empty(n)
+    y[0] = 0.0
+    for t in range(1, n):
+        y[t] = 0.8 * x[t - 1]
+    with pytest.raises(TypeError):
+        antecedent.analyze(
+            {"a": x, "b": y},
+            graph=[("a", 1, "b", 0)],
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            refute=True,
+            bootstrap=0,
+            seed=1,
+        )
 
 
 def test_temporal_accepts_bayesian_pulse():
@@ -121,14 +143,14 @@ def test_fitted_gcm_sample_do():
     names = list(data.keys())
     cols = [data[n] for n in names]
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    gcm = antecedent.fit_gcm(names, cols, edges)
+    gcm = antecedent.model.fit_gcm(names, cols, edges)
     out = gcm.sample_do({"t": 1.0}, n=50, seed=3)
     assert out.n_draws == 50
     assert out.draws.shape[1] == 50
 
 
 def test_antecedent_state_append_data():
-    state = antecedent.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(cache_bytes=1 << 20)
     v0 = state.version
     data = _ate_data(n=20)
     names = list(data.keys())
@@ -182,7 +204,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     beta_true = np.array([0.5, -1.25])
     y = x @ beta_true + rng.normal(size=30) * 0.05
 
-    state = antecedent.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(cache_bytes=1 << 20)
     state.ols_ensure("ols", 2)
     # Two append batches (online path).
     for i in range(0, 12):
@@ -211,7 +233,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
 
 
 def test_rank_designs_full_surface():
-    ranking = antecedent.rank_designs(
+    ranking = antecedent.design.rank_designs(
         [0.5, 0.3, 0.2],
         [1, 0, 0],
         [10, 20, 30],
@@ -245,15 +267,15 @@ def test_exact_dag_posterior_tiny():
     x = rng.normal(size=n)
     y = 0.7 * x + rng.normal(size=n) * 0.3
     data = {"x": x, "y": y}
-    post = antecedent.discover_exact_dag_posterior(data)
+    post = antecedent.discovery.ExactDagPosterior().run(data)
     assert post.n_vars == 2
     assert post.n_graphs >= 1
     assert len(post.weights) == post.n_graphs
 
 
 def test_discovery_result_alias_and_ges_config():
-    assert antecedent.discovery.DiscoveryResult is antecedent.PcmciDiscoveryResult
-    cfg = antecedent.GES(alpha=0.1)
+    assert antecedent.discovery.DiscoveryResult is antecedent.discovery.PcmciDiscoveryResult
+    cfg = antecedent.discovery.GES(alpha=0.1)
     assert cfg.kind == "ges"
 
 

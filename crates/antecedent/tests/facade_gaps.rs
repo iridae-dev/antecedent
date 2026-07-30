@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use antecedent::estimate::{identify_static_query, select_estimand};
-use antecedent::{CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite};
+use antecedent::{EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
     ConditionalEffectQuery, CounterfactualQuery, ExecutionContext, IdentificationStatus,
@@ -70,9 +70,8 @@ fn pag_ate_via_generalized_adjustment() {
     let mut pag = Pag::with_variables(2);
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
-        .data(data)
-        .pag(pag)
+    let analysis = Study::tabular(data)
+        .graph(pag)
         .query(q)
         .identifier(IdentifierId::GeneralizedAdjustment)
         .estimator(EstimatorId::LinearAdjustmentAte)
@@ -92,9 +91,8 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     let mut pag = Pag::with_variables(2);
     pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
-        .data(data)
-        .pag(pag)
+    let analysis = Study::tabular(data)
+        .graph(pag)
         .query(q)
         .identifier(IdentifierId::GeneralizedAdjustment)
         .estimator(EstimatorId::LinearAdjustmentAte)
@@ -102,10 +100,16 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
         .build()
         .unwrap();
     let ctx = ExecutionContext::for_tests(1);
+    // `compile` returns a usable `PhysicalExecutionPlan` directly now (no `CompiledAnalysis`
+    // enum to distinguish "ready" from "review required"): success here already asserts
+    // the plan is ready to execute.
     let plan = analysis.compile(&ctx).unwrap();
-    assert!(matches!(plan, CompiledAnalysis::Ready(_)));
     let result = analysis.execute(&plan, &ctx).unwrap();
     assert!(result.estimate.ate.is_finite());
+    // Same `chain_table(80)` fixture and estimator as `pag_ate_via_generalized_adjustment`
+    // above (only the input PAG's mark differs: circle-arrow here vs. directed there), so
+    // the identified ATE must match that known ground truth, not merely be finite.
+    assert!((result.estimate.ate - 2.0).abs() < 0.2);
 }
 
 #[test]
@@ -149,8 +153,7 @@ fn conditional_effect_via_causal_analysis() {
     let inner = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_effect_modifiers([VariableId::from_raw(2)]);
     let cq = ConditionalEffectQuery::try_new(inner).unwrap();
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(g)
         .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
@@ -167,8 +170,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         VariableId::from_raw(1),
         [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
     );
-    let analysis = CausalAnalysis::builder()
-        .data(data.clone())
+    let analysis = Study::tabular(data.clone())
         .graph(g.clone())
         .query(CausalQuery::Counterfactual(cf))
         .refute(RefuteSuite::None)
@@ -179,8 +181,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     assert!(result.estimate.ate.is_finite());
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(g)
         .query(CausalQuery::AnomalyAttribution(an))
         .refute(RefuteSuite::None)
@@ -243,8 +244,7 @@ fn static_mediation_natural_rejected() {
         [VariableId::from_raw(1)],
         MediationContrast::NaturalDirect,
     );
-    let err = CausalAnalysis::builder()
-        .data(data)
+    let err = Study::tabular(data)
         .graph(g)
         .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
@@ -265,7 +265,9 @@ fn auto_multi_estimand_requires_unique_match() {
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
     if id.estimands.len() > 1 {
-        let err = select_estimand(&id, EstimatorId::Other(Arc::from("unmatched"))).unwrap_err();
+        // `RdSharp` is a real estimator that an auto backdoor identification on a chain
+        // never produces an estimand for, so selection must refuse rather than guess.
+        let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
         assert!(err.to_string().contains("estimands"));
     }
     let _ = data;
@@ -290,13 +292,12 @@ fn pag_compile_ready() {
     let mut pag = Pag::with_variables(2);
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
-        .data(data)
-        .pag(pag)
-        .query(q)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap();
+    let analysis =
+        Study::tabular(data).graph(pag).query(q).refute(RefuteSuite::None).build().unwrap();
+    // `compile` returns a usable `PhysicalExecutionPlan` directly (no `CompiledAnalysis::Ready`
+    // variant anymore) — succeeding here is the "ready" assertion. Beyond that, assert the
+    // plan actually resolved the supplied static PAG rather than silently compiling an empty
+    // or default plan.
     let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(matches!(compiled, CompiledAnalysis::Ready(_)));
+    assert!(compiled.static_pag().is_some());
 }

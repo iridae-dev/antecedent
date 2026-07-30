@@ -36,16 +36,18 @@ def _confounded_scm(n: int = 500, seed: int = 7):
 def main() -> None:
     data = _confounded_scm()
     discovery_calls = {"n": 0}
-    real_discover = antecedent.discover_pc
+    real_run = antecedent.discovery.PC.run
 
-    def counted_discover(*args, **kwargs):
+    def counted_run(self, *args, **kwargs):
         discovery_calls["n"] += 1
-        return real_discover(*args, **kwargs)
+        return real_run(self, *args, **kwargs)
+
+    # Spy on the config's own `run` — every path into PC discovery goes through
+    # it, so "estimate clicks never rediscover" is a claim this can actually check.
+    antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
 
     # Structure-ready click (once).
-    antecedent.discover_pc = counted_discover  # type: ignore[method-assign]
-    result = antecedent.discover_pc(data, alpha=0.5, fdr=False, max_cond_size=0, seed=1)
-    evidence = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pc")
+    evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(data, seed=1)
     assert discovery_calls["n"] == 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
 

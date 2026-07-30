@@ -11,7 +11,7 @@
 //! Discover-once → many interactive estimates.
 //!
 //! Discover with PC, accept a fully oriented DAG for estimate clicks, then
-//! re-estimate via `PreparedAnalysis` without rediscovery.
+//! re-estimate via `PreparedStudy` without rediscovery.
 //!
 //! Run: `cargo run -p antecedent --example discover_then_estimate`
 
@@ -116,16 +116,14 @@ fn main() -> Result<(), CausalError> {
     let _ = &discovery.evidence.graph;
 
     // Spreadsheet review: accept a fully oriented DAG for estimate clicks.
-    let analysis = CausalAnalysis::builder()
-        .data(data.clone())
+    let analysis = Study::tabular(data.clone())
         .graph(accepted_dag.clone())
         .query(query.clone())
         .refute(RefuteSuite::None)
         .build()?;
 
     let first = analysis.run(&ctx)?;
-    let second = CausalAnalysis::builder()
-        .data(data.clone())
+    let second = Study::tabular(data.clone())
         .graph(accepted_dag.clone())
         .query(query.clone())
         .bootstrap_replicates(0)

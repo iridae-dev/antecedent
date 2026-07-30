@@ -1,4 +1,4 @@
-//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator .
+//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator.
 //!
 //! Combines an outcome regression (μ0(Z), μ1(Z), fit separately per treatment arm) with
 //! inverse-probability weighting of the residuals, so the estimator is consistent if *either*
@@ -41,7 +41,7 @@ use antecedent_stats::{
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
@@ -117,6 +117,77 @@ impl AipwAte {
             multiway_ids: None,
             panel_times: None,
         }
+    }
+
+    /// Set the dense linear-algebra backend used for the propensity IRLS fit and outcome
+    /// OLS fits.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    /// Each replicate refits both the propensity model and the two outcome models.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options (max iterations, convergence tolerance) used for the
+    /// propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids (aligned to prepared rows) for [`AnalyticSeKind::Cluster`].
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions used when the query
+    /// targets [`TargetPopulation::Predicate`] or a custom distribution.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
+    /// [`AnalyticSeKind::Multiway`].
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels for [`AnalyticSeKind::PanelClusterHac`].
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
     }
 
     /// Prepare the covariate design from tabular data, identified estimand, and query.
@@ -238,28 +309,15 @@ impl AipwAte {
         } else {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
-        let overlap_report = Some(OverlapReport::from_propensities(
+        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+            problem,
             &model.fit.scores,
             None,
-            problem.overlap,
-            Some(&problem.treatment),
             IpwTarget::from_population(&problem.target_population).ok(),
-            problem.target_weights.as_deref(),
         ));
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_overlap_report(overlap_report)
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -276,13 +334,15 @@ impl AipwAte {
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D0_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(
+                &mut x_boot,
+                &problem.design_matrix,
+                n,
+                ncols,
+                idx,
+            );
             let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,

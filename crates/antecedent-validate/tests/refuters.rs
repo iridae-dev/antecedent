@@ -21,7 +21,7 @@ use antecedent_identify::IdentifiedEstimand;
 use antecedent_validate::{
     BootstrapRefute, DataSubsetRefuter, DummyOutcome, EValue, GraphRefuter, LinearSensitivity,
     NonparametricSensitivity, OverlapRefuter, OverlapRuleRefuter, PartialLinearSensitivity,
-    PlaceboTreatment, RandomCommonCause, RefutationProblem, ReiszSensitivity,
+    PlaceboTreatment, RandomCommonCause, RefutationProblem, RieszSensitivity,
     UnobservedCommonCause, ValidationSuite,
 };
 use serde_json::Value as JsonValue;
@@ -126,7 +126,7 @@ fn refuters_and_sensitivity_smoke() {
     assert!(LinearSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(PartialLinearSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
-    assert!(ReiszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
 
     let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
     assert_eq!(outcomes.len(), 14);

@@ -14,7 +14,7 @@
     "linear_sensitivity",
     "partial_linear_sensitivity",
     "nonparametric_sensitivity",
-    "reisz_sensitivity",
+    "riesz_sensitivity",
     "validation_suite"
   ],
   "notes": "Pinned validator id set exercised by crates/antecedent-validate/tests/refuters.rs; outcomes are informative smoke (not StableFloat point estimates).",

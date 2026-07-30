@@ -1,4 +1,4 @@
-//! Front-door two-stage (product-of-coefficients) regression estimator .
+//! Front-door two-stage (product-of-coefficients) regression estimator.
 //!
 //! Requires a `"frontdoor"` estimand with a non-empty [`IdentifiedEstimand::mediators`] set
 //! (see `antecedent_identify::frontdoor`). Supports one or more mediators `M₁…Mₖ`; the front-door
@@ -191,6 +191,46 @@ impl FrontDoorTwoStage {
         }
     }
 
+    /// Set the dense linear-algebra backend used by both regression stages.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic
+    /// stacked-sandwich SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — front-door
+    /// is not a propensity-based method.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the analytic SE policy for the stacked path-sum sandwich (default
+    /// [`AnalyticSeKind::Hc0`]). Supports Homoskedastic/Hc0/Hc1/Cluster only.
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids (length = prepared `nrows`) for [`AnalyticSeKind::Cluster`].
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Arc<[u32]>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
     /// Prepare the treatment/mediator/outcome design.
     ///
     /// # Errors
@@ -225,20 +265,7 @@ impl FrontDoorTwoStage {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
     }
 
     fn point_estimate(

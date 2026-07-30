@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade.
+//! Unified `Study` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -18,13 +18,13 @@ mod latency;
 mod prepared;
 mod stage;
 
-pub use batch::BatchAnalysis;
-pub use builder::{CausalAnalysisBuilder, RdConfig, RefuteSuite};
-pub use execute::CausalAnalysis;
+pub use batch::BatchStudy;
+pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
+pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
-    STANDARD_N_DRAWS, refuse_discovery_under_interactive, refuse_non_report_hmc,
+    STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
-pub use prepared::PreparedAnalysis;
-pub use stage::{AnalysisStageEvent, StageResultSink};
+pub use prepared::PreparedStudy;
+pub use stage::{StageEvent, StageResultSink};

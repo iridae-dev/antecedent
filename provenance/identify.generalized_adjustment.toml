@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Complete graphical characterization and identification of causal effects under latent confounding and selection bias", sections = ["generalized adjustment"] },
+ { title = "A Complete Generalized Adjustment Criterion", doi = "10.48550/arXiv.1507.01524", sections = ["generalized adjustment criterion for DAGs/MAGs/CPDAGs/PAGs"] },
 ]
 
 upstream_implementations_observed = []
@@ -14,4 +14,5 @@ upstream_implementations_observed = []
 test_sources = [
  "IdentificationEnvelope unidentified mass",
  "PAG completion envelope",
+ "clean-room MAG-enumeration-plus-generalized-adjustment oracle (conformance/identify/generalized_adjustment)",
 ]

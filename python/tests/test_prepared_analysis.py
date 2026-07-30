@@ -38,7 +38,7 @@ def test_prepared_reestimate_matches_fresh_analyze():
         latency="interactive",
         seed=1,
     )
-    prepared = antecedent.PreparedAnalysis.prepare(
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
@@ -75,7 +75,7 @@ def test_oneshot_analyze_result_cannot_refresh():
 def test_prepared_second_shot_not_slower_than_prepare_plus_first():
     data, edges = _confounded_scm(n=800, seed=31)
     t0 = time.perf_counter()
-    prepared = antecedent.PreparedAnalysis.prepare(
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),

@@ -1,0 +1,21 @@
+feature_id = "prob.external_prior"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Power Prior Distributions for Regression Models", doi = "10.1214/ss/1009212673", sections = ["power-prior precision add", "moment-matched mixture composition"] },
+ { title = "Survey Sampling", sections = ["effective sample size, (Σw)²/Σw²"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "power-prior precision-add and mixture-composition analytic unit tests (crates/antecedent-prob/src/external_prior.rs::tests)",
+ "conformance/bayesian/prior_bank_power_mixture (exercised via crates/antecedent/tests/bayesian.rs)",
+ "conformance/bayesian/prior_bank_alpha_sensitivity",
+ "conformance/bayesian/prior_bank_conflict_shrink",
+ "conformance/bayesian/prior_bank_ess",
+]

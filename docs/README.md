@@ -5,7 +5,7 @@
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
 | [Artifacts](artifacts.md) | Wire format, migration, graph interchange |
-| [Prior bank](prior_bank.md) | External prior catalog, compose, conflict, transport |
+| [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
 | [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |

@@ -1,4 +1,4 @@
-//! Bayesian mechanisms, g-computation, and posterior functional evaluation .
+//! Bayesian mechanisms, g-computation, and posterior functional evaluation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -451,6 +451,64 @@ impl BayesianGComputationAte {
             likelihood: BayesLikelihood::GaussianIdentity,
             ..Self::new()
         }
+    }
+
+    /// Set the inference backend kind (conjugate Gaussian, Laplace, or HMC).
+    #[must_use]
+    pub const fn with_backend(mut self, backend: BayesianBackendKind) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the likelihood used for the Laplace / HMC backends.
+    ///
+    /// Ignored by [`BayesianBackendKind::ConjugateGaussian`], which always forces
+    /// [`BayesLikelihood::GaussianIdentity`].
+    #[must_use]
+    pub const fn with_likelihood(mut self, likelihood: BayesLikelihood) -> Self {
+        self.likelihood = likelihood;
+        self
+    }
+
+    /// Set the target draw count.
+    ///
+    /// Defaults to 1000. [`BayesianBackendKind::Hmc`] floors this at the schedule needed to
+    /// clear the Ř≤1.01 / ESS≥100 publication gate on typical Gaussian GLMs.
+    #[must_use]
+    pub const fn with_n_draws(mut self, n_draws: usize) -> Self {
+        self.n_draws = n_draws;
+        self
+    }
+
+    /// Set the RNG seed used for sampling / MVN draws.
+    #[must_use]
+    pub const fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Set the overlap policy. `prepare` requires [`OverlapPolicy::ExplicitOverride`].
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the isotropic Gaussian coefficient prior scale (weakly informative default 10).
+    ///
+    /// Ignored when [`Self::with_prior`] supplies an explicit coefficient prior.
+    #[must_use]
+    pub const fn with_prior_scale(mut self, prior_scale: f64) -> Self {
+        self.prior_scale = prior_scale;
+        self
+    }
+
+    /// Set an explicit coefficient prior (e.g. hydrated from a previous posterior via
+    /// [`hydrate_prior_from_posterior`]), overriding [`Self::with_prior_scale`].
+    #[must_use]
+    pub fn with_prior(mut self, prior: PriorSet) -> Self {
+        self.prior = Some(prior);
+        self
     }
 
     /// Prepare from data + identified estimand (same IR as frequentist adjustment).
@@ -922,6 +980,13 @@ impl BayesianTemporalGcomp {
     #[must_use]
     pub fn conjugate() -> Self {
         Self { inner: BayesianGComputationAte::conjugate() }
+    }
+
+    /// Set the shared Bayesian g-computation configuration.
+    #[must_use]
+    pub fn with_inner(mut self, inner: BayesianGComputationAte) -> Self {
+        self.inner = inner;
+        self
     }
 
     /// Convert a temporal prepared design for Bayesian fit.

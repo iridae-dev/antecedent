@@ -1008,9 +1008,33 @@ pub(crate) fn mci_conditioning(
             out.push(shifted);
         }
     }
-    if out.len() > MAX_CI_COLS - 2 {
-        let dropped = out.len() - (MAX_CI_COLS - 2);
-        out.truncate(MAX_CI_COLS - 2);
+    mci_conditioning_bounded_finish(out, MAX_CI_COLS - 2)
+}
+
+/// [`mci_conditioning`] with an explicit column budget.
+///
+/// Callers that add further conditions of their own (PCMCI+'s contemporaneous candidate set
+/// `S`) must reserve room for them *here*, before the lagged block is built. Truncating the
+/// combined set afterwards drops from the tail, which is the lagged MCI block — the fixed
+/// control set that makes the test valid under autocorrelation — while keeping the optional
+/// conditions that were prepended.
+pub(crate) fn mci_conditioning_bounded(
+    link: LaggedLink,
+    parents_target: &[(VariableId, Lag)],
+    parents_source: &[(VariableId, Lag)],
+    budget: usize,
+    out: &mut Vec<(VariableId, Lag)>,
+) -> u64 {
+    // `mci_conditioning` applies the kernel cap itself and reports what that cost; the
+    // tighter caller budget can drop more on top. Both count as dropped conditions.
+    let dropped = mci_conditioning(link, parents_target, parents_source, out);
+    dropped + mci_conditioning_bounded_finish(out, budget.min(MAX_CI_COLS - 2))
+}
+
+fn mci_conditioning_bounded_finish(out: &mut Vec<(VariableId, Lag)>, budget: usize) -> u64 {
+    if out.len() > budget {
+        let dropped = out.len() - budget;
+        out.truncate(budget);
         dropped as u64
     } else {
         0

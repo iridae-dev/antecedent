@@ -4,6 +4,7 @@
 
 use antecedent_core::{CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode};
 use antecedent_kernels::shuffle;
+use antecedent_stats::student_t_ppf;
 
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
@@ -40,9 +41,21 @@ pub struct ShapleyEstimate {
 
 impl ShapleyEstimate {
     /// Convert to component contributions.
+    ///
+    /// CIs use a Student-t critical value with `n_samples - 1` degrees of freedom (from
+    /// [`ComputeBudget::samples`]) rather than a fixed asymptotic `z = 1.96`: Monte Carlo /
+    /// permutation Shapley runs often use modest sample counts, where the normal
+    /// approximation understates interval width. Exact mode never populates `stderr`
+    /// (`component_mc_stderr` is `None`), so `ci_low`/`ci_high` stay `None` there regardless
+    /// of the (unused) critical value. `n_samples == 1` still yields `stderr = +inf`
+    /// (`df == 0` also yields `t_crit = +inf`, i.e. `+inf * +inf = +inf`, not NaN) —
+    /// preserving the existing single-sample behavior.
     #[must_use]
     pub fn into_contributions(self) -> Vec<ComponentContribution> {
         let stderrs = self.component_mc_stderr;
+        #[allow(clippy::cast_precision_loss)]
+        let df = self.budget.samples.saturating_sub(1) as f64;
+        let t_crit = student_t_ppf(0.975, df);
         self.players
             .into_iter()
             .zip(self.values)
@@ -53,8 +66,8 @@ impl ShapleyEstimate {
                     component,
                     contribution,
                     stderr,
-                    ci_low: stderr.map(|s| contribution - 1.96 * s),
-                    ci_high: stderr.map(|s| contribution + 1.96 * s),
+                    ci_low: stderr.map(|s| contribution - t_crit * s),
+                    ci_high: stderr.map(|s| contribution + t_crit * s),
                 }
             })
             .collect()
@@ -175,7 +188,11 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             budget.samples = n_samples as u64;
             let mut rng = CausalRng::from_seed(config.seed);
             let mut phi = vec![0.0; n];
-            let mut phi2 = vec![0.0; n];
+            // Welford's online sum-of-squared-deviations (from the running mean),
+            // accumulated per sample. Numerically stable vs. the naive two-pass
+            // `E[X^2] - E[X]^2` form, which suffers catastrophic cancellation when
+            // the mean is large relative to the variance.
+            let mut phi_m2 = vec![0.0; n];
             let mut completed = 0u64;
             for _ in 0..n_samples {
                 if ctx.cancellation.is_cancelled() {
@@ -193,11 +210,14 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     sample_phi[i] = v_new - v_prev;
                     v_prev = v_new;
                 }
-                for i in 0..n {
-                    phi[i] += sample_phi[i];
-                    phi2[i] += sample_phi[i] * sample_phi[i];
-                }
                 completed += 1;
+                let cf = completed as f64;
+                for i in 0..n {
+                    let delta = sample_phi[i] - phi[i];
+                    phi[i] += delta / cf;
+                    let delta2 = sample_phi[i] - phi[i];
+                    phi_m2[i] += delta * delta2;
+                }
                 if let Some(p) = &ctx.progress {
                     #[allow(clippy::cast_precision_loss)]
                     p.report(completed as f64 / n_samples as f64, "shapley");
@@ -208,10 +228,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             }
             budget.samples = completed;
             let ns = completed as f64;
-            for i in 0..n {
-                phi[i] /= ns;
-                phi2[i] = ((phi2[i] / ns) - phi[i] * phi[i]).max(0.0).sqrt() / ns.sqrt();
-            }
+            let phi2: Vec<f64> = phi_m2.iter().map(|&m2| mc_stderr_of_mean(m2, ns)).collect();
             let mean_se = phi2.iter().sum::<f64>() / n as f64;
             Ok(ShapleyEstimate {
                 players: players.to_vec(),
@@ -320,6 +337,21 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     })
 }
 
+/// Bessel-corrected standard error of a Monte Carlo mean, given the running
+/// sum of squared deviations from the mean (`m2`, e.g. Welford's `M2`) and the
+/// completed sample count `ns`.
+///
+/// The sample variance is `m2 / (ns - 1)` (Bessel-corrected, unbiased); the SE of
+/// the mean is `sqrt(sample_var / ns) == sqrt(m2 / (ns * (ns - 1)))`. Undefined for
+/// `ns < 2` (a single draw has no sample variance) — returns `f64::INFINITY`,
+/// matching `antecedent_design::ranker::mc_stderr`'s convention for `n < 2`.
+fn mc_stderr_of_mean(m2: f64, ns: f64) -> f64 {
+    if ns < 2.0 {
+        return f64::INFINITY;
+    }
+    (m2 / (ns * (ns - 1.0))).sqrt()
+}
+
 fn factorial_weights(n: usize) -> Vec<f64> {
     // w(s) = s! * (n-s-1)! / n!
     let mut fact = vec![1.0; n + 1];
@@ -419,6 +451,104 @@ mod tests {
         assert!(est.component_mc_stderr.is_some());
         for (v, w) in est.values.iter().zip([1.0, 1.0, 1.0, 1.0]) {
             assert!((v - w).abs() < 0.15, "v={v}");
+        }
+    }
+
+    /// E1: `mc_stderr_of_mean` against a known, hand-computed Bessel-corrected
+    /// reference (not derived from the estimator itself).
+    #[test]
+    fn monte_carlo_se_matches_bessel_corrected_reference() {
+        // Reference sample: s^2 (Bessel-corrected) = 2.5 for [1,2,3,4,5], so the
+        // SE of the mean is sqrt(2.5 / 5).
+        let draws = [1.0_f64, 2.0, 3.0, 4.0, 5.0];
+        let ns = draws.len() as f64;
+        let mean = draws.iter().sum::<f64>() / ns;
+        let m2: f64 = draws.iter().map(|x| (x - mean) * (x - mean)).sum();
+        let sample_var_ref = m2 / (ns - 1.0); // Bessel-corrected, textbook two-pass.
+        assert!((sample_var_ref - 2.5).abs() < 1e-12);
+        let se_ref = (sample_var_ref / ns).sqrt();
+        assert!((mc_stderr_of_mean(m2, ns) - se_ref).abs() < 1e-12);
+
+        // The pre-fix formula (population variance, no Bessel correction, i.e.
+        // `sqrt(m2 / ns) / sqrt(ns)`) would instead give `sqrt(m2 / ns^2)` — a
+        // strictly smaller, wrong value. Confirm the fixed helper does not match it.
+        let biased_old = (m2 / ns).sqrt() / ns.sqrt();
+        assert!(mc_stderr_of_mean(m2, ns) > biased_old);
+
+        // n < 2: sample SE is undefined. The biased pre-fix formula would (wrongly)
+        // report exactly 0.0 for a single draw (E[X^2] - E[X]^2 == 0 for one point);
+        // the fix must report +inf instead.
+        assert!(mc_stderr_of_mean(0.0, 1.0).is_infinite());
+    }
+
+    /// E1 end-to-end: with a single Monte Carlo sample, the pre-fix formula
+    /// (`sqrt(E[X^2] - E[X]^2) / sqrt(n)`) is exactly `0.0` — a single draw has no
+    /// meaningful sample variance. The fix must report `+inf` instead.
+    #[test]
+    fn monte_carlo_single_sample_reports_infinite_stderr() {
+        let players: Vec<_> = (0..3).map(ComponentId::from_raw).collect();
+        let mut payoff = AdditivePayoff { weights: vec![1.0, 2.0, 3.0] };
+        let cfg = ShapleyConfig::monte_carlo(1).with_seed(1);
+        let est =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
+        let stderrs = est.component_mc_stderr.expect("stderr reported");
+        for se in stderrs {
+            assert!(se.is_infinite(), "expected +inf for a single MC sample, got {se}");
+        }
+        assert!(est.monte_carlo_stderr.expect("mean stderr").is_infinite());
+    }
+
+    /// `into_contributions` must widen CIs using a Student-t critical value at
+    /// `n_samples - 1` degrees of freedom, not the fixed asymptotic `z = 1.96` — at a
+    /// small sample count the two are materially different.
+    #[test]
+    fn into_contributions_uses_t_critical_not_fixed_z() {
+        let players: Vec<_> = (0..2).map(ComponentId::from_raw).collect();
+        let mut payoff = XorPayoff;
+        let cfg = ShapleyConfig::monte_carlo(5).with_seed(11);
+        let est =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
+        let stderr = est.component_mc_stderr.clone().expect("stderr reported")[0];
+        let contribution = est.values[0];
+        let n_samples = est.budget.samples;
+        let df = (n_samples - 1) as f64;
+        let expected_t = antecedent_stats::student_t_ppf(0.975, df);
+        assert!(
+            (expected_t - 1.96).abs() > 0.05,
+            "test setup needs a small-df t/z gap: t={expected_t}"
+        );
+        let contributions = est.into_contributions();
+        let c0 = &contributions[0];
+        assert!(
+            (c0.ci_high.unwrap() - (contribution + expected_t * stderr)).abs() < 1e-9,
+            "ci_high={:?} expected={}",
+            c0.ci_high,
+            contribution + expected_t * stderr
+        );
+        assert!(
+            (c0.ci_low.unwrap() - (contribution - expected_t * stderr)).abs() < 1e-9,
+            "ci_low={:?} expected={}",
+            c0.ci_low,
+            contribution - expected_t * stderr
+        );
+    }
+
+    /// E1 end-to-end statistical check: for a 2-player XOR payoff, each player's
+    /// per-permutation marginal contribution is Bernoulli(0.5) (the two possible
+    /// orderings are equally likely), with known closed-form variance `0.25`. The
+    /// reported MC stderr should track `sqrt(0.25 / n_samples)`.
+    #[test]
+    fn monte_carlo_stderr_tracks_known_bernoulli_variance() {
+        let players: Vec<_> = (0..2).map(ComponentId::from_raw).collect();
+        let mut payoff = XorPayoff;
+        let n_samples: usize = 2_000;
+        let cfg = ShapleyConfig::monte_carlo(n_samples).with_seed(3);
+        let est =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
+        let expected_se = (0.25 / n_samples as f64).sqrt();
+        for se in est.component_mc_stderr.expect("stderr reported") {
+            let ratio = se / expected_se;
+            assert!((0.7..1.3).contains(&ratio), "se={se} expected≈{expected_se} ratio={ratio}");
         }
     }
 

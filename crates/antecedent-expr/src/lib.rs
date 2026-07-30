@@ -26,6 +26,7 @@ pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
     GaussianDensityProvider, PosteriorDrawProvider, QuadratureNodes,
 };
+pub use simplify::SimplifyError;
 
 use latex::latex_expr;
 use pretty::pretty_expr;
@@ -355,7 +356,12 @@ impl CausalExprArena {
     }
 
     /// Simplify `root` with worklist-style bottom-up rewrite + memoization.
-    pub fn simplify(&mut self, root: ExprId) -> ExprId {
+    ///
+    /// # Errors
+    ///
+    /// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds a variable absent from its
+    /// body's free variables — an ill-formed estimand. See [`SimplifyError`] docs.
+    pub fn simplify(&mut self, root: ExprId) -> Result<ExprId, SimplifyError> {
         simplify::simplify(self, root)
     }
 

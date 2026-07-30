@@ -108,7 +108,7 @@ pub enum CrossEnvLinkAssumption {
     EnvironmentSpecificContemporaneous,
 }
 
-/// Observed context kind for J-PCMCI+ (Günther et al.).
+/// Observed context kind for J-PCMCI+ (Günther et al. 2023).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum ContextKind {
     /// Constant within an environment; varies across datasets (spatial context).

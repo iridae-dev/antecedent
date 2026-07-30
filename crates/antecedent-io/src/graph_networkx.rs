@@ -10,6 +10,7 @@ use serde_json::Value as JsonValue;
 
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
+use crate::graph_dot;
 use crate::wire::DagWire;
 
 /// `NetworkX` `node_link_data` subset.
@@ -76,7 +77,23 @@ pub struct NetworkXAdjNode {
 ///
 /// Undirected / malformed JSON / cycles.
 pub fn dag_from_networkx_node_link(json: &str) -> Result<Dag, IoError> {
-    dag_from_wire(&dag_wire_from_networkx_node_link(json)?)
+    dag_with_names_from_networkx_node_link(json).map(|(dag, _names)| dag)
+}
+
+/// Parse `NetworkX` node-link JSON into a [`Dag`] plus its node names.
+///
+/// Names are the document's node `id` values (stringified), in dense-id
+/// order. A document with plain sequential integer ids (as emitted by
+/// [`dag_to_networkx_node_link`] with `names = None`) yields dense-index
+/// strings, since the document carries no distinct name information in
+/// that case.
+///
+/// # Errors
+///
+/// Undirected / malformed JSON / cycles.
+pub fn dag_with_names_from_networkx_node_link(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    let (wire, names) = dag_wire_and_names_from_networkx_node_link(json)?;
+    Ok((dag_from_wire(&wire)?, names))
 }
 
 /// Serialize a [`Dag`] to `NetworkX` node-link JSON.
@@ -95,6 +112,14 @@ pub fn dag_to_networkx_node_link(dag: &Dag, names: Option<&[String]>) -> Result<
 ///
 /// Undirected or parse errors.
 pub fn dag_wire_from_networkx_node_link(json: &str) -> Result<DagWire, IoError> {
+    dag_wire_and_names_from_networkx_node_link(json).map(|(wire, _names)| wire)
+}
+
+/// Parse node-link JSON to wire plus node names (document `id` values) in
+/// dense-id order.
+fn dag_wire_and_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(DagWire, Vec<String>), IoError> {
     let doc: NetworkXNodeLink =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if !doc.directed {
@@ -107,17 +132,18 @@ pub fn dag_wire_from_networkx_node_link(json: &str) -> Result<DagWire, IoError> 
     let mut index = HashMap::new();
     for n in &doc.nodes {
         let name = json_id_to_string(&n.id)?;
-        intern(&name, &mut order, &mut index)?;
+        graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for link in &doc.links {
         let s = json_id_to_string(&link.source)?;
         let t = json_id_to_string(&link.target)?;
-        let from = intern(&s, &mut order, &mut index)?;
-        let to = intern(&t, &mut order, &mut index)?;
+        let from = graph_dot::intern(&s, &mut order, &mut index)?;
+        let to = graph_dot::intern(&t, &mut order, &mut index)?;
         edges.push((from, to));
     }
-    Ok(DagWire { node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?, edges })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    Ok((DagWire { node_count, edges }, order))
 }
 
 /// Build node-link document from wire.
@@ -165,6 +191,21 @@ pub fn networkx_node_link_from_wire(wire: &DagWire, names: Option<&[String]>) ->
 ///
 /// Undirected / malformed / cycles.
 pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
+    dag_with_names_from_networkx_adjacency(json).map(|(dag, _names)| dag)
+}
+
+/// Parse `NetworkX` adjacency JSON into a [`Dag`] plus its node names.
+///
+/// Names are the document's node `id` values (stringified), in dense-id
+/// order. A document with plain sequential integer ids (as emitted by
+/// [`dag_to_networkx_adjacency`] with `names = None`) yields dense-index
+/// strings, since the document carries no distinct name information in
+/// that case.
+///
+/// # Errors
+///
+/// Undirected / malformed / cycles.
+pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<String>), IoError> {
     let doc: NetworkXAdjacency =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if !doc.directed {
@@ -174,7 +215,7 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
     let mut index = HashMap::new();
     for n in &doc.nodes {
         let name = json_id_to_string(&n.id)?;
-        intern(&name, &mut order, &mut index)?;
+        graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for n in &doc.nodes {
@@ -182,15 +223,14 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
         let from = *index.get(&from_name).unwrap();
         for adj in &n.adjacency {
             for key in adj.keys() {
-                let to = intern(key, &mut order, &mut index)?;
+                let to = graph_dot::intern(key, &mut order, &mut index)?;
                 edges.push((from, to));
             }
         }
     }
-    dag_from_wire(&DagWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        edges,
-    })
+    let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
+    let dag = dag_from_wire(&DagWire { node_count, edges })?;
+    Ok((dag, order))
 }
 
 /// Serialize a [`Dag`] to `NetworkX` adjacency JSON.
@@ -245,20 +285,6 @@ pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
     }
 }
 
-fn intern(
-    name: &str,
-    order: &mut Vec<String>,
-    index: &mut HashMap<String, u32>,
-) -> Result<u32, IoError> {
-    if let Some(&id) = index.get(name) {
-        return Ok(id);
-    }
-    let id = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    order.push(name.to_owned());
-    index.insert(name.to_owned(), id);
-    Ok(id)
-}
-
 #[cfg(test)]
 mod tests {
     use antecedent_graph::DenseNodeId;
@@ -277,6 +303,26 @@ mod tests {
     }
 
     #[test]
+    fn node_link_with_names_round_trip_preserves_labels() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let names = vec!["X".to_string(), "Y".to_string()];
+        let s = dag_to_networkx_node_link(&dag, Some(&names)).unwrap();
+        let (back, back_names) = dag_with_names_from_networkx_node_link(&s).unwrap();
+        assert_eq!(back.node_count(), 2);
+        assert_eq!(back_names, names);
+    }
+
+    #[test]
+    fn node_link_with_names_nameless_falls_back_to_dense_index() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let s = dag_to_networkx_node_link(&dag, None).unwrap();
+        let (_back, names) = dag_with_names_from_networkx_node_link(&s).unwrap();
+        assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
+    }
+
+    #[test]
     fn rejects_undirected_node_link() {
         let json =
             r#"{"directed":false,"multigraph":false,"graph":{},"nodes":[{"id":0}],"links":[]}"#;
@@ -290,5 +336,25 @@ mod tests {
         let s = dag_to_networkx_adjacency(&dag, None).unwrap();
         let back = dag_from_networkx_adjacency(&s).unwrap();
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn adjacency_with_names_round_trip_preserves_labels() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let names = vec!["a".to_string(), "b".to_string()];
+        let s = dag_to_networkx_adjacency(&dag, Some(&names)).unwrap();
+        let (back, back_names) = dag_with_names_from_networkx_adjacency(&s).unwrap();
+        assert_eq!(back.node_count(), 2);
+        assert_eq!(back_names, names);
+    }
+
+    #[test]
+    fn adjacency_with_names_nameless_falls_back_to_dense_index() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let s = dag_to_networkx_adjacency(&dag, None).unwrap();
+        let (_back, names) = dag_with_names_from_networkx_adjacency(&s).unwrap();
+        assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
     }
 }

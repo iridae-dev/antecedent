@@ -1,4 +1,4 @@
-//! Linear temporal mediation effects .
+//! Linear temporal mediation effects.
 //!
 //! Path-product decomposition on lagged samples: total = direct + mediated
 //! under a linear SEM with a single mediator.
@@ -58,6 +58,24 @@ impl TemporalMediationEstimator {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the linear algebra backend.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set whether [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
+    /// are treated as their controlled counterparts (linear alias).
+    ///
+    /// Defaults to `false`: natural contrasts are refused unless explicitly enabled, since
+    /// they only alias the controlled direct/indirect effects under a linear SEM.
+    #[must_use]
+    pub const fn with_allow_natural_controlled_alias(mut self, allow: bool) -> Self {
+        self.allow_natural_controlled_alias = allow;
+        self
     }
 
     /// Estimate mediation contrasts from lag-aligned series.
@@ -181,19 +199,12 @@ impl TemporalMediationEstimator {
         }
 
         Ok(TemporalMediationEstimate {
-            effect: EffectEstimate {
-                ate: point,
+            effect: EffectEstimate::new(
+                point,
                 se_analytic,
-                se_bootstrap: None,
-                bootstrap_replicates_ok: None,
-                bootstrap_replicates_failed: None,
-                bootstrap_cancelled: false,
-                bootstrap_early_stopped: false,
                 assumptions,
-                overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
-                overlap_report: None,
-                retained_memory_bytes: None,
-            },
+                crate::overlap::OverlapPolicy::ExplicitOverride,
+            ),
             total: Some(total),
             direct: Some(direct),
             mediated: Some(mediated),
@@ -250,7 +261,7 @@ fn ols_fit(
     Ok(fit.coefficients)
 }
 
-/// Temporal effect surface aligning with pinned baseline (direct / total / mediated / conditional).
+/// Temporal effect surface: direct, total, mediated, and (optional) conditional effects.
 #[derive(Clone, Debug)]
 pub struct TemporalEffectSurface {
     /// Total effect.
@@ -264,7 +275,7 @@ pub struct TemporalEffectSurface {
 }
 
 impl TemporalMediationEstimator {
-    /// Convenience: return the full pinned baseline-style effect surface.
+    /// Convenience: return the full direct/total/mediated/conditional effect surface.
     ///
     /// # Errors
     ///
@@ -398,6 +409,21 @@ mod tests {
             let expected = fixture["reference"][field].as_f64().unwrap();
             assert!((actual - expected).abs() <= tolerance, "{field}: {actual} != {expected}");
         }
+        // total = c*delta, direct = c'*delta, mediated = a*b*delta come from three separate
+        // OLS fits, but T is identical across the reduced-form and full regressions, so
+        // c = c' + a*b holds exactly in-sample by Frisch-Waugh-Lovell. This is a guaranteed
+        // identity today, not a live bug -- pin it as a cheap guard against a future change
+        // (switching to WLS, regularizing one fit, altering a design matrix) silently
+        // breaking it.
+        let total = est.total.unwrap();
+        let direct = est.direct.unwrap();
+        let mediated = est.mediated.unwrap();
+        assert!(
+            (total - (direct + mediated)).abs() < 1e-9,
+            "FWL identity violated: total={total} direct={direct} mediated={mediated} \
+             direct+mediated={}",
+            direct + mediated
+        );
     }
 
     #[test]

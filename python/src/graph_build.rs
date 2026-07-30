@@ -77,6 +77,17 @@ pub(crate) fn series_from_tabular(tabular: TabularData) -> PyResult<TimeSeriesDa
     .map_err(py_err)
 }
 
+/// Pool a multi-unit panel into one time series by row-concatenating unit tables.
+///
+/// Matches the preprocessing the old lazy `Study::compile()` applied when PCMCI-family
+/// algorithms (`pcmci`, `pcmci_plus`, `lpcmci`) were run directly against `PanelData`:
+/// stack all units into one tabular batch, then wrap it in a synthetic unit-interval
+/// series index (discovery only needs a within-series ordering, not real timestamps).
+pub(crate) fn pool_panel_series(panel: &antecedent_data::PanelData) -> PyResult<TimeSeriesData> {
+    let pooled = antecedent_validate::stack_panel_tabular(panel).map_err(py_err)?;
+    series_from_tabular(pooled)
+}
+
 pub(crate) fn parse_space_dummy_ci(s: &str) -> PyResult<SpaceDummyCiMode> {
     match s {
         "scalar" | "scalar_one_hot" | "one_hot" => Ok(SpaceDummyCiMode::ScalarOneHot),

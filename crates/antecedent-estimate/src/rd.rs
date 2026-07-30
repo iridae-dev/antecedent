@@ -1,11 +1,23 @@
-//! Sharp regression discontinuity estimator .
+//! Sharp regression discontinuity estimator.
 //!
 //! Treatment is defined deterministically by the running variable: `T = 1{running ≥ cutoff}`.
 //! The local effect at the cutoff is the coefficient on `T` in a local-linear OLS of `Y` on
 //! `[1, T, (R − c), T·(R − c)]`, restricted to rows within `bandwidth` of the cutoff.
 //!
-//! Bandwidth is explicit configuration in — no data-driven bandwidth selector
+//! Bandwidth is explicit configuration — no data-driven bandwidth selector
 //! (Imbens–Kalyanaraman, cross-validation, etc.) is implemented yet.
+//!
+//! The window is a rectangular (uniform-kernel) local-linear fit: every row within
+//! `bandwidth` of the cutoff gets equal weight, and rows outside it get none. This means:
+//! - **Boundary bias is larger than a triangular-kernel local-linear fit would give.** A
+//!   triangular (or other kernel that downweights rows farther from the cutoff) reduces the
+//!   influence of observations near the edge of the window, which is where local-linear
+//!   extrapolation error is largest; the uniform kernel here does not.
+//! - **A too-wide caller-supplied `bandwidth` biases the estimate with no diagnostic.**
+//!   Since there is no data-driven selector, nothing warns the caller that a wide window is
+//!   pulling in curvature away from the cutoff and biasing the local-linear approximation.
+//!   Callers are responsible for choosing (and, ideally, sensitivity-checking across) a
+//!   defensible bandwidth themselves.
 //!
 //! Uses the dedicated method tag `"rd.sharp"` rather than `backdoor.adjustment`, since RD
 //! identification does not rely on a backdoor adjustment set: [`prepare`](SharpRegressionDiscontinuity::prepare)
@@ -27,9 +39,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
-};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -70,7 +80,7 @@ pub struct RdWorkspace {
 /// Sharp regression discontinuity estimator.
 ///
 /// `running_variable`, `cutoff`, and `bandwidth` are explicit configuration; there is no
-/// data-driven bandwidth selector in .
+/// data-driven bandwidth selector.
 #[derive(Clone, Debug)]
 pub struct SharpRegressionDiscontinuity {
     /// Dense linear-algebra backend.
@@ -101,6 +111,58 @@ impl SharpRegressionDiscontinuity {
             cutoff,
             bandwidth,
         }
+    }
+
+    /// Set the dense linear-algebra backend.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — RD is not a
+    /// propensity-based method.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the running (assignment) variable.
+    ///
+    /// Overridden by the estimand's own `rd_design` when present.
+    #[must_use]
+    pub const fn with_running_variable(mut self, running_variable: VariableId) -> Self {
+        self.running_variable = running_variable;
+        self
+    }
+
+    /// Set the discontinuity cutoff.
+    ///
+    /// Overridden by the estimand's own `rd_design` when present.
+    #[must_use]
+    pub const fn with_cutoff(mut self, cutoff: f64) -> Self {
+        self.cutoff = cutoff;
+        self
+    }
+
+    /// Set the symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is
+    /// retained). Must be positive.
+    ///
+    /// Overridden by the estimand's own `rd_design` when present.
+    #[must_use]
+    pub const fn with_bandwidth(mut self, bandwidth: f64) -> Self {
+        self.bandwidth = bandwidth;
+        self
     }
 
     /// Prepare the windowed local-linear design from tabular data, identified estimand, and
@@ -241,20 +303,7 @@ impl SharpRegressionDiscontinuity {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -267,12 +316,8 @@ impl SharpRegressionDiscontinuity {
         let mut x_boot = vec![0.0; n * RD_NCOLS];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x5D0C_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                y_boot[r] = problem.outcome[src];
-                for c in 0..RD_NCOLS {
-                    x_boot[c * n + r] = problem.matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(&mut x_boot, &problem.matrix, n, RD_NCOLS, idx);
             match self.backend.least_squares(&x_boot, n, RD_NCOLS, &y_boot, &mut workspace.ols) {
                 Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
                 Err(_) => Ok(None),
@@ -295,9 +340,7 @@ fn build_rd_matrix(treated: &[f64], centered: &[f64]) -> Vec<f64> {
 }
 
 fn analytic_se_treatment(x_colmajor: &[f64], nrows: usize, sigma2: f64) -> f64 {
-    let mut xtx = vec![0.0; RD_NCOLS * RD_NCOLS];
-    form_xtx(x_colmajor, nrows, RD_NCOLS, &mut xtx);
-    let Some(inv) = invert_square(&xtx, RD_NCOLS) else {
+    let Some(inv) = crate::util::xtx_inverse(x_colmajor, nrows, RD_NCOLS) else {
         return f64::NAN;
     };
     (sigma2 * inv[RD_TREATMENT_COL * RD_NCOLS + RD_TREATMENT_COL].max(0.0)).sqrt()

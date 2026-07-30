@@ -270,7 +270,7 @@ pub fn identification_from_wire(
                     ExprId::from_raw(e.functional),
                     e.rd_design.as_ref().map(|d| {
                         antecedent_expr::RdDesignParams::new(
-                            antecedent_core::VariableId::from_raw(d.running_variable),
+                            VariableId::from_raw(d.running_variable),
                             d.cutoff,
                             d.bandwidth,
                         )
@@ -376,10 +376,6 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
         fields: Arc::from([]),
     })
 }
-
-/// Silence unused.
-#[allow(dead_code)]
-fn _keep(_: VariableId) {}
 
 #[cfg(test)]
 mod tests {

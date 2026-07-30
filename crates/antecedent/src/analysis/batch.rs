@@ -7,28 +7,29 @@ use antecedent_data::TabularData;
 use antecedent_graph::Dag;
 
 use crate::error::CausalError;
-use crate::result::CausalAnalysisResult;
+use crate::result::StudyResult;
 
-use super::builder::{CausalAnalysisBuilder, RefuteSuite};
-use super::execute::CausalAnalysis;
+use super::builder::RefuteSuite;
+use super::execute::Study;
 use super::latency::LatencyMode;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 
 /// Shared-table batch of static average-effect queries.
 ///
 /// Binds data once; each query runs identify → project → estimate independently
 /// (shared ingest, not shared physical plan — plans stay per-query).
 #[derive(Clone, Debug)]
-pub struct BatchAnalysis {
+pub struct BatchStudy {
     data: TabularData,
     graph: Dag,
     bootstrap_replicates: u32,
     refute: RefuteSuite,
     latency_mode: Option<LatencyMode>,
-    identifier: Option<String>,
-    estimator: Option<String>,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
 }
 
-impl BatchAnalysis {
+impl BatchStudy {
     /// Start a batch over `data` and a static DAG.
     #[must_use]
     pub fn new(data: TabularData, graph: Dag) -> Self {
@@ -64,17 +65,21 @@ impl BatchAnalysis {
         self
     }
 
-    /// Optional identifier id string.
+    /// Optional identification strategy applied to every query.
+    ///
+    /// Parse a wire name with `"backdoor.adjustment".parse::<IdentifierId>()?`.
     #[must_use]
-    pub fn identifier(mut self, id: impl Into<String>) -> Self {
-        self.identifier = Some(id.into());
+    pub const fn identifier(mut self, id: IdentifierId) -> Self {
+        self.identifier = Some(id);
         self
     }
 
-    /// Optional estimator id string.
+    /// Optional estimator applied to every query.
+    ///
+    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`.
     #[must_use]
-    pub fn estimator(mut self, id: impl Into<String>) -> Self {
-        self.estimator = Some(id.into());
+    pub const fn estimator(mut self, id: EstimatorId) -> Self {
+        self.estimator = Some(id);
         self
     }
 
@@ -87,7 +92,7 @@ impl BatchAnalysis {
         &self,
         queries: &[AverageEffectQuery],
         ctx: &ExecutionContext,
-    ) -> Result<Vec<CausalAnalysisResult>, CausalError> {
+    ) -> Result<Vec<StudyResult>, CausalError> {
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch estimate_many requires at least one query".into(),
@@ -95,8 +100,7 @@ impl BatchAnalysis {
         }
         let mut out = Vec::with_capacity(queries.len());
         for q in queries {
-            let mut builder = CausalAnalysisBuilder::new()
-                .data(self.data.clone())
+            let mut builder = Study::tabular(self.data.clone())
                 .graph(self.graph.clone())
                 .query(q.clone())
                 .refute(self.refute)
@@ -104,13 +108,13 @@ impl BatchAnalysis {
             if let Some(mode) = self.latency_mode {
                 builder = builder.latency_mode(mode);
             }
-            if let Some(id) = self.identifier.as_deref() {
+            if let Some(id) = self.identifier {
                 builder = builder.identifier(id);
             }
-            if let Some(est) = self.estimator.as_deref() {
+            if let Some(est) = self.estimator {
                 builder = builder.estimator(est);
             }
-            let analysis: CausalAnalysis = builder.build()?;
+            let analysis: Study = builder.build()?;
             out.push(analysis.run(ctx)?);
         }
         Ok(out)

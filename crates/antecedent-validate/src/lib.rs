@@ -19,7 +19,7 @@ pub mod overlap;
 pub mod overlap_rule;
 pub mod placebo;
 pub mod rcc;
-pub mod reisz;
+pub mod riesz;
 pub mod sensitivity;
 pub mod stability;
 pub mod suite;
@@ -27,10 +27,10 @@ pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, LikelihoodFamilyComparison,
-    McmcDiagnosticsCheck, PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport,
-    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
-    PriorSensitivity, SbcReport, SimulationBasedCalibration, with_prior_sensitivity,
+    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, McmcDiagnosticsCheck,
+    PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
+    PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck, PriorSensitivity, SbcReport,
+    SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
@@ -48,7 +48,7 @@ pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
 pub use placebo::{PlaceboMode, PlaceboTreatment};
 pub use rcc::RandomCommonCause;
-pub use reisz::ReiszSensitivity;
+pub use riesz::RieszSensitivity;
 pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 pub use stability::{
     AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity,

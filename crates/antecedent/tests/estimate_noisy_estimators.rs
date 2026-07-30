@@ -13,7 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::CausalAnalysis;
+use antecedent::{EstimatorId, IdentifierId, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, TargetPopulation, ValueType, VariableId,
@@ -129,12 +129,11 @@ fn run_method(
     }
 
     let clip = expected["clip"].as_f64().unwrap_or(0.01);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(identifier)
-        .estimator(estimator)
+        .identifier(identifier.parse::<IdentifierId>().unwrap())
+        .estimator(estimator.parse::<EstimatorId>().unwrap())
         .overlap_policy(OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None })
         .bootstrap_replicates(0)
         .build()

@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// Identification failures.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum IdentificationError {
     /// Treatment/outcome missing from graph.
     #[error("unknown variable {id}")]
@@ -28,9 +29,14 @@ pub enum IdentificationError {
      sustained interventions require sequential (g-formula) identification"
     )]
     SustainedPolicyUnsupported,
-    /// No adjustment set exists / not identified.
-    #[error("not identified: {message}")]
-    NotIdentified {
+    /// Identification could not be certified (e.g. a temporal history-cap truncation cut the
+    /// search short before it could prove or disprove identifiability). This is distinct from
+    /// [`antecedent_core::IdentificationStatus::NotIdentified`], which is an `Ok` status meaning
+    /// identification *proved* non-identifiability (e.g. via a hedge); this variant means the
+    /// algorithm could not tell either way. Named `NotCertified` (not `NotIdentified`) precisely
+    /// to avoid colliding with that status name.
+    #[error("not certified: {message}")]
+    NotCertified {
         /// Explanation.
         message: &'static str,
     },

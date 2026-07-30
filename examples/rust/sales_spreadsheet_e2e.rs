@@ -164,8 +164,7 @@ fn main() -> Result<(), CausalError> {
     let (data, dag) = sales_static(400, 7);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(3));
 
-    let bayes = CausalAnalysis::builder()
-        .data(data.clone())
+    let bayes = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(128)))
@@ -202,8 +201,7 @@ fn main() -> Result<(), CausalError> {
     println!("ITE mean={:.4} n={}", ite.mean_ite, ite.unit_effects.len());
 
     // Second estimate click — still no discovery (graph supplied).
-    let _ = CausalAnalysis::builder()
-        .data(data)
+    let _ = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
@@ -213,9 +211,8 @@ fn main() -> Result<(), CausalError> {
         .run(&ExecutionContext::for_tests(4))?;
 
     let (series, tdag, pulse_q) = sales_temporal(350, 11);
-    let pulse = CausalAnalysis::builder()
-        .series(series)
-        .temporal_graph(tdag)
+    let pulse = Study::series(series)
+        .graph(tdag)
         .temporal_query(pulse_q)
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(96)))
         .refute(RefuteSuite::None)

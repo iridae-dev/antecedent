@@ -1,0 +1,22 @@
+feature_id = "validate.confounding_sensitivity"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Making Sense of Sensitivity: Extending Omitted Variable Bias", doi = "10.1111/rssb.12348", sections = ["Partial R^2 parameterization of confounding strength", "robustness value"] },
+ { title = "On Estimating Regression", doi = "10.1137/1109020", sections = ["Kernel regression estimator (nonparametric residualization)"] },
+ { title = "Smooth Regression Analysis", sections = ["Kernel regression estimator (nonparametric residualization)"] },
+ { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Ch. 3.4: rule-of-thumb bandwidth selection"] },
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only", notes = "conformance oracle formula is named after the R package sensemakr (Cinelli & Hazlett); no sensemakr or DoWhy code observed or ported" },
+]
+
+test_sources = [
+ "crates/antecedent-validate/src/sensitivity.rs unit tests",
+ "conformance/validate/confounding_sensitivity",
+]

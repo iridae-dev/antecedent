@@ -10,7 +10,7 @@ use antecedent_core::TargetPopulation;
 
 use crate::error::EstimationError;
 
-/// Overlap / positivity handling .
+/// Overlap / positivity handling.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverlapPolicy {
     /// Explicitly skip propensity-based overlap (linear adjustment path).
@@ -32,7 +32,7 @@ impl OverlapPolicy {
     }
 }
 
-/// Closed propensity interval excluded from the target population .
+/// Closed propensity interval excluded from the target population.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PropensityInterval {
     /// Inclusive lower bound in `[0, 1]`.
@@ -41,7 +41,7 @@ pub struct PropensityInterval {
     pub high: f64,
 }
 
-/// Sensitivity of ESS / extreme weights to neighboring clip thresholds .
+/// Sensitivity of ESS / extreme weights to neighboring clip thresholds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipSensitivity {
     /// Neighboring clip thresholds evaluated (typically `{clip/2, clip, 2·clip}` capped).

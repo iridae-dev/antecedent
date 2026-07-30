@@ -5,18 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from ._native import (
+    PosteriorArtifact,
+    decode_posterior_artifact,
+    encode_posterior_artifact,
+)
+
 if TYPE_CHECKING:
-    from .prior_bank import ComposedPrior, PriorMapping
+    from .priors import ComposedPrior, PriorMapping
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Frequentist:
     """Frequentist point estimate + bootstrap SE (default)."""
 
     kind: Literal["frequentist"] = "frequentist"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Bayesian:
     """Bayesian g-computation (Laplace / conjugate / HMC backends).
 
@@ -40,8 +46,9 @@ class Bayesian:
     backend:
         Inference backend: ``laplace`` (default), ``conjugate``, or ``hmc``.
         The ``hmc`` backend needs several thousand draws to clear the native
-        MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100); under-specified
-        draw counts are floored in Rust.
+        MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100 **per chain**, so
+        400 total at the 4-chain default, and every chain must have moved);
+        under-specified draw counts are floored in Rust.
     """
 
     n_draws: int = 1000
@@ -52,4 +59,10 @@ class Bayesian:
     kind: Literal["bayesian"] = "bayesian"
 
 
-__all__ = ["Bayesian", "Frequentist"]
+__all__ = [
+    "Bayesian",
+    "Frequentist",
+    "PosteriorArtifact",
+    "decode_posterior_artifact",
+    "encode_posterior_artifact",
+]

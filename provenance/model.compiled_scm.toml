@@ -6,12 +6,13 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions (mutilated-model / do-operator semantics)"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "topological compile of chain DAG",
- "intervention overlay hard-set without model clone",
+ "crates/antecedent-model/src/compile.rs unit test compile_chain_topo_order",
+ "crates/antecedent-model/src/overlay.rs unit tests (hard_set_overlay, shift_overlay_accumulates_and_is_independent_of_hard_set)",
+ "conformance/gcm/gcm_fit_intervene",
 ]

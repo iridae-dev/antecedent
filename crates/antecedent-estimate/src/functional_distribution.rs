@@ -29,7 +29,7 @@ use antecedent_expr::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
-use crate::util::{BootstrapSeResult, bootstrap_se};
+use crate::util::bootstrap_se;
 
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
@@ -135,6 +135,23 @@ impl FunctionalDistribution {
     #[must_use]
     pub fn new() -> Self {
         Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
+    }
+
+    /// Set the overlap policy recorded on the estimate artifact.
+    ///
+    /// Positivity is implicit in the empirical CPT's support, so override is generally safe.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the interventional mean's standard
+    /// error (0 = skip).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
     }
 
     /// Prepare from an identified `GeneralId` functional and tabular data.
@@ -408,6 +425,21 @@ impl FunctionalEffect {
         Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
     }
 
+    /// Set the overlap policy recorded on the estimate artifact.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the scalar functional's standard
+    /// error (0 = skip).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
     /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.
     ///
     /// # Errors
@@ -465,10 +497,10 @@ impl FunctionalEffect {
             .evaluate(&prepared.arena, &prepared.provider, &EvalContext::default())
             .map_err(eval_err)?;
         let boot = if self.bootstrap_replicates == 0 {
-            BootstrapSeResult::skipped()
+            None
         } else {
             let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
-            bootstrap_se(self.bootstrap_replicates, ctx, 0xF02D_u64, n, |idx| {
+            Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xF02D_u64, n, |idx| {
                 let columns = gather_columns(&prepared.bootstrap_columns, idx);
                 let provider = provider_from_columns(
                     &columns,
@@ -484,30 +516,16 @@ impl FunctionalEffect {
                     Ok(v) if v.is_finite() => Ok(Some(v)),
                     _ => Ok(None),
                 }
-            })?
+            })?)
         };
-        Ok(crate::adjustment::EffectEstimate {
+        Ok(crate::adjustment::EffectEstimate::new(
             ate,
             // Multinomial delta-method analytic SE is out of scope for the discrete plug-in.
-            se_analytic: f64::NAN,
-            se_bootstrap: boot.se,
-            bootstrap_replicates_ok: if self.bootstrap_replicates == 0 {
-                None
-            } else {
-                Some(boot.replicates_ok)
-            },
-            bootstrap_replicates_failed: if self.bootstrap_replicates == 0 {
-                None
-            } else {
-                Some(boot.replicates_failed)
-            },
-            bootstrap_cancelled: boot.cancelled,
-            bootstrap_early_stopped: boot.early_stopped,
-            assumptions: prepared.assumptions.clone(),
-            overlap: self.overlap,
-            overlap_report: None,
-            retained_memory_bytes: None,
-        })
+            f64::NAN,
+            prepared.assumptions.clone(),
+            self.overlap,
+        )
+        .with_bootstrap(boot))
     }
 }
 
@@ -1176,5 +1194,39 @@ mod tests {
         let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7)).unwrap();
         let se = out.se_bootstrap.expect("bootstrap SE");
         assert!(se.is_finite() && se > 0.0, "se={se}");
+    }
+
+    #[test]
+    fn functional_effect_no_bootstrap_leaves_replicate_counts_none() {
+        // Pins today's behavior ahead of converting `boot` (in `FunctionalEffect::estimate`)
+        // from a bare `BootstrapSeResult` to `Option<BootstrapSeResult>`: with
+        // `bootstrap_replicates == 0` (the default), the returned estimate's
+        // bootstrap_replicates_ok/_failed must stay `None`, not `Some(0)`.
+        //
+        // Builds the functional directly via `CausalExprArena::backdoor_ate` (skipping full
+        // DAG identification) so the estimand's `"general.id"` method tag and functional are
+        // guaranteed consistent for `FunctionalEffect::prepare`.
+        let mut arena = CausalExprArena::new();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let z = VariableId::from_raw(2);
+        let functional =
+            arena.backdoor_ate(treatment, outcome, &[z], Value::f64(1.0), Value::f64(0.0));
+        let estimand = IdentifiedEstimand::backdoor("general.id", Arc::from([z]), functional);
+
+        let data = binary_confounding_table();
+        let est = FunctionalEffect::new(); // bootstrap_replicates: 0 by default
+        let extra = [treatment, outcome];
+        let prepared =
+            est.prepare(&data, &estimand, &arena, AssumptionSet::default(), &extra).unwrap();
+        let mut ews = FunctionalDistributionWorkspace::default();
+        let out = est.estimate(&prepared, &mut ews, &ExecutionContext::for_tests(0)).unwrap();
+        assert!(out.bootstrap_replicates_ok.is_none(), "ok={:?}", out.bootstrap_replicates_ok);
+        assert!(
+            out.bootstrap_replicates_failed.is_none(),
+            "failed={:?}",
+            out.bootstrap_replicates_failed
+        );
+        assert!(out.se_bootstrap.is_none());
     }
 }

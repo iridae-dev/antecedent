@@ -60,40 +60,40 @@ def main() -> None:
     art_b, mean_b = _fit_artifact(data_b, edges, seed=12)
 
     sources = [
-        antecedent.PriorSource(
-            meta=antecedent.PriorSourceMeta(
+        antecedent.priors.PriorSource(
+            meta=antecedent.priors.PriorSourceMeta(
                 artifact_id="survey_launch",
-                estimand=antecedent.EstimandFingerprint(
+                estimand=antecedent.priors.EstimandFingerprint(
                     query_kind="ate", treatment="t", outcome="y"
                 ),
                 identification="NonparametricallyIdentified",
                 tags=tags_a,
                 design=(
-                    antecedent.DesignVariable(name="t", role="treatment"),
-                    antecedent.DesignVariable(name="y", role="outcome"),
-                    antecedent.DesignVariable(name="z", role="covariate"),
+                    antecedent.priors.DesignVariable(name="t", role="treatment"),
+                    antecedent.priors.DesignVariable(name="y", role="outcome"),
+                    antecedent.priors.DesignVariable(name="z", role="covariate"),
                 ),
             ),
             artifact=art_a,
         ),
-        antecedent.PriorSource(
-            meta=antecedent.PriorSourceMeta(
+        antecedent.priors.PriorSource(
+            meta=antecedent.priors.PriorSourceMeta(
                 artifact_id="survey_retention",
-                estimand=antecedent.EstimandFingerprint(
+                estimand=antecedent.priors.EstimandFingerprint(
                     query_kind="ate", treatment="t", outcome="y"
                 ),
                 identification="NonparametricallyIdentified",
                 tags=tags_b,
                 design=(
-                    antecedent.DesignVariable(name="t", role="treatment"),
-                    antecedent.DesignVariable(name="y", role="outcome"),
-                    antecedent.DesignVariable(name="z", role="covariate"),
+                    antecedent.priors.DesignVariable(name="t", role="treatment"),
+                    antecedent.priors.DesignVariable(name="y", role="outcome"),
+                    antecedent.priors.DesignVariable(name="z", role="covariate"),
                 ),
             ),
             artifact=art_b,
         ),
     ]
-    catalog = antecedent.PriorCatalog.from_sources(sources)
+    catalog = antecedent.priors.PriorCatalog.from_sources(sources)
     # Tags that must match exactly (caller similarity handles soft context scores).
     reports = catalog.compatible_with(
         query=query,
@@ -109,28 +109,28 @@ def main() -> None:
     # Hydrate coefficient priors from effect summaries via compose specs.
     # Matching design (same T/Y/Z) → power-prior on 3-coef Gaussian approx.
     specs = [
-        antecedent.ExternalPriorSourceSpec(
+        antecedent.priors.ExternalPriorSourceSpec(
             id="survey_launch",
             mean=(0.0, mean_a, 0.0),
             variance=(1.0, 0.25, 1.0),
-            weight=antecedent.ExternalPriorWeight(alpha=1.0),
+            weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
         ),
-        antecedent.ExternalPriorSourceSpec(
+        antecedent.priors.ExternalPriorSourceSpec(
             id="survey_retention",
             mean=(0.0, mean_b, 0.0),
             variance=(1.0, 0.25, 1.0),
-            weight=antecedent.ExternalPriorWeight(alpha=1.0),
+            weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
         ),
     ]
     # Similarity → mixture weights (normalized leftover stays on baseline).
     w_launch = similarity["survey_launch"]
     w_ret = similarity["survey_retention"]
     w_sum = w_launch + w_ret
-    composed = antecedent.compose_external_priors(
+    composed = antecedent.priors.compose_external_priors(
         specs,
         weights=(0.6 * w_launch / w_sum, 0.6 * w_ret / w_sum),
         baseline=([0.0, 0.0, 0.0], [100.0, 100.0, 100.0]),
-        conflict=antecedent.ConflictPolicy(p_min=0.05, kl_scale=1.0),
+        conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
         conflict_signals=[
             {"p_value": 0.4, "kl": 0.05},
             {"p_value": 0.3, "kl": 0.1},
@@ -140,7 +140,7 @@ def main() -> None:
         target_population=tags_t["population"],
     )
     # Clear offline conflict for fit; α' already applied.
-    prior_for_fit = antecedent.ComposedPrior(
+    prior_for_fit = antecedent.priors.ComposedPrior(
         mean=composed.mean,
         variance=composed.variance,
         source_ids=composed.source_ids,

@@ -443,16 +443,20 @@ impl Intervention {
 }
 
 /// Errors from intervention construction or validation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum InterventionError {
     /// Stochastic policy parameters are invalid.
+    #[error("invalid stochastic policy: {message}")]
     InvalidStochasticPolicy {
         /// Context.
         message: &'static str,
     },
     /// Sequence has no steps.
+    #[error("intervention sequence is empty")]
     EmptySequence,
     /// Sustained window has `until < from`.
+    #[error("invalid temporal window [{from}, {until}]")]
     InvalidTemporalWindow {
         /// Window start.
         from: i32,
@@ -460,27 +464,9 @@ pub enum InterventionError {
         until: i32,
     },
     /// Dynamic schedule has no active offsets.
+    #[error("TemporalPolicy::Dynamic requires a non-empty active_at schedule")]
     EmptyDynamicSchedule,
 }
-
-impl core::fmt::Display for InterventionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InvalidStochasticPolicy { message } => {
-                write!(f, "invalid stochastic policy: {message}")
-            }
-            Self::EmptySequence => write!(f, "intervention sequence is empty"),
-            Self::InvalidTemporalWindow { from, until } => {
-                write!(f, "invalid temporal window [{from}, {until}]")
-            }
-            Self::EmptyDynamicSchedule => {
-                write!(f, "TemporalPolicy::Dynamic requires a non-empty active_at schedule")
-            }
-        }
-    }
-}
-
-impl std::error::Error for InterventionError {}
 
 #[cfg(test)]
 mod tests {

@@ -187,9 +187,20 @@ fn residual_summary(
         };
         let mut noise = vec![0.0; n];
         infer_noise_column(slot, &y, parents, &mut noise)?;
-        for &e in &noise {
-            abs_sum += e.abs();
-            abs_count += 1;
+        // A parentless node has no prediction to be residual *from*: its recovered noise is
+        // just its own deviation from its marginal mean, which is the variable's inherent
+        // spread rather than any misfit. Averaging that into `mean_abs_residual` would make
+        // the metric report a large "residual" for a perfectly specified model.
+        //
+        // This only became reachable once roots stopped being fit as `Constant` (which
+        // `residual_summary` skips outright). Roots still contribute their noise column to
+        // `residuals_by_node`, because the residual-independence and local-Markov checks
+        // downstream genuinely want a root's exogenous noise.
+        if gather.n_parents() > 0 {
+            for &e in &noise {
+                abs_sum += e.abs();
+                abs_count += 1;
+            }
         }
         residuals_by_node[node.as_usize()] = Some(noise);
     }
@@ -314,7 +325,7 @@ fn permutation_baseline(
     let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
     for _ in 0..n_perm {
-        // Fisher–Yates
+        // Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964)
         for i in (1..y.len()).rev() {
             let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;
             y.swap(i, j.min(i));
@@ -385,10 +396,15 @@ impl MechanismPredictiveCheck {
             means.push(col.iter().sum::<f64>() / col.len().max(1) as f64);
         }
         let pred_mean = means.iter().sum::<f64>() / means.len().max(1) as f64;
+        // Finite-sample MC p-value: (1 + count) / (1 + n) bounds each tail below by
+        // 1/(n+1), so the two-sided p-value can never collapse to exactly 0 even when the
+        // observation falls entirely outside the simulated range.
+        let n_sims = means.len() as f64;
         let below = means.iter().filter(|&&m| m <= obs_mean).count() as f64;
-        let p = (2.0
-            * (below / means.len().max(1) as f64).min(1.0 - below / means.len().max(1) as f64))
-        .min(1.0);
+        let above = means.iter().filter(|&&m| m >= obs_mean).count() as f64;
+        let p_lower = (1.0 + below) / (1.0 + n_sims);
+        let p_upper = (1.0 + above) / (1.0 + n_sims);
+        let p = (2.0 * p_lower.min(p_upper)).min(1.0);
         Ok((obs_mean, pred_mean, p))
     }
 }
@@ -396,7 +412,7 @@ impl MechanismPredictiveCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::{MechanismRegistry, SelectionPolicy};
+    use crate::registry::{MechanismFamily, MechanismRegistry, SelectionPolicy};
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
@@ -453,5 +469,139 @@ mod tests {
             .unwrap();
         assert!(rep.in_sample_loglik.is_finite());
         assert!(rep.mean_abs_residual < 1e-6, "resid={}", rep.mean_abs_residual);
+    }
+
+    /// MM-A2: `evaluate`'s in-sample log-likelihood must score an LGSSM node against the
+    /// Kalman one-step predictive mean, not `N(0, obs_std²)` of the raw value. Data is a
+    /// persistent near-random-walk series centered far from zero (mean ≈ 5), so the two
+    /// scorings diverge sharply: the old raw-value scoring is dominated by `z = y/obs_std`
+    /// with `y ≈ 5` and small `obs_std`, giving a hugely negative log-lik regardless of fit
+    /// quality, while the fixed scoring reflects the (small) one-step predictive residual.
+    #[test]
+    #[allow(clippy::many_single_char_names)]
+    fn evaluate_lgssm_model_loglik_uses_predictive_mean_not_raw_value() {
+        use antecedent_core::CausalRng;
+        use antecedent_kernels::standard_normal;
+
+        let n = 60usize;
+        let a = 0.95_f64;
+        let process_std = 0.05_f64;
+        let obs_std = 0.05_f64;
+        let initial_mean = 5.0_f64;
+        let mut rng = CausalRng::from_seed(3);
+        let mut yv = vec![0.0; n];
+        let mut x = initial_mean;
+        for i in 0..n {
+            x = if i == 0 {
+                initial_mean + process_std * standard_normal(&mut rng)
+            } else {
+                a * x + process_std * standard_normal(&mut rng)
+            };
+            yv[i] = x + obs_std * standard_normal(&mut rng);
+        }
+
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(yv), validity).unwrap(),
+        )];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        let (store, _) = MechanismRegistry::with_bayesian_families()
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussianStateSpace),
+            )
+            .unwrap();
+        let model = compiled.with_mechanisms(store);
+        let rep = ModelEvaluator::default()
+            .evaluate(&model, &data, &ExecutionContext::for_tests(1))
+            .unwrap();
+        assert!(rep.in_sample_loglik.is_finite());
+
+        let MechanismSlot::LinearGaussianStateSpace { obs_std: fitted_obs_std, .. } =
+            model.mechanisms.get(DenseNodeId::from_raw(0))
+        else {
+            panic!("expected LGSSM slot");
+        };
+        let y = data.float64_values(VariableId::from_raw(0)).unwrap();
+        let inv_s = 1.0 / fitted_obs_std;
+        let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - fitted_obs_std.ln();
+        let raw_value_loglik: f64 = y
+            .iter()
+            .map(|yi| {
+                let z = yi * inv_s;
+                log_norm - 0.5 * z * z
+            })
+            .sum::<f64>()
+            / y.len() as f64;
+        assert!(
+            rep.in_sample_loglik > raw_value_loglik + 10.0,
+            "fixed loglik={} did not clearly beat raw-value (pre-fix) loglik={}",
+            rep.in_sample_loglik,
+            raw_value_loglik
+        );
+    }
+
+    /// MM-A4: a Monte Carlo predictive p-value must never be exactly 0, even when the
+    /// observation falls entirely outside the simulated range (exactly the case this check
+    /// exists to flag). Fits a tight `LinearGaussian` around 0, then checks an observation set
+    /// pinned at 1000.0 — far outside anything the fitted mechanism could plausibly sample.
+    #[test]
+    fn mechanism_predictive_check_p_value_never_zero_for_extreme_outlier() {
+        let n = 30usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let yv: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64 - n as f64 / 2.0)).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(yv), validity.clone()).unwrap(),
+        )];
+        let storage = OwnedColumnarStorage::try_new(schema.clone(), cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            )
+            .unwrap();
+        let model = compiled.with_mechanisms(store);
+
+        let outlier: Vec<f64> = vec![1000.0; n];
+        let outlier_cols = vec![OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(outlier), validity).unwrap(),
+        )];
+        let outlier_storage =
+            OwnedColumnarStorage::try_new(schema, outlier_cols, None, None).unwrap();
+        let outlier_data = TabularData::new(outlier_storage);
+
+        let check = MechanismPredictiveCheck::default();
+        let (obs_mean, _pred_mean, p) =
+            check.check_mean(&model, &outlier_data, VariableId::from_raw(0)).unwrap();
+        assert!((obs_mean - 1000.0).abs() < 1e-9);
+        assert!(p > 0.0, "p must never be exactly 0 (finite-sample bound 2/(n_sims+1)); got {p}");
     }
 }

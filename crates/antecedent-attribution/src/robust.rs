@@ -1,4 +1,5 @@
-//! Robust distribution-change attribution (`pinned baseline` `distribution_change_robust`).
+//! Robust distribution-change attribution, a regression-hybrid variant of the
+//! Budhathoki, Janzing, Bloebaum & Ng (2021) mechanism-Shapley decomposition.
 //!
 //! Uses fitted mechanism hybrids (same topology as [`distribution_change`]) with a
 //! structural-mean payoff. Linear-family mechanisms use a fast OLS path; nonlinear
@@ -128,25 +129,17 @@ pub fn distribution_change_robust(
         (v0, v_full, estimate)
     };
     let total_change = v_full - v0;
-    let mc_stderr = estimate.monte_carlo_stderr;
-    let component_mc = estimate.component_mc_stderr.clone().map(Arc::from);
-    let cache_stats = estimate.cache_stats.clone();
-    let budget = estimate.budget.clone();
-    let contributions = Arc::from(estimate.into_contributions());
-
-    Ok(ChangeAttributionResult {
-        outcome: query.outcome,
+    // `estimate` here always comes from `estimate_shapley` (never `sequential_allocate`,
+    // enforced above by `require_shapley_config`), which always returns an empty
+    // `interactions` vec — so deriving `interactions` via `pack_change_result` is
+    // equivalent to the previously hardcoded `Arc::from([])`.
+    Ok(crate::change_common::pack_change_result(
+        query.outcome,
         total_change,
-        contributions,
-        interactions: Arc::from([]),
-        path_breakdown: Arc::from([]),
-        unidentified: Arc::from([]),
-        graph_sensitivity: None,
-        budget,
-        monte_carlo_stderr: mc_stderr,
-        component_mc_stderr: component_mc,
-        cache_stats,
-    })
+        estimate,
+        Arc::from([]),
+        Arc::from([]),
+    ))
 }
 
 fn model_slot_is_linear(
@@ -325,6 +318,8 @@ fn fit_linear(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::change_common::DifferenceMeasure;
+    use crate::distribution_change::{DistributionChangeOptions, distribution_change};
     use antecedent_core::{
         AllocationMethod, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
         ShapleyConfig, SmallRoleSet, ValueType,
@@ -332,6 +327,124 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::{Dag, DenseNodeId};
+
+    /// `X -> Y` with deterministic (zero-noise) linear mechanisms: baseline `Y=X`,
+    /// comparison `Y=X+2`. `X`'s marginal distribution is identical across both
+    /// halves (values cycle `i % n_half`), isolating the change to `Y`'s mechanism.
+    fn deterministic_linear_chain() -> (CompiledCausalModel, TabularData) {
+        let n = 60usize;
+        let n_half = 30usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut xv = Vec::with_capacity(n);
+        let mut yv = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = (i % n_half) as f64 * 0.1;
+            xv.push(x);
+            yv.push(if i < n_half { x } else { x + 2.0 });
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let model = CompiledCausalModel::compile(g).unwrap();
+        (model, data)
+    }
+
+    /// Cross-check: on deterministic (zero-noise) linear data, the fast OLS-composition
+    /// path (`RobustLinearPayoff`, exact arithmetic on fitted coefficients) and the
+    /// full sampled `distribution_change` (Monte Carlo draws from the fitted
+    /// mechanisms) must agree, since the mechanism's fitted residual noise is
+    /// negligible. This is the only real check of `distribution_change_robust`'s
+    /// numeric output against an independent computation — the sole prior test
+    /// (`robust_linear_still_runs`) only asserted `total_change.abs() > 0.5`.
+    #[test]
+    fn robust_matches_distribution_change_on_deterministic_linear_data() {
+        let (model, data) = deterministic_linear_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::Rows(Arc::from((0..30).collect::<Vec<_>>())),
+            PopulationSelector::Rows(Arc::from((30..60).collect::<Vec<_>>())),
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+
+        let robust_result = distribution_change_robust(
+            &model,
+            &data,
+            &query,
+            &RobustChangeOptions::default(),
+            &ctx,
+        )
+        .unwrap();
+
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 4_000,
+            seed: 17,
+        };
+        let sampled_result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+
+        assert!(
+            (robust_result.total_change - sampled_result.total_change).abs() < 0.1,
+            "robust={} sampled={}",
+            robust_result.total_change,
+            sampled_result.total_change
+        );
+
+        let robust_y = robust_result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(1))
+            .expect("y contribution (robust)")
+            .contribution;
+        let sampled_y = sampled_result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(1))
+            .expect("y contribution (sampled)")
+            .contribution;
+        assert!(
+            (robust_y - sampled_y).abs() < 0.1,
+            "y contribution mismatch: robust={robust_y} sampled={sampled_y}"
+        );
+        // The +2 intercept shift on Y should dominate; X's marginal is identical
+        // across both populations, so it should contribute ~nothing in either path.
+        assert!(robust_y > 1.0, "robust_y={robust_y}");
+        assert!(sampled_y > 1.0, "sampled_y={sampled_y}");
+    }
 
     #[test]
     fn robust_linear_still_runs() {

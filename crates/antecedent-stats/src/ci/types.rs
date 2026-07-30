@@ -76,6 +76,60 @@ pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usiz
     }
 }
 
+/// The block length the caller asked for, or `1` when no blocking was requested.
+///
+/// `1` means "permute exchangeably": [`SignificanceMethod::Analytic`] has no blocking concept,
+/// and `BlockShuffle { block_size: 0 | 1, .. }` imposes none.
+#[must_use]
+pub fn requested_block_size(significance: SignificanceMethod) -> usize {
+    match significance {
+        SignificanceMethod::Analytic => 1,
+        SignificanceMethod::BlockShuffle { block_size, .. } => block_size.max(1),
+    }
+}
+
+/// Reject a block-preserving request from a test that can only permute exchangeably.
+///
+/// [`SignificanceMethod::BlockShuffle`]'s `block_size` exists so the null keeps the serial
+/// dependence of the observed series; an exchangeable permutation under-disperses that null
+/// and inflates Type I error for exactly the autocorrelated data the parameter is meant to
+/// protect. Tests whose null generation cannot honour `block_size` must say so rather than
+/// accept the argument and discard it, which silently returns an anticonservative p-value.
+///
+/// `block_size <= 1` imposes no blocking, so it is always accepted.
+///
+/// Call this per query, not per batch: for a test that builds its null by stratifying on Z,
+/// whether `block_size` can be honoured depends on whether *that query's* conditioning set is
+/// empty, which varies across a batch.
+///
+/// # Errors
+///
+/// [`StatsError::Unsupported`] when `block_size > 1`.
+pub fn reject_unsupported_block_size(
+    significance: SignificanceMethod,
+    test_name: &'static str,
+) -> Result<(), crate::error::StatsError> {
+    if let SignificanceMethod::BlockShuffle { block_size, .. } = significance {
+        if block_size > 1 {
+            let _ = test_name;
+            return Err(crate::error::StatsError::Unsupported {
+                message: "block-preserving permutation (block_size > 1) is not supported for \
+                          this CI test when the conditioning set is non-empty: its null is a \
+                          within-Z-stratum exchange over strata whose members are scattered \
+                          across time, which is structurally incompatible with a contiguous-block \
+                          permutation and would be invalid for autocorrelated data if silently \
+                          substituted. This is a structural limit, not an unimplemented feature. \
+                          Options: query with an empty conditioning set, where blocking is \
+                          supported because the null is a single time-ordered stratum; use \
+                          ParCorr / WeightedParCorr / MultivariateParCorr / Gpdc, which \
+                          residualize on Z and so support block-preserving nulls with \
+                          conditioning; or set block_size = 1 to accept an exchangeable null.",
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Confidence level for analytic intervals, if requested.
 #[must_use]
 pub fn analytic_confidence_level(confidence: ConfidenceMethod) -> Option<f64> {

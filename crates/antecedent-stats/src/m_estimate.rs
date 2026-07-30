@@ -1,4 +1,4 @@
-//! Huber M-estimation for linear regression.
+//! Huber (1964) M-estimation for linear regression.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

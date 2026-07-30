@@ -165,21 +165,31 @@ pub(crate) fn fit_once(
 }
 
 /// Static or temporal effect refit (bootstrap disabled).
+///
+/// `caller_estimator` carries the refuter's configured [`LinearAdjustmentAte`] (SE kind,
+/// cluster/multiway/panel-time ids, fit family, backend); the refit honors it on both the
+/// static and temporal branches so a caller who set e.g. `se_kind = AnalyticSeKind::Cluster`
+/// gets cluster-robust SEs on every refit replicate, not silently-downgraded homoskedastic
+/// OLS. Two fields are always forced regardless of what the caller configured:
+/// `bootstrap_replicates = 0` (refit replicates must never nest their own bootstrap pools)
+/// and `overlap = OverlapPolicy::ExplicitOverride` (refuters mutate a single column and refit
+/// the same design; re-running propensity/overlap diagnostics on a noised or permuted column
+/// is neither meaningful nor how the original estimate was gated).
 pub(crate) fn refit_effect(
     problem: &RefutationProblem<'_>,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     extra_contemporaneous: &[VariableId],
+    caller_estimator: &LinearAdjustmentAte,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
     let Some(temporal) = problem.temporal else {
-        let est = linear_estimator_no_bootstrap();
+        let est = forced_refit_estimator(caller_estimator);
         return fit_once(&est, data, estimand, problem.query, workspace, ctx);
     };
-    let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
-    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
+    let estimator =
+        TemporalLinearAdjustment::new().with_inner(forced_refit_estimator(caller_estimator));
     if let Some(panel) = temporal.panel {
         let rebuilt = panel_from_stacked(panel, data)?;
         let prep = if extra_contemporaneous.is_empty() {
@@ -406,7 +416,7 @@ pub(crate) struct DiagnosticPropensityColumns {
 
 /// Diagnostic-only logistic propensity on treatment + adjustment covariates.
 ///
-/// Used by overlap / Reisz validators when the original estimate has no propensity report.
+/// Used by overlap / Riesz validators when the original estimate has no propensity report.
 pub(crate) fn fit_diagnostic_propensity(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
@@ -504,6 +514,19 @@ pub(crate) fn linear_estimator_no_bootstrap() -> LinearAdjustmentAte {
     estimator
 }
 
+/// Clone `caller_estimator` and force the two overrides every refit needs regardless of the
+/// caller's config: no nested bootstrap, and no propensity/overlap re-diagnosis. See
+/// [`refit_effect`] for why these two are pinned rather than threaded through.
+#[must_use]
+pub(crate) fn forced_refit_estimator(
+    caller_estimator: &LinearAdjustmentAte,
+) -> LinearAdjustmentAte {
+    let mut estimator = caller_estimator.clone();
+    estimator.bootstrap_replicates = 0;
+    estimator.overlap = OverlapPolicy::ExplicitOverride;
+    estimator
+}
+
 /// Which column a noise-replace refuter overwrites.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NoiseReplaceTarget {
@@ -522,7 +545,7 @@ pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
-    _estimator: &LinearAdjustmentAte,
+    estimator: &LinearAdjustmentAte,
     replicates: u32,
     alpha: f64,
     target: NoiseReplaceTarget,
@@ -545,7 +568,7 @@ pub(crate) fn noise_replace_refute(
         let mut noise = vec![0.0; n];
         fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
         let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
-        let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+        let est = refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?;
         ates.push(est.ate);
     }
     let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);
@@ -569,7 +592,8 @@ pub(crate) fn noise_replace_refute(
 }
 
 /// Two-sided p-value of observing `hypothesized` under a normal fit to `samples`
-/// (pinned baseline-style refuter significance test). Degenerate spread compares means directly.
+/// (a standard refuter significance test: two-sided normal test on replicate ATEs). Degenerate
+/// spread compares means directly.
 pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
     if samples.len() < 2 {
         return 1.0;
@@ -585,7 +609,18 @@ pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
         return if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 };
     }
     let z = (hypothesized - mean) / sd;
-    erfc(z.abs() / std::f64::consts::SQRT_2)
+    if !z.is_finite() {
+        // Defense in depth rather than a live path: a non-finite `mean` drags
+        // `sample_sd` non-finite too, so the guard above already catches every
+        // way `z` is currently reachable as NaN/±inf. Kept so a future change to
+        // the spread guards cannot leak a NaN into a reported probability, and
+        // returning 1.0 matches the non-finite convention established above.
+        return 1.0;
+    }
+    // `erfc` is guaranteed in [0, 2] for finite input, so `z.abs() >= 0` keeps this
+    // in [0, 1] mathematically — clamp anyway since this value is documented as a
+    // probability and defensive clamping is cheap.
+    erfc(z.abs() / std::f64::consts::SQRT_2).clamp(0.0, 1.0)
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -679,4 +714,40 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
 pub(crate) fn fill_gaussian(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
     let mut rng = ctx.rng.stream(stream_id);
     antecedent_kernels::fill_standard_normal(&mut rng, out);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replicate_p_value_zero_sd_matches_hypothesis_is_valid_probability() {
+        // All replicates identical (SD = 0) and equal to the hypothesized value:
+        // handled by the existing degenerate-spread guard, not the erfc path.
+        let samples = [1.5, 1.5, 1.5, 1.5];
+        let p = replicate_p_value(&samples, 1.5);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
+
+    #[test]
+    fn replicate_p_value_zero_sd_away_from_hypothesis_is_valid_probability() {
+        // All replicates identical (SD = 0) but away from the hypothesized value.
+        let samples = [1.5, 1.5, 1.5, 1.5];
+        let p = replicate_p_value(&samples, 0.0);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
+
+    #[test]
+    fn replicate_p_value_nan_mean_does_not_propagate_nan() {
+        // A blown-up replicate (e.g. a failed refit) can leave NaN in the sample
+        // set; `mean`/`z` then become non-finite even though `sd` itself may
+        // still compare finite. The result must stay a valid probability
+        // (D2: unclamped/non-finite tail probability).
+        let samples = [1.0, 2.0, f64::NAN, 3.0];
+        let p = replicate_p_value(&samples, 0.0);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
 }

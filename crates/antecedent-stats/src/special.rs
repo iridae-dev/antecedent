@@ -2,9 +2,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_lossless, clippy::many_single_char_names)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names
+)]
 
-/// Approximate standard-normal PPF (Acklam’s rational approximation).
+/// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
+///
+/// Acklam's approximation alone has relative error ~1.6e-9 at p=0.975, rising to ~7.6e-9
+/// in the far tails (p=1e-12, 1e-15) — inconsistent with the ~1e-13 accuracy of the
+/// Cody-rational `erf`/`erfc` in `antecedent-kernels`, which back the CDF/PDF used here.
+/// One Halley (second-order Newton) correction against the exact CDF/PDF brings this to
+/// near machine epsilon across the whole domain.
 #[must_use]
 pub fn normal_ppf(p: f64) -> f64 {
     // Acklam central-region coefficients (|p - 0.5| region).
@@ -40,23 +52,46 @@ pub fn normal_ppf(p: f64) -> f64 {
     ];
     const P_LOW: f64 = 0.024_25;
     let p = p.clamp(1e-300, 1.0 - 1e-16);
-    if p < P_LOW {
+    let x0 = if p < P_LOW {
         // Lower tail.
         let q = (-2.0 * p.ln()).sqrt();
-        return (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0);
-    }
-    if p > 1.0 - P_LOW {
+        (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
+    } else if p > 1.0 - P_LOW {
         // Upper tail.
         let q = (-2.0 * (1.0 - p).ln()).sqrt();
-        return -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0);
+        -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
+    } else {
+        // Central region.
+        let q = p - 0.5;
+        let r = q * q;
+        q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
+            / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
+    };
+    // One Halley refinement step against the exact (Cody-rational) normal CDF/PDF:
+    // for f(x) = Phi(x) - p, phi = f'(x), and f''(x) = -x * phi(x), the Halley update
+    // 2 f f' / (2 f'^2 - f f'') simplifies to 2f / (2*phi + f*x). This converts Acklam's
+    // ~1e-9 starting error into a near-machine-epsilon result in a single step.
+    //
+    // For p > 0.5 (x0 > 0), compute the residual via the survival function instead of the
+    // CDF: `norm_cdf` saturates to exactly 1.0 once x exceeds ~8, which would silently
+    // erase the sub-ulp information the refinement needs in the upper tail. `norm_sf`
+    // stays accurate there by construction, and Phi(x) - p == -(Sf(x) - (1 - p)).
+    let f = if p <= 0.5 {
+        antecedent_kernels::norm_cdf(x0) - p
+    } else {
+        -(antecedent_kernels::norm_sf(x0) - (1.0 - p))
+    };
+    let phi = antecedent_kernels::norm_pdf(x0);
+    let denom = 2.0 * phi + f * x0;
+    if phi > 0.0 && denom.is_finite() && denom != 0.0 {
+        let refined = x0 - 2.0 * f / denom;
+        if refined.is_finite() {
+            return refined;
+        }
     }
-    // Central region.
-    let q = p - 0.5;
-    let r = q * q;
-    q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
-        / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
+    x0
 }
 
 /// Digamma `ψ(z) = d/dz ln Γ(z)` (reflection + asymptotic series).
@@ -137,8 +172,24 @@ pub fn ln_gamma(z: f64) -> f64 {
         1.505_632_735_149_311_6e-7,
     ];
     if z < 0.5 {
+        // Gamma has simple poles at z = 0, -1, -2, ... In floating point, sin(pi * z) at
+        // these poles is a tiny nonzero residual (e.g. sin(-pi) ~= -1.2246e-16 rather than
+        // exactly 0), and it can land on either side of zero depending on z's exact bit
+        // pattern. When it lands negative, `.ln()` of it is NaN, which then propagates
+        // through every caller. `scipy.special.gammaln` returns +Inf at these poles by
+        // convention, so detect them directly rather than trusting the reflection formula's
+        // floating-point residual.
+        #[allow(clippy::float_cmp)] // exact-integer test, not a computed-value comparison
+        if z <= 0.0 && z == z.trunc() {
+            return f64::INFINITY;
+        }
+        // Between the poles `sin(pi * z)` is genuinely negative on half the intervals
+        // (z = -0.5, -2.5, …), so `.ln()` of it is NaN there too — not just at the poles.
+        // Γ itself is negative on those intervals, so the real-valued quantity this function
+        // can return is `ln|Γ(z)|`, which is what `scipy.special.gammaln` returns
+        // (`gammaln(-0.5) = 1.2655…`). Take the magnitude.
         return std::f64::consts::PI.ln()
-            - (std::f64::consts::PI * z).sin().ln()
+            - (std::f64::consts::PI * z).sin().abs().ln()
             - ln_gamma(1.0 - z);
     }
     let z = z - 1.0;
@@ -173,7 +224,16 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     }
     d = 1.0 / d;
     let mut f = d;
-    for m in 1..200 {
+    // A fixed cap silently returns a partially-converged value once `a`/`b` grow: at
+    // x=0.5, a=b=1e6 the continued fraction needs ~420 terms, but a 200-term cap stops
+    // early and returns 0.4996679895 against a true value of 0.5 (rel. err 6.6e-4). Not
+    // reachable from `student_t_sf` today (it pins b=0.5, which the symmetry switch above
+    // routes to the fast side), but this is public API with no documented restriction on
+    // a/b. Scale the cap with sqrt(max(a,b)) the same way `gamma_p_series` does for an
+    // identical convergence-rate issue, so the tolerance break — not the cap — ends the
+    // loop across the practically reachable range.
+    let max_iter = 500 + 10 * (a.max(b).max(1.0).sqrt().min(1.0e9) as usize);
+    for m in 1..max_iter {
         let m_f = m as f64;
         let num = m_f * (b - m_f) * x / ((a + 2.0 * m_f - 1.0) * (a + 2.0 * m_f));
         d = 1.0 + num * d;
@@ -222,6 +282,46 @@ pub fn student_t_sf(t: f64, df: f64) -> f64 {
     if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
+/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`].
+///
+/// Returns `t` such that `P(T <= t) = p` for `T ~ Student-t(df)`. `p` must lie strictly
+/// inside `(0, 1)`; returns `NaN` otherwise.
+///
+/// `df <= 0` (or non-finite `df`) returns `f64::INFINITY`: a zero- or negative-degrees-of-
+/// freedom Student-t has no meaningful critical value, and callers that combine this with
+/// an already-infinite standard error (e.g. a single Monte Carlo draw, which has no sample
+/// variance) want an unbounded — not NaN — critical multiplier out of `INFINITY * INFINITY`.
+#[must_use]
+pub fn student_t_ppf(p: f64, df: f64) -> f64 {
+    if !(p.is_finite() && p > 0.0 && p < 1.0) {
+        return f64::NAN;
+    }
+    if !(df.is_finite() && df > 0.0) {
+        return f64::INFINITY;
+    }
+    if (p - 0.5).abs() < 1e-15 {
+        return 0.0;
+    }
+    // student_t_sf(t, df) is strictly decreasing in t, from 1 (t -> -inf) to 0 (t -> +inf).
+    // Solve for the non-negative root and mirror by symmetry for p < 0.5.
+    let target_sf = if p > 0.5 { 1.0 - p } else { p };
+    let mut lo = 0.0_f64;
+    let mut hi = 1.0_f64;
+    while student_t_sf(hi, df) > target_sf && hi < 1e15 {
+        hi *= 2.0;
+    }
+    for _ in 0..200 {
+        let mid = 0.5 * (lo + hi);
+        if student_t_sf(mid, df) > target_sf {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let t = 0.5 * (lo + hi);
+    if p > 0.5 { t } else { -t }
+}
+
 /// Regularized upper incomplete gamma `Q(a, x)`.
 #[must_use]
 pub fn gamma_q(a: f64, x: f64) -> f64 {
@@ -240,7 +340,12 @@ fn gamma_p_series(a: f64, x: f64) -> f64 {
     let mut ap = a;
     let mut sum = 1.0 / a;
     let mut del = sum;
-    for _ in 0..500 {
+    // Terms decay like exp(-n^2/2a), so convergence needs O(sqrt(a)) of them -- a fixed cap
+    // silently returns a partial sum once `a` grows. Scale the cap with sqrt(a) so the
+    // tolerance break, not the cap, ends the loop (mirrored in
+    // `regularized_incomplete_beta`'s continued fraction below, an identical issue).
+    let max_iter = 500 + 10 * (a.max(1.0).sqrt().min(1.0e9) as usize);
+    for _ in 0..max_iter {
         ap += 1.0;
         del *= x / ap;
         sum += del;
@@ -309,6 +414,44 @@ mod tests {
             let lo = normal_ppf(p);
             let hi = normal_ppf(1.0 - p);
             assert!((lo + hi).abs() < 1e-9, "asymmetry at p={p}: {lo} vs {hi}");
+        }
+    }
+
+    /// `normal_ppf` must reach near-machine-epsilon accuracy, matching the ~1e-13
+    /// precision of the Cody-rational `erf`/`erfc` it is now refined against —
+    /// not just the ~1e-9 Acklam approximation on its own.
+    ///
+    /// References: `scipy.stats.norm.ppf(p)`, scipy 1.14.
+    #[test]
+    fn normal_ppf_matches_scipy_to_near_machine_epsilon() {
+        let cases = [
+            (0.975, 1.959_963_984_540_054),
+            (0.995, 2.575_829_303_548_900_4),
+            (0.9, 1.281_551_565_544_600_4),
+            (0.99, 2.326_347_874_040_840_8),
+            (1e-6, -4.753_424_308_822_899),
+            (1e-10, -6.361_340_902_404_056),
+            (1e-12, -7.034_483_825_301_131),
+            (1e-15, -7.941_345_326_170_998),
+            (1.0 - 1e-6, 4.753_424_308_817_087),
+            (1.0 - 1e-12, 7.034_486_910_047_835_6),
+            (1.0 - 1e-15, 7.941_444_487_415_979),
+        ];
+        for (p, expected) in cases {
+            let got = normal_ppf(p);
+            let rel = (got - expected).abs() / expected.abs().max(1e-8);
+            assert!(rel < 5e-10, "normal_ppf({p}): got={got} expected={expected} rel={rel:e}");
+        }
+    }
+
+    /// `ln_gamma` at non-positive integers (Gamma's poles) must return +Inf, matching
+    /// `scipy.special.gammaln`'s convention -- not NaN from a negative-going floating-point
+    /// residual in `sin(pi * z)` at the pole.
+    #[test]
+    fn ln_gamma_returns_infinity_at_non_positive_integer_poles() {
+        for z in [0.0, -1.0, -2.0, -3.0, -10.0, -100.0] {
+            let got = ln_gamma(z);
+            assert!(got.is_infinite() && got > 0.0, "ln_gamma({z}) = {got}, expected +inf");
         }
     }
 
@@ -382,6 +525,54 @@ mod tests {
         assert!(student_t_sf(f64::NAN, 5.0).is_nan());
     }
 
+    /// `gamma_q` must stay accurate at the large `a` reached by G² on many strata.
+    ///
+    /// `gamma_q` routes to the series branch whenever `x < a + 1`, which covers the bulk of
+    /// the null p-value distribution (a true non-edge puts the statistic near its df). The
+    /// series needs O(√a) terms, so a fixed iteration cap silently returns a partial sum as
+    /// `a` grows -- inflating p-values, which then propagates into any p-value-ordered step
+    /// (BH/BY, edge ranking).
+    ///
+    /// References are `scipy.special.gammaincc(df/2, df/2)`, scipy 1.14.
+    #[test]
+    fn gamma_q_series_branch_stays_accurate_at_large_a() {
+        // (df, gammaincc(df/2, df/2)) -- the median case, deepest in the series branch.
+        let cases = [
+            (1.0e3_f64, 0.494_052_853_829_239_64_f64),
+            (1.0e4, 0.498_119_365_966_182_67),
+            (1.0e5, 0.499_405_291_895_206_7),
+            (1.0e6, 0.499_811_936_803_394_5),
+        ];
+        for (df, expected) in cases {
+            let got = gamma_q(df * 0.5, df * 0.5);
+            assert!(
+                (got - expected).abs() < 1e-6,
+                "gamma_q at df={df}: got {got}, scipy says {expected}"
+            );
+        }
+    }
+
+    /// `regularized_incomplete_beta`'s continued fraction must stay accurate for large,
+    /// comparable shape parameters. At x=0.5, a=b=1e6 the true value is exactly 0.5 (up to
+    /// float rounding), but a fixed 200-term cap converges only partially and returns
+    /// 0.4996679895 -- a 6.6e-4 relative error. Convergence there needs ~420 terms; a
+    /// 200-term cap silently returns a partial sum instead. Not currently reachable via
+    /// `student_t_sf` (which pins b=0.5, routed to the fast symmetry side), but this is
+    /// public API with no documented restriction on a/b.
+    ///
+    /// References are `scipy.special.betainc(a, b, x)`, scipy 1.14.
+    #[test]
+    fn regularized_incomplete_beta_stays_accurate_for_large_comparable_shapes() {
+        let got = regularized_incomplete_beta(0.5, 1.0e6, 1.0e6);
+        assert!((got - 0.5).abs() < 1e-6, "I_0.5(1e6, 1e6): got={got}, scipy says ~0.5");
+
+        // Smaller-shape sanity checks against exact scipy references stay unaffected.
+        let got2 = regularized_incomplete_beta(0.4, 2.0, 3.0);
+        assert!((got2 - 0.5248).abs() < 1e-6, "I_0.4(2,3): got={got2}");
+        let got3 = regularized_incomplete_beta(0.3, 0.5, 0.5);
+        assert!((got3 - 0.369_010_119_565_545_36).abs() < 1e-6, "I_0.3(0.5,0.5): got={got3}");
+    }
+
     #[test]
     fn student_t_sf_golden_values() {
         // scipy.stats.t.sf(t, df)
@@ -395,5 +586,53 @@ mod tests {
             let got = student_t_sf(t, df);
             assert!((got - expected).abs() < 1e-8, "t={t} df={df}: got={got} expected={expected}");
         }
+    }
+
+    #[test]
+    fn student_t_ppf_golden_values() {
+        // Well-known two-sided-95%/90% critical-value table entries (t_{alpha,df}), to the
+        // precision commonly tabulated in textbooks. A generous 1e-3 tolerance guards
+        // against transcription imprecision in the reference digits while still catching a
+        // grossly wrong implementation.
+        let cases =
+            [(0.975, 1.0, 12.706), (0.975, 5.0, 2.571), (0.975, 30.0, 2.042), (0.95, 10.0, 1.812)];
+        for &(p, df, expected) in &cases {
+            let got = student_t_ppf(p, df);
+            assert!((got - expected).abs() < 1e-3, "ppf({p}, {df}): got={got} expected={expected}");
+        }
+        // Exact closed form at df == 1: Student-t(1) is the standard Cauchy distribution,
+        // whose CDF inverts to t = tan(pi * (p - 0.5)).
+        let exact_df1 = (std::f64::consts::PI * (0.975 - 0.5)).tan();
+        assert!(
+            (student_t_ppf(0.975, 1.0) - exact_df1).abs() < 1e-9,
+            "df=1 closed form: got={} exact={exact_df1}",
+            student_t_ppf(0.975, 1.0)
+        );
+    }
+
+    #[test]
+    fn student_t_ppf_symmetric_and_matches_normal_at_large_df() {
+        for &df in &[1.0, 5.0, 30.0] {
+            for &p in &[0.6, 0.75, 0.9, 0.99] {
+                let hi = student_t_ppf(p, df);
+                let lo = student_t_ppf(1.0 - p, df);
+                assert!((hi + lo).abs() < 1e-6, "asymmetry p={p} df={df}: hi={hi} lo={lo}");
+            }
+        }
+        // Student-t converges to the standard normal as df -> infinity.
+        let t_large_df = student_t_ppf(0.975, 1e7);
+        let z = normal_ppf(0.975);
+        assert!((t_large_df - z).abs() < 1e-3, "t={t_large_df} z={z}");
+    }
+
+    #[test]
+    fn student_t_ppf_degenerate_df_is_infinite_not_nan() {
+        // df <= 0 (e.g. a single-sample Monte Carlo estimate, n_samples - 1 == 0) must
+        // return +inf, not NaN, so combining with an already-infinite stderr in a
+        // downstream CI computation stays inf * inf = inf rather than inf * NaN = NaN.
+        assert!(student_t_ppf(0.975, 0.0).is_infinite() && student_t_ppf(0.975, 0.0) > 0.0);
+        assert!(student_t_ppf(0.975, -1.0).is_infinite() && student_t_ppf(0.975, -1.0) > 0.0);
+        assert!(student_t_ppf(1.5, 5.0).is_nan());
+        assert!(student_t_ppf(0.0, 5.0).is_nan());
     }
 }

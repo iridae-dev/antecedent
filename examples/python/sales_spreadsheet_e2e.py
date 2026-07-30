@@ -49,14 +49,15 @@ def main() -> None:
     # --- Static spreadsheet block ---
     data = _sales_static()
     discovery_calls = {"n": 0}
-    real_pc = antecedent.discover_pc
+    real_run = antecedent.discovery.PC.run
 
-    def spy_pc(*args, **kwargs):
+    def spy_run(self, *args, **kwargs):
         discovery_calls["n"] += 1
-        return real_pc(*args, **kwargs)
+        return real_run(self, *args, **kwargs)
 
-    # Spy via accepted_graph path used by rediscover; estimate clicks must not call it.
-    antecedent.discover_pc = spy_pc  # type: ignore[assignment]
+    # Spy on the config's own `run` — every path into PC discovery goes through it,
+    # so the "estimate clicks must not discover" assertion below is not vacuous.
+    antecedent.discovery.PC.run = spy_run  # type: ignore[method-assign]
 
     # Hand-accepted DAG (discover-once already reviewed in product UX).
     dag = antecedent.Dag.from_edges(
@@ -82,7 +83,7 @@ def main() -> None:
     names = ["z", "t", "m", "y"]
     cols = [data["z"], data["t"], data["m"], data["y"]]
     edges = [("z", "t"), ("z", "m"), ("z", "y"), ("t", "m"), ("t", "y"), ("m", "y")]
-    path = antecedent.attribute_path_specific(
+    path = antecedent.attribution.attribute_path_specific(
         names,
         cols,
         edges,
@@ -94,7 +95,9 @@ def main() -> None:
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = antecedent.counterfactual_ite(names, cols, edges, "t", "y", 1.0, 0.0, seed=7)
+    ite = antecedent.counterfactual.counterfactual_ite(
+        names, cols, edges, "t", "y", 1.0, 0.0, seed=7
+    )
     assert ite.n_units == len(cols[0])
     assert math.isfinite(ite.mean_ite)
     print(f"ITE mean={ite.mean_ite:.4f} n={ite.n_units}")

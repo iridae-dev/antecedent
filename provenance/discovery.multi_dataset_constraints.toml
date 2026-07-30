@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "J-PCMCI+: Causal discovery for multi-dataset time series", sections = ["multi-dataset constraints"] },
+ { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["multi-dataset / multi-environment link constraints (system, context, dummy links)"] },
 ]
 
 upstream_implementations_observed = [
@@ -14,5 +14,6 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "unit tests for MultiDatasetConstraints context flags and validation",
+ "crates/antecedent-discovery/src/constraints.rs unit tests",
+ "conformance/discovery/jpcmci_plus_two_env",
 ]

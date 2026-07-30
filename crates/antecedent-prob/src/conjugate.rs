@@ -23,7 +23,7 @@ use crate::backend::{
 };
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
-use crate::laplace::validate_design;
+use crate::likelihood_terms::validate_design;
 use crate::linalg::{cholesky_spd, invert_spd};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, InvGammaPrior, PriorSet};

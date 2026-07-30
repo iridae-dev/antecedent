@@ -25,6 +25,7 @@
 
 pub mod backend;
 pub mod conjugate;
+pub mod conjugate_moment_match;
 pub mod diagnostics;
 pub mod error;
 pub mod external_prior;
@@ -44,13 +45,14 @@ pub use backend::{
     LaplaceWorkspace, coefficient_schema,
 };
 pub use conjugate::{ConjugateGaussianBackend, fit_conjugate_gaussian};
+pub use conjugate_moment_match::{BetaHyperparameters, GammaHyperparameters};
 pub use diagnostics::{
     ConflictSummary, HessianFactorization, InferenceDiagnostics, PriorSensitivitySummary,
 };
 pub use error::ProbError;
 pub use external_prior::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
-    compose_external_priors_with_alphas,
+    compose_external_priors_with_alphas, kish_ess,
 };
 pub use gaussian_target::{
     GaussianInvGammaTarget, GaussianKnownTarget, GaussianTarget, PosteriorTarget,

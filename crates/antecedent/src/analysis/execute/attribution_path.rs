@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_counterfactual(
         &self,
         data: &TabularData,
@@ -10,7 +10,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::CounterfactualQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let fitted = fit_gcm(graph.clone(), data)?;
@@ -75,7 +75,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::AnomalyAttributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let _ = ctx;
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -134,7 +134,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::ChangeAttributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let fitted = fit_gcm(graph.clone(), data)?;
@@ -198,7 +198,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::MechanismChangeQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let fitted = fit_gcm(graph.clone(), data)?;
@@ -257,7 +257,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::UnitChangeQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let fitted = fit_gcm(graph.clone(), data)?;

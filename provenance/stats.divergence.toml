@@ -1,0 +1,18 @@
+feature_id = "stats.divergence"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Kernel Method for the Two-Sample Problem", doi = "10.48550/arXiv.0805.2368", sections = ["biased MMD^2 with RBF kernel, median-heuristic bandwidth"] },
+ { title = "On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other", doi = "10.1214/aoms/1177730491", sections = ["U statistic / normal approximation with tie correction"] },
+ { title = "The Large-Sample Distribution of the Likelihood Ratio for Testing Composite Hypotheses", doi = "10.1214/aoms/1177732360", sections = ["asymptotic chi-square distribution of the Gaussian mean+variance change-point likelihood ratio"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/divergence.rs unit tests",
+]

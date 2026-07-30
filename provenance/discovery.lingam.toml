@@ -1,0 +1,21 @@
+feature_id = "discovery.lingam"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "DirectLiNGAM: A Direct Method for Learning a Linear Non-Gaussian Structural Equation Model", doi = "10.48550/arXiv.1101.2489", sections = ["Section 3.2, Steps 1-2(a): causal-order search by iteratively selecting the exogenous-most residual"] },
+ { title = "Measuring and Testing Dependence by Correlation of Distances", doi = "10.1214/009053607000000505", sections = ["distance covariance / distance correlation, substituted here for the paper's kernel-based mutual-information statistic T_kernel (Eqs. 9-14) as the residual-independence measure"] },
+]
+
+upstream_implementations_observed = [
+ { project = "lingam", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-discovery/src/lingam.rs unit tests",
+ "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
+ "conformance/discovery/static_oracle_matrix",
+]

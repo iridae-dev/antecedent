@@ -2,17 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
+use thiserror::Error;
 
 /// Statistical / linear algebra errors.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
 pub enum StatsError {
     /// Shape mismatch.
+    #[error("shape error: {message}")]
     Shape {
         /// Context.
         message: &'static str,
     },
     /// Rank deficiency / singular design.
+    #[error("rank deficient: rank={rank} ncols={ncols}")]
     RankDeficient {
         /// Detected rank.
         rank: usize,
@@ -20,27 +23,18 @@ pub enum StatsError {
         ncols: usize,
     },
     /// Materially non-positive variance after inclusion–exclusion (not FP noise).
+    #[error("non-positive variance: {message}")]
     NonPositiveVariance {
         /// Context.
         message: &'static str,
     },
+    /// Requested option is not implemented on this code path.
+    #[error("unsupported: {message}")]
+    Unsupported {
+        /// Context.
+        message: &'static str,
+    },
     /// Backend failure.
+    #[error("backend error: {0}")]
     Backend(String),
 }
-
-impl fmt::Display for StatsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Shape { message } => write!(f, "shape error: {message}"),
-            Self::RankDeficient { rank, ncols } => {
-                write!(f, "rank deficient: rank={rank} ncols={ncols}")
-            }
-            Self::NonPositiveVariance { message } => {
-                write!(f, "non-positive variance: {message}")
-            }
-            Self::Backend(msg) => write!(f, "backend error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for StatsError {}

@@ -1,0 +1,16 @@
+feature_id = "stats.m_estimate"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Robust Estimation of a Location Parameter", doi = "10.1214/aoms/1177703732", sections = ["Huber loss / IRLS with MAD scale, c=1.345"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/m_estimate.rs unit tests",
+]

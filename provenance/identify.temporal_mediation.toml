@@ -1,0 +1,19 @@
+feature_id = "identify.temporal_mediation"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Method of Path Coefficients", doi = "10.1214/aoms/1177732676", sections = ["path-product effect decomposition"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["mediation formula / natural direct and indirect effects"] },
+]
+
+upstream_implementations_observed = [
+ { project = "tigramite", exposure = "none" },
+]
+
+test_sources = [
+ "inline unit tests (crates/antecedent-identify/src/temporal_mediation.rs)",
+]

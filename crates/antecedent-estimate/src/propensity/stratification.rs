@@ -16,7 +16,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
@@ -57,6 +57,51 @@ impl PropensityStratification {
             n_strata: 5,
             population_registry: None,
         }
+    }
+
+    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options for the propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the number of quantile strata (default 5).
+    #[must_use]
+    pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
+        self.n_strata = n_strata;
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
     }
 
     /// Prepare the covariate design.
@@ -130,13 +175,11 @@ impl PropensityStratification {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let mut report = OverlapReport::from_propensities(
+        let mut report = crate::propensity::propensity_overlap_report(
+            problem,
             &model.fit.scores,
             None,
-            problem.overlap,
-            Some(&problem.treatment),
             ipw_target,
-            problem.target_weights.as_deref(),
         );
         // Strata missing a treatment arm are dropped from the pooled contrast; fold the
         // retained fraction into the support figure so the artifact reflects the population
@@ -144,20 +187,10 @@ impl PropensityStratification {
         report.target_population_support *= result.retained_fraction;
         let overlap_report = Some(report);
 
-        Ok(EffectEstimate {
-            ate: result.ate,
-            se_analytic: result.se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report,
-            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_overlap_report(overlap_report)
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -175,13 +208,15 @@ impl PropensityStratification {
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x3D2F_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(
+                &mut x_boot,
+                &problem.design_matrix,
+                n,
+                ncols,
+                idx,
+            );
             let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,

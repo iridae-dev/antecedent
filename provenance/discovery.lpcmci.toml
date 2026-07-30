@@ -9,10 +9,14 @@ papers = [
  { title = "High-recall causal discovery for autocorrelated time series with latent confounders", doi = "10.48550/arXiv.2007.01884", sections = ["LPCMCI"] },
 ]
 
-upstream_implementations_observed = ["Tigramite LPCMCI"]
+upstream_implementations_observed = [
+ { project = "tigramite", exposure = "black-box comparison only" },
+]
 
 test_sources = [
- "lpcmci returns TemporalPag",
- "discriminating_paths and rule_scheduling modules",
- "lpcmci_phases Alg.1 (middle marks, weakly-minimal, R8–R10)",
+ "crates/antecedent-discovery/src/lpcmci.rs unit tests",
+ "crates/antecedent-discovery/src/lpcmci_phases.rs unit tests",
+ "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs",
+ "crates/antecedent-discovery/tests/lpcmci_evidence_reconciliation.rs",
+ "conformance/discovery/lpcmci_matrix",
 ]

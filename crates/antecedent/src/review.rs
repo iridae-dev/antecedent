@@ -1,42 +1,35 @@
-//! Graph review gate for discovery outputs.
+//! Graph review interaction surface for discovery outputs.
+//!
+//! Discovery is a separate, explicit step (see [`crate::discovery`]); the review gate
+//! itself now lives in [`crate::accepted::AcceptedGraph`] construction. This module
+//! keeps the interactive edit surface (`accept_edge`, `orient_edge`, `require_edge`,
+//! `accept_all`) callers use to resolve a review artifact before handing it to
+//! [`AcceptedGraph::accept`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation)]
 
 use antecedent_core::{ExecutionContext, TemporalEffectQuery};
-use antecedent_data::{DiscoveryEstimationSplit, TableView, TemporalNodeKey, TimeSeriesData};
-use antecedent_graph::{
-    CpdagReview, DagReview, DenseNodeId, PagReview, TemporalCpdagReview, TemporalDag,
-    TemporalGraphReview, TemporalPagReview,
-};
+use antecedent_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
+use antecedent_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 
+use crate::accepted::AcceptedGraph;
 use crate::error::CausalError;
-use crate::planner::{CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect};
+use crate::planner::{PhysicalExecutionPlan, compile_logical_temporal_effect};
 
 /// Pending review session that must complete before estimation (DAG discovery).
 #[derive(Clone, Debug)]
 pub struct PendingGraphReview {
     /// Review artifact.
     pub review: TemporalGraphReview,
-    /// Series length (for diagnostics).
-    pub series_len: usize,
-    /// Temporal effect query.
-    pub query: TemporalEffectQuery,
-    /// Optional discovery/estimation split.
-    pub split: Option<DiscoveryEstimationSplit>,
 }
 
 impl PendingGraphReview {
-    /// Wrap a review artifact with query context.
+    /// Wrap a review artifact.
     #[must_use]
-    pub fn new(
-        review: TemporalGraphReview,
-        series_len: usize,
-        query: TemporalEffectQuery,
-        split: Option<DiscoveryEstimationSplit>,
-    ) -> Self {
-        Self { review, series_len, query, split }
+    pub fn new(review: TemporalGraphReview) -> Self {
+        Self { review }
     }
 
     /// Accept one pending edge.
@@ -75,40 +68,17 @@ impl PendingGraphReview {
         self
     }
 
-    /// Finish review into a compiled Ready plan carrying the accepted graph.
+    /// Complete the review into an [`AcceptedGraph`].
+    ///
+    /// Row-count re-checks and logical/physical compilation now happen at
+    /// [`crate::analysis::StudyBuilder::build`] time — this only enforces that no
+    /// pending edges remain.
     ///
     /// # Errors
     ///
-    /// Incomplete review or compile failure.
-    pub fn finish(
-        self,
-        data: &TimeSeriesData,
-        ctx: &ExecutionContext,
-    ) -> Result<CompiledAnalysis, CausalError> {
-        if data.row_count() != self.series_len {
-            return Err(CausalError::Compile {
-                message: format!(
-                    "review series_len={} does not match data row_count={}",
-                    self.series_len,
-                    data.row_count()
-                ),
-            });
-        }
-        if !self.review.is_complete() {
-            return Err(CausalError::review_required_msg(format!(
-                "{} pending edges remain; accept or require them before estimation",
-                self.review.pending_edges.len()
-            )));
-        }
-        let logical = compile_logical_temporal_effect(
-            data,
-            &self.review.graph,
-            &self.query,
-            self.split,
-            false,
-        )?;
-        let physical = logical.compile_physical_with_graph(ctx, Some(self.review.graph.clone()))?;
-        Ok(CompiledAnalysis::Ready(physical))
+    /// [`CausalError::ReviewRequired`] when pending edges remain.
+    pub fn finish(self) -> Result<AcceptedGraph, CausalError> {
+        AcceptedGraph::accept(self.review)
     }
 
     /// Borrow the reviewed temporal DAG.
@@ -126,24 +96,13 @@ impl PendingGraphReview {
 pub struct PendingCpdagReview {
     /// CPDAG review artifact.
     pub review: TemporalCpdagReview,
-    /// Series length (for diagnostics).
-    pub series_len: usize,
-    /// Temporal effect query.
-    pub query: TemporalEffectQuery,
-    /// Optional discovery/estimation split.
-    pub split: Option<DiscoveryEstimationSplit>,
 }
 
 impl PendingCpdagReview {
-    /// Wrap a CPDAG review with query context.
+    /// Wrap a CPDAG review.
     #[must_use]
-    pub fn new(
-        review: TemporalCpdagReview,
-        series_len: usize,
-        query: TemporalEffectQuery,
-        split: Option<DiscoveryEstimationSplit>,
-    ) -> Self {
-        Self { review, series_len, query, split }
+    pub fn new(review: TemporalCpdagReview) -> Self {
+        Self { review }
     }
 
     /// Accept one pending directed edge.
@@ -179,44 +138,16 @@ impl PendingCpdagReview {
         self
     }
 
-    /// Finish into a Ready plan only when review is complete (no undirected remain).
+    /// Complete the review into an [`AcceptedGraph`] (only when no undirected marks remain).
+    ///
+    /// Row-count re-checks and logical/physical compilation now happen at
+    /// [`crate::analysis::StudyBuilder::build`] time.
     ///
     /// # Errors
     ///
-    /// Incomplete review (including remaining undirected marks) or compile failure.
-    pub fn finish(
-        self,
-        data: &TimeSeriesData,
-        ctx: &ExecutionContext,
-    ) -> Result<CompiledAnalysis, CausalError> {
-        if data.row_count() != self.series_len {
-            return Err(CausalError::Compile {
-                message: format!(
-                    "review series_len={} does not match data row_count={}",
-                    self.series_len,
-                    data.row_count()
-                ),
-            });
-        }
-        if !self.review.pending_undirected.is_empty() {
-            return Err(CausalError::review_required_msg(format!(
-                "{} undirected CPDAG edges remain; orient them explicitly before estimation (no silent coercion)",
-                self.review.pending_undirected.len()
-            )));
-        }
-        if !self.review.is_complete() {
-            return Err(CausalError::review_required_msg(format!(
-                "{} pending directed edges remain; accept them before estimation",
-                self.review.pending_edges.len()
-            )));
-        }
-        let dag = self
-            .review
-            .try_into_temporal_dag()
-            .map_err(|e| CausalError::review_required_msg(e.to_string()))?;
-        let logical = compile_logical_temporal_effect(data, &dag, &self.query, self.split, false)?;
-        let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
-        Ok(CompiledAnalysis::Ready(physical))
+    /// [`CausalError::ReviewRequired`] when pending edges or undirected marks remain.
+    pub fn finish(self) -> Result<AcceptedGraph, CausalError> {
+        AcceptedGraph::accept(self.review)
     }
 }
 
@@ -251,63 +182,14 @@ pub fn compile_temporal_with_graph(
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     ctx: &ExecutionContext,
-) -> Result<CompiledAnalysis, CausalError> {
+) -> Result<PhysicalExecutionPlan, CausalError> {
     let logical = compile_logical_temporal_effect(data, graph, query, split, false)?;
-    let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
-    Ok(CompiledAnalysis::Ready(physical))
-}
-
-/// Wrap discovery output as review-required (DAG).
-#[must_use]
-pub fn compile_review_required(review: TemporalGraphReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequired(review)
-}
-
-/// Wrap PCMCI+ output as CPDAG review-required.
-#[must_use]
-pub fn compile_review_required_cpdag(review: TemporalCpdagReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequiredCpdag(review)
-}
-
-/// Wrap static PC output as CPDAG review-required.
-#[must_use]
-pub fn compile_review_required_static_cpdag(review: CpdagReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequiredStaticCpdag(review)
-}
-
-/// Wrap `DirectLiNGAM` / static DAG discovery as review-required.
-#[must_use]
-pub fn compile_review_required_static_dag(review: DagReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequiredStaticDag(review)
-}
-
-/// Wrap classic static FCI output as PAG review-required.
-#[must_use]
-pub fn compile_review_required_static_pag(review: PagReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequiredStaticPag(review)
-}
-
-/// Wrap LPCMCI / temporal PAG output as PAG review-required.
-#[must_use]
-pub fn compile_review_required_pag(review: TemporalPagReview) -> CompiledAnalysis {
-    CompiledAnalysis::ReviewRequiredPag(review)
-}
-
-/// Refuse when the logical plan still requires review.
-///
-/// # Errors
-///
-/// [`CausalError::ReviewRequired`] when the flag is set.
-pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), CausalError> {
-    if plan.record.graph_review_required {
-        return Err(CausalError::review_required_msg("graph review required before estimation"));
-    }
-    Ok(())
+    logical.compile_physical_with_graph(ctx, Some(graph.clone()))
 }
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{Lag, TemporalEffectQuery, VariableId};
+    use antecedent_core::{Lag, VariableId};
     use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalGraphReview, ensure_lagged};
 
     use super::*;
@@ -321,59 +203,32 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_review_blocks_estimation_flag() {
-        assert!(matches!(
-            ensure_review_complete(&LogicalAnalysisPlan {
-                record: antecedent_core::LogicalAnalysisPlanRecord {
-                    plan_id: std::sync::Arc::from("t"),
-                    data_classification: antecedent_core::DataClassification::Temporal,
-                    discovery_algorithm: Some(std::sync::Arc::from("pcmci")),
-                    graph_review_required: true,
-                    identifier: None,
-                    estimator: None,
-                    validation_suite: None,
-                    query_variables: std::sync::Arc::from([]),
-                },
-                query: antecedent_core::CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
-                    VariableId::from_raw(0),
-                    VariableId::from_raw(1),
-                    1.0,
-                )),
-                split: None,
-                row_count_hint: 100,
-            }),
-            Err(CausalError::ReviewRequired { .. })
-        ));
-    }
-
-    #[test]
     fn accept_edge_completes_review() {
         let r = tiny_review();
         assert!(!r.is_complete());
         let (a, b) = r.pending_edges[0];
         let done = r.accept_edge(a, b);
         assert!(done.is_complete());
-        let pending = PendingGraphReview::new(
-            done,
-            100,
-            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0),
-            None,
-        );
+        let pending = PendingGraphReview::new(done);
         assert!(pending.review.is_complete());
+        let accepted = pending.finish().unwrap();
+        assert_eq!(accepted.class(), crate::accepted::GraphClass::TemporalDag);
     }
 
     #[test]
     fn require_missing_edge_errors() {
         let r = tiny_review();
-        let pending = PendingGraphReview::new(
-            r,
-            100,
-            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0),
-            None,
-        );
+        let pending = PendingGraphReview::new(r);
         let missing_from = TemporalNodeKey { variable: VariableId::from_raw(9), offset: 0 };
         let missing_to = TemporalNodeKey { variable: VariableId::from_raw(8), offset: 0 };
         assert!(pending.require_edge(missing_from, missing_to).is_err());
+    }
+
+    #[test]
+    fn incomplete_review_refuses_finish() {
+        let r = tiny_review();
+        let err = PendingGraphReview::new(r).finish().unwrap_err();
+        assert!(matches!(err, CausalError::ReviewRequired { .. }));
     }
 
     #[test]
@@ -384,13 +239,9 @@ mod tests {
         g.insert_undirected(a, b).unwrap();
         let review = TemporalCpdagReview::from_cpdag(g, "pcmci_plus");
         assert!(!review.pending_undirected.is_empty());
-        let pending = PendingCpdagReview::new(
-            review,
-            10,
-            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0),
-            None,
-        )
-        .accept_all_directed();
+        let pending = PendingCpdagReview::new(review).accept_all_directed();
         assert!(!pending.review.is_complete());
+        let err = pending.finish().unwrap_err();
+        assert!(matches!(err, CausalError::ReviewRequired { .. }));
     }
 }

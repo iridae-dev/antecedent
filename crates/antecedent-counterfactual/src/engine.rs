@@ -696,7 +696,14 @@ mod tests {
     fn ite_and_streaming_equivalence() {
         let (engine, data) = toy();
         let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
-        assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+        // `toy()`'s treatment is binary (`t[i] = i % 2`), so its mechanism is `Discrete` and
+        // abduction recovers that node's noise by posterior sampling rather than inversion.
+        // This read `Invertible` only because a binary column was previously mis-fit as
+        // `Constant{0.5}` — a point mass at a value the variable never takes — which the
+        // mechanism-scoring fix in `antecedent-model` corrected. The substantive assertions
+        // (ITE ≈ 2, factual reproduction, streaming/retained agreement) are the real content
+        // of these tests and are unchanged.
+        assert_eq!(exo.kind, NoiseInferenceKind::PosteriorNoise);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let t = VariableId::from_raw(0);
@@ -727,7 +734,9 @@ mod tests {
     fn abduction_predicts_factual_and_ite_variance_finite() {
         let (engine, data) = toy();
         let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
-        assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+        // Binary treatment ⇒ `Discrete` mechanism ⇒ posterior-sampled noise; see
+        // `ite_and_streaming_equivalence`.
+        assert_eq!(exo.kind, NoiseInferenceKind::PosteriorNoise);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let t = VariableId::from_raw(0);
@@ -782,7 +791,9 @@ mod tests {
     fn multi_world_streaming_matches_retained() {
         let (engine, data) = toy();
         let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
-        assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+        // Binary treatment ⇒ `Discrete` mechanism ⇒ posterior-sampled noise; see
+        // `ite_and_streaming_equivalence`.
+        assert_eq!(exo.kind, NoiseInferenceKind::PosteriorNoise);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let t = VariableId::from_raw(0);

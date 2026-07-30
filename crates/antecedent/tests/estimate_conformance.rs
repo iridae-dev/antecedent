@@ -12,7 +12,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::CausalAnalysis;
+use antecedent::Study;
+use antecedent::{EstimatorId, IdentifierId};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -67,7 +68,7 @@ fn tabular_data(vars: &[(&str, RoleHint, Vec<f64>)]) -> TabularData {
     TabularData::new(storage)
 }
 
-fn assert_recovers(result: &antecedent::CausalAnalysisResult, expected: &JsonValue) {
+fn assert_recovers(result: &antecedent::StudyResult, expected: &JsonValue) {
     let true_effect = expected["true_effect"].as_f64().unwrap();
     let tolerance = expected["tolerance"].as_f64().unwrap();
     assert!(
@@ -115,12 +116,11 @@ fn propensity_ipw_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQu
 fn estimate_propensity_ipw_recovers_ate() {
     let expected = load_expected("propensity_ipw");
     let (data, graph, query) = propensity_ipw_scm(1200, 3);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse::<EstimatorId>().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -163,12 +163,11 @@ fn iv_2sls_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
 fn estimate_iv_2sls_recovers_structural_effect() {
     let expected = load_expected("iv_2sls");
     let (data, graph, query) = iv_2sls_scm(4000, 5);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse::<EstimatorId>().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -210,12 +209,11 @@ fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) 
 fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let expected = load_expected("frontdoor");
     let (data, graph, query) = frontdoor_scm(4000, 1);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse::<EstimatorId>().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -226,12 +224,11 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
 
 fn run_static(name: &str, data: TabularData, graph: Dag, query: AverageEffectQuery, seed: u64) {
     let expected = load_expected(name);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse::<EstimatorId>().unwrap())
         .bootstrap_replicates(20)
         .build()
         .unwrap();
@@ -314,12 +311,11 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
     // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
     let expected = load_expected("glm_adjustment");
     let (data, graph, query) = glm_binary_scm(2000, 23);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse::<EstimatorId>().unwrap())
         .bootstrap_replicates(20)
         .build()
         .unwrap();
@@ -363,12 +359,11 @@ fn estimate_rd_sharp_recovers_jump() {
     let (data, query) = rd_scm(3000, 25);
     // Synthetic empty DAG; RD path does not use graph identification.
     let graph = Dag::with_variables(3);
-    let analysis = CausalAnalysis::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .identifier("rd.sharp")
-        .estimator("rd.sharp")
+        .identifier(IdentifierId::RdSharp)
+        .estimator(EstimatorId::RdSharp)
         .rd_config(VariableId::from_raw(2), 0.0, 1.5)
         .bootstrap_replicates(20)
         .build()

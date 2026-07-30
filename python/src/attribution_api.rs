@@ -58,12 +58,13 @@ fn counterfactual_ite(
     })
 }
 
-/// Fit GCM and return interventional column means + draws under hard `do(treatment=value)`.
+/// Fit GCM and return interventional column means + draws under `do(treatment=value)`
+/// (hard set) or `do(treatment := treatment + value)` (additive shift, when `shift=True`).
 ///
 /// `mechanism_wrappers` maps variable name → object with `sample_noise(n)` / `evaluate(parents, noise)`
 /// ( slow path).
 #[pyfunction]
-#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1, mechanism_wrappers=None))]
+#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1, mechanism_wrappers=None, shift=false))]
 fn sample_do_py(
     py: Python<'_>,
     names: Vec<String>,
@@ -75,6 +76,7 @@ fn sample_do_py(
     seed: u64,
     threads: u32,
     mechanism_wrappers: Option<Bound<'_, PyDict>>,
+    shift: bool,
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -96,14 +98,12 @@ fn sample_do_py(
         };
         let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
-        let samples = facade_sample_do(
-            &model,
-            &[Intervention::set(t_id, Value::f64(do_value))],
-            n_draws,
-            &mut rng,
-            &ctx,
-        )
-        .map_err(py_err)?;
+        let iv = if shift {
+            Intervention::shift(t_id, Value::f64(do_value))
+        } else {
+            Intervention::set(t_id, Value::f64(do_value))
+        };
+        let samples = facade_sample_do(&model, &[iv], n_draws, &mut rng, &ctx).map_err(py_err)?;
         let mut means = Vec::with_capacity(samples.n_nodes);
         for i in 0..samples.n_nodes {
             let start = i * samples.n_rows;
@@ -120,8 +120,10 @@ fn sample_do_py(
 /// Sample an interventional distribution via [`InterventionalDistributionQuery`].
 ///
 /// Same return shape as [`gcm_sample_do`]; builds the typed query then samples.
+/// `do_value` is a hard set (`do(treatment := do_value)`) unless `shift=True`, in
+/// which case it is an additive delta (`do(treatment := treatment + do_value)`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=1, shift=false))]
 fn sample_interventional_distribution(
     py: Python<'_>,
     names: Vec<String>,
@@ -133,6 +135,7 @@ fn sample_interventional_distribution(
     outcome: Option<String>,
     seed: u64,
     threads: u32,
+    shift: bool,
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -147,10 +150,12 @@ fn sample_interventional_distribution(
         let y_id = data.schema().id_of(y_name).map_err(py_err)?;
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let query = InterventionalDistributionQuery::new(
-            y_id,
-            [Intervention::set(t_id, Value::f64(do_value))],
-        );
+        let iv = if shift {
+            Intervention::shift(t_id, Value::f64(do_value))
+        } else {
+            Intervention::set(t_id, Value::f64(do_value))
+        };
+        let query = InterventionalDistributionQuery::new(y_id, [iv]);
         let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
         let samples = facade_sample_interventional_distribution(
@@ -393,6 +398,10 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
                 }
             })
             .collect();
+        // Artifacts built via `PosteriorArtifact.from_moments` (no draws) round-trip as
+        // summary-only: an empty draws payload signals `draws_encoding = "none"` rather
+        // than a (nonsensical) zero-length full-draws section.
+        let draws_encoding = if artifact.draws.is_empty() { "none" } else { "f64_le_colmajor" };
         let meta = CausalPosteriorWire {
             quantities,
             n_draws: u32::try_from(artifact.n_draws)
@@ -406,7 +415,7 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
             backend_id: artifact.backend_id.clone(),
             converged: artifact.converged,
             hessian_condition: artifact.hessian_condition,
-            draws_encoding: "f64_le_colmajor".into(),
+            draws_encoding: draws_encoding.into(),
         };
         let art = encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION)
             .map_err(py_err)?;
@@ -565,7 +574,6 @@ fn attribute_distribution_change_robust(
     seed: u64,
     threads: u32,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let _ = n_samples;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -583,10 +591,13 @@ fn attribute_distribution_change_robust(
             },
             components: AttributionComponents::Mechanisms,
             allocation: AllocationMethod::Shapley {
-                approximation: ShapleyConfig::monte_carlo(200),
+                approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             },
             max_components: 64,
         };
+        // `RobustChangeOptions` only exposes `max_rows`; it has no `n_samples`/`seed`
+        // fields to thread through (unlike `DistributionChangeOptions`), so the fix
+        // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
         let opts = antecedent::gcm::RobustChangeOptions::default();
         let ctx = py_execution_context(seed, threads);
         let result =
@@ -648,6 +659,7 @@ fn mechanism_change_detection(
                     node: name,
                     statistic: d.statistic,
                     p_value: d.p_value,
+                    adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
                 }
             })

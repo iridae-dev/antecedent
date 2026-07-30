@@ -2,19 +2,23 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
+use thiserror::Error;
 
 /// Artifact IO errors.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
 pub enum IoError {
     /// Bad magic bytes.
+    #[error("bad artifact magic")]
     BadMagic,
     /// Unsupported container version.
+    #[error("unsupported container version {version}")]
     UnsupportedVersion {
         /// Observed version.
         version: u32,
     },
     /// Unsupported artifact format version (major.minor).
+    #[error("unsupported artifact format {major}.{minor}")]
     UnsupportedFormat {
         /// Major.
         major: u16,
@@ -22,29 +26,37 @@ pub enum IoError {
         minor: u16,
     },
     /// CBOR encode/decode failure.
+    #[error("cbor error: {0}")]
     Cbor(String),
     /// Checksum mismatch.
+    #[error("checksum mismatch for section `{section}`")]
     ChecksumMismatch {
         /// Section id.
         section: String,
     },
     /// Manifest/payload inconsistency.
+    #[error("manifest mismatch: {message}")]
     ManifestMismatch {
         /// Explanation.
         message: &'static str,
     },
     /// Payload too large for u32 length prefix.
+    #[error("payload too large")]
     TooLarge,
     /// Underlying IO.
+    #[error("io error: {0}")]
     Io(String),
     /// Graph/schema conversion.
+    #[error("convert error: {0}")]
     Convert(String),
     /// Unknown or unsupported section compression algorithm.
+    #[error("unsupported section compression `{algo}`")]
     UnsupportedCompression {
         /// Algorithm name from the manifest.
         algo: String,
     },
     /// Section decompression failure.
+    #[error("decompress section `{section}`: {message}")]
     Decompress {
         /// Section id.
         section: String,
@@ -52,47 +64,12 @@ pub enum IoError {
         message: String,
     },
     /// Requested a mapped logical view of a compressed section.
+    #[error("section `{section}` is compressed; mapped views require uncompressed sections")]
     MappedCompressed {
         /// Section id.
         section: String,
     },
 }
-
-impl fmt::Display for IoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BadMagic => write!(f, "bad artifact magic"),
-            Self::UnsupportedVersion { version } => {
-                write!(f, "unsupported container version {version}")
-            }
-            Self::UnsupportedFormat { major, minor } => {
-                write!(f, "unsupported artifact format {major}.{minor}")
-            }
-            Self::Cbor(msg) => write!(f, "cbor error: {msg}"),
-            Self::ChecksumMismatch { section } => {
-                write!(f, "checksum mismatch for section `{section}`")
-            }
-            Self::ManifestMismatch { message } => write!(f, "manifest mismatch: {message}"),
-            Self::TooLarge => write!(f, "payload too large"),
-            Self::Io(msg) => write!(f, "io error: {msg}"),
-            Self::Convert(msg) => write!(f, "convert error: {msg}"),
-            Self::UnsupportedCompression { algo } => {
-                write!(f, "unsupported section compression `{algo}`")
-            }
-            Self::Decompress { section, message } => {
-                write!(f, "decompress section `{section}`: {message}")
-            }
-            Self::MappedCompressed { section } => {
-                write!(
-                    f,
-                    "section `{section}` is compressed; mapped views require uncompressed sections"
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for IoError {}
 
 impl From<std::io::Error> for IoError {
     fn from(value: std::io::Error) -> Self {

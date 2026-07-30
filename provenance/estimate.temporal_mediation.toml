@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Mediation analysis / path-product effects", sections = ["linear SEM NDE/NIE"] },
+ { title = "The Moderator-Mediator Variable Distinction in Social Psychological Research: Conceptual, Strategic, and Statistical Considerations", doi = "10.1037/0022-3514.51.6.1173", sections = ["product-of-coefficients mediation"] },
 ]
 
 upstream_implementations_observed = [
@@ -14,6 +14,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "unit test recovers positive mediated effect",
+ "unit test recovers positive mediated effect (crates/antecedent-estimate/src/temporal_mediation.rs)",
  "conformance/context/temporal_mediation",
+ "conformance/estimate/temporal_mediation_grid",
 ]

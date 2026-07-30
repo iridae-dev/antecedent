@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Counterfactual errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CounterfactualError {
     /// Model / shape issue.
     #[error(transparent)]

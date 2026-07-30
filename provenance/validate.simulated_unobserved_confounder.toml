@@ -1,0 +1,17 @@
+feature_id = "validate.simulated_unobserved_confounder"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Sensitivity to Exogeneity Assumptions in Program Evaluation", doi = "10.1257/000282803321946921", sections = ["Simulated confounder with specified treatment/outcome loadings"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-validate/src/unobserved_common_cause.rs unit tests",
+ "conformance/validate/refuters",
+]

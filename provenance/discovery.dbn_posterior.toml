@@ -1,0 +1,17 @@
+feature_id = "discovery.dbn_posterior"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Learning the Structure of Dynamic Probabilistic Networks", doi = "10.48550/arXiv.1301.7374", sections = ["bounded-lag template DBN structure search"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score on the aligned lagged design"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/dbn_posterior.rs unit tests",
+]

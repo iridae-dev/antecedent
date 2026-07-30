@@ -1,4 +1,4 @@
-// Free functions supporting CausalAnalysis execute paths.
+// Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
@@ -75,21 +75,54 @@ pub(super) fn maybe_interactive_envelope_subsample(
     Ok((sub.graphs, filtered))
 }
 
+/// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
+///
+/// The estimate itself is computed elsewhere (by the fitted parametric SCM, not by evaluating
+/// a backdoor-adjustment formula); this function only produces the *inspectable* estimand
+/// metadata. Like `stub_accepted_graph_for` (in `analysis::builder`), the adjustment set stays
+/// deliberately empty — GCM does not identify via a backdoor covariate set — but unlike the
+/// placeholder this replaced, `functional` is a real expression naming the actual
+/// `treatment`/`outcome` pair rather than a nil `ExprId` into an empty arena, so the estimand
+/// is honest about which variables it refers to. The node is a minimal
+/// `Expectation`/`Distribution` leaf (not `CausalExprArena::backdoor_ate`'s `Product`/`SumOut`
+/// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
+/// `functional` via the arena's generic evaluator — there is no adjustment-set
+/// marginalization here to (mis)compute.
 pub(super) fn parametric_scm_identification(
     query: CausalQuery,
-    _treatment: VariableId,
-    _outcome: VariableId,
+    treatment: VariableId,
+    outcome: VariableId,
 ) -> (IdentificationResult, IdentifiedEstimand) {
-    let estimand = IdentifiedEstimand::backdoor(
-        "gcm.parametric",
-        Arc::from([]),
-        antecedent_expr::ExprId::from_raw(0),
+    let mut arena = CausalExprArena::new();
+    let y = arena.intern_var_set([outcome]);
+    let do_t = arena.intern_intervention_set([treatment]);
+    let empty = arena.empty_var_set();
+    let distribution = arena.intern(ExprNode::Distribution {
+        variables: y,
+        conditioned_on: empty,
+        intervention: do_t,
+        domain: DomainRef::Interventional,
+    });
+    let functional = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution,
+    });
+    arena.set_derivation(
+        functional,
+        DerivationMeta {
+            rule: Arc::from("gcm.parametric"),
+            note: Some(Arc::from(format!(
+                "parametric SCM: treatment={treatment:?} outcome={outcome:?}; no adjustment \
+                 set (GCM does not identify via backdoor covariates)"
+            ))),
+        },
     );
+    let estimand = IdentifiedEstimand::backdoor("gcm.parametric", Arc::from([]), functional);
     let identification = IdentificationResult::from_parts(
         IdentificationStatus::IdentifiedUnderParametricRestrictions,
         query,
         vec![estimand.clone()],
-        CausalExprArena::new(),
+        arena,
         DerivationTrace::default(),
         antecedent_core::AssumptionSet::default(),
         Vec::new(),
@@ -104,13 +137,13 @@ pub(super) fn binary_cf_interventions(
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
-            message: "CausalAnalysis counterfactual path currently supports a single hard \
+            message: "Study counterfactual path currently supports a single hard \
                  intervention for ITE (use gcm helpers for multi-world predict)",
         });
     }
     let Intervention::Set { variable, value } = &query.interventions[0] else {
         return Err(CausalError::Unsupported {
-            message: "CausalAnalysis counterfactual path requires a hard Set intervention",
+            message: "Study counterfactual path requires a hard Set intervention",
         });
     };
     let active = value.as_f64().ok_or_else(|| CausalError::Compile {
@@ -159,16 +192,6 @@ pub(super) fn envelope_to_identification_result(
         IdentificationPerformanceRecord::default(),
         None,
     )
-}
-
-pub(super) fn mark_panel_classification(compiled: CompiledAnalysis) -> CompiledAnalysis {
-    match compiled {
-        CompiledAnalysis::Ready(mut physical) => {
-            physical.logical.record.data_classification = DataClassification::Panel;
-            CompiledAnalysis::Ready(physical)
-        }
-        other => other,
-    }
 }
 
 pub(super) fn admg_has_bidirected(admg: &Admg) -> bool {

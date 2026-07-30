@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "antecedent"
-version = "0.3.0"
+version = "0.4.0"
 description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,11 @@ dependencies = [
   "numpy>=1.26",
 ]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: 3",
@@ -38,10 +43,19 @@ dev = [
     "maturin>=1.14.1",
     "mypy>=1.17.0",
     "numpy>=2.4.6",
+    "pandas>=2.2.0",
     "pyarrow>=25.0.0",
     "pytest>=9.1.1",
+    "pytest-cov>=6.0.0",
     "ruff>=0.12.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["antecedent"]
+omit = ["antecedent/_native.pyi"]
 
 [tool.ruff]
 target-version = "py311"
@@ -86,3 +100,9 @@ disallow_incomplete_defs = false
 disallow_untyped_defs = false
 warn_return_any = false
 show_error_codes = true
+
+# pandas is an optional runtime dependency, imported lazily inside
+# ValidationView.to_pandas(); it ships no type stubs here.
+[[tool.mypy.overrides]]
+module = "pandas.*"
+ignore_missing_imports = true

@@ -1,0 +1,19 @@
+feature_id = "graph.completion"
+implementation_crate = "antecedent-graph"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["MAG definition (ancestral graph, no directed or almost-directed cycles)"] },
+ { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["valid PAG-to-MAG orientation completions"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-graph/src/completion.rs)",
+ "clean-room exhaustive endpoint enumeration with MAG validity filter (conformance/graph/pag_mag_completion)",
+ "crates/antecedent-graph/tests/oracle_closure.rs",
+]

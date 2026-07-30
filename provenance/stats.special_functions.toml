@@ -1,0 +1,31 @@
+feature_id = "stats.special_functions"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# normal_ppf transcribes Peter Acklam's published rational-approximation coefficients for
+# the standard-normal inverse CDF ("An algorithm for computing the inverse normal
+# cumulative distribution function", Acklam, 2003), refined by one Halley step against the
+# Cody-rational CDF/PDF from antecedent-kernels (see kernels.special_functions.toml). Acklam's
+# note was self-published online, not in a peer-reviewed journal, and carries no DOI, so it
+# is disclosed below rather than cited as a paper; exposure is "none" because the published
+# coefficient table is the source, not any library's implementation of it.
+# student_t_sf / student_t_ppf and the incomplete-beta /
+# incomplete-gamma machinery are classical continued-fraction numerical methods (in the
+# spirit of Numerical Recipes) with no single attributable origin paper for this exact
+# implementation; they are not treated as a claimed citation here.
+
+papers = [
+ { title = "Rational Chebyshev Approximations for the Error Function", doi = "10.1090/S0025-5718-1969-0247736-4", sections = ["underlying erf/erfc via antecedent-kernels"] },
+]
+
+upstream_implementations_observed = [
+ { project = "Acklam inverse-normal-CDF algorithm", exposure = "none" },
+]
+
+test_sources = [
+ "crates/antecedent-stats/src/special.rs unit tests",
+ "conformance/stats/rng_gaussian (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+]

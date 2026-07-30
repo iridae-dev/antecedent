@@ -55,6 +55,14 @@ pub struct IdentificationEnvelope<G> {
     pub critical_graph_features: Vec<GraphFeature>,
     /// Aggregate status.
     pub status: IdentificationStatus,
+    /// Count of cases whose search was truncated before it could determine identifiability
+    /// (e.g. a MAG-completion enumeration cap exceeded, see
+    /// [`crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE`]), as opposed to a case whose
+    /// search completed and proved non-identifiability. Truncated cases still contribute to
+    /// `unidentified_weight` like any other unidentified case (unidentified mass is never
+    /// dropped) — this counter exists so a caller can tell the two apart instead of silently
+    /// treating "we could not tell" the same as "we proved it's impossible".
+    pub truncated_completions: usize,
 }
 
 impl<G> IdentificationEnvelope<G> {
@@ -106,6 +114,14 @@ impl<G> IdentificationEnvelope<G> {
             invariant = None;
         }
         let critical_graph_features = collect_critical_features(&cases, status, unidentified);
+        let truncated_completions = cases
+            .iter()
+            .filter(|c| {
+                c.result.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                })
+            })
+            .count();
         Self {
             invariant,
             cases,
@@ -113,6 +129,7 @@ impl<G> IdentificationEnvelope<G> {
             unidentified_weight: ProbabilityMass(unidentified),
             critical_graph_features,
             status,
+            truncated_completions,
         }
     }
 

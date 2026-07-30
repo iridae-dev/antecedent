@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade.
+//! Unified `Study` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -15,28 +15,26 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, PopulationRegistry, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TabularData,
+    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TableView, TabularData,
     TimeSeriesData,
 };
-use antecedent_discovery::{MultiDatasetConstraints, RegimeAssignment};
+use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::OverlapPolicy;
-use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
-use antecedent_stats::ConditionalIndependence;
+use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_validate::CustomEffectValidator;
 
+use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
+use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
-use crate::planner::GraphInput;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
-use super::execute::CausalAnalysis;
-use super::latency::{
-    ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_discovery_under_interactive,
-    refuse_non_report_hmc,
-};
+use super::execute::Study;
+use super::latency::{ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_non_report_hmc};
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -57,14 +55,14 @@ pub(crate) enum DataInput {
     Temporal(TimeSeriesData),
     /// Event data aligned onto a regular duration grid (stored as series).
     Event(TimeSeriesData),
-    /// Multi-environment series (J-PCMCI+ discover path).
+    /// Multi-environment series.
     MultiEnv(MultiEnvironmentData),
-    /// Multi-unit panel (pooled discover + stacked cluster-HAC estimate).
+    /// Multi-unit panel (stacked cluster-HAC estimate).
     Panel(PanelData),
 }
 
 /// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
-/// selected as the estimator (see [`CausalAnalysisBuilder::rd_config`]).
+/// selected as the estimator (see [`StudyBuilder::rd_config`]).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct RdConfig {
@@ -84,13 +82,128 @@ impl RdConfig {
     }
 }
 
+/// Placeholder structure for [`Study::graph`][super::execute::Study] when a graph
+/// posterior drives the analysis instead.
+///
+/// This carries only the shape (variable count / modality) needed for logical-plan
+/// bookkeeping (row counts, data classification, …). It is never consulted for
+/// identification — identification runs per-graph, against the real posterior atoms,
+/// inside `execute()`. `n_vars` comes from the supplied [`GraphPosterior`], not from
+/// re-inspecting `data`, so it always matches the ensemble the caller discovered.
+fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGraph, CausalError> {
+    match data {
+        DataInput::Tabular(_) => {
+            let n = u32::try_from(n_vars).map_err(|_| CausalError::Compile {
+                message: "too many variables for graph-posterior stub graph".into(),
+            })?;
+            Ok(AcceptedGraph::dag(Dag::with_variables(n)))
+        }
+        DataInput::Temporal(_) | DataInput::Event(_) => {
+            Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
+        }
+        DataInput::MultiEnv(_) | DataInput::Panel(_) => Err(CausalError::Unsupported {
+            message: "graph-posterior analysis supports tabular or temporal/event data only",
+        }),
+    }
+}
+
+/// Borrow the schema backing `data`, regardless of modality.
+fn data_schema(data: &DataInput) -> &CausalSchema {
+    match data {
+        DataInput::Tabular(d) => d.schema(),
+        DataInput::Temporal(d) | DataInput::Event(d) => d.schema(),
+        DataInput::MultiEnv(d) => d.schema(),
+        DataInput::Panel(d) => d.schema(),
+    }
+}
+
+/// Node count of `graph`, for classes where a node is one variable.
+///
+/// `None` for the temporal classes: their nodes are (variable, lag) pairs, so
+/// `node_count()` is a multiple of the variable count rather than equal to it, and
+/// there is no accessor here that recovers the lag depth honestly. Static classes
+/// (`Dag`, `Admg`, `Cpdag`, `Pag`) are positional — node `i` *is* variable `i` — so
+/// their node count is directly comparable to a schema's variable count.
+fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
+    match graph.class() {
+        GraphClass::Dag => graph.as_dag().map(Dag::node_count),
+        GraphClass::Admg => graph.as_admg().map(Admg::node_count),
+        GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
+        GraphClass::Pag => graph.as_pag().map(Pag::node_count),
+        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => None,
+    }
+}
+
+/// Refuse a `graph` whose node indices cannot possibly describe `schema`.
+///
+/// Static graph nodes are positional (`DenseNodeId(i)` is `VariableId(i)`) with no
+/// stored record of which schema those indices meant — a structure built against one
+/// schema is silently meaningless against another with the same shape. Two
+/// independent checks guard against that:
+///
+/// - **Shape** (always, static classes only): the graph's node count must equal the
+///   number of variables in `schema`. Temporal classes are exempt (see
+///   [`static_node_count`]).
+/// - **Names** (only when the graph was bound via [`AcceptedGraph::with_schema`]):
+///   the bound variable names must match `schema`'s names, in order. This check
+///   applies to every class, temporal included, because the bound name list is
+///   variable-level, not node-level — comparing it needs no lag arithmetic.
+///
+/// # Errors
+///
+/// [`CausalError::SchemaMismatch`] on either disagreement.
+fn validate_schema_binding(
+    graph: &AcceptedGraph,
+    schema: &CausalSchema,
+) -> Result<(), CausalError> {
+    if let Some(node_count) = static_node_count(graph) {
+        let n_vars = schema.len();
+        if node_count != n_vars {
+            return Err(CausalError::SchemaMismatch {
+                detail: format!(
+                    "graph has {node_count} nodes but data has {n_vars} variables; the \
+                     structure does not describe this table"
+                ),
+            });
+        }
+    }
+
+    if let Some(names) = graph.variable_names() {
+        let data_vars = schema.variables();
+        if names.len() != data_vars.len() {
+            return Err(CausalError::SchemaMismatch {
+                detail: format!(
+                    "graph is bound to {} variables but data has {} variables; the structure \
+                     does not describe this table",
+                    names.len(),
+                    data_vars.len()
+                ),
+            });
+        }
+        for (i, (bound_name, var)) in names.iter().zip(data_vars.iter()).enumerate() {
+            if bound_name.as_ref() != var.name.as_ref() {
+                return Err(CausalError::SchemaMismatch {
+                    detail: format!(
+                        "graph is bound to variable {i} `{bound_name}` but data has `{}` at \
+                         that position; the structure was built against a different schema",
+                        var.name
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Builder for static or temporal analysis.
 #[derive(Clone)]
-pub struct CausalAnalysisBuilder {
-    data: Option<DataInput>,
-    /// Pending event alignment applied in [`Self::build`].
-    event_pending: Option<(EventData, u64)>,
-    graph: Option<GraphInput>,
+pub struct StudyBuilder {
+    data: DataInput,
+    graph: Option<AcceptedGraph>,
+    /// Alternative to [`Self::graph`]: a posterior over structures rather than one
+    /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
+    graph_posterior: Option<GraphPosterior>,
     query: Option<CausalQuery>,
     refute: RefuteSuite,
     /// Whether [`Self::refute`] was set explicitly (wins over latency mode).
@@ -101,6 +214,10 @@ pub struct CausalAnalysisBuilder {
     split: Option<DiscoveryEstimationSplit>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
+    /// Caller-configured estimator (superset of [`Self::estimator`]); `Some` only when
+    /// [`StudyBuilder::estimator`] was called with a configured estimator rather
+    /// than a bare [`EstimatorId`].
+    estimator_spec: Option<EstimatorSpec>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
@@ -109,8 +226,6 @@ pub struct CausalAnalysisBuilder {
     overlap_policy: Option<OverlapPolicy>,
     /// Optional bindings for named predicates / custom target distributions.
     population_registry: Option<PopulationRegistry>,
-    /// Optional CI test for discovery paths (defaults to partial correlation).
-    discovery_ci: Option<Arc<dyn ConditionalIndependence + Send + Sync>>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
@@ -121,12 +236,12 @@ pub struct CausalAnalysisBuilder {
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
 
-impl std::fmt::Debug for CausalAnalysisBuilder {
+impl std::fmt::Debug for StudyBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CausalAnalysisBuilder")
-            .field("data", &self.data.as_ref().map(|_| "<data>"))
-            .field("event_pending", &self.event_pending.as_ref().map(|_| "<event>"))
+        f.debug_struct("StudyBuilder")
+            .field("data", &"<data>")
             .field("graph", &self.graph)
+            .field("graph_posterior", &self.graph_posterior)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
             .field("refute_explicit", &self.refute_explicit)
@@ -135,12 +250,12 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
             .field("split", &self.split)
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
+            .field("estimator_spec", &self.estimator_spec)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("n_draws_explicit", &self.n_draws_explicit)
             .field("overlap_policy", &self.overlap_policy)
             .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
-            .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
             .field("latency_mode", &self.latency_mode)
             .field("compute_budget", &self.compute_budget)
@@ -149,20 +264,12 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
     }
 }
 
-impl Default for CausalAnalysisBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl CausalAnalysisBuilder {
-    /// Start a builder.
-    #[must_use]
-    pub fn new() -> Self {
+impl StudyBuilder {
+    fn from_data(data: DataInput) -> Self {
         Self {
-            data: None,
-            event_pending: None,
+            data,
             graph: None,
+            graph_posterior: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
             refute_explicit: false,
@@ -171,12 +278,12 @@ impl CausalAnalysisBuilder {
             split: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             rd: None,
             inference: InferenceMode::Frequentist,
             n_draws_explicit: false,
             overlap_policy: None,
             population_registry: None,
-            discovery_ci: None,
             custom_validators: Vec::new(),
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
@@ -184,406 +291,31 @@ impl CausalAnalysisBuilder {
         }
     }
 
-    /// Supply tabular data.
+    /// Supply the causal structure. Accepts an [`AcceptedGraph`] directly, or any type
+    /// with `impl Into<AcceptedGraph>` — [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
+    /// [`antecedent_graph::Pag`], [`antecedent_graph::TemporalDag`], and
+    /// [`antecedent_graph::TemporalPag`] all convert infallibly. A [`antecedent_graph::Cpdag`]
+    /// or [`antecedent_graph::TemporalCpdag`] is not `Into<AcceptedGraph>` (they can carry
+    /// unresolved marks) — build one via the fallible [`AcceptedGraph::cpdag`] /
+    /// [`AcceptedGraph::temporal_cpdag`] first.
     #[must_use]
-    pub fn data(mut self, data: TabularData) -> Self {
-        self.event_pending = None;
-        self.data = Some(DataInput::Tabular(data));
+    pub fn graph(mut self, structure: impl Into<AcceptedGraph>) -> Self {
+        self.graph = Some(structure.into());
         self
     }
 
-    /// Supply temporal series data.
-    #[must_use]
-    pub fn series(mut self, data: TimeSeriesData) -> Self {
-        self.event_pending = None;
-        self.data = Some(DataInput::Temporal(data));
-        self
-    }
-
-    /// Supply multi-environment series (required for J-PCMCI+ discovery).
-    #[must_use]
-    pub fn series_multi(mut self, data: MultiEnvironmentData) -> Self {
-        self.event_pending = None;
-        self.data = Some(DataInput::MultiEnv(data));
-        self
-    }
-
-    /// Supply irregular event data; aligned onto a regular duration grid at [`Self::build`].
+    /// Supply a posterior over graph structures instead of a single accepted graph.
     ///
-    /// `align_interval_ns` is the bin width (§5.4). Integer-lag algorithms then run on
-    /// the aligned series; raw event indices are never treated as lags.
+    /// The effect is estimated per graph and combined into an envelope; unidentified
+    /// posterior mass is retained on the result rather than being renormalised away.
+    /// Mutually exclusive with [`StudyBuilder::graph`] — setting both is refused at
+    /// [`Self::build`] time ([`CausalError::Conflict`]). Requires
+    /// [`crate::inference::InferenceMode::Bayesian`] (checked when the analysis is
+    /// compiled, not here): a graph posterior is a mixture over structures, and only
+    /// Bayesian inference can combine per-graph effect draws into an envelope.
     #[must_use]
-    pub fn events(mut self, data: EventData, align_interval_ns: u64) -> Self {
-        self.data = None;
-        self.event_pending = Some((data, align_interval_ns));
-        self
-    }
-
-    /// Supply multi-unit panel data (J-PCMCI+ discover; stacked PanelClusterHac estimate).
-    #[must_use]
-    pub fn panel(mut self, data: PanelData) -> Self {
-        self.event_pending = None;
-        self.data = Some(DataInput::Panel(data));
-        self
-    }
-
-    /// Supply a validated static DAG.
-    #[must_use]
-    pub fn graph(mut self, graph: Dag) -> Self {
-        self.graph = Some(GraphInput::Static(graph));
-        self
-    }
-
-    /// Supply a temporal DAG template.
-    #[must_use]
-    pub fn temporal_graph(mut self, graph: TemporalDag) -> Self {
-        self.graph = Some(GraphInput::Temporal(graph));
-        self
-    }
-
-    /// Discover with PCMCI (typically yields [`CompiledAnalysis::ReviewRequired`]).
-    #[must_use]
-    pub fn discover_pcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with PCMCI+ (typically yields [`CompiledAnalysis::ReviewRequiredCpdag`]).
-    ///
-    /// `accept` only auto-completes when the oriented CPDAG has no undirected marks;
-    /// otherwise compile still returns review-required (no silent coercion).
-    #[must_use]
-    pub fn discover_pcmci_plus(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmciPlus {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with J-PCMCI+ (requires [`Self::series_multi`]; typically review-required).
-    #[must_use]
-    pub fn discover_jpcmci_plus(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-        multi_dataset: MultiDatasetConstraints,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverJpcmciPlus {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-            multi_dataset,
-        });
-        self
-    }
-
-    /// Discover with RPCMCI (requires caller-supplied regime assignment).
-    #[must_use]
-    pub fn discover_rpcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-        regime_assignment: RegimeAssignment,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverRpcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-            regime_assignment,
-        });
-        self
-    }
-
-    /// Discover with LPCMCI (temporal PAG; typically [`CompiledAnalysis::ReviewRequiredPag`]).
-    #[must_use]
-    pub fn discover_lpcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverLpcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with static PC (tabular CPDAG; auto-finishes only when fully oriented).
-    #[must_use]
-    pub fn discover_pc(
-        mut self,
-        alpha: f64,
-        max_cond_size: usize,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverPc {
-            alpha,
-            max_cond_size,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with classic static FCI (tabular PAG).
-    ///
-    /// With [`crate::options::DiscoveryAccept::AutoAccept`], the PAG is accepted
-    /// as-is (circle marks go through generalized adjustment). With
-    /// [`crate::options::DiscoveryAccept::Review`], compile yields a review-required plan.
-    #[must_use]
-    pub fn discover_fci(
-        mut self,
-        alpha: f64,
-        max_cond_size: usize,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverFci {
-            alpha,
-            max_cond_size,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with classic static RFCI (tabular PAG).
-    ///
-    /// Same accept/review semantics as [`Self::discover_fci`].
-    #[must_use]
-    pub fn discover_rfci(
-        mut self,
-        alpha: f64,
-        max_cond_size: usize,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverRfci {
-            alpha,
-            max_cond_size,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with GES (tabular CPDAG; auto-finishes only when fully oriented).
-    #[must_use]
-    pub fn discover_ges(
-        mut self,
-        alpha: f64,
-        max_cond_size: usize,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverGes {
-            alpha,
-            max_cond_size,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with DirectLiNGAM (tabular DAG; auto-accept clears pending edges).
-    #[must_use]
-    pub fn discover_lingam(
-        mut self,
-        max_cond_size: usize,
-        prune_threshold: f64,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverLingam {
-            max_cond_size,
-            prune_threshold,
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with NOTEARS (tabular continuous SEM → DAG).
-    #[must_use]
-    pub fn discover_notears(
-        mut self,
-        max_cond_size: usize,
-        lambda: f64,
-        threshold: f64,
-        standardize: bool,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverNotears {
-            max_cond_size,
-            lambda,
-            threshold,
-            standardize,
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Exact DAG posterior → Bayesian effect envelope (requires `inference=Bayesian`).
-    #[must_use]
-    pub fn discover_exact_dag_posterior(mut self) -> Self {
-        self.graph = Some(GraphInput::DiscoverExactDagPosterior);
-        self
-    }
-
-    /// Order MCMC DAG posterior → Bayesian effect envelope.
-    #[must_use]
-    pub fn discover_order_mcmc(
-        mut self,
-        n_chains: u32,
-        n_warmup: u32,
-        n_draws: u32,
-        thin: u32,
-        require_diagnostics_gate: bool,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverOrderMcmc {
-            n_chains,
-            n_warmup,
-            n_draws,
-            thin,
-            require_diagnostics_gate,
-        });
-        self
-    }
-
-    /// Structure MCMC DAG posterior → Bayesian effect envelope.
-    #[must_use]
-    pub fn discover_structure_mcmc(
-        mut self,
-        n_chains: u32,
-        n_warmup: u32,
-        n_draws: u32,
-        thin: u32,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverStructureMcmc { n_chains, n_warmup, n_draws, thin });
-        self
-    }
-
-    /// CI-screened structure MCMC posterior → Bayesian effect envelope.
-    #[must_use]
-    pub fn discover_ci_screened_posterior(
-        mut self,
-        alpha: f64,
-        max_cond_size: usize,
-        fdr: crate::options::FdrControl,
-        soft_weight: antecedent_discovery::CiSoftWeight,
-        n_chains: u32,
-        n_warmup: u32,
-        n_draws: u32,
-        thin: u32,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverCiScreenedPosterior {
-            alpha,
-            fdr: fdr.adjustment(),
-            max_cond_size,
-            soft_weight,
-            n_chains,
-            n_warmup,
-            n_draws,
-            thin,
-        });
-        self
-    }
-
-    /// DBN template posterior → temporal Bayesian effect envelope.
-    #[must_use]
-    pub fn discover_dbn_posterior(
-        mut self,
-        max_lag: u32,
-        force_mcmc: bool,
-        n_chains: u32,
-        n_warmup: u32,
-        n_draws: u32,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverDbnPosterior {
-            max_lag,
-            force_mcmc,
-            n_chains,
-            n_warmup,
-            n_draws,
-        });
-        self
-    }
-
-    /// Override the CI test used by discovery paths (defaults to partial correlation).
-    #[must_use]
-    pub fn discovery_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
-        self.discovery_ci = Some(ci);
-        self
-    }
-
-    /// Append custom effect validators ( slow path).
-    #[must_use]
-    pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
-        self.custom_validators = validators;
-        self
-    }
-
-    /// Supply a static PAG (class-aware identification required; DAG-only IDs are refused).
-    #[must_use]
-    pub fn pag(mut self, graph: Pag) -> Self {
-        self.graph = Some(GraphInput::Pag(graph));
-        self
-    }
-
-    /// Supply a static CPDAG (auto-completes to a DAG when fully oriented).
-    #[must_use]
-    pub fn cpdag(mut self, graph: Cpdag) -> Self {
-        self.graph = Some(GraphInput::Cpdag(graph));
-        self
-    }
-
-    /// Supply a static ADMG (general ID when bidirected edges are present).
-    #[must_use]
-    pub fn admg(mut self, graph: Admg) -> Self {
-        self.graph = Some(GraphInput::Admg(graph));
-        self
-    }
-
-    /// Supply a temporal PAG (review / class-aware identification required).
-    #[must_use]
-    pub fn temporal_pag(mut self, graph: TemporalPag) -> Self {
-        self.graph = Some(GraphInput::TemporalPag(graph));
-        self
-    }
-
-    /// Supply a temporal CPDAG (auto-completes when fully oriented).
-    #[must_use]
-    pub fn temporal_cpdag(mut self, graph: TemporalCpdag) -> Self {
-        self.graph = Some(GraphInput::TemporalCpdag(graph));
+    pub fn graph_posterior(mut self, posterior: GraphPosterior) -> Self {
+        self.graph_posterior = Some(posterior);
         self
     }
 
@@ -606,13 +338,6 @@ impl CausalAnalysisBuilder {
         }
         self.query = Some(q);
         self
-    }
-
-    /// Generic causal query (alias of [`Self::query`]).
-    #[deprecated(note = "use query(...) instead")]
-    #[must_use]
-    pub fn causal_query(self, query: CausalQuery) -> Self {
-        self.query(query)
     }
 
     /// Temporal effect query (alias of [`Self::query`]).
@@ -674,24 +399,35 @@ impl CausalAnalysisBuilder {
     /// Select the identification strategy for the static ATE path.
     ///
     /// Defaults to [`IdentifierId::BackdoorAdjustment`] when unset. Wire strings such as
-    /// `"backdoor.adjustment"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`IdentifierId::TemporalBackdoorUnfolded`]).
+    /// `"backdoor.adjustment"` parse via `identifier.parse::<IdentifierId>()` (see its
+    /// [`std::str::FromStr`] impl). `compile` refuses any identifier/estimator pair outside
+    /// the allowlist. Ignored on the temporal path (which always uses
+    /// [`IdentifierId::TemporalBackdoorUnfolded`]).
     #[must_use]
-    pub fn identifier(mut self, id: impl Into<IdentifierId>) -> Self {
-        self.identifier = Some(id.into());
+    pub fn identifier(mut self, id: IdentifierId) -> Self {
+        self.identifier = Some(id);
         self
     }
 
     /// Select the estimator for the static ATE path.
     ///
     /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
-    /// `"linear.adjustment.ate"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`EstimatorId::TemporalLinearAdjustment`]).
+    /// `"linear.adjustment.ate"` parse via `estimator.parse::<EstimatorId>()` (see its
+    /// [`std::str::FromStr`] impl). `compile` refuses any identifier/estimator pair outside
+    /// the allowlist. Ignored on the temporal path (which always uses
+    /// [`EstimatorId::TemporalLinearAdjustment`]).
+    ///
+    /// Accepts either a bare [`EstimatorId`] (study fills bootstrap / overlap defaults, exactly
+    /// as before) or a fully caller-configured estimator (e.g.
+    /// `LinearAdjustmentAte::new().with_se_kind(..)`), via `impl Into<`[`EstimatorSpec`]`>`.
+    /// Combining a configured estimator with an explicit [`Self::bootstrap_replicates`] or
+    /// [`Self::overlap_policy`] is refused at [`Self::build`] time
+    /// ([`CausalError::Conflict`]) rather than silently picking a winner.
     #[must_use]
-    pub fn estimator(mut self, id: impl Into<EstimatorId>) -> Self {
-        self.estimator = Some(id.into());
+    pub fn estimator(mut self, spec: impl Into<EstimatorSpec>) -> Self {
+        let spec = spec.into();
+        self.estimator = Some(spec.id());
+        self.estimator_spec = Some(spec);
         self
     }
 
@@ -729,6 +465,13 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Append custom effect validators ( slow path).
+    #[must_use]
+    pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
+        self.custom_validators = validators;
+        self
+    }
+
     /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
@@ -739,7 +482,7 @@ impl CausalAnalysisBuilder {
 
     /// Stream intermediate stage payloads (identify → point → uncertainty → validate).
     ///
-    /// Final [`super::execute::CausalAnalysis::run`] still returns the complete result.
+    /// Final [`super::execute::Study::run`] still returns the complete result.
     #[must_use]
     pub fn stage_sink(mut self, sink: Arc<dyn super::stage::StageResultSink>) -> Self {
         self.stage_sink = Some(sink);
@@ -750,19 +493,53 @@ impl CausalAnalysisBuilder {
     ///
     /// # Errors
     ///
-    /// Missing required fields, event alignment failure, Interactive+HMC, or
-    /// Interactive+discovery graph.
-    pub fn build(self) -> Result<CausalAnalysis, CausalError> {
-        let data = if let Some((event, interval_ns)) = self.event_pending {
-            let aligned = event.align_to_grid(interval_ns).map_err(|e| CausalError::Compile {
-                message: format!("event align_to_grid: {e}"),
-            })?;
-            DataInput::Event(aligned)
-        } else {
-            self.data.ok_or(CausalError::Missing { field: "data" })?
+    /// Missing graph / query, Interactive+HMC, [`CausalError::Conflict`] when both
+    /// [`Self::graph`] and [`Self::graph_posterior`] were set (or when a configured
+    /// [`Self::estimator`] and an explicit [`Self::bootstrap_replicates`] /
+    /// [`Self::overlap_policy`] disagree about who owns that setting).
+    /// [`CausalError::SchemaMismatch`] when a directly-supplied [`Self::graph`]'s node
+    /// count does not match the data's variable count, or — when the graph was bound
+    /// via [`AcceptedGraph::with_schema`] — its bound variable names do not match the
+    /// data's, in order. Not checked for [`Self::graph_posterior`], which carries a
+    /// placeholder graph.
+    pub fn build(self) -> Result<Study, CausalError> {
+        if let Some(spec) = &self.estimator_spec {
+            if spec.is_configured() {
+                if self.bootstrap_explicit {
+                    return Err(CausalError::Conflict {
+                        what: "bootstrap_replicates",
+                        detail: "set on both the builder and the configured estimator; set it \
+                                 in one place (prefer the estimator)",
+                    });
+                }
+                if self.overlap_policy.is_some() {
+                    return Err(CausalError::Conflict {
+                        what: "overlap_policy",
+                        detail: "set on both the builder and the configured estimator; set it \
+                                 in one place (prefer the estimator)",
+                    });
+                }
+            }
+        }
+        let data = self.data;
+        let (graph, graph_posterior) = match (self.graph, self.graph_posterior) {
+            (Some(_), Some(_)) => {
+                return Err(CausalError::Conflict {
+                    what: "graph",
+                    detail: "both .graph(..) and .graph_posterior(..) were set; supply exactly \
+                             one causal-structure input",
+                });
+            }
+            (Some(g), None) => {
+                validate_schema_binding(&g, data_schema(&data))?;
+                (g, None)
+            }
+            (None, Some(gp)) => {
+                let stub = stub_accepted_graph_for(&data, gp.n_vars)?;
+                (stub, Some(gp))
+            }
+            (None, None) => return Err(CausalError::Missing { field: "graph" }),
         };
-
-        let graph = self.graph.ok_or(CausalError::Missing { field: "graph" })?;
         let mut refute = self.refute;
         let mut bootstrap_replicates = self.bootstrap_replicates;
         let mut inference = self.inference;
@@ -770,7 +547,6 @@ impl CausalAnalysisBuilder {
 
         if let Some(mode) = latency_mode {
             refuse_non_report_hmc(mode, &inference)?;
-            refuse_discovery_under_interactive(mode, &graph)?;
             let resolved =
                 ResolvedLatencyBudget::from_mode(mode).with_overrides(self.compute_budget);
             if !self.bootstrap_explicit {
@@ -812,23 +588,166 @@ impl CausalAnalysisBuilder {
             }
         }
 
-        Ok(CausalAnalysis {
+        Ok(Study {
             data,
             graph,
+            graph_posterior,
             query: self.query.ok_or(CausalError::Missing { field: "query" })?,
             refute,
             bootstrap_replicates,
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,
+            estimator_spec: self.estimator_spec,
             rd: self.rd,
             inference,
             overlap_policy: self.overlap_policy,
             population_registry: self.population_registry,
-            discovery_ci: self.discovery_ci,
             custom_validators: self.custom_validators,
             latency_mode,
             stage_sink: self.stage_sink,
         })
+    }
+}
+
+impl Study {
+    /// Start a builder over tabular data.
+    #[must_use]
+    pub fn tabular(data: TabularData) -> StudyBuilder {
+        StudyBuilder::from_data(DataInput::Tabular(data))
+    }
+
+    /// Start a builder over temporal series data.
+    #[must_use]
+    pub fn series(data: TimeSeriesData) -> StudyBuilder {
+        StudyBuilder::from_data(DataInput::Temporal(data))
+    }
+
+    /// Start a builder over multi-environment series (context-aware temporal analysis).
+    #[must_use]
+    pub fn series_multi(data: MultiEnvironmentData) -> StudyBuilder {
+        StudyBuilder::from_data(DataInput::MultiEnv(data))
+    }
+
+    /// Start a builder over multi-unit panel data (stacked cluster-HAC estimate).
+    #[must_use]
+    pub fn panel(data: PanelData) -> StudyBuilder {
+        StudyBuilder::from_data(DataInput::Panel(data))
+    }
+
+    /// Start a builder over irregular event data, aligned onto a regular duration grid
+    /// (§5.4) immediately — eagerly, at the call site, rather than deferred to `build()`.
+    /// Integer-lag algorithms then run on the aligned series; raw event indices are never
+    /// treated as lags.
+    ///
+    /// # Errors
+    ///
+    /// Event alignment failure (`align_interval_ns` incompatible with the event stream).
+    pub fn events(data: &EventData, align_interval_ns: u64) -> Result<StudyBuilder, CausalError> {
+        let aligned = data
+            .align_to_grid(align_interval_ns)
+            .map_err(|e| CausalError::Compile { message: format!("event align_to_grid: {e}") })?;
+        Ok(StudyBuilder::from_data(DataInput::Event(aligned)))
+    }
+}
+
+#[cfg(test)]
+mod estimator_spec_conflict_tests {
+    use antecedent_estimate::LinearAdjustmentAte;
+
+    use super::*;
+
+    /// Minimal valid tabular data. The conflict check in [`StudyBuilder::build`] runs
+    /// before the graph / query presence checks, so these tests never need a real
+    /// graph or query — only a builder that exists at all, which now requires data.
+    fn toy_data() -> TabularData {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let n = 4usize;
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(vec![0.0, 1.0, 0.0, 1.0]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(vec![1.0, 3.0, 1.1, 2.9]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        TabularData::new(storage)
+    }
+
+    fn toy_builder() -> StudyBuilder {
+        Study::tabular(toy_data())
+    }
+
+    #[test]
+    fn configured_estimator_plus_explicit_bootstrap_replicates_conflicts() {
+        let result = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .bootstrap_replicates(100)
+            .build();
+        match result {
+            Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "bootstrap_replicates"),
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn configured_estimator_plus_explicit_overlap_policy_conflicts() {
+        let result = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .overlap_policy(OverlapPolicy::ExplicitOverride)
+            .build();
+        match result {
+            Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "overlap_policy"),
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn configured_estimator_alone_does_not_conflict() {
+        let result = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .build();
+        assert!(!matches!(result, Err(CausalError::Conflict { .. })));
+    }
+
+    #[test]
+    fn explicit_bootstrap_replicates_alone_does_not_conflict() {
+        let result = toy_builder().bootstrap_replicates(100).build();
+        assert!(!matches!(result, Err(CausalError::Conflict { .. })));
     }
 }

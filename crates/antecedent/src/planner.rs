@@ -12,251 +12,14 @@ use antecedent_core::{
     PhysicalExecutionPlanRecord, TargetPopulation, TemporalEffectQuery,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use antecedent_graph::{
-    Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
-    TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
-};
-use antecedent_stats::FdrAdjustment;
+use antecedent_graph::{Dag, Pag, TemporalDag};
 
+use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, validate_distribution_pair, validate_path_specific_pair,
     validate_static_pair,
 };
-
-/// How the causal graph is supplied to the planner.
-#[derive(Clone, Debug)]
-pub enum GraphInput {
-    /// Validated static DAG.
-    Static(Dag),
-    /// Validated temporal DAG (template).
-    Temporal(TemporalDag),
-    /// Discover with PCMCI (review usually required).
-    DiscoverPcmci {
-        /// Max lag for PCMCI.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Discover with PCMCI+ (temporal CPDAG; review/orientation usually required).
-    DiscoverPcmciPlus {
-        /// Max lag for PCMCI+.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept directed edges when no undirected marks remain.
-        ///
-        /// If undirected contemporaneous edges remain after orientation, compile still
-        /// returns [`CompiledAnalysis::ReviewRequiredCpdag`] (never silently coerces).
-        accept_discovered: bool,
-    },
-    /// Supplied static PAG (class-aware identification required).
-    Pag(Pag),
-    /// Supplied static CPDAG (completes to DAG when fully oriented).
-    Cpdag(Cpdag),
-    /// Supplied static ADMG (general ID when bidirected edges exist; else DAG path).
-    Admg(Admg),
-    /// Supplied temporal PAG.
-    TemporalPag(TemporalPag),
-    /// Supplied temporal CPDAG (completes to temporal DAG when fully oriented).
-    TemporalCpdag(TemporalCpdag),
-    /// Discover with LPCMCI (temporal PAG).
-    DiscoverLpcmci {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with J-PCMCI+ (multi-environment / context; review usually required).
-    DiscoverJpcmciPlus {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-        /// Multi-dataset / context / dummy settings.
-        multi_dataset: antecedent_discovery::MultiDatasetConstraints,
-    },
-    /// Discover with RPCMCI (regime assignments + per-regime graphs).
-    DiscoverRpcmci {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when a single fully-oriented regime exists.
-        accept_discovered: bool,
-        /// Caller-supplied regime label per time index (required; no silent half-split).
-        regime_assignment: antecedent_discovery::RegimeAssignment,
-    },
-    /// Discover with static PC (tabular CPDAG → DAG when fully oriented).
-    DiscoverPc {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with classic static FCI (tabular PAG).
-    DiscoverFci {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
-        accept_discovered: bool,
-    },
-    /// Discover with classic static RFCI (tabular PAG; no Possible-D-Sep search).
-    DiscoverRfci {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
-        accept_discovered: bool,
-    },
-    /// Discover with GES (tabular CPDAG via Gaussian BIC).
-    DiscoverGes {
-        /// Significance level (used when PC screening is enabled on the algorithm).
-        alpha: f64,
-        /// Max conditioning-set size / parent bound hint.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment for optional PC screening (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with `DirectLiNGAM` (tabular DAG; auto-accept clears pending edges).
-    DiscoverLingam {
-        /// Max parent bound hint (via static constraints).
-        max_cond_size: usize,
-        /// Absolute OLS prune threshold.
-        prune_threshold: f64,
-        /// Auto-accept all discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Discover with NOTEARS (tabular continuous SEM → DAG).
-    DiscoverNotears {
-        /// Max parent bound hint (via static constraints).
-        max_cond_size: usize,
-        /// L1 penalty \(\lambda\).
-        lambda: f64,
-        /// Absolute soft-weight threshold for the hard DAG.
-        threshold: f64,
-        /// Standardize columns before solving (varsortability policy).
-        standardize: bool,
-        /// Auto-accept all discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Exact DAG posterior enumeration (Bayesian graph×effect mixture; n ≤ 6).
-    DiscoverExactDagPosterior,
-    /// Order MCMC DAG posterior (Bayesian graph×effect mixture).
-    DiscoverOrderMcmc {
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-        /// Refuse when chain diagnostics fail.
-        require_diagnostics_gate: bool,
-    },
-    /// Structure MCMC DAG posterior (Bayesian graph×effect mixture).
-    DiscoverStructureMcmc {
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-    },
-    /// CI-screened structure MCMC posterior (Bayesian graph×effect mixture).
-    DiscoverCiScreenedPosterior {
-        /// PC screen significance.
-        alpha: f64,
-        /// FDR adjustment for screening (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Max conditioning-set size for PC screen.
-        max_cond_size: usize,
-        /// Soft CI weight mode name (`none` | `bayes_factor` | `posterior_dependence`).
-        soft_weight: antecedent_discovery::CiSoftWeight,
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-    },
-    /// Bounded-lag DBN template posterior (temporal Bayesian graph×effect mixture).
-    DiscoverDbnPosterior {
-        /// Max lag.
-        max_lag: u32,
-        /// Force MCMC even when exact enumeration is feasible.
-        force_mcmc: bool,
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-    },
-}
-
-impl GraphInput {
-    /// True when this input runs a discovery algorithm at compile time.
-    ///
-    /// Supplied static/temporal graphs return `false`. Interactive estimate clicks
-    /// must use a supplied (accepted) artifact — never a `Discover*` variant.
-    #[must_use]
-    pub const fn is_discovery(&self) -> bool {
-        matches!(
-            self,
-            Self::DiscoverPcmci { .. }
-                | Self::DiscoverPcmciPlus { .. }
-                | Self::DiscoverLpcmci { .. }
-                | Self::DiscoverJpcmciPlus { .. }
-                | Self::DiscoverRpcmci { .. }
-                | Self::DiscoverPc { .. }
-                | Self::DiscoverFci { .. }
-                | Self::DiscoverRfci { .. }
-                | Self::DiscoverGes { .. }
-                | Self::DiscoverLingam { .. }
-                | Self::DiscoverNotears { .. }
-                | Self::DiscoverExactDagPosterior
-                | Self::DiscoverOrderMcmc { .. }
-                | Self::DiscoverStructureMcmc { .. }
-                | Self::DiscoverCiScreenedPosterior { .. }
-                | Self::DiscoverDbnPosterior { .. }
-        )
-    }
-}
 
 /// Logical plan after compile (semantics only).
 #[derive(Clone, Debug)]
@@ -396,35 +159,35 @@ impl LogicalAnalysisPlan {
             ctx.parallelism.max_threads.get()
         };
 
+        // An unknown/unparseable estimator on the wire (or a missing one) must not fail
+        // physical planning: fall back to the same labels the old `Other` escape produced
+        // ("analysis" task dimension, "ols.faer" kernel) so previously-serialized artifacts
+        // with an estimator name outside the current allowlist still load.
         let task_schedule: Arc<[ParallelTaskSpec]> = if workers == 0 {
             Arc::from([ParallelTaskSpec { dimension: Arc::from("serial"), units: 1 }])
         } else {
-            let estimator = self
+            let dimension = self
                 .record
                 .estimator
                 .as_deref()
-                .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
-            Arc::from([ParallelTaskSpec {
-                dimension: Arc::from(estimator.parallel_task_dimension()),
-                units: workers,
-            }])
+                .and_then(|s| s.parse::<EstimatorId>().ok())
+                .map_or("analysis", |e| e.parallel_task_dimension());
+            Arc::from([ParallelTaskSpec { dimension: Arc::from(dimension), units: workers }])
         };
 
-        let estimator = self
+        let kernel_label = self
             .record
             .estimator
             .as_deref()
-            .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
+            .and_then(|s| s.parse::<EstimatorId>().ok())
+            .map_or("ols.faer", |e| e.kernel_label());
         let record = PhysicalExecutionPlanRecord {
             plan_id: Arc::clone(&self.record.plan_id),
             materializations: Arc::from([(
                 Arc::from("design.matrix"),
                 BufferMaterialization::CopiedContiguous,
             )]),
-            kernels: Arc::from([(
-                Arc::from(estimator.kernel_label()),
-                KernelSelection::DenseBackend,
-            )]),
+            kernels: Arc::from([(Arc::from(kernel_label), KernelSelection::DenseBackend)]),
             batch_size: Some(n_rows as usize),
             workspace_bytes: Some(workspace),
             estimated_peak_memory_bytes: Some(peak),
@@ -479,49 +242,22 @@ impl PhysicalExecutionPlan {
     }
 }
 
-/// Result of compilation: ready to run, or graph review required.
-#[derive(Clone, Debug)]
-pub enum CompiledAnalysis {
-    /// Physical plan may execute.
-    Ready(PhysicalExecutionPlan),
-    /// Discovery / incomplete DAG needs human acceptance.
-    ReviewRequired(TemporalGraphReview),
-    /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
-    ReviewRequiredCpdag(TemporalCpdagReview),
-    /// Static PC CPDAG needs orientation before ATE estimation.
-    ReviewRequiredStaticCpdag(CpdagReview),
-    /// `DirectLiNGAM` (or other full-DAG discovery) needs edge acceptance.
-    ReviewRequiredStaticDag(DagReview),
-    /// Classic static FCI/RFCI PAG when `accept_discovered` is false (review UI).
-    ReviewRequiredStaticPag(PagReview),
-    /// LPCMCI / temporal PAG needs review (temporal backdoor is DAG-only today).
-    ReviewRequiredPag(TemporalPagReview),
-}
-
 /// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
 #[must_use]
-pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
-    identifier.into().is_dag_only()
+pub fn is_dag_only_identifier(identifier: IdentifierId) -> bool {
+    identifier.is_dag_only()
 }
 
-/// Refuse DAG-only identification on a PAG input.
+/// Refuse DAG-only identification on a PAG structure.
 ///
 /// # Errors
 ///
-/// [`CausalError::Compile`] when a DAG-only identifier is paired with PAG graph input.
+/// [`CausalError::Compile`] when a DAG-only identifier is paired with a PAG structure.
 pub fn reject_dag_only_on_pag(
-    graph: &GraphInput,
-    identifier: impl Into<IdentifierId>,
+    structure: &AcceptedGraph,
+    identifier: IdentifierId,
 ) -> Result<(), CausalError> {
-    let identifier = identifier.into();
-    let is_pag = matches!(
-        graph,
-        GraphInput::Pag(_)
-            | GraphInput::TemporalPag(_)
-            | GraphInput::DiscoverLpcmci { .. }
-            | GraphInput::DiscoverFci { .. }
-            | GraphInput::DiscoverRfci { .. }
-    );
+    let is_pag = matches!(structure.class(), GraphClass::Pag | GraphClass::TemporalPag);
     if is_pag && identifier.is_dag_only() {
         return Err(CausalError::Compile {
             message: format!(
@@ -562,9 +298,9 @@ pub fn compile_logical_static_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
-    validate_static_pair(identifier.clone(), estimator.clone())?;
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
+    validate_static_pair(identifier, estimator)?;
     if matches!(estimator, EstimatorId::LinearAdjustmentAte)
         && input.query.target_population != TargetPopulation::AllObserved
     {
@@ -623,8 +359,8 @@ pub fn compile_logical_static_pag_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
@@ -697,8 +433,8 @@ pub fn compile_logical_distribution(
         message: "distribution query requires at least one outcome".into(),
     })?;
     validate_query_vars_in_dag(input.graph, treatment, outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     validate_distribution_pair(identifier, estimator)?;
     let mut qvars = vec![treatment, outcome];
     for &z in input.query.conditioning.iter() {
@@ -758,8 +494,8 @@ pub fn compile_logical_path_specific(
         });
     }
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     validate_path_specific_pair(identifier, estimator)?;
     let mut qvars = vec![input.query.treatment, input.query.outcome];
     for &m in input.query.path_nodes.iter() {
@@ -841,6 +577,45 @@ fn validate_query_vars_in_pag(
     Ok(())
 }
 
+fn validate_query_vars_in_temporal_dag(
+    dag: &TemporalDag,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<(), CausalError> {
+    // A node-less DAG is the placeholder the graph-posterior path supplies: the
+    // structure lives in the `GraphPosterior` mixture, not here, so there is no
+    // membership to check and rejecting would be a false negative.
+    if dag.nodes().is_empty() {
+        return Ok(());
+    }
+    let mut has_t = false;
+    let mut has_y = false;
+    for node in dag.nodes() {
+        // Temporal graphs carry `Lagged` nodes, and `Context` nodes when an
+        // environment is attached; both name a variable the query may reference.
+        let variable = match node {
+            antecedent_graph::NodeRef::Lagged { variable, .. }
+            | antecedent_graph::NodeRef::Context { variable, .. } => *variable,
+            antecedent_graph::NodeRef::Static(v) => *v,
+        };
+        if variable == treatment {
+            has_t = true;
+        }
+        if variable == outcome {
+            has_y = true;
+        }
+    }
+    if !has_t || !has_y {
+        return Err(CausalError::Compile {
+            message: format!(
+                "query variables not in temporal DAG (treatment present={has_t}, outcome \
+                 present={has_y})"
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Compile logical plan for a temporal effect with a supplied temporal graph.
 ///
 /// # Errors
@@ -870,13 +645,14 @@ pub fn compile_logical_temporal_effect(
 /// Query validation failures.
 pub fn compile_logical_temporal_effect_classified(
     data: &TimeSeriesData,
-    _graph: &TemporalDag,
+    graph: &TemporalDag,
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
     data_classification: DataClassification,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    validate_query_vars_in_temporal_dag(graph, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: format!(
@@ -1197,6 +973,85 @@ mod tests {
     }
 
     #[test]
+    fn refuses_temporal_query_vars_not_in_temporal_dag() {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        use antecedent_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+            ValidityBitmap,
+        };
+        use std::sync::Arc as StdArc;
+
+        let n = 8usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        // A populated temporal DAG that does NOT name the query variables: the plan must
+        // fail at compile time rather than silently accepting an unfounded query
+        // (target_population is left at the default AllObserved so the later population
+        // check cannot be the one firing).
+        //
+        // The DAG must be non-empty: a node-less TemporalDag is the placeholder the
+        // graph-posterior path supplies, and is deliberately exempt from this check —
+        // see `validate_query_vars_in_temporal_dag`.
+        let mut graph = TemporalDag::empty();
+        graph.add_lagged(VariableId::from_raw(7), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        graph.add_lagged(VariableId::from_raw(8), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
+        let CausalError::Compile { message } = err else {
+            panic!("expected CausalError::Compile, got {err:?}");
+        };
+        assert!(
+            message.contains("not in temporal DAG"),
+            "expected a temporal-DAG membership error, got: {message}"
+        );
+    }
+
+    #[test]
     fn accepts_default_pair() {
         let (data, graph, query) = toy_static_input();
         let plan = compile_logical_static_ate(StaticAteCompileInput {
@@ -1230,11 +1085,11 @@ mod tests {
     #[test]
     fn refuses_dag_only_identifier_on_pag() {
         use antecedent_graph::Pag;
-        let pag = Pag::with_variables(2);
-        let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), "backdoor.adjustment").unwrap_err();
+        let structure = AcceptedGraph::pag(Pag::with_variables(2));
+        let err = reject_dag_only_on_pag(&structure, IdentifierId::BackdoorAdjustment).unwrap_err();
         assert!(matches!(err, CausalError::Compile { .. }));
         // Class-aware identifier is allowed through this gate.
-        let pag = Pag::with_variables(2);
-        reject_dag_only_on_pag(&GraphInput::Pag(pag), "generalized.adjustment").unwrap();
+        let structure = AcceptedGraph::pag(Pag::with_variables(2));
+        reject_dag_only_on_pag(&structure, IdentifierId::GeneralizedAdjustment).unwrap();
     }
 }

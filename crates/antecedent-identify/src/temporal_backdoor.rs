@@ -89,7 +89,7 @@ impl TemporalBackdoorIdentifier {
     /// # Errors
     ///
     /// Invalid query, unfolding failures, backdoor / general-ID identification
-    /// errors, or [`IdentificationError::NotIdentified`] when the history
+    /// errors, or [`IdentificationError::NotCertified`] when the history
     /// cap is reached while confounder ancestry still crosses the truncated
     /// boundary (a clean result cannot be certified).
     pub fn identify_temporal(
@@ -176,7 +176,7 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_dense, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotIdentified {
+                return Err(IdentificationError::NotCertified {
                     message: "temporal unfolding reached its history cap while confounder \
                               ancestry still crossed the truncated boundary; cannot certify \
                               backdoor identification over the finite window (raise \
@@ -290,7 +290,7 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_nodes, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotIdentified {
+                return Err(IdentificationError::NotCertified {
                     message: "temporal unfolding reached its history cap while confounder \
                               ancestry still crossed the truncated boundary; cannot certify \
                               identification over the finite window",
@@ -426,6 +426,19 @@ fn ancestry_touches_boundary(
 /// Lag for dense node `i` is `max(0, reference_offset - node.offset)`. When
 /// `max_history_lag` is set, covariates older than that many steps are excluded
 /// from static backdoor enumeration on the unfolded DAG.
+///
+/// `offset` is the node's signed absolute temporal position (more negative = further past,
+/// `reference_offset` = contemporaneous with the query); `lag` is the derived non-negative
+/// "steps into the past relative to `reference_offset`". Any node with `key.offset >
+/// reference_offset` — i.e. one that sits in the *future* relative to the reference point —
+/// produces a negative `reference_offset - key.offset` that `.max(0)` collapses to `lag = 0`.
+/// Since `max_history_lag` only excludes lags *greater* than the cap, such a node is
+/// indistinguishable from a genuinely-contemporaneous (`lag = 0`) one and can never be
+/// excluded by the history cap, no matter how far "in the future" it actually sits. This is
+/// not a backdoor-criterion bug — Pearl's criterion is graph-theoretic and does not require Z
+/// to (temporally) precede X — but callers relying on `max_history_lag` to bound *all*
+/// covariates by recency should be aware that future-offset covariates are never subject to
+/// this cap.
 fn apply_history_lag_filter(
     config: &mut crate::backdoor::AdjustmentSearchConfig,
     indexer: &TemporalIndexer,
@@ -633,7 +646,7 @@ mod tests {
         let identifier = TemporalBackdoorIdentifier::new();
         assert!(matches!(
             identifier.identify_temporal(&template, &query),
-            Err(IdentificationError::NotIdentified { .. })
+            Err(IdentificationError::NotCertified { .. })
         ));
     }
 

@@ -15,7 +15,7 @@ mod sealed {
 
 impl sealed::Sealed for crate::adjustment::LinearAdjustmentAte {}
 
-/// Estimator preparation + fit .
+/// Estimator preparation + fit.
 ///
 /// Extension / dispatch surface. Most concrete estimators expose inherent
 /// `prepare` / `fit` with estimator-specific prepared types, workspaces, and
@@ -54,26 +54,6 @@ pub trait Estimator<D, Q = AverageEffectQuery>: sealed::Sealed {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<Self::Fit, EstimationError>;
-}
-
-/// Batch estimation against a fitted estimator .
-///
-/// Reserved extension point — not part of the day-1 public surface. No concrete
-/// estimator implements this yet; use inherent `fit` / bootstrap paths instead.
-#[allow(dead_code)] // reserved contract
-pub(crate) trait FittedEstimator<Q> {
-    /// Estimate one or more queries into `output`.
-    ///
-    /// # Errors
-    ///
-    /// Incompatible query or numerical failure.
-    fn estimate_batch(
-        &self,
-        queries: &[Q],
-        output: &mut [EffectEstimate],
-        workspace: &mut EstimationWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(), EstimationError>;
 }
 
 /// Tabular ATE estimators that produce [`EffectEstimate`].

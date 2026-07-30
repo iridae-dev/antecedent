@@ -20,7 +20,7 @@ def _lag1_unit(n: int = 200, seed: int = 3, coef: float = 0.9):
 
 
 def test_panel_bayesian_pulse_smoke():
-    panel = antecedent.panel(
+    panel = antecedent.data.panel(
         [
             _lag1_unit(seed=3),
             _lag1_unit(seed=4),
@@ -51,7 +51,7 @@ def test_panel_bayesian_pulse_smoke():
 
 
 def test_panel_frequentist_pulse_baseline():
-    panel = antecedent.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
     result = antecedent.analyze(
         panel,
         graph=[("x", 1, "y", 0)],

@@ -3,7 +3,8 @@
 //! [`LinearSensitivity`] and [`PartialLinearSensitivity`] simulate a confounder `U` with a
 //! configurable *partial R²* on treatment and outcome under a linear (Gaussian) or
 //! partial-linear (bounded) shape. [`NonparametricSensitivity`] first residualizes treatment
-//! and outcome on adjustment covariates with Nadaraya–Watson kernel regression, then runs the
+//! and outcome on adjustment covariates with Nadaraya–Watson (Nadaraya 1964; Watson 1964) kernel
+//! regression, then runs the
 //! same partial-R² grid on the residualized series — a production nonparametric path distinct
 //! from the partial-linear shape stand-in.
 //!
@@ -19,13 +20,14 @@
 
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::common::{
     RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
-    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, sample_sd, with_replaced_float,
+    linear_estimator_no_bootstrap, refit_effect, sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -51,8 +53,16 @@ fn run_grid(
         ids.extend_from_slice(&problem.estimand.adjustment_set);
     }
     let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
-    let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
-    let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
+    // The grid is a *partial* R² — the share of variance in `T` (and `Y`) left unexplained by
+    // the adjustment set `Z` that the simulated confounder accounts for. Injecting
+    // `scale · SD(T) · u` calibrates against the *marginal* variance instead, so whenever `Z`
+    // has real explanatory power the realized partial R² far exceeds the nominal grid value
+    // (with R²(T,Z) = 0.8, a nominal 0.2 lands at 0.556) and the reported robustness is
+    // misstated. Scale by the residual SD so `scale = √(r/(1−r))` targets the partial R² the
+    // docs and the Cinelli–Hazlett convention promise. `NonparametricSensitivity` already
+    // residualizes; this brings the linear paths in line.
+    let sd_t = residual_sd_on_adjustment(problem, problem.treatment(), &mask)?.max(1e-12);
+    let sd_y = residual_sd_on_adjustment(problem, problem.outcome(), &mask)?.max(1e-12);
     let mut u = vec![0.0; n];
     if nonparametric {
         fill_bounded(&mut u, ctx, noise_stream);
@@ -77,7 +87,7 @@ fn run_grid(
         let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
         let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
         let est = if problem.temporal.is_some() {
-            refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?
+            refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?
         } else {
             fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?
         };
@@ -278,6 +288,53 @@ fn nw_loo_predict(y: &[f64], cov_rowmajor: &[f64], dim: usize, bandwidth: f64) -
     out
 }
 
+/// SD of `target` after linearly regressing it on the adjustment set, i.e. `SD(target | Z)`.
+///
+/// Falls back to the marginal SD when there is nothing to adjust for (empty `Z`, or a
+/// degenerate design the backend refuses) — with no covariates the partial and marginal
+/// quantities coincide, so that fallback is exact rather than approximate.
+pub(crate) fn residual_sd_on_adjustment(
+    problem: &RefutationProblem<'_>,
+    target: VariableId,
+    mask: &[bool],
+) -> Result<f64, ValidationError> {
+    let z_ids = problem.estimand.adjustment_set.to_vec();
+    let y = problem.data.float64_masked(target, mask).map_err(ValidationError::from)?;
+    if z_ids.is_empty() || y.len() < z_ids.len() + 2 {
+        return Ok(sample_sd(&y));
+    }
+    let n = y.len();
+    let ncols = z_ids.len() + 1;
+    // Column-major design: intercept, then each adjustment covariate.
+    let mut design = Vec::with_capacity(n * ncols);
+    design.extend(std::iter::repeat_n(1.0, n));
+    for &z in &z_ids {
+        let col = problem.data.float64_masked(z, mask).map_err(ValidationError::from)?;
+        if col.len() != n {
+            return Ok(sample_sd(&y));
+        }
+        design.extend_from_slice(&col);
+    }
+    let mut ws = LeastSquaresWorkspace::default();
+    let Ok(fit) = FaerBackend.least_squares(&design, n, ncols, &y, &mut ws) else {
+        return Ok(sample_sd(&y));
+    };
+    if fit.coefficients.iter().any(|c| !c.is_finite()) {
+        return Ok(sample_sd(&y));
+    }
+    let residuals: Vec<f64> = (0..n)
+        .map(|r| {
+            let mut pred = fit.coefficients[0];
+            for c in 1..ncols {
+                pred += fit.coefficients[c] * design[c * n + r];
+            }
+            y[r] - pred
+        })
+        .collect();
+    let sd = sample_sd(&residuals);
+    if sd.is_finite() { Ok(sd) } else { Ok(sample_sd(&y)) }
+}
+
 fn covariate_matrix(
     problem: &RefutationProblem<'_>,
 ) -> Result<(Vec<f64>, usize, usize), ValidationError> {
@@ -324,7 +381,7 @@ pub struct NonparametricSensitivity {
     pub partial_r2_grid: Vec<f64>,
     /// Pass if the robustness value exceeds this threshold.
     pub pass_threshold: f64,
-    /// Optional bandwidth override; `None` uses Silverman's rule of thumb.
+    /// Optional bandwidth override; `None` uses Silverman's (1986) rule of thumb.
     pub bandwidth: Option<f64>,
 }
 

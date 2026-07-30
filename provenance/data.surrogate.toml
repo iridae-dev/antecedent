@@ -1,0 +1,16 @@
+feature_id = "data.surrogate"
+implementation_crate = "antecedent-data"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Testing for Nonlinearity in Time Series: The Method of Surrogate Data", doi = "10.1016/0167-2789(92)90102-S", sections = ["Phase-randomized surrogate construction (spectrum-preserving null)"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-data/src/surrogate.rs unit tests",
+]

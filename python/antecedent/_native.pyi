@@ -28,12 +28,26 @@ class CausalSerializationError(CausalError): ...
 class CausalCompileError(CausalError): ...
 class CausalResourceError(CausalError): ...
 
+class CausalPendingEdge:
+    """One unreviewed edge carried on a review error (native-constructed)."""
+
+    source: str
+    target: str
+    at_source: str
+    at_target: str
+
 class CausalReviewError(CausalError):
     kind: str
     algorithm: str | None
     pending_edge_count: int
+    # Native raises carry CausalPendingEdge; errors built on the Python side
+    # carry antecedent.errors.PendingEdge. Both expose the same four fields.
+    pending_edges: Sequence[Any]
     hint: str
     message: str
+
+def set_review_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for review errors."""
 
 class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
@@ -60,6 +74,7 @@ class AteAnalysisResult:
     refutation_passed: bool
     refutation_ran: bool
     refutation_count: int
+    refutations: list[RefutationReportView]
     assumption_count: int
     derivation_step_count: int
     method: str
@@ -112,6 +127,85 @@ class AteAnalysisResult:
     posterior_ppc_predictive_mean: float | None
     posterior_ppc_predictive_sd: float | None
     posterior_ppc_n_sims: int | None
+    identification: IdentificationSection
+    estimate: EstimateSection
+    posterior: PosteriorSection
+    validation: ValidationSection
+    performance: PerformanceSection
+
+class RefutationReportView:
+    refuter: str
+    original_ate: float
+    refuted_ate: float
+    comparison: float
+    informative: bool
+    passed: bool
+    failure_condition: str | None
+    replicates: int
+
+class IdentificationSection:
+    """Nested identification section, shared shape on both `AteAnalysisResult` and
+    `AnalysisResult` (temporal populates every field)."""
+
+    status: str
+    method: str
+    adjustment_set: list[str]
+    assumption_count: int
+    derivation_step_count: int
+
+class EstimateSection:
+    """Nested estimate section (top-level scalar fields only)."""
+
+    ate: float
+    se_analytic: float
+    se_bootstrap: float | None
+    estimator_id: str
+    method: str
+    overlap_ess: float | None
+    overlap_propensity_min: float | None
+
+class PosteriorSection:
+    """Nested posterior section. Every field is `None` when no posterior was
+    computed (frequentist inference)."""
+
+    effect_mean: float | None
+    effect_sd: float | None
+    q025: float | None
+    q975: float | None
+    n_draws: int | None
+    p_below_zero: float | None
+    backend: str | None
+    artifact: bytes | list[int] | None
+    unidentified_mass: float | None
+
+class ValidationSection:
+    """Nested validation section. `passed`/`ran` follow the shared aggregate rule:
+    `ran` is whether any refuter ran, `passed` is `ran and all(r.passed for r in reports)`
+    — never `True` when nothing ran."""
+
+    passed: bool
+    ran: bool
+    count: int
+    reports: list[RefutationReportView]
+
+class PerformanceSection:
+    """Nested performance section. Most fields mirror `StudyResult.performance`,
+    which both static and temporal execution paths populate. `bootstrap_replicates_ok`,
+    `n_draws` (posterior draw effort), and `stage_timings` are the exception: no
+    temporal execution path currently records them, so they read `None`/empty on
+    the temporal DTO."""
+
+    plan_id: str
+    modality: str
+    peak_memory_bytes: int | None
+    latency_mode: str | None
+    wall_time_ns: int | None
+    bootstrap_replicates_requested: int | None
+    bootstrap_replicates_ok: int | None
+    n_draws: int | None
+    cancelled: bool
+    early_stopped: bool
+    stage_timings: list[tuple[str, int]]
 
 class PosteriorArtifact:
     n_draws: int
@@ -126,6 +220,20 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    @staticmethod
+    def from_moments(
+        n_draws: int,
+        mean: list[float],
+        sd: list[float],
+        q025: list[float],
+        q975: list[float],
+        backend_id: str,
+        identification: str,
+        quantity_names: list[str],
+        unidentified_mass: float = 0.0,
+        converged: bool = True,
+        hessian_condition: float = ...,
+    ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:
     source: str
@@ -135,6 +243,7 @@ class DiscoveredLink:
     statistic: float
     p_value: float
     adjusted_p_value: float | None
+    conditioning_set: list[tuple[str, int]]
 
 class GraphEdge:
     source: str
@@ -208,6 +317,7 @@ class AnalysisResult:
     diagnostics: list[str]
     provenance_node_count: int
     refutation_count: int
+    refutations: list[RefutationReportView]
     worker_threads: int
     expected_python_crossings: int
     posterior_effect_mean: float | None
@@ -222,6 +332,11 @@ class AnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    identification: IdentificationSection
+    estimate: EstimateSection
+    posterior: PosteriorSection
+    validation: ValidationSection
+    performance: PerformanceSection
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -298,6 +413,7 @@ class MechanismChangeDetection:
     node: str
     statistic: float
     p_value: float
+    adjusted_p_value: float | None
     changed: bool
 
 class FeatureRelevance:
@@ -340,6 +456,7 @@ class FittedGcm:
         interventions: dict[str, float],
         n: int,
         *,
+        shifts: dict[str, float] | None = None,
         seed: int = 0,
         threads: int = 1,
     ) -> GcmSampleResult: ...
@@ -498,11 +615,12 @@ def analyze_ate(
     prior_artifact: bytes | None = None,
     prior_mapping: dict[str, Any] | None = None,
     composed_prior: dict[str, Any] | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -532,11 +650,12 @@ def analyze_ate_arrow_c(
     prior_artifact: bytes | None = None,
     prior_mapping: dict[str, Any] | None = None,
     composed_prior: dict[str, Any] | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -560,9 +679,7 @@ def analyze(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    prior_mapping: dict[str, Any] | None = None,
-    composed_prior: dict[str, Any] | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
@@ -583,9 +700,7 @@ def analyze_temporal_pag(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    prior_mapping: dict[str, Any] | None = None,
-    composed_prior: dict[str, Any] | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
@@ -608,7 +723,7 @@ def analyze_events(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
@@ -616,12 +731,13 @@ def analyze_events(
     algorithm: str | None = None,
     max_lag: int = 1,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     regimes: list[int] | None = None,
-    n_chains: int = 1,
-    n_warmup: int = 500,
-    mcmc_draws: int = 1000,
+    n_chains: int = 2,
+    n_warmup: int = 100,
+    mcmc_draws: int = 200,
     force_mcmc: bool = False,
     ci: CiArg = None,
 ) -> AnalysisResult: ...
@@ -641,7 +757,7 @@ def analyze_panel(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
@@ -657,6 +773,7 @@ def analyze_panel_discover(
     algorithm: str = "jpcmci_plus",
     max_lag: int = 3,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     treatment_lag: int = 1,
@@ -667,7 +784,7 @@ def analyze_panel_discover(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
@@ -678,6 +795,7 @@ def analyze_panel_discover(
     space_dummy_ci: bool = False,
     time_dummy_encoding: str = "integer",
     time_dummy_ci: bool = False,
+    ci: CiArg = None,
 ) -> AnalysisResult: ...
 def analyze_distribution(
     names: list[str],
@@ -716,7 +834,7 @@ def analyze_conditional(
     *,
     control_level: float = 0.0,
     active_level: float = 1.0,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
@@ -784,9 +902,7 @@ def analyze_ate_discover(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    prior_mapping: dict[str, Any] | None = None,
-    composed_prior: dict[str, Any] | None = None,
-    refute: bool | str = True,
+    refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     ci: CiArg = None,
     n_chains: int = 2,
@@ -798,6 +914,7 @@ def analyze_ate_discover(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -811,6 +928,7 @@ def analyze_temporal_discover(
     algorithm: str = "pcmci",
     max_lag: int = 1,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     treatment_lag: int = 1,
@@ -821,12 +939,8 @@ def analyze_temporal_discover(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
-    prior_mapping: dict[str, Any] | None = None,
-    composed_prior: dict[str, Any] | None = None,
-    n_chains: int = 2,
-    n_warmup: int = 100,
-    mcmc_draws: int = 200,
-    force_mcmc: bool = False,
+    refute: bool | str | None = None,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
     threads: int = 1,
@@ -839,6 +953,10 @@ def analyze_temporal_discover(
     time_dummy_encoding: str = "integer",
     time_dummy_ci: str = "scalar",
     ci: CiArg = None,
+    n_chains: int = 2,
+    n_warmup: int = 100,
+    mcmc_draws: int = 200,
+    force_mcmc: bool = False,
 ) -> AnalysisResult: ...
 def discover_pcmci(
     names: list[str],
@@ -851,6 +969,7 @@ def discover_pcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -863,6 +982,7 @@ def discover_pcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -941,6 +1061,7 @@ def discover_lpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
     names: list[str],
@@ -959,6 +1080,7 @@ def discover_jpcmci_plus(
     space_dummy_ci: str = "scalar",
     time_dummy_encoding: str = "integer",
     time_dummy_ci: str = "scalar",
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_rpcmci(
     names: list[str],
@@ -972,6 +1094,7 @@ def discover_rpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
 def discover_exact_dag_posterior(
@@ -1075,6 +1198,7 @@ def sample_do(
     seed: int = 0,
     threads: int = 1,
     mechanism_wrappers: dict[str, Any] | None = None,
+    shift: bool = False,
 ) -> GcmSampleResult: ...
 def sample_interventional_distribution(
     names: list[str],
@@ -1087,6 +1211,7 @@ def sample_interventional_distribution(
     *,
     seed: int = 0,
     threads: int = 1,
+    shift: bool = False,
 ) -> GcmSampleResult: ...
 def attribute_path_specific(
     names: list[str],
@@ -1401,11 +1526,14 @@ def analyze_ate_pag(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    refute: bool | str = True,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
     validators: list[object] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1424,11 +1552,14 @@ def analyze_ate_cpdag(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    refute: bool | str = True,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
     validators: list[object] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1447,11 +1578,14 @@ def analyze_ate_admg(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    refute: bool | str = True,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
     validators: list[object] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1462,7 +1596,7 @@ def dag_from_json(json: str) -> tuple[int, list[tuple[int, int]], list[str] | No
 def dag_to_json(
     node_count: int,
     edges: list[tuple[int, int]],
-    variable_names: list[str] | None = None,
+    variable_names: list[str] | None,
 ) -> str: ...
 def dag_from_gml(gml: str) -> tuple[int, list[tuple[int, int]]]: ...
 def dag_to_gml(node_count: int, edges: list[tuple[int, int]]) -> str: ...
@@ -1472,7 +1606,7 @@ def dag_from_networkx_adjacency(json: str) -> tuple[int, list[tuple[int, int]]]:
 def dag_to_networkx_adjacency(
     node_count: int,
     edges: list[tuple[int, int]],
-    variable_names: list[str] | None = None,
+    variable_names: list[str] | None,
 ) -> str: ...
 
 class CausalState:
@@ -1524,7 +1658,9 @@ class CausalState:
     def particle_filter_step(self, key: str, y: float) -> None: ...
     def particle_filter_get(self, key: str) -> dict[str, Any]: ...
 
-def causal_state_append(n_appends: int = 2, cache_bytes: int = 1_048_576) -> tuple[int, int]: ...
+def antecedent_state_append(
+    n_appends: int = 2, cache_bytes: int = 1_048_576
+) -> tuple[int, int]: ...
 def encode_model_bundle(
     variable_names: list[str],
     edges: list[tuple[int, int]],
@@ -1675,3 +1811,19 @@ def conflict_shrink_alpha(
     p_min: float = 0.05,
     kl_scale: float = 1.0,
 ) -> float: ...
+def beta_from_moments(
+    mean: float,
+    variance: float,
+) -> tuple[float, float]: ...
+def beta_from_mean_and_ess(
+    mean: float,
+    ess: float,
+) -> tuple[float, float]: ...
+def gamma_from_moments(
+    mean: float,
+    variance: float,
+) -> tuple[float, float]: ...
+def gamma_from_mean_and_ess(
+    mean: float,
+    ess: float,
+) -> tuple[float, float]: ...

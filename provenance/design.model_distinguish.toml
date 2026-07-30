@@ -1,0 +1,21 @@
+feature_id = "design.model_distinguish"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# DesignObjective::DistinguishModels / ranker.rs::model_distinguish_score: expected
+# absolute log-likelihood gap between candidate models under a proposed design, scaled by
+# an evidence-strength factor. This is the model-discrimination design criterion; Box & Hill
+# (1967) is the classical reference for choosing designs that maximize expected divergence
+# between rival (mechanistic) models' predictive distributions.
+papers = [
+ { title = "Discrimination Among Mechanistic Models", doi = "10.1080/00401706.1967.10490441", sections = ["Sequential design criterion for discriminating between rival models"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/src/ranker.rs unit tests (model_distinguish_score_matches_closed_form_two_models, model_distinguish_score_zero_for_single_model)",
+]

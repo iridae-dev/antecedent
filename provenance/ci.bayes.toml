@@ -1,0 +1,17 @@
+feature_id = "ci.bayes"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal-Inverse-Gamma conjugate model comparison", "Bayes factors"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/ci/bayes.rs unit tests",
+ "conformance/discovery/bayesian_ci (exercised via crates/antecedent-stats/tests/bayesian_ci_oracle.rs)",
+]

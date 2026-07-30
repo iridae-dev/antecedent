@@ -21,7 +21,7 @@ use antecedent_model::{
 };
 use antecedent_stats::mean_var;
 
-use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::change_common::{ChangeOptions, run_change_allocation, total_change};
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
 use crate::error::AttributionError;
@@ -268,17 +268,27 @@ struct StructureSwapPayoff<'a> {
     baseline_law: Option<(f64, f64)>,
 }
 
+impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
+    fn measure(&self) -> DifferenceMeasure {
+        self.measure
+    }
+
+    fn baseline_law(&self) -> Option<(f64, f64)> {
+        self.baseline_law
+    }
+
+    fn set_baseline_law(&mut self, law: (f64, f64)) {
+        self.baseline_law = Some(law);
+    }
+
+    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+        self.sample_outcome_law(mask)
+    }
+}
+
 impl CoalitionPayoff for StructureSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        if matches!(self.measure, DifferenceMeasure::GaussianKl) && self.baseline_law.is_none() {
-            let (mu0, var0) = self.sample_outcome_law(0)?;
-            self.baseline_law = Some((mu0, var0));
-            if mask == 0 {
-                return Ok(0.0);
-            }
-        }
-        let (mu, var) = self.sample_outcome_law(mask)?;
-        measure_value(self.measure, mask, mu, var, self.baseline_law)
+        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
     }
 }
 

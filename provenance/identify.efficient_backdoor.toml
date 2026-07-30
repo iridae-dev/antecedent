@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Efficient Adjustment Sets for Population Average Causal Treatment Effect Estimation in Graphical Models", doi = "10.48550/arXiv.2002.06825", sections = ["efficient / parental adjustment"] },
+ { title = "Graphical Criteria for Efficient Total Effect Estimation via Adjustment in Causal Linear Models", doi = "10.1111/rssb.12451", sections = ["Theorem 3.13 (O-set optimal adjustment set)"] },
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["back-door criterion"] },
 ]
 
@@ -16,4 +16,5 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic DAGs with known parental adjustment",
+ "black-box comparison against clean-room DAGitty-criterion oracle (conformance/identify/efficient_adjustment)",
 ]

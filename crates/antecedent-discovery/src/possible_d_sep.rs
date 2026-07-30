@@ -1,4 +1,4 @@
-//! Possible-D-Sep sets for classic FCI adjacency (Spirtes et al.).
+//! Possible-D-Sep sets for classic FCI adjacency (Spirtes, Meek & Richardson 1995).
 //!
 //! After the PC skeleton and unshielded-collider orientation, FCI removes further
 //! edges by testing CI given subsets of Possible-D-Sep. A node `V` is in

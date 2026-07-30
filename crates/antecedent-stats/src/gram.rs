@@ -122,8 +122,22 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
 }
 
 /// Invert a small dense matrix via Gauss–Jordan; returns `None` on singular pivot.
+///
+/// Singularity is judged relative to the input matrix's largest absolute diagonal entry
+/// (matching `antecedent-kernels::parcorr`'s scale-relative tolerance) so the verdict does
+/// not depend on the data's units — an absolute threshold would quietly accept a direction
+/// that is singular relative to the matrix's own scale.
 #[must_use]
 pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
+    let mut scale = 0.0_f64;
+    for i in 0..ncols {
+        scale = scale.max(a_in[i * ncols + i].abs());
+    }
+    if !(scale.is_finite() && scale > 0.0) {
+        return None;
+    }
+    let tol = 1e-12 * scale;
+
     let mut a = a_in.to_vec();
     let mut inv = vec![0.0; ncols * ncols];
     for i in 0..ncols {
@@ -137,7 +151,7 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
                 best = row;
             }
         }
-        if a[best * ncols + col].abs() < 1e-14 {
+        if a[best * ncols + col].abs() < tol {
             return None;
         }
         if best != col {
@@ -199,5 +213,29 @@ mod tests {
         let x = chol_solve(&chol, 2, &b).expect("solve");
         // A x = b ⇒ [4,1;1,3] x = [5,4] ⇒ x = [1,1]
         assert!((x[0] - 1.0).abs() < 1e-12 && (x[1] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn invert_square_rejects_badly_scaled_near_singular_matrix() {
+        // Rows are nearly parallel at large magnitude: after one elimination step the
+        // remaining pivot is ~1e-6 in absolute terms — comfortably above a fixed 1e-14
+        // absolute threshold (which would wrongly accept this and hand back a garbage
+        // inverse), but far below 1e-12 * scale (~1e-2) once the tolerance is scaled to
+        // the matrix's own magnitude (~1e10).
+        let a = [1e10, 1e10, 1e10, 1e10 + 1e-6];
+        assert!(invert_square(&a, 2).is_none());
+    }
+
+    #[test]
+    fn invert_square_still_inverts_well_scaled_matrix() {
+        // Sanity check that the new relative tolerance doesn't reject ordinary,
+        // well-conditioned matrices.
+        let a = [4.0, 1.0, 1.0, 3.0];
+        let inv = invert_square(&a, 2).expect("well-conditioned");
+        // A^-1 = 1/11 * [[3, -1], [-1, 4]]
+        assert!((inv[0] - 3.0 / 11.0).abs() < 1e-12);
+        assert!((inv[1] - (-1.0 / 11.0)).abs() < 1e-12);
+        assert!((inv[2] - (-1.0 / 11.0)).abs() < 1e-12);
+        assert!((inv[3] - 4.0 / 11.0).abs() < 1e-12);
     }
 }

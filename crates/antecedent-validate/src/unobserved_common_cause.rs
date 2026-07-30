@@ -83,7 +83,8 @@ impl UnobservedCommonCause {
             )
         ) {
             return Err(ValidationError::NotApplicable {
-                message: "unobserved common cause requires backdoor.adjustment or temporal.backdoor.unfolded",
+                message: "unobserved common cause requires backdoor.adjustment or \
+                          temporal.backdoor.unfolded",
             });
         }
         let n = problem.data.row_count();
@@ -106,7 +107,15 @@ impl UnobservedCommonCause {
             let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + ky * u).collect();
             let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
             let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
-            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+            let est = refit_effect(
+                problem,
+                &data,
+                problem.estimand,
+                &[],
+                &self.estimator,
+                workspace,
+                ctx,
+            )?;
             sum_delta += (est.ate - problem.original.ate).abs();
             sum_ate += est.ate;
         }

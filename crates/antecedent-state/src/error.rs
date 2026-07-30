@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Errors from incremental causal state.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StateError {
     /// Unknown registry id.
     #[error("unknown state id: {0}")]
