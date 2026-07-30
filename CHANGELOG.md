@@ -7,24 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] — 2026-07-30
 
-API-surface freeze on **both** language surfaces, plus an algorithmic correctness
-pass. Three bodies of work landed in this release:
+API-surface freeze on both languages, plus an algorithmic correctness pass.
 
-1. The **Rust facade** is restructured: `CausalAnalysis` is now `Study`, the
-   discovery-to-estimation path is staged behind `AcceptedGraph`, `identify()` works
-   without data, estimators carry configuration via `EstimatorSpec` and `with_*`
-   setters, `IdentifierId`/`EstimatorId` are closed enums validated at parse time,
-   and the whole workspace shares one error hierarchy. See *Breaking changes*.
-2. The **Python facade** is reorganized and frozen: the root namespace drops from
-   206 names to 41 around three verbs, with everything else on stage modules.
-3. A systematic audit of the **algorithmic and numerical core** fixed 25 confirmed
-   defects, several of which changed returned values. See *Correctness*.
+1. **Rust facade restructured**: `CausalAnalysis` → `Study`, discovery-to-estimation
+   staged behind `AcceptedGraph`, `identify()` without data, estimators configured via
+   `EstimatorSpec` and `with_*` setters, `IdentifierId`/`EstimatorId` closed and
+   validated at parse time, one error hierarchy workspace-wide.
+2. **Python facade frozen**: root namespace 206 names → 41 around three verbs, with
+   everything else on stage modules.
+3. **25 correctness defects fixed**, several changing returned values. See *Correctness*.
 
-The migration policy on both surfaces is a **silent hard break**: there are no
-deprecated aliases and no shims for the old spellings. Read the whole
-breaking-changes section before upgrading. If you are comparing numbers against
-0.3.x, read *Correctness* too — some differences are intended corrections, not
-regressions.
+The migration policy on both surfaces is a **silent hard break** — no deprecated aliases,
+no shims. Read the breaking-changes section before upgrading, and *Correctness* before
+comparing numbers against 0.3.x: some differences are intended corrections.
 
 A narrative version of this entry, aimed at readers deciding whether to adopt or
 upgrade, is in [`docs/release-notes/v0.4.0.md`](docs/release-notes/v0.4.0.md).
@@ -320,12 +315,11 @@ caller would have observed.
   see "Breaking changes" above for the complete migration list.
 - The Python package has import cycles between the root facade and its stage modules
   (`_analyze` ↔ `estimation` ↔ `discovery` ↔ `_coerce` ↔ `accepted_graph`). They resolve
-  correctly — `__init__.py` fixes the order, and the suite exercises it on every supported
-  CPython — but they are a real architectural constraint, and CodeQL's `py/cyclic-import`
-  and `py/unsafe-cyclic-import` rules are excluded in
-  `.github/codeql/codeql-config.yml` rather than fixed, because untangling them is a package
-  restructure and the 0.4.0 surface is frozen. The Rust analysis runs the full
-  security-and-quality suite with zero findings and no exclusions.
+  correctly — `__init__.py` fixes the order and the suite exercises it on every supported
+  CPython — but they are a real constraint. CodeQL's `py/cyclic-import` and
+  `py/unsafe-cyclic-import` are excluded in `.github/codeql/codeql-config.yml` rather than
+  fixed: untangling them is a package restructure, and the 0.4.0 surface is frozen. Rust
+  runs the full security-and-quality suite with zero findings and no exclusions.
 
 ### Feedback we want
 
