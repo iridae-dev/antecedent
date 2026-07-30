@@ -23,12 +23,20 @@ from .discovery import (
     PCMCIPlus,
     StaticDiscovery,
     TemporalDiscovery,
-    discovery_to_dag,
     run_static_discovery,
     run_temporal_discovery,
 )
 from .errors import CausalTypeError, CausalValueError, PendingEdge
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+    discovery_to_dag,
+)
 
 _AnyDiscovery = StaticDiscovery | TemporalDiscovery
 

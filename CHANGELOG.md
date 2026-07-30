@@ -313,13 +313,15 @@ caller would have observed.
   `AcceptedGraph`; use their per-regime results directly.
 - No deprecation shims exist for any renamed or removed spelling in this release —
   see "Breaking changes" above for the complete migration list.
-- The Python package has import cycles between the root facade and its stage modules
-  (`_analyze` ↔ `estimation` ↔ `discovery` ↔ `_coerce` ↔ `accepted_graph`). They resolve
-  correctly — `__init__.py` fixes the order and the suite exercises it on every supported
-  CPython — but they are a real constraint. CodeQL's `py/cyclic-import` and
-  `py/unsafe-cyclic-import` are excluded in `.github/codeql/codeql-config.yml` rather than
-  fixed: untangling them is a package restructure, and the 0.4.0 surface is frozen. Rust
-  runs the full security-and-quality suite with zero findings and no exclusions.
+- CodeQL reports import cycles in the Python package. Investigated and confirmed a false
+  positive: the hazard those rules describe needs a cycle among **module-scope** imports,
+  and this package's module-scope graph is acyclic. The reported cycles appear only when
+  function-body imports (which run after initialisation) and `TYPE_CHECKING` imports (which
+  never run) are counted alongside module-scope ones. `python/tests/test_import_graph.py`
+  now enforces that — it fails if the module-scope graph gains a cycle, and imports every
+  module first in a fresh interpreter to prove no order-dependence — so the two rules are
+  excluded against an enforced invariant rather than a comment. Rust runs the full
+  security-and-quality suite with zero findings and no exclusions.
 
 ### Feedback we want
 
