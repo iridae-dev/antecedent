@@ -36,17 +36,24 @@ query-filters:
   - exclude:
       id: py/import-and-import-from
 
-  # The public Python package is a deliberately staged facade: `analyze` / `identify` /
-  # `estimate` sit at the root while the stages they dispatch to (`discovery`,
-  # `estimation`, `accepted_graph`, `_coerce`) must refer back to shared result and
-  # coercion types. That produces import cycles which resolve correctly because
-  # `__init__.py` fixes the import order, and which the full test suite exercises on every
-  # supported CPython. `py/unsafe-cyclic-import` additionally fires on `TYPE_CHECKING`-only
-  # imports that never execute at runtime.
+  # The hazard `py/unsafe-cyclic-import` describes is real but specific: module A imports B
+  # at *module scope*, B imports A at module scope, and A refers to a name defined after B's
+  # import — so some import order hits a half-initialised module. It requires a cycle among
+  # module-scope imports.
   #
-  # This is a suppression, not a clean bill of health: the cycle topology is a real
-  # architectural constraint and untangling it is a package restructure, deliberately not
-  # attempted while the 0.4.0 API surface is frozen. Revisit when that freeze lifts.
+  # This package has none. Its reported cycles exist only once function-body imports (which
+  # run at call time, after every module is initialised) and `if TYPE_CHECKING:` imports
+  # (which never run) are counted alongside module-scope ones, which CodeQL does not
+  # distinguish. The fluent surface — `config.accept(data).estimate(...)`,
+  # `AcceptedGraph.rediscover()` — means value types must name the layers above them, and
+  # deferring those imports is the correct mitigation, not a workaround.
+  #
+  # That claim is enforced, not asserted: `python/tests/test_import_graph.py` fails if the
+  # module-scope graph ever gains a cycle, and separately imports every module first in a
+  # fresh interpreter to prove no order-dependence. Promoting one deferred import to module
+  # scope was verified to trip it (and to raise a genuine `ImportError: cannot import name
+  # 'LPCMCI' from partially initialized module`). Revisit these exclusions only if that test
+  # is weakened or removed.
   - exclude:
       id: py/cyclic-import
   - exclude:

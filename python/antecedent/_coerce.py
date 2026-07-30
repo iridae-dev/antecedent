@@ -103,8 +103,16 @@ def coerce_graph(value: Any) -> Any:
       (``analyze_ate_pag`` / ``analyze_ate_admg`` / ``analyze_temporal_pag``)
       accept the object directly, so there is nothing to normalize.
     """
-    from .discovery import cpdag_oriented_edges
-    from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+    from .graph import (
+        Admg,
+        Cpdag,
+        Dag,
+        Pag,
+        TemporalCpdag,
+        TemporalDag,
+        TemporalPag,
+        cpdag_oriented_edges,
+    )
 
     if isinstance(value, Dag):
         return [(str(a), str(b)) for a, b in value.edges()]

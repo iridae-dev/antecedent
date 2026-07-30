@@ -74,9 +74,13 @@ from ._native import (
 )
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
+# Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
+# `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
+from .graph import cpdag_oriented_edges, discovery_to_dag
+
 if TYPE_CHECKING:
     from .accepted_graph import AcceptedGraph
-    from .graph import Cpdag, Dag
+    from .graph import Dag
 
 CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
 
@@ -869,34 +873,6 @@ class DbnPosterior:
 DiscoveryResult = PcmciDiscoveryResult
 
 
-def discovery_to_dag(result: DiscoveryResult) -> Dag:
-    """Build a ``Dag`` from a discovery result's directed ``graph_edges``.
-
-    Raises ``ValueError`` if any undirected/circle marks remain.
-    """
-    from .graph import Dag
-
-    names: list[str] = []
-    seen: set[str] = set()
-    directed: list[tuple[str, str]] = []
-    for e in result.graph_edges:
-        for n in (e.source, e.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
-        if e.at_source == "tail" and e.at_target == "arrow":
-            directed.append((e.source, e.target))
-        elif e.at_source == "arrow" and e.at_target == "tail":
-            directed.append((e.target, e.source))
-        else:
-            raise CausalValueError(
-                f"cannot coerce edge {e.source}->{e.target} "
-                f"({e.at_source}/{e.at_target}) into a DAG; "
-                "use graph_edges or a CPDAG/PAG constructor"
-            )
-    return Dag.from_edges(names, directed)
-
-
 StaticDiscovery = PC | GES | LiNGAM | NOTEARS | FCI | RFCI
 TemporalDiscovery = PCMCI | PCMCIPlus | LPCMCI
 
@@ -1004,37 +980,6 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
     edges = graph_posterior_map_edges(post)
     names = list(post.names) if post.names else sorted({a for e in edges for a in e})
     return Dag.from_edges(names, edges)
-
-
-def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list[tuple[str, str]]:
-    """Return directed edges from a CPDAG; error if undirected remain when required."""
-    from .graph import Cpdag
-
-    if not isinstance(cpdag, Cpdag):
-        raise CausalTypeError(f"expected Cpdag, got {type(cpdag)!r}")
-    directed: list[tuple[str, str]] = []
-    undirected = 0
-    for src, tgt, kind in cpdag.edges():
-        if kind == "directed":
-            directed.append((src, tgt))
-        elif kind == "undirected":
-            undirected += 1
-        else:
-            undirected += 1
-    if undirected and require_oriented:
-        raise CausalValueError(
-            f"CPDAG has {undirected} undirected/ambiguous edge(s); orient before "
-            "PathSpecific/Interventional queries (require_oriented=True)"
-        )
-    if require_oriented:
-        try:
-            dag = cpdag.try_into_dag()
-        except Exception as exc:  # noqa: BLE001
-            raise CausalValueError(
-                "CPDAG is not fully oriented; cannot coerce to DAG for path/distribution queries"
-            ) from exc
-        return list(dag.edges())
-    return directed
 
 
 __all__ = [
