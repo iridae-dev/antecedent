@@ -2076,6 +2076,59 @@ fn analyze_mediation(
     })
 }
 
+/// Identify-only on a static ADMG (no estimation).
+///
+/// An ADMG carries bidirected edges, so it is the only static graph type that
+/// can state "these two variables share an unmeasured common cause". Without
+/// this entry point an unobserved confounder had to be flattened into a DAG
+/// before identification, where it looks like an ordinary adjustable node and
+/// the effect is reported as identified by adjusting on a variable no study
+/// can measure.
+#[pyfunction]
+#[pyo3(signature = (names, graph, treatment, outcome, *, identifier=None))]
+fn identify_ate_admg(
+    py: Python<'_>,
+    names: Vec<String>,
+    graph: graphs::Admg,
+    treatment: String,
+    outcome: String,
+    identifier: Option<String>,
+) -> PyResult<(String, String, Vec<String>)> {
+    detach_catch(py, move || {
+        let zeros = [0.0_f64, 1.0];
+        let pairs: Vec<(&str, &[f64])> =
+            names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
+        let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let mut builder = Study::tabular(data)
+            .graph(graph.admg)
+            .query(AverageEffectQuery::binary_ate(t_id, y_id))
+            .refute(RefuteSuite::None);
+        if let Some(id) = identifier {
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
+        }
+        let analysis = builder.build().map_err(py_err)?;
+        let id_res = analysis.identify_only().map_err(py_err)?;
+        let status = format!("{:?}", id_res.status);
+        let method = id_res.estimands.first().map(|e| e.method.to_string()).unwrap_or_default();
+        let adjustment: Vec<String> = id_res
+            .estimands
+            .first()
+            .map(|e| {
+                e.adjustment_set
+                    .iter()
+                    .filter_map(|vid| names.get(vid.as_usize()).cloned())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok((status, method, adjustment))
+    })
+}
+
 /// Identify-only on a static DAG (no estimation).
 #[pyfunction]
 #[pyo3(signature = (names, edges, treatment, outcome, *, identifier=None))]
@@ -2138,5 +2191,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
     Ok(())
 }

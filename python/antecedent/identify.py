@@ -24,7 +24,7 @@ from typing import Any, Literal
 
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
-from .graph import Dag
+from .graph import Admg, Dag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import AverageEffect
@@ -45,7 +45,7 @@ class Identification:
     status: str
     method: str
     adjustment_set: list[str]
-    graph: Dag | Sequence[tuple[str, str]]
+    graph: Dag | Admg | Sequence[tuple[str, str]]
     query: AverageEffect
     names: list[str] | None = None
     identifier: str | None = None
@@ -90,7 +90,7 @@ class Identification:
         cls,
         view: IdentificationView,
         *,
-        graph: Dag | Sequence[tuple[str, str]],
+        graph: Dag | Admg | Sequence[tuple[str, str]],
         query: AverageEffect,
         names: Sequence[str] | None = None,
         identifier: str | None = None,
@@ -170,7 +170,7 @@ class Identification:
 
 def identify(
     *,
-    graph: Dag | Sequence[tuple[str, str]],
+    graph: Dag | Admg | Sequence[tuple[str, str]],
     query: AverageEffect,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
@@ -184,7 +184,13 @@ def identify(
     ``.validate()`` without recomputing identification.
 
     Pass ``names`` when ``graph`` is an edge list (variable order). With a
-    ``Dag``, names are taken from ``graph.nodes()``.
+    typed graph, names are taken from ``graph.nodes()``.
+
+    Accepts an ``Admg`` as well as a ``Dag``. Prefer one whenever a confounder
+    is unmeasured: a ``Dag`` cannot express "this variable is not observable",
+    so a latent common cause flattened into one is identified by adjusting on a
+    variable no study can measure. ``Dag.latent_project(observed)`` builds the
+    ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
     result = _identify_native(graph=graph, query=query, names=names, identifier=identifier)
