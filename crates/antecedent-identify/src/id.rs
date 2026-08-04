@@ -531,10 +531,27 @@ fn observational_marginal(
     arena: &mut CausalExprArena,
     assign: Option<(DenseNodeId, Value)>,
 ) -> Result<ExprId, IdentificationError> {
-    // ∏_{vi ∈ V} P(vi | pa) then sum out V\Y — Markov factorization on directed edges.
-    // For ADMGs without latents this is exact; with latents, line 1 only runs when X=∅
-    // after ancestral restriction so districts are handled elsewhere.
-    let factors = markov_product(prepared, v, arena, assign)?;
+    // Tian / Shpitser–Pearl: P(V) = ∏_{S ∈ C(G[V])} Q[S], Q[S] = ∏_{Vi∈S} P(Vi | V^π_<i).
+    // On a DAG, C-components are singletons and this reduces to the usual Markov product
+    // (conditioning on extra predecessors is redundant given pa(Vi)). On an ADMG with
+    // bidirected edges, ∏ P(vi | pa(vi)) is not the observational joint.
+    let comps = prepared.c_components(v);
+    let factors = if comps.is_empty() {
+        markov_product(prepared, v, arena, assign)?
+    } else if comps.len() == 1 {
+        q_component_product(prepared, &comps[0], v, arena, assign)?
+    } else {
+        let mut parts = Vec::with_capacity(comps.len());
+        for s in &comps {
+            parts.push(q_component_product(prepared, s, v, arena, assign.clone())?);
+        }
+        if parts.len() == 1 {
+            parts[0]
+        } else {
+            let list = arena.intern_list(parts);
+            arena.intern(ExprNode::Product(list))
+        }
+    };
     let mut sum_vars = v.clone();
     sum_vars.difference_with(y);
     if sum_vars.any() {
@@ -791,8 +808,54 @@ mod tests {
             Intervention::shift(VariableId::from_raw(1), Value::f64(1.0)),
             TargetPopulation::AllObserved,
         ));
-        let res = id.identify(&prep, &shift, &mut ws).unwrap();
+        let err = id.identify(&prep, &shift, &mut ws).unwrap_err();
+        assert!(
+            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Shift")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn admg_observational_line1_uses_c_component_factorization() {
+        // A ↔ B, no directed edges: Markov product would be P(A)P(B); Tian Q is P(A)P(B|A).
+        let mut g = Admg::with_variables(2);
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let id = IdIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::Distribution(
+            antecedent_core::InterventionalDistributionQuery::new(
+                VariableId::from_raw(0),
+                Arc::from([]),
+            )
+            .with_outcomes(Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)])),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let functional = res.estimands[0].functional;
+        assert!(
+            distribution_has_nonempty_cond(&res.arena, functional),
+            "line 1 on a bidirected ADMG must use Q-component factors, not ∏ P(vi)"
+        );
+    }
+
+    fn distribution_has_nonempty_cond(arena: &CausalExprArena, id: ExprId) -> bool {
+        match arena.node(id) {
+            ExprNode::Distribution { conditioned_on, .. } => {
+                !arena.var_set(*conditioned_on).is_empty()
+            }
+            ExprNode::Product(list) => {
+                arena.list(*list).iter().any(|&e| distribution_has_nonempty_cond(arena, e))
+            }
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                distribution_has_nonempty_cond(arena, *expr)
+            }
+            ExprNode::Ratio { numerator, denominator } => {
+                distribution_has_nonempty_cond(arena, *numerator)
+                    || distribution_has_nonempty_cond(arena, *denominator)
+            }
+            _ => false,
+        }
     }
 
     #[test]

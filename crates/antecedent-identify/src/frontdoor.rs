@@ -20,7 +20,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    VariableId,
+};
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
@@ -153,7 +156,8 @@ impl FrontDoorIdentifier {
             }
         }
         // If the full child set exceeds the cardinality bound, still test it once.
-        if children_of_t.len() > max_k {
+        let child_overflow = children_of_t.len() > max_k;
+        if child_overflow {
             push_candidate(children_of_t, &mut candidates);
         }
 
@@ -163,6 +167,7 @@ impl FrontDoorIdentifier {
             .filter(|&v| v != t && v != y)
             .collect();
         // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).
+        let mut search_bounded = child_overflow || intermediates.len() > 12;
         if intermediates.len() <= 12 {
             let max_all = self.config.max_mediator_set_size.min(intermediates.len());
             for k in 1..=max_all {
@@ -180,6 +185,7 @@ impl FrontDoorIdentifier {
             if is_frontdoor_set(dag, t, y, m, &mut workspace.dsep)? {
                 valid.push(m.clone());
                 if valid.len() >= self.config.max_results {
+                    search_bounded = true;
                     break;
                 }
             }
@@ -198,12 +204,22 @@ impl FrontDoorIdentifier {
         );
 
         if valid.is_empty() {
-            return Ok(IdentificationResult::not_identified(
+            let mut result = IdentificationResult::not_identified(
                 query,
                 derivation,
                 assumptions,
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-            ));
+            );
+            if search_bounded {
+                result.diagnostics.push(Diagnostic::new(
+                    "identify.frontdoor.search_bounded",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "front-door mediator search was truncated by max_mediator_set_size / \
+                     max_results; NotIdentified may be a search bound, not structural non-ID",
+                ));
+            }
+            return Ok(result);
         }
 
         let mut arena = CausalExprArena::new();
@@ -228,7 +244,7 @@ impl FrontDoorIdentifier {
             derivation.push("frontdoor.mediator_set", format!("|M|={}", m.len()));
         }
 
-        Ok(IdentificationResult::identified(
+        let mut result = IdentificationResult::identified(
             query,
             estimands,
             arena,
@@ -238,7 +254,17 @@ impl FrontDoorIdentifier {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        ))
+        );
+        if search_bounded {
+            result.diagnostics.push(Diagnostic::new(
+                "identify.frontdoor.search_bounded",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "front-door mediator search was truncated by max_mediator_set_size / max_results; \
+                 NotIdentified (or a missing set) may be a search bound, not structural non-ID",
+            ));
+        }
+        Ok(result)
     }
 }
 
