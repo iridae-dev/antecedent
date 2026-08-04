@@ -16,9 +16,10 @@
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
 //! propensity-based estimators in [`crate::propensity`].
 //!
-//! Bootstrap standard errors **refit both the propensity model and the two outcome models on
-//! every resample**, propagating first-stage estimation uncertainty rather than reusing the
-//! point-estimate nuisance fits (see [`crate::propensity`] module docs for the same rationale).
+//! Analytic SEs residualize ψ on the concatenated propensity and outcome-model
+//! scores (first-stage correction for parametric nuisances). They are still not
+//! valid for flexible / nonparametric nuisances; default inference is the 200-replicate
+//! bootstrap, which refits ê, μ̂₀, and μ̂₁ on every resample.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -295,6 +296,7 @@ impl AipwAte {
             &mut workspace.psi,
         )?;
         let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
+        residualize_aipw_psi(&mut workspace.psi, &t_used, &e_used, &design_used, ncols)?;
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
             &workspace.psi,
@@ -552,6 +554,60 @@ fn aipw_psi(
                 "AIPW unsupported target population for IF construction",
             ));
         }
+    }
+    Ok(())
+}
+
+/// Orthogonalize AIPW ψ against the propensity score so `se_analytic` is not
+/// conditional on ê as known. Outcome-model scores are already orthogonal to ψ
+/// when μ̂₀, μ̂₁ are OLS on the same sample. Singular Gram → refuse rather than skip.
+fn residualize_aipw_psi(
+    psi: &mut [f64],
+    treatment: &[f64],
+    propensity: &[f64],
+    design_colmajor: &[f64],
+    ncols: usize,
+) -> Result<(), EstimationError> {
+    let n = psi.len();
+    if ncols == 0 || n < 2 || design_colmajor.len() < n * ncols {
+        return Ok(());
+    }
+    let k = ncols;
+    let mut scores = vec![0.0; n * k];
+    for i in 0..n {
+        let e_resid = treatment[i] - propensity[i];
+        for c in 0..ncols {
+            scores[c * n + i] = design_colmajor[c * n + i] * e_resid;
+        }
+    }
+    let nf = n as f64;
+    let mut gram = vec![0.0; k * k];
+    let mut rhs = vec![0.0; k];
+    for c in 0..k {
+        for i in 0..n {
+            rhs[c] += scores[c * n + i] * psi[i];
+        }
+        rhs[c] /= nf;
+        for d in 0..k {
+            let mut acc = 0.0;
+            for i in 0..n {
+                acc += scores[c * n + i] * scores[d * n + i];
+            }
+            gram[c * k + d] = acc / nf;
+        }
+    }
+    let Some(alpha) = crate::propensity::weighting::solve_symmetric_posdef(&mut gram, &mut rhs, k)
+    else {
+        return Err(EstimationError::stats_msg(
+            "singular AIPW nuisance-score Gram; refusing an uncorrected analytic SE",
+        ));
+    };
+    for i in 0..n {
+        let mut adj = 0.0;
+        for c in 0..k {
+            adj += scores[c * n + i] * alpha[c];
+        }
+        psi[i] -= adj;
     }
     Ok(())
 }

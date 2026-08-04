@@ -300,7 +300,10 @@ impl WaldIv {
             self.panel_times.as_deref(),
             None,
         )?;
-        let se_analytic = se_unit * problem.treatment_delta.abs();
+        let se_analytic = se_if_strong_instrument(
+            first_stage_diagnostics.as_ref(),
+            se_unit * problem.treatment_delta.abs(),
+        );
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -377,6 +380,18 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
     Ok(WaldResult { ratio })
 }
 
+/// Staiger–Stock / Stock–Yogo rule-of-thumb: analytic Wald / homoskedastic 2SLS
+/// intervals are not published below this first-stage F.
+const WEAK_IV_F_THRESHOLD: f64 = 10.0;
+
+/// Analytic SE is NaN when the first stage is weaker than [`WEAK_IV_F_THRESHOLD`].
+fn se_if_strong_instrument(diagnostics: Option<&FirstStageDiagnostics>, se: f64) -> f64 {
+    match diagnostics {
+        Some(d) if d.f_statistic.is_finite() && d.f_statistic < WEAK_IV_F_THRESHOLD => f64::NAN,
+        _ => se,
+    }
+}
+
 /// Weak-instrument diagnostic for the binary single-instrument Wald design.
 ///
 /// Equivalent to an OLS F-test of `T ~ 1 + Z` for the null that the instrument's
@@ -384,8 +399,8 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
 /// and `Z=0` arms with pooled variance, with `df1 = 1` and `df2 = n1 + n0 - 2`. Returns
 /// `None` when either arm has fewer than 2 observations (pooled variance undefined),
 /// mirroring [`fit_2sls`]'s [`FirstStageDiagnostics`] shape so both IV estimators expose
-/// the same diagnostic type. Purely informational — never causes [`WaldIv::fit`] to fail;
-/// a future release could add an opt-in hard threshold on top of it.
+/// the same diagnostic type. [`WaldIv::fit`] still returns a point estimate, but
+/// `se_analytic` is NaN when `f_statistic < 10`.
 fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagnostics> {
     let (mut n1, mut n0) = (0usize, 0usize);
     let (mut st1, mut st0) = (0.0, 0.0);
@@ -650,7 +665,10 @@ impl TwoStageLeastSquares {
                 fit.structural_rss,
             )
         };
-        let se_analytic = se_coef * problem.treatment_delta.abs();
+        let se_analytic = se_if_strong_instrument(
+            Some(&fit.first_stage_diagnostics),
+            se_coef * problem.treatment_delta.abs(),
+        );
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -965,6 +983,11 @@ mod tests {
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
+        assert!(
+            weak_effect.se_analytic.is_nan(),
+            "weak first stage must not publish a Wald/2SLS analytic SE"
+        );
+        assert!(strong_effect.se_analytic.is_finite() && strong_effect.se_analytic > 0.0);
         // The separation is the real claim: a weak first stage must sit an order of
         // magnitude below a strong one.
         assert!(
@@ -1003,6 +1026,11 @@ mod tests {
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
+        assert!(
+            weak_effect.se_analytic.is_nan(),
+            "weak first stage must not publish a Wald/2SLS analytic SE"
+        );
+        assert!(strong_effect.se_analytic.is_finite() && strong_effect.se_analytic > 0.0);
         // The separation is the real claim: a weak first stage must sit an order of
         // magnitude below a strong one.
         assert!(
