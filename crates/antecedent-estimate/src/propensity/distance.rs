@@ -20,7 +20,10 @@ use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
-/// Distance matching on raw adjustment covariates (Euclidean), not the propensity score.
+/// Distance matching on z-scored adjustment covariates (Euclidean), not the propensity score.
+///
+/// Features are standardized (mean 0, sd 1) on the estimation sample so the metric is not
+/// unit-dependent. A caliper, when set, is in that standardized Euclidean metric.
 ///
 /// A propensity model is still fit to populate mandatory positivity diagnostics
 /// ([`EffectEstimate::overlap_report`]) and — when the overlap policy sets a trim threshold —
@@ -204,13 +207,14 @@ impl DistanceMatching {
             &self.glm_options,
         )?;
         let retained = trim_retained_rows(&diag.fit.scores, trim)?;
-        let (t_used, y_used, f_used) = restrict_to_rows(
+        let (t_used, y_used, mut f_used) = restrict_to_rows(
             &problem.treatment,
             &problem.outcome,
             &features,
             dim,
             retained.as_deref(),
         );
+        standardize_rowmajor_inplace(&mut f_used, t_used.len(), dim);
         let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
@@ -250,12 +254,14 @@ impl DistanceMatching {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+        let mut overlap_report = crate::propensity::propensity_overlap_report(
             problem,
             &diag.fit.scores,
             None,
             ipw_target,
-        ));
+        );
+        overlap_report.retained_fraction *= result.retained_fraction;
+        let overlap_report = Some(overlap_report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_overlap_report(overlap_report)
@@ -311,8 +317,9 @@ impl DistanceMatching {
             } else {
                 None
             };
-            let (t_used, y_used, f_used) =
+            let (t_used, y_used, mut f_used) =
                 restrict_to_rows(&t_boot, &y_boot, &feat_boot, dim, retained.as_deref());
+            standardize_rowmajor_inplace(&mut f_used, t_used.len(), dim);
             match matching_contrast(
                 &t_used,
                 &y_used,
@@ -332,5 +339,29 @@ impl DistanceMatching {
                 Err(_) => Ok(None),
             }
         })
+    }
+}
+
+/// Z-score each feature column on the current sample (row-major `n × dim`).
+fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
+    if n == 0 || dim == 0 {
+        return;
+    }
+    let nf = n as f64;
+    for c in 0..dim {
+        let mut mean = 0.0;
+        for r in 0..n {
+            mean += features[r * dim + c];
+        }
+        mean /= nf;
+        let mut var = 0.0;
+        for r in 0..n {
+            let d = features[r * dim + c] - mean;
+            var += d * d;
+        }
+        let sd = (var / nf).sqrt().max(1e-12);
+        for r in 0..n {
+            features[r * dim + c] = (features[r * dim + c] - mean) / sd;
+        }
     }
 }

@@ -786,15 +786,15 @@ fn fit_binomial_ridge(
         }
     }
 
-    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    // Ridge fits clear the separation flag by construction (penalized MLE).
+    // Ridge fits remain `separated: true`: penalized scores are not a substitute for
+    // an unpenalized MLE. Estimation paths (`require_ok`) must refuse them.
     let (deviance, _) = binomial_diagnostics_at(family, design, &beta);
 
     Ok(GlmFit {
         coefficients: beta,
         iterations,
         converged,
-        separated: false,
+        separated: true,
         deviance,
         nb_alpha: None,
         diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
@@ -1457,7 +1457,7 @@ mod tests {
     }
 
     #[test]
-    fn ridge_on_separation_clears_separated_flag() {
+    fn ridge_on_separation_keeps_separated_flag() {
         let n = 60usize;
         let mut x = vec![0.0; n * 2];
         let mut y = vec![0.0; n];
@@ -1478,8 +1478,8 @@ mod tests {
         )
         .unwrap();
         assert!(fit.converged);
-        assert!(!fit.separated);
-        assert!(fit.require_ok().is_ok());
+        assert!(fit.separated, "ridge fallback must not clear separation");
+        assert!(fit.require_ok().is_err());
         assert!(fit.coefficients[1] > 0.0);
     }
 

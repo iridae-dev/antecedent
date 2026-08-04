@@ -80,6 +80,9 @@ pub struct OverlapReport {
     pub clip: Option<f64>,
     /// Trim threshold applied, if any.
     pub trim: Option<f64>,
+    /// Fraction of units retained after trim / caliper / empty-stratum attrition
+    /// (1.0 when nothing was dropped beyond propensity trim already in `excluded_fraction`).
+    pub retained_fraction: f64,
     /// ESS / extreme-weight sensitivity across neighboring clip thresholds.
     pub clip_sensitivity: Option<ClipSensitivity>,
 }
@@ -220,6 +223,7 @@ impl OverlapReport {
             excluded_regions,
             clip,
             trim,
+            retained_fraction: 1.0 - excluded_fraction,
             clip_sensitivity,
         }
     }

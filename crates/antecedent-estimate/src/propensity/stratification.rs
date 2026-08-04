@@ -185,6 +185,7 @@ impl PropensityStratification {
         // retained fraction into the support figure so the artifact reflects the population
         // the estimate actually targets.
         report.target_population_support *= result.retained_fraction;
+        report.retained_fraction *= result.retained_fraction;
         let overlap_report = Some(report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
