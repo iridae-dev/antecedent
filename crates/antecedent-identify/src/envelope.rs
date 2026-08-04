@@ -86,7 +86,7 @@ impl<G> IdentificationEnvelope<G> {
                     if let Some(est) = c.result.estimands.first() {
                         match &invariant {
                             None => invariant = Some(est.clone()),
-                            Some(prev) if prev.method != est.method => {
+                            Some(prev) if !estimands_agree(prev, est) => {
                                 invariant_conflict = true;
                             }
                             _ => {}
@@ -145,6 +145,16 @@ impl<G> IdentificationEnvelope<G> {
             }
         }
     }
+}
+
+/// Class-wide invariant estimands must agree on the functional roles, not just the method tag.
+/// `functional` `ExprIds` live in per-case arenas and are not comparable.
+fn estimands_agree(a: &IdentifiedEstimand, b: &IdentifiedEstimand) -> bool {
+    a.method == b.method
+        && a.adjustment_set == b.adjustment_set
+        && a.instruments == b.instruments
+        && a.mediators == b.mediators
+        && a.rd_design == b.rd_design
 }
 
 fn collect_critical_features<G>(
