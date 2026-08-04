@@ -515,7 +515,9 @@ fn apply_r9<G: PagOps>(
                     continue;
                 }
                 if !state.is_weakly_minimal(b1, c) && !sep.is_empty() {
-                    // Prefer WM; allow empty/singleton sepsets as trivially WM.
+                    // Static FCI never runs weakly-minimal reduction. Allow empty/singleton
+                    // sepsets as trivially weakly minimal (R9 is singleton-only on this path);
+                    // larger unmarked sepsets do not license R9.
                     if sep.len() > 1 {
                         continue;
                     }

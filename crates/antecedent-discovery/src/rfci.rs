@@ -35,7 +35,7 @@ use crate::discriminating_paths::{
 };
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::evidence::threshold_scored_links;
+use crate::evidence::retain_after_family_fdr;
 use crate::fci::{
     StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state, record_sepset,
 };
@@ -186,6 +186,8 @@ impl Rfci {
         }
 
         let mut depth = 0usize;
+        let mut family_p: Vec<f64> = Vec::new();
+        let mut family_edge: Vec<(u32, u32)> = Vec::new();
         loop {
             let mut depth_tests = 0u64;
             // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
@@ -235,6 +237,8 @@ impl Rfci {
                     let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
+                    family_p.push(p);
+                    family_edge.push(edge_key(x, y));
                     if p > alpha {
                         independent = true;
                         weakest_dep_stat = stat;
@@ -318,7 +322,7 @@ impl Rfci {
                 })
             })
             .collect();
-        scored = threshold_scored_links(scored, self.fdr, alpha);
+        scored = retain_after_family_fdr(scored, &family_p, &family_edge, self.fdr, alpha);
         let kept: HashSet<(u32, u32)> =
             scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         if self.fdr.is_some() {
