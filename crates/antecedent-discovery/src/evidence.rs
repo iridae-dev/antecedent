@@ -4,7 +4,7 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::needless_pass_by_value)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{Lag, VariableId};
@@ -55,6 +55,57 @@ pub fn threshold_scored_links(
     }
     scored.retain(|s| s.adjusted_p_value.unwrap_or(s.p_value) <= alpha);
     scored
+}
+
+/// FDR over the **full CI-test family**, then drop any surviving edge that has a
+/// test with adjusted p > `alpha`.
+///
+/// PC/FCI/RFCI run many tests per edge. Adjusting only the last surviving-edge
+/// p-value understates multiplicity. `family_p` / `family_edge` must contain
+/// every test the algorithm actually ran.
+#[must_use]
+pub fn retain_after_family_fdr(
+    mut surviving: Vec<ScoredLink>,
+    family_p: &[f64],
+    family_edge: &[(u32, u32)],
+    fdr: Option<FdrAdjustment>,
+    alpha: f64,
+) -> Vec<ScoredLink> {
+    let Some(cfg) = fdr else {
+        return surviving;
+    };
+    if family_p.is_empty() || family_p.len() != family_edge.len() {
+        return threshold_scored_links(surviving, Some(cfg), alpha);
+    }
+    let adj = adjust_pvalues(family_p, cfg.method);
+    let mut drop: HashSet<(u32, u32)> = HashSet::new();
+    let mut max_adj: HashMap<(u32, u32), f64> = HashMap::new();
+    for (i, &p_adj) in adj.iter().enumerate() {
+        let key = family_edge[i];
+        if p_adj > alpha {
+            drop.insert(key);
+        }
+        max_adj.entry(key).and_modify(|m| *m = m.max(p_adj)).or_insert(p_adj);
+    }
+    for s in &mut surviving {
+        let key = if s.link.source.raw() <= s.link.target.raw() {
+            (s.link.source.raw(), s.link.target.raw())
+        } else {
+            (s.link.target.raw(), s.link.source.raw())
+        };
+        if let Some(&p_adj) = max_adj.get(&key) {
+            s.adjusted_p_value = Some(p_adj);
+        }
+    }
+    surviving.retain(|s| {
+        let key = if s.link.source.raw() <= s.link.target.raw() {
+            (s.link.source.raw(), s.link.target.raw())
+        } else {
+            (s.link.target.raw(), s.link.source.raw())
+        };
+        !drop.contains(&key)
+    });
+    surviving
 }
 
 /// Backward-compatible BH toggle (excludes contemporaneous links, matching pinned baseline).
@@ -479,6 +530,34 @@ mod tests {
         let out = threshold_scored_links(vec![contemp], Some(cfg), 1.0);
         assert_eq!(out.len(), 1);
         assert!(out[0].adjusted_p_value.is_some());
+    }
+
+    #[test]
+    fn family_fdr_drops_edge_when_any_family_test_fails_adjustment() {
+        let surviving = vec![ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.4,
+            p_value: 0.04,
+            adjusted_p_value: None,
+        }];
+        // BH is a no-op at α when every family p ≤ α (adj(p_max)=p_max). The extra
+        // large p-values are tests that already removed other edges — the multiplicity
+        // PC/FCI actually ran, which is what inflates the surviving-edge 0.04.
+        let family_p = vec![0.001, 0.04, 0.80, 0.90, 0.95];
+        let family_edge = vec![(0u32, 1u32), (0, 1), (0, 2), (1, 2), (2, 3)];
+        let out = retain_after_family_fdr(
+            surviving,
+            &family_p,
+            &family_edge,
+            Some(FdrAdjustment::bh()),
+            0.05,
+        );
+        assert!(out.is_empty(), "BH on the full CI-test family must drop the edge");
     }
 
     /// `EdgeEvidence::separating_set` is an `Option`, not a list, because the sepset map holds

@@ -315,7 +315,7 @@ impl Notears {
             .map(|e| ScoredLink {
                 link: e.link,
                 statistic: e.statistic.unwrap_or(0.0),
-                p_value: 1.0,
+                p_value: f64::NAN,
                 adjusted_p_value: None,
             })
             .collect();
@@ -341,7 +341,14 @@ impl Notears {
             },
             assumptions: AssumptionSet::default(),
             iterations: Vec::<DiscoveryIteration>::new(),
-            diagnostics: Vec::<DiscoveryDiagnostic>::new(),
+            diagnostics: vec![DiscoveryDiagnostic {
+                code: Arc::from("notears.hard_threshold"),
+                message: Arc::from(format!(
+                    "NOTEARS continuous weights were hard-thresholded at |W| >= {}; \
+                     the thresholded DAG is not claimed to match the unthresholded Markov class",
+                    self.threshold
+                )),
+            }],
             performance: DiscoveryPerformanceRecord {
                 ci_tests: 0,
                 links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),

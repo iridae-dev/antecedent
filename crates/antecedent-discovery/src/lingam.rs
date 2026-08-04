@@ -290,7 +290,7 @@ impl DirectLingam {
             .map(|e| ScoredLink {
                 link: e.link,
                 statistic: e.statistic.unwrap_or(0.0),
-                p_value: 1.0,
+                p_value: f64::NAN,
                 adjusted_p_value: None,
             })
             .collect();

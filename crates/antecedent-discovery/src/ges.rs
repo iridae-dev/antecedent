@@ -287,7 +287,7 @@ impl Ges {
             .map(|e| ScoredLink {
                 link: e.link,
                 statistic: 0.0,
-                p_value: 1.0,
+                p_value: f64::NAN,
                 adjusted_p_value: None,
             })
             .collect();
@@ -696,6 +696,12 @@ fn best_insert(
                 cpdag.undirected_neighbors(y).into_iter().filter(|n| !adj_x.contains(n)).collect();
             candidates.sort_unstable_by_key(|node| node.raw());
             let mut subsets: Vec<Vec<DenseNodeId>> = Vec::new();
+            if candidates.len() > max_subset {
+                return Err(DiscoveryError::Resource(format!(
+                    "GES Insert T-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
+                    candidates.len()
+                )));
+            }
             for_each_subset(&candidates, max_subset, |t| subsets.push(t.to_vec()));
             for t in subsets {
                 if !insert_valid(cpdag, x, y, &t) {
@@ -740,6 +746,12 @@ fn best_delete(
                 continue;
             }
             let na = na_yx(cpdag, y, x);
+            if na.len() > max_subset {
+                return Err(DiscoveryError::Resource(format!(
+                    "GES Delete H-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
+                    na.len()
+                )));
+            }
             let mut subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&na, max_subset, |h| subsets.push(h.to_vec()));
             for h in subsets {
@@ -783,6 +795,12 @@ fn best_reverse(
             continue;
         }
         let na = na_yx(cpdag, y, x);
+        if na.len() > max_subset {
+            return Err(DiscoveryError::Resource(format!(
+                "GES Reverse H-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
+                na.len()
+            )));
+        }
         let mut h_subsets: Vec<Vec<DenseNodeId>> = Vec::new();
         for_each_subset(&na, max_subset, |h| h_subsets.push(h.to_vec()));
         for h in h_subsets {
@@ -797,6 +815,12 @@ fn best_reverse(
             let mut candidates: Vec<DenseNodeId> =
                 tmp.undirected_neighbors(x).into_iter().filter(|n| !adj_y.contains(n)).collect();
             candidates.sort_unstable_by_key(|node| node.raw());
+            if candidates.len() > max_subset {
+                return Err(DiscoveryError::Resource(format!(
+                    "GES Reverse T-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
+                    candidates.len()
+                )));
+            }
             let mut t_subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&candidates, max_subset, |t| t_subsets.push(t.to_vec()));
             for t in t_subsets {
