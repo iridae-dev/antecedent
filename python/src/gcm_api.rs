@@ -266,6 +266,8 @@ pub struct RankedDesign {
     pub rank: usize,
     #[pyo3(get)]
     pub rank_uncertain: bool,
+    #[pyo3(get)]
+    pub implemented_functional: String,
 }
 
 #[pymethods]

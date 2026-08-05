@@ -428,6 +428,7 @@ class RankedDesign:
     stderr: float
     rank: int
     rank_uncertain: bool
+    implemented_functional: str
 
 class DesignConstraintViolation:
     candidate_index: int
