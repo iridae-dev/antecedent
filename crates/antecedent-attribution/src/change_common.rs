@@ -7,7 +7,6 @@ use std::sync::Arc;
 use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, VariableId};
 use antecedent_stats::gaussian_kl;
 
-use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley, sequential_allocate};
@@ -180,71 +179,51 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
     use crate::path::path_decompose;
-    use crate::result::{ComponentContribution, PathContribution};
+    use crate::result::ComponentContribution;
 
-    let outcome_dense =
-        model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
-    let full = full_coalition_mask(players.len())?;
-    let v_full = payoff.value(full)?;
-    let mut path_breakdown: Vec<PathContribution> = Vec::new();
+    // PathBased is a linear-Gaussian path decomposition, not Shapley. Per-player
+    // path products need not partition v(N)−v(∅) when ancestries nest, so shares
+    // are renormalized to the true total (efficiency). Truncation and nonlinear
+    // mechanisms are refused by `path_decompose`.
+    let _ = payoff;
+    let mut path_breakdown = Vec::new();
     let mut contributions: Vec<ComponentContribution> = Vec::new();
-    let mut evaluations = 0u64;
-
-    for (i, &comp) in players.iter().enumerate() {
-        let without = full & !(1u64 << i);
-        let v_wo = payoff.value(without)?;
-        let marginal = v_full - v_wo;
-        evaluations += 2;
-
-        let src = comp.variable();
-        let src_dense =
-            model.dense_of(src).ok_or_else(|| AttributionError::missing_var("source", src))?;
-
-        // Path shares via linear β-products; fall back to single direct share.
-        let path_result = path_decompose(model, &[src], outcome, 64, 16, ctx);
-        let mut player_paths: Vec<PathContribution> = Vec::new();
-        match path_result {
-            Ok(res) if !res.path_breakdown.is_empty() => {
-                let weight_sum: f64 =
-                    res.path_breakdown.iter().map(|p| p.contribution.abs()).sum::<f64>().max(1e-12);
-                for p in res.path_breakdown.iter() {
-                    let sign = if p.contribution >= 0.0 { 1.0 } else { -1.0 };
-                    let share = marginal * (p.contribution.abs() / weight_sum) * sign;
-                    player_paths
-                        .push(PathContribution { path: Arc::clone(&p.path), contribution: share });
-                }
-            }
-            _ => {
-                // Nonlinear or no path: attribute marginal to the player→outcome hop.
-                let path = if src_dense == outcome_dense {
-                    Arc::from([src])
-                } else {
-                    Arc::from([src, outcome])
-                };
-                player_paths.push(PathContribution { path, contribution: marginal });
-            }
-        }
-        let contrib_sum: f64 = player_paths.iter().map(|p| p.contribution).sum();
+    for &comp in players {
+        let res = path_decompose(model, &[comp.variable()], outcome, 64, 16, ctx)?;
+        let player_sum: f64 = res.path_breakdown.iter().map(|p| p.contribution).sum();
         contributions.push(ComponentContribution {
             component: comp,
-            contribution: contrib_sum,
+            contribution: player_sum,
             stderr: None,
             ci_low: None,
             ci_high: None,
         });
-        path_breakdown.extend(player_paths);
+        path_breakdown.extend(res.path_breakdown.iter().cloned());
     }
-
-    let _ = total_change;
+    let raw: f64 = contributions.iter().map(|c| c.contribution).sum();
+    if raw.abs() > 1e-15 && total_change.is_finite() {
+        let scale = total_change / raw;
+        for c in &mut contributions {
+            c.contribution *= scale;
+        }
+        for p in &mut path_breakdown {
+            p.contribution *= scale;
+        }
+    }
+    let n_paths = path_breakdown.len();
     Ok(ChangeAttributionResult {
         outcome,
-        total_change: contributions.iter().map(|c| c.contribution).sum(),
+        total_change,
         contributions: Arc::from(contributions),
         interactions: Arc::from([]),
         path_breakdown: Arc::from(path_breakdown),
         unidentified,
         graph_sensitivity: None,
-        budget: crate::result::ComputeBudget { evaluations, samples: 0, exact_coalitions: 0 },
+        budget: crate::result::ComputeBudget {
+            evaluations: u64::try_from(n_paths).unwrap_or(u64::MAX),
+            samples: 0,
+            exact_coalitions: 0,
+        },
         monte_carlo_stderr: None,
         component_mc_stderr: None,
         cache_stats: crate::result::CacheStats::default(),
