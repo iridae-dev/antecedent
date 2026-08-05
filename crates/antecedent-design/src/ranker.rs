@@ -222,6 +222,7 @@ impl DesignRanker {
             violations,
             budget,
             early_stopped,
+            objective.implemented_functional(),
         ))
     }
 
@@ -333,6 +334,7 @@ impl DesignRanker {
         violations: Vec<ConstraintViolation>,
         budget: MonteCarloBudget,
         early_stopped: bool,
+        implemented_functional: &'static str,
     ) -> DesignRanking {
         let mut scored: Vec<(usize, f64, MonteCarloError)> = active
             .iter()
@@ -367,6 +369,7 @@ impl DesignRanker {
                 monte_carlo: *mc,
                 rank,
                 rank_uncertain: uncertain,
+                implemented_functional: Arc::from(implemented_functional),
             });
         }
 
@@ -566,6 +569,9 @@ fn eig_graph_entropy(
 }
 
 /// Deterministic observation reliability for the discrete graph-feature channel.
+///
+/// This is `1 − exp(−c · k)` (or a sample-size saturating map), not a likelihood
+/// `p(y | G, design)`. Scores that call this are heuristic channel entropy, not EIG.
 fn observation_reliability(candidate: &CandidateDesign) -> f64 {
     match candidate {
         CandidateDesign::Measure(p) => {
