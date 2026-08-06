@@ -13,9 +13,9 @@
 /// prior" — priors alone must not flip [`Self::NotIdentified`] to an identified status.
 /// [`Self::IdentifiedUnderParametricRestrictions`] is emitted by the GCM / parametric-SCM
 /// path (`parametric_scm_identification` in the `antecedent` crate, covering counterfactual,
-/// anomaly-attribution, change-attribution, mechanism-change, and unit-change queries), and
-/// both variants are whitelisted by estimation gates (see
-/// `identification_status_acceptable()` in the `antecedent` crate's `strategy_table`).
+/// anomaly-attribution, change-attribution, mechanism-change, and unit-change queries).
+/// [`Self::IdentifiedUnderPriorRestrictions`] is reserved and is **not** accepted by
+/// estimation gates or prior-bank hydration until an in-tree identifier emits it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum IdentificationStatus {
     /// Nonparametrically identified.
@@ -27,8 +27,8 @@ pub enum IdentificationStatus {
     /// Identified under prior / substantive restrictions treated as identifying assumptions.
     /// Distinct from attaching a prior to a non-identified estimand.
     ///
-    /// Accepted by estimation gates; not yet emitted by any current algorithm (reserved for
-    /// future ID producers).
+    /// Reserved: not emitted by any current algorithm, and not accepted by estimation
+    /// gates or prior-bank hydration.
     IdentifiedUnderPriorRestrictions,
     /// Identified only under a proper subset of the model class (partial ID).
     PartiallyIdentified,

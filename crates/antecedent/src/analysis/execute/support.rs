@@ -158,7 +158,6 @@ pub(super) fn identification_status_ok_for_case(status: IdentificationStatus) ->
         IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
     )
 }
 
