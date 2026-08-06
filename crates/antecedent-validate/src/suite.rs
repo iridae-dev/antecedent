@@ -187,24 +187,39 @@ impl ValidationSuite {
         Self::new().with(ValidatorId::Overlap).with(ValidatorId::EValue)
     }
 
-    /// Full effect-validation set.
+    /// Falsifiers of the causal claim (placebo, dummy outcome, RCC, UCC, overlap, E-value,
+    /// sensitivity, Riesz). Does not include sampling-stability checks.
     #[must_use]
-    pub fn full_effect() -> Self {
+    pub fn falsification_effect() -> Self {
         Self::new()
             .with(ValidatorId::Placebo)
             .with(ValidatorId::RandomCommonCause)
-            .with(ValidatorId::Bootstrap)
             .with(ValidatorId::UnobservedCommonCause)
             .with(ValidatorId::Overlap)
             .with(ValidatorId::OverlapRule)
-            .with(ValidatorId::DataSubset)
             .with(ValidatorId::DummyOutcome)
             .with(ValidatorId::EValue)
-            .with(ValidatorId::Graph)
             .with(ValidatorId::LinearSensitivity)
             .with(ValidatorId::PartialLinearSensitivity)
             .with(ValidatorId::NonparametricSensitivity)
             .with(ValidatorId::Riesz)
+    }
+
+    /// Stability / sampling-variability diagnostics (not claim falsifiers).
+    #[must_use]
+    pub fn stability_effect() -> Self {
+        Self::new()
+            .with(ValidatorId::Bootstrap)
+            .with(ValidatorId::DataSubset)
+            .with(ValidatorId::Graph)
+    }
+
+    /// Full effect-validation set: [`Self::falsification_effect`] then [`Self::stability_effect`].
+    #[must_use]
+    pub fn full_effect() -> Self {
+        let mut s = Self::falsification_effect();
+        s.validators.extend(Self::stability_effect().validators);
+        s
     }
 
     /// Run all configured validators.

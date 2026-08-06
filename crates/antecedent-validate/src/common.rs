@@ -591,9 +591,13 @@ pub(crate) fn noise_replace_refute(
     })
 }
 
-/// Two-sided p-value of observing `hypothesized` under a normal fit to `samples`
-/// (a standard refuter significance test: two-sided normal test on replicate ATEs). Degenerate
-/// spread compares means directly.
+/// Two-sided p-value of observing `hypothesized` as a *typical single replicate*
+/// under a normal fit to `samples` (`z = (hypothesized − mean) / sd`, not `/ (sd/√R)`).
+///
+/// This is not a test of whether the replicate *mean* is `hypothesized`. Adding `√R`
+/// would make any tiny systematic bias refute at large R, which is the wrong operating
+/// characteristic for a placebo / dummy-outcome refuter. Degenerate spread compares
+/// means directly.
 pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
     if samples.len() < 2 {
         return 1.0;
