@@ -630,7 +630,6 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::GraphDependent
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
     )
 }
 
