@@ -90,6 +90,9 @@ impl InferenceDiagnostics {
     /// Whether this diagnostic set is sufficient to publish a posterior.
     ///
     /// Narrow Laplace posteriors without convergence + curvature are refused.
+    /// Bernoulli Laplace with fitted probabilities at the 0/1 boundary
+    /// (`separation_warning`) is refused — the Gaussian Hessian approximation
+    /// is not a publication-grade posterior under (quasi-)complete separation.
     /// MCMC requires finite Ř ≤ 1.01, bulk and tail ESS ≥ 100, zero post-warmup
     /// divergences, and movement on every chain.
     #[must_use]
@@ -99,6 +102,7 @@ impl InferenceDiagnostics {
             HessianFactorization::Mcmc => self.converged && self.mcmc_publication_ok(),
             HessianFactorization::Cholesky | HessianFactorization::Ldlt => {
                 self.converged
+                    && !self.separation_warning
                     && self.grad_inf_norm.is_finite()
                     && self.hessian_condition.is_finite()
                     && self.hessian_condition > 0.0
@@ -231,6 +235,8 @@ mod tests {
         assert!(!d.allows_posterior());
         d.converged = true;
         assert!(d.allows_posterior());
+        d.separation_warning = true;
+        assert!(!d.allows_posterior());
     }
 
     #[test]
