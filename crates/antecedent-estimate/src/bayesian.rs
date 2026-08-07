@@ -775,9 +775,13 @@ impl BayesianGComputationAte {
         let mut coef_draws = coefficient_only_draws(&fit.draws)?;
 
         if laplace_adaptive {
-            let cov = fit.cov.as_ref().ok_or_else(|| {
-                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
-            })?;
+            let empirical;
+            let cov: &[f64] = if let Some(c) = fit.cov.as_ref() {
+                c
+            } else {
+                empirical = empirical_coef_cov(&coef_draws)?;
+                &empirical
+            };
             let map = fit.map.clone();
             let batch = 32usize;
             let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
@@ -1287,6 +1291,38 @@ fn coefficient_only_draws(draws: &PosteriorDraws) -> Result<PosteriorDraws, Esti
         values,
     )
     .map_err(EstimationError::from)
+}
+
+/// Sample covariance of coefficient columns (for adaptive MVN when Laplace cov is absent,
+/// e.g. conjugate NIG routed through the Laplace GaussianIdentity path).
+fn empirical_coef_cov(draws: &PosteriorDraws) -> Result<Vec<f64>, EstimationError> {
+    let p = draws.schema.n_quantities();
+    let n = draws.n_draws;
+    if p == 0 || n < 2 {
+        return Err(EstimationError::stats_msg("empirical coefficient covariance needs ≥2 draws"));
+    }
+    let nf = n as f64;
+    let mut mean = vec![0.0; p];
+    for i in 0..p {
+        let col = draws.column(i).map_err(EstimationError::from)?;
+        mean[i] = col.iter().sum::<f64>() / nf;
+    }
+    let mut cov = vec![0.0; p * p];
+    for i in 0..p {
+        let ci = draws.column(i).map_err(EstimationError::from)?;
+        for j in i..p {
+            let cj = draws.column(j).map_err(EstimationError::from)?;
+            let mut acc = 0.0;
+            for k in 0..n {
+                acc += (ci[k] - mean[i]) * (cj[k] - mean[j]);
+            }
+            let v = acc / (nf - 1.0);
+            cov[i * p + j] = v;
+            cov[j * p + i] = v;
+        }
+        cov[i * p + i] += 1e-12;
+    }
+    Ok(cov)
 }
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
