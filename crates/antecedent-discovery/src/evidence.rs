@@ -60,9 +60,10 @@ pub fn threshold_scored_links(
 /// FDR over the **full CI-test family**, then drop any surviving edge that has a
 /// test with adjusted p > `alpha`.
 ///
-/// PC/FCI/RFCI run many tests per edge. Adjusting only the last surviving-edge
-/// p-value understates multiplicity. `family_p` / `family_edge` must contain
-/// every test the algorithm actually ran.
+/// PC runs many tests per edge. Adjusting only the last surviving-edge p-value
+/// understates multiplicity. `family_p` / `family_edge` must contain every test
+/// the algorithm actually ran. Multi-phase algorithms must refuse this helper
+/// unless they can supply their complete adaptive test family.
 #[must_use]
 pub fn retain_after_family_fdr(
     mut surviving: Vec<ScoredLink>,

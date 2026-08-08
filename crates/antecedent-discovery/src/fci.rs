@@ -18,7 +18,7 @@
     clippy::zero_sized_map_values
 )]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
@@ -33,7 +33,6 @@ use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::evidence::retain_after_family_fdr;
 use crate::orientation::{OrientationError, OrientationState};
 use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
@@ -58,7 +57,8 @@ pub struct Fci {
     pub constraints: DiscoveryConstraints,
     /// Pluggable CI test.
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
-    /// Multiple-testing adjustment (`None` = off). Applied after PC skeleton.
+    /// Multiple-testing adjustment (`None` = off). Configured adjustments are refused until
+    /// the complete multi-phase CI family can be adjusted coherently.
     pub fdr: Option<FdrAdjustment>,
     /// Possible-D-Sep BFS expansion budget.
     pub pds_max_nodes: usize,
@@ -82,7 +82,7 @@ impl Default for Fci {
 }
 
 impl Fci {
-    /// Default FCI with `ParCorr` and BH FDR over skeleton tests.
+    /// Default FCI with `ParCorr` and no incomplete multi-phase FDR adjustment.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -94,7 +94,7 @@ impl Fci {
                 ..DiscoveryConstraints::default()
             },
             ci: Arc::new(PartialCorrelation),
-            fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            fdr: None,
             pds_max_nodes: DEFAULT_PDS_MAX_NODES,
         }
     }
@@ -106,7 +106,7 @@ impl Fci {
         self
     }
 
-    /// Enable / disable BH FDR.
+    /// Request / clear BH FDR. Enabling it is currently refused by [`Self::run`].
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
         self.fdr = fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false));
@@ -114,6 +114,9 @@ impl Fci {
     }
 
     /// Full FDR configuration.
+    ///
+    /// FCI currently refuses a configured adjustment because its multi-phase CI family
+    /// includes Possible-D-Sep tests; adjusting only the initial adjacency phase is invalid.
     #[must_use]
     pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
         self.fdr = fdr;
@@ -138,7 +141,8 @@ impl Fci {
     ///
     /// # Errors
     ///
-    /// Data, CI, Possible-D-Sep budget, or orientation failures.
+    /// Data, CI, Possible-D-Sep budget, orientation failures, or an FDR configuration that
+    /// cannot cover the complete multi-phase CI family.
     pub fn run(
         &self,
         data: &TabularData,
@@ -147,6 +151,11 @@ impl Fci {
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        if self.fdr.is_some() {
+            return Err(DiscoveryError::unsupported(
+                "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
+            ));
+        }
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "FCI requires at least one variable",
@@ -198,8 +207,6 @@ impl Fci {
 
         let mut combo_scratch = Vec::new();
         let mut depth = 0usize;
-        let mut family_p: Vec<f64> = Vec::new();
-        let mut family_edge: Vec<(u32, u32)> = Vec::new();
         loop {
             let mut depth_tests = 0u64;
             // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
@@ -238,7 +245,7 @@ impl Fci {
                 // conditioning set separated x and y): they hold the statistic/p-value of
                 // whichever tested z gave the weakest evidence of dependence (max p), not
                 // whichever z happened to be tested last. That's the conservative summary
-                // to feed BH-FDR downstream. If the loop instead finds a separating set, we
+                // to retain as edge evidence. If the loop instead finds a separating set, we
                 // report that test's own (stat, p) — the value that actually establishes
                 // independence — not the running max.
                 let mut weakest_dep_stat = f64::NAN;
@@ -249,8 +256,6 @@ impl Fci {
                     let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
-                    family_p.push(p);
-                    family_edge.push(edge_key(x, y));
                     if p > alpha {
                         independent = true;
                         weakest_dep_stat = stat;
@@ -316,7 +321,7 @@ impl Fci {
             }
         }
 
-        // Optional FDR on surviving skeleton edges.
+        // Evidence summaries for the surviving unadjusted skeleton edges.
         let mut scored: Vec<ScoredLink> = adj
             .keys()
             .map(|&(lo, hi)| {
@@ -335,13 +340,6 @@ impl Fci {
                 })
             })
             .collect();
-        scored = retain_after_family_fdr(scored, &family_p, &family_edge, self.fdr, alpha);
-        let kept: HashSet<(u32, u32)> =
-            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
-        if self.fdr.is_some() {
-            adj.retain(|k, ()| kept.contains(k));
-        }
-
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
@@ -702,6 +700,21 @@ mod tests {
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
         assert_eq!(result.algorithm.id.as_ref(), "fci");
+    }
+
+    #[test]
+    fn fdr_refuses_an_incomplete_multiphase_family() {
+        let data = tabular_n(2, 20);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let mut ws = DiscoveryWorkspace::default();
+        let err = Fci::new()
+            .with_fdr(true)
+            .run(&data, &vars, &mut ws, &ExecutionContext::for_tests(4))
+            .unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message.contains("Possible-D-Sep")),
+            "{err}"
+        );
     }
 
     #[test]
