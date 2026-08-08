@@ -201,8 +201,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         path_breakdown.extend(res.path_breakdown.iter().cloned());
     }
     let raw: f64 = contributions.iter().map(|c| c.contribution).sum();
-    if raw.abs() > 1e-15 && total_change.is_finite() {
-        let scale = total_change / raw;
+    if let Some(scale) = path_efficiency_scale(raw, total_change)? {
         for c in &mut contributions {
             c.contribution *= scale;
         }
@@ -228,6 +227,25 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         component_mc_stderr: None,
         cache_stats: crate::result::CacheStats::default(),
     })
+}
+
+/// Scale signed path products to the measured total without hiding an undefined allocation.
+fn path_efficiency_scale(raw: f64, total_change: f64) -> Result<Option<f64>, AttributionError> {
+    const ZERO_TOL: f64 = 1e-15;
+    if !raw.is_finite() || !total_change.is_finite() {
+        return Err(AttributionError::invalid_input(
+            "PathBased allocation requires finite path shares and total change",
+        ));
+    }
+    if raw.abs() <= ZERO_TOL {
+        if total_change.abs() <= ZERO_TOL {
+            return Ok(None);
+        }
+        return Err(AttributionError::unsupported(
+            "PathBased signed path shares cancel to zero and cannot allocate a nonzero total change",
+        ));
+    }
+    Ok(Some(total_change / raw))
 }
 
 pub(crate) fn pack_change_result(
@@ -307,5 +325,17 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, AttributionError::UnknownPlayer);
+    }
+
+    #[test]
+    fn path_efficiency_refuses_zero_share_for_nonzero_change() {
+        let err = path_efficiency_scale(0.0, 2.0).unwrap_err();
+        assert!(matches!(err, AttributionError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn path_efficiency_allows_zero_share_for_zero_change() {
+        assert_eq!(path_efficiency_scale(0.0, 0.0).unwrap(), None);
+        assert_eq!(path_efficiency_scale(2.0, 6.0).unwrap(), Some(3.0));
     }
 }
