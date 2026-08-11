@@ -35,6 +35,7 @@ pub mod lagged_frame;
 pub mod materialize;
 pub mod multi_env;
 pub mod multi_env_plan;
+pub mod network;
 pub mod panel;
 pub mod pooled_frame;
 pub mod project;
@@ -77,6 +78,7 @@ pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
 pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
+pub use network::{NetworkData, NetworkEdge};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use pooled_frame::{
     DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,

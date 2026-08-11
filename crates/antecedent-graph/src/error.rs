@@ -71,6 +71,12 @@ pub enum GraphError {
     /// Node capacity exceeded.
     #[error("too many nodes")]
     TooManyNodes,
+    /// Invalid selection-diagram metadata.
+    #[error("invalid selection diagram: {message}")]
+    InvalidSelectionDiagram {
+        /// Explanation.
+        message: String,
+    },
     /// Bounded path search hit `max_paths` or `max_len` before exploring all candidates.
     ///
     /// Returned when m-separation would otherwise conclude "separated" after an incomplete
