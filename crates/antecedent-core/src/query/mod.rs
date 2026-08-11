@@ -9,10 +9,13 @@ mod average;
 mod counterfactual;
 mod distribution;
 mod error;
+mod interference;
 mod mediation;
 mod population;
+mod response;
 mod target;
 mod temporal;
+mod transport;
 
 pub use crate::intervention::TemporalPolicy;
 
@@ -25,10 +28,19 @@ pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
+pub use interference::{
+    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use response::{
+    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationAssumption, ObservationSpec, ResponseFunctional,
+    ResponseQuery,
+};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
+pub use transport::TransportQuery;
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
@@ -56,6 +68,12 @@ pub enum CausalQuery {
     Distribution(InterventionalDistributionQuery),
     /// Path-specific effect / contribution.
     PathSpecific(PathSpecificEffectQuery),
+    /// Continuous response, derivative, policy response, or Jacobian.
+    Response(ResponseQuery),
+    /// Structurally transported response between populations.
+    Transport(TransportQuery),
+    /// Randomization-based causal effect under interference.
+    Interference(InterferenceQuery),
 }
 
 impl CausalQuery {
@@ -123,6 +141,24 @@ impl CausalQuery {
     #[must_use]
     pub fn path_specific(query: PathSpecificEffectQuery) -> Self {
         Self::PathSpecific(query)
+    }
+
+    /// Construct a continuous-response query.
+    #[must_use]
+    pub fn response(query: ResponseQuery) -> Self {
+        Self::Response(query)
+    }
+
+    /// Construct a transportability query.
+    #[must_use]
+    pub fn transport(query: TransportQuery) -> Self {
+        Self::Transport(query)
+    }
+
+    /// Construct an interference query.
+    #[must_use]
+    pub fn interference(query: InterferenceQuery) -> Self {
+        Self::Interference(query)
     }
 }
 
@@ -192,6 +228,24 @@ impl From<UnitChangeQuery> for CausalQuery {
     }
 }
 
+impl From<ResponseQuery> for CausalQuery {
+    fn from(query: ResponseQuery) -> Self {
+        Self::Response(query)
+    }
+}
+
+impl From<TransportQuery> for CausalQuery {
+    fn from(query: TransportQuery) -> Self {
+        Self::Transport(query)
+    }
+}
+
+impl From<InterferenceQuery> for CausalQuery {
+    fn from(query: InterferenceQuery) -> Self {
+        Self::Interference(query)
+    }
+}
+
 impl CausalQuery {
     /// Whether this query is the static ATE path.
     #[must_use]
@@ -253,6 +307,9 @@ impl CausalQuery {
             Self::ConditionalEffect(q) => q.validate(),
             Self::Distribution(q) => q.validate(),
             Self::PathSpecific(q) => q.validate(),
+            Self::Response(q) => q.validate(),
+            Self::Transport(q) => q.validate(),
+            Self::Interference(q) => q.validate(),
         }
     }
 }

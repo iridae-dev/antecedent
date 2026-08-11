@@ -8,6 +8,15 @@ use crate::ids::VariableId;
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum QueryError {
+    /// Invalid continuous-response configuration.
+    #[error("invalid response query: {0}")]
+    InvalidResponse(String),
+    /// Invalid transportability configuration.
+    #[error("invalid transport query: {0}")]
+    InvalidTransport(String),
+    /// Invalid randomization/interference configuration.
+    #[error("invalid interference query: {0}")]
+    InvalidInterference(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {

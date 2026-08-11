@@ -38,6 +38,7 @@ pub mod named;
 pub mod overlay;
 pub mod pag;
 pub mod projection;
+pub mod selection;
 pub mod temporal;
 pub mod temporal_pag;
 pub mod types;
@@ -46,7 +47,10 @@ pub mod workspace;
 
 pub use admg::Admg;
 pub use antecedent_core::NodeRef;
-pub use completion::{CompletionSampler, PagCompletion, is_mag_completion};
+pub use completion::{
+    CompletionSampler, CompletionValidationReport, PagCompletion, is_mag_completion,
+    is_maximal_ancestral_graph,
+};
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};
 pub use dag::{Dag, DagReview};
@@ -55,6 +59,7 @@ pub use error::GraphError;
 pub use overlay::{DagView, GraphOverlay};
 pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
+pub use selection::SelectionDiagram;
 pub use temporal::TemporalDag;
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
