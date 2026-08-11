@@ -328,7 +328,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
 }
 
 #[test]
-fn adaptive_draws_pin_stable_count_and_width() {
+fn adaptive_draws_preserve_exact_nig_count_and_width() {
     use antecedent::inference::{BayesianConfig, InferenceMode};
     use antecedent_core::AdaptiveDrawBudget;
 
@@ -380,14 +380,14 @@ fn adaptive_draws_pin_stable_count_and_width() {
 
     let p1 = a1.posterior.as_ref().expect("adaptive posterior");
     let p2 = a2.posterior.as_ref().expect("adaptive posterior 2");
-    assert!(a1.performance.early_stopped, "expected adaptive early-stop");
+    assert!(!a1.performance.early_stopped, "exact NIG draws must not use Gaussian early-stop");
     assert_eq!(p1.draws.n_draws, p2.draws.n_draws, "fixed seed must pin n_draws");
     assert_eq!(p1.early_stopped, p2.early_stopped);
     assert_eq!(a1.performance.n_draws, a2.performance.n_draws);
-    assert!(p1.draws.n_draws >= 32 && p1.draws.n_draws < max_draws, "n={}", p1.draws.n_draws);
+    assert_eq!(p1.draws.n_draws, max_draws);
     let adapt_width = effect_quantile_width_95(p1);
     let rel = (adapt_width - full_width).abs() / full_width.abs().max(1e-12);
-    assert!(rel < 0.35, "adaptive width={adapt_width} vs full={full_width} rel={rel}");
+    assert!(rel < 1e-12, "NIG width={adapt_width} vs full={full_width} rel={rel}");
 }
 
 fn effect_quantile_width_95(post: &antecedent_estimate::CausalPosterior) -> f64 {

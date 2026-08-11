@@ -25,9 +25,9 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConflictSummary, ConjugateGaussianBackend,
-    EffectBatch, EffectPrior, GaussianCoefficientPrior, HmcGlmBackend, HmcOptions,
-    InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch,
-    PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
+    EffectBatch, EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, HmcGlmBackend,
+    HmcOptions, InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace,
+    PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
     PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec, sample_gaussian_mvn,
 };
 use antecedent_stats::{CompiledDesign, DesignColumnRole, GlmFamily};
@@ -693,8 +693,20 @@ impl BayesianGComputationAte {
             _ => self.n_draws.max(1),
         };
         let adaptive = ctx.adaptive_draws;
+        // Adaptive redraws append samples from the fitted Gaussian covariance. Unknown-variance
+        // GaussianIdentity is routed by the Laplace backend to the exact conjugate NIG posterior,
+        // whose marginal coefficient law is Student-t and has no Gaussian covariance artifact.
+        // Materialize the full requested NIG draw count instead of mixing it with MVN redraws.
+        let laplace_mvn_redraw_supported = match likelihood {
+            BayesLikelihood::GaussianIdentity => matches!(
+                GaussianVarianceModel::from_prior_set(&prior).map_err(prob_err)?,
+                GaussianVarianceModel::Known { .. }
+            ),
+            _ => true,
+        };
         let laplace_adaptive = adaptive.enabled
             && matches!(self.backend, BayesianBackendKind::Laplace)
+            && laplace_mvn_redraw_supported
             && max_draws > adaptive.min_draws.max(2);
         let initial_draws =
             if laplace_adaptive { adaptive.min_draws.max(2).min(max_draws) } else { max_draws };
@@ -775,13 +787,9 @@ impl BayesianGComputationAte {
         let mut coef_draws = coefficient_only_draws(&fit.draws)?;
 
         if laplace_adaptive {
-            let empirical;
-            let cov: &[f64] = if let Some(c) = fit.cov.as_ref() {
-                c
-            } else {
-                empirical = empirical_coef_cov(&coef_draws)?;
-                &empirical
-            };
+            let cov = fit.cov.as_ref().ok_or_else(|| {
+                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
+            })?;
             let map = fit.map.clone();
             let batch = 32usize;
             let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
@@ -1293,38 +1301,6 @@ fn coefficient_only_draws(draws: &PosteriorDraws) -> Result<PosteriorDraws, Esti
     .map_err(EstimationError::from)
 }
 
-/// Sample covariance of coefficient columns (for adaptive MVN when Laplace cov is absent,
-/// e.g. conjugate NIG routed through the Laplace GaussianIdentity path).
-fn empirical_coef_cov(draws: &PosteriorDraws) -> Result<Vec<f64>, EstimationError> {
-    let p = draws.schema.n_quantities();
-    let n = draws.n_draws;
-    if p == 0 || n < 2 {
-        return Err(EstimationError::stats_msg("empirical coefficient covariance needs ≥2 draws"));
-    }
-    let nf = n as f64;
-    let mut mean = vec![0.0; p];
-    for i in 0..p {
-        let col = draws.column(i).map_err(EstimationError::from)?;
-        mean[i] = col.iter().sum::<f64>() / nf;
-    }
-    let mut cov = vec![0.0; p * p];
-    for i in 0..p {
-        let ci = draws.column(i).map_err(EstimationError::from)?;
-        for j in i..p {
-            let cj = draws.column(j).map_err(EstimationError::from)?;
-            let mut acc = 0.0;
-            for k in 0..n {
-                acc += (ci[k] - mean[i]) * (cj[k] - mean[j]);
-            }
-            let v = acc / (nf - 1.0);
-            cov[i * p + j] = v;
-            cov[j * p + i] = v;
-        }
-        cov[i * p + i] += 1e-12;
-    }
-    Ok(cov)
-}
-
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
 ///
 /// Samples prior-predictive draws for a scalar effect mean (isotropic Gaussian / weakly
@@ -1504,6 +1480,33 @@ mod tests {
             .collect();
         assert!(coef_names.contains(&"intercept"), "{coef_names:?}");
         assert!(coef_names.iter().any(|n| n.starts_with("coef_")), "{coef_names:?}");
+    }
+
+    #[test]
+    fn adaptive_laplace_unknown_variance_keeps_exact_nig_draws() {
+        let (data, t, y, z) = linear_scm_table(80);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let estimator =
+            BayesianGComputationAte { n_draws: 96, seed: 17, ..BayesianGComputationAte::new() };
+        let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
+        let mut workspace = BayesianGCompWorkspace::default();
+        let posterior = estimator
+            .fit(
+                &prepared,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut workspace,
+                &ExecutionContext::production(17, 1),
+            )
+            .unwrap();
+
+        assert_eq!(posterior.diagnostics.backend_id.as_ref(), "conjugate_gaussian");
+        assert_eq!(posterior.draws.n_draws, 96, "NIG draws must not be replaced by MVN redraws");
+        assert!(!posterior.early_stopped, "exact NIG sampling materializes the requested draws");
     }
 
     #[test]
