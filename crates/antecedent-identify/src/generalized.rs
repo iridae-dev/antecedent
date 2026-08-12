@@ -136,17 +136,34 @@ impl GeneralizedAdjustmentIdentifier {
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(pag_circle_features(pag));
+        let validation = sampler.validation_report();
+        envelope.push_features([GraphFeature {
+            kind: Arc::from("pag_completion_validation"),
+            detail: Arc::from(format!(
+                "exhaustively audited {} endpoint assignment(s): represented={}, \
+                 rejected_non_ancestral={}, rejected_nonmaximal={}, \
+                 rejected_local_incompatible={}, ambiguous_global_class={}",
+                validation.assignments_examined,
+                validation.represented_completions,
+                validation.rejected_non_ancestral,
+                validation.rejected_nonmaximal,
+                validation.rejected_local_incompatible,
+                validation.ambiguous_global_class,
+            )),
+        }]);
         // `NonparametricallyIdentified` on this path asserts identification for *every* member
-        // of the equivalence class. When the sampler hit its cap we only saw a deterministic
-        // low-mask prefix of that class, so the assertion is unearned — an unexamined
-        // completion may well be unidentified. Downgrade rather than overclaim.
+        // of the equivalence class. When the sampler hit its retention cap, identification
+        // ran only on a deterministic low-mask prefix, so the assertion is unearned — a
+        // verified but unretained completion may well be unidentified. Downgrade rather than
+        // overclaim.
         if sampler.hit_cap() {
             envelope.push_features([GraphFeature {
                 kind: Arc::from("completion_enumeration_capped"),
                 detail: Arc::from(format!(
-                    "examined {} MAG completion(s) under max_completions={}; the class is larger, \
-                     so identification is established only over the examined subset",
+                    "retained {} of {} verified MAG completion(s) under max_completions={}; \
+                     identification is established only over the deterministic retained subset",
                     envelope.cases.len(),
+                    validation.represented_completions,
                     self.config.max_completions
                 )),
             }]);

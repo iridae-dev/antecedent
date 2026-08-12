@@ -29,6 +29,7 @@ use crate::iv::InstrumentalVariableIdentifier;
 use crate::path_specific::PathSpecificIdentifier;
 use crate::prepared::PreparedAdmg;
 use crate::rd::{SharpRdConfig, SharpRdIdentifier};
+use crate::response::ResponseIdentifier;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
@@ -366,9 +367,38 @@ impl AutoIdentifier {
                     }
                 }
             }
+            CausalQuery::Response(_) => {
+                let id = ResponseIdentifier { backdoor: self.backdoor.clone() };
+                match id.identify(&prepared.dag, query, workspace) {
+                    Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
+                        derivation.push(
+                            "auto.method",
+                            format!(
+                                "response.backdoor: identified ({} pair(s))",
+                                res.estimands.len()
+                            ),
+                        );
+                        arena = res.arena;
+                        estimands = res.estimands;
+                        assumptions = res.required_assumptions;
+                        perf = res.performance;
+                        diagnostics.extend(res.diagnostics);
+                    }
+                    Ok(res) => {
+                        derivation.push(
+                            "auto.method",
+                            format!("response.backdoor: not identified ({:?})", res.status),
+                        );
+                        diagnostics.extend(res.diagnostics);
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
             _ => {
                 return Err(IdentificationError::unsupported(
-                    "AutoIdentifier supports AverageEffect, Distribution, and PathSpecific queries",
+                    "AutoIdentifier supports AverageEffect, Distribution, PathSpecific, and Response queries",
                 ));
             }
         }

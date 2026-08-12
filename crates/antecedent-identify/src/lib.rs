@@ -19,6 +19,7 @@
 pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
+pub mod bounds;
 pub mod efficient;
 pub(crate) mod enum_masks;
 pub mod envelope;
@@ -34,9 +35,11 @@ pub mod iv;
 pub mod path_specific;
 pub mod prepared;
 pub mod rd;
+pub mod response;
 pub mod result;
 pub mod temporal_backdoor;
 pub mod temporal_mediation;
+pub mod transport;
 
 #[cfg(test)]
 mod id_scm_property;
@@ -45,6 +48,7 @@ pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
     AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
 };
+pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
@@ -60,9 +64,14 @@ pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
 pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
+pub use response::ResponseIdentifier;
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 pub use temporal_mediation::TemporalMediationIdentifier;
+pub use transport::{
+    NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
+    TransportIdentification, TransportIdentifier,
+};
