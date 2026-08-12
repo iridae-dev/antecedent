@@ -27,15 +27,19 @@ pub mod frontdoor;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
+pub mod interference;
 pub mod iv;
+pub mod observation;
 pub mod overlap;
 pub mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod rd;
+pub mod response;
 pub mod se;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
+pub mod transport;
 pub mod util;
 
 #[cfg(test)]
@@ -66,7 +70,12 @@ pub use functional_distribution::{
     InterventionalDistributionEstimate, PreparedFunctionalDistribution, PreparedFunctionalEffect,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
+pub use interference::{InterferenceEstimate, estimate_interference, own_treatment_level};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
+pub use observation::{
+    ObservationAdjustedOutcome, ObservationEstimatorOptions, ObservationMechanismEstimator,
+    SelectedOutcomeCorrection,
+};
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
@@ -75,10 +84,15 @@ pub use propensity::{
     default_propensity_overlap,
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
+pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions};
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use temporal_adjustment::TemporalLinearAdjustment;
 pub use temporal_mediation::{
     TemporalEffectSurface, TemporalMediationEstimate, TemporalMediationEstimator,
+};
+pub use transport::{
+    TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
+    TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,
 };
 pub use util::BootstrapSeResult;
