@@ -17,8 +17,9 @@ pub(super) use std::time::Instant;
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, PopulationRegistry,
-    ProvenanceGraph, TemporalEffectQuery, VariableId,
+    DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, ObservationSpec,
+    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
@@ -28,11 +29,11 @@ pub(super) use antecedent_discovery::{
 };
 pub(super) use antecedent_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    ConditionalLinearAdjustment, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
-    FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws,
-    LinearAdjustmentAte, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
-    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    aggregate_effect_envelope, nonidentified_with_prior,
+    ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate, EnvelopeOptions,
+    EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
+    GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator, OverlapPolicy,
+    RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment, TemporalMediationEstimate,
+    TemporalMediationEstimator, aggregate_effect_envelope, nonidentified_with_prior,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
@@ -65,9 +66,10 @@ pub(super) use crate::inference::{
 pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
     StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPathSpecificCompileInput,
-    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
-    compile_logical_static_pag_ate, compile_logical_temporal_effect,
-    compile_logical_temporal_effect_classified, reject_dag_only_on_pag,
+    StaticResponseCompileInput, compile_logical_distribution, compile_logical_path_specific,
+    compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_static_response,
+    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
+    reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
@@ -77,7 +79,8 @@ pub(super) use crate::strategy_table::{
     DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID,
     DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID,
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
-    DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
+    DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_ESTIMATOR, DEFAULT_RESPONSE_IDENTIFIER,
+    DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
     estimate_provenance_step, estimate_static_effect, identify_admg, identify_pag,
     identify_provenance_step, identify_static, identify_static_query,
     identify_static_query_with_rd, require_identified, select_estimand, validate_static_pair,
@@ -106,6 +109,7 @@ pub struct Study {
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
     pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
+    pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     pub(crate) rd: Option<RdConfig>,
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
@@ -128,6 +132,7 @@ impl std::fmt::Debug for Study {
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
+            .field("response_options", &self.response_options)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("overlap_policy", &self.overlap_policy)
@@ -145,6 +150,7 @@ mod compile;
 mod dispatch;
 mod pag_path;
 mod panel_path;
+mod response_path;
 mod static_path;
 mod temporal_path;
 include!("support.rs");
