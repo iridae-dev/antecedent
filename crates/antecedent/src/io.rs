@@ -4,6 +4,18 @@
 
 use antecedent_io::{graph_dot, graph_gml, graph_json, graph_mixed, graph_networkx};
 
+pub use antecedent_io::{
+    AssignmentDesignWire, ExposureLevelWire, ExposureMappingWire, ExposureProbabilityMethodWire,
+    InterferenceEstimateWire, InterferenceFunctionalWire, InterferenceQueryWire,
+    NonTransportableCertificateWire, PopulationFactorWire, RandomizationContrastWire,
+    TransportCertificateWire, TransportEffectEstimateWire, TransportFormulaWire,
+    TransportIdentificationWire, TransportOverlapDiagnosticWire, TransportQueryWire,
+    interference_estimate_from_wire, interference_estimate_to_wire, interference_query_from_wire,
+    interference_query_to_wire, transport_effect_from_wire, transport_effect_to_wire,
+    transport_identification_from_wire, transport_identification_to_wire,
+    transport_query_from_wire, transport_query_to_wire,
+};
+
 use crate::error::CausalError;
 
 /// Parse a DOT digraph into a [`antecedent_graph::Dag`].

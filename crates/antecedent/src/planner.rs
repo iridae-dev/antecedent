@@ -9,7 +9,8 @@ use std::sync::Arc;
 use antecedent_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, ExecutionContext,
     Intervention, KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec,
-    PhysicalExecutionPlanRecord, TargetPopulation, TemporalEffectQuery,
+    PhysicalExecutionPlanRecord, ResponseFunctional, ResponseQuery, TargetPopulation,
+    TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use antecedent_graph::{Dag, Pag, TemporalDag};
@@ -18,7 +19,7 @@ use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, validate_distribution_pair, validate_path_specific_pair,
-    validate_static_pair,
+    validate_response_pair, validate_static_pair,
 };
 
 /// Logical plan after compile (semantics only).
@@ -330,6 +331,101 @@ pub fn compile_logical_static_ate(
     };
     plan.validate()?;
     Ok(plan)
+}
+
+/// Inputs for a static-DAG continuous-response plan.
+#[derive(Clone, Debug)]
+pub struct StaticResponseCompileInput<'a> {
+    /// Tabular data.
+    pub data: &'a TabularData,
+    /// Accepted causal DAG.
+    pub graph: &'a Dag,
+    /// Response query.
+    pub query: &'a ResponseQuery,
+    /// Validation suite id.
+    pub validation_suite: Option<Arc<str>>,
+    /// Identifier selected by the builder.
+    pub identifier: Arc<str>,
+    /// Estimator selected by the builder.
+    pub estimator: Arc<str>,
+}
+
+/// Compile a continuous-response query over tabular data and a static DAG.
+///
+/// # Errors
+///
+/// Invalid queries, out-of-range variables, or incompatible strategies.
+pub fn compile_logical_static_response(
+    input: StaticResponseCompileInput<'_>,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
+    validate_response_pair(identifier, estimator)?;
+    let expected = match &input.query.functional {
+        ResponseFunctional::MeanCurve { .. } | ResponseFunctional::PointDerivative { .. } => {
+            EstimatorId::ResponseKennedyDr
+        }
+        ResponseFunctional::AverageDerivative { .. } => EstimatorId::ResponseRieszAde,
+        ResponseFunctional::DirectionalDerivative { .. } | ResponseFunctional::Jacobian { .. } => {
+            EstimatorId::ResponseGamDerivative
+        }
+        ResponseFunctional::InterventionResponse { .. } => EstimatorId::ResponseInterventionGcomp,
+    };
+    if estimator != expected {
+        return Err(CausalError::Compile {
+            message: format!(
+                "response functional requires estimator {:?}; got {:?}",
+                expected.as_str(),
+                estimator.as_str()
+            ),
+        });
+    }
+    let (treatments, outcomes) = response_query_variables(&input.query.functional);
+    for &treatment in &treatments {
+        for &outcome in &outcomes {
+            validate_query_vars_in_dag(input.graph, treatment, outcome)?;
+        }
+    }
+    let query_variables: Arc<[VariableId]> =
+        treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
+    let plan = LogicalAnalysisPlan {
+        record: LogicalAnalysisPlanRecord {
+            plan_id: Arc::from("static_response"),
+            data_classification: DataClassification::Tabular,
+            discovery_algorithm: None,
+            graph_review_required: false,
+            identifier: Some(input.identifier),
+            estimator: Some(input.estimator),
+            validation_suite: input.validation_suite,
+            query_variables,
+        },
+        query: CausalQuery::Response(input.query.clone()),
+        split: None,
+        row_count_hint: input.data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>, Vec<VariableId>) {
+    match functional {
+        ResponseFunctional::MeanCurve { outcome, treatment } => {
+            (vec![treatment.variable], vec![*outcome])
+        }
+        ResponseFunctional::AverageDerivative { outcome, treatment, .. }
+        | ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
+            (vec![*treatment], vec![*outcome])
+        }
+        ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
+        | ResponseFunctional::Jacobian { outcomes, treatments, .. } => {
+            (treatments.to_vec(), outcomes.to_vec())
+        }
+        ResponseFunctional::InterventionResponse { outcome, interventions } => (
+            interventions.iter().filter_map(Intervention::primary_variable).collect(),
+            vec![*outcome],
+        ),
+    }
 }
 
 /// Inputs for PAG ATE compile (class-aware identification).

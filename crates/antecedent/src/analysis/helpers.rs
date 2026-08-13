@@ -80,6 +80,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         identification: args.identification,
         estimand: args.estimand,
         estimate: args.estimate,
+        response: None,
         distribution: args.distribution,
         posterior: args.posterior,
         mediation: args.mediation,

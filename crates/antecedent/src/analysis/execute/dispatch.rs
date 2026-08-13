@@ -15,6 +15,13 @@ impl super::Study {
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
         match (&self.data, &self.query, class) {
+            (_, CausalQuery::Response(_), class)
+                if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "CausalQuery::Response requires tabular data and a static DAG",
+                });
+            }
             (_, CausalQuery::Distribution(_), class)
                 if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) =>
             {
@@ -146,6 +153,22 @@ impl super::Study {
         )
     }
 
+    /// Resolve the response estimator from the functional when the caller did not override it.
+    pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+        let default_estimator = match &query.functional {
+            ResponseFunctional::MeanCurve { .. } | ResponseFunctional::PointDerivative { .. } => {
+                EstimatorId::ResponseKennedyDr
+            }
+            ResponseFunctional::AverageDerivative { .. } => EstimatorId::ResponseRieszAde,
+            ResponseFunctional::DirectionalDerivative { .. }
+            | ResponseFunctional::Jacobian { .. } => EstimatorId::ResponseGamDerivative,
+            ResponseFunctional::InterventionResponse { .. } => {
+                EstimatorId::ResponseInterventionGcomp
+            }
+        };
+        self.resolve_id_est_pair(DEFAULT_RESPONSE_IDENTIFIER_ID, default_estimator)
+    }
+
     /// Resolve identifier/estimator for PathSpecific queries.
     pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
         self.resolve_id_est_pair(DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID)
@@ -191,6 +214,12 @@ impl super::Study {
             };
         }
         match (&self.data, &self.query) {
+            (DataInput::Tabular(data), CausalQuery::Response(q)) => {
+                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
+                    message: "Response execute requires a supplied static DAG",
+                })?;
+                self.execute_response(data, graph, q, physical, ctx)
+            }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => match self.graph.class() {
                 GraphClass::Dag => {
                     let graph =
@@ -334,7 +363,10 @@ impl super::Study {
     ///
     /// Missing graph structure, unsupported graph class, or identification failure.
     pub fn identify_only(&self) -> Result<IdentificationResult, CausalError> {
-        use crate::strategy_table::{DEFAULT_IDENTIFIER_ID, identify_admg, identify_static_query};
+        use crate::strategy_table::{
+            DEFAULT_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, identify_admg,
+            identify_static_query,
+        };
 
         if self.graph_posterior.is_some() {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
@@ -344,7 +376,12 @@ impl super::Study {
                           identification runs per-graph inside execute()",
             });
         }
-        let id = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
+        let default_id = if matches!(&self.query, CausalQuery::Response(_)) {
+            DEFAULT_RESPONSE_IDENTIFIER_ID
+        } else {
+            DEFAULT_IDENTIFIER_ID
+        };
+        let id = self.identifier.unwrap_or(default_id);
 
         if let Some(admg) = self.graph.as_admg() {
             if admg_has_bidirected(admg) {

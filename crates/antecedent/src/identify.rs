@@ -3,7 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_identify::{
-    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
-    IdentificationEnvelope, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    ProbabilityMass, TemporalMediationIdentifier,
+    BinaryIvLaw, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    GraphIdentificationCase, IdentificationEnvelope, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, NonTransportableCertificate, PopulationFactor, ProbabilityMass,
+    TemporalMediationIdentifier, TransportCertificate, TransportFormula, TransportIdentification,
+    TransportIdentifier, binary_iv_ate_bounds,
 };

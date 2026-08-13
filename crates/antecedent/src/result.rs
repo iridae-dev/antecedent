@@ -6,8 +6,8 @@ use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
 };
 use antecedent_core::{
-    Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
-    ProvenanceGraph, VariableId,
+    CausalResponse, Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
+    PhysicalExecutionPlanRecord, ProvenanceGraph, VariableId,
 };
 use antecedent_estimate::{
     CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate,
@@ -35,6 +35,8 @@ pub struct StudyResult {
     /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
     /// interventional mean of the first numeric outcome when defined (`ate` field), else NaN.
     pub estimate: EffectEstimate,
+    /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
+    pub response: Option<CausalResponse>,
     /// Full interventional distribution when the query was [`CausalQuery::Distribution`].
     pub distribution: Option<InterventionalDistributionEstimate>,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.

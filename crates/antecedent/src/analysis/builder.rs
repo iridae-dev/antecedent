@@ -23,7 +23,7 @@ use antecedent_data::{
     TimeSeriesData,
 };
 use antecedent_discovery::GraphPosterior;
-use antecedent_estimate::OverlapPolicy;
+use antecedent_estimate::{ContinuousResponseOptions, OverlapPolicy};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_validate::CustomEffectValidator;
 
@@ -218,6 +218,8 @@ pub struct StudyBuilder {
     /// [`StudyBuilder::estimator`] was called with a configured estimator rather
     /// than a bare [`EstimatorId`].
     estimator_spec: Option<EstimatorSpec>,
+    /// Numerical/inference options for response-family estimators.
+    response_options: Option<ContinuousResponseOptions>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
@@ -251,6 +253,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
+            .field("response_options", &self.response_options)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("n_draws_explicit", &self.n_draws_explicit)
@@ -279,6 +282,7 @@ impl StudyBuilder {
             identifier: None,
             estimator: None,
             estimator_spec: None,
+            response_options: None,
             rd: None,
             inference: InferenceMode::Frequentist,
             n_draws_explicit: false,
@@ -428,6 +432,16 @@ impl StudyBuilder {
         let spec = spec.into();
         self.estimator = Some(spec.id());
         self.estimator_spec = Some(spec);
+        self
+    }
+
+    /// Configure numerical and fixed-grid uncertainty options for response queries.
+    ///
+    /// A simultaneous band requires both `simultaneous_replicates` and an explicit
+    /// bandwidth; the estimator refuses an implicit undersmoothing rule.
+    #[must_use]
+    pub fn response_options(mut self, options: ContinuousResponseOptions) -> Self {
+        self.response_options = Some(options);
         self
     }
 
@@ -599,6 +613,7 @@ impl StudyBuilder {
             identifier: self.identifier,
             estimator: self.estimator,
             estimator_spec: self.estimator_spec,
+            response_options: self.response_options,
             rd: self.rd,
             inference,
             overlap_policy: self.overlap_policy,
