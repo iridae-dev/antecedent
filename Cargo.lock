@@ -213,6 +213,7 @@ dependencies = [
  "antecedent-identify",
  "antecedent-model",
  "antecedent-prob",
+ "antecedent-stats",
  "antecedent-validate",
  "blake3",
  "ciborium",
@@ -269,6 +270,7 @@ dependencies = [
  "antecedent-estimate",
  "antecedent-expr",
  "antecedent-graph",
+ "antecedent-identify",
  "antecedent-io",
  "antecedent-model",
  "antecedent-prob",
@@ -278,6 +280,7 @@ dependencies = [
  "arrow-schema",
  "numpy",
  "pyo3",
+ "serde",
  "serde_json",
 ]
 
