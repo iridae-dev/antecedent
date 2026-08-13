@@ -26,6 +26,7 @@ antecedent-graph = { version = "0.4.1", path = "../antecedent-graph" }
 antecedent-identify = { version = "0.4.1", path = "../antecedent-identify" }
 antecedent-model = { version = "0.4.1", path = "../antecedent-model" }
 antecedent-prob = { version = "0.4.1", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.4.1", path = "../antecedent-stats" }
 antecedent-validate = { version = "0.4.1", path = "../antecedent-validate" }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
