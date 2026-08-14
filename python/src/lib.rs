@@ -16,9 +16,11 @@
     clippy::cast_precision_loss
 )]
 
+mod artifact_api;
 mod ate_api;
 mod attribution_api;
 mod bayesian;
+mod bounds_api;
 mod callbacks;
 mod design_api;
 mod discovery_api;
@@ -27,11 +29,14 @@ mod gcm_api;
 mod graph_build;
 mod graph_io;
 mod graphs;
+mod observation_api;
 mod prepared_api;
 mod prior_bank;
+mod response_api;
 mod stability;
 mod state_api;
 mod temporal_api;
+mod transport_interference_api;
 
 pub(crate) use ate_api::{
     GraphEdge, ate_result_from_analysis, panel_discovery_builder, panel_multi_dataset_constraints,
@@ -1315,6 +1320,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     bayesian::register(m)?;
     stability::register(m)?;
     prior_bank::register(m)?;
+    response_api::register(m)?;
+    transport_interference_api::register(m)?;
+    observation_api::register(m)?;
+    bounds_api::register(m)?;
+    artifact_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     Ok(())
 }

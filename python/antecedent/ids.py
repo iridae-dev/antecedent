@@ -17,6 +17,7 @@ class Identifier(StrEnum):
     GENERALIZED_ADJUSTMENT = "generalized.adjustment"
     GENERAL_ID = "general.id"
     PATH_SPECIFIC_NATURAL = "path_specific.natural"
+    RESPONSE_BACKDOOR = "response.backdoor"
     AUTO = "auto"
 
 
@@ -40,6 +41,10 @@ class Estimator(StrEnum):
     FUNCTIONAL_EFFECT = "functional.effect"
     CONDITIONAL_LINEAR_ADJUSTMENT = "conditional.linear.adjustment"
     TEMPORAL_MEDIATION = "temporal.mediation"
+    RESPONSE_KENNEDY_DR = "response.kennedy_dr"
+    RESPONSE_RIESZ_ADE = "response.riesz_ade"
+    RESPONSE_GAM_DERIVATIVE = "response.gam_derivative"
+    RESPONSE_INTERVENTION_GCOMP = "response.intervention_gcomp"
 
 
 class Latency(StrEnum):

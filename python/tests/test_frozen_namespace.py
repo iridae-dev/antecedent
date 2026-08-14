@@ -1,12 +1,11 @@
-"""The frozen root namespace: ``antecedent.__all__`` is an explicit, literal contract.
+"""The deliberate root namespace: ``antecedent.__all__`` is an explicit contract.
 
-``__init__.py``'s docstring asserts the root namespace is **frozen** at 41
-names (three verbs, the accepted-structure and result types, the nine typed
-queries, the five graph classes, the inference/identifier/estimator
-selectors, the two error names, and the twelve stage modules, plus
-``__version__``). Nothing enforced that claim — ``test_notebook_api_surface.py``
-only checks that names the example notebooks happen to use still resolve, not
-that ``__all__`` itself is what it claims to be. That gap is exactly how
+``__init__.py`` keeps the root namespace deliberately small.  The 0.5 release
+explicitly reopened it for the causal-response queries while leaving their
+configuration and result helpers on stage modules.  This test spells out the
+resulting contract so future changes remain conscious.  Previously nothing
+enforced that claim — ``test_notebook_api_surface.py`` only checked names the
+example notebooks happened to use. That gap is exactly how
 ``antecedent.estimators`` went missing from the deliberate-but-unlisted
 import block while every sibling stage module resolved fine (see the report
 for this change): nothing asserted the unlisted-but-reachable set either.
@@ -23,7 +22,7 @@ import pytest
 pytest.importorskip("antecedent")
 import antecedent
 
-# --- 1. The frozen `__all__` contract, spelled out in full. -----------------------
+# --- 1. The root `__all__` contract, spelled out in full. -------------------------
 
 _EXPECTED_ALL = {
     # Verbs
@@ -34,14 +33,22 @@ _EXPECTED_ALL = {
     "AcceptedGraph",
     "Identification",
     "AnalysisResult",
-    # Queries (nine typed queries)
+    # Queries
+    "AverageDerivative",
     "AverageEffect",
     "ConditionalEffect",
     "Counterfactual",
+    "DirectionalDerivative",
+    "Elasticity",
     "InterventionalDistribution",
+    "InterventionResponse",
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "PointDerivative",
+    "ResponseCurve",
+    "ResponseJacobian",
+    "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
     # Graphs (five graph classes)
@@ -79,7 +86,7 @@ _EXPECTED_ALL = {
 
 # --- 2. Reachable as `antecedent.<name>` but deliberately outside `__all__`. ------
 #
-# Their public content is re-exported on the frozen surface above (queries,
+# Their public content is re-exported on the root surface above (queries,
 # inference selectors) or belongs to a narrower stage surface. `estimators`
 # (the typed `estimator_config=` front-end) is included here as of this fix —
 # see the module docstring above.
@@ -88,13 +95,16 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "counterfactual",
     "estimators",
     "inference",
+    "interference",
     "model",
+    "observation",
     "population",
     "query",
+    "transport",
 }
 
 
-def test_all_matches_the_documented_frozen_set():
+def test_all_matches_the_documented_root_set():
     assert set(antecedent.__all__) == _EXPECTED_ALL
 
 
@@ -103,7 +113,7 @@ def test_all_has_no_duplicates():
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_ALL))
-def test_every_frozen_name_resolves(name):
+def test_every_root_name_resolves(name):
     assert hasattr(antecedent, name), f"antecedent.{name} is in __all__ but does not resolve"
 
 
@@ -120,7 +130,7 @@ def test_every_deliberately_unlisted_name_still_resolves(name):
     assert name not in antecedent.__all__, f"antecedent.{name} should not be in __all__"
 
 
-def test_estimators_module_is_reachable_and_not_frozen():
+def test_estimators_module_is_reachable_and_not_root_exported():
     """Defect 1, directly: `antecedent.estimators` resolves without a direct import."""
     assert hasattr(antecedent, "estimators")
     assert antecedent.estimators.LinearAdjustment is not None
