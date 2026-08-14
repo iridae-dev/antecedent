@@ -1,0 +1,60 @@
+{
+  "fixture_id": "causaleffect.transport.supported_sid_subset",
+  "estimand": "P(Y | do(X)) transport formula on single-source selection diagrams inside Antecedent's sound sID subset",
+  "comparison": "structural agreement: Antecedent certificate rule and formula kind match the frozen causaleffect 1.3.15 expression class; string identity with R's rendered expression is not required",
+  "cases": [
+    {
+      "id": "direct_irrelevant_selection",
+      "antecedent": {
+        "nodes": ["X", "Z", "Y"],
+        "directed": [["X", "Y"]],
+        "bidirected": [],
+        "selection_targets": ["Z"],
+        "source_experiments": ["X"],
+        "treatment": "X",
+        "outcome": "Y"
+      },
+      "expected": {
+        "transportable": true,
+        "rule": "transport.sid.direct",
+        "formula_kind": "direct"
+      },
+      "oracle": {
+        "expression": "P^*(Y|X)"
+      }
+    },
+    {
+      "id": "standardize_exogenous_selection",
+      "antecedent": {
+        "nodes": ["X", "Z", "Y"],
+        "directed": [["Z", "Y"], ["X", "Y"]],
+        "bidirected": [],
+        "selection_targets": ["Z"],
+        "source_experiments": ["X"],
+        "treatment": "X",
+        "outcome": "Y"
+      },
+      "expected": {
+        "transportable": true,
+        "rule": "transport.sid.standardize",
+        "formula_kind": "standardize",
+        "over": ["Z"]
+      },
+      "oracle": {
+        "expression": "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"
+      }
+    }
+  ],
+  "reference": {
+    "project": "causaleffect",
+    "version": "1.3.15",
+    "source": "https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz",
+    "available": true,
+    "command": "Rscript -e 'install.packages(\"https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz\", repos=NULL, type=\"source\"); library(igraph); library(causaleffect); d <- graph.formula(X -+ Y, S -+ Z, simplify=FALSE); d <- set.vertex.attribute(d, \"description\", which(V(d)$name==\"S\"), \"S\"); cat(\"direct_irrelevant_selection\\t\", as.character(transport(y=\"Y\", x=\"X\", D=d, expr=TRUE, simp=TRUE)), \"\\n\", sep=\"\"); d2 <- graph.formula(Z -+ Y, X -+ Y, S -+ Z, simplify=FALSE); d2 <- set.vertex.attribute(d2, \"description\", which(V(d2)$name==\"S\"), \"S\"); cat(\"standardize_exogenous_selection\\t\", as.character(transport(y=\"Y\", x=\"X\", D=d2, expr=TRUE, simp=TRUE)), \"\\n\", sep=\"\")'",
+    "execution_note": "The exact 1.3.15 CRAN tarball was executed unmodified as a black box on 2026-08-15. Only public-API inputs and formula strings are stored; no package source or tests were copied. Antecedent models selection targets on the causal ADMG rather than explicit S nodes; the diagrams above are the corresponding selection-target encoding of S->Z.",
+    "outputs": {
+      "direct_irrelevant_selection": "P^*(Y|X)",
+      "standardize_exogenous_selection": "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Immutable released-package oracle pin.
+project = "bpbounds"
+version = "0.1.8"
+source = "https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz"
+license = "GPL-3"
+notes = "Black-box oracle for the canonical binary-IV fixture under conformance/response/binary_iv_balke_pearl_table1. Only public-API inputs/outputs are recorded; source/tests are not copied."

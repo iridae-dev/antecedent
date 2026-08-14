@@ -6,14 +6,15 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["MAG definition (ancestral graph, no directed or almost-directed cycles)"] },
- { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["valid PAG-to-MAG orientation completions"] },
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["Section 3.1 (ancestral graphs)", "Section 3.7 (maximal ancestral graphs and primitive inducing paths)", "Corollary 5.3 (ancestor-set separation for every missing edge in a MAG)"] },
+ { title = "Markov equivalence for ancestral graphs", doi = "10.1214/08-AOS626", sections = ["Definition 2.1 (ancestral graphs)", "Section 3 and Theorem 3.7 (Markov equivalence and colliders with order)"] },
+ { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["Section 3 (PAG orientation semantics)", "Section 4 (complete orientation rules)"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
  "inline unit tests (crates/antecedent-graph/src/completion.rs)",
- "clean-room exhaustive endpoint enumeration with MAG validity filter (conformance/graph/pag_mag_completion)",
+ "clean-room bounded endpoint enumeration with ancestral/maximal/local-collider/exact-m-separation-equivalence audit (conformance/graph/pag_mag_completion)",
  "crates/antecedent-graph/tests/oracle_closure.rs",
 ]

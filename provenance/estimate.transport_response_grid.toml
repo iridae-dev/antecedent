@@ -1,0 +1,22 @@
+feature_id = "estimate.transport_response_grid"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 5.3, equation (4): doubly robust estimator DR1"] },
+ { title = "Non-parametric Methods for Doubly Robust Estimation of Continuous Treatment Effects", doi = "10.1111/rssb.12212", sections = ["Section 3.2, equations (4)-(5): local-linear smoothing of a supplied pseudo-outcome, including signed equivalent weights"] },
+]
+
+# Independently written algebraic composition/evaluator for caller-supplied nuisances and
+# grid-local weights. Neither paper derives this joint transported continuous-dose estimator,
+# so no double-robustness, efficiency, or curve-inference theorem is claimed for the composition.
+# The citations resolve the two component equations only.
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/transport.rs",
+]

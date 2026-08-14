@@ -1,0 +1,20 @@
+feature_id = "estimate.observation_km_ipcw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["Section 2.1, equations (2a)-(2c): product-limit estimator under independent right censoring"] },
+ { title = "The Kaplan-Meier Estimator as an Inverse-Probability-of-Censoring Weighted Average", doi = "10.1198/000313001317098185", sections = ["Section 2, equations (3) and (5): IPCW representation", "Section 3: equivalence of the IPCW average and Kaplan-Meier estimator"] },
+ { title = "A note on the product-limit estimator under right censoring and left truncation", doi = "10.1093/biomet/74.4.883", sections = ["Section 2: delayed-entry product-limit estimator with each risk set restricted to subjects entered before and still at risk at the event time"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/observation.rs",
+ "crates/antecedent-estimate/src/observation.rs",
+ "conformance/response/observation_primitives (independent product-limit/IPCW fixture)",
+]

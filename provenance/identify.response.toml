@@ -1,0 +1,16 @@
+feature_id = "identify.response"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causal diagrams for empirical research", doi = "10.1093/biomet/82.4.669", sections = ["Section 3.1, Definition 3: back-door criterion", "Section 3.1, Theorem 1 and equation (6): adjustment formula"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-identify/src/response.rs",
+]

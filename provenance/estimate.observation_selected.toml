@@ -1,0 +1,19 @@
+feature_id = "estimate.observation_selected"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Inference and Missing Data", doi = "10.1093/biomet/63.3.581", sections = ["Section 3, Definition 1 and following likelihood factorization: missing-at-random/ignorability condition only"] },
+ { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/observation.rs",
+ "crates/antecedent-estimate/src/observation.rs",
+ "conformance/response/observation_primitives (independent AIPW equation fixture)",
+]
