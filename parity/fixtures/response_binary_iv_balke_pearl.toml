@@ -1,0 +1,6 @@
+id = "bpbounds.binary_iv_balke_pearl_table1"
+capability_ids = ["identify.binary_iv_bounds"]
+fixture_dir = "conformance/response/binary_iv_balke_pearl_table1"
+tolerance_class = "StableFloat"
+generator = "the exact public-API Rscript command frozen in expected.json"
+baseline_pin = "parity/baselines/bpbounds.toml"

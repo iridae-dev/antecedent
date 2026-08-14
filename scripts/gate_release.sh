@@ -18,6 +18,9 @@ cd "$ROOT"
 echo "== parity manifest schema =="
 bash scripts/gate_parity_schema.sh
 
+echo "== algorithm provenance schema and paths =="
+bash scripts/gate_provenance_schema.sh
+
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh
@@ -28,6 +31,8 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_attribution.sh
   bash scripts/gate_design_state.sh
   bash scripts/gate_upstream_names.sh
+  bash scripts/gate_response_calibration.sh
+  bash scripts/gate_causal_artifacts.sh
 fi
 
 python3 - <<'PY'

@@ -1,0 +1,6 @@
+# Immutable released-package oracle pin for the supported sID subset.
+project = "causaleffect"
+version = "1.3.15"
+source = "https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz"
+license = "GPL-2 | GPL-3"
+notes = "Black-box oracle for conformance/response/causaleffect_transport_subset. Compare only direct and exogenous-standardization cases inside Antecedent's sound sID subset. Source/tests are not copied."

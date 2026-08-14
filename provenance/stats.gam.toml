@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Generalized Additive Models", doi = "10.1214/ss/1177013604", sections = ["backfitting", "cubic spline smoothers"] },
+  { title = "Generalized Additive Models", doi = "10.1214/ss/1177013604", sections = ["Section 2: Gaussian additive model", "Section 4: additive-model backfitting", "Section 7: multiple-covariate backfitting"] },
+  { title = "Flexible Smoothing with B-splines and Penalties", doi = "10.1214/ss/1038425655", sections = ["Section 2, equations (1)-(3): B-spline basis with discrete difference penalty"] },
 ]
 
 upstream_implementations_observed = [

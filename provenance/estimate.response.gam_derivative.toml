@@ -1,0 +1,23 @@
+feature_id = "estimate.response.gam_derivative"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Antecedent fits the outcome GAM, averages its predictions after setting the
+# treatment coordinates, and obtains the gradient with a centered two-point
+# finite difference whose step is 1e-4 of the observed range. No analytic GAM
+# derivative or uncertainty theorem is claimed.
+papers = [
+  { title = "Generalized Additive Models", doi = "10.1214/ss/1177013604", sections = ["Section 2: Gaussian additive model", "Sections 4 and 7: additive-model backfitting"] },
+  { title = "Generation of Finite Difference Formulas on Arbitrarily Spaced Grids", doi = "10.1090/S0025-5718-1988-0935077-0", sections = ["Section 1, centered finite-difference derivative formulas; Antecedent uses the standard symmetric two-point first derivative"] },
+]
+
+upstream_implementations_observed = [
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/response.rs",
+  "crates/antecedent-stats/src/gam.rs",
+]

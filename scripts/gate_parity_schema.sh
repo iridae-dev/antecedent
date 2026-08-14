@@ -43,6 +43,7 @@ MANIFESTS = {
     "parity/attribution.toml": (),
     "parity/design_state.toml": (),
     "parity/release.toml": (),
+    "parity/response.toml": (),
 }
 
 # The parser every feature gate embeds. Reproduced verbatim so this gate checks

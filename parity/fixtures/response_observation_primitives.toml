@@ -1,0 +1,10 @@
+id = "antecedent.observation.paper_equation_primitives"
+capability_ids = [
+  "estimate.observation_selected",
+  "estimate.observation_km_ipcw",
+  "stats.gaussian_observation_likelihood",
+]
+fixture_dir = "conformance/response/observation_primitives"
+tolerance_class = "StableFloat"
+generator = "independent closed-form paper-equation calculations recorded in expected.json"
+baseline_pin = "paper equations; no external software oracle"

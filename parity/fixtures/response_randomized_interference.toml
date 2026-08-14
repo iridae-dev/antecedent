@@ -1,0 +1,6 @@
+id = "antecedent.randomized_interference.exact_two_unit_design"
+capability_ids = ["stats.randomized_interference"]
+fixture_dir = "conformance/response/randomized_interference"
+tolerance_class = "StableFloat"
+generator = "full enumeration and paper-equation calculation recorded in expected.json"
+baseline_pin = "Aronow-Samii HT/Hajek equations plus documented Antecedent Young bound; no external software oracle"

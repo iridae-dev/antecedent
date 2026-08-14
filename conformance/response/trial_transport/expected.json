@@ -1,0 +1,20 @@
+{
+  "fixture_id": "antecedent.trial_to_target.paper_equation",
+  "inputs": {
+    "outcome": [1.0, 3.0, 0.0, 0.0],
+    "treatment": [false, true, false, false],
+    "trial": [true, true, false, false],
+    "selection_probability": [0.5, 0.5, 0.5, 0.5],
+    "treatment_probability": [0.5, 0.5, 0.5, 0.5],
+    "mu0": [1.0, 1.0, 1.0, 1.0],
+    "mu1": [3.0, 3.0, 3.0, 3.0]
+  },
+  "expected": {
+    "ipw": 2.0,
+    "aipw": 2.0,
+    "selection_effective_sample_size": 2.0,
+    "treatment_effective_sample_size": 2.0
+  },
+  "contract": "Direct evaluation of the cited inverse-odds trial-to-target IPW and augmented estimating equations with known nuisance probabilities/regressions.",
+  "tolerance": {"atol": 1e-12}
+}

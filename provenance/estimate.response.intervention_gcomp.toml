@@ -1,0 +1,23 @@
+feature_id = "estimate.response.intervention_gcomp"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Independently written plug-in g-computation for hard, additive-shift, and
+# stochastic policies. Stochastic policies are integrated by 256 fixed-seed,
+# independent-coordinate inverse-CDF Monte Carlo draws generated with SplitMix64;
+# soft and longitudinal interventions fail closed.
+papers = [
+  { title = "Population intervention causal effects based on stochastic interventions", doi = "10.1111/j.1541-0420.2011.01685.x", sections = ["Section 2: stochastic intervention parameter and identifying g-computation formula"] },
+  { title = "Nonparametric causal effects based on longitudinal modified treatment policies", doi = "10.1080/01621459.2021.1955691", sections = ["Section 2, Definition 1: modified treatment-policy estimand only; no longitudinal sequential-regression theorem is claimed"] },
+  { title = "The Monte Carlo Method", doi = "10.1080/01621459.1949.10483310", sections = ["pp. 335-341: Monte Carlo integration by repeated random sampling"] },
+  { title = "Fast Splittable Pseudorandom Number Generators", doi = "10.1145/2660193.2660195", sections = ["Section 3: SplitMix generator and mixing function"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/src/response.rs",
+]

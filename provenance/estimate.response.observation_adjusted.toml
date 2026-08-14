@@ -1,0 +1,25 @@
+feature_id = "estimate.response.observation_adjusted"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# This is an explicit composition of component estimating equations. No cited
+# paper proves a joint double-robustness, efficiency, or inference theorem for
+# the observation-corrected pseudo-outcome followed by Kennedy smoothing.
+# Accordingly the implementation returns no joint uncertainty band.
+
+papers = [
+  { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
+  { title = "The Kaplan-Meier Estimator as an Inverse-Probability-of-Censoring Weighted Average", doi = "10.1198/000313001317098185", sections = ["Section 2, equations (3) and (5): IPCW representation", "Section 3: equivalence of the IPCW average and Kaplan-Meier estimator"] },
+  { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator of the effect curve"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/src/observation.rs",
+  "python/src/observation_api.rs",
+  "python/tests/test_observation_stage_api.py",
+]
