@@ -8,16 +8,17 @@ Day-1 surface::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is **frozen**: it holds the three verbs (:func:`analyze`,
+The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
 :func:`identify`, :func:`estimate`), the accepted-structure and result types,
-the nine typed queries, the five graph classes, the inference / identifier /
+the first-class typed queries, the five graph classes, the inference / identifier /
 estimator selectors, and the two error names most callers catch. Everything
 else lives in a stage module and is reached through it:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
 ``antecedent.estimators``, ``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``,
+``antecedent.graph``, ``antecedent.interference``, ``antecedent.observation``,
+``antecedent.priors``, ``antecedent.state``, ``antecedent.transport``, and
 ``antecedent.validation``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
@@ -46,7 +47,7 @@ from . import (
     validation,
 )
 
-# Reachable as ``antecedent.<name>`` but deliberately outside the frozen
+# Reachable as ``antecedent.<name>`` but deliberately outside the root
 # ``__all__``: their public content is re-exported above (queries, inference
 # selectors) or belongs to a narrower stage surface. ``estimators`` (the
 # typed ``estimator_config=`` front-end) belongs here too: it is a real,
@@ -56,9 +57,13 @@ from . import (
 from . import counterfactual as counterfactual
 from . import estimators as estimators
 from . import inference as inference
+from . import interference as interference
+from . import intervention as intervention
 from . import model as model
+from . import observation as observation
 from . import population as population
 from . import query as query
+from . import transport as transport
 from ._analyze import analyze
 from ._native import (
     Admg,
@@ -73,13 +78,21 @@ from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
+    AverageDerivative,
     AverageEffect,
     ConditionalEffect,
     Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
     InterventionalDistribution,
+    InterventionResponse,
     MediationEffect,
     PathSpecificEffect,
+    PointDerivative,
     PulseEffect,
+    ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
 )
@@ -95,13 +108,21 @@ __all__ = [
     "Identification",
     "AnalysisResult",
     # Queries
+    "AverageDerivative",
     "AverageEffect",
     "ConditionalEffect",
     "Counterfactual",
+    "DirectionalDerivative",
+    "Elasticity",
     "InterventionalDistribution",
+    "InterventionResponse",
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "PointDerivative",
+    "ResponseCurve",
+    "ResponseJacobian",
+    "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
     # Graphs

@@ -1,8 +1,9 @@
 """The staged identification surface: ``identify()`` → ``estimate()`` → ``validate()``.
 
 :func:`identify` runs identification only (no estimate) and returns an
-:class:`Identification` — enough state to continue into ``.estimate()`` /
-``.validate()`` without recomputing identification from scratch. This is the
+:class:`Identification` — enough state to continue into a strategy-consistent
+``.estimate()`` / ``.validate()`` workflow. The one-shot analysis pipeline
+deterministically rechecks identification before estimation. This is the
 single class that replaces both ``estimation.IdentifyResult`` (identify-only
 shape) and ``results.IdentificationView`` (the identification section of a
 full :class:`antecedent.AnalysisResult`) — see :meth:`Identification.from_view`
@@ -27,7 +28,7 @@ from .estimation import identify as _identify_native
 from .graph import Admg, Dag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
-from .query import AverageEffect
+from .query import AverageEffect, ResponseCurve
 from .results import IdentificationView
 
 
@@ -46,7 +47,7 @@ class Identification:
     method: str
     adjustment_set: list[str]
     graph: Dag | Admg | Sequence[tuple[str, str]]
-    query: AverageEffect
+    query: AverageEffect | ResponseCurve
     names: list[str] | None = None
     identifier: str | None = None
     assumption_count: int | None = None
@@ -154,16 +155,15 @@ class Identification:
         self,
         data: Mapping[str, Any] | Any,
         *,
-        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
         seed: int = 1,
         threads: int = 1,
     ) -> Any:
         """Run the refutation/validation suite against this identification.
 
-        ``refute`` defaults to ``None`` (the default suite) rather than a
-        literal ``True`` — ``analyze()`` rejects an explicit ``True`` with
-        ``TypeError`` (see ``_coerce.coerce_refute``), so validating "with the
-        default suite" has to be spelled as "unset", not "True".
+        ``refute`` defaults to the curve-legal ``"cheap"`` suite. A literal
+        ``True`` is not accepted by :func:`antecedent.analyze`; it does not name
+        a validation contract.
         """
         return self.estimate(data, refute=refute, seed=seed, threads=threads)
 
@@ -171,7 +171,7 @@ class Identification:
 def identify(
     *,
     graph: Dag | Admg | Sequence[tuple[str, str]],
-    query: AverageEffect,
+    query: AverageEffect | ResponseCurve,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> Identification:
@@ -181,19 +181,47 @@ def identify(
     (:func:`antecedent.estimation.identify`, still available unchanged for
     callers that only want the ``IdentifyResult`` shape) — the difference is
     the return type carries enough state to continue into ``.estimate()`` /
-    ``.validate()`` without recomputing identification.
+    ``.validate()`` while retaining the resolved strategy and query.
 
     Pass ``names`` when ``graph`` is an edge list (variable order). With a
     typed graph, names are taken from ``graph.nodes()``.
 
-    Accepts an ``Admg`` as well as a ``Dag``. Prefer one whenever a confounder
-    is unmeasured: a ``Dag`` cannot express "this variable is not observable",
-    so a latent common cause flattened into one is identified by adjusting on a
-    variable no study can measure. ``Dag.latent_project(observed)`` builds the
-    ``Admg``.
+    ``ResponseCurve`` uses the same pairwise backdoor identification contract
+    as the complete-observation response estimator; the original curve query
+    is retained so ``.estimate(data)`` executes the requested grid.
+    Staged ``ResponseCurve`` identification currently requires a ``Dag`` (or
+    directed edge list); ``Admg`` is refused on that path.
+
+    For ``AverageEffect``, accepts an ``Admg`` as well as a ``Dag``. Prefer an
+    ``Admg`` whenever a confounder is unmeasured: a ``Dag`` cannot express
+    "this variable is not observable", so a latent common cause flattened into
+    one is identified by adjusting on a variable no study can measure.
+    ``Dag.latent_project(observed)`` builds the ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
-    result = _identify_native(graph=graph, query=query, names=names, identifier=identifier)
+    if not isinstance(query, (AverageEffect, ResponseCurve)):
+        raise TypeError("staged identify() supports AverageEffect and ResponseCurve queries")
+    if isinstance(query, ResponseCurve) and isinstance(graph, Admg):
+        raise TypeError("staged ResponseCurve identification currently requires a Dag")
+    if isinstance(query, ResponseCurve) and identifier_s not in (None, "response.backdoor"):
+        raise ValueError(
+            "staged ResponseCurve identification requires identifier='response.backdoor'"
+        )
+    identification_query = (
+        AverageEffect(treatment=query.treatment, outcome=query.outcome)
+        if isinstance(query, ResponseCurve)
+        else query
+    )
+    # The identify-only native API still accepts the scalar contrast shape. The
+    # pairwise backdoor search is identical, but its ATE strategy id must not be
+    # confused with the response strategy retained by this staged object.
+    native_identifier = "backdoor.adjustment" if isinstance(query, ResponseCurve) else identifier
+    result = _identify_native(
+        graph=graph,
+        query=identification_query,
+        names=names,
+        identifier=native_identifier,
+    )
     return Identification(
         status=result.status,
         method=result.method,
@@ -201,7 +229,7 @@ def identify(
         graph=graph,
         query=query,
         names=list(names) if names is not None else None,
-        identifier=identifier_s,
+        identifier="response.backdoor" if isinstance(query, ResponseCurve) else identifier_s,
     )
 
 
@@ -243,7 +271,7 @@ def validate(
     identification: Identification,
     data: Mapping[str, Any] | Any,
     *,
-    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
     seed: int = 1,
     threads: int = 1,
 ) -> Any:
@@ -251,4 +279,34 @@ def validate(
     return identification.validate(data, refute=refute, seed=seed, threads=threads)
 
 
-__all__ = ["Identification", "IdentifyResult", "estimate", "identify", "validate"]
+@dataclass(frozen=True, slots=True)
+class BinaryIvBounds:
+    """Sharp Balke–Pearl interval for ``E[Y(1)-Y(0)]`` under a binary IV."""
+
+    lower: float
+    upper: float
+    method: str = "identify.binary_iv_bounds"
+
+
+def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
+    """Sharp response-type bounds on the ATE from the observed binary-IV law.
+
+    ``cells`` is a 2×4 nested sequence: one arm per instrument value ``Z∈{0,1}``,
+    with cell order ``(Y,D)=(0,0),(1,0),(0,1),(1,1)``. This is a contrast bound,
+    not a continuous-response curve estimator.
+    """
+    from ._native import binary_iv_ate_bounds as _binary_iv_ate_bounds
+
+    lower, upper = _binary_iv_ate_bounds([list(arm) for arm in cells])
+    return BinaryIvBounds(lower=float(lower), upper=float(upper))
+
+
+__all__ = [
+    "BinaryIvBounds",
+    "Identification",
+    "IdentifyResult",
+    "binary_iv_bounds",
+    "estimate",
+    "identify",
+    "validate",
+]

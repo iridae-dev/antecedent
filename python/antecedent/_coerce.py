@@ -11,8 +11,8 @@ Wiring status, honestly: ``coerce_data`` is used by the discovery config
 ``run()`` methods; ``coerce_refute`` / ``coerce_latency`` are used by
 ``estimation.py`` (``_resolve_latency_budget``, ``PreparedAnalysis.prepare``)
 and by ``_analyze.analyze`` itself. ``coerce_query`` is called once, at the
-top of ``_analyze.analyze``, as the single "is this one of the nine known
-query types" check. ``coerce_graph`` is **not** on the real ``analyze()``
+top of ``_analyze.analyze``, as the single supported-query check.
+``coerce_graph`` is **not** on the real ``analyze()``
 path — see its own docstring for why unifying it with the graph-coercion
 logic that IS wired (``estimation._static_edges`` / ``_lagged_edges``, plus
 the ``Pag``/``Cpdag``/``Admg`` special-casing in
@@ -154,13 +154,21 @@ def coerce_query(value: Any) -> Any:
     discriminator; anything without one is not a supported query type.
     """
     from .query import (
+        AverageDerivative,
         AverageEffect,
         ConditionalEffect,
         Counterfactual,
+        DirectionalDerivative,
+        Elasticity,
         InterventionalDistribution,
+        InterventionResponse,
         MediationEffect,
         PathSpecificEffect,
+        PointDerivative,
         PulseEffect,
+        ResponseCurve,
+        ResponseJacobian,
+        SemiElasticity,
         SustainedEffect,
         TemporalMediationEffect,
     )
@@ -175,6 +183,14 @@ def coerce_query(value: Any) -> Any:
         PulseEffect,
         SustainedEffect,
         TemporalMediationEffect,
+        ResponseCurve,
+        AverageDerivative,
+        PointDerivative,
+        Elasticity,
+        SemiElasticity,
+        DirectionalDerivative,
+        ResponseJacobian,
+        InterventionResponse,
     )
     if isinstance(value, valid):
         return value
