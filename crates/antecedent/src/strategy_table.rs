@@ -26,6 +26,7 @@ use antecedent_identify::{
     AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
     GeneralizedAdjustmentIdentifier, IdIdentifier, IdentificationEnvelope, IdentificationError,
     IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
+    ResponseIdentifier,
 };
 
 use crate::error::CausalError;
@@ -42,6 +43,7 @@ const IDENTIFIER_NAMES: &[&str] = &[
     "generalized.adjustment",
     "general.id",
     "path_specific.natural",
+    "response.backdoor",
     "auto",
 ];
 
@@ -64,6 +66,10 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "functional.effect",
     "conditional.linear.adjustment",
     "temporal.mediation",
+    "response.kennedy_dr",
+    "response.riesz_ade",
+    "response.gam_derivative",
+    "response.intervention_gcomp",
 ];
 
 /// Closed set of identification strategies.
@@ -88,6 +94,8 @@ pub enum IdentifierId {
     GeneralId,
     /// Path-restricted natural effects.
     PathSpecificNatural,
+    /// Pairwise backdoor identification for response functionals.
+    ResponseBackdoor,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -151,6 +159,11 @@ const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: true,
             provenance: ("identify.path_specific", "identify.path_specific"),
         },
+        IdentifierId::ResponseBackdoor => IdentifierData {
+            name: "response.backdoor",
+            is_dag_only: true,
+            provenance: ("identify.response", "identify.response_backdoor"),
+        },
         IdentifierId::Auto => IdentifierData {
             name: "auto",
             is_dag_only: true,
@@ -171,6 +184,7 @@ impl IdentifierId {
         Self::GeneralizedAdjustment,
         Self::GeneralId,
         Self::PathSpecificNatural,
+        Self::ResponseBackdoor,
         Self::Auto,
     ];
 
@@ -206,6 +220,7 @@ impl FromStr for IdentifierId {
             "generalized.adjustment" => Ok(Self::GeneralizedAdjustment),
             "general.id" => Ok(Self::GeneralId),
             "path_specific.natural" => Ok(Self::PathSpecificNatural),
+            "response.backdoor" => Ok(Self::ResponseBackdoor),
             "auto" => Ok(Self::Auto),
             other => Err(UnknownStrategy {
                 kind: "identifier",
@@ -260,6 +275,14 @@ pub enum EstimatorId {
     ConditionalLinearAdjustment,
     /// Temporal linear mediation (path-product).
     TemporalMediation,
+    /// Kennedy-style doubly robust continuous response curve / point derivative.
+    ResponseKennedyDr,
+    /// Riesz-representer average derivative estimator.
+    ResponseRieszAde,
+    /// Low-dimensional GAM plug-in Jacobian / directional derivative.
+    ResponseGamDerivative,
+    /// Additive-GAM g-computation for static, shifted, or stochastic interventions.
+    ResponseInterventionGcomp,
 }
 
 /// Per-estimator data-only facts backing [`EstimatorId::as_str`],
@@ -386,6 +409,33 @@ const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.temporal_mediation", "estimate.temporal_mediation"),
         },
+        EstimatorId::ResponseKennedyDr => EstimatorData {
+            name: "response.kennedy_dr",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "response.kennedy_dr.gam",
+            provenance: ("estimate.response.kennedy_dr", "estimate.response.kennedy_dr"),
+        },
+        EstimatorId::ResponseRieszAde => EstimatorData {
+            name: "response.riesz_ade",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "response.riesz_ade.gam",
+            provenance: ("estimate.response.riesz_ade", "estimate.response.riesz_ade"),
+        },
+        EstimatorId::ResponseGamDerivative => EstimatorData {
+            name: "response.gam_derivative",
+            parallel_task_dimension: "outcome",
+            kernel_label: "response.gam.derivative",
+            provenance: ("estimate.response.gam_derivative", "estimate.response.gam_derivative"),
+        },
+        EstimatorId::ResponseInterventionGcomp => EstimatorData {
+            name: "response.intervention_gcomp",
+            parallel_task_dimension: "intervention",
+            kernel_label: "response.gam.intervention_gcomp",
+            provenance: (
+                "estimate.response.intervention_gcomp",
+                "estimate.response.intervention_gcomp",
+            ),
+        },
     }
 }
 
@@ -409,6 +459,10 @@ impl EstimatorId {
         Self::FunctionalEffect,
         Self::ConditionalLinearAdjustment,
         Self::TemporalMediation,
+        Self::ResponseKennedyDr,
+        Self::ResponseRieszAde,
+        Self::ResponseGamDerivative,
+        Self::ResponseInterventionGcomp,
     ];
 
     /// Canonical wire id.
@@ -457,6 +511,10 @@ impl FromStr for EstimatorId {
             "functional.effect" => Ok(Self::FunctionalEffect),
             "conditional.linear.adjustment" => Ok(Self::ConditionalLinearAdjustment),
             "temporal.mediation" => Ok(Self::TemporalMediation),
+            "response.kennedy_dr" => Ok(Self::ResponseKennedyDr),
+            "response.riesz_ade" => Ok(Self::ResponseRieszAde),
+            "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
+            "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
             other => Err(UnknownStrategy {
                 kind: "estimator",
                 got: other.to_string(),
@@ -510,6 +568,44 @@ pub const DEFAULT_DISTRIBUTION_ESTIMATOR: &str = "functional.distribution";
 pub const DEFAULT_DISTRIBUTION_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralId;
 /// Default distribution estimator enum.
 pub const DEFAULT_DISTRIBUTION_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalDistribution;
+
+/// Default response identifier.
+pub const DEFAULT_RESPONSE_IDENTIFIER: &str = "response.backdoor";
+/// Default response identifier enum.
+pub const DEFAULT_RESPONSE_IDENTIFIER_ID: IdentifierId = IdentifierId::ResponseBackdoor;
+/// Default response-curve estimator.
+pub const DEFAULT_RESPONSE_ESTIMATOR: &str = "response.kennedy_dr";
+/// Default response-curve estimator enum.
+pub const DEFAULT_RESPONSE_ESTIMATOR_ID: EstimatorId = EstimatorId::ResponseKennedyDr;
+
+/// Compile-time allowlist for continuous-response identify/estimate pairs.
+///
+/// # Errors
+///
+/// Incompatible identifier/estimator pair.
+pub fn validate_response_pair(
+    identifier: IdentifierId,
+    estimator: EstimatorId,
+) -> Result<(), CausalError> {
+    if identifier != IdentifierId::ResponseBackdoor
+        || !matches!(
+            estimator,
+            EstimatorId::ResponseKennedyDr
+                | EstimatorId::ResponseRieszAde
+                | EstimatorId::ResponseGamDerivative
+                | EstimatorId::ResponseInterventionGcomp
+        )
+    {
+        return Err(CausalError::Compile {
+            message: format!(
+                "Response requires identifier response.backdoor and a response.* estimator (got {:?} / {:?})",
+                identifier.as_str(),
+                estimator.as_str()
+            ),
+        });
+    }
+    Ok(())
+}
 
 /// Compile-time allowlist of identifier/estimator pairs for the static ATE path.
 ///
@@ -630,7 +726,6 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::GraphDependent
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
     )
 }
 
@@ -663,7 +758,11 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::Aipw
         | EstimatorId::GlmAdjustment
         | EstimatorId::BayesianGcomp
-        | EstimatorId::ConditionalLinearAdjustment => method.is_backdoor_family(),
+        | EstimatorId::ConditionalLinearAdjustment
+        | EstimatorId::ResponseKennedyDr
+        | EstimatorId::ResponseRieszAde
+        | EstimatorId::ResponseGamDerivative
+        | EstimatorId::ResponseInterventionGcomp => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
@@ -841,6 +940,12 @@ pub fn identify_static_query_with_rd(
         IdentifierId::PathSpecificNatural => {
             let id = antecedent_identify::PathSpecificIdentifier::new();
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
+        }
+        IdentifierId::ResponseBackdoor => {
+            let id = ResponseIdentifier::new();
+            let prepared =
+                id.prepare_with_assumptions(graph, AssumptionSet::new()).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Auto => {

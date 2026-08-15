@@ -44,6 +44,7 @@ pub mod node;
 pub mod plan;
 pub mod provenance;
 pub mod query;
+pub mod response;
 pub mod schema;
 pub mod temporal;
 pub mod tolerance;
@@ -76,12 +77,20 @@ pub use plan::{
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
-    CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
-    InterventionalDistributionQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
-    OrderedFloatBits, PathSpecificEffectQuery, PopulationRegistry, PopulationSelection,
-    PopulationSelector, PredicateExpr, QueryError, ShapleyConfig, ShapleyMode, TargetPopulation,
-    TemporalEffectQuery, UnitChangeQuery,
+    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
+    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
+    ContinuousDomain, CounterfactualQuery, DerivativeScale, DerivativeWeighting,
+    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
+    InterferenceQuery, InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM,
+    MechanismChangeQuery, MediationContrast, MediationQuery, ObservationAssumption,
+    ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery, PopulationRegistry,
+    PopulationSelection, PopulationSelector, PredicateExpr, QueryError, ResponseFunctional,
+    ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery,
+    TransportQuery, UnitChangeQuery,
+};
+pub use response::{
+    CausalResponse, IdentifiedSet, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
+    ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

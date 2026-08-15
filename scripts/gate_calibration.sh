@@ -46,4 +46,7 @@ run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
 
+echo "== 0.5.0 response/observation/transport/interference =="
+bash scripts/gate_response_calibration.sh
+
 echo "gate_calibration: ok"

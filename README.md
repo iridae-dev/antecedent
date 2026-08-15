@@ -3,7 +3,8 @@
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
 A causal inference engine in Rust with a first-class Python API, built for **causal
-inference under structural uncertainty**.
+inference under structural uncertainty** — including continuous causal responses,
+not only binary contrasts.
 
 * **One engine, whole workflow.** Discovery, identification, estimation, Bayesian
   inference, interventions, counterfactuals, attribution, validation, and experimental
@@ -11,19 +12,24 @@ inference under structural uncertainty**.
   between libraries.
 * **Structure is evidence, not ground truth.** A CPDAG, a PAG, a posterior over graphs —
   the uncertainty propagates through estimation rather than being resolved by assumption.
+* **Responses are first-class.** Mean curves, derivatives, elasticities, and Jacobians
+  keep structural identification, empirical support, and uncertainty kind as separate
+  axes. Observation, transport, and interference stay explicit stage contracts.
 * **Temporal and online.** Temporal graphs with their own semantics, PCMCI-family
   discovery, temporal identification and estimation, and incremental `CausalState` for
   streaming.
 
 ## Try it
 
-Three notebooks, runnable in Colab:
+Notebooks runnable in Colab:
 
 | Notebook | |
 | ----- | ----- |
 | [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a naive dashboard overstates paid search by crediting demand that would have existed anyway. Adjust for it and get a decision-ready estimate of incremental pipeline. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
 | [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign's treatment-effect posterior without assuming the new campaign is identical, then let current data update it. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
 | [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — holdout, better intent data, or more CRM records? Find the best feasible action under a £40,000 budget, and why more of the same data would not fix the attribution problem. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_experiment_design.ipynb) |
+| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve, local derivative, elasticity, and observed-law average derivative, reading identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb) |
+| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — inventory-limited sales are not demand; compare a naive observed-sales curve with an explicit censoring mechanism and the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
 More Rust and Python examples in [`examples/`](examples/).
 
@@ -38,11 +44,20 @@ Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
   (PCMCI, PCMCI+, LPCMCI, J-PCMCI+, regime-specific RPCMCI); Bayesian structure posteriors
   that propagate downstream; stability validators.
 * **Identification.** Backdoor, front-door, IV, sharp RD, ID/IDC on DAGs and ADMGs,
-  generalized adjustment for partial graphs, temporal strategies. Every query comes back
-  identified, partially identified, graph-dependent, or not identified.
+  generalized adjustment for partial graphs, temporal strategies, pairwise backdoor for
+  continuous-response functionals, sharp binary-IV Balke–Pearl ATE bounds, and a sound
+  certified subset of single-source selection-diagram transport. Every query comes back
+  identified, partially identified, graph-dependent, not identified, or — for transport
+  outside the certified subset — `NotCertified`.
 * **Estimation.** Regression, g-computation, IPW, matching, AIPW, 2SLS, RD and temporal
-  estimators; Bayesian g-computation, HMC GLMs, prior transfer, graph-by-effect posterior
-  envelopes.
+  estimators; Kennedy-style doubly robust response curves, Riesz average derivatives,
+  low-dimensional GAM Jacobians; Bayesian g-computation, HMC GLMs, prior transfer,
+  graph-by-effect posterior envelopes.
+* **Observation, transport, and interference.** Explicit complete, censored, truncated,
+  and selected observation mechanisms (assumptions never inferred from columns);
+  trial-to-target IPW/AIPW under selection diagrams; randomized interference with
+  Horvitz–Thompson / Hájek contrasts. These stay stage APIs — they change what identifies
+  the estimand and are not folded into ordinary `analyze` flags.
 * **Interventions and counterfactuals.** Hard, soft, stochastic, sequenced and policy
   interventions; abduction–action–prediction counterfactuals, nested counterfactuals,
   temporal trajectories.
@@ -57,11 +72,12 @@ Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
   particle filters, prepared analyses, and invalidation that never silently reruns an
   analysis.
 * **Data and artifacts.** NumPy, pandas and Arrow; tabular, time-series, panel and
-  multi-environment data; schema-versioned CBOR with memory-mapped access.
+  multi-environment data; schema-versioned CBOR with memory-mapped access, including
+  response artifact format 0.3 with migrations from 0.1 and 0.2.
 
 ## Scientific scope
 
-Seven constraints the library will not bend:
+Constraints the library will not bend:
 
 1. Priors do not upgrade nonparametric identification.
 2. Discovery results are not assumed to be ground truth.
@@ -70,6 +86,11 @@ Seven constraints the library will not bend:
 5. Partial graphs are not silently completed.
 6. PAG-native full ID and IDC are not claimed.
 7. Unsupervised regime discovery is outside the RPCMCI workflow.
+8. Observation mechanisms do not imply their identifying assumptions.
+9. Multi-source meta-transport, cyclic/equilibrium models, and observational network
+   interference are outside the current contract.
+10. General multi-node sID recursion is not claimed; unsupported transport returns
+    `NotCertified`, not a false non-transportability certificate.
 
 ## How this is verified
 
@@ -81,25 +102,28 @@ aspirations.
   a black-box comparator. Current upstream comparisons are black-box only.
   [`provenance/`](provenance/)
 * **Conformance.** Implementations are output-verified on documented fixtures against
-  reference libraries — DoWhy, scikit-learn, Tigramite where applicable — with no
-  unexplained divergence permitted. [`conformance/`](conformance/)
+  reference libraries — DoWhy, scikit-learn, Tigramite where applicable, and for 0.5
+  response work `bpbounds`, a supported `causaleffect` transport subset, and the Kennedy
+  shared linear contract — with no unexplained divergence permitted.
+  [`conformance/`](conformance/)
 * **Parity.** Applicable public behaviour stays in parity across the Rust and Python APIs.
   [`parity/`](parity/)
 
-As of 0.4.0:
+As of 0.5.0:
 
 | | |
 |---|---|
-| Rust tests | 1323 |
-| Python tests | 532 |
+| Rust tests | 1438 |
+| Python tests | 693 |
 | Coverage floor | 85%, enforced in CI |
-| Conformance fixtures | 130 documented pages |
+| Conformance fixtures | 136 documented cases |
 | Platforms | CPython 3.11–3.14 on Linux, macOS, Windows; Rust 1.85+ |
 
 Every commit runs both test suites, both lint gates, CodeQL, and the domain gates covering
-conformance fixtures and cross-language parity. A scheduled gate runs what is too slow for
-every commit: whether nominal 95% intervals actually cover 95%, whether null p-values are
-actually uniform, and discovery false-positive rates.
+conformance fixtures and cross-language parity. Scheduled and release gates also cover
+response calibration, causal-artifact round-trips, and whether nominal 95% intervals
+actually cover 95%, whether null p-values are actually uniform, and discovery
+false-positive rates.
 
 This establishes algorithmic lineage, agreement on reference cases, and consistent
 cross-language behaviour. It does not validate your causal assumptions, and implies no
@@ -107,6 +131,7 @@ endorsement by the referenced projects.
 
 The 0.4.0 correctness audit found and fixed twenty-five defects — see
 [the release notes](docs/release-notes/v0.4.0.md) for what they were and why they mattered.
+Draft 0.5.0 notes are in [docs/release-notes/v0.5.0.md](docs/release-notes/v0.5.0.md).
 
 ## Install
 
@@ -116,14 +141,16 @@ cargo add antecedent          # Rust 1.85+
 ```
 
 Wheels are on PyPI and attached to each GitHub Release. No other language bindings are
-provided.
+provided. This branch is package version **0.5.0** (crates.io / PyPI publish on tag).
 
 ## Documentation
 
-[Capabilities](docs/capabilities.md) · [Architecture](docs/architecture.md) ·
+[Capabilities](docs/capabilities.md) · [Causal responses](docs/causal-responses.md) ·
+[Transport and interference](docs/transport-interference.md) ·
+[Architecture](docs/architecture.md) ·
 [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md) ·
-[Development](docs/development.md) · [API naming](docs/api_naming.md) ·
-[ADRs](adr/README.md)
+[Roadmap](ROADMAP.md) · [Development](docs/development.md) ·
+[API naming](docs/api_naming.md) · [ADRs](adr/README.md)
 
 Narrative docs and the Python API reference are on
 [Read the Docs](https://antecedent.readthedocs.io/)

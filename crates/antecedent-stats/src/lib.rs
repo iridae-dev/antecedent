@@ -16,11 +16,14 @@ pub mod fdr;
 pub mod gam;
 pub mod glm;
 pub mod gram;
+pub mod interference;
 pub mod linalg;
 pub mod m_estimate;
 pub mod matching;
+pub mod observation;
 pub mod propensity;
 pub mod regularized;
+pub mod response;
 pub mod special;
 pub mod twosls;
 
@@ -68,10 +71,18 @@ pub use gram::{
     accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
     invert_square,
 };
+pub use interference::{
+    ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,
+    exposure_probabilities, exposures, randomization_contrast, randomization_mean,
+};
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
+};
+pub use observation::{
+    GaussianObservation, ObservationProbabilityFit, fit_observation_logistic,
+    gaussian_observation_log_likelihood, kaplan_meier_ipcw, selected_outcome_pseudo_values,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
@@ -79,6 +90,10 @@ pub use propensity::{
 };
 pub use regularized::{
     LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
+};
+pub use response::{
+    LocalPolynomialInfluence, LocalPolynomialPoint, gaussian_density, gaussian_local_quadratic,
+    gaussian_local_quadratic_influence, silverman_bandwidth,
 };
 pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,

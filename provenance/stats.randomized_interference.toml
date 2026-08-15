@@ -1,0 +1,23 @@
+feature_id = "stats.randomized_interference"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings and exposure probabilities", "Section 4, equations (3)-(5): Horvitz-Thompson exposure means and contrasts", "Section 7.2, equations (9)-(10): Hajek ratio estimates"] },
+]
+
+# The implementation's `conservative_variance` is a repository-defined,
+# covariance-free diagnostic obtained by bounding every unknown cross-unit
+# covariance with Young's inequality. It is not Aronow and Samii's Section 5
+# joint-exposure-probability variance estimator and carries no coverage theorem.
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/interference.rs",
+ "crates/antecedent-estimate/src/interference.rs",
+ "conformance/response/randomized_interference (exact-enumeration/equation fixture)",
+]

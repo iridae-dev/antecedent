@@ -14,6 +14,7 @@ and [docs/development.md](../docs/development.md).
 - [attribution.toml](attribution.toml) — Attribution
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
+- [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
@@ -21,6 +22,9 @@ Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
 - [baselines/dowhy.toml](baselines/dowhy.toml)
 - [baselines/tigramite.toml](baselines/tigramite.toml)
+- [baselines/bpbounds.toml](baselines/bpbounds.toml)
+- [baselines/causaleffect.toml](baselines/causaleffect.toml)
+- [baselines/riskRegression.toml](baselines/riskRegression.toml)
 
 ## Capability row schema
 
@@ -83,6 +87,7 @@ bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_calibration.sh
+bash scripts/gate_response_calibration.sh
 bash scripts/gate_release.sh
 ```
 

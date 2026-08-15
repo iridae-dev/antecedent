@@ -83,8 +83,7 @@ pub struct EffectEstimate {
     /// Propensity overlap diagnostics when computed.
     pub overlap_report: Option<OverlapReport>,
     /// Weak-instrument diagnostic (IV / 2SLS estimators only); `None` for every other
-    /// estimator family. Informational — never causes a hard failure on its own; see
-    /// [`FirstStageDiagnostics`].
+    /// estimator family. When `f_statistic < 10`, [`Self::se_analytic`] is NaN.
     pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,

@@ -7,18 +7,20 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
-    CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
-    DistributionRef, DynamicRuleId, EnvironmentId, Intervention, InterventionSequence,
+    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
+    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
+    CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
+    ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
     InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
     MediationQuery, OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, PredicateExpr,
     SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, Value, VariableId,
+    TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
+use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -573,6 +575,106 @@ pub enum CausalQueryWire {
     Distribution(InterventionalDistributionQueryWire),
     /// Path-specific.
     PathSpecific(PathSpecificEffectQueryWire),
+    /// Continuous causal response.
+    Response(ResponseQueryWire),
+    /// Structural transportability query.
+    Transport(TransportQueryWire),
+    /// Randomized interference query.
+    Interference(InterferenceQueryWire),
+}
+
+/// Structural transportability query wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct TransportQueryWire {
+    /// Target response query.
+    pub response: ResponseQueryWire,
+    /// Source population key.
+    pub source_population: String,
+    /// Target population key.
+    pub target_population: String,
+    /// Source experimental variables.
+    pub source_experiments: Vec<u32>,
+}
+
+/// Known assignment design wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AssignmentDesignWire {
+    /// Independent Bernoulli assignment.
+    Bernoulli {
+        /// Scalar or unit-specific assignment probabilities.
+        probabilities: Vec<f64>,
+    },
+    /// Uniform complete randomization.
+    CompleteRandomization {
+        /// Number of treated units.
+        treated: u64,
+    },
+    /// Uniform cluster randomization.
+    ClusterRandomization {
+        /// Cluster id per unit.
+        clusters: Vec<u32>,
+        /// Number of treated clusters.
+        treated_clusters: u64,
+    },
+}
+
+/// Built-in exposure mapping wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExposureMappingWire {
+    /// Own treatment only.
+    OwnTreatment,
+    /// Treated-neighbor count.
+    NeighborCount,
+    /// Treated-neighbor fraction.
+    NeighborFraction,
+    /// Weighted neighbor mean.
+    WeightedNeighborExposure,
+    /// Caller registry id.
+    Custom(String),
+}
+
+/// Exposure level wire form.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ExposureLevelWire {
+    /// Own treatment.
+    pub own: f64,
+    /// Neighbor summary.
+    pub neighbors: f64,
+}
+
+/// Interference functional wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum InterferenceFunctionalWire {
+    /// Exposure mean contrast.
+    ExposureContrast {
+        /// Outcome variable.
+        outcome: u32,
+        /// Baseline exposure.
+        from: ExposureLevelWire,
+        /// Active exposure.
+        to: ExposureLevelWire,
+    },
+}
+
+const fn default_probability_draws() -> u32 {
+    10_000
+}
+
+/// Randomized interference query wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct InterferenceQueryWire {
+    /// Known assignment design.
+    pub assignment: AssignmentDesignWire,
+    /// Exposure mapping.
+    pub exposure: ExposureMappingWire,
+    /// Requested functional.
+    pub functional: InterferenceFunctionalWire,
+    /// Monte Carlo assignment count; defaults for older payloads which omitted it.
+    #[serde(default = "default_probability_draws")]
+    pub probability_draws: u32,
 }
 
 /// Allocation method wire.
@@ -851,6 +953,11 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             CausalQueryWire::Distribution(interventional_distribution_to_wire(q)?)
         }
         CausalQuery::PathSpecific(q) => CausalQueryWire::PathSpecific(path_specific_to_wire(q)?),
+        CausalQuery::Response(q) => CausalQueryWire::Response(response_query_to_wire(q)?),
+        CausalQuery::Transport(q) => CausalQueryWire::Transport(transport_query_to_wire(q)?),
+        CausalQuery::Interference(q) => {
+            CausalQueryWire::Interference(interference_query_to_wire(q)?)
+        }
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -998,7 +1105,132 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Distribution(interventional_distribution_from_wire(w)?)
         }
         CausalQueryWire::PathSpecific(w) => CausalQuery::PathSpecific(path_specific_from_wire(w)?),
+        CausalQueryWire::Response(w) => CausalQuery::Response(response_query_from_wire(w)?),
+        CausalQueryWire::Transport(w) => CausalQuery::Transport(transport_query_from_wire(w)?),
+        CausalQueryWire::Interference(w) => {
+            CausalQuery::Interference(interference_query_from_wire(w)?)
+        }
     })
+}
+
+/// Encode a structural transport query.
+///
+/// # Errors
+///
+/// Unsupported response-query fields.
+pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire, IoError> {
+    Ok(TransportQueryWire {
+        response: response_query_to_wire(&q.response)?,
+        source_population: q.source_population.to_string(),
+        target_population: q.target_population.to_string(),
+        source_experiments: vars_to_raw(&q.source_experiments),
+    })
+}
+
+/// Decode and validate a structural transport query.
+///
+/// # Errors
+///
+/// Invalid response or transport semantics.
+pub fn transport_query_from_wire(w: &TransportQueryWire) -> Result<TransportQuery, IoError> {
+    let query = TransportQuery::new(
+        response_query_from_wire(&w.response)?,
+        w.source_population.as_str(),
+        w.target_population.as_str(),
+        vars_from_raw(&w.source_experiments),
+    );
+    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
+}
+
+/// Encode a randomized interference query.
+///
+/// # Errors
+///
+/// Counts that do not fit the portable wire representation.
+pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQueryWire, IoError> {
+    let assignment = match &q.assignment {
+        AssignmentDesign::Bernoulli { probabilities } => {
+            AssignmentDesignWire::Bernoulli { probabilities: probabilities.to_vec() }
+        }
+        AssignmentDesign::CompleteRandomization { treated } => {
+            AssignmentDesignWire::CompleteRandomization {
+                treated: u64::try_from(*treated).map_err(|_| IoError::TooLarge)?,
+            }
+        }
+        AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
+            AssignmentDesignWire::ClusterRandomization {
+                clusters: clusters.to_vec(),
+                treated_clusters: u64::try_from(*treated_clusters)
+                    .map_err(|_| IoError::TooLarge)?,
+            }
+        }
+    };
+    let exposure = match &q.exposure {
+        ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
+        ExposureMapping::NeighborCount => ExposureMappingWire::NeighborCount,
+        ExposureMapping::NeighborFraction => ExposureMappingWire::NeighborFraction,
+        ExposureMapping::WeightedNeighborExposure => ExposureMappingWire::WeightedNeighborExposure,
+        ExposureMapping::Custom(id) => ExposureMappingWire::Custom(id.to_string()),
+    };
+    let InterferenceFunctional::ExposureContrast { outcome, from, to } = &q.functional;
+    Ok(InterferenceQueryWire {
+        assignment,
+        exposure,
+        functional: InterferenceFunctionalWire::ExposureContrast {
+            outcome: outcome.raw(),
+            from: ExposureLevelWire { own: from.own, neighbors: from.neighbors },
+            to: ExposureLevelWire { own: to.own, neighbors: to.neighbors },
+        },
+        probability_draws: q.probability_draws,
+    })
+}
+
+/// Decode and validate a randomized interference query.
+///
+/// # Errors
+///
+/// Counts that do not fit `usize` or invalid query semantics.
+pub fn interference_query_from_wire(
+    w: &InterferenceQueryWire,
+) -> Result<InterferenceQuery, IoError> {
+    let assignment = match &w.assignment {
+        AssignmentDesignWire::Bernoulli { probabilities } => {
+            AssignmentDesign::Bernoulli { probabilities: probabilities.clone().into() }
+        }
+        AssignmentDesignWire::CompleteRandomization { treated } => {
+            AssignmentDesign::CompleteRandomization {
+                treated: usize::try_from(*treated).map_err(|_| IoError::TooLarge)?,
+            }
+        }
+        AssignmentDesignWire::ClusterRandomization { clusters, treated_clusters } => {
+            AssignmentDesign::ClusterRandomization {
+                clusters: clusters.clone().into(),
+                treated_clusters: usize::try_from(*treated_clusters)
+                    .map_err(|_| IoError::TooLarge)?,
+            }
+        }
+    };
+    let exposure = match &w.exposure {
+        ExposureMappingWire::OwnTreatment => ExposureMapping::OwnTreatment,
+        ExposureMappingWire::NeighborCount => ExposureMapping::NeighborCount,
+        ExposureMappingWire::NeighborFraction => ExposureMapping::NeighborFraction,
+        ExposureMappingWire::WeightedNeighborExposure => ExposureMapping::WeightedNeighborExposure,
+        ExposureMappingWire::Custom(id) => ExposureMapping::Custom(Arc::from(id.as_str())),
+    };
+    let InterferenceFunctionalWire::ExposureContrast { outcome, from, to } = &w.functional;
+    let query = InterferenceQuery {
+        assignment,
+        exposure,
+        functional: InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(*outcome),
+            from: ExposureLevel { own: from.own, neighbors: from.neighbors },
+            to: ExposureLevel { own: to.own, neighbors: to.neighbors },
+        },
+        probability_draws: w.probability_draws,
+    };
+    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
 }
 
 /// Encode an interventional distribution query.
@@ -1132,6 +1364,55 @@ mod tests {
         let back = path_specific_from_wire(&decoded).unwrap();
         assert_eq!(back.max_paths, 32);
         back.validate().unwrap();
+    }
+
+    #[test]
+    fn transport_and_interference_queries_round_trip() {
+        let response =
+            antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: antecedent_core::ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            });
+        let transport = CausalQuery::Transport(TransportQuery::new(
+            response,
+            "trial",
+            "target",
+            [VariableId::from_raw(0)],
+        ));
+        assert_rt(&transport);
+
+        let interference = CausalQuery::Interference(InterferenceQuery::new(
+            AssignmentDesign::CompleteRandomization { treated: 2 },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(1),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 0.5 },
+            },
+        ));
+        assert_rt(&interference);
+    }
+
+    #[test]
+    fn interference_wire_missing_draw_budget_uses_legacy_default() {
+        let wire = InterferenceQueryWire {
+            assignment: AssignmentDesignWire::Bernoulli { probabilities: vec![0.5] },
+            exposure: ExposureMappingWire::OwnTreatment,
+            functional: InterferenceFunctionalWire::ExposureContrast {
+                outcome: 1,
+                from: ExposureLevelWire { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevelWire { own: 1.0, neighbors: 0.0 },
+            },
+            probability_draws: 10_000,
+        };
+        let mut json = serde_json::to_value(&wire).unwrap();
+        json.as_object_mut().unwrap().remove("probability_draws");
+        let decoded: InterferenceQueryWire = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded.probability_draws, 10_000);
+        interference_query_from_wire(&decoded).unwrap();
     }
 
     #[test]

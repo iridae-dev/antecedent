@@ -5,6 +5,91 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.5.0
+
+Large causal-response release. Workspace and Python package versions are **0.5.0**.
+
+### Added
+
+- Function-valued continuous response queries, average/point/directional
+  derivatives, elasticities, and low-dimensional Jacobians.
+- Kennedy-style doubly robust response-curve estimation, Riesz average
+  derivatives, explicit support diagnostics, and typed pointwise/simultaneous
+  uncertainty semantics.
+- Generic identified intervals/envelopes and sharp binary-IV Balke–Pearl
+  ATE bounds via response-type enumeration (Rust + Python
+  `antecedent.identify.binary_iv_bounds`). This is a contrast bound, not a
+  continuous-response curve estimator.
+- Explicit complete, censored, truncated, and selected observation mechanisms,
+  with assumptions kept separate from the recorded-data process. Selected-outcome
+  AIPW cross-fits both nuisance models over deterministic row-index folds
+  (`crossfit_folds`, default 5), so no row's pseudo-value comes from a model that
+  saw it; a fold that cannot support either model is refused rather than refit in
+  sample. Selected-outcome IPW keeps its in-sample maximum-likelihood propensity,
+  which is the published estimator for that correction. The AIPW method id is
+  therefore `observation.selected.crossfit_logistic_aipw.v1`.
+- Single-source selection diagrams, a sound certified subset of graphical
+  transport identification, and trial-to-target IPW/AIPW estimation. Transported
+  estimation requires the identification certificate: `trial_to_target_effect`
+  and `transport_augmented_response_grid` take it as an argument and refuse a
+  `NotCertified` result rather than returning a number the graph never licensed.
+  Recursive-factorization certificates are also refused by those estimators
+  (Dahabreh-style direct/standardize algebra only).
+- Randomized interference queries decomposed into assignment design, exposure
+  mapping, and exposure contrast, with exact/seeded-Monte-Carlo probabilities
+  and Horvitz–Thompson/Hájek estimation.
+- Response artifact format 0.3 with migrations from formats 0.1 and 0.2.
+  Partially identified responses store a coordinate-free envelope, so the
+  identified set of a scalar or vector functional is representable without a
+  later format bump. An envelope is rejected under any other identification
+  status, and Jacobian envelopes remain unrepresentable by design (see
+  [ADR 0019](adr/0019-response-artifact-format.md)).
+- Paper-level machine-readable provenance records and a 0.5 parity inventory.
+
+### Fixed
+
+- **Transport estimators refuse recursive-factorization certificates.**
+  Dahabreh-style `trial_to_target_effect` / `transport_augmented_response_grid`
+  previously ran for any `Transportable` result, including
+  `RecursiveFactorization`. They now accept only `Direct` and `Standardize`.
+- **Gaussian treatment residual scale uses GAM effective df.** Kennedy densities
+  and Riesz scores no longer divide RSS by `n−1` when the treatment nuisance is
+  a penalized GAM.
+- **Unconverged additive GAM nuisances are refused** after an extended
+  backfitting budget, matching the observation-path `require_ok` posture.
+- **Bernoulli/Categorical intervention responses use exact finite mixtures**
+  rather than Monte Carlo through a continuous spline.
+- **Delayed-entry KM IPCW is `G(L−)/G(T−)`**, not `1/G(T−)`. The observation
+  primitives fixture was regenerated for this correction.
+- **Exposure HT means refuse any unit with `π_i = 0`** for the requested level,
+  so impossible exposures cannot silently dilute the `/n` average.
+- **Point derivatives require an explicit bandwidth**; Silverman's rule is
+  refused for `m'`/`m''` (same undersmoothing discipline as simultaneous bands).
+- **Finite-difference steps scale with `|a|`** so large treatment levels cannot
+  collapse central differences to exact zero.
+
+### Changed
+
+- **`Identification.validate` and the module-level `validate` now default
+  `refute` to `"cheap"` instead of `None`.** Previously an unset `refute` on
+  `.validate(data)` resolved to a mode-dependent default suite chosen
+  internally; it now always runs the explicit `"cheap"` suite. Pass
+  `refute=False` for no refutation, or `refute="full"` / `"placebo"` for a
+  different suite.
+- PAG response envelopes emit an explicit warning that bounds are the
+  pointwise min/max of completion-specific **point** curves (structural
+  uncertainty only; not a confidence band).
+- Transported estimation docs state that recursive factorization remains
+  identify-only in 0.5.
+
+### Compatibility
+
+- Existing 0.4 query positional conventions are preserved: scalar response
+  queries use `(treatment, outcome)`, with options keyword-only.
+- New specialized observation, transport, and interference types live in stage
+  namespaces. Only day-one response query types are added to the Python root.
+- Cyclic/equilibrium models and multi-source meta-transport are not part of 0.5.
+
 ## [0.4.1] — 2026-07-30
 
 Patch release. One correctness fix on the identify-only path; no API removals,

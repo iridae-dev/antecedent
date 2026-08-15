@@ -1,6 +1,6 @@
 //! Artifact format migration registry.
 //!
-//! Supported durable formats: `0.1` (migrate-from) and `0.2` (stable).
+//! Supported durable formats: `0.1` and `0.2` (migrate-from), and `0.3` (stable).
 //! Unknown versions fail explicitly.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -13,11 +13,14 @@ use crate::error::IoError;
 use crate::wire::{FormatVersion, SchemaWire, SchemaWireV01};
 
 /// Frozen stable format for durable artifacts.
-pub const STABLE_FORMAT: FormatVersion = FormatVersion { major: 0, minor: 2 };
+pub const STABLE_FORMAT: FormatVersion = FormatVersion { major: 0, minor: 3 };
 
 /// Formats this reader can migrate *from* into [`STABLE_FORMAT`].
-pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] =
-    &[FormatVersion { major: 0, minor: 1 }, FormatVersion { major: 0, minor: 2 }];
+pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] = &[
+    FormatVersion { major: 0, minor: 1 },
+    FormatVersion { major: 0, minor: 2 },
+    FormatVersion { major: 0, minor: 3 },
+];
 
 /// True when `v` is a known source format.
 #[must_use]
@@ -56,6 +59,14 @@ pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact
 }
 
 fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, IoError> {
+    // The zip below pairs descriptors with section bytes positionally. If the two vectors
+    // disagree in length the tail is dropped silently, which would migrate part of an
+    // artifact and stamp the result as fully migrated.
+    if artifact.manifest.sections.len() != artifact.sections.len() {
+        return Err(IoError::Convert(
+            "artifact manifest section count does not match its section payloads".into(),
+        ));
+    }
     for (desc, sec) in artifact.manifest.sections.iter_mut().zip(artifact.sections.iter_mut()) {
         if desc.id == "schema" {
             // Prefer already-v2 decode (`variables`); else upgrade skinny v01 (`variable_names`).
@@ -93,9 +104,10 @@ pub fn read_and_migrate<R: std::io::Read>(r: R) -> Result<EncodedArtifact, IoErr
 /// Seekable migrate: load only sections that need rewrite; copy other on-wire blobs
 /// byte-faithfully (preserves checksums without decompress).
 ///
-/// For format `0.2` already stable, this materializes all sections (same as a full read)
-/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.2`, only `schema` is
-/// decoded/rewritten; remaining sections are copied from on-wire bytes.
+/// For format `0.3` already stable, this materializes all sections (same as a full read)
+/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.3`, `schema` is
+/// decoded/rewritten. Format `0.2` payloads pass through unchanged while their manifest
+/// advances to `0.3`.
 ///
 /// # Errors
 ///
@@ -121,12 +133,12 @@ pub fn migrate_from_seek<R: std::io::Read + std::io::Seek>(
     if from == STABLE_FORMAT {
         return reader.into_encoded_artifact();
     }
-    // 0.1 → 0.2: rewrite schema if present; load all other sections as logical
-    // (passthrough via load — on-wire copy would need a lower-level API; load is
-    // correct and still avoids loading when caller only opens for migrate of schema-
-    // only artifacts).
+    // Older formats are materialized. Only 0.1 needs a section rewrite; 0.2 introduced
+    // no wire representation that needs transformation when advancing to 0.3.
     let mut artifact = reader.into_encoded_artifact()?;
-    artifact = migrate_0_1_to_0_2(artifact)?;
+    if from == (FormatVersion { major: 0, minor: 1 }) {
+        artifact = migrate_0_1_to_0_2(artifact)?;
+    }
     artifact.manifest.format_version = STABLE_FORMAT;
     artifact.manifest.minimum_reader_version = STABLE_FORMAT;
     Ok(artifact)
@@ -160,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn identity_migrate_0_2() {
+    fn identity_migrate_0_3() {
         let art = tiny_artifact(STABLE_FORMAT);
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
@@ -170,7 +182,38 @@ mod tests {
     }
 
     #[test]
-    fn migrate_0_1_schema_to_0_2() {
+    fn migrate_0_2_to_0_3_preserves_sections() {
+        let art = tiny_artifact(FormatVersion { major: 0, minor: 2 });
+        let original = art.sections[0].data.clone();
+        let migrated = migrate_artifact(art).unwrap();
+        assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
+        assert_eq!(migrated.manifest.minimum_reader_version, STABLE_FORMAT);
+        assert_eq!(migrated.sections[0].data, original);
+    }
+
+    #[test]
+    fn migrate_0_2_preserves_transport_not_certified_section() {
+        let wire = crate::TransportIdentificationWire::NotCertified(
+            crate::NonTransportableCertificateWire {
+                reason: "transport.sid.multinode_c_component_not_implemented".into(),
+                witness: vec![2],
+                message: "no non-transportability claim is made".into(),
+            },
+        );
+        let payload = to_cbor(&wire).unwrap();
+        let mut artifact = tiny_artifact(FormatVersion { major: 0, minor: 2 });
+        artifact.manifest.sections =
+            vec![section_descriptor("transport_identification", "application/cbor", &payload)];
+        artifact.sections = vec![SectionBytes::new("transport_identification", payload.clone())];
+        let migrated = migrate_artifact(artifact).unwrap();
+        assert_eq!(migrated.sections[0].data.as_ref(), payload.as_slice());
+        let decoded: crate::TransportIdentificationWire =
+            from_cbor(&migrated.sections[0].data).unwrap();
+        assert!(matches!(decoded, crate::TransportIdentificationWire::NotCertified(_)));
+    }
+
+    #[test]
+    fn migrate_0_1_schema_to_0_3() {
         let v01 = SchemaWireV01 { variable_names: vec!["x".into(), "y".into()] };
         let payload = to_cbor(&v01).unwrap();
         let desc = section_descriptor("schema", "application/cbor", &payload);

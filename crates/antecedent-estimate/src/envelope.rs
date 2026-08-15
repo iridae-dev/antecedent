@@ -27,9 +27,9 @@ use crate::error::EstimationError;
 /// Options for envelope aggregation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EnvelopeOptions {
-    /// When true, drop unidentified mass from the artifact (identification may
-    /// become fully identified). Draws always use E[τ | identified] either way.
+    /// When true, refuse rather than silently drop unidentified mass.
     /// Default false: unidentified mass is retained on the result.
+    /// Setting this with unidentified_mass > 0 is an error (constraint 4).
     pub renormalize_identified_only: bool,
 }
 
@@ -106,6 +106,12 @@ pub fn aggregate_effect_envelope(
     }
 
     let retained_unidentified = if options.renormalize_identified_only {
+        if unidentified_mass > 0.0 {
+            return Err(EstimationError::stats_msg(
+                "renormalize_identified_only refuses to zero unidentified graph-posterior mass; \
+                 unidentified mass is preserved (constraint 4)",
+            ));
+        }
         0.0
     } else {
         unidentified_mass / total.max(f64::EPSILON)
@@ -190,17 +196,17 @@ mod tests {
             GraphEffectDraws { graph_key: 1, effect_draws: Arc::from(vec![1.0]) },
             GraphEffectDraws { graph_key: 3, effect_draws: Arc::from(vec![3.0]) },
         ];
-        let env = aggregate_effect_envelope(
+        let err = aggregate_effect_envelope(
             &graphs,
             &per,
             InferenceDiagnostics::analytic("envelope"),
             EnvelopeOptions { renormalize_identified_only: true },
         )
-        .unwrap();
-        assert_eq!(env.unidentified_mass, 0.0);
-        assert_eq!(env.identification, IdentificationStatus::NonparametricallyIdentified);
-        // (0.5*1 + 0.2*3) / 0.7 = 1.1/0.7
-        assert!((env.summaries.mean[0] - 1.1 / 0.7).abs() < 1e-12);
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("unidentified"),
+            "renormalize_identified_only must refuse when unidentified mass is present: {err}"
+        );
     }
 
     #[test]

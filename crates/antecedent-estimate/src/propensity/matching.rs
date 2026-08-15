@@ -295,12 +295,14 @@ impl PropensityMatching {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+        let mut overlap_report = crate::propensity::propensity_overlap_report(
             problem,
             &model.fit.scores,
             None,
             ipw_target,
-        ));
+        );
+        overlap_report.retained_fraction *= result.retained_fraction;
+        let overlap_report = Some(overlap_report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_overlap_report(overlap_report)
@@ -452,6 +454,7 @@ pub(crate) fn match_diffs(
 pub(crate) struct MatchedEstimate {
     pub(crate) ate: f64,
     pub(crate) se_analytic: f64,
+    pub(crate) retained_fraction: f64,
 }
 
 /// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
@@ -570,6 +573,12 @@ pub(crate) fn matching_contrast(
     if per_unit_effects.is_empty() {
         return Err(EstimationError::data_msg("no matched units within caliper"));
     }
+    let n_eligible = match target {
+        TargetPopulation::Treated => treated_idx.len(),
+        TargetPopulation::Untreated => control_idx.len(),
+        _ => treated_idx.len() + control_idx.len(),
+    };
+    let retained_fraction = per_unit_effects.len() as f64 / n_eligible.max(1) as f64;
     let ate = if matches!(target, TargetPopulation::CustomDistribution(_)) {
         let Some(tw) = target_weights else {
             return Err(EstimationError::unsupported(
@@ -597,7 +606,9 @@ pub(crate) fn matching_contrast(
             abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
         }
         AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
-            abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
+            return Err(EstimationError::unsupported(
+                "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens) or Cluster",
+            ));
         }
         AnalyticSeKind::Cluster
         | AnalyticSeKind::Multiway
@@ -625,7 +636,7 @@ pub(crate) fn matching_contrast(
             )?
         }
     };
-    Ok(MatchedEstimate { ate, se_analytic })
+    Ok(MatchedEstimate { ate, se_analytic, retained_fraction })
 }
 
 /// Abadie–Imbens (2006) SE for 1-NN matching with replacement (homoskedastic).
@@ -652,6 +663,8 @@ fn abadie_imbens_se(effects: &[f64], donor_local: &[usize], n_donors: usize) -> 
 }
 
 /// Heteroskedastic Abadie–Imbens SE using demeaned pair-level variance proxies.
+/// Not exposed as `Hc0`–`Hc3` (those names are sandwich estimators matching does not implement).
+#[allow(dead_code)]
 fn abadie_imbens_se_hetero(effects: &[f64], donor_local: &[usize], n_donors: usize) -> f64 {
     let n = effects.len();
     if n < 2 || donor_local.len() != n {

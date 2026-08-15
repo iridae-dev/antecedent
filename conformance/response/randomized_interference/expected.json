@@ -1,0 +1,21 @@
+{
+  "fixture_id": "antecedent.randomized_interference.exact_two_unit_design",
+  "design": {"kind": "bernoulli", "probability": 0.5},
+  "assignment": [true, false],
+  "outcomes": [1.0, 4.0],
+  "directed_edges": [[0, 1, 1.0], [1, 0, 1.0]],
+  "mapping": "neighbor_count",
+  "from": {"own": 0.0, "neighbors": 1.0},
+  "to": {"own": 1.0, "neighbors": 0.0},
+  "expected": {
+    "exposure_probabilities_from": [0.25, 0.25],
+    "exposure_probabilities_to": [0.25, 0.25],
+    "horvitz_thompson_contrast": -6.0,
+    "hajek_contrast": -3.0,
+    "conservative_variance": 204.0,
+    "minimum_exposure_probability": 0.25,
+    "probability_method": "exact"
+  },
+  "contract": "Full enumeration of the four Bernoulli assignments, followed by the cited exposure-mapping HT/Hajek equations and Antecedent's documented covariance-free Young variance bound.",
+  "tolerance": {"atol": 1e-12}
+}

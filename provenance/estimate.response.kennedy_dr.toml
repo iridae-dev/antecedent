@@ -1,0 +1,18 @@
+feature_id = "estimate.response.kennedy_dr"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator of the effect curve"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/src/response.rs",
+  "crates/antecedent-stats/src/response.rs",
+  "conformance/response/two_point_curve_average_effect (shared-linear-estimand calibration)",
+]

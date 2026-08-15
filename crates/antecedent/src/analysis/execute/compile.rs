@@ -27,6 +27,18 @@ impl super::Study {
         }
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, self.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::Response(q), GraphClass::Dag) => {
+                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+                let (identifier, estimator) = self.resolve_response_pair(q);
+                compile_logical_static_response(StaticResponseCompileInput {
+                    data,
+                    graph,
+                    query: q,
+                    validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                })
+            }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 let (identifier, estimator) = self.resolve_static_pair();
@@ -246,6 +258,19 @@ impl super::Study {
         }
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, self.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::Response(q), GraphClass::Dag) => {
+                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+                let (identifier, estimator) = self.resolve_response_pair(q);
+                let logical = compile_logical_static_response(StaticResponseCompileInput {
+                    data,
+                    graph,
+                    query: q,
+                    validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                })?;
+                logical.compile_physical(ctx)
+            }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 let (identifier, estimator) = self.resolve_static_pair();

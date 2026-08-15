@@ -1,0 +1,22 @@
+feature_id = "stats.response.local_polynomial"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The implementation is an independently written Gaussian-kernel local quadratic
+# weighted least-squares kernel. The fixed normal-reference bandwidth is a simple
+# selector, not a translation of software or a claim to implement the data-driven
+# selector in the cited paper.
+papers = [
+ { title = "Local Polynomial Regression: Optimal Kernels and Asymptotic Minimax Efficiency", doi = "10.1023/A:1003162622169", sections = ["Section 2: local polynomial weighted least-squares coefficient and derivative estimators"] },
+ { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Section 3.2, pages 45 and 47: Gaussian normal-reference bandwidth h = 1.06 sigma n^(-1/5); used here only as a deterministic default heuristic"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/response.rs",
+ "crates/antecedent-estimate/src/response.rs",
+]

@@ -35,7 +35,6 @@ use crate::discriminating_paths::{
 };
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::evidence::threshold_scored_links;
 use crate::fci::{
     StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state, record_sepset,
 };
@@ -57,7 +56,8 @@ pub struct Rfci {
     pub constraints: DiscoveryConstraints,
     /// Pluggable CI test.
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
-    /// Multiple-testing adjustment (`None` = off).
+    /// Multiple-testing adjustment (`None` = off). Configured adjustments are refused until
+    /// the complete adaptive CI family can be adjusted coherently.
     pub fdr: Option<FdrAdjustment>,
 }
 
@@ -78,7 +78,7 @@ impl Default for Rfci {
 }
 
 impl Rfci {
-    /// Default RFCI with `ParCorr` and BH FDR.
+    /// Default RFCI with `ParCorr` and no incomplete adaptive-family FDR adjustment.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -90,7 +90,7 @@ impl Rfci {
                 ..DiscoveryConstraints::default()
             },
             ci: Arc::new(PartialCorrelation),
-            fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            fdr: None,
         }
     }
 
@@ -101,7 +101,7 @@ impl Rfci {
         self
     }
 
-    /// Enable / disable BH FDR.
+    /// Request / clear BH FDR. Enabling it is currently refused by [`Self::run`].
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
         self.fdr = fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false));
@@ -109,6 +109,9 @@ impl Rfci {
     }
 
     /// Full FDR configuration.
+    ///
+    /// RFCI currently refuses a configured adjustment because Lemma 3.1, discriminating-path,
+    /// and sepset-minimization tests belong to the same adaptive CI family as adjacency tests.
     #[must_use]
     pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
         self.fdr = fdr;
@@ -126,7 +129,8 @@ impl Rfci {
     ///
     /// # Errors
     ///
-    /// Data, CI, or orientation failures.
+    /// Data, CI, orientation failures, or an FDR configuration that cannot cover the complete
+    /// adaptive CI family.
     pub fn run(
         &self,
         data: &TabularData,
@@ -135,6 +139,11 @@ impl Rfci {
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        if self.fdr.is_some() {
+            return Err(DiscoveryError::unsupported(
+                "RFCI FDR is refused until adjustment covers adjacency, Lemma 3.1, discriminating-path, and sepset-minimization CI tests",
+            ));
+        }
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "RFCI requires at least one variable",
@@ -224,7 +233,7 @@ impl Rfci {
                 // conditioning set separated x and y): they hold the statistic/p-value of
                 // whichever tested z gave the weakest evidence of dependence (max p), not
                 // whichever z happened to be tested last. That's the conservative summary
-                // to feed BH-FDR downstream. If the loop instead finds a separating set, we
+                // to retain as edge evidence. If the loop instead finds a separating set, we
                 // report that test's own (stat, p) — the value that actually establishes
                 // independence — not the running max.
                 let mut weakest_dep_stat = f64::NAN;
@@ -318,13 +327,6 @@ impl Rfci {
                 })
             })
             .collect();
-        scored = threshold_scored_links(scored, self.fdr, alpha);
-        let kept: HashSet<(u32, u32)> =
-            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
-        if self.fdr.is_some() {
-            adj.retain(|k, ()| kept.contains(k));
-        }
-
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
@@ -1001,6 +1003,21 @@ mod tests {
         // No Possible-D-Sep iteration label.
         assert!(result.iterations.iter().all(|i| !i.label.contains("possible_d_sep")));
         assert!(result.iterations.iter().any(|i| i.label.contains("lemma31")));
+    }
+
+    #[test]
+    fn fdr_refuses_an_incomplete_adaptive_family() {
+        let data = tabular_n(2, 20);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let mut ws = DiscoveryWorkspace::default();
+        let err = Rfci::new()
+            .with_fdr(true)
+            .run(&data, &vars, &mut ws, &ExecutionContext::for_tests(4))
+            .unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { message } if message.contains("Lemma 3.1")),
+            "{err}"
+        );
     }
 
     #[test]

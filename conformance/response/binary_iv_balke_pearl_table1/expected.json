@@ -1,0 +1,31 @@
+{
+  "fixture_id": "bpbounds.binary_iv_balke_pearl_table1",
+  "estimand": "E[Y(1)-Y(0)] without monotonicity",
+  "cell_order": "within each Z arm: (Y,D)=(0,0),(1,0),(0,1),(1,1)",
+  "cells": [
+    [0.0064, 0.9936, 0.0, 0.0],
+    [0.0028, 0.1972, 0.001, 0.799]
+  ],
+  "expected": {
+    "lower": -0.1946,
+    "upper": 0.0054000000000000003,
+    "iv_inequality_satisfied": true
+  },
+  "tolerance": {
+    "atol": 1e-12,
+    "rtol": 1e-12
+  },
+  "reference": {
+    "project": "bpbounds",
+    "version": "0.1.8",
+    "source": "https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz",
+    "available": true,
+    "command": "Rscript -e 'install.packages(\"https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz\", repos=NULL, type=\"source\"); library(bpbounds); cp<-c(.0064,0,.9936,0,.0028,.001,.1972,.799); p<-as.table(array(cp,dim=c(2,2,2),dimnames=list(x=c(0,1),y=c(0,1),z=c(0,1)))); r<-bpbounds(p); dput(c(lower=r$bplb,upper=r$bpub,iv_inequality_satisfied=r$inequality))'",
+    "execution_note": "The exact 0.1.8 CRAN tarball was executed unmodified as a black box. Only public-API inputs and numeric outputs are stored here; no package source or tests were copied.",
+    "outputs": {
+      "lower": -0.1946,
+      "upper": 0.0054000000000000003,
+      "iv_inequality_satisfied": true
+    }
+  }
+}

@@ -103,13 +103,20 @@ Implemented identification strategies:
 * nonparametric path-specific identification;
 * generalized adjustment for partial graphs;
 * unfolded temporal backdoor;
-* temporal mediation.
+* temporal mediation;
+* pairwise backdoor identification for continuous-response functionals;
+* sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration;
+* single-source selection-diagram transport on a sound sID subset (direct,
+  S-admissible / exogenous standardization, singleton c-components), with
+  `NotCertified` outside that subset.
 
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
 
 For PAGs, Antecedent uses identification envelopes or explicit graph
 completions. Full PAG-native ID and IDC are outside the supported scope.
+General multi-node sID recursion and definitive non-transportability
+certificates are outside the 0.5 transport contract.
 
 ## Estimation
 
@@ -129,7 +136,24 @@ completions. Full PAG-native ID and IDC are outside the supported scope.
 * linear conditional effect models;
 * temporal adjustment;
 * temporal mediation;
-* functional plug-in estimation.
+* functional plug-in estimation;
+* continuous causal-response curves (Kennedy-style cross-fitted doubly robust
+  local polynomial);
+* observed-law Riesz average derivatives;
+* additive-GAM plug-in Jacobians and directional derivatives (at most two
+  treatment dimensions);
+* additive-GAM g-computation for numeric hard, shift, and stochastic
+  intervention responses;
+* selected-outcome IPW and cross-fitted AIPW, plus marginal right/left-censoring
+  IPCW, composed into point-only response curves under explicit observation
+  assumptions.
+
+Response results keep structural identification, empirical support, and
+uncertainty kind as separate axes. Pointwise and simultaneous bands are not
+aliases. Observation-adjusted curves omit joint observation/curve uncertainty
+bands rather than reusing invalid complete-data intervals. Interval censoring
+and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
+Bayesian inference and one-shot `discovery=` on response queries fail closed.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -166,6 +190,26 @@ with no runtime signal.
 
 Unidentified graph-posterior mass is retained rather than silently
 renormalized away.
+
+## Observation, transport, and interference
+
+These are stage modules. They change what identifies the estimand and are not
+hidden behind an ordinary `target_population` flag.
+
+* **Observation** (`antecedent.observation`): complete, right/left/interval-
+  censored, truncated, and selected mechanisms. Assumptions are declared
+  separately from the recorded columns; MAR / independent censoring is never
+  inferred from column presence.
+* **Structural transport** (`antecedent.transport`): single-source selection
+  diagrams and trial-to-target IPW/AIPW with separate selection and treatment
+  overlap diagnostics. Distinct from Bayesian prior/evidence transfer in
+  `antecedent.priors`.
+* **Randomized interference** (`antecedent.interference`): assignment design,
+  exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
+  Hájek estimates. The network is fixed and supplied by the caller.
+
+Multi-source meta-transport, cyclic/equilibrium models, and observational
+network interference remain outside the current contract.
 
 ## Interventions and counterfactuals
 

@@ -118,6 +118,22 @@ class, not a guessed DAG, to be what flows downstream. They also compose: a
 graph found with causal-learn can be reviewed and passed to Antecedent's
 `analyze()` as an edge list or via NetworkX interchange.
 
+## Continuous responses, transport, and interference
+
+From 0.5, Antecedent treats continuous causal responses as first-class
+objects (`ResponseCurve`, derivatives, elasticities, Jacobians), not as a
+sequence of unrelated binary contrasts. Identification, empirical support, and
+uncertainty kind stay separate axes. Structural transport and randomized
+interference live in stage modules because they change what identifies the
+estimand.
+
+If your question is a flexible ML dose–response under assumed unconfoundedness,
+Kennedy-style tooling or EconML may still be a better fit for the *estimator*.
+If your question is whether a demand curve, elasticity, or transported response
+is identified from a graph — and what happens when support is weak or the
+structure is incomplete — Antecedent is the engine that keeps those judgments
+from collapsing into one number.
+
 ## When to use each
 
 - **You want the most worked examples, tutorials, and community support for a
@@ -163,8 +179,12 @@ stated rather than discovered the hard way.
   DOT, JSON, and GML; bring your own renderer.
 - **A string query language.** Queries are typed objects, not do-calculus
   strings. This is a design choice, not a gap we intend to close.
-- **Bindings beyond Python and Rust.** No R, Julia, or JS bindings, and no
-  GPU execution; the engine is CPU-native Rust.
+- **Bindings beyond Python and Rust.** No R, Julia, or JS bindings through
+  1.0. The engine is CPU-native Rust (`faer`). A post-1.0 WebAssembly /
+  TypeScript facade is a runtime track, not an R/Julia port.
+- **Complete general sID.** 0.5 ships a sound transport subset with
+  `NotCertified` outside it; definitive non-transportability certificates and
+  multi-node c-component recursion are not claimed.
 
 If one of these is load-bearing for you today, one of the libraries above is
 the better choice, and we would rather you find that out here than after an

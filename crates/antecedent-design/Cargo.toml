@@ -10,17 +10,17 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Experimental-design ranking (expected information gain, identification probability) and decision utilities for the Antecedent engine; start with the `antecedent` crate"
+description = "Experimental-design ranking (heuristic graph-channel entropy, unlock-list identification mass, Gram SE reduction) and decision utilities for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.4.1", path = "../antecedent-core" }
-antecedent-kernels = { version = "0.4.1", path = "../antecedent-kernels" }
-antecedent-prob = { version = "0.4.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "0.4.1", path = "../antecedent-stats" }
+antecedent-core = { version = "0.5.0", path = "../antecedent-core" }
+antecedent-kernels = { version = "0.5.0", path = "../antecedent-kernels" }
+antecedent-prob = { version = "0.5.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.5.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

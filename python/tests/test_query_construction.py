@@ -9,13 +9,21 @@ import dataclasses
 
 import pytest
 from antecedent.query import (
+    AverageDerivative,
     AverageEffect,
     ConditionalEffect,
     Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
     InterventionalDistribution,
+    InterventionResponse,
     MediationEffect,
     PathSpecificEffect,
+    PointDerivative,
     PulseEffect,
+    ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
 )
@@ -31,6 +39,29 @@ _CASES = [
     (MediationEffect, ("t", "y"), "mediation", {"mediators": ["m1"]}),
     (Counterfactual, ("t", "y"), "counterfactual", {}),
     (TemporalMediationEffect, ("t", "m", "y"), "temporal_mediation", {}),
+    (ResponseCurve, ("t", "y"), "response_curve", {"grid": [0.0, 1.0]}),
+    (AverageDerivative, ("t", "y"), "average_derivative", {}),
+    (PointDerivative, ("t", "y"), "point_derivative", {"at": 0.0}),
+    (Elasticity, ("t", "y"), "elasticity", {"at": 1.0}),
+    (SemiElasticity, ("t", "y"), "semi_elasticity", {"at": 1.0}),
+    (
+        DirectionalDerivative,
+        (["t1", "t2"], ["y"]),
+        "directional_derivative",
+        {"at": [0.0, 1.0], "direction": [1.0, 0.0]},
+    ),
+    (
+        ResponseJacobian,
+        (["t1", "t2"], ["y1", "y2"]),
+        "response_jacobian",
+        {"at": [0.0, 1.0]},
+    ),
+    (
+        InterventionResponse,
+        ("y",),
+        "intervention_response",
+        {"intervention": {"t": 1.0}},
+    ),
 ]
 _IDS = [c[0].__name__ for c in _CASES]
 

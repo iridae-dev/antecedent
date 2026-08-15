@@ -306,6 +306,7 @@ impl PcmciEngine {
     ) -> Result<(ScoredLink, u64), DiscoveryError> {
         let truncated =
             mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
+        refuse_truncated_mci(truncated)?;
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(
             frame,
@@ -676,6 +677,7 @@ impl PcmciEngine {
             let link = link_to_target(src, slag, target);
             let src_parents = parents_of(all_parents, src);
             truncated += mci_conditioning(link, parents, src_parents, &mut workspace.others);
+            refuse_truncated_mci(truncated)?;
 
             let xi = frame.column_index(link.source, link.source_lag).ok_or_else(|| {
                 DiscoveryError::data_msg(format!("missing lagged column for {:?}", link.source))
@@ -1038,6 +1040,19 @@ fn mci_conditioning_bounded_finish(out: &mut Vec<(VariableId, Lag)>, budget: usi
         dropped as u64
     } else {
         0
+    }
+}
+
+/// Fail closed when an MCI conditioning set was truncated. A weaker test under
+/// autocorrelation is not a valid MCI test.
+pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
+    if dropped == 0 {
+        Ok(())
+    } else {
+        Err(DiscoveryError::Resource(format!(
+            "MCI conditioning dropped {dropped} lagged parents over the column budget; \
+             refusing a truncated test"
+        )))
     }
 }
 

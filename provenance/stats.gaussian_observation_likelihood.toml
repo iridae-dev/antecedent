@@ -1,0 +1,25 @@
+feature_id = "stats.gaussian_observation_likelihood"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Tobin supplies the one-sided censored-Gaussian likelihood precedent. Williams,
+# Kim, and Crespi supply the truncated-normal density normalization combined with
+# censoring, while Lodhi and Tripathi display the interval probability difference.
+# Antecedent independently combines those standard likelihood contributions; it
+# does not claim to port any paper's optimizer.
+papers = [
+ { title = "Estimation of Relationships for Limited Dependent Variables", doi = "10.2307/1907382", sections = ["Section 3, likelihood equation (8): one-sided censored normal contributions"] },
+ { title = "Modeling observations with a detection limit using a truncated normal distribution with censoring", doi = "10.1186/s12874-020-01032-9", sections = ["Methods, 'Likelihood functions': truncated-normal density normalization and censored likelihood contributions"] },
+ { title = "Inference on a progressive type I interval-censored truncated normal distribution", doi = "10.1080/02664763.2019.1679096", sections = ["Section 2, likelihood equation (5): interval contribution as a difference of normal CDF values and truncation normalization"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/observation.rs",
+ "crates/antecedent-estimate/src/observation.rs",
+ "conformance/response/observation_primitives (independent closed-form likelihood fixture)",
+]

@@ -1,0 +1,6 @@
+id = "antecedent.trial_to_target.paper_equation"
+capability_ids = ["estimate.trial_to_target"]
+fixture_dir = "conformance/response/trial_transport"
+tolerance_class = "StableFloat"
+generator = "independent paper-equation calculation recorded in expected.json"
+baseline_pin = "Dahabreh et al. estimating equations; no external software oracle"

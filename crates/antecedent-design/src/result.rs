@@ -34,6 +34,8 @@ pub struct RankedCandidate {
     pub rank: usize,
     /// Whether rank is uncertain relative to neighbors given MC error.
     pub rank_uncertain: bool,
+    /// Mathematics actually scored (see [`crate::objective::DesignObjective::implemented_functional`]).
+    pub implemented_functional: Arc<str>,
 }
 
 /// Full ranking output.

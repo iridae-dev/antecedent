@@ -168,8 +168,7 @@ impl TemporalBackdoorIdentifier {
 
             if !ancestry_touches_boundary(
                 &unfolded,
-                treatment_dense,
-                outcome_dense,
+                &[treatment_dense, outcome_dense],
                 history,
                 &truncatable,
             ) {
@@ -280,13 +279,9 @@ impl TemporalBackdoorIdentifier {
             if treatment_nodes.is_empty() {
                 return Err(IdentificationError::msg("empty treatment schedule"));
             }
-            if !ancestry_touches_boundary(
-                &unfolded,
-                treatment_nodes[0],
-                outcome_dense,
-                history,
-                &truncatable,
-            ) {
+            let mut boundary_nodes = treatment_nodes.clone();
+            boundary_nodes.push(outcome_dense);
+            if !ancestry_touches_boundary(&unfolded, &boundary_nodes, history, &truncatable) {
                 break (history, unfolded, treatment_nodes, outcome_dense);
             }
             if history >= history_cap {
@@ -384,25 +379,25 @@ fn truncatable_variables(template: &TemporalDag, variable_count: u32) -> Vec<boo
     truncatable
 }
 
-/// Whether any ancestor of `{treatment, outcome}` in the unfolded graph sits
-/// at the deepest slice (`offset == -history`) with in-template parents that
-/// the truncation cut off. When this returns `false`, growing the window
-/// further cannot add backdoor paths between treatment and outcome.
+/// Whether any ancestor of `nodes` in the unfolded graph sits at the deepest
+/// slice (`offset == -history`) with in-template parents that the truncation
+/// cut off. When this returns `false`, growing the window further cannot add
+/// backdoor paths through those nodes.
+///
+/// Callers must pass **every** treatment-time node in a multi-time schedule
+/// plus the outcome. Checking only the first offset can stop growth while a
+/// later treatment time still has cut template parents.
 fn ancestry_touches_boundary(
     unfolded: &UnfoldedTemporalGraph,
-    treatment_dense: u32,
-    outcome_dense: u32,
+    nodes: &[u32],
     history: u32,
     truncatable: &[bool],
 ) -> bool {
     let dag = &unfolded.dag;
     let mut ancestors = BitSet::with_len(dag.node_count());
     let mut gws = GraphWorkspace::default();
-    dag.ancestors_of(
-        &[DenseNodeId::from_raw(treatment_dense), DenseNodeId::from_raw(outcome_dense)],
-        &mut ancestors,
-        &mut gws,
-    );
+    let dense: Vec<DenseNodeId> = nodes.iter().copied().map(DenseNodeId::from_raw).collect();
+    dag.ancestors_of(&dense, &mut ancestors, &mut gws);
     let boundary = -i64::from(history);
     for i in 0..dag.node_count() {
         let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
@@ -682,5 +677,41 @@ mod tests {
         let res = identifier.identify_temporal(&template, &query).unwrap();
         assert_eq!(res.result.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.result.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.schedule"));
+    }
+
+    #[test]
+    fn dynamic_schedule_grows_for_every_treatment_offset() {
+        use antecedent_core::{DynamicRuleId, TemporalPolicy};
+        // offsets[0] is the *later* time; the deep chain is into T_0. Checking only
+        // treatment_nodes[0] would under-grow; the full schedule must still hit history=2.
+        let template = deep_confounder_template();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [1, 0]));
+        let identifier = TemporalBackdoorIdentifier::new();
+        let temporal_result = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(
+            temporal_result.result.status,
+            IdentificationStatus::NonparametricallyIdentified
+        );
+        assert!(
+            temporal_result.result.derivation.steps.iter().any(|s| s.detail.contains("history=2")),
+            "multi-time ID must grow for every treatment offset, not only offsets[0]"
+        );
+    }
+
+    #[test]
+    fn dynamic_schedule_refuses_at_capped_history() {
+        use antecedent_core::{DynamicRuleId, TemporalPolicy};
+        let template = deep_confounder_template();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [1, 0]))
+                .with_max_history_lag(Some(1));
+        let identifier = TemporalBackdoorIdentifier::new();
+        assert!(matches!(
+            identifier.identify_temporal(&template, &query),
+            Err(IdentificationError::NotCertified { .. })
+        ));
     }
 }

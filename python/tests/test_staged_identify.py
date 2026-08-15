@@ -63,6 +63,56 @@ def test_identification_estimate_matches_analyze():
     assert abs(staged.ate - 2.0) < 0.6
 
 
+def test_response_curve_identify_then_estimate_matches_analyze():
+    rng = np.random.default_rng(19)
+    z = rng.normal(size=600)
+    t = 0.7 * z + rng.normal(size=600)
+    y = 2.0 * t + z + rng.normal(scale=0.2, size=600)
+    data = {"t": t, "y": y, "z": z}
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
+    identification = identify(graph=edges, query=query, names=["z", "t", "y"])
+    assert isinstance(identification, Identification)
+    assert identification.query is query
+    assert "z" in identification.adjustment_set
+    staged = identification.estimate(data, refute=False, bootstrap=0, seed=1)
+    direct = antecedent.analyze(
+        data,
+        graph=edges,
+        query=query,
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert staged.identification == direct.identification
+    assert staged.response is not None
+    assert direct.response is not None
+    assert staged.response.values == direct.response.values
+    assert list(staged.response.points) == [[-0.5], [0.0], [0.5]]
+
+
+def test_response_curve_staged_validate_runs_curve_legal_suite_by_default():
+    rng = np.random.default_rng(23)
+    t = rng.normal(size=320)
+    y = 1.5 * t + rng.normal(scale=0.2, size=320)
+    query = antecedent.ResponseCurve("t", "y", grid=[-0.4, 0.0, 0.4])
+    identification = identify(
+        graph=[("t", "y")],
+        query=query,
+        names=["t", "y"],
+        identifier=antecedent.Identifier.RESPONSE_BACKDOOR,
+    )
+
+    validated = identification.validate({"t": t, "y": y}, seed=3)
+
+    assert validated.validation is not None
+    assert [check.id for check in validated.validation.checks] == [
+        "overlap.support",
+        "data.subset",
+        "scalar_ate_refuters",
+    ]
+
+
 def test_identification_validate_runs_refutation_suite():
     data, edges = _confounded_scm(seed=11)
     query = antecedent.AverageEffect(treatment="t", outcome="y")

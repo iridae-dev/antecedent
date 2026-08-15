@@ -14,11 +14,19 @@ paths-ignore:
   - "**/conformance/**/data.csv"
   - "**/parity/fixtures/**"
 
-# Excluded *quality* rules (no security rule is excluded, and the Rust analysis runs the
-# full suite with zero findings). Each exclusion is a false positive on a deliberate Python
-# idiom that cannot be satisfied without making the code worse. Rationale is recorded here
+# Excluded *quality* rules (no security rule is excluded unless the finding is a
+# documented false positive on a deliberate idiom). Rationale is recorded here
 # rather than in scattered inline comments so the set stays auditable.
 query-filters:
+  # CodeQL 2.26+ `rust/cleartext-logging` treats `panic!` / `assert_*` message
+  # formatting as a log sink. Identification unit tests interpolate structural
+  # certificate reason ids (and previously Debug of `NotCertified` / formula
+  # enums) into failure messages — those strings are rule tags, not credentials,
+  # and Antecedent has no production cleartext secret-logging surface. Revisit if
+  # a real sink (file/network logger) starts writing user-derived secrets.
+  - exclude:
+      id: rust/cleartext-logging
+
   # `...` is the standard body for a `Protocol` / stub method — CodeQL reads the Ellipsis
   # expression as a statement with no effect. Also fires on `with pytest.raises(...): obj[k]`,
   # where raising *is* the effect being tested.

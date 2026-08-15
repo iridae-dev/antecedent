@@ -102,12 +102,15 @@ if [[ "$MODE" == "dry-run" ]]; then
       echo "$out" | tail -n 5
       packaged=$((packaged + 1))
     elif echo "$out" | grep -qiE \
-      'no matching package named|failed to select a version for the requirement|candidate versions found which didn.t match'
+      'no matching package named|failed to select a version for the requirement|candidate versions found which didn.t match|failed to verify package tarball'
     then
       # Path deps resolve against crates.io when packaging. On a version bump,
-      # leaves package (e.g. core) but dependents need ^X.Y.Z not yet indexed —
-      # treat as expected and fall back to a workspace check.
-      echo "deps not on crates.io at this version yet; cargo check -p ${crate}"
+      # leaves package (e.g. core) but dependents need ^X.Y.Z not yet indexed.
+      # The same packaging path also fails when the workspace still shares a
+      # published version number but has grown a newer public API than the
+      # indexed crate (verify compiles against the registry copy). In both
+      # cases fall back to a workspace path check.
+      echo "registry package verify unavailable for ${crate} at this revision; cargo check -p ${crate}"
       cargo check -p "$crate" --locked
       checked=$((checked + 1))
     else
