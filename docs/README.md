@@ -2,6 +2,8 @@
 
 | Doc | Contents |
 |-----|----------|
+| [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
+| [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
 | [Artifacts](artifacts.md) | Wire format, migration, graph interchange |

@@ -18,6 +18,19 @@ Use evidence from a previous sales campaign without assuming the new campaign is
 
 Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem.
 
+### [Continuous causal response](notebooks/continuous_causal_response.ipynb)
+
+Estimate a nonlinear dose-response curve, local derivative, elasticity and
+observed-law average derivative. Read structural identification, empirical
+support and uncertainty as separate result axes.
+
+### [Pricing, availability and latent demand](notebooks/pricing_availability_latent_demand.ipynb)
+
+Show why inventory-limited sales are not demand. The notebook compares the
+naive observed-sales response with an explicit censoring mechanism and
+independence assumption, and demonstrates the current fail-closed boundary for
+observation-aware response execution.
+
 ## Scripts
 
 Paired Python and Rust demos for the same workflows.
