@@ -40,6 +40,13 @@ use crate::EstimationError;
 /// surfaced as a positivity diagnostic rather than absorbed silently.
 const CONDITIONAL_DENSITY_FLOOR: f64 = 1e-8;
 
+/// Largest cartesian-product support the exact discrete intervention mixture will evaluate.
+///
+/// Every combination costs one GAM prediction per row, so this bounds the work at roughly
+/// the same order as the Monte-Carlo path it replaced. Joint interventions on a handful of
+/// binary or small-categorical variables stay well inside it.
+const MAX_EXACT_MIXTURE_COMBINATIONS: usize = 4096;
+
 /// Cross-fitted Kennedy pseudo-outcome with its positivity accounting.
 struct PseudoOutcome {
     values: Vec<f64>,
@@ -199,6 +206,16 @@ impl ContinuousResponseEstimator {
             });
         }
         let o = &self.options;
+        if matches!(query.functional, ResponseFunctional::PointDerivative { .. })
+            && o.bandwidth.is_none()
+        {
+            // Silverman's rule is a level/KDE rate. Using it for m'/m'' oversmooths the
+            // derivative toward zero while still publishing Identity-scale sandwich SEs —
+            // the same silent-undersmoothing hole simultaneous bands already refuse.
+            return Err(EstimationError::unsupported(
+                "point derivatives require an explicit bandwidth; Silverman's rule is not an undersmoothing rule for m' or m''",
+            ));
+        }
         if o.folds < 2
             || o.nuisance_basis < 4
             || !o.nuisance_lambda.is_finite()
@@ -320,22 +337,27 @@ impl ContinuousResponseEstimator {
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
         let rows: Vec<usize> = (0..sample.len()).collect();
         let fit = self.fit_outcome(&sample, &rows)?;
-        let stochastic = interventions
-            .iter()
-            .any(|intervention| matches!(intervention, Intervention::Stochastic { .. }));
-        let draws = if stochastic { 256 } else { 1 };
-        let mut total = 0.0;
-        for row_index in 0..sample.len() {
-            let factual = sample.raw_row(row_index);
-            for draw in 0..draws {
-                let mut row = factual.clone();
-                for (column, intervention) in interventions.iter().enumerate() {
-                    row[column] = intervention_level(intervention, factual[column], draw, column)?;
+        // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
+        // finite mixture. Monte Carlo through a continuous spline would treat categorical
+        // codes as ordered coordinates and approximate a sum that has a closed form.
+        let estimate = if interventions.iter().any(intervention_needs_monte_carlo) {
+            let draws = 256;
+            let mut total = 0.0;
+            for row_index in 0..sample.len() {
+                let factual = sample.raw_row(row_index);
+                for draw in 0..draws {
+                    let mut row = factual.clone();
+                    for (column, intervention) in interventions.iter().enumerate() {
+                        row[column] =
+                            intervention_level(intervention, factual[column], draw, column)?;
+                    }
+                    total += predict_one(&fit, &row)?;
                 }
-                total += predict_one(&fit, &row)?;
             }
-        }
-        let estimate = total / (sample.len() * draws) as f64;
+            total / (sample.len() * draws) as f64
+        } else {
+            exact_discrete_intervention_mean(&fit, &sample, interventions)?
+        };
         let minima: Vec<f64> =
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).0).collect();
         let maxima: Vec<f64> =
@@ -634,7 +656,6 @@ impl ContinuousResponseEstimator {
         let mut scores = vec![0.0; n];
         let mut riesz_weights = vec![0.0; n];
         let treatment_range = range(&sample.treatments).1 - range(&sample.treatments).0;
-        let step = (treatment_range * 1e-4).max(1e-7);
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let outcome_fit = self.fit_outcome(sample, &train)?;
@@ -644,13 +665,19 @@ impl ContinuousResponseEstimator {
             for i in (0..n).filter(|i| i % self.options.folds == fold) {
                 let row = sample.raw_row(i);
                 let mu = predict_one(&outcome_fit, &row)?;
+                let step = finite_difference_step(sample.treatments[i], treatment_range);
                 let mut plus = row.clone();
                 let mut minus = row.clone();
                 plus[0] += step;
                 minus[0] -= step;
-                let derivative = (predict_one(&outcome_fit, &plus)?
-                    - predict_one(&outcome_fit, &minus)?)
-                    / (2.0 * step);
+                let gap = plus[0] - minus[0];
+                if !gap.is_finite() || gap <= 0.0 {
+                    return Err(EstimationError::unsupported(
+                        "finite-difference step collapsed under floating-point precision",
+                    ));
+                }
+                let derivative =
+                    (predict_one(&outcome_fit, &plus)? - predict_one(&outcome_fit, &minus)?) / gap;
                 let treatment_mean = match treatment_fit.as_ref() {
                     Some(fit) => predict_one(fit, &sample.adjustment_row(i))?,
                     None => treatment_mean_constant,
@@ -678,13 +705,18 @@ impl ContinuousResponseEstimator {
             base_sum += predict_one(&fit, &row)?;
             for j in 0..at.len() {
                 let range_j = sample.treatment_column_range(j);
-                let step = ((range_j.1 - range_j.0) * 1e-4).max(1e-7);
+                let step = finite_difference_step(at[j], range_j.1 - range_j.0);
                 let mut plus = row.clone();
                 let mut minus = row.clone();
                 plus[j] += step;
                 minus[j] -= step;
-                gradient[j] +=
-                    (predict_one(&fit, &plus)? - predict_one(&fit, &minus)?) / (2.0 * step);
+                let gap = plus[j] - minus[j];
+                if !gap.is_finite() || gap <= 0.0 {
+                    return Err(EstimationError::unsupported(
+                        "finite-difference step collapsed under floating-point precision",
+                    ));
+                }
+                gradient[j] += (predict_one(&fit, &plus)? - predict_one(&fit, &minus)?) / gap;
             }
         }
         let n = sample.len() as f64;
@@ -855,7 +887,27 @@ fn fit_additive(
     let specs: Vec<SmoothSpec> =
         (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
     let mut workspace = GamWorkspace::default();
-    Ok(fit_gam(x, nrows, ncols, y, &specs, &GamOptions::default(), &FaerBackend, &mut workspace)?)
+    // Response nuisances use a longer backfitting budget than the GAM default: the default
+    // 100-iteration / 1e-6 tolerance combination routinely returns converged=false on the
+    // cross-fitted Kennedy fixtures while the fit itself is already stable enough to use.
+    let fit = fit_gam(
+        x,
+        nrows,
+        ncols,
+        y,
+        &specs,
+        &GamOptions { max_iter: 500, tol: 1e-6 },
+        &FaerBackend,
+        &mut workspace,
+    )?;
+    // Observation logistics already call `GlmFit::require_ok`. An unfinished backfit after the
+    // extended budget is refused rather than published into a Kennedy curve or ADE.
+    if !fit.converged {
+        return Err(EstimationError::unsupported(
+            "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
+        ));
+    }
+    Ok(fit)
 }
 
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
@@ -868,12 +920,19 @@ fn treatment_sigma(
     fit: Option<&antecedent_stats::GamFit>,
 ) -> Result<f64, EstimationError> {
     let mean = sample.train_treatment_mean(train);
-    let rss = if let Some(fit) = fit {
-        fit.residuals.iter().map(|v| v * v).sum::<f64>()
+    let (rss, denominator) = if let Some(fit) = fit {
+        // The residual scale of a penalized GAM uses effective degrees of freedom, not
+        // n−1. Dividing by n−1 understates σ whenever edf > 1, which peaks the Kennedy
+        // conditional density and inflates the Gaussian-score Riesz representer.
+        let df = (train.len() as f64 - fit.edf_approx).max(1.0);
+        (fit.residuals.iter().map(|v| v * v).sum::<f64>(), df)
     } else {
-        train.iter().map(|&i| (sample.treatments[i] - mean).powi(2)).sum()
+        (
+            train.iter().map(|&i| (sample.treatments[i] - mean).powi(2)).sum(),
+            train.len().saturating_sub(1).max(1) as f64,
+        )
     };
-    let sigma = (rss / (train.len().saturating_sub(1).max(1) as f64)).sqrt();
+    let sigma = (rss / denominator).sqrt();
     if !sigma.is_finite() || sigma <= f64::EPSILON {
         return Err(EstimationError::unsupported(
             "Gaussian treatment nuisance has degenerate residual variance",
@@ -972,6 +1031,139 @@ fn splitmix64(mut state: u64) -> u64 {
     value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     value ^ (value >> 31)
+}
+
+fn intervention_needs_monte_carlo(intervention: &Intervention) -> bool {
+    matches!(
+        intervention,
+        Intervention::Stochastic { policy: StochasticPolicy::Gaussian { .. }, .. }
+    )
+}
+
+/// One atom of a discrete intervention law: absolute level, or additive shift of the factual.
+#[derive(Clone, Copy, Debug)]
+enum DiscreteAtom {
+    /// Absolute treatment level with mixture weight.
+    Level { value: f64, weight: f64 },
+    /// Additive shift of the unit's factual treatment (weight is always 1).
+    Shift { delta: f64 },
+}
+
+/// Exact finite-mixture g-computation for Set/Shift/Bernoulli/Categorical policies.
+///
+/// Bernoulli and Categorical are summed over their support with the declared probabilities
+/// rather than Monte-Carlo sampled through a continuous smoother. That avoids treating
+/// unordered category codes as ordered coordinates along a spline.
+fn exact_discrete_intervention_mean(
+    fit: &antecedent_stats::GamFit,
+    sample: &CompleteSample,
+    interventions: &[Intervention],
+) -> Result<f64, EstimationError> {
+    let supports: Vec<Vec<DiscreteAtom>> =
+        interventions.iter().map(discrete_intervention_support).collect::<Result<_, _>>()?;
+    // The mixture is a cartesian product across interventions, so its cost is exponential in
+    // how many discrete policies are joined. The Monte-Carlo path it replaced was bounded at
+    // a fixed draw count, so without a budget here a query that used to return in
+    // milliseconds can run for hours. Refuse rather than silently reverting to an
+    // approximation the caller did not ask for.
+    let combinations = supports
+        .iter()
+        .try_fold(1usize, |product, support| product.checked_mul(support.len()))
+        .filter(|product| *product <= MAX_EXACT_MIXTURE_COMBINATIONS);
+    if combinations.is_none() {
+        return Err(EstimationError::unsupported(
+            "joint discrete intervention support exceeds the exact-mixture budget; intervene on fewer variables or coarsen the category supports",
+        ));
+    }
+    let mut total = 0.0;
+    for row_index in 0..sample.len() {
+        let factual = sample.raw_row(row_index);
+        total += mixture_expectation(fit, &factual, &supports, 0, 1.0)?;
+    }
+    Ok(total / sample.len() as f64)
+}
+
+fn discrete_intervention_support(
+    intervention: &Intervention,
+) -> Result<Vec<DiscreteAtom>, EstimationError> {
+    let numeric = |value: &antecedent_core::Value| {
+        value.as_f64().filter(|number| number.is_finite()).ok_or_else(|| {
+            EstimationError::unsupported("intervention response requires finite numeric values")
+        })
+    };
+    match intervention {
+        Intervention::Set { value, .. } => {
+            Ok(vec![DiscreteAtom::Level { value: numeric(value)?, weight: 1.0 }])
+        }
+        Intervention::Shift { delta, .. } => {
+            Ok(vec![DiscreteAtom::Shift { delta: numeric(delta)? }])
+        }
+        Intervention::Stochastic { policy: StochasticPolicy::Bernoulli { p }, .. } => {
+            if !p.is_finite() || !(0.0..=1.0).contains(p) {
+                return Err(EstimationError::unsupported(
+                    "Bernoulli intervention probability must lie in [0, 1]",
+                ));
+            }
+            Ok([(0.0, 1.0 - p), (1.0, *p)]
+                .into_iter()
+                .filter(|(_, w)| *w > 0.0)
+                .map(|(value, weight)| DiscreteAtom::Level { value, weight })
+                .collect())
+        }
+        Intervention::Stochastic { policy: StochasticPolicy::Categorical { probs }, .. } => {
+            let total: f64 = probs.iter().sum();
+            if !total.is_finite()
+                || total <= 0.0
+                || probs.iter().any(|p| !p.is_finite() || *p < 0.0)
+            {
+                return Err(EstimationError::unsupported(
+                    "Categorical intervention probabilities must be finite and non-negative",
+                ));
+            }
+            Ok(probs
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| **p > 0.0)
+                .map(|(index, p)| DiscreteAtom::Level { value: index as f64, weight: p / total })
+                .collect())
+        }
+        _ => Err(EstimationError::unsupported(
+            "exact discrete intervention mixture does not cover this policy",
+        )),
+    }
+}
+
+fn mixture_expectation(
+    fit: &antecedent_stats::GamFit,
+    factual: &[f64],
+    supports: &[Vec<DiscreteAtom>],
+    column: usize,
+    weight: f64,
+) -> Result<f64, EstimationError> {
+    if !(weight.is_finite() && weight >= 0.0) {
+        return Err(EstimationError::unsupported(
+            "intervention mixture weight must be finite and non-negative",
+        ));
+    }
+    if column == supports.len() {
+        return Ok(weight * predict_one(fit, factual)?);
+    }
+    let mut sum = 0.0;
+    for atom in &supports[column] {
+        let mut row = factual.to_vec();
+        let branch = match *atom {
+            DiscreteAtom::Level { value, weight: atom_weight } => {
+                row[column] = value;
+                atom_weight
+            }
+            DiscreteAtom::Shift { delta } => {
+                row[column] = factual[column] + delta;
+                1.0
+            }
+        };
+        sum += mixture_expectation(fit, &row, supports, column + 1, weight * branch)?;
+    }
+    Ok(sum)
 }
 
 fn intervention_level(
@@ -1239,6 +1431,16 @@ fn range(values: &[f64]) -> (f64, f64) {
     values.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)))
 }
 
+/// Finite-difference step that stays above floating-point ulp at `|at|`.
+///
+/// A step of only `range · 1e-4` (floored at 1e-7) collapses when `|at|` is huge relative to
+/// the observed range: `at ± step` rounds to `at`, the central difference is exactly zero, and
+/// a slope of 2 can be reported as 0 with a normal-looking SE.
+fn finite_difference_step(at: f64, treatment_range: f64) -> f64 {
+    let scale = at.abs().max(treatment_range.abs()).max(1.0);
+    (treatment_range.abs() * 1e-4).max(scale * 1e-8).max(1e-7)
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
@@ -1434,6 +1636,112 @@ mod tests {
     }
 
     #[test]
+    fn joint_discrete_mixture_beyond_the_budget_is_refused() {
+        // The mixture is a cartesian product, so cost is exponential in the number of joined
+        // discrete policies. Four 14-level categoricals is already ~38k combinations per row
+        // — seconds of work — and nothing stops a caller going further. Refuse instead of
+        // running for hours or silently falling back to Monte Carlo.
+        let (data, a, y, x) = confounded_curve(200);
+        let run = |levels: usize| {
+            let probs: Arc<[f64]> = Arc::from(vec![1.0 / levels as f64; levels]);
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: y,
+                interventions: Arc::from([Intervention::stochastic(
+                    a,
+                    StochasticPolicy::Categorical { probs },
+                )]),
+            });
+            ContinuousResponseEstimator::new([x]).estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+        };
+        assert!(run(MAX_EXACT_MIXTURE_COMBINATIONS).is_ok());
+        let error = run(MAX_EXACT_MIXTURE_COMBINATIONS + 1).unwrap_err();
+        assert!(error.to_string().contains("exact-mixture budget"), "got {error}");
+    }
+
+    #[test]
+    fn categorical_intervention_is_an_exact_finite_mixture_not_monte_carlo() {
+        // Under an additive model, a Categorical policy on codes {0,1} with weights
+        // (0.25, 0.75) must equal 0.25·μ(0) + 0.75·μ(1). Monte Carlo through a continuous
+        // spline only approximates that sum and would treat the codes as ordered coordinates.
+        let (data, a, y, x) = confounded_curve(500);
+        let estimate = |intervention| {
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: y,
+                interventions: Arc::from([intervention]),
+            });
+            let response = ContinuousResponseEstimator::new([x])
+                .estimate_identified(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                )
+                .unwrap();
+            match response.estimate {
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => value,
+                _ => panic!("expected scalar"),
+            }
+        };
+        let at0 = estimate(Intervention::set(a, Value::f64(0.0)));
+        let at1 = estimate(Intervention::set(a, Value::f64(1.0)));
+        let mixture =
+            estimate(Intervention::stochastic(a, StochasticPolicy::categorical([0.25, 0.75])));
+        let expected = 0.25 * at0 + 0.75 * at1;
+        assert!(
+            (mixture - expected).abs() < 1e-10,
+            "categorical g-comp={mixture}, exact mixture={expected}"
+        );
+    }
+
+    #[test]
+    fn treatment_sigma_uses_gam_edf_not_n_minus_one() {
+        // Discriminating residual-scale check: with edf > 1, dividing by n−1 understates σ.
+        let n = 80usize;
+        let mut treatments = Vec::with_capacity(n);
+        let mut adjustment = Vec::with_capacity(n);
+        let mut outcome = Vec::with_capacity(n);
+        for i in 0..n {
+            let z = -1.0 + 2.0 * i as f64 / (n - 1) as f64;
+            adjustment.push(z);
+            treatments.push(0.8 * z + 0.1 * (i as f64 * 0.3).sin());
+            outcome.push(1.0 + treatments[i] + 0.5 * z);
+        }
+        let sample = CompleteSample {
+            outcome,
+            treatments: treatments.clone(),
+            treatment_matrix: treatments,
+            adjustment,
+            treatment_cols: 1,
+            adjustment_cols: 1,
+            raw_cols: 2,
+        };
+        let train: Vec<usize> = (0..n).collect();
+        let fit = ContinuousResponseEstimator::new([VariableId::from_raw(0)])
+            .fit_treatment(&sample, &train)
+            .unwrap()
+            .expect("adjustment present");
+        assert!(fit.edf_approx > 1.0 + 1e-6, "edf={}", fit.edf_approx);
+        let got = treatment_sigma(&sample, &train, Some(&fit)).unwrap();
+        let rss: f64 = fit.residuals.iter().map(|r| r * r).sum();
+        let wrong = (rss / (n - 1) as f64).sqrt();
+        let right = (rss / (n as f64 - fit.edf_approx).max(1.0)).sqrt();
+        assert!(
+            (got - right).abs() < 1e-12,
+            "treatment_sigma={got} should use edf denominator ({right})"
+        );
+        assert!(
+            (got - wrong).abs() > 1e-6,
+            "edf and n-1 denominators coincide; the test cannot discriminate"
+        );
+        assert!(got > wrong, "edf-aware σ must exceed the n-1 understatement");
+    }
+
+    #[test]
     fn riesz_ade_calibrates_linear_slope() {
         let (data, a, y, x) = confounded_curve(600);
         let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
@@ -1468,7 +1776,9 @@ mod tests {
             order: 1,
             scale: DerivativeScale::LogLog,
         });
-        let response = ContinuousResponseEstimator::new([x])
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(0.35);
+        let response = estimator
             .estimate_identified(
                 &data,
                 &query,
@@ -1482,6 +1792,39 @@ mod tests {
             panic!("expected scalar");
         };
         assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+    }
+
+    #[test]
+    fn point_derivative_refuses_default_silverman_bandwidth() {
+        let (data, a, y, x) = confounded_curve(200);
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at: 0.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        });
+        let error = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("explicit bandwidth"), "got {error}");
+    }
+
+    #[test]
+    fn finite_difference_step_scales_with_absolute_level() {
+        // At |A|=1e12 with a tiny observed range, the old range·1e-4 floor of 1e-7 is
+        // smaller than a ulp and collapses at±step to at.
+        let step = finite_difference_step(1e12, 1.0);
+        assert!(step > 1e-7);
+        let plus = 1e12 + step;
+        let minus = 1e12 - step;
+        assert!((plus - minus).abs() > 0.0);
+        assert!(plus > minus);
     }
 
     #[test]

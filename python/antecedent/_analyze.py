@@ -312,8 +312,21 @@ def handle_response(
             raise ValueError(
                 "simultaneous response bands require an explicit estimator_config bandwidth"
             )
-        if not isinstance(query, ResponseCurve):
-            raise ValueError("response estimator_config currently applies to ResponseCurve only")
+        # Point derivatives/elasticities require an explicit bandwidth (Silverman's rule is
+        # refused for m'/m''). Simultaneous bands remain MeanCurve-only.
+        if isinstance(query, (PointDerivative, Elasticity, SemiElasticity)):
+            if "simultaneous_replicates" in response_options:
+                raise ValueError(
+                    "simultaneous response bands currently apply to ResponseCurve only"
+                )
+            if "bandwidth" not in response_options:
+                raise ValueError(
+                    "PointDerivative/Elasticity/SemiElasticity require estimator_config bandwidth"
+                )
+        elif not isinstance(query, ResponseCurve):
+            raise ValueError(
+                "response estimator_config currently applies to ResponseCurve and point derivatives only"
+            )
     if validators is not None:
         raise ValueError("response queries do not accept scalar ATE validators")
     if bootstrap_requested:

@@ -34,6 +34,8 @@ at 0.4.1 until the release gates and roadmap are accepted.
   estimation requires the identification certificate: `trial_to_target_effect`
   and `transport_augmented_response_grid` take it as an argument and refuse a
   `NotCertified` result rather than returning a number the graph never licensed.
+  Recursive-factorization certificates are also refused by those estimators
+  (Dahabreh-style direct/standardize algebra only).
 - Randomized interference queries decomposed into assignment design, exposure
   mapping, and exposure contrast, with exact/seeded-Monte-Carlo probabilities
   and Horvitz–Thompson/Hájek estimation.
@@ -45,6 +47,28 @@ at 0.4.1 until the release gates and roadmap are accepted.
   [ADR 0019](adr/0019-response-artifact-format.md)).
 - Paper-level machine-readable provenance records and a 0.5 parity inventory.
 
+### Fixed
+
+- **Transport estimators refuse recursive-factorization certificates.**
+  Dahabreh-style `trial_to_target_effect` / `transport_augmented_response_grid`
+  previously ran for any `Transportable` result, including
+  `RecursiveFactorization`. They now accept only `Direct` and `Standardize`.
+- **Gaussian treatment residual scale uses GAM effective df.** Kennedy densities
+  and Riesz scores no longer divide RSS by `n−1` when the treatment nuisance is
+  a penalized GAM.
+- **Unconverged additive GAM nuisances are refused** after an extended
+  backfitting budget, matching the observation-path `require_ok` posture.
+- **Bernoulli/Categorical intervention responses use exact finite mixtures**
+  rather than Monte Carlo through a continuous spline.
+- **Delayed-entry KM IPCW is `G(L−)/G(T−)`**, not `1/G(T−)`. The observation
+  primitives fixture was regenerated for this correction.
+- **Exposure HT means refuse any unit with `π_i = 0`** for the requested level,
+  so impossible exposures cannot silently dilute the `/n` average.
+- **Point derivatives require an explicit bandwidth**; Silverman's rule is
+  refused for `m'`/`m''` (same undersmoothing discipline as simultaneous bands).
+- **Finite-difference steps scale with `|a|`** so large treatment levels cannot
+  collapse central differences to exact zero.
+
 ### Changed
 
 - **`Identification.validate` and the module-level `validate` now default
@@ -53,6 +77,11 @@ at 0.4.1 until the release gates and roadmap are accepted.
   internally; it now always runs the explicit `"cheap"` suite. Pass
   `refute=False` for no refutation, or `refute="full"` / `"placebo"` for a
   different suite.
+- PAG response envelopes emit an explicit warning that bounds are the
+  pointwise min/max of completion-specific **point** curves (structural
+  uncertainty only; not a confidence band).
+- Transported estimation docs state that recursive factorization remains
+  identify-only in 0.5.
 
 ### Compatibility
 

@@ -204,6 +204,11 @@ pub fn exposure_probabilities(
 }
 
 /// Estimate an exposure-specific mean with HT and Hájek weights.
+///
+/// Horvitz–Thompson averages over the full unit population (`/n`). Every unit must have
+/// strictly positive exposure probability for the requested level: a zero probability means
+/// that unit can never realize the exposure, so its potential outcome is undefined and
+/// folding it into `/n` would silently attenuate the mean toward zero.
 pub fn randomization_mean(
     outcomes: &[f64],
     observed: &[ExposureLevel],
@@ -222,10 +227,15 @@ pub fn randomization_mean(
         if !outcomes[i].is_finite() || !probabilities[i].is_finite() {
             return Err(StatsError::Backend("non-finite outcome or exposure probability".into()));
         }
+        // Population HT for an exposure-specific mean is only defined when every unit can
+        // realize the exposure. Checking only observed exposures would let πᵢ=0 units dilute
+        // the `/n` average with no contribution and no error.
+        if probabilities[i] <= 0.0 {
+            return Err(StatsError::Backend(
+                "exposure positivity violation: every unit needs strictly positive probability for the requested exposure".into(),
+            ));
+        }
         if same_exposure(observed[i], level) {
-            if probabilities[i] <= 0.0 {
-                return Err(StatsError::Backend("exposure positivity violation".into()));
-            }
             let weighted = outcomes[i] / probabilities[i];
             weighted_sum += weighted;
             weight_sum += 1.0 / probabilities[i];
@@ -474,5 +484,17 @@ mod tests {
         let mean = randomization_mean(&[2.0, 4.0], &observed, &[0.5, 0.5], observed[1]).unwrap();
         assert!((mean.horvitz_thompson - 4.0).abs() < 1e-12);
         assert!((mean.hajek - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ht_refuses_zero_probability_units_that_would_dilute_the_population_mean() {
+        // Unit 0 can never realize the requested exposure (π=0). Including it in `/n`
+        // would report HT = 2 instead of the undefined-population refusal.
+        let observed = [
+            ExposureLevel { own: 0.0, neighbors: 0.0 },
+            ExposureLevel { own: 1.0, neighbors: 0.0 },
+        ];
+        let err = randomization_mean(&[2.0, 4.0], &observed, &[0.0, 0.5], observed[1]).unwrap_err();
+        assert!(err.to_string().contains("positivity"));
     }
 }

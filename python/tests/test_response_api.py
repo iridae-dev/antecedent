@@ -320,6 +320,7 @@ def test_response_analyze_derivative_and_jacobian_shapes():
         data,
         query=antecedent.PointDerivative("a", "y", at=0.5),
         graph=graph,
+        estimator_config={"bandwidth": 0.4},
     )
     average = antecedent.analyze(
         data,
@@ -437,6 +438,7 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
         data,
         query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
         graph=graph,
+        estimator_config={"bandwidth": 0.25},
     )
     assert isinstance(elasticity.estimate, float)
     assert np.isfinite(elasticity.estimate)
@@ -446,6 +448,7 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
             "a", "y", at=float(np.median(a)), log_scale="treatment"
         ),
         graph=graph,
+        estimator_config={"bandwidth": 0.25},
     )
     assert isinstance(semi.estimate, float)
     assert np.isfinite(semi.estimate)
