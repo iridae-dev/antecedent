@@ -204,8 +204,7 @@ def gaussian_log_likelihood(
         and assumption.model_id == "gaussian_observation_likelihood"
     ):
         raise CausalValueError(
-            "Gaussian observation likelihood requires "
-            "Structural('gaussian_observation_likelihood')"
+            "Gaussian observation likelihood requires Structural('gaussian_observation_likelihood')"
         )
     names, columns = as_columns(data)
     names, columns = _ensure_latent_schema_column(names, columns, mechanism)

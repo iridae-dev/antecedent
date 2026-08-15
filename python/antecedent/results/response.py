@@ -16,9 +16,7 @@ from ..errors import CausalValueError
 from ._format import fmt_float, fmt_pct
 from ._views import IdentificationView
 
-SupportStatus = Literal[
-    "supported", "weak_overlap", "extrapolative", "outside_empirical_support"
-]
+SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_empirical_support"]
 UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set", "posterior"]
 
 
@@ -82,7 +80,10 @@ class ResponseEnvelopeView:
             raise CausalValueError("unidentified_mass must be in [0, 1]")
         if abs(self.identified_mass + self.unidentified_mass - 1.0) > 1e-9:
             raise CausalValueError("identified and unidentified mass must sum to one")
-        if self.completion_count < 1 or not 0 <= self.truncated_completions <= self.completion_count:
+        if (
+            self.completion_count < 1
+            or not 0 <= self.truncated_completions <= self.completion_count
+        ):
             raise CausalValueError("invalid PAG completion counts")
         if self.enumeration_capped != (self.mass_scope == "examined_completions"):
             raise CausalValueError("capped enumeration must label mass as examined completions")
@@ -121,6 +122,7 @@ class ResponseValidationView:
     @property
     def skipped(self) -> list[ResponseValidationCheck]:
         return [check for check in self.checks if check.status == "skipped"]
+
 
 @dataclass(frozen=True, slots=True)
 class SupportDiagnostic:

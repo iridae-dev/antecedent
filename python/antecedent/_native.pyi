@@ -1032,6 +1032,7 @@ def analyze_observation_response(
 def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
     """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
     ...
+
 def gaussian_observation_log_likelihood(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

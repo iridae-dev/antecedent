@@ -102,11 +102,11 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
                             .collect();
                         assert_eq!(got, expected_over, "{id}");
                     }
-                    (kind, other) => panic!("{id}: unexpected formula {other:?} for kind {kind}"),
+                    (kind, _) => panic!("{id}: unexpected formula variant for kind {kind}"),
                 }
             }
-            TransportIdentification::NotCertified(cert) => {
-                panic!("{id}: expected transportable, got NotCertified({})", cert.reason);
+            TransportIdentification::NotCertified(refusal) => {
+                panic!("{id}: expected transportable, got refusal: {}", refusal.reason);
             }
         }
         assert_eq!(
@@ -153,11 +153,11 @@ fn multinode_c_component_outside_certified_subset_is_not_certified() {
     let result = TransportIdentifier::new().identify(&diagram, &mean_curve_query(x, y)).unwrap();
 
     match result {
-        TransportIdentification::NotCertified(cert) => {
+        TransportIdentification::NotCertified(refusal) => {
             assert_eq!(
-                &*cert.reason, "transport.sid.multinode_c_component_not_implemented",
+                &*refusal.reason, "transport.sid.multinode_c_component_not_implemented",
                 "expected the general multi-node c-component refusal, got {}",
-                cert.reason
+                refusal.reason
             );
         }
         TransportIdentification::Transportable { .. } => {

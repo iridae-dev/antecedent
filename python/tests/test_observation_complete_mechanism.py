@@ -95,7 +95,9 @@ def test_complete_observation_accepts_estimator_config_like_no_mechanism():
 def test_complete_observation_with_assumptions_raises_same_error_as_no_mechanism():
     data = _curve_data(seed=1)
 
-    with pytest.raises(ValueError, match="observation_assumptions require an explicit observation mechanism"):
+    with pytest.raises(
+        ValueError, match="observation_assumptions require an explicit observation mechanism"
+    ):
         antecedent.analyze(
             {"a": data["a"], "y": data["y"]},
             query=antecedent.ResponseCurve(
@@ -108,7 +110,9 @@ def test_complete_observation_with_assumptions_raises_same_error_as_no_mechanism
             graph=[("a", "y")],
         )
 
-    with pytest.raises(ValueError, match="observation_assumptions require an explicit observation mechanism"):
+    with pytest.raises(
+        ValueError, match="observation_assumptions require an explicit observation mechanism"
+    ):
         antecedent.analyze(
             {"a": data["a"], "y": data["y"]},
             query=antecedent.ResponseCurve(
@@ -129,8 +133,6 @@ def test_complete_observation_still_rejected_by_observation_stage_helpers():
     require a real non-complete mechanism, per `_stage_inputs`.
     """
 
-    query = antecedent.ResponseCurve(
-        "a", "y", grid=[0.0, 1.0], observation=observation.Complete()
-    )
+    query = antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0], observation=observation.Complete())
     with pytest.raises(CausalValueError, match="non-complete"):
         observation.adjusted_outcome({}, query)

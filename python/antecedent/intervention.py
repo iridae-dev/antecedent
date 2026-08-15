@@ -116,4 +116,13 @@ class Sequence:
 
 Intervention = Set | Shift | Bernoulli | Gaussian | Categorical | Soft | Sequence
 
-__all__ = ["Bernoulli", "Categorical", "Gaussian", "Intervention", "Sequence", "Set", "Shift", "Soft"]
+__all__ = [
+    "Bernoulli",
+    "Categorical",
+    "Gaussian",
+    "Intervention",
+    "Sequence",
+    "Set",
+    "Shift",
+    "Soft",
+]

@@ -229,9 +229,7 @@ class PointDerivative:
     order: int = 1
     observation: object | None = None
     observation_assumptions: Sequence[object] = ()
-    kind: Literal["point_derivative"] = field(
-        default="point_derivative", init=False, repr=False
-    )
+    kind: Literal["point_derivative"] = field(default="point_derivative", init=False, repr=False)
 
     def __post_init__(self) -> None:
         _require_name("outcome", self.outcome)
@@ -272,9 +270,7 @@ class SemiElasticity:
     log_scale: Literal["treatment", "outcome"] = "treatment"
     observation: object | None = None
     observation_assumptions: Sequence[object] = ()
-    kind: Literal["semi_elasticity"] = field(
-        default="semi_elasticity", init=False, repr=False
-    )
+    kind: Literal["semi_elasticity"] = field(default="semi_elasticity", init=False, repr=False)
 
     def __post_init__(self) -> None:
         _require_name("outcome", self.outcome)
@@ -282,13 +278,10 @@ class SemiElasticity:
         _require_finite("at", self.at)
         if self.log_scale not in ("treatment", "outcome"):
             raise CausalValueError(
-                "log_scale must be 'treatment' or 'outcome', "
-                f"got {self.log_scale!r}"
+                f"log_scale must be 'treatment' or 'outcome', got {self.log_scale!r}"
             )
         if self.log_scale == "treatment" and self.at <= 0.0:
-            raise CausalValueError(
-                "SemiElasticity.at must be positive when log_scale='treatment'"
-            )
+            raise CausalValueError("SemiElasticity.at must be positive when log_scale='treatment'")
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,9 +322,7 @@ class ResponseJacobian:
     at: Sequence[float] | Mapping[str, float]
     observation: object | None = None
     observation_assumptions: Sequence[object] = ()
-    kind: Literal["response_jacobian"] = field(
-        default="response_jacobian", init=False, repr=False
-    )
+    kind: Literal["response_jacobian"] = field(default="response_jacobian", init=False, repr=False)
 
     def __post_init__(self) -> None:
         _require_names("outcomes", self.outcomes)

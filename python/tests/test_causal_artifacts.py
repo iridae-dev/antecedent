@@ -23,12 +23,44 @@ def _response_query(functional: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     "functional",
     [
-        {"mean_curve": {"outcome": 2, "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}}}},
+        {
+            "mean_curve": {
+                "outcome": 2,
+                "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}},
+            }
+        },
         {"average_derivative": {"outcome": 2, "treatment": 0, "weighting": "observed"}},
-        {"point_derivative": {"outcome": 2, "treatment": 0, "at": 0.5, "order": 1, "scale": "identity"}},
-        {"directional_derivative": {"outcomes": [2], "treatments": [0, 1], "at": [0.0, 1.0], "direction": [1.0, -1.0]}},
-        {"jacobian": {"outcomes": [2], "treatments": [0, 1], "at": [0.5, 1.0], "scale": "log_treatment"}},
-        {"intervention_response": {"outcome": 2, "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}]}},
+        {
+            "point_derivative": {
+                "outcome": 2,
+                "treatment": 0,
+                "at": 0.5,
+                "order": 1,
+                "scale": "identity",
+            }
+        },
+        {
+            "directional_derivative": {
+                "outcomes": [2],
+                "treatments": [0, 1],
+                "at": [0.0, 1.0],
+                "direction": [1.0, -1.0],
+            }
+        },
+        {
+            "jacobian": {
+                "outcomes": [2],
+                "treatments": [0, 1],
+                "at": [0.5, 1.0],
+                "scale": "log_treatment",
+            }
+        },
+        {
+            "intervention_response": {
+                "outcome": 2,
+                "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}],
+            }
+        },
     ],
 )
 def test_every_response_functional_crosses_rust_and_python(functional: object) -> None:
@@ -39,14 +71,17 @@ def test_every_response_functional_crosses_rust_and_python(functional: object) -
     decoded = artifacts.loads(encoded)
     assert decoded.format_version == (0, 3)
     assert decoded.payload == payload
-    assert artifacts.loads(
-        artifacts.dumps(
-            decoded.payload_kind,
-            decoded.payload,
-            variable_names=decoded.variable_names,
-            artifact_id=decoded.artifact_id,
+    assert (
+        artifacts.loads(
+            artifacts.dumps(
+                decoded.payload_kind,
+                decoded.payload,
+                variable_names=decoded.variable_names,
+                artifact_id=decoded.artifact_id,
+            )
         )
-    ) == decoded
+        == decoded
+    )
 
 
 @pytest.mark.parametrize(
@@ -99,21 +134,68 @@ def test_every_observation_mechanism_and_assumption_variant(
 @pytest.mark.parametrize(
     "functional",
     [
-        {"mean_curve": {"outcome": 1, "treatment": {"variable": 0, "grid": {"linspace": {"start": 0.0, "end": 1.0, "points": 3}}}}},
-        {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": {"uniform": {"lower": 0.0, "upper": 1.0}}}},
-        {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": {"custom": [0.25, 0.75]}}},
-        {"point_derivative": {"outcome": 1, "treatment": 0, "at": 1.0, "order": 1, "scale": "log_treatment"}},
-        {"point_derivative": {"outcome": 1, "treatment": 0, "at": 1.0, "order": 1, "scale": "log_outcome"}},
-        {"point_derivative": {"outcome": 1, "treatment": 0, "at": 1.0, "order": 1, "scale": "log_log"}},
+        {
+            "mean_curve": {
+                "outcome": 1,
+                "treatment": {
+                    "variable": 0,
+                    "grid": {"linspace": {"start": 0.0, "end": 1.0, "points": 3}},
+                },
+            }
+        },
+        {
+            "average_derivative": {
+                "outcome": 1,
+                "treatment": 0,
+                "weighting": {"uniform": {"lower": 0.0, "upper": 1.0}},
+            }
+        },
+        {
+            "average_derivative": {
+                "outcome": 1,
+                "treatment": 0,
+                "weighting": {"custom": [0.25, 0.75]},
+            }
+        },
+        {
+            "point_derivative": {
+                "outcome": 1,
+                "treatment": 0,
+                "at": 1.0,
+                "order": 1,
+                "scale": "log_treatment",
+            }
+        },
+        {
+            "point_derivative": {
+                "outcome": 1,
+                "treatment": 0,
+                "at": 1.0,
+                "order": 1,
+                "scale": "log_outcome",
+            }
+        },
+        {
+            "point_derivative": {
+                "outcome": 1,
+                "treatment": 0,
+                "at": 1.0,
+                "order": 1,
+                "scale": "log_log",
+            }
+        },
     ],
 )
 def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: object) -> None:
     payload = _response_query(functional)
-    assert artifacts.loads(
-        artifacts.dumps(
-            "query", payload, variable_names=["a", "y"], artifact_id="response-options"
-        )
-    ).payload == payload
+    assert (
+        artifacts.loads(
+            artifacts.dumps(
+                "query", payload, variable_names=["a", "y"], artifact_id="response-options"
+            )
+        ).payload
+        == payload
+    )
 
 
 def test_native_encode_causal_artifact_returns_real_bytes() -> None:
@@ -552,8 +634,6 @@ def test_transport_and_interference_result_artifacts(
     kind: str, payload: dict[str, object], variable_names: list[str]
 ) -> None:
     decoded = artifacts.loads(
-        artifacts.dumps(
-            kind, payload, variable_names=variable_names, artifact_id="result"
-        )  # type: ignore[arg-type]
+        artifacts.dumps(kind, payload, variable_names=variable_names, artifact_id="result")  # type: ignore[arg-type]
     )
     assert decoded.payload == payload

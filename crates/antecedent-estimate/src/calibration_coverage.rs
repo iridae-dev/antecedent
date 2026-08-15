@@ -299,6 +299,13 @@ fn matching_homoskedastic_ci_coverage() {
     assert_coverage(covered, N_SIM, "matching_ai");
 }
 
+/// Continuous-treatment IV DGP with a **strong** first stage.
+///
+/// The first-stage coefficient on `Z` must keep Stock–Yogo F well above 10 at
+/// `N_OBS` across the calibration seed grid. A weaker `0.5·Z` DGP leaves a
+/// non-trivial share of draws with `F < 10`; after `se_if_strong_instrument`
+/// those trials publish `se_analytic = NaN` and would be counted as coverage
+/// misses even though the procedure correctly refused the SE.
 fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     let mut rng = CausalRng::from_seed(seed);
     let mut t = Vec::with_capacity(n);
@@ -307,7 +314,7 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     for i in 0..n {
         let zi = (i % 2) as f64;
         let ui = standard_normal(&mut rng);
-        let ti = 0.5 * zi + ui + 0.1 * standard_normal(&mut rng);
+        let ti = 1.5 * zi + ui + 0.1 * standard_normal(&mut rng);
         let yi = TRUE_ATE * ti + ui + 0.1 * standard_normal(&mut rng);
         t.push(ti);
         y.push(yi);
@@ -330,14 +337,23 @@ fn wald_iv_analytic_ci_coverage() {
         WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Homoskedastic, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(5);
     let mut covered = 0u32;
+    let mut scored = 0u32;
     for s in 0..N_SIM {
         let (data, estimand) = binary_iv_scm(N_OBS, 5000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        // Strong-instrument DGP: every draw must publish a finite SE.
+        assert!(
+            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            "wald_iv: unexpected weak first stage (se_analytic non-finite) on seed {}",
+            5000 + u64::from(s)
+        );
+        scored += 1;
         if covers(effect.ate, effect.se_analytic) {
             covered += 1;
         }
     }
+    assert_eq!(scored, N_SIM);
     assert_coverage(covered, N_SIM, "wald_iv");
 }
 
@@ -404,6 +420,11 @@ fn wald_iv_hc1_ci_coverage() {
         let (data, estimand) = binary_iv_scm(N_OBS, 5100 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        assert!(
+            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            "wald_iv_hc1: unexpected weak first stage (se_analytic non-finite) on seed {}",
+            5100 + u64::from(s)
+        );
         if covers(effect.ate, effect.se_analytic) {
             covered += 1;
         }

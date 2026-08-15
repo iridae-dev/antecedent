@@ -31,9 +31,7 @@ def test_selected_outcome_stage_returns_pseudo_values_and_diagnostic_weights() -
     assert all(np.isfinite(adjusted.values))
     assert adjusted.method == "observation.selected.crossfit_logistic_aipw.v1"
     assert all(
-        weight == 0.0
-        for weight, r in zip(adjusted.weights, selected, strict=True)
-        if r == 0.0
+        weight == 0.0 for weight, r in zip(adjusted.weights, selected, strict=True) if r == 0.0
     )
 
 
@@ -50,14 +48,10 @@ def test_gaussian_interval_likelihood_requires_and_honours_structural_opt_in() -
         "y",
         grid=[0.0, 1.0],
         observation=mechanism,
-        observation_assumptions=[
-            observation.Structural("gaussian_observation_likelihood")
-        ],
+        observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
 
-    value = observation.gaussian_log_likelihood(
-        data, opted_in, means=[0.0, 1.0, 0.5], sigma=0.5
-    )
+    value = observation.gaussian_log_likelihood(data, opted_in, means=[0.0, 1.0, 0.5], sigma=0.5)
     assert np.isfinite(value)
 
     not_opted_in = ResponseCurve(
@@ -68,9 +62,7 @@ def test_gaussian_interval_likelihood_requires_and_honours_structural_opt_in() -
         observation_assumptions=[observation.IndependentGiven(())],
     )
     with pytest.raises(CausalValueError, match="Structural"):
-        observation.gaussian_log_likelihood(
-            data, not_opted_in, means=[0.0, 1.0, 0.5], sigma=0.5
-        )
+        observation.gaussian_log_likelihood(data, not_opted_in, means=[0.0, 1.0, 0.5], sigma=0.5)
 
 
 def test_observation_stage_rejects_vector_response_query() -> None:
@@ -123,9 +115,7 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
     treatment = np.linspace(0.0, 1.0, 100)
     selected = np.asarray([float(i % 3 != 0) for i in range(100)])
     confounder = np.sin(np.linspace(0.0, 3.0, 100))
-    observed = np.where(
-        selected == 1.0, 1.0 + 2.0 * treatment + 0.5 * confounder, np.nan
-    )
+    observed = np.where(selected == 1.0, 1.0 + 2.0 * treatment + 0.5 * confounder, np.nan)
     query = antecedent.ResponseCurve(
         "a",
         "latent_y",
@@ -149,10 +139,7 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
     assert result.identification.method == "response.backdoor"
     assert result.identification.adjustment_set == ["z"]
     assert result.provenance["operation_id"] == "estimate.response.observation_adjusted"
-    assert any(
-        "joint_uncertainty_unavailable" in warning
-        for warning in result.support.warnings
-    )
+    assert any("joint_uncertainty_unavailable" in warning for warning in result.support.warnings)
 
 
 @pytest.mark.parametrize("side", ["right", "left"])
@@ -187,9 +174,7 @@ def test_public_analyze_composes_marginal_censoring_into_point_only_curve(
 
     assert result.response is not None
     assert result.uncertainty.kind == "none"
-    assert any(
-        f"observation.{side}_censored" in warning for warning in result.support.warnings
-    )
+    assert any(f"observation.{side}_censored" in warning for warning in result.support.warnings)
 
 
 def test_public_analyze_keeps_interval_censoring_on_likelihood_only_path() -> None:
@@ -199,9 +184,7 @@ def test_public_analyze_keeps_interval_censoring_on_likelihood_only_path() -> No
         "latent_y",
         grid=[0.2, 0.8],
         observation=observation.IntervalCensored("latent_y", "lower", "upper"),
-        observation_assumptions=[
-            observation.Structural("gaussian_observation_likelihood")
-        ],
+        observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
         antecedent.analyze(
@@ -221,12 +204,8 @@ def test_public_analyze_keeps_truncation_on_likelihood_only_path() -> None:
         "a",
         "latent_y",
         grid=[0.2, 0.8],
-        observation=observation.Truncated(
-            "latent_y", "observed_y", lower="lower", upper="upper"
-        ),
-        observation_assumptions=[
-            observation.Structural("gaussian_observation_likelihood")
-        ],
+        observation=observation.Truncated("latent_y", "observed_y", lower="lower", upper="upper"),
+        observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
         antecedent.analyze(
