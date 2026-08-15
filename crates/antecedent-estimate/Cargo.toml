@@ -17,17 +17,17 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.4.1", path = "../antecedent-core" }
-antecedent-data = { version = "0.4.1", path = "../antecedent-data" }
-antecedent-expr = { version = "0.4.1", path = "../antecedent-expr" }
-antecedent-identify = { version = "0.4.1", path = "../antecedent-identify" }
-antecedent-kernels = { version = "0.4.1", path = "../antecedent-kernels" }
-antecedent-prob = { version = "0.4.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "0.4.1", path = "../antecedent-stats" }
+antecedent-core = { version = "0.5.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.5.0", path = "../antecedent-data" }
+antecedent-expr = { version = "0.5.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "0.5.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "0.5.0", path = "../antecedent-kernels" }
+antecedent-prob = { version = "0.5.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.5.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-antecedent-graph = { version = "0.4.1", path = "../antecedent-graph" }
+antecedent-graph = { version = "0.5.0", path = "../antecedent-graph" }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 

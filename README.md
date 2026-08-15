@@ -109,7 +109,7 @@ aspirations.
 * **Parity.** Applicable public behaviour stays in parity across the Rust and Python APIs.
   [`parity/`](parity/)
 
-As of the 0.5.0 branch (package versions remain 0.4.1 until the release is accepted):
+As of 0.5.0:
 
 | | |
 |---|---|
@@ -141,8 +141,7 @@ cargo add antecedent          # Rust 1.85+
 ```
 
 Wheels are on PyPI and attached to each GitHub Release. No other language bindings are
-provided. Published packages are still 0.4.1 until the 0.5.0 release is cut from this
-branch.
+provided. This branch is package version **0.5.0** (crates.io / PyPI publish on tag).
 
 ## Documentation
 

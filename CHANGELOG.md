@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — 0.5.0
 
-Large causal-response release in progress. Package versions intentionally remain
-at 0.4.1 until the release gates and roadmap are accepted.
+Large causal-response release. Workspace and Python package versions are **0.5.0**.
 
 ### Added
 
