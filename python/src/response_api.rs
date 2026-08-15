@@ -301,6 +301,15 @@ fn analyze_response_pag(
         let first = first_response.ok_or_else(|| {
             PyValueError::new_err("PAG response curve has identified mass but no estimable case")
         })?;
+        // The envelope is the range of completion-specific Kennedy *point* curves. It is an
+        // identified-set payload under structural uncertainty, not a confidence interval and
+        // not a claim that sampling uncertainty within each completion was folded in.
+        warnings.push(
+            "response.pag_envelope_point_estimates: envelope bounds are the pointwise min/max of \
+             completion-specific point curves; they omit within-completion sampling uncertainty \
+             and are not a confidence band"
+                .into(),
+        );
         let width = curves.first().map_or(0, Vec::len);
         let mut lower = vec![f64::INFINITY; width];
         let mut upper = vec![f64::NEG_INFINITY; width];

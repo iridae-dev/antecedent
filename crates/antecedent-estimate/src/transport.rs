@@ -6,9 +6,40 @@
 
 use std::sync::Arc;
 
-use antecedent_identify::TransportIdentification;
+use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use crate::EstimationError;
+
+/// Dahabreh-style trial-to-target IPW/AIPW and the composed response-grid primitive implement
+/// the algebra of *direct* transport and *standardization* over a trial-selection mechanism.
+/// A recursive factorization certificate is a different identifying formula; evaluating the
+/// Dahabreh functional against it would manufacture a number the certificate did not license.
+fn require_dahabreh_compatible_formula(
+    identification: &TransportIdentification,
+    stage: &str,
+) -> Result<(), EstimationError> {
+    match identification {
+        TransportIdentification::NotCertified(certificate) => {
+            Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
+        }
+        TransportIdentification::Transportable {
+            formula: TransportFormula::Direct(_) | TransportFormula::Standardize { .. },
+            ..
+        } => Ok(()),
+        TransportIdentification::Transportable {
+            formula: TransportFormula::RecursiveFactorization { .. },
+            certificate,
+        } => Err(EstimationError::NotCertified {
+            message: format!(
+                "{stage} refused: certificate rule '{}' yields a recursive factorization, \
+                 which this Dahabreh-style estimator does not evaluate; identification and \
+                 estimation stay separate, and recursive factorization remains identify-only \
+                 in this release",
+                certificate.rule
+            ),
+        }),
+    }
+}
 
 /// Overlap diagnostics for one transport nuisance mechanism.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,14 +110,16 @@ pub struct TransportResponseGridEstimate {
 /// meaningful once a sound formula has been certified for the query being evaluated here;
 /// evaluating this grid against an uncertified query would silently manufacture a number for
 /// a quantity that was never shown to be identified. When `identification` is
-/// [`TransportIdentification::NotCertified`], this function returns an error carrying the
-/// certificate's `reason` and `message` rather than an estimate.
+/// [`TransportIdentification::NotCertified`], or when it certifies a
+/// [`TransportFormula::RecursiveFactorization`] that this Dahabreh-style grid does not
+/// evaluate, this function returns an error rather than an estimate.
 ///
 /// # Errors
 ///
 /// Returns [`EstimationError`] for empty/mismatched inputs, non-finite values, invalid selection
-/// probabilities, non-finite response weights, samples without both source and target rows, or
-/// an `identification` that is [`TransportIdentification::NotCertified`].
+/// probabilities, non-finite response weights, samples without both source and target rows, an
+/// `identification` that is [`TransportIdentification::NotCertified`], or a recursive-
+/// factorization certificate.
 #[allow(clippy::too_many_arguments)]
 pub fn transport_augmented_response_grid(
     identification: &TransportIdentification,
@@ -98,13 +131,7 @@ pub fn transport_augmented_response_grid(
     target_regression: &[f64],
     response_weight: &[f64],
 ) -> Result<TransportResponseGridEstimate, EstimationError> {
-    if let TransportIdentification::NotCertified(certificate) = identification {
-        return Err(EstimationError::not_certified(
-            "transport response grid",
-            &certificate.reason,
-            &certificate.message,
-        ));
-    }
+    require_dahabreh_compatible_formula(identification, "transport response grid")?;
     let n = outcome.len();
     let cells = n
         .checked_mul(grid.len())
@@ -202,8 +229,9 @@ pub fn transport_augmented_response_grid(
 /// # Errors
 ///
 /// Returns [`EstimationError`] for empty/mismatched inputs, out-of-range probabilities, samples
-/// without both source and target rows, or an `identification` that is
-/// [`TransportIdentification::NotCertified`].
+/// without both source and target rows, an `identification` that is
+/// [`TransportIdentification::NotCertified`], or a [`TransportFormula::RecursiveFactorization`]
+/// certificate (Dahabreh IPW/AIPW does not evaluate that formula).
 pub fn trial_to_target_effect(
     identification: &TransportIdentification,
     outcome: &[f64],
@@ -213,13 +241,7 @@ pub fn trial_to_target_effect(
     treatment_probability: &[f64],
     outcome_regressions: Option<(&[f64], &[f64])>,
 ) -> Result<TransportEffectEstimate, EstimationError> {
-    if let TransportIdentification::NotCertified(certificate) = identification {
-        return Err(EstimationError::not_certified(
-            "trial-to-target effect",
-            &certificate.reason,
-            &certificate.message,
-        ));
-    }
+    require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
     if n == 0
         || treatment.len() != n
@@ -469,6 +491,68 @@ mod tests {
         assert!(
             err.to_string().contains("test-fixture refusal explaining why identification failed")
         );
+    }
+
+    fn recursive_factorization_identification() -> TransportIdentification {
+        TransportIdentification::Transportable {
+            formula: TransportFormula::RecursiveFactorization {
+                sum_out: Arc::from([]),
+                factors: Arc::from([PopulationFactor {
+                    population: Arc::from("target"),
+                    variables: Arc::from([]),
+                    conditioned_on: Arc::from([]),
+                    interventions: Arc::from([]),
+                }]),
+            },
+            certificate: TransportCertificate {
+                rule: Arc::from("transport.sid.singleton_c_components"),
+                selection_targets: Arc::from([]),
+                premises: Arc::from([]),
+            },
+        }
+    }
+
+    #[test]
+    fn trial_to_target_effect_refuses_recursive_factorization_certificate() {
+        // A recursive-factorization certificate is Transportable, so the NotCertified gate
+        // alone would let the Dahabreh functional run. That functional is not the identifying
+        // formula the certificate licensed — the same class of hole as estimating under
+        // NotCertified, one layer down.
+        let err = trial_to_target_effect(
+            &recursive_factorization_identification(),
+            &[1.0, 3.0, 0.0, 0.0],
+            &[false, true, false, false],
+            &[true, true, false, false],
+            &[0.5; 4],
+            &[0.5; 4],
+            None,
+        )
+        .unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("recursive factorization"),
+            "refusal must name the formula kind: {message}"
+        );
+        assert!(
+            message.contains("transport.sid.singleton_c_components"),
+            "refusal must name the certificate rule: {message}"
+        );
+    }
+
+    #[test]
+    fn transported_response_grid_refuses_recursive_factorization_certificate() {
+        let err = transport_augmented_response_grid(
+            &recursive_factorization_identification(),
+            &[1.0, 3.0, 0.0, 0.0],
+            &[true, true, false, false],
+            &[0.5; 4],
+            &[0.0, 1.0],
+            &[1.0, 3.0, 0.0, 0.0],
+            &[1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
+            &[1.0; 8],
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("recursive factorization"));
     }
 
     #[test]

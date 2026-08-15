@@ -159,7 +159,9 @@ pub fn selected_outcome_pseudo_values(
 ///
 /// `event=1` means the scientific event/outcome is uncensored; `event=0` is a censoring
 /// event. Optional `entry` implements delayed entry by using risk sets
-/// `entry_i <= t <= time_i`. Censored rows receive zero weight.
+/// `entry_i <= t <= time_i` and the left-truncated IPCW
+/// `G(entry_i−) / G(time_i−)` (reducing to `1 / G(time_i−)` when there is no entry).
+/// Censored rows receive zero weight.
 ///
 /// # Errors
 ///
@@ -209,23 +211,31 @@ pub fn kaplan_meier_ipcw(
         survival *= 1.0 - censored as f64 / risk as f64;
         steps.push((t, survival));
     }
+    // Left-limit of the censoring survival: product-limit value after every jump strictly
+    // before `at`. Equals 1 when no censoring precedes `at`.
+    let survival_before = |at: f64| -> f64 {
+        steps.iter().take_while(|(t, _)| *t < at).last().map_or(1.0, |(_, after)| *after)
+    };
     (0..n)
         .map(|i| {
             if event[i] == 0.0 {
                 return Ok(0.0);
             }
-            let before = steps
-                .iter()
-                .take_while(|(t, _)| *t < time[i])
-                .last()
-                .map_or(1.0, |(_, after)| *after);
-            if before < survival_floor {
-                Err(StatsError::Unsupported {
+            let at_event = survival_before(time[i]);
+            // Conditional on delayed entry at L, P(C > T | C > L) = G(T−)/G(L−), so the
+            // IPCW is G(L−)/G(T−). Without entry, G(L−)=1 and this collapses to 1/G(T−).
+            let at_entry = entry.map_or(1.0, |values| survival_before(values[i]));
+            if at_event < survival_floor || at_entry < survival_floor {
+                return Err(StatsError::Unsupported {
                     message: "censoring survival is below the configured positivity floor",
-                })
-            } else {
-                Ok(1.0 / before)
+                });
             }
+            if at_event <= 0.0 {
+                return Err(StatsError::Unsupported {
+                    message: "censoring survival at the event time is non-positive",
+                });
+            }
+            Ok(at_entry / at_event)
         })
         .collect()
 }
@@ -367,7 +377,10 @@ mod tests {
             kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], Some(&[0.0, 1.5, 0.0]), 0.01)
                 .unwrap();
         assert!((without[1] - 1.5).abs() < 1e-12);
-        assert!((with[1] - 2.0).abs() < 1e-12);
+        // Left-truncated IPCW is G(L−)/G(T−). Unit 1 enters after the only censoring jump, so
+        // G(L−)=G(T−)=1/2 and the weight is 1 — not the untruncated 1/G(T−)=2.
+        assert!((with[1] - 1.0).abs() < 1e-12);
+        assert!((with[2] - 2.0).abs() < 1e-12);
     }
 
     #[test]

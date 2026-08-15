@@ -40,7 +40,9 @@ not mean unguarded, though. Both `trial_to_target_effect` and
 `estimate_trial_effect`/`estimate_trial_transport` wrappers) take the
 identification result as a required argument and refuse to run when it is
 `NotCertified`, returning an error that carries the certificate's reason and
-message rather than an estimate.
+message rather than an estimate. They also refuse a `RecursiveFactorization`
+certificate: the Dahabreh-style IPW/AIPW algebra evaluates direct transport and
+standardization, not the truncated product of population-labelled factors.
 
 The binary randomized-trial estimator reports IPW and optional augmented IPW,
 plus separate diagnostics for trial-selection overlap and within-trial treatment

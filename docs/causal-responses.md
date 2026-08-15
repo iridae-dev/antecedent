@@ -88,7 +88,10 @@ only, Antecedent streams a bounded set of compatible MAG completions, applies
 generalized adjustment in each completion, and estimates the curve in every
 identified case. `result.envelope` contains pointwise lower/upper identified
 bounds plus normalized `identified_mass` and `unidentified_mass`; unidentified
-completions are never discarded or renormalized away. A capped enumeration is
+completions are never discarded or renormalized away. Those bounds are the
+pointwise min/max of completion-specific **point** curves: they encode structural
+uncertainty across the examined class, not within-completion sampling
+uncertainty, and are not a confidence band. A capped enumeration is
 reported separately through `enumeration_capped`; in that case `mass_scope` is
 `"examined_completions"`, so the normalized fractions are never presented as
 full-class probability mass. Per-completion adjustment-search truncation remains
@@ -111,12 +114,15 @@ an explicit `skipped` check.
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
 - `PointDerivative(..., at=a)` is a local slope and is typically more sensitive
-  to smoothing and local support than the curve itself.
+  to smoothing and local support than the curve itself. It requires an explicit
+  `bandwidth` in response options / `estimator_config`; Silverman's rule is a
+  level/KDE rate and is refused here rather than silently oversmoothing `m'`.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
   law; the default observed-law weighting describes the sampled population.
 - `Elasticity(..., at=a)` is a log-outcome/log-treatment derivative. The
   treatment point must be positive, and scientific interpretation also requires
-  a meaningful positive outcome scale.
+  a meaningful positive outcome scale. Like `PointDerivative`, it requires an
+  explicit bandwidth.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid
