@@ -44,10 +44,20 @@ struct TransportIdentificationResult {
     factor_conditioned_on: Vec<Vec<String>>,
     #[pyo3(get)]
     factor_interventions: Vec<Vec<String>>,
+    // Deliberately NOT exposed via `#[pyo3(get)]`. `estimate_trial_transport` gates on this
+    // field, so it must hold the certificate this class was actually constructed with rather
+    // than a value a caller could set from Python (this pyclass has no `#[new]` and no
+    // setters, so a Python caller cannot forge or mutate one either).
+    identification: TransportIdentification,
 }
 
 #[pyclass(skip_from_py_object)]
 struct TrialTransportResult {
+    /// Rule id of the transport certificate that authorized this estimate, so the result
+    /// carries its own identification provenance instead of relying on the caller to
+    /// remember which `TransportIdentificationResult` it passed in.
+    #[pyo3(get)]
+    rule: String,
     #[pyo3(get)]
     ipw: f64,
     #[pyo3(get)]
@@ -190,6 +200,7 @@ fn transport_result(
         factor_variables: Vec::new(),
         factor_conditioned_on: Vec::new(),
         factor_interventions: Vec::new(),
+        identification: result.clone(),
     };
     match result {
         TransportIdentification::NotCertified(certificate) => {
@@ -230,9 +241,12 @@ fn transport_result(
 
 #[pyfunction]
 #[pyo3(signature = (
-    outcome, treatment, trial, selection_probability, treatment_probability, *, mu0=None, mu1=None
+    identification, outcome, treatment, trial, selection_probability, treatment_probability, *,
+    mu0=None, mu1=None
 ))]
+#[allow(clippy::too_many_arguments)]
 fn estimate_trial_transport(
+    identification: PyRef<'_, TransportIdentificationResult>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: Vec<bool>,
     trial: Vec<bool>,
@@ -244,16 +258,38 @@ fn estimate_trial_transport(
     if mu0.is_some() != mu1.is_some() {
         return Err(PyValueError::new_err("mu0 and mu1 must be supplied together"));
     }
+    // Gate on the certificate the `TransportIdentificationResult` was actually built from, not
+    // on its `transportable` getter: estimating a transported contrast without a positive
+    // identification certificate would silently report a number for a quantity that was never
+    // shown to be identified.
+    let rule = match &identification.identification {
+        TransportIdentification::NotCertified(certificate) => {
+            return Err(py_err(antecedent::estimate::EstimationError::not_certified(
+                "trial-to-target effect",
+                &certificate.reason,
+                &certificate.message,
+            )));
+        }
+        TransportIdentification::Transportable { certificate, .. } => certificate.rule.to_string(),
+    };
     let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let selection = selection_probability.as_array().iter().copied().collect::<Vec<_>>();
     let propensity = treatment_probability.as_array().iter().copied().collect::<Vec<_>>();
     let mu0 = mu0.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let mu1 = mu1.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let regressions = mu0.as_deref().zip(mu1.as_deref());
-    let estimate =
-        trial_to_target_effect(&y, &treatment, &trial, &selection, &propensity, regressions)
-            .map_err(py_err)?;
+    let estimate = trial_to_target_effect(
+        &identification.identification,
+        &y,
+        &treatment,
+        &trial,
+        &selection,
+        &propensity,
+        regressions,
+    )
+    .map_err(py_err)?;
     Ok(TrialTransportResult {
+        rule,
         ipw: estimate.ipw,
         aipw: estimate.aipw,
         selection_probability_min: estimate.overlap.selection.probability_min,

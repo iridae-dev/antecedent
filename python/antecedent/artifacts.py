@@ -48,13 +48,13 @@ def dumps(
 ) -> bytes:
     """Encode one canonical query/result wire mapping as a format-0.3 artifact."""
 
-    return bytes(
-        _encode_causal_artifact(
-            payload_kind,
-            list(variable_names),
-            json.dumps(payload, allow_nan=False, separators=(",", ":")),
-            artifact_id,
-        )
+    # `_encode_causal_artifact` now returns real Python `bytes` at the Rust
+    # boundary (PyO3 `PyBytes`), so no `bytes(...)` coercion is needed here.
+    return _encode_causal_artifact(
+        payload_kind,
+        list(variable_names),
+        json.dumps(payload, allow_nan=False, separators=(",", ":")),
+        artifact_id,
     )
 
 

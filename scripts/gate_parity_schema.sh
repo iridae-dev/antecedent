@@ -26,7 +26,10 @@ import tomllib
 root = Path(".")
 
 STATUS_VALUES = {"pending", "in_progress", "done"}
-FACADE_VALUES = {"full", "thin"}
+# "none" is for Rust-only primitives. Recording them as "thin" would claim a Python
+# surface that does not exist; omitting the row would leave a shipped capability, and
+# its paper provenance, outside the inventory entirely.
+FACADE_VALUES = {"full", "thin", "none"}
 BASE_REQUIRED = ("id", "status")
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.

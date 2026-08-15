@@ -42,8 +42,38 @@ impl BinaryIvLaw {
 /// The implementation solves the exact 16-type latent response-program. It assumes randomized
 /// instrument assignment/exogeneity and exclusion through the response-type model; those claims
 /// must be recorded by the caller in the enclosing identification artifact.
+///
+/// Returns an error naming the Balke–Pearl instrumental inequality specifically when the
+/// response-type program is infeasible, which is distinct from (and reported separately from)
+/// malformed input — the latter is rejected earlier by [`BinaryIvLaw::validate`].
 pub fn binary_iv_ate_bounds(law: BinaryIvLaw) -> Result<IdentifiedSet<f64>, IdentificationError> {
     law.validate()?;
+    let Some((lower, upper)) = feasible_ate_bounds(law) else {
+        return Err(IdentificationError::unsupported(
+            "binary-IV observed law violates the Balke\u{2013}Pearl instrumental inequality: no \
+             response-type distribution over the 16 latent types reproduces the observed cells",
+        ));
+    };
+    IdentifiedSet::try_new(lower.max(-1.0), upper.min(1.0))
+        .map_err(IdentificationError::unsupported)
+}
+
+/// Test the Balke–Pearl instrumental inequality for a binary instrument/treatment/outcome law.
+///
+/// For binary `Z`, `D`, `Y`, the observed law is consistent with *some* distribution over the 16
+/// latent response types (equivalently, satisfies the instrumental inequality) if and only if the
+/// same feasibility search used by [`binary_iv_ate_bounds`] finds at least one feasible vertex.
+/// This predicate shares that search rather than re-deriving it, so the two entry points cannot
+/// drift apart.
+pub fn binary_iv_inequality_satisfied(law: BinaryIvLaw) -> Result<bool, IdentificationError> {
+    law.validate()?;
+    Ok(feasible_ate_bounds(law).is_some())
+}
+
+/// Enumerate response-type basic feasible solutions and return the sharp `E[Y(1)-Y(0)]` range,
+/// or `None` if the observed law admits no feasible response-type distribution at all (i.e. the
+/// Balke–Pearl instrumental inequality is violated).
+fn feasible_ate_bounds(law: BinaryIvLaw) -> Option<(f64, f64)> {
     let (a, b) = constraint_system(law);
     let objective: [f64; TYPES] = std::array::from_fn(|kind| {
         let (y0, y1, _, _) = decode_type(kind);
@@ -79,12 +109,9 @@ pub fn binary_iv_ate_bounds(law: BinaryIvLaw) -> Result<IdentifiedSet<f64>, Iden
     });
 
     if !lower.is_finite() || !upper.is_finite() {
-        return Err(IdentificationError::unsupported(
-            "binary-IV observed law is incompatible with the response-type model",
-        ));
+        return None;
     }
-    IdentifiedSet::try_new(lower.max(-1.0), upper.min(1.0))
-        .map_err(IdentificationError::unsupported)
+    Some((lower, upper))
 }
 
 fn constraint_system(law: BinaryIvLaw) -> ([[f64; TYPES]; RANK], [f64; RANK]) {
@@ -209,7 +236,10 @@ mod tests {
         let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
         assert!((bounds.lower - expected["lower"].as_f64().unwrap()).abs() <= atol);
         assert!((bounds.upper - expected["upper"].as_f64().unwrap()).abs() <= atol);
-        assert_eq!(expected["iv_inequality_satisfied"], true);
+        assert_eq!(
+            binary_iv_inequality_satisfied(BinaryIvLaw { cells }).unwrap(),
+            expected["iv_inequality_satisfied"].as_bool().unwrap()
+        );
     }
 
     #[test]
@@ -226,5 +256,40 @@ mod tests {
         let bounds = binary_iv_ate_bounds(law).unwrap();
         assert!((bounds.lower - 0.0).abs() < 1e-9);
         assert!((bounds.upper - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn satisfied_law_is_reported_by_the_shared_predicate() {
+        // Perfect compliance with a deterministic effect: every individual has D = Z and
+        // Y = D, so the degenerate response-type distribution (all mass on the single type
+        // y0=0, y1=1, d0=0, d1=1) reproduces both arms exactly. The inequality holds.
+        let law = BinaryIvLaw { cells: [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]] };
+        assert!(binary_iv_inequality_satisfied(law).unwrap());
+        // The bounds entry point must agree, since it shares the same feasibility search.
+        assert!(binary_iv_ate_bounds(law).is_ok());
+    }
+
+    #[test]
+    fn violated_law_is_rejected_by_bounds_and_the_shared_predicate() {
+        // Z=0 arm puts all mass on (Y=1,D=0): every observed type must have d0=0 and y0=1.
+        // Z=1 arm puts all mass on (Y=0,D=0): every observed type must have d1=0 and y0=0.
+        // Since exogeneity requires a single population-wide response-type distribution to
+        // explain both arms, and the same y0 bit cannot be both 1 (forced by the Z=0 arm)
+        // and 0 (forced by the Z=1 arm), no response-type distribution over the 16 latent
+        // types can reproduce this law: the remaining probability mass has nowhere to go
+        // that satisfies both constraints simultaneously. This is a hand-verified violation
+        // of the Balke-Pearl instrumental inequality, not a malformed-input case (the law
+        // is a valid probability distribution within each Z arm).
+        let law = BinaryIvLaw { cells: [[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]] };
+        law.validate().expect("law is a well-formed probability distribution per arm");
+
+        assert!(!binary_iv_inequality_satisfied(law).unwrap());
+
+        let err = binary_iv_ate_bounds(law).unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("instrumental inequality"),
+            "error should name the instrumental inequality distinctly from malformed input: {message}"
+        );
     }
 }

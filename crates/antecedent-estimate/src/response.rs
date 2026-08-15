@@ -34,6 +34,24 @@ use antecedent_stats::{
 
 use crate::EstimationError;
 
+/// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
+///
+/// A clamped row has an unbounded inverse weight, so every clamp is counted and
+/// surfaced as a positivity diagnostic rather than absorbed silently.
+const CONDITIONAL_DENSITY_FLOOR: f64 = 1e-8;
+
+/// Cross-fitted Kennedy pseudo-outcome with its positivity accounting.
+struct PseudoOutcome {
+    values: Vec<f64>,
+    density_floor_rows: usize,
+}
+
+/// Cross-fitted average-derivative scores with the Riesz representer that built them.
+struct AverageDerivativeScores {
+    scores: Vec<f64>,
+    riesz_weights: Vec<f64>,
+}
+
 /// Configuration for [`ContinuousResponseEstimator`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseOptions {
@@ -189,7 +207,10 @@ impl ContinuousResponseEstimator {
             || !o.minimum_local_ess.is_finite()
             || o.minimum_local_ess <= 0.0
             || !o.confidence_level.is_finite()
-            || !(0.0..1.0).contains(&o.confidence_level)
+            // A level of exactly 0 yields z = 0 and a zero-width interval that would be
+            // reported as a band at level 0 rather than refused.
+            || o.confidence_level <= 0.0
+            || o.confidence_level >= 1.0
             || o.simultaneous_replicates.is_some_and(|replicates| replicates < 100)
             || (o.simultaneous_replicates.is_some() && o.bandwidth.is_none())
         {
@@ -206,7 +227,8 @@ impl ContinuousResponseEstimator {
         grid: &[f64],
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let pseudo = self.cross_fitted_pseudo_outcome(&sample)?;
+        let PseudoOutcome { values: pseudo, density_floor_rows } =
+            self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let mut mean = Vec::with_capacity(grid.len());
         let mut lower = Vec::with_capacity(grid.len());
@@ -221,8 +243,12 @@ impl ContinuousResponseEstimator {
                 gaussian_local_quadratic_influence(&sample.treatments, &pseudo, at, bandwidth)?;
             let point = fit.point;
             mean.push(point.value);
-            lower.push(point.value - z * point.standard_error);
-            upper.push(point.value + z * point.standard_error);
+            // The pointwise band uses the same influence-based standard error the
+            // simultaneous band standardizes by, so the two are nested by
+            // construction rather than being two different variance estimates at
+            // the same nominal level.
+            lower.push(point.value - z * fit.robust_standard_error);
+            upper.push(point.value + z * fit.robust_standard_error);
             ess.push(point.local_ess);
             density.push(
                 point.weight_sum
@@ -231,8 +257,14 @@ impl ContinuousResponseEstimator {
             influences.push(fit.influences);
             robust_se.push(fit.robust_standard_error);
         }
-        let support =
-            support_report(grid, &sample.treatments, &ess, density, self.options.minimum_local_ess);
+        let support = support_report(
+            grid,
+            &sample.treatments,
+            &ess,
+            density,
+            self.options.minimum_local_ess,
+            density_floor_rows,
+        );
         let uncertainty = if let Some(replicates) = self.options.simultaneous_replicates {
             simultaneous_multiplier_band(
                 &mean,
@@ -344,7 +376,8 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let pseudo = self.cross_fitted_pseudo_outcome(&sample)?;
+        let PseudoOutcome { values: pseudo, density_floor_rows } =
+            self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let point = gaussian_local_quadratic(&sample.treatments, &pseudo, at, bandwidth)?;
         let estimate = transform_point_derivative(
@@ -367,7 +400,7 @@ impl ContinuousResponseEstimator {
             // coefficient covariance; a partial delta interval would overclaim.
             _ => f64::NAN,
         };
-        let support = support_report(
+        let mut support = support_report(
             &[at],
             &sample.treatments,
             &[point.local_ess],
@@ -376,7 +409,18 @@ impl ContinuousResponseEstimator {
                     / (sample.len() as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()),
             ],
             self.options.minimum_local_ess,
+            density_floor_rows,
         );
+        if !standard_error.is_finite() {
+            // Withholding the interval is deliberate, but a silently absent interval is
+            // indistinguishable from one the caller never asked for. Say why.
+            support.warnings.push(Diagnostic::new(
+                "response.derivative_interval_withheld",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "no interval is reported for this derivative order and scale: the delta-method transform needs the full coefficient covariance, and a partial interval would understate uncertainty",
+            ));
+        }
         let uncertainty = if standard_error.is_finite() {
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
             ResponseUncertainty::Scalar {
@@ -404,30 +448,45 @@ impl ContinuousResponseEstimator {
             ));
         }
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let scores = self.cross_fitted_ade_scores(&sample)?;
-        let effective_n = scores.len() as f64;
-        let estimate = scores.iter().sum::<f64>() / effective_n;
-        let variance = scores.iter().map(|v| (v - estimate).powi(2)).sum::<f64>()
-            / (effective_n - 1.0).max(1.0);
-        let se = (variance / effective_n.max(1.0)).sqrt();
+        let AverageDerivativeScores { scores, riesz_weights } =
+            self.cross_fitted_ade_scores(&sample)?;
+        let rows = scores.len() as f64;
+        let estimate = scores.iter().sum::<f64>() / rows;
+        let variance = scores.iter().map(|v| (v - estimate).powi(2)).sum::<f64>() / (rows - 1.0);
+        let se = (variance / rows).sqrt();
         let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
         let (minimum, maximum) = range(&sample.treatments);
+        // Kish effective sample size of the Riesz representer. The raw row count is
+        // not a weighted ESS: it cannot fall when the representer concentrates on a
+        // handful of treatment-tail rows, which is exactly the failure this reports.
+        let absolute_sum = riesz_weights.iter().map(|weight| weight.abs()).sum::<f64>();
+        let square_sum = riesz_weights.iter().map(|weight| weight * weight).sum::<f64>();
+        let effective_n =
+            if square_sum > 0.0 { absolute_sum * absolute_sum / square_sum } else { 0.0 };
+        let weak = effective_n < self.options.minimum_local_ess;
         let support = SupportReport {
-            status: if effective_n < self.options.minimum_local_ess {
-                SupportStatus::WeakOverlap
-            } else {
-                SupportStatus::Supported
-            },
+            status: if weak { SupportStatus::WeakOverlap } else { SupportStatus::Supported },
             query_region: SupportRegion {
                 minima: Arc::from([minimum]),
                 maxima: Arc::from([maximum]),
             },
             diagnostics: vec![SupportDiagnostic {
                 id: Arc::from("response.weighted_effective_sample_size"),
-                values: Arc::from([effective_n]),
-                detail: Arc::from("Kish effective sample size under derivative target weights"),
+                values: Arc::from([effective_n, rows]),
+                detail: Arc::from(
+                    "Kish effective sample size of the Riesz representer, then complete rows",
+                ),
             }],
-            warnings: Vec::new(),
+            warnings: if weak {
+                vec![Diagnostic::new(
+                    "response.weak_riesz_overlap",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "the average-derivative Riesz representer concentrates on few rows; the estimate is driven by the treatment tail",
+                )]
+            } else {
+                Vec::new()
+            },
         };
         Ok((
             ResponseValue::Scalar(estimate),
@@ -511,34 +570,48 @@ impl ContinuousResponseEstimator {
     fn cross_fitted_pseudo_outcome(
         &self,
         sample: &CompleteSample,
-    ) -> Result<Vec<f64>, EstimationError> {
+    ) -> Result<PseudoOutcome, EstimationError> {
         let n = sample.len();
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut pseudo = vec![0.0; n];
+        let mut density_floor_rows = 0usize;
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
             let outcome_fit = self.fit_outcome(sample, &train)?;
             let treatment_fit = self.fit_treatment(sample, &train)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
+            // The training-row treatment means do not depend on the validation row;
+            // computing them once per fold avoids |valid| x |train| spline expansions.
+            let constant_treatment_mean = sample.train_treatment_mean(&train);
+            let train_treatment_means: Vec<f64> = match treatment_fit.as_ref() {
+                Some(fit) => train
+                    .iter()
+                    .map(|&j| predict_one(fit, &sample.adjustment_row(j)))
+                    .collect::<Result<_, _>>()?,
+                None => vec![constant_treatment_mean; train.len()],
+            };
             for &i in &valid {
                 let observed_x = sample.raw_row(i);
                 let mu_observed = predict_one(&outcome_fit, &observed_x)?;
                 let treatment_mean = match treatment_fit.as_ref() {
                     Some(fit) => predict_one(fit, &sample.adjustment_row(i))?,
-                    None => sample.train_treatment_mean(&train),
+                    None => constant_treatment_mean,
                 };
-                let conditional_density =
-                    gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma).max(1e-8);
+                let raw_density =
+                    gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
+                if !raw_density.is_finite() || raw_density <= CONDITIONAL_DENSITY_FLOOR {
+                    density_floor_rows += 1;
+                }
+                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
                 let mut marginal_mu = 0.0;
-                for &j in &train {
-                    let treatment_mean_j = match treatment_fit.as_ref() {
-                        Some(fit) => predict_one(fit, &sample.adjustment_row(j))?,
-                        None => sample.train_treatment_mean(&train),
-                    };
-                    marginal_density +=
-                        gaussian_density(sample.treatment_matrix[i], treatment_mean_j, sigma);
+                for (position, &j) in train.iter().enumerate() {
+                    marginal_density += gaussian_density(
+                        sample.treatment_matrix[i],
+                        train_treatment_means[position],
+                        sigma,
+                    );
                     let mut row = sample.raw_row(j);
                     row[0] = sample.treatment_matrix[i];
                     marginal_mu += predict_one(&outcome_fit, &row)?;
@@ -549,16 +622,17 @@ impl ContinuousResponseEstimator {
                     + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
             }
         }
-        Ok(pseudo)
+        Ok(PseudoOutcome { values: pseudo, density_floor_rows })
     }
 
     fn cross_fitted_ade_scores(
         &self,
         sample: &CompleteSample,
-    ) -> Result<Vec<f64>, EstimationError> {
+    ) -> Result<AverageDerivativeScores, EstimationError> {
         let n = sample.len();
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut scores = vec![0.0; n];
+        let mut riesz_weights = vec![0.0; n];
         let treatment_range = range(&sample.treatments).1 - range(&sample.treatments).0;
         let step = (treatment_range * 1e-4).max(1e-7);
         for fold in 0..self.options.folds {
@@ -582,10 +656,11 @@ impl ContinuousResponseEstimator {
                     None => treatment_mean_constant,
                 };
                 let riesz = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
+                riesz_weights[i] = riesz;
                 scores[i] = derivative + riesz * (sample.outcome[i] - mu);
             }
         }
-        Ok(scores)
+        Ok(AverageDerivativeScores { scores, riesz_weights })
     }
 
     fn plugin_gradient(
@@ -1039,34 +1114,46 @@ fn support_report(
     ess: &[f64],
     density: Vec<f64>,
     minimum_ess: f64,
+    density_floor_rows: usize,
 ) -> SupportReport {
     let (minimum, maximum) = range(observed);
     let outside = points.iter().any(|v| *v < minimum || *v > maximum);
     let weak = ess.iter().any(|v| *v < minimum_ess);
+    // A clamped conditional density is a positivity failure on the nuisance side:
+    // it does not move the requested coordinate outside the observed range, but the
+    // curve is then driven by an inverse weight the data never supported.
+    let clamped = density_floor_rows > 0;
     let status = if outside {
         SupportStatus::OutsideEmpiricalSupport
-    } else if weak {
+    } else if weak || clamped {
         SupportStatus::WeakOverlap
     } else {
         SupportStatus::Supported
     };
-    let warnings = if outside {
-        vec![Diagnostic::new(
+    let mut warnings = Vec::new();
+    if outside {
+        warnings.push(Diagnostic::new(
             "response.outside_empirical_support",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate is outside observed treatment support",
-        )]
+        ));
     } else if weak {
-        vec![Diagnostic::new(
+        warnings.push(Diagnostic::new(
             "response.weak_local_overlap",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate has low local effective sample size",
-        )]
-    } else {
-        Vec::new()
-    };
+        ));
+    }
+    if clamped {
+        warnings.push(Diagnostic::new(
+            "response.conditional_density_floored",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "at least one row hit the conditional treatment-density floor; the doubly robust weight for those rows is bounded by the floor, not estimated from data",
+        ));
+    }
     SupportReport {
         status,
         query_region: SupportRegion {
@@ -1083,6 +1170,13 @@ fn support_report(
                 id: Arc::from("response.local_density"),
                 values: Arc::from(density),
                 detail: Arc::from("Gaussian-kernel marginal treatment-density estimate"),
+            },
+            SupportDiagnostic {
+                id: Arc::from("response.conditional_density_floor_rows"),
+                values: Arc::from([density_floor_rows as f64]),
+                detail: Arc::from(
+                    "rows whose fitted conditional treatment density hit the positivity floor",
+                ),
             },
         ],
         warnings,
@@ -1117,12 +1211,27 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
                 "per-treatment minima followed by maxima; joint support is not established",
             ),
         }],
-        warnings: vec![Diagnostic::new(
-            "response.plugin_jacobian_model_dependent",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            "multivariate derivative uses an additive GAM plug-in and marginal support checks",
-        )],
+        warnings: {
+            let mut warnings = vec![Diagnostic::new(
+                "response.plugin_jacobian_model_dependent",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "multivariate derivative uses an additive GAM plug-in and marginal support checks",
+            )];
+            if outside {
+                // The cubic B-spline basis is clamped at its boundary knots, so the
+                // fitted surface is constant outside the fitted range and its finite
+                // difference is identically zero there. That zero is a property of the
+                // basis, not evidence of a flat response, and must not be read as one.
+                warnings.push(Diagnostic::new(
+                    "response.clamped_basis_derivative",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "at least one coordinate is outside the fitted range, where the clamped spline basis makes the plug-in derivative exactly zero by construction",
+                ));
+            }
+            warnings
+        },
     }
 }
 
@@ -1185,6 +1294,46 @@ mod tests {
         assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(response.support.diagnostics[0].values.len(), 3);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
+    }
+
+    #[test]
+    fn simultaneous_band_is_never_narrower_than_the_pointwise_band() {
+        let (data, a, y, x) = confounded_curve(500);
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.4, 0.0, 0.4]))),
+        });
+        let run = |replicates: Option<u32>| {
+            let mut estimator = ContinuousResponseEstimator::new([x]);
+            estimator.options.bandwidth = Some(0.35);
+            estimator.options.simultaneous_replicates = replicates;
+            estimator
+                .estimate_identified(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                )
+                .unwrap()
+        };
+        let ResponseUncertainty::PointwiseBand { lower: p_lo, upper: p_hi, .. } =
+            run(None).uncertainty
+        else {
+            panic!("expected pointwise band");
+        };
+        let ResponseUncertainty::SimultaneousBand { lower: s_lo, upper: s_hi, .. } =
+            run(Some(400)).uncertainty
+        else {
+            panic!("expected simultaneous band");
+        };
+        // Both bands standardize by the same influence-based standard error, so the
+        // simultaneous band can never be the tighter statement at the same level.
+        for index in 0..3 {
+            assert!(
+                s_lo[index] <= p_lo[index] + 1e-12 && s_hi[index] >= p_hi[index] - 1e-12,
+                "simultaneous band narrower than pointwise at {index}"
+            );
+        }
     }
 
     #[test]

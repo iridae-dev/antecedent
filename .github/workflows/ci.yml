@@ -71,9 +71,10 @@ jobs:
           fi
 
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
-  # schema check plus the eight feature gates (estimate_ci, bayesian, gcm, pag,
-  # context, attribution, design_state, upstream_names). Previously none of these
-  # ran on a PR, so numerical parity and the public-repo name check were
+  # schema check, the provenance schema check, and the ten feature gates
+  # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
+  # upstream_names, response_calibration, causal_artifacts). Previously none of
+  # these ran on a PR, so numerical parity and the public-repo name check were
   # unenforced between weekly runs.
   gates:
     name: Domain gates

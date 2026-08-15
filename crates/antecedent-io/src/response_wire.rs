@@ -197,7 +197,7 @@ fn grid_to_wire(grid: &GridSpec) -> GridSpecWire {
     }
 }
 
-fn grid_from_wire(grid: &GridSpecWire) -> Result<GridSpec, IoError> {
+pub(crate) fn grid_from_wire(grid: &GridSpecWire) -> Result<GridSpec, IoError> {
     Ok(match grid {
         GridSpecWire::Values(values) => GridSpec::Values(values.clone().into()),
         GridSpecWire::Linspace { start, end, points } => GridSpec::Linspace {

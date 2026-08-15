@@ -150,12 +150,19 @@ impl TransportIdentifier {
         // This is intentionally stronger than general S-admissibility. Requiring selected
         // standardizers to be causally prior, exogenous, and district-singleton prevents
         // conditioning from opening S -> Z <- U -> Y paths.
-        let safe_standardizers = relevant_selection.iter().all(|z| {
-            let dz = dense(*z);
-            !treatments.iter().any(|x| graph.reaches(dense(*x), dz))
-                && graph.parents(dz).is_empty()
-                && graph.bidirected_neighbors(dz).is_empty()
-        });
+        //
+        // A requested outcome can never be a standardizer: `reaches` is reflexive, so an
+        // outcome that is itself a selection target lands in `relevant_selection`, and
+        // standardizing over it would emit P(y | do(x), y) and marginalize away the very
+        // quantity the query asks for. Such a diagram falls through to the S-admissible
+        // search and then to `NotCertified`.
+        let safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z))
+            && relevant_selection.iter().all(|z| {
+                let dz = dense(*z);
+                !treatments.iter().any(|x| graph.reaches(dense(*x), dz))
+                    && graph.parents(dz).is_empty()
+                    && graph.bidirected_neighbors(dz).is_empty()
+            });
         if safe_standardizers {
             let over: Arc<[VariableId]> = relevant_selection.clone().into();
             return Ok(TransportIdentification::Transportable {
@@ -563,6 +570,32 @@ mod tests {
             TransportFormula::Standardize { over, .. }
                 if *over == [VariableId::from_raw(1)]
         ));
+    }
+
+    #[test]
+    fn outcome_as_selection_target_is_never_standardized_over() {
+        // Y itself is the population-varying mechanism. Reachability is reflexive, so Y
+        // lands in the relevant-selection set; the standardize tier used to accept it and
+        // emit P_trial(y | do(x), y) summed over y — a degenerate factor that marginalizes
+        // away the requested outcome. The correct reading of this diagram is the
+        // c-component factorization, which takes Y's factor from the target population.
+        let outcome = VariableId::from_raw(2);
+        let graph = Admg::with_variables(3);
+        let diagram = SelectionDiagram::try_new(graph, [outcome]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
+        let TransportIdentification::Transportable { formula, certificate } = &result else {
+            return; // Refusal is also an acceptable answer; the degenerate formula is not.
+        };
+        assert_eq!(&*certificate.rule, "transport.sid.singleton_c_components");
+        match formula {
+            TransportFormula::Standardize { over, .. } => {
+                panic!("standardized over {over:?}, which includes the requested outcome")
+            }
+            TransportFormula::RecursiveFactorization { sum_out, .. } => {
+                assert!(!sum_out.contains(&outcome), "the requested outcome was marginalized away");
+            }
+            TransportFormula::Direct(_) => panic!("a varying outcome mechanism is not direct"),
+        }
     }
 
     #[test]

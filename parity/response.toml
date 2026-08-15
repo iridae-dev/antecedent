@@ -52,6 +52,12 @@ python_facade = "thin"
 notes = "Paper-equation IPW/AIPW and overlap fixture is frozen and consumed. External candidates generalize/GRF still lack an immutable exact-contract pin, so external parity remains pending."
 
 [[capabilities]]
+id = "estimate.transport_response_grid"
+status = "pending"
+python_facade = "none"
+notes = "Rust-only primitive (antecedent_estimate::transport_augmented_response_grid): evaluates a caller-supplied augmented transported response equation on a grid. The composition of Dahabreh DR1 with a grid-local source correction is not a published estimator, so no external oracle exists to claim parity against; the two component equations are cited in provenance/estimate.transport_response_grid.toml."
+
+[[capabilities]]
 id = "estimate.observation_km_ipcw"
 status = "pending"
 python_facade = "thin"

@@ -179,6 +179,7 @@ class TransportIdentificationResult:
     factor_interventions: list[list[str]]
 
 class TrialTransportResult:
+    rule: str
     ipw: float
     aipw: float | None
     selection_probability_min: float
@@ -954,6 +955,7 @@ def identify_transport(
     weighting: str = "observed",
 ) -> TransportIdentificationResult: ...
 def estimate_trial_transport(
+    identification: TransportIdentificationResult,
     outcome: NDArray[np.float64],
     treatment: list[bool],
     trial: list[bool],
@@ -1000,6 +1002,7 @@ def observation_adjusted_outcome(
     correction: str = "aipw",
     observation_probability_floor: float = 0.01,
     censoring_survival_floor: float = 0.01,
+    crossfit_folds: int = 5,
 ) -> ObservationAdjustedOutcomeResult: ...
 def analyze_observation_response(
     names: list[str],
@@ -1024,6 +1027,7 @@ def analyze_observation_response(
     correction: str = "aipw",
     observation_probability_floor: float = 0.01,
     censoring_survival_floor: float = 0.01,
+    crossfit_folds: int = 5,
 ) -> ObservationResponseResult: ...
 def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
     """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
@@ -2096,4 +2100,4 @@ def encode_causal_artifact(
     payload_json: str,
     artifact_id: str,
 ) -> bytes: ...
-def decode_causal_artifact(bytes: bytes | list[int]) -> DecodedCausalArtifact: ...
+def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...

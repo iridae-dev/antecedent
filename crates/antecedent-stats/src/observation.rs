@@ -21,6 +21,35 @@ pub struct ObservationProbabilityFit {
     pub probability_floor: f64,
 }
 
+impl ObservationProbabilityFit {
+    /// Observation probability for one covariate row, clipped to this fit's floor.
+    ///
+    /// `covariates` excludes the intercept and is ordered as at fit time. This exists so a
+    /// caller can evaluate the model on rows it was not fit on, which is what cross-fitting
+    /// requires; [`Self::probabilities`] are in-sample by construction and must not be
+    /// reused for held-out rows.
+    ///
+    /// # Errors
+    ///
+    /// The row length does not match the fitted coefficients.
+    pub fn probability_at(&self, covariates: &[f64]) -> Result<f64, StatsError> {
+        if covariates.len() + 1 != self.coefficients.len() {
+            return Err(StatsError::Shape {
+                message: "observation probability row does not match the fitted coefficients",
+            });
+        }
+        let eta = self.coefficients[0]
+            + self.coefficients[1..]
+                .iter()
+                .zip(covariates)
+                .map(|(beta, value)| beta * value)
+                .sum::<f64>();
+        Ok(GlmFamily::BinomialLogit
+            .mean_from_eta(eta)
+            .clamp(self.probability_floor, 1.0 - self.probability_floor))
+    }
+}
+
 /// Fit `P(R=1 | X)` by logistic regression.
 ///
 /// `covariates_colmajor` excludes the intercept. Indicators must be exactly zero or one.

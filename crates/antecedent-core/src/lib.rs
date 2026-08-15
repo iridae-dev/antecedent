@@ -79,13 +79,14 @@ pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
-    ContinuousDomain, CounterfactualQuery, DerivativeScale, DerivativeWeighting, ExposureLevel,
-    ExposureMapping, GridSpec, InterferenceFunctional, InterferenceQuery,
-    InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM, MechanismChangeQuery,
-    MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
-    PathSpecificEffectQuery, PopulationRegistry, PopulationSelection, PopulationSelector,
-    PredicateExpr, QueryError, ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode,
-    TargetPopulation, TemporalEffectQuery, TransportQuery, UnitChangeQuery,
+    ContinuousDomain, CounterfactualQuery, DerivativeScale, DerivativeWeighting,
+    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
+    InterferenceQuery, InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM,
+    MechanismChangeQuery, MediationContrast, MediationQuery, ObservationAssumption,
+    ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery, PopulationRegistry,
+    PopulationSelection, PopulationSelector, PredicateExpr, QueryError, ResponseFunctional,
+    ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery,
+    TransportQuery, UnitChangeQuery,
 };
 pub use response::{
     CausalResponse, IdentifiedSet, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,

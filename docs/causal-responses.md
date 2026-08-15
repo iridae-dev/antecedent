@@ -174,7 +174,9 @@ first. This example deliberately declares conditional censoring; the current
 marginal Kaplan–Meier IPCW estimator refuses it because its licensed contract
 requires `IndependentGiven([])`. Selected-outcome AIPW and *unconditional*
 right/left-censoring IPCW can be composed into a `ResponseCurve` when their
-explicit assumption contract is satisfied. These paths return a point curve with
+explicit assumption contract is satisfied. Selected-outcome AIPW cross-fits both
+its nuisance models, and refuses a fold whose training rows cannot support them
+rather than falling back to an in-sample fit. These paths return a point curve with
 `uncertainty.kind == "none"`
 and a `joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint

@@ -29,7 +29,8 @@ pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use interference::{
-    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+    AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
+    InterferenceFunctional, InterferenceQuery,
 };
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use population::{PopulationRegistry, PopulationSelection};

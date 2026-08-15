@@ -6,6 +6,7 @@ use antecedent_io::{
     encode_causal_payload_artifact,
 };
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -98,18 +99,22 @@ fn payload_json(payload: &CausalPayloadWire) -> PyResult<String> {
 }
 
 #[pyfunction]
-fn encode_causal_artifact(
+fn encode_causal_artifact<'py>(
+    py: Python<'py>,
     payload_kind: &str,
     variable_names: Vec<String>,
     payload_json: &str,
     artifact_id: &str,
-) -> PyResult<Vec<u8>> {
+) -> PyResult<Bound<'py, PyBytes>> {
     let payload = parse_payload(payload_kind, payload_json)?;
     let artifact = encode_causal_payload_artifact(&payload, variable_names, artifact_id)
         .map_err(serialization_error)?;
     let mut bytes = Vec::new();
     artifact.write_to(&mut bytes).map_err(serialization_error)?;
-    Ok(bytes)
+    // Return real Python `bytes`, not the `list[int]` PyO3 would produce from
+    // a bare `Vec<u8>` return type -- callers (and the `antecedent.artifacts`
+    // wire format) depend on `isinstance(..., bytes)`.
+    Ok(PyBytes::new(py, &bytes))
 }
 
 #[pyfunction]

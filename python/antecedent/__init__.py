@@ -17,9 +17,9 @@ else lives in a stage module and is reached through it:
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
 ``antecedent.estimators``, ``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.interference``, ``antecedent.observation``,
-``antecedent.priors``, ``antecedent.state``, ``antecedent.transport``, and
-``antecedent.validation``.
+``antecedent.graph``, ``antecedent.interference``, ``antecedent.intervention``,
+``antecedent.observation``, ``antecedent.priors``, ``antecedent.state``,
+``antecedent.transport``, and ``antecedent.validation``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -32,6 +32,11 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+# `artifacts` belongs to the "reachable but deliberately outside `__all__`"
+# family described in the comment below; isort's alphabetical import
+# ordering just happens to place it ahead of the `__all__`-exported block
+# rather than next to its siblings.
+from . import artifacts as artifacts
 from . import (
     attribution,
     data,
@@ -54,6 +59,7 @@ from . import (
 # documented stage module, but its content (per-estimator dataclasses) has no
 # root-level re-export the way queries/selectors do, so it stays off
 # ``__all__`` alongside its siblings rather than being added to it.
+# (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
 from . import estimators as estimators
 from . import inference as inference

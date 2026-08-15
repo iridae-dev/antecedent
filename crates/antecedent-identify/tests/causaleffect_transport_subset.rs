@@ -116,3 +116,55 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
         );
     }
 }
+
+/// The fixture above only exercises the frozen causaleffect oracle, which we only ever
+/// invoked for cases inside Antecedent's certified sID subset (see the crate README).
+/// It therefore never checks the fail-closed `NotCertified` path, which is the entire
+/// point of the conservative design in `TransportIdentifier::identify`.
+///
+/// This test is NOT oracle-backed: fabricating a causaleffect expression for a case we
+/// never ran through the R package would misrepresent a black-box parity claim. Instead
+/// it constructs, directly in Rust, a selection diagram with a two-node c-component
+/// (`Z <-> Y` with `Z` also a directed parent of `Y`) whose relevant selection node `Z`
+/// reaches the outcome `Y`. This lies outside every implemented sound rule:
+/// - not `transport.sid.direct` (selection reaches the outcome);
+/// - not `transport.sid.standardize` (the standardizer `Z` has a bidirected neighbor,
+///   so it is not an exogenous singleton district);
+/// - not `transport.sid.s_admissible` (Z and Y share a district, so no subset of
+///   standardizers m-separates the outcome from the selection node);
+/// - not `transport.sid.singleton_c_components` (the district containing Z and Y has
+///   two nodes, so `district_count < node_count`).
+///
+/// See `conformance/response/causaleffect_transport_subset/README.md` for what is and
+/// is not oracle-backed in this file.
+#[test]
+fn multinode_c_component_outside_certified_subset_is_not_certified() {
+    let nodes = ["X", "Z", "Y"];
+    let x = VariableId::from_raw(0);
+    let z = VariableId::from_raw(1);
+    let y = VariableId::from_raw(2);
+
+    let mut graph = Admg::with_variables(u32::try_from(nodes.len()).unwrap());
+    graph.insert_directed(dense(x), dense(y)).unwrap();
+    graph.insert_directed(dense(z), dense(y)).unwrap();
+    graph.insert_bidirected(dense(z), dense(y)).unwrap();
+
+    let diagram = SelectionDiagram::try_new(graph, [z]).unwrap();
+    let result = TransportIdentifier::new().identify(&diagram, &mean_curve_query(x, y)).unwrap();
+
+    match result {
+        TransportIdentification::NotCertified(cert) => {
+            assert_eq!(
+                &*cert.reason, "transport.sid.multinode_c_component_not_implemented",
+                "expected the general multi-node c-component refusal, got {}",
+                cert.reason
+            );
+        }
+        TransportIdentification::Transportable { .. } => {
+            panic!(
+                "diagram was constructed to fall outside every certified rule; \
+                 a Transportable result here would be an unsound (over-)claim"
+            );
+        }
+    }
+}

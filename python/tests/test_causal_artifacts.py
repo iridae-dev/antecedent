@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from antecedent import artifacts
+from antecedent._native import decode_causal_artifact, encode_causal_artifact
 
 
 def _response_query(functional: object) -> dict[str, object]:
@@ -111,6 +114,45 @@ def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: obje
             "query", payload, variable_names=["a", "y"], artifact_id="response-options"
         )
     ).payload == payload
+
+
+def test_native_encode_causal_artifact_returns_real_bytes() -> None:
+    """`encode_causal_artifact` must return Python `bytes`, not `list[int]`.
+
+    A bare PyO3 `Vec<u8>` return converts to `list[int]`, which is not what
+    the `bytes` return-type annotation promises and forced `artifacts.dumps`
+    to defensively wrap every call in `bytes(...)`. The Rust boundary now
+    returns real `PyBytes` directly.
+    """
+    payload = _response_query(
+        {"mean_curve": {"outcome": 1, "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}}}}
+    )
+    encoded = encode_causal_artifact(
+        "query",
+        ["a", "y"],
+        json.dumps(payload, allow_nan=False, separators=(",", ":")),
+        "response-query",
+    )
+    assert isinstance(encoded, bytes)
+    assert not isinstance(encoded, list)
+
+    decoded = decode_causal_artifact(encoded)
+    assert decoded.payload_kind == "query"
+    assert decoded.artifact_id == "response-query"
+
+
+def test_artifacts_dumps_round_trips_through_public_api_and_returns_bytes() -> None:
+    payload = _response_query(
+        {"mean_curve": {"outcome": 1, "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}}}}
+    )
+    encoded = artifacts.dumps(
+        "query", payload, variable_names=["a", "y"], artifact_id="response-query"
+    )
+    assert isinstance(encoded, bytes)
+
+    decoded = artifacts.loads(encoded)
+    assert decoded.payload == payload
+    assert decoded.artifact_id == "response-query"
 
 
 def test_transport_query_crosses_rust_and_python() -> None:

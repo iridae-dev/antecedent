@@ -102,7 +102,7 @@ struct ObservationArgs {
     censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01
+    censoring_survival_floor=0.01, crossfit_folds=5
 ))]
 #[allow(clippy::too_many_arguments)]
 fn observation_adjusted_outcome(
@@ -126,6 +126,7 @@ fn observation_adjusted_outcome(
     correction: &str,
     observation_probability_floor: f64,
     censoring_survival_floor: f64,
+    crossfit_folds: usize,
 ) -> PyResult<ObservationAdjustedOutcomeResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -156,6 +157,7 @@ fn observation_adjusted_outcome(
             selected_correction: correction,
             observation_probability_floor,
             censoring_survival_floor,
+            crossfit_folds,
         });
         let adjusted = estimator.adjusted_outcome(&data, &query, delayed_entry).map_err(py_err)?;
         Ok(ObservationAdjustedOutcomeResult {
@@ -172,7 +174,7 @@ fn observation_adjusted_outcome(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01
+    censoring_survival_floor=0.01, crossfit_folds=5
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_observation_response(
@@ -198,6 +200,7 @@ fn analyze_observation_response(
     correction: &str,
     observation_probability_floor: f64,
     censoring_survival_floor: f64,
+    crossfit_folds: usize,
 ) -> PyResult<ObservationResponseResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -253,10 +256,7 @@ fn analyze_observation_response(
             .adjustment_set
             .iter()
             .map(|id| {
-                names
-                    .get(id.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", id.raw()))
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
             })
             .collect();
         let delayed_entry = delayed_entry
@@ -268,6 +268,7 @@ fn analyze_observation_response(
                 selected_correction: correction,
                 observation_probability_floor,
                 censoring_survival_floor,
+                crossfit_folds,
             });
         let response = observation_estimator
             .estimate_mean_curve(

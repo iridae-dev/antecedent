@@ -4,7 +4,9 @@
 
 #![allow(clippy::cast_precision_loss)]
 
-use antecedent_core::{AssignmentDesign, CausalRng, ExposureLevel, ExposureMapping};
+use antecedent_core::{
+    AssignmentDesign, CausalRng, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
+};
 
 use crate::StatsError;
 
@@ -144,16 +146,30 @@ pub fn exposure_probabilities(
     if support_dim <= 20 {
         let mut sums = vec![0.0; n];
         let mut mass = 0.0;
+        // Capture (rather than swallow) the first real error from `exposures`: an invalid
+        // exposure mapping or network is a caller bug that should surface its own message, not
+        // get masked behind a misleading "empty support" error below.
+        let mut first_error: Option<StatsError> = None;
         enumerate_assignments(design, n, |assignment, p| {
-            if let Ok(levels) = exposures(assignment, incoming, mapping) {
-                for (i, actual) in levels.iter().enumerate() {
-                    if same_exposure(*actual, level) {
-                        sums[i] += p;
+            match exposures(assignment, incoming, mapping) {
+                Ok(levels) => {
+                    for (i, actual) in levels.iter().enumerate() {
+                        if same_exposure(*actual, level) {
+                            sums[i] += p;
+                        }
+                    }
+                    mass += p;
+                }
+                Err(err) => {
+                    if first_error.is_none() {
+                        first_error = Some(err);
                     }
                 }
-                mass += p;
             }
         })?;
+        if let Some(err) = first_error {
+            return Err(err);
+        }
         if mass <= 0.0 {
             return Err(StatsError::Backend("assignment design has empty support".into()));
         }
@@ -247,8 +263,15 @@ pub fn randomization_contrast(
     }
 }
 
+/// True when two [`ExposureLevel`] values name the same level.
+///
+/// This shares [`EXPOSURE_LEVEL_TOLERANCE`] with `InterferenceQuery::validate`, which rejects a
+/// `from`/`to` pair this close together before it ever reaches this matcher. If the two
+/// tolerances ever diverged, a pair validation calls "distinct" could still collapse onto the
+/// same unit set here and produce a zero contrast with no warning.
 fn same_exposure(a: ExposureLevel, b: ExposureLevel) -> bool {
-    (a.own - b.own).abs() <= 1e-12 && (a.neighbors - b.neighbors).abs() <= 1e-12
+    (a.own - b.own).abs() <= EXPOSURE_LEVEL_TOLERANCE
+        && (a.neighbors - b.neighbors).abs() <= EXPOSURE_LEVEL_TOLERANCE
 }
 
 fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError> {
@@ -396,6 +419,25 @@ mod tests {
         .unwrap();
         assert_eq!(result.method, ExposureProbabilityMethod::Exact);
         assert_eq!(result.probabilities, vec![0.25, 0.25]);
+    }
+
+    #[test]
+    fn exact_path_propagates_invalid_exposure_mapping_error() {
+        // A negative edge weight makes every call to `exposures` fail. Before the fix this
+        // error was swallowed by `if let Ok(...)`, and the caller instead saw a misleading
+        // "assignment design has empty support" error that hid the real cause.
+        let incoming = vec![vec![(0_usize, -1.0)], vec![]];
+        let design = AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) };
+        let err = exposure_probabilities(
+            &design,
+            &incoming,
+            &ExposureMapping::NeighborCount,
+            ExposureLevel { own: 1.0, neighbors: 0.0 },
+            10,
+            7,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("invalid incoming network edge"));
     }
 
     #[test]

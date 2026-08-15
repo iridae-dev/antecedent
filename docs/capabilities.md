@@ -144,8 +144,9 @@ certificates are outside the 0.5 transport contract.
   treatment dimensions);
 * additive-GAM g-computation for numeric hard, shift, and stochastic
   intervention responses;
-* selected-outcome IPW/AIPW and marginal right/left-censoring IPCW composed
-  into point-only response curves under explicit observation assumptions.
+* selected-outcome IPW and cross-fitted AIPW, plus marginal right/left-censoring
+  IPCW, composed into point-only response curves under explicit observation
+  assumptions.
 
 Response results keep structural identification, empirical support, and
 uncertainty kind as separate axes. Pointwise and simultaneous bands are not
