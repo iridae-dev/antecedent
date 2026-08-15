@@ -10,17 +10,21 @@ Every analysis is three verbs:
 - `analyze(data, graph=..., query=...)` — identify, then estimate, in one call.
 - `identify(graph=..., query=...)` — identify only; returns a staged
   `Identification` that can continue into `.estimate(data)` / `.validate(data)`
-  without recomputing identification from scratch.
+  while retaining the resolved strategy and query. The one-shot execution
+  pipeline deterministically rechecks identification before estimation.
 - `estimate(identification, data, ...)` — the module-level mirror of
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 41 names**: the three verbs
+The root namespace (`import antecedent`) is **frozen at 49 names for 0.5**: the three verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
 `ConditionalEffect`, `MediationEffect`, `Counterfactual`,
-`TemporalMediationEffect`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+`TemporalMediationEffect`) plus the eight response-family queries
+(`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
+`SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
+`InterventionResponse`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`); the two
 error names most callers catch (`CausalError`, `ReviewRequired`); the twelve stage
@@ -70,6 +74,12 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
 | Identify only (staged) | `Study::tabular(data)…build()?.identify_only()` | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
+| Continuous response | `ResponseQuery` / `ResponseFunctional` | `ResponseCurve` / `AverageDerivative` / `PointDerivative` / `Elasticity` / `SemiElasticity` |
+| Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
+| Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
+| Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
+| Structural transport | `TransportQuery` + `SelectionDiagram` | `antecedent.transport.TransportQuery` / `SelectionDiagram` |
+| Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` | `antecedent.interference` stage types |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |

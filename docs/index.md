@@ -39,6 +39,8 @@ single paste-and-run block with its real output shown. The Rust entry point is
 
 | Doc | Contents |
 |-----|----------|
+| [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
+| [Transport and interference](transport-interference.md) | Structural transport, trial generalization, randomized network exposure |
 | [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |

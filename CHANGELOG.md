@@ -5,6 +5,40 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.5.0
+
+Large causal-response release in progress. Package versions intentionally remain
+at 0.4.1 until the release gates and roadmap are accepted.
+
+### Added
+
+- Function-valued continuous response queries, average/point/directional
+  derivatives, elasticities, and low-dimensional Jacobians.
+- Kennedy-style doubly robust response-curve estimation, Riesz average
+  derivatives, explicit support diagnostics, and typed pointwise/simultaneous
+  uncertainty semantics.
+- Generic identified intervals/envelopes and sharp binary-IV Balke–Pearl
+  ATE bounds via response-type enumeration (Rust + Python
+  `antecedent.identify.binary_iv_bounds`). This is a contrast bound, not a
+  continuous-response curve estimator.
+- Explicit complete, censored, truncated, and selected observation mechanisms,
+  with assumptions kept separate from the recorded-data process.
+- Single-source selection diagrams, a sound certified subset of graphical
+  transport identification, and trial-to-target IPW/AIPW estimation.
+- Randomized interference queries decomposed into assignment design, exposure
+  mapping, and exposure contrast, with exact/seeded-Monte-Carlo probabilities
+  and Horvitz–Thompson/Hájek estimation.
+- Response artifact format 0.3 with migrations from formats 0.1 and 0.2.
+- Paper-level machine-readable provenance records and a 0.5 parity inventory.
+
+### Compatibility
+
+- Existing 0.4 query positional conventions are preserved: scalar response
+  queries use `(treatment, outcome)`, with options keyword-only.
+- New specialized observation, transport, and interference types live in stage
+  namespaces. Only day-one response query types are added to the Python root.
+- Cyclic/equilibrium models and multi-source meta-transport are not part of 0.5.
+
 ## [0.4.1] — 2026-07-30
 
 Patch release. One correctness fix on the identify-only path; no API removals,
