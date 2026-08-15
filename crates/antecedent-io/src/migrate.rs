@@ -59,6 +59,14 @@ pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact
 }
 
 fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, IoError> {
+    // The zip below pairs descriptors with section bytes positionally. If the two vectors
+    // disagree in length the tail is dropped silently, which would migrate part of an
+    // artifact and stamp the result as fully migrated.
+    if artifact.manifest.sections.len() != artifact.sections.len() {
+        return Err(IoError::Convert(
+            "artifact manifest section count does not match its section payloads".into(),
+        ));
+    }
     for (desc, sec) in artifact.manifest.sections.iter_mut().zip(artifact.sections.iter_mut()) {
         if desc.id == "schema" {
             // Prefer already-v2 decode (`variables`); else upgrade skinny v01 (`variable_names`).

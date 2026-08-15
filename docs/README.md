@@ -1,17 +1,25 @@
 # Documentation
 
+Antecedent’s narrative docs. The identification-first engine covers contrasts and
+continuous causal responses; observation, transport, and interference stay
+explicit stage contracts. Package versions remain 0.4.1 until 0.5.0 is accepted.
+
 | Doc | Contents |
 |-----|----------|
 | [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
 | [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |
+| [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
+| [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange |
+| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (including response format 0.3) |
 | [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
 | [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [0.5.0 release notes (draft)](release-notes/v0.5.0.md) | Causal-response release draft |
+| [Roadmap](../ROADMAP.md) | Post-0.5 path to 1.0 and after |
 
 Decisions: [adr/](../adr/README.md).
 

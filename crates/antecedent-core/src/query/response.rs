@@ -11,6 +11,15 @@ use super::QueryError;
 /// Maximum treatment dimension for an explicitly gridded non-parametric surface.
 pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
 
+/// Maximum number of points a [`GridSpec::Linspace`] may materialize.
+///
+/// `GridSpec::values` previously only checked that `points` fit in a `u32`, so e.g.
+/// `Linspace { points: 4_000_000_000 }` passed validation and then tried to allocate a
+/// multi-gigabyte `Vec<f64>` (8 bytes/point). This cap keeps materialization bounded to
+/// something a caller could plausibly intend as an evaluation grid; 1,000,000 points is already
+/// far beyond what any of this crate's response/derivative estimators need per grid.
+pub const MAX_MATERIALIZED_GRID_POINTS: usize = 1_000_000;
+
 /// Points at which a continuous response is evaluated.
 #[derive(Clone, Debug, PartialEq)]
 pub enum GridSpec {
@@ -71,6 +80,11 @@ impl GridSpec {
                 if !start.is_finite() || !end.is_finite() || start >= end || *points < 2 {
                     return Err(QueryError::InvalidResponse(
                         "linspace requires finite start < end and at least two points".into(),
+                    ));
+                }
+                if *points > MAX_MATERIALIZED_GRID_POINTS {
+                    return Err(QueryError::InvalidResponse(
+                        "linspace point count is too large to materialize".into(),
                     ));
                 }
             }
@@ -410,4 +424,40 @@ fn response_sets_are_distinct(outcomes: &[VariableId], treatments: &[VariableId]
     !outcomes.is_empty()
         && !treatments.is_empty()
         && !outcomes.iter().any(|outcome| treatments.contains(outcome))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linspace_within_cap_validates_and_materializes() {
+        let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: 5 };
+        assert!(grid.validate().is_ok());
+        assert_eq!(grid.values().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn linspace_beyond_materialization_cap_is_rejected() {
+        // Before the fix, only `u32::try_from(points)` was checked, so a huge-but-u32-valid
+        // point count (here, well over MAX_MATERIALIZED_GRID_POINTS but still far under
+        // u32::MAX) would sail through validation and then try to allocate an
+        // unreasonably large `Vec<f64>`.
+        let grid =
+            GridSpec::Linspace { start: 0.0, end: 1.0, points: MAX_MATERIALIZED_GRID_POINTS + 1 };
+        let err = grid.validate().unwrap_err();
+        assert!(matches!(err, QueryError::InvalidResponse(_)));
+        assert!(grid.values().is_err());
+    }
+
+    #[test]
+    fn linspace_point_count_far_beyond_u32_capacity_is_still_rejected_by_the_cap() {
+        // Guards the original bug report directly: a `points` value so large the old
+        // `u32::try_from` guard alone would have rejected it, but only after already deciding
+        // the input was otherwise well-formed. The size cap must reject it first and for the
+        // documented "too large to materialize" reason.
+        let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: 4_000_000_000 };
+        let err = grid.validate().unwrap_err();
+        assert!(matches!(err, QueryError::InvalidResponse(_)));
+    }
 }

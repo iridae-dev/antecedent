@@ -22,6 +22,13 @@ set the package release version.
   schema upgrade remains in place; 0.2 section payloads pass through unchanged.
 - Validate decoded response queries and reject integer-size overflows rather than
   silently truncating them.
+- Treat a response envelope as the payload of a partially identified response and
+  of nothing else, and let it be *coordinate-free* (`dimension = 0`, empty grid)
+  so that the identified set of a scalar or vector functional — a binary-IV ATE
+  bound, for instance — is representable. A Jacobian envelope is deliberately
+  excluded: the envelope wire carries no outcome/treatment extents, so its rows
+  could only be validated against a row-major convention this format has never
+  stated. Adding one needs its own wire shape.
 
 ## Consequences
 

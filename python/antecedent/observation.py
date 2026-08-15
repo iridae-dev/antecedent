@@ -168,7 +168,6 @@ def adjusted_outcome(
     treatment, outcome, mechanism, assumption = _stage_inputs(query)
     names, columns = as_columns(data)
     names, columns = _ensure_latent_schema_column(names, columns, mechanism)
-    names, columns = _ensure_latent_schema_column(names, columns, mechanism)
     kwargs = _mechanism_kwargs(mechanism)
     kwargs.update(_assumption_kwargs(assumption))
     raw = cast(Any, _observation_adjusted_outcome)(
@@ -209,7 +208,6 @@ def gaussian_log_likelihood(
             "Structural('gaussian_observation_likelihood')"
         )
     names, columns = as_columns(data)
-    names, columns = _ensure_latent_schema_column(names, columns, mechanism)
     names, columns = _ensure_latent_schema_column(names, columns, mechanism)
     kwargs = _mechanism_kwargs(mechanism)
     kwargs.update(_assumption_kwargs(assumption))

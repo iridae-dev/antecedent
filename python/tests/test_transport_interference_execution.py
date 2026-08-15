@@ -54,8 +54,22 @@ def test_transport_refuses_embedded_response_semantics_it_cannot_preserve() -> N
         )
 
 
+def _certified_direct_identification() -> transport.TransportIdentification:
+    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
+    query = transport.TransportQuery(
+        antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+        transport.SelectionDiagram("trial", "target", []),
+        source_experiments=["a"],
+    )
+    return transport.identify(graph=graph, query=query)
+
+
 def test_trial_transport_keeps_selection_and_treatment_overlap_separate() -> None:
+    identification = _certified_direct_identification()
+    assert identification.transportable
+
     result = transport.estimate_trial_effect(
+        identification,
         [False, True, False, False],
         [1.0, 3.0, 0.0, 0.0],
         [True, True, False, False],
@@ -65,10 +79,33 @@ def test_trial_transport_keeps_selection_and_treatment_overlap_separate() -> Non
         mu1=[3.0] * 4,
     )
 
+    assert result.rule == identification.certificate.rule
     assert result.ipw == pytest.approx(2.0)
     assert result.aipw == pytest.approx(2.0)
     assert result.overlap.selection.probability_min == 0.5
     assert result.overlap.treatment.probability_min == 0.5
+
+
+def test_trial_transport_refuses_uncertified_identification() -> None:
+    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
+    query = transport.TransportQuery(
+        antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+        transport.SelectionDiagram("trial", "target", []),
+        # No source_experiments: identify() cannot certify a formula, so this
+        # NotCertified result must not be usable to obtain an estimate.
+    )
+    identification = transport.identify(graph=graph, query=query)
+    assert not identification.transportable
+
+    with pytest.raises(antecedent.errors.CausalEstimateError):
+        transport.estimate_trial_effect(
+            identification,
+            [False, True, False, False],
+            [1.0, 3.0, 0.0, 0.0],
+            [True, True, False, False],
+            [0.5] * 4,
+            [0.5] * 4,
+        )
 
 
 def test_randomized_interference_matches_empty_network_difference() -> None:

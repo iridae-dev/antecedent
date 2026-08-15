@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release gate (local / slow path — not run in CI).
+# Release gate (also run in CI on every PR via the `gates` job).
 #
 # Inventory honesty, docs, artifacts, security, Criterion smokes, and prior
 # feature gates. CI only runs fmt + clippy + cargo test --workspace (+ DCO).
@@ -68,6 +68,7 @@ for manifest in [
     "parity/design_state.toml",
     "parity/gcm.toml",
     "parity/attribution.toml",
+    "parity/response.toml",
 ]:
     for c in caps(Path(manifest)):
         if c["status"] == "intentional_deviation":

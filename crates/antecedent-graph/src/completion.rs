@@ -38,6 +38,12 @@ pub struct CompletionValidationReport {
     pub rejected_local_incompatible: u64,
     /// Whether locally compatible MAGs represented more than one global Markov class.
     pub ambiguous_global_class: bool,
+    /// Whether the global m-separation class audit was skipped as too expensive.
+    ///
+    /// Local validity (ancestral, maximal, collider-preserving) still holds for every
+    /// yielded completion, but they have not been proved to share one Markov class, so
+    /// no caller may conclude a class-wide property from them.
+    pub equivalence_audit_skipped: bool,
     /// Number of verified members of the single represented class (before the yield cap).
     pub represented_completions: usize,
 }
@@ -61,9 +67,10 @@ impl CompletionSampler {
     ///
     /// # Errors
     ///
-    /// More than 16 circle endpoints, or more than 12 nodes when circles require an
-    /// exact equivalence-class audit.  These conservative bounds make refusal explicit
-    /// instead of silently validating only a prefix.
+    /// More than 16 circle endpoints: the endpoint-assignment space is enumerated
+    /// exhaustively, so refusal is explicit instead of silently validating a prefix.
+    /// A graph too large for the *global* equivalence audit is not refused — the audit is
+    /// skipped and recorded in [`CompletionValidationReport::equivalence_audit_skipped`].
     #[allow(clippy::needless_pass_by_value)] // preserve the established constructor API
     pub fn new(pag: Pag, max_completions: usize) -> Result<Self, GraphError> {
         let mut sites = Vec::new();
@@ -87,27 +94,26 @@ impl CompletionSampler {
                 message: "PAG completion audit supports at most 16 circle endpoints",
             });
         }
-        if !sites.is_empty() && pag.node_count() > MAX_EQUIVALENCE_NODES {
-            return Err(GraphError::InvalidEndpoints {
-                message: "PAG completion equivalence audit supports at most 12 nodes",
-            });
-        }
-
         let total = 1u64 << sites.len();
-        if !sites.is_empty() {
+        // The global m-separation signature costs one d-separation query per node pair per
+        // conditioning subset, so it is exponential in node count where the assignment
+        // enumeration above is only exponential in circle sites. Refusing the whole graph on
+        // that basis would withdraw a capability from every PAG past 12 nodes. Instead the
+        // audit is skipped and recorded: local validation still runs, and callers that would
+        // otherwise assert a class-wide property must downgrade on this flag.
+        let audit_class = sites.is_empty() || {
             let n = pag.node_count() as u128;
             let conditioning_sets = 1u128 << pag.node_count().saturating_sub(2);
             let queries = u128::from(total)
                 .saturating_mul(n.saturating_mul(n.saturating_sub(1)) / 2)
                 .saturating_mul(conditioning_sets);
-            if queries > MAX_EQUIVALENCE_QUERIES {
-                return Err(GraphError::InvalidEndpoints {
-                    message: "PAG completion exact equivalence audit exceeds 2000000 queries",
-                });
-            }
-        }
-        let mut report =
-            CompletionValidationReport { assignments_examined: total, ..Default::default() };
+            pag.node_count() <= MAX_EQUIVALENCE_NODES && queries <= MAX_EQUIVALENCE_QUERIES
+        };
+        let mut report = CompletionValidationReport {
+            assignments_examined: total,
+            equivalence_audit_skipped: !audit_class,
+            ..Default::default()
+        };
         let mut completions = Vec::new();
         let mut represented_completions = 0usize;
         let mut reference_signature = None;
@@ -124,15 +130,17 @@ impl CompletionSampler {
                 report.rejected_local_incompatible += 1;
                 continue;
             }
-            let signature =
-                if sites.is_empty() { Vec::new() } else { m_separation_signature(&candidate) };
-            if let Some(reference) = &reference_signature {
-                if reference != &signature {
-                    report.ambiguous_global_class = true;
-                    continue;
+            if audit_class {
+                let signature =
+                    if sites.is_empty() { Vec::new() } else { m_separation_signature(&candidate) };
+                if let Some(reference) = &reference_signature {
+                    if reference != &signature {
+                        report.ambiguous_global_class = true;
+                        continue;
+                    }
+                } else {
+                    reference_signature = Some(signature);
                 }
-            } else {
-                reference_signature = Some(signature);
             }
             represented_completions += 1;
             if completions.len() < max_completions {
@@ -171,6 +179,17 @@ impl CompletionSampler {
     #[must_use]
     pub const fn validation_report(&self) -> CompletionValidationReport {
         self.report
+    }
+
+    /// Whether the yielded completions are unproved as one Markov equivalence class.
+    ///
+    /// True when the global audit was skipped as too expensive. Callers concluding a
+    /// property "for every member of the class" must treat this exactly like
+    /// [`Self::hit_cap`]: the yielded set is locally valid but not certified to be the
+    /// class, so a class-wide claim is unearned.
+    #[must_use]
+    pub const fn class_audit_incomplete(&self) -> bool {
+        self.report.equivalence_audit_skipped
     }
 
     /// Whether more verified class members exist than the retained/yielded prefix.
@@ -499,14 +518,32 @@ mod tests {
     }
 
     #[test]
-    fn refuses_equivalence_audits_above_work_bound() {
+    fn skips_rather_than_refuses_equivalence_audits_above_work_bound() {
+        // Refusing here would withdraw completion enumeration from every graph past the
+        // audit's exponential budget. The completions are still locally validated; what is
+        // lost is the proof that they form a single Markov class, and that loss is recorded
+        // so a caller cannot assert a class-wide property from them.
         let mut pag = Pag::with_variables(12);
         for (left, right) in [(0, 1), (2, 3), (4, 5)] {
             pag.insert_circle_circle(DenseNodeId::from_raw(left), DenseNodeId::from_raw(right))
                 .unwrap();
         }
-        let error = CompletionSampler::new(pag, 8).unwrap_err();
-        assert!(error.to_string().contains("exceeds 2000000 queries"));
+        let sampler = CompletionSampler::new(pag, 8).unwrap();
+        assert!(sampler.class_audit_incomplete());
+        assert!(sampler.validation_report().equivalence_audit_skipped);
+        assert!(!sampler.validation_report().ambiguous_global_class);
+        assert!(sampler.count() > 0, "locally valid completions are still yielded");
+    }
+
+    #[test]
+    fn wide_pags_with_circle_marks_are_not_refused_outright() {
+        // A 13-node PAG with a single circle mark exceeds the equivalence-audit node bound.
+        // It must still enumerate, flagged, rather than error the caller out entirely.
+        let mut pag = Pag::with_variables(13);
+        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let sampler = CompletionSampler::new(pag, 8).unwrap();
+        assert!(sampler.class_audit_incomplete());
+        assert!(sampler.count() > 0);
     }
 
     fn random_pag_with_circles(rng: &mut antecedent_core::CausalRng, n: u32) -> Pag {

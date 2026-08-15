@@ -73,6 +73,17 @@ impl super::Study {
             DiagnosticSeverity::Info,
             "scalar ATE refuters are not applicable to a function-valued response",
         ));
+        if !scalar.is_finite() {
+            // `result.effect` exists for every plan, but a curve, vector, Jacobian or
+            // identified set has no scalar reading. The NaN is a "not applicable", not a
+            // failed computation, and the caller must read `result.response` instead.
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.no_scalar_summary",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "this response is function-valued or not point identified; the scalar effect summary is not applicable and the result is carried by the response payload",
+            ));
+        }
         for warning in &response.support.warnings {
             diagnostics.push(warning.clone());
         }

@@ -142,15 +142,33 @@ impl GeneralizedAdjustmentIdentifier {
             detail: Arc::from(format!(
                 "exhaustively audited {} endpoint assignment(s): represented={}, \
                  rejected_non_ancestral={}, rejected_nonmaximal={}, \
-                 rejected_local_incompatible={}, ambiguous_global_class={}",
+                 rejected_local_incompatible={}, ambiguous_global_class={}, \
+                 equivalence_audit_skipped={}",
                 validation.assignments_examined,
                 validation.represented_completions,
                 validation.rejected_non_ancestral,
                 validation.rejected_nonmaximal,
                 validation.rejected_local_incompatible,
                 validation.ambiguous_global_class,
+                validation.equivalence_audit_skipped,
             )),
         }]);
+        // The global class audit is exponential in node count and is skipped on larger
+        // graphs. Local validity still holds for every case, but "identified in every
+        // member of the equivalence class" is exactly the claim the skipped audit would
+        // have supported, so it is downgraded here rather than asserted.
+        if sampler.class_audit_incomplete() {
+            envelope.push_features([GraphFeature {
+                kind: Arc::from("completion_equivalence_audit_skipped"),
+                detail: Arc::from(
+                    "the global m-separation equivalence audit was too expensive for this graph; \
+                     completions are locally valid but not certified to form one Markov class",
+                ),
+            }]);
+            if envelope.status == IdentificationStatus::NonparametricallyIdentified {
+                envelope.status = IdentificationStatus::PartiallyIdentified;
+            }
+        }
         // `NonparametricallyIdentified` on this path asserts identification for *every* member
         // of the equivalence class. When the sampler hit its retention cap, identification
         // ran only on a deterministic low-mask prefix, so the assertion is unearned — a

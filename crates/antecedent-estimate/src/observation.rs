@@ -38,6 +38,11 @@ pub struct ObservationEstimatorOptions {
     pub observation_probability_floor: f64,
     /// Floor for estimated censoring survival.
     pub censoring_survival_floor: f64,
+    /// Deterministic row-index folds for augmented-path nuisance cross-fitting.
+    ///
+    /// Used by [`SelectedOutcomeCorrection::Aipw`] only; see [`ObservationMechanismEstimator`]
+    /// for why the inverse-probability path keeps its in-sample fit.
+    pub crossfit_folds: usize,
 }
 
 impl Default for ObservationEstimatorOptions {
@@ -46,8 +51,15 @@ impl Default for ObservationEstimatorOptions {
             selected_correction: SelectedOutcomeCorrection::Aipw,
             observation_probability_floor: 0.01,
             censoring_survival_floor: 0.01,
+            crossfit_folds: 5,
         }
     }
+}
+
+/// Out-of-fold selected-outcome nuisances, one prediction per source row.
+struct CrossFittedSelectedNuisances {
+    probabilities: Vec<f64>,
+    outcome_predictions: Vec<f64>,
 }
 
 /// Pseudo-outcome representation produced by a supported observation mechanism.
@@ -87,6 +99,16 @@ impl ObservationMechanismEstimator {
     /// conditional-independence set because this implementation uses an unconditional
     /// Kaplan–Meier censoring distribution. `delayed_entry` is supported for right censoring;
     /// left censoring with delayed entry and interval censoring/truncation are refused here.
+    ///
+    /// Under [`SelectedOutcomeCorrection::Aipw`] both nuisances are cross-fit over
+    /// `crossfit_folds` deterministic row-index folds, so no row's pseudo-value is built
+    /// from a model that saw it — the sample-splitting condition the AIPW double-robustness
+    /// argument assumes. A fold that cannot support either model is refused, never silently
+    /// refit in sample. [`SelectedOutcomeCorrection::Ipw`] deliberately keeps its in-sample
+    /// maximum-likelihood propensity, which is the published estimator.
+    ///
+    /// Cross-fitting removes the in-sample nuisance bias; it does not by itself license an
+    /// interval, and this path still publishes no standard error.
     ///
     /// # Errors
     ///
@@ -265,6 +287,7 @@ impl ObservationMechanismEstimator {
             || !(0.0..0.5).contains(&self.options.observation_probability_floor)
             || !self.options.censoring_survival_floor.is_finite()
             || !(0.0..1.0).contains(&self.options.censoring_survival_floor)
+            || self.options.crossfit_folds < 2
         {
             return Err(EstimationError::unsupported("invalid observation-estimator options"));
         }
@@ -297,30 +320,37 @@ impl ObservationMechanismEstimator {
                 method: Arc::from("observation.selected.complete_collapse.v1"),
             });
         }
-        let fit = fit_observation_logistic(
-            &indicator,
-            &covariates,
-            conditioning.len(),
-            self.options.observation_probability_floor,
-        )?;
-        let outcome_predictions = match self.options.selected_correction {
-            SelectedOutcomeCorrection::Ipw => None,
-            SelectedOutcomeCorrection::Aipw => Some(fit_selected_outcome_regression(
-                &observed,
-                &indicator,
-                &covariates,
-                conditioning.len(),
-            )?),
+        let (probabilities, outcome_predictions) = match self.options.selected_correction {
+            // Plain IPW keeps the in-sample maximum-likelihood propensity. That is the
+            // published estimator, and estimating the propensity in sample is what makes it
+            // efficient — cross-fitting here would deviate from the citation to no end.
+            SelectedOutcomeCorrection::Ipw => {
+                let fit = fit_observation_logistic(
+                    &indicator,
+                    &covariates,
+                    conditioning.len(),
+                    self.options.observation_probability_floor,
+                )?;
+                (fit.probabilities, None)
+            }
+            // The augmented path is where sample splitting earns its keep: the AIPW
+            // double-robustness and asymptotic-linearity arguments assume the nuisances were
+            // not fit on the row they are evaluated at.
+            SelectedOutcomeCorrection::Aipw => {
+                let nuisances =
+                    self.crossfit_selected_nuisances(&observed, &indicator, &covariates)?;
+                (nuisances.probabilities, Some(nuisances.outcome_predictions))
+            }
         };
         let values = selected_outcome_pseudo_values(
             &observed,
             &indicator,
-            &fit.probabilities,
+            &probabilities,
             outcome_predictions.as_deref(),
         )?;
         let weights = indicator
             .iter()
-            .zip(&fit.probabilities)
+            .zip(&probabilities)
             .map(|(&r, &p)| if r == 1.0 { 1.0 / p } else { 0.0 })
             .collect();
         Ok(ObservationAdjustedOutcome {
@@ -328,9 +358,72 @@ impl ObservationMechanismEstimator {
             weights,
             method: Arc::from(match self.options.selected_correction {
                 SelectedOutcomeCorrection::Ipw => "observation.selected.logistic_ipw.v1",
-                SelectedOutcomeCorrection::Aipw => "observation.selected.logistic_aipw.v1",
+                SelectedOutcomeCorrection::Aipw => "observation.selected.crossfit_logistic_aipw.v1",
             }),
         })
+    }
+
+    /// Fit both selected-outcome nuisances out of fold.
+    ///
+    /// Folds are the deterministic row-index folds used elsewhere in this crate. Every row
+    /// receives a probability and an outcome prediction from a model fit without it. A fold
+    /// whose training rows cannot support either model is refused rather than quietly
+    /// falling back to an in-sample fit, which would reintroduce exactly the bias the
+    /// splitting removes.
+    fn crossfit_selected_nuisances(
+        &self,
+        observed: &[f64],
+        indicator: &[f64],
+        covariates: &[f64],
+    ) -> Result<CrossFittedSelectedNuisances, EstimationError> {
+        let n = indicator.len();
+        let folds = self.options.crossfit_folds;
+        let ncols = if n == 0 { 0 } else { covariates.len() / n };
+        if folds > n {
+            return Err(EstimationError::unsupported(
+                "cross-fitting folds cannot exceed observed rows",
+            ));
+        }
+        let mut probabilities = vec![f64::NAN; n];
+        let mut outcome_predictions = vec![f64::NAN; n];
+        for fold in 0..folds {
+            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
+            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+            if valid.is_empty() {
+                continue;
+            }
+            let train_indicator: Vec<f64> = train.iter().map(|&i| indicator[i]).collect();
+            let train_covariates = subset_colmajor(covariates, n, ncols, &train);
+            let fit = fit_observation_logistic(
+                &train_indicator,
+                &train_covariates,
+                ncols,
+                self.options.observation_probability_floor,
+            )
+            .map_err(|_| {
+                EstimationError::unsupported(
+                    "a cross-fitting fold cannot support the observation model; reduce crossfit_folds or supply more rows covering both observed and unobserved outcomes",
+                )
+            })?;
+            let train_observed: Vec<f64> = train.iter().map(|&i| observed[i]).collect();
+            let coefficients = fit_selected_outcome_regression(
+                &train_observed,
+                &train_indicator,
+                &train_covariates,
+                ncols,
+            )?;
+            for &row in &valid {
+                let features = covariate_row(covariates, n, ncols, row);
+                probabilities[row] = fit.probability_at(&features)?;
+                outcome_predictions[row] = predict_linear(&coefficients, &features);
+            }
+        }
+        if probabilities.iter().chain(&outcome_predictions).any(|value| !value.is_finite()) {
+            return Err(EstimationError::unsupported(
+                "cross-fitted observation nuisances produced a non-finite prediction",
+            ));
+        }
+        Ok(CrossFittedSelectedNuisances { probabilities, outcome_predictions })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -453,6 +546,32 @@ fn read_complete_columns(
     Ok(values)
 }
 
+/// Column-major covariates for a subset of rows, preserving column order.
+fn subset_colmajor(covariates: &[f64], n: usize, ncols: usize, rows: &[usize]) -> Vec<f64> {
+    let mut out = vec![0.0; rows.len() * ncols];
+    for col in 0..ncols {
+        for (position, &row) in rows.iter().enumerate() {
+            out[col * rows.len() + position] = covariates[col * n + row];
+        }
+    }
+    out
+}
+
+/// One row's covariate values, excluding the intercept.
+fn covariate_row(covariates: &[f64], n: usize, ncols: usize, row: usize) -> Vec<f64> {
+    (0..ncols).map(|col| covariates[col * n + row]).collect()
+}
+
+/// Linear prediction from an intercept-leading coefficient vector.
+fn predict_linear(coefficients: &[f64], features: &[f64]) -> f64 {
+    coefficients[0]
+        + coefficients[1..].iter().zip(features).map(|(beta, value)| beta * value).sum::<f64>()
+}
+
+/// Selected-outcome regression coefficients, intercept first.
+///
+/// Returns coefficients rather than fitted values so the caller decides which rows the model
+/// is evaluated on; returning in-sample predictions would make out-of-fold use impossible.
 fn fit_selected_outcome_regression(
     observed: &[f64],
     indicator: &[f64],
@@ -486,14 +605,7 @@ fn fit_selected_outcome_regression(
         &GlmOptions::default(),
     )?;
     fit.require_ok()?;
-    Ok((0..n)
-        .map(|row| {
-            fit.coefficients[0]
-                + (0..ncols)
-                    .map(|col| fit.coefficients[col + 1] * covariates[col * n + row])
-                    .sum::<f64>()
-        })
-        .collect())
+    Ok(fit.coefficients)
 }
 
 fn gaussian_observations(
@@ -586,6 +698,124 @@ mod tests {
             outcome,
             treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from([-0.1, 0.1]))),
         })
+    }
+
+    /// Selection depends on `x`, so a complete-case mean is biased and only a correction
+    /// that uses the observation model recovers `E[Y] = 2 + 3 E[x]`.
+    fn selection_biased_sample(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / (n - 1) as f64).collect();
+        let r: Vec<f64> =
+            x.iter().enumerate().map(|(i, &x)| f64::from(x > 0.25 || i % 3 == 0)).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .zip(&r)
+            .map(|(&x, &r)| if r == 1.0 { 2.0 + 3.0 * x } else { f64::NAN })
+            .collect();
+        (x, r, y)
+    }
+
+    fn selected_query() -> ResponseQuery {
+        response_query(VariableId::from_raw(1), VariableId::from_raw(0)).with_observation(
+            ObservationSpec::Selected {
+                latent: VariableId::from_raw(1),
+                observed: VariableId::from_raw(1),
+                indicator: VariableId::from_raw(2),
+            },
+            [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(3)]))],
+        )
+    }
+
+    fn selected_table(x: &[f64], y: &[f64], r: &[f64]) -> TabularData {
+        TabularData::from_f64_columns([("a", x), ("y", y), ("r", r), ("x", x)]).unwrap()
+    }
+
+    #[test]
+    fn selected_aipw_nuisances_are_fit_without_the_row_they_are_applied_to() {
+        // The property cross-fitting exists to provide. Row 0 falls in fold 0, so the
+        // probability used for it must come from a model fit on the rows outside fold 0 —
+        // not from the all-rows fit, which is what this path used to do.
+        let n = 100;
+        let (x, r, y) = selection_biased_sample(n);
+        let data = selected_table(&x, &y, &r);
+        let estimator = ObservationMechanismEstimator::default();
+        let adjusted = estimator.adjusted_outcome(&data, &selected_query(), None).unwrap();
+        assert_eq!(adjusted.method.as_ref(), "observation.selected.crossfit_logistic_aipw.v1");
+
+        let folds = estimator.options.crossfit_folds;
+        let train: Vec<usize> = (0..n).filter(|i| i % folds != 0).collect();
+        let train_indicator: Vec<f64> = train.iter().map(|&i| r[i]).collect();
+        let train_covariates: Vec<f64> = train.iter().map(|&i| x[i]).collect();
+        let out_of_fold = fit_observation_logistic(
+            &train_indicator,
+            &train_covariates,
+            1,
+            estimator.options.observation_probability_floor,
+        )
+        .unwrap()
+        .probability_at(&[x[0]])
+        .unwrap();
+
+        let in_sample =
+            fit_observation_logistic(&r, &x, 1, estimator.options.observation_probability_floor)
+                .unwrap()
+                .probabilities[0];
+
+        assert_eq!(r[0], 1.0, "row 0 must be selected for its weight to be 1/p");
+        let used = 1.0 / adjusted.weights[0];
+        assert!(
+            (used - out_of_fold).abs() < 1e-9,
+            "row 0 used p={used}, expected the out-of-fold p={out_of_fold}"
+        );
+        assert!(
+            (used - in_sample).abs() > 1e-12,
+            "out-of-fold and in-sample probabilities coincide; the test cannot tell them apart"
+        );
+    }
+
+    #[test]
+    fn crossfit_selected_aipw_recovers_the_latent_mean_under_biased_selection() {
+        let n = 150;
+        let (x, r, y) = selection_biased_sample(n);
+        let data = selected_table(&x, &y, &r);
+        let adjusted = ObservationMechanismEstimator::default()
+            .adjusted_outcome(&data, &selected_query(), None)
+            .unwrap();
+
+        let truth = x.iter().map(|&x| 2.0 + 3.0 * x).sum::<f64>() / n as f64;
+        let corrected = adjusted.values.iter().sum::<f64>() / n as f64;
+        let complete_case = {
+            let selected: Vec<f64> =
+                y.iter().zip(&r).filter(|&(_, &r)| r == 1.0).map(|(&y, _)| y).collect();
+            selected.iter().sum::<f64>() / selected.len() as f64
+        };
+        assert!(
+            (corrected - truth).abs() < 1e-6,
+            "cross-fitted AIPW gave {corrected}, truth {truth}"
+        );
+        assert!(
+            (complete_case - truth).abs() > 0.1,
+            "the complete-case mean must be visibly biased or this proves nothing"
+        );
+    }
+
+    #[test]
+    fn a_fold_that_cannot_support_the_observation_model_is_refused() {
+        // Every unobserved row sits in one fold, so the other folds train on selected rows
+        // only and the logistic model has no contrast. Refusing is the point: silently
+        // refitting in sample would return exactly the biased answer cross-fitting removes.
+        let n = 60usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / (n - 1) as f64).collect();
+        let r: Vec<f64> = (0..n).map(|i| f64::from(i % 5 != 0)).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .zip(&r)
+            .map(|(&x, &r)| if r == 1.0 { 2.0 + 3.0 * x } else { f64::NAN })
+            .collect();
+        let data = selected_table(&x, &y, &r);
+        let error = ObservationMechanismEstimator::default()
+            .adjusted_outcome(&data, &selected_query(), None)
+            .unwrap_err();
+        assert!(error.to_string().contains("cross-fitting fold"), "got {error}");
     }
 
     #[test]

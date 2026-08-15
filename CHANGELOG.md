@@ -22,14 +22,37 @@ at 0.4.1 until the release gates and roadmap are accepted.
   `antecedent.identify.binary_iv_bounds`). This is a contrast bound, not a
   continuous-response curve estimator.
 - Explicit complete, censored, truncated, and selected observation mechanisms,
-  with assumptions kept separate from the recorded-data process.
+  with assumptions kept separate from the recorded-data process. Selected-outcome
+  AIPW cross-fits both nuisance models over deterministic row-index folds
+  (`crossfit_folds`, default 5), so no row's pseudo-value comes from a model that
+  saw it; a fold that cannot support either model is refused rather than refit in
+  sample. Selected-outcome IPW keeps its in-sample maximum-likelihood propensity,
+  which is the published estimator for that correction. The AIPW method id is
+  therefore `observation.selected.crossfit_logistic_aipw.v1`.
 - Single-source selection diagrams, a sound certified subset of graphical
-  transport identification, and trial-to-target IPW/AIPW estimation.
+  transport identification, and trial-to-target IPW/AIPW estimation. Transported
+  estimation requires the identification certificate: `trial_to_target_effect`
+  and `transport_augmented_response_grid` take it as an argument and refuse a
+  `NotCertified` result rather than returning a number the graph never licensed.
 - Randomized interference queries decomposed into assignment design, exposure
   mapping, and exposure contrast, with exact/seeded-Monte-Carlo probabilities
   and Horvitz–Thompson/Hájek estimation.
 - Response artifact format 0.3 with migrations from formats 0.1 and 0.2.
+  Partially identified responses store a coordinate-free envelope, so the
+  identified set of a scalar or vector functional is representable without a
+  later format bump. An envelope is rejected under any other identification
+  status, and Jacobian envelopes remain unrepresentable by design (see
+  [ADR 0019](adr/0019-response-artifact-format.md)).
 - Paper-level machine-readable provenance records and a 0.5 parity inventory.
+
+### Changed
+
+- **`Identification.validate` and the module-level `validate` now default
+  `refute` to `"cheap"` instead of `None`.** Previously an unset `refute` on
+  `.validate(data)` resolved to a mode-dependent default suite chosen
+  internally; it now always runs the explicit `"cheap"` suite. Pass
+  `refute=False` for no refutation, or `refute="full"` / `"placebo"` for a
+  different suite.
 
 ### Compatibility
 

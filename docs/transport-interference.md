@@ -32,7 +32,16 @@ When a general multi-node c-component requires recursion outside that subset,
 the result is `NotCertified`. That means “this implementation has not certified
 a formula,” not “the effect is proven non-transportable.”
 
-Trial-to-target statistical estimation is a separate, complementary operation.
+Trial-to-target statistical estimation is a separate, complementary operation:
+identification decides *whether* a formula is sound, estimation computes a
+number *from* it, and the two remain independently callable. Separate does
+not mean unguarded, though. Both `trial_to_target_effect` and
+`transport_augmented_response_grid` (and the Python
+`estimate_trial_effect`/`estimate_trial_transport` wrappers) take the
+identification result as a required argument and refuse to run when it is
+`NotCertified`, returning an error that carries the certificate's reason and
+message rather than an estimate.
+
 The binary randomized-trial estimator reports IPW and optional augmented IPW,
 plus separate diagnostics for trial-selection overlap and within-trial treatment
 overlap. A single combined overlap number would conceal which assumption is

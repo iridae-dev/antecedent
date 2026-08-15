@@ -95,6 +95,7 @@ from .estimation import (
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
+from .observation import Complete as _ObservationComplete
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -318,6 +319,12 @@ def handle_response(
     if bootstrap_requested:
         raise ValueError("response queries do not yet expose bootstrap= through analyze()")
     mechanism = getattr(query, "observation", None)
+    # Complete() is the documented "outcome is observed directly" spelling and
+    # must be treated exactly like no mechanism at all everywhere below --
+    # otherwise a query carrying it is misrouted onto the observation-aware
+    # path, which does not (and should not) know how to handle it.
+    if isinstance(mechanism, _ObservationComplete):
+        mechanism = None
     observation_assumptions = tuple(getattr(query, "observation_assumptions", ()))
     if mechanism is None and observation_assumptions:
         raise ValueError("observation_assumptions require an explicit observation mechanism")

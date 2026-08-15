@@ -1,5 +1,7 @@
 # causaleffect transport on the supported sID subset
 
+**Suite path:** `conformance/response/causaleffect_transport_subset`
+
 Black-box parity for Antecedent's sound single-source transport rules against
 R `causaleffect` 1.3.15 `transport()`.
 
@@ -31,3 +33,7 @@ is outside the certified subset" without inventing a causaleffect output we
 did not observe. It is a plain Rust assertion against Antecedent's own
 conservative refusal, included here only because it is the counterpart to
 the positive cases above and belongs next to them.
+
+## Expected summary
+
+Top-level keys: `cases, comparison, estimand, fixture_id, reference` (5 fields).

@@ -85,6 +85,9 @@ pub fn gaussian_density(value: f64, mean: f64, standard_deviation: f64) -> f64 {
 /// Coefficients use centered powers `[1, x-at, (x-at)^2]`, so the second
 /// derivative is twice the quadratic coefficient. The uncertainty is a local
 /// homoskedastic plug-in estimate and has pointwise, not simultaneous, semantics.
+/// Kernel weights are not inverse-variance weights, so the plug-in uses the
+/// sandwich `sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1`; the naive `(X'WX)^-1` form
+/// overstates the variance for every kernel weight sequence.
 ///
 /// # Errors
 ///
@@ -127,6 +130,7 @@ pub fn gaussian_local_quadratic_influence(
         return Err(StatsError::Shape { message: "local quadratic inputs must be finite" });
     }
     let mut gram = [[0.0; 3]; 3];
+    let mut squared_gram = [[0.0; 3]; 3];
     let mut rhs = [0.0; 3];
     let mut weights = Vec::with_capacity(x.len());
     let mut weight_sum = 0.0;
@@ -140,15 +144,18 @@ pub fn gaussian_local_quadratic_influence(
             rhs[j] += w * row[j] * yi;
             for k in 0..3 {
                 gram[j][k] += w * row[j] * row[k];
+                squared_gram[j][k] += w * w * row[j] * row[k];
             }
         }
         weights.push((w, row, yi));
         weight_sum += w;
         weight_sq_sum += w * w;
     }
-    if weight_sum <= f64::EPSILON || weight_sq_sum <= f64::EPSILON {
+    // A local quadratic spends three degrees of freedom; below that the residual
+    // scale is not estimable and any interval would be invented rather than fitted.
+    if weight_sum <= 3.0 || weight_sq_sum <= f64::EPSILON {
         return Err(StatsError::Backend(
-            "no effective observations in local response window".into(),
+            "local response window has too little effective weight for a local quadratic".into(),
         ));
     }
     let inverse = inverse_3x3(gram)
@@ -160,14 +167,18 @@ pub fn gaussian_local_quadratic_influence(
         weighted_rss += w * residual * residual;
     }
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
-    let sigma2 = weighted_rss / (weight_sum - 3.0).max(1.0);
+    let sigma2 = weighted_rss / (weight_sum - 3.0);
+    // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not
+    // inverse-variance weights, so the bread-only form is not the variance.
+    let sandwich = matmul3(matmul3(inverse, squared_gram), inverse);
+    let coefficient_se = |index: usize| (sigma2 * sandwich[index][index]).max(0.0).sqrt();
     let point = LocalPolynomialPoint {
         value: beta[0],
         first_derivative: beta[1],
         second_derivative: 2.0 * beta[2],
-        standard_error: (sigma2 * inverse[0][0]).max(0.0).sqrt(),
-        first_derivative_standard_error: (sigma2 * inverse[1][1]).max(0.0).sqrt(),
-        second_derivative_standard_error: 2.0 * (sigma2 * inverse[2][2]).max(0.0).sqrt(),
+        standard_error: coefficient_se(0),
+        first_derivative_standard_error: coefficient_se(1),
+        second_derivative_standard_error: 2.0 * coefficient_se(2),
         local_ess,
         weight_sum,
     };
@@ -204,6 +215,10 @@ fn weights_for_influence(
 
 fn matvec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
+}
+
+fn matmul3(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
 }
 
 fn inverse_3x3(a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
@@ -252,6 +267,31 @@ mod tests {
         let got = gaussian_density(2.0, 2.0, 0.5);
         let expected = 1.0 / (0.5 * (2.0 * std::f64::consts::PI).sqrt());
         assert!((got - expected).abs() < 1e-14);
+    }
+
+    #[test]
+    fn plugin_level_standard_error_matches_the_sandwich_not_the_bread() {
+        // Homoskedastic noise: the plug-in sandwich and the influence-based robust
+        // standard error estimate the same quantity and must agree closely. The
+        // bread-only form `sigma^2 (X'WX)^-1` is systematically wider.
+        let x: Vec<f64> = (0..500).map(|i| -2.0 + 4.0 * f64::from(i) / 499.0).collect();
+        let y: Vec<f64> =
+            x.iter().enumerate().map(|(i, v)| 1.0 + 2.0 * v + 0.2 * (i as f64).sin()).collect();
+        let fit = gaussian_local_quadratic_influence(&x, &y, 0.0, 0.5).unwrap();
+        let plugin = fit.point.standard_error;
+        let robust = fit.robust_standard_error;
+        assert!(plugin > 0.0 && robust > 0.0);
+        assert!(
+            (plugin - robust).abs() / robust < 0.05,
+            "plugin={plugin} robust={robust} — sandwich and robust SEs should agree"
+        );
+    }
+
+    #[test]
+    fn local_quadratic_refuses_a_window_without_enough_effective_weight() {
+        let x = vec![-10.0, 0.0, 10.0];
+        let y = vec![1.0, 2.0, 3.0];
+        assert!(gaussian_local_quadratic_influence(&x, &y, 0.0, 0.05).is_err());
     }
 
     #[test]

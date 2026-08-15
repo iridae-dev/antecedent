@@ -10,6 +10,16 @@ papers = [
  { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
 ]
 
+# The AIPW path cross-fits both nuisances over deterministic row-index folds, so the
+# sample-splitting condition behind the Bang & Robins double-robustness argument holds
+# rather than being assumed. A fold whose training rows cannot support either model is
+# refused, never refit in sample. The IPW path deliberately keeps its in-sample
+# maximum-likelihood propensity, which is the published estimator for that correction.
+# Cross-fitting removes in-sample nuisance bias; it does not by itself license an interval,
+# and no standard error is published from this path (`estimate_mean_curve` reports
+# `ResponseUncertainty::None`).
+cross_fitted = "aipw_only"
+
 upstream_implementations_observed = []
 
 test_sources = [

@@ -13,8 +13,8 @@ use antecedent_core::{
     ResponseQuery, ResponseUncertainty, ResponseValue, SupportStatus, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_estimate::ContinuousResponseOptions;
+use antecedent_graph::{Dag, DenseNodeId};
 
 #[test]
 fn response_curve_runs_through_public_study_facade() {
@@ -72,9 +72,16 @@ fn response_curve_runs_through_public_study_facade() {
 
 #[test]
 fn simultaneous_curve_band_runs_through_public_study_facade() {
-    let n = 240;
-    let treatment: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
-    let outcome: Vec<f64> = treatment.iter().map(|value| 1.0 + 2.0 * value).collect();
+    let n = 240i32;
+    let treatment: Vec<f64> = (0..n).map(|i| (f64::from(i) / 17.0).sin()).collect();
+    // A noiseless outcome makes every influence contribution exactly zero, and the
+    // multiplier band correctly refuses a degenerate standard error. The band is the
+    // subject of this test, so the fixture carries residual variation.
+    let outcome: Vec<f64> = treatment
+        .iter()
+        .enumerate()
+        .map(|(i, value)| 1.0 + 2.0 * value + 0.15 * (i as f64 / 7.0).sin())
+        .collect();
     let data = TabularData::from_f64_columns([
         ("treatment", treatment.as_slice()),
         ("outcome", outcome.as_slice()),

@@ -2,24 +2,36 @@
 
 Antecedent is an identification-first causal inference engine for **Python** and
 **Rust**. It takes an analysis from causal structure through estimation,
-diagnostics, interventions, and counterfactuals — without silently treating
-discovered graphs as ground truth.
+diagnostics, interventions, and counterfactuals — including continuous causal
+responses, not only binary contrasts — without silently treating discovered
+graphs as ground truth.
 
-Three rules are enforced throughout:
+Rules enforced throughout:
 
 * identification is evaluated before estimation;
 * priors and parametric assumptions do not upgrade nonparametric identification;
-* uncertainty about causal structure is retained rather than silently resolved.
+* uncertainty about causal structure is retained rather than silently resolved;
+* observation mechanisms do not imply their identifying assumptions;
+* unsupported transport is `NotCertified`, not a false non-transportability claim.
 
 ## What you would use it for
 
 * **Estimate an effect you can defend.** `analyze()` checks identification
   first, reports the strategy and adjustment set it used, and runs refuters
   against the estimate by default.
+* **Estimate a response, not only a contrast.** Mean curves, derivatives,
+  elasticities, and Jacobians keep structural identification, empirical support,
+  and uncertainty kind as separate axes.
+* **Declare how the outcome was observed.** Complete, censored, truncated, and
+  selected mechanisms live in `antecedent.observation`; assumptions are never
+  inferred from column presence.
 * **Work with discovered structure honestly.** Discovery returns equivalence
   classes and graph posteriors, not a single guessed DAG. Estimation refuses to
   run on an unreviewed partial graph; the Bayesian path reports how much
   posterior mass sits on structures where the effect is unidentified.
+* **Transport and interference as stage contracts.** Selection-diagram transport
+  and randomized interference change what identifies the estimand; they stay in
+  `antecedent.transport` / `antecedent.interference`, not ordinary `analyze` flags.
 * **Analyze temporal systems.** Temporal graphs with lagged edges, PCMCI-family
   discovery, pulse and sustained interventions, temporal mediation, and
   incremental `CausalState` for online workflows.
@@ -30,10 +42,15 @@ Three rules are enforced throughout:
 ## Getting started
 
 `pip install antecedent`, then start from the runnable examples in the
-[project README](https://github.com/iridae-dev/antecedent#readme) — each is a
-single paste-and-run block with its real output shown. The Rust entry point is
+[project README](https://github.com/iridae-dev/antecedent#readme) — notebooks
+for attribution, prior transfer, experiment design, continuous response, and
+observation-aware pricing. The Rust entry point is
 `Study::tabular()` (or `::series` / `::series_multi` / `::panel` / `::events`) in the
 [`antecedent` crate](https://docs.rs/antecedent).
+
+Published packages remain 0.4.1 until the 0.5.0 release is accepted; see
+[ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/0.5.0/ROADMAP.md) and
+the [draft 0.5.0 notes](release-notes/v0.5.0.md).
 
 ## Guides
 

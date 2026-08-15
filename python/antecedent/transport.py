@@ -116,6 +116,11 @@ class TransportIdentification:
     provenance: Mapping[str, Any] = field(
         default_factory=lambda: {"operation_ids": ["identify.transport_sid"]}
     )
+    # The native `TransportIdentificationResult` this was built from. `estimate_trial_effect`
+    # forwards it to the native estimator so the refusal gate keys off the certificate that was
+    # actually produced by `identify(...)`, not off this frozen dataclass's own (re-derivable
+    # but caller-editable) `transportable` property. Opaque outside this module.
+    _native: Any = field(default=None, repr=False, compare=False)
 
     @property
     def transportable(self) -> bool:
@@ -138,6 +143,10 @@ class TransportOverlapReport:
 
 @dataclass(frozen=True, slots=True)
 class TrialTransportEstimate:
+    # Rule id of the transport certificate that authorized this estimate, so the result
+    # carries its own identification provenance rather than relying on the caller to
+    # remember which `TransportIdentification` it passed to `estimate_trial_effect`.
+    rule: str
     ipw: float
     aipw: float | None
     overlap: TransportOverlapReport
@@ -231,6 +240,7 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
         return TransportIdentification(
             None,
             NonTransportableCertificate(raw.reason, raw.selection_targets, raw.message),
+            _native=raw,
         )
     factors = [
         PopulationFactor(population, variables, conditioned_on, interventions)
@@ -255,10 +265,12 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
     return TransportIdentification(
         formula,
         TransportCertificate(raw.rule, raw.selection_targets),
+        _native=raw,
     )
 
 
 def estimate_trial_effect(
+    identification: TransportIdentification,
     treatment: Sequence[bool],
     outcome: Sequence[float],
     trial: Sequence[bool],
@@ -270,13 +282,27 @@ def estimate_trial_effect(
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
 
+    ``identification`` must be the result of :func:`identify` for this query.
+    Identification and estimation stay separate operations, but the estimator
+    now requires the certificate: when ``identification.transportable`` is
+    ``False`` (a :class:`NonTransportableCertificate`, i.e. ``identify``
+    returned ``NotCertified``), this raises ``CausalEstimateError`` instead of
+    returning a number for a quantity that was never shown to be identified.
+    A refusal is a conservative "no rule applies", not a proof of
+    non-transportability — see :class:`NonTransportableCertificate`.
+
     The positional order is ``(treatment, outcome)``, matching Antecedent's
     scalar causal-query convention.
     """
 
+    if not isinstance(identification, TransportIdentification):
+        raise CausalTypeError(
+            "estimate_trial_effect requires identification=transport.identify(...)"
+        )
     if (mu0 is None) != (mu1 is None):
         raise CausalValueError("mu0 and mu1 must be supplied together")
     raw = _estimate_trial_transport(
+        identification._native,
         np.asarray(outcome, dtype=np.float64),
         list(treatment),
         list(trial),
@@ -286,6 +312,7 @@ def estimate_trial_effect(
         mu1=None if mu1 is None else np.asarray(mu1, dtype=np.float64),
     )
     return TrialTransportEstimate(
+        raw.rule,
         raw.ipw,
         raw.aipw,
         TransportOverlapReport(

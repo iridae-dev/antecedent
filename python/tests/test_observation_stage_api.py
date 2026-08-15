@@ -29,7 +29,7 @@ def test_selected_outcome_stage_returns_pseudo_values_and_diagnostic_weights() -
     assert len(adjusted.values) == 80
     assert len(adjusted.weights) == 80
     assert all(np.isfinite(adjusted.values))
-    assert adjusted.method == "observation.selected.logistic_aipw.v1"
+    assert adjusted.method == "observation.selected.crossfit_logistic_aipw.v1"
     assert all(
         weight == 0.0
         for weight, r in zip(adjusted.weights, selected, strict=True)

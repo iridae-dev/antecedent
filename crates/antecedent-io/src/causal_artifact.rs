@@ -12,9 +12,8 @@ use crate::{
     ArtifactKind, ArtifactManifest, CausalQueryWire, CausalResponseWire, EncodedArtifact,
     InterferenceEstimateWire, IoError, ProvenanceWire, STABLE_FORMAT, SectionBytes,
     SemanticVersion, TransportEffectEstimateWire, TransportIdentificationWire,
-    causal_query_from_wire, causal_response_from_wire, from_cbor,
-    interference_estimate_from_wire, read_and_migrate, section_descriptor, to_cbor,
-    transport_effect_from_wire, transport_identification_from_wire,
+    causal_query_from_wire, causal_response_from_wire, from_cbor, read_and_migrate,
+    section_descriptor, to_cbor, transport_effect_from_wire,
 };
 
 const HEADER_SECTION: &str = "causal_payload.header";
@@ -168,9 +167,7 @@ fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
     let mut names = HashSet::with_capacity(header.variable_names.len());
     for name in &header.variable_names {
         if name.trim().is_empty() {
-            return Err(IoError::Convert(
-                "causal payload variable names must be non-blank".into(),
-            ));
+            return Err(IoError::Convert("causal payload variable names must be non-blank".into()));
         }
         if !names.insert(name.as_str()) {
             return Err(IoError::Convert(format!(
@@ -200,17 +197,15 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
                     validate_id(instrument.raw(), variable_count)?;
                 }
                 if let AssumptionScope::Variables { variables } = &record.scope {
-                    validate_ids(
-                        variables.iter().map(|variable| variable.raw()),
-                        variable_count,
-                    )?;
+                    validate_ids(variables.iter().map(|variable| variable.raw()), variable_count)?;
                 }
             }
             validate_response_result(wire)?;
         }
         CausalPayloadWire::TransportIdentification(wire) => {
             validate_transport_identification_ids(wire, variable_count)?;
-            let _ = transport_identification_from_wire(wire);
+            // transport_identification_from_wire is infallible: it has no fallible decode
+            // step to check here, unlike transport_effect_from_wire below.
             validate_transport_identification(wire)?;
         }
         CausalPayloadWire::TransportEstimate(wire) => {
@@ -218,7 +213,8 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
             validate_transport_estimate(wire)?;
         }
         CausalPayloadWire::InterferenceEstimate(wire) => {
-            let _ = interference_estimate_from_wire(wire);
+            // interference_estimate_from_wire is infallible: it has no fallible decode
+            // step to check here, unlike transport_effect_from_wire above.
             validate_interference_estimate(wire)?;
         }
     }
@@ -234,10 +230,7 @@ fn validate_id(raw: u32, variable_count: usize) -> Result<(), IoError> {
     Ok(())
 }
 
-fn validate_ids(
-    ids: impl IntoIterator<Item = u32>,
-    variable_count: usize,
-) -> Result<(), IoError> {
+fn validate_ids(ids: impl IntoIterator<Item = u32>, variable_count: usize) -> Result<(), IoError> {
     for id in ids {
         validate_id(id, variable_count)?;
     }
@@ -293,8 +286,9 @@ fn validate_response_query_ids(
     query: &crate::ResponseQueryWire,
     variable_count: usize,
 ) -> Result<(), IoError> {
-    validate_response_functional_ids(&query.functional, variable_count)?;
     use crate::ObservationSpecWire;
+
+    validate_response_functional_ids(&query.functional, variable_count)?;
     match &query.observation {
         ObservationSpecWire::Complete => {}
         ObservationSpecWire::RightCensored { latent, observed, censoring, event }
@@ -363,10 +357,7 @@ fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<
         }
         Q::ConditionalEffect { inner } => validate_query_ids(inner, variable_count),
         Q::Distribution(wire) => {
-            validate_ids(
-                wire.outcomes.iter().chain(&wire.conditioning).copied(),
-                variable_count,
-            )?;
+            validate_ids(wire.outcomes.iter().chain(&wire.conditioning).copied(), variable_count)?;
             for intervention in &wire.interventions {
                 validate_intervention_ids(intervention, variable_count)?;
             }
@@ -374,9 +365,7 @@ fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<
         }
         Q::PathSpecific(wire) => {
             validate_ids(
-                [wire.treatment, wire.outcome]
-                    .into_iter()
-                    .chain(wire.path_nodes.iter().copied()),
+                [wire.treatment, wire.outcome].into_iter().chain(wire.path_nodes.iter().copied()),
                 variable_count,
             )?;
             validate_intervention_ids(&wire.control, variable_count)?;
@@ -445,17 +434,29 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
             Ok(cells)
         }
         ResponseValueWire::Envelope(envelope) => {
-            let dimension =
-                usize::try_from(envelope.dimension).map_err(|_| IoError::TooLarge)?;
-            if dimension == 0
-                || envelope.grid.is_empty()
-                || envelope.grid.len() % dimension != 0
-            {
-                return Err(IoError::Convert(
-                    "response envelope grid requires complete rows with positive dimension".into(),
-                ));
-            }
-            let rows = envelope.grid.len() / dimension;
+            let dimension = usize::try_from(envelope.dimension).map_err(|_| IoError::TooLarge)?;
+            // `dimension == 0` is the coordinate-free envelope: the identified set of a
+            // functional that has no grid of its own, such as an average derivative or a
+            // binary-IV ATE bound. The estimand already says what the rows mean, exactly as
+            // it does for `Scalar` and `Vector`, so carrying an invented coordinate here
+            // would be a second, contradictable source of truth.
+            let rows = if dimension == 0 {
+                if !envelope.grid.is_empty() || envelope.lower.is_empty() {
+                    return Err(IoError::Convert(
+                        "a coordinate-free response envelope carries no grid and at least one bound"
+                            .into(),
+                    ));
+                }
+                envelope.lower.len()
+            } else {
+                if envelope.grid.is_empty() || envelope.grid.len() % dimension != 0 {
+                    return Err(IoError::Convert(
+                        "response envelope grid requires complete rows with positive dimension"
+                            .into(),
+                    ));
+                }
+                envelope.grid.len() / dimension
+            };
             if envelope.lower.len() != rows
                 || envelope.upper.len() != rows
                 || envelope.lower.iter().zip(&envelope.upper).any(|(lower, upper)| lower > upper)
@@ -465,12 +466,7 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
                 ));
             }
             require_finite(
-                envelope
-                    .grid
-                    .iter()
-                    .chain(&envelope.lower)
-                    .chain(&envelope.upper)
-                    .copied(),
+                envelope.grid.iter().chain(&envelope.lower).chain(&envelope.upper).copied(),
                 "response envelope",
             )?;
             Ok(rows)
@@ -480,10 +476,14 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
 
 fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
     let value_len = match &wire.estimate {
-        crate::ResponseIdentificationWire::PointIdentified(value)
-        | crate::ResponseIdentificationWire::PartiallyIdentified(value) => {
+        crate::ResponseIdentificationWire::PointIdentified(value) => {
             let length = validate_response_value(value)?;
-            validate_value_for_estimand(value, &wire.estimand)?;
+            validate_value_for_estimand(value, &wire.estimand, ValueRole::Determinate)?;
+            Some(length)
+        }
+        crate::ResponseIdentificationWire::PartiallyIdentified(value) => {
+            let length = validate_response_value(value)?;
+            validate_value_for_estimand(value, &wire.estimand, ValueRole::IdentifiedSet)?;
             Some(length)
         }
         crate::ResponseIdentificationWire::GraphDependent(values) => {
@@ -501,7 +501,7 @@ fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
                     )));
                 }
                 let current = validate_response_value(value)?;
-                validate_value_for_estimand(value, &wire.estimand)?;
+                validate_value_for_estimand(value, &wire.estimand, ValueRole::Determinate)?;
                 if length.replace(current).is_some_and(|previous| previous != current) {
                     return Err(IoError::Convert(
                         "graph-dependent response values must have a common shape".into(),
@@ -550,29 +550,42 @@ fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
     Ok(())
 }
 
+/// Materialize the declared estimand grid exactly as the estimator does.
+///
+/// The grid stored in a response value is produced by [`GridSpec::values`], and the
+/// comparison below is bit-exact. Re-deriving a linspace with a different but
+/// algebraically equivalent expression rounds differently and would reject valid
+/// artifacts, so this delegates to the same routine rather than reimplementing it.
 fn estimand_grid(grid: &crate::GridSpecWire) -> Result<Vec<f64>, IoError> {
-    match grid {
-        crate::GridSpecWire::Values(values) => Ok(values.clone()),
-        crate::GridSpecWire::Linspace { start, end, points } => {
-            let points = usize::try_from(*points).map_err(|_| IoError::TooLarge)?;
-            if points < 2 {
-                return Err(IoError::Convert(
-                    "response linspace requires at least two points".into(),
-                ));
-            }
-            let denominator = (points - 1) as f64;
-            Ok((0..points)
-                .map(|index| start + (end - start) * index as f64 / denominator)
-                .collect())
-        }
-    }
+    crate::response_wire::grid_from_wire(grid)?
+        .values()
+        .map_err(|error| IoError::Convert(error.to_string()))
+}
+
+/// Which identification reading a response value sits under.
+///
+/// An envelope is a set-valued answer, so it is the payload of a *partially identified*
+/// response and of nothing else. A point-identified or per-graph value arriving as an
+/// envelope would report an interval where its own status promises a number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ValueRole {
+    /// Point-identified, or one graph's value in a graph-dependent set.
+    Determinate,
+    /// The single payload of a partially identified response.
+    IdentifiedSet,
 }
 
 fn validate_value_for_estimand(
     value: &crate::ResponseValueWire,
     estimand: &crate::ResponseFunctionalWire,
+    role: ValueRole,
 ) -> Result<(), IoError> {
     use crate::{ResponseFunctionalWire as F, ResponseValueWire as V};
+    if matches!(value, V::Envelope(_)) && role != ValueRole::IdentifiedSet {
+        return Err(IoError::Convert(
+            "a response envelope is the payload of a partially identified response only".into(),
+        ));
+    }
     let matches = match (estimand, value) {
         (F::MeanCurve { treatment, .. }, V::Surface { grid, dimension: 1, mean }) => {
             let expected = estimand_grid(&treatment.grid)?;
@@ -591,20 +604,32 @@ fn validate_value_for_estimand(
             | F::InterventionResponse { .. },
             V::Scalar(_),
         ) => true,
+        // The identified set of a scalar functional: one coordinate-free interval. This is
+        // the shape a bound such as Balke-Pearl produces, and format 0.3 stores it rather
+        // than forcing a later format bump to say "this effect lies in [l, u]".
+        (
+            F::AverageDerivative { .. }
+            | F::PointDerivative { .. }
+            | F::InterventionResponse { .. },
+            V::Envelope(envelope),
+        ) => envelope.dimension == 0 && envelope.lower.len() == 1,
         (F::DirectionalDerivative { outcomes, .. }, V::Vector(values)) => {
             values.len() == outcomes.len()
         }
+        (F::DirectionalDerivative { outcomes, .. }, V::Envelope(envelope)) => {
+            envelope.dimension == 0 && envelope.lower.len() == outcomes.len()
+        }
         (
             F::Jacobian { outcomes, treatments, .. },
-            V::Jacobian {
-                outcomes: value_outcomes,
-                treatments: value_treatments,
-                ..
-            },
+            V::Jacobian { outcomes: value_outcomes, treatments: value_treatments, .. },
         ) => {
             usize::try_from(*value_outcomes).ok() == Some(outcomes.len())
                 && usize::try_from(*value_treatments).ok() == Some(treatments.len())
         }
+        // A Jacobian envelope is deliberately not accepted. `ResponseEnvelopeWire` has no
+        // outcome/treatment extents, so its rows could only be checked against a row-major
+        // convention this format has never stated and no estimator has ever written. That
+        // needs a wire shape of its own, not an unvalidated reinterpretation of this one.
         _ => false,
     };
     if !matches {
@@ -718,12 +743,7 @@ fn validate_factor_ids(
         return Err(IoError::Convert("transport factor population must be non-blank".into()));
     }
     validate_ids(
-        factor
-            .variables
-            .iter()
-            .chain(&factor.conditioned_on)
-            .chain(&factor.interventions)
-            .copied(),
+        factor.variables.iter().chain(&factor.conditioned_on).chain(&factor.interventions).copied(),
         variable_count,
     )
 }
@@ -783,9 +803,7 @@ fn validate_transport_identification(
     Ok(())
 }
 
-fn validate_overlap(
-    diagnostic: crate::TransportOverlapDiagnosticWire,
-) -> Result<(), IoError> {
+fn validate_overlap(diagnostic: crate::TransportOverlapDiagnosticWire) -> Result<(), IoError> {
     require_finite(
         [diagnostic.probability_min, diagnostic.probability_max, diagnostic.effective_sample_size],
         "transport overlap diagnostic",
@@ -870,7 +888,7 @@ mod tests {
 
     fn unchecked_artifact(
         payload: &CausalPayloadWire,
-        header: CausalPayloadHeader,
+        header: &CausalPayloadHeader,
     ) -> EncodedArtifact {
         let valid_payload = CausalPayloadWire::Query(Box::new(response_query()));
         let mut artifact = encode_causal_payload_artifact(
@@ -944,7 +962,7 @@ mod tests {
         for names in [vec!["a".into(), " ".into()], vec!["a".into(), "a".into()]] {
             let artifact = unchecked_artifact(
                 &payload,
-                CausalPayloadHeader {
+                &CausalPayloadHeader {
                     payload_kind: CausalPayloadKind::Query,
                     variable_names: names,
                 },
@@ -967,7 +985,7 @@ mod tests {
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
-            CausalPayloadHeader {
+            &CausalPayloadHeader {
                 payload_kind: CausalPayloadKind::Query,
                 variable_names: vec!["a".into(), "y".into()],
             },
@@ -989,12 +1007,177 @@ mod tests {
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
-            CausalPayloadHeader {
+            &CausalPayloadHeader {
                 payload_kind: CausalPayloadKind::Query,
                 variable_names: vec!["a".into()],
             },
         );
         assert!(matches!(decode(&artifact), Err(IoError::Convert(_))));
+    }
+
+    #[test]
+    fn linspace_response_surface_round_trips_bit_exactly() {
+        // The grid a response carries is `GridSpec::values()` output. The validator
+        // must materialize the identical floats, not an algebraically equal formula:
+        // `start + i * step` and `start + (end - start) * i / (points - 1)` disagree
+        // in the last ulp for most triples, and the comparison is exact.
+        let points = 7usize;
+        let grid =
+            antecedent_core::GridSpec::Linspace { start: 0.0, end: 1.0, points }.values().unwrap();
+        let response = CausalResponseWire {
+            estimand: ResponseFunctionalWire::MeanCurve {
+                outcome: 1,
+                treatment: crate::ContinuousDomainWire {
+                    variable: 0,
+                    grid: crate::GridSpecWire::Linspace {
+                        start: 0.0,
+                        end: 1.0,
+                        points: points as u64,
+                    },
+                },
+            },
+            identification_status: IdentificationStatusWire::NonparametricallyIdentified,
+            estimate: ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+                grid: grid.clone(),
+                dimension: 1,
+                mean: vec![0.0; points],
+            }),
+            uncertainty: ResponseUncertaintyWire::None,
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+            },
+            assumptions: Vec::new(),
+            provenance_id: "estimate.response.kennedy_dr".into(),
+        };
+        let payload = CausalPayloadWire::ResponseResult(Box::new(response));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "estimate.response.kennedy_dr",
+        )
+        .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), payload);
+    }
+
+    fn partially_identified_scalar(value: ResponseValueWire) -> CausalResponseWire {
+        CausalResponseWire {
+            estimand: ResponseFunctionalWire::AverageDerivative {
+                outcome: 1,
+                treatment: 0,
+                weighting: crate::DerivativeWeightingWire::Observed,
+            },
+            identification_status: IdentificationStatusWire::PartiallyIdentified,
+            estimate: ResponseIdentificationWire::PartiallyIdentified(value),
+            uncertainty: ResponseUncertaintyWire::None,
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+            },
+            assumptions: Vec::new(),
+            provenance_id: "identify.binary_iv_bounds".into(),
+        }
+    }
+
+    fn scalar_interval(lower: f64, upper: f64) -> ResponseValueWire {
+        ResponseValueWire::Envelope(crate::ResponseEnvelopeWire {
+            grid: Vec::new(),
+            dimension: 0,
+            lower: vec![lower],
+            upper: vec![upper],
+        })
+    }
+
+    #[test]
+    fn partially_identified_scalar_functional_stores_a_coordinate_free_interval() {
+        // The shape a bound such as Balke-Pearl produces. Format 0.3 has to be able to say
+        // "this effect lies in [l, u]" for a scalar functional, or saying it later costs a
+        // format version and a migration.
+        let payload = CausalPayloadWire::ResponseResult(Box::new(partially_identified_scalar(
+            scalar_interval(-0.19, 0.01),
+        )));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "identify.binary_iv_bounds",
+        )
+        .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), payload);
+    }
+
+    #[test]
+    fn point_identified_response_may_not_carry_an_envelope() {
+        // An interval under a status that promises a number is incoherent regardless of
+        // which functional it decorates.
+        let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+        wire.identification_status = IdentificationStatusWire::NonparametricallyIdentified;
+        wire.estimate = ResponseIdentificationWire::PointIdentified(scalar_interval(-0.19, 0.01));
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(wire)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(
+            decode(&artifact)
+                .unwrap_err()
+                .to_string()
+                .contains("partially identified response only")
+        );
+    }
+
+    #[test]
+    fn a_coordinate_free_envelope_still_needs_a_bound_and_no_grid() {
+        for broken in [
+            crate::ResponseEnvelopeWire {
+                grid: vec![0.0],
+                dimension: 0,
+                lower: vec![-1.0],
+                upper: vec![1.0],
+            },
+            crate::ResponseEnvelopeWire {
+                grid: Vec::new(),
+                dimension: 0,
+                lower: Vec::new(),
+                upper: Vec::new(),
+            },
+        ] {
+            let wire = partially_identified_scalar(ResponseValueWire::Envelope(broken));
+            let artifact = unchecked_artifact(
+                &CausalPayloadWire::ResponseResult(Box::new(wire)),
+                &CausalPayloadHeader {
+                    payload_kind: CausalPayloadKind::ResponseResult,
+                    variable_names: vec!["a".into(), "y".into()],
+                },
+            );
+            assert!(matches!(decode(&artifact), Err(IoError::Convert(_))));
+        }
+    }
+
+    #[test]
+    fn jacobian_envelopes_remain_unrepresentable() {
+        // Recorded boundary, not an oversight: the envelope wire has no outcome/treatment
+        // extents, so its rows cannot be checked against the matrix the estimand declares.
+        let mut wire = partially_identified_scalar(scalar_interval(-1.0, 1.0));
+        wire.estimand = ResponseFunctionalWire::Jacobian {
+            outcomes: vec![1],
+            treatments: vec![0],
+            at: vec![0.0],
+            scale: crate::DerivativeScaleWire::Identity,
+        };
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(wire)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("does not match"));
     }
 
     #[test]
@@ -1025,7 +1208,7 @@ mod tests {
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::ResponseResult(Box::new(response)),
-            CausalPayloadHeader {
+            &CausalPayloadHeader {
                 payload_kind: CausalPayloadKind::ResponseResult,
                 variable_names: vec!["a".into(), "y".into()],
             },
@@ -1035,16 +1218,15 @@ mod tests {
 
     #[test]
     fn decode_rejects_transport_certificate_id_outside_header() {
-        let identification = TransportIdentificationWire::NotCertified(
-            crate::NonTransportableCertificateWire {
+        let identification =
+            TransportIdentificationWire::NotCertified(crate::NonTransportableCertificateWire {
                 reason: "not_certified".into(),
                 witness: vec![2],
                 message: "implemented rules did not certify transport".into(),
-            },
-        );
+            });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::TransportIdentification(Box::new(identification)),
-            CausalPayloadHeader {
+            &CausalPayloadHeader {
                 payload_kind: CausalPayloadKind::TransportIdentification,
                 variable_names: vec!["a".into(), "y".into()],
             },
@@ -1066,7 +1248,7 @@ mod tests {
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::InterferenceEstimate(Box::new(estimate)),
-            CausalPayloadHeader {
+            &CausalPayloadHeader {
                 payload_kind: CausalPayloadKind::InterferenceEstimate,
                 variable_names: Vec::new(),
             },
