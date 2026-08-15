@@ -588,8 +588,8 @@ mod tests {
         };
         assert_eq!(&*certificate.rule, "transport.sid.singleton_c_components");
         match formula {
-            TransportFormula::Standardize { over, .. } => {
-                panic!("standardized over {over:?}, which includes the requested outcome")
+            TransportFormula::Standardize { .. } => {
+                panic!("a varying outcome mechanism must not use the standardize formula")
             }
             TransportFormula::RecursiveFactorization { sum_out, .. } => {
                 assert!(!sum_out.contains(&outcome), "the requested outcome was marginalized away");

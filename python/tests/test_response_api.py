@@ -47,9 +47,7 @@ def test_response_query_validation_and_repr():
     with pytest.raises(CausalValueError, match="one value per treatment"):
         antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0])
     with pytest.raises(CausalValueError, match="non-zero"):
-        antecedent.DirectionalDerivative(
-            ["a", "b"], ["y"], at=[0.0, 0.0], direction=[0.0, 0.0]
-        )
+        antecedent.DirectionalDerivative(["a", "b"], ["y"], at=[0.0, 0.0], direction=[0.0, 0.0])
 
 
 def test_stage_specs_are_frozen_and_keep_assumptions_separate():
@@ -240,9 +238,7 @@ def test_pag_mean_curve_preserves_unidentified_completion_mass():
     rng = np.random.default_rng(171)
     a = rng.normal(size=360)
     y = 2.0 * a + rng.normal(scale=0.3, size=360)
-    pag = antecedent.Pag.from_marked_edges(
-        ["a", "y"], [("a", "y", "circle", "arrow")]
-    )
+    pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
 
     result = antecedent.analyze(
         {"a": a, "y": y},
@@ -266,13 +262,9 @@ def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
     rng = np.random.default_rng(173)
     a = rng.normal(size=240)
     y = 1.2 * a + rng.normal(scale=0.2, size=240)
-    pag = antecedent.Pag.from_marked_edges(
-        ["a", "y"], [("a", "y", "circle", "arrow")]
-    )
+    pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
 
-    raw = analyze_response_pag(
-        ["a", "y"], [a, y], pag, "a", "y", [-0.25, 0.25], max_completions=1
-    )
+    raw = analyze_response_pag(["a", "y"], [a, y], pag, "a", "y", [-0.25, 0.25], max_completions=1)
 
     assert raw.enumeration_capped is True
     assert raw.mass_scope == "examined_completions"
@@ -346,9 +338,7 @@ def test_response_analyze_refuses_unwired_semantic_options():
     with pytest.raises(ValueError, match="target_population"):
         antecedent.analyze(
             data,
-            query=antecedent.ResponseCurve(
-                "a", "y", grid=[1.0, 2.0], target_population="target"
-            ),
+            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0], target_population="target"),
             graph=graph,
         )
 
@@ -444,9 +434,7 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     assert np.isfinite(elasticity.estimate)
     semi = antecedent.analyze(
         data,
-        query=antecedent.SemiElasticity(
-            "a", "y", at=float(np.median(a)), log_scale="treatment"
-        ),
+        query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
         graph=graph,
         estimator_config={"bandwidth": 0.25},
     )

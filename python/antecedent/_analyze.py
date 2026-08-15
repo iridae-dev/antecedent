@@ -260,15 +260,15 @@ def handle_response(
     if isinstance(inference, Bayesian):
         raise TypeError("response queries do not yet support inference=Bayesian(...)")
     if isinstance(graph, Admg):
-        raise TypeError(
-            "response queries require a Dag or Pag; Admg is not supported on this path"
-        )
+        raise TypeError("response queries require a Dag or Pag; Admg is not supported on this path")
     if isinstance(graph, Cpdag):
         raise TypeError(
             "response queries require a Dag or Pag; Cpdag is not supported on this path"
         )
-    if graph is not None and not isinstance(graph, (Dag, Pag)) and not isinstance(
-        graph, (list, tuple)
+    if (
+        graph is not None
+        and not isinstance(graph, (Dag, Pag))
+        and not isinstance(graph, (list, tuple))
     ):
         raise TypeError(
             "response queries require a Dag, Pag, or directed edge list; "
@@ -284,7 +284,9 @@ def handle_response(
         "response_jacobian": "response.gam_derivative",
         "intervention_response": "response.intervention_gcomp",
     }.get(query.kind)
-    expected_identifier = "generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"
+    expected_identifier = (
+        "generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"
+    )
     if identifier not in (None, expected_identifier):
         raise ValueError(
             f"{query.kind} requires identifier={expected_identifier!r}; got {identifier!r}"
@@ -421,11 +423,11 @@ def handle_response(
     raw: Any
     if mechanism is not None:
         if response_options:
-            raise ValueError(
-                "observation-aware response does not yet compose estimator_config"
-            )
+            raise ValueError("observation-aware response does not yet compose estimator_config")
         if not isinstance(query, ResponseCurve):
-            raise ValueError("observation-aware response execution currently supports MeanCurve only")
+            raise ValueError(
+                "observation-aware response execution currently supports MeanCurve only"
+            )
         if isinstance(graph, Pag):
             raise ValueError("observation-aware PAG response envelopes are not yet composed")
         from .observation import (
@@ -641,9 +643,7 @@ def handle_response(
         ),
         identification=IdentificationView(
             status=raw.identification,
-            method=(
-                "generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"
-            ),
+            method=("generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"),
             adjustment_set=list(getattr(raw, "adjustment_set", ())),
             assumption_count=len(raw.assumptions),
             derivation_step_count=0,

@@ -39,7 +39,7 @@ def allowed(path: Path) -> bool:
     if s in {"parity/estimate.toml", "parity/discovery.toml", "parity/README.md"}:
         return True
     # Positioning / comparison docs intentionally name upstream libraries.
-    if s in {"README.md", "docs/comparison.md", "docs/index.md"}:
+    if s in {"README.md", "docs/README.md", "docs/comparison.md", "docs/index.md"}:
         return True
     # The changelog records which external baseline a release was validated
     # against ("LPCMCI aligned to the pinned Tigramite reference behavior"),
