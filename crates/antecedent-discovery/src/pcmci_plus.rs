@@ -29,6 +29,7 @@ use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{
     DiscoveryWorkspace, PcmciEngine, mci_conditioning, mci_conditioning_bounded, parents_of_target,
+    refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -46,8 +47,8 @@ use crate::pipeline::{
     with_links_retained,
 };
 use crate::result::{
-    CpdagDiscoveryResult, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    LaggedLink, PcSepsets, ScoredLink,
+    CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, PcSepsets,
+    ScoredLink,
 };
 
 /// Column budget for one MCI conditioning set (kernel cap `MAX_CI_COLS` minus the pair
@@ -156,6 +157,7 @@ impl PcmciPlus {
             None,
         )?;
         ci_tests += contemp_tests;
+        let _ = truncated;
         iterations.push(DiscoveryIteration {
             label: Arc::from("pcmci_plus.contemp_mci"),
             ci_tests: contemp_tests,
@@ -201,14 +203,7 @@ impl PcmciPlus {
         let review = TemporalCpdagReview::from_cpdag(cpdag, algorithm.id.clone());
         let links_retained = evidence.links.len();
         let mut diagnostics = Vec::new();
-        if truncated > 0 {
-            diagnostics.push(DiscoveryDiagnostic {
-                code: Arc::from("mci.conditioning_truncated"),
-                message: Arc::from(format!(
-                    "MCI conditioning sets dropped {truncated} weakest condition(s) at the column cap"
-                )),
-            });
-        }
+        debug_assert_eq!(truncated, 0, "truncated MCI is refused before a result is built");
         push_diagnostic(
             &mut diagnostics,
             "pcmci_plus.cpdag",
@@ -396,13 +391,15 @@ pub(crate) fn contemp_mci_phase(
                 // test valid under autocorrelation — so the old order evicted mandatory
                 // conditions in favour of the optional candidate set.
                 let s_budget = MAX_MCI_COND.saturating_sub(contemp_others.len());
-                truncated += mci_conditioning_bounded(
+                let dropped = mci_conditioning_bounded(
                     link,
                     lagged_tgt,
                     lagged_src,
                     s_budget,
                     &mut workspace.others,
                 );
+                truncated += dropped;
+                refuse_truncated_mci(dropped)?;
                 // S first, strongest candidate first: `contemp_others` is already sorted by
                 // descending |stat|, so pushing it as a block preserves that order. The old
                 // `insert(0, …)` per element reversed it, inverting the ranking the sort
@@ -446,7 +443,7 @@ pub(crate) fn contemp_mci_phase(
                     removed.push((target, src, slag));
                     sepsets.insert(
                         (src, slag, target, Lag::CONTEMPORANEOUS),
-                        Arc::from(contemp_others.clone().into_boxed_slice()),
+                        Arc::from(workspace.others.clone().into_boxed_slice()),
                     );
                 }
             }

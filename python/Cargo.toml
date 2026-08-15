@@ -27,6 +27,7 @@ antecedent-prob = { path = "../crates/antecedent-prob" }
 # Type conversion only (mediation estimand / graph construction for analyze*).
 antecedent-expr = { path = "../crates/antecedent-expr" }
 antecedent-graph = { path = "../crates/antecedent-graph" }
+antecedent-identify = { path = "../crates/antecedent-identify" }
 antecedent-model = { path = "../crates/antecedent-model" }
 antecedent-attribution = { path = "../crates/antecedent-attribution" }
 antecedent-stats = { path = "../crates/antecedent-stats" }
@@ -39,4 +40,5 @@ pyo3 = { workspace = true }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 numpy = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }

@@ -48,6 +48,16 @@ pub enum EstimationError {
         /// Explanation.
         message: &'static str,
     },
+    /// The estimator refused because identification was not certified for this query.
+    ///
+    /// Distinct from [`Self::Data`]: the inputs are well formed, and the refusal is about
+    /// what the graph licenses. Owned rather than `&'static str` because it carries the
+    /// certificate's own reason and message.
+    #[error("{message}")]
+    NotCertified {
+        /// Refusal, including the certificate's reason and message.
+        message: String,
+    },
 }
 
 impl EstimationError {
@@ -55,6 +65,16 @@ impl EstimationError {
     #[must_use]
     pub const fn unsupported(message: &'static str) -> Self {
         Self::Unsupported { message }
+    }
+
+    /// Refusal to estimate a quantity whose identification was not certified.
+    #[must_use]
+    pub fn not_certified(stage: &str, reason: &str, message: &str) -> Self {
+        Self::NotCertified {
+            message: format!(
+                "{stage} refused: identification was not certified ({reason}): {message}"
+            ),
+        }
     }
 
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).

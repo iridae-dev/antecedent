@@ -1,0 +1,6 @@
+# Immutable released-package candidate pin only; no conformance exposure is claimed.
+project = "riskRegression"
+version = "2026.03.11"
+source = "https://cran.r-project.org/src/contrib/riskRegression_2026.03.11.tar.gz"
+license = "GPL-2 | GPL-3"
+notes = "Candidate oracle for marginal IPCW. Exact delayed-entry and normalization compatibility must be reviewed before generating a fixture; no exposure is claimed."

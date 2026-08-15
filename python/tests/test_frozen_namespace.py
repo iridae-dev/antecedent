@@ -1,12 +1,11 @@
-"""The frozen root namespace: ``antecedent.__all__`` is an explicit, literal contract.
+"""The deliberate root namespace: ``antecedent.__all__`` is an explicit contract.
 
-``__init__.py``'s docstring asserts the root namespace is **frozen** at 41
-names (three verbs, the accepted-structure and result types, the nine typed
-queries, the five graph classes, the inference/identifier/estimator
-selectors, the two error names, and the twelve stage modules, plus
-``__version__``). Nothing enforced that claim — ``test_notebook_api_surface.py``
-only checks that names the example notebooks happen to use still resolve, not
-that ``__all__`` itself is what it claims to be. That gap is exactly how
+``__init__.py`` keeps the root namespace deliberately small.  The 0.5 release
+explicitly reopened it for the causal-response queries while leaving their
+configuration and result helpers on stage modules.  This test spells out the
+resulting contract so future changes remain conscious.  Previously nothing
+enforced that claim — ``test_notebook_api_surface.py`` only checked names the
+example notebooks happened to use. That gap is exactly how
 ``antecedent.estimators`` went missing from the deliberate-but-unlisted
 import block while every sibling stage module resolved fine (see the report
 for this change): nothing asserted the unlisted-but-reachable set either.
@@ -17,13 +16,16 @@ consciously edit this file rather than silently drift.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 pytest.importorskip("antecedent")
 import antecedent
 
-# --- 1. The frozen `__all__` contract, spelled out in full. -----------------------
+# --- 1. The root `__all__` contract, spelled out in full. -------------------------
 
 _EXPECTED_ALL = {
     # Verbs
@@ -34,14 +36,22 @@ _EXPECTED_ALL = {
     "AcceptedGraph",
     "Identification",
     "AnalysisResult",
-    # Queries (nine typed queries)
+    # Queries
+    "AverageDerivative",
     "AverageEffect",
     "ConditionalEffect",
     "Counterfactual",
+    "DirectionalDerivative",
+    "Elasticity",
     "InterventionalDistribution",
+    "InterventionResponse",
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "PointDerivative",
+    "ResponseCurve",
+    "ResponseJacobian",
+    "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
     # Graphs (five graph classes)
@@ -79,22 +89,35 @@ _EXPECTED_ALL = {
 
 # --- 2. Reachable as `antecedent.<name>` but deliberately outside `__all__`. ------
 #
-# Their public content is re-exported on the frozen surface above (queries,
+# Their public content is re-exported on the root surface above (queries,
 # inference selectors) or belongs to a narrower stage surface. `estimators`
 # (the typed `estimator_config=` front-end) is included here as of this fix —
-# see the module docstring above.
+# see the module docstring above. `artifacts` and `intervention` were both
+# missing from this set until this fix: `intervention` is load-bearing for
+# `InterventionResponse` (`_analyze.py`) and documented in
+# `docs/causal-responses.md`; `artifacts` backs the documented
+# `antecedent.artifacts.dumps`/`.loads` surface (`docs/artifacts.md`). Neither
+# omission was caught because nothing checked this set for completeness --
+# see ``test_unlisted_but_reachable_set_matches_init_py`` below, which now
+# derives the deliberate-import block from ``__init__.py`` itself so a future
+# stage module cannot be silently added there without this set changing too.
 
 _EXPECTED_UNLISTED_BUT_REACHABLE = {
+    "artifacts",
     "counterfactual",
     "estimators",
     "inference",
+    "interference",
+    "intervention",
     "model",
+    "observation",
     "population",
     "query",
+    "transport",
 }
 
 
-def test_all_matches_the_documented_frozen_set():
+def test_all_matches_the_documented_root_set():
     assert set(antecedent.__all__) == _EXPECTED_ALL
 
 
@@ -103,7 +126,7 @@ def test_all_has_no_duplicates():
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_ALL))
-def test_every_frozen_name_resolves(name):
+def test_every_root_name_resolves(name):
     assert hasattr(antecedent, name), f"antecedent.{name} is in __all__ but does not resolve"
 
 
@@ -120,7 +143,46 @@ def test_every_deliberately_unlisted_name_still_resolves(name):
     assert name not in antecedent.__all__, f"antecedent.{name} should not be in __all__"
 
 
-def test_estimators_module_is_reachable_and_not_frozen():
+def _deliberate_unlisted_reachable_imports_from_init_py() -> set[str]:
+    """Parse ``__init__.py`` for its ``from . import X as X`` block.
+
+    That self-aliased spelling (``as X`` repeating the imported name) is what
+    marks a stage-module import as the deliberate "reachable but outside
+    ``__all__``" family in this file -- as opposed to plain ``from . import
+    (a, b, c)`` (the root-exported stage modules, no alias) or ``from
+    ._native import name as name`` (re-exported constants/classes, not this
+    package's own submodules). Deriving the set this way means a future
+    ``from . import newmod as newmod`` line added to that block, without a
+    matching update here, fails this test instead of silently drifting.
+    """
+
+    source = Path(antecedent.__file__).read_text()
+    tree = ast.parse(source, filename=antecedent.__file__)
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.module is not None or node.level != 1:
+            continue  # not a plain `from . import ...`
+        for alias in node.names:
+            if alias.asname == alias.name:
+                names.add(alias.name)
+    return names
+
+
+def test_unlisted_but_reachable_set_matches_init_py():
+    """Defects 3 & 4, guarded structurally: this set must track `__init__.py`.
+
+    Before this fix, `_EXPECTED_UNLISTED_BUT_REACHABLE` was a hand-maintained
+    list that had already drifted from `__init__.py` twice (missing both
+    `intervention` and `artifacts`). This test makes that drift impossible to
+    reintroduce silently: it derives the actual deliberate-import block from
+    the source rather than trusting a second hand-copied list.
+    """
+    assert _deliberate_unlisted_reachable_imports_from_init_py() == _EXPECTED_UNLISTED_BUT_REACHABLE
+
+
+def test_estimators_module_is_reachable_and_not_root_exported():
     """Defect 1, directly: `antecedent.estimators` resolves without a direct import."""
     assert hasattr(antecedent, "estimators")
     assert antecedent.estimators.LinearAdjustment is not None

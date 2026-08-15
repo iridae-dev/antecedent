@@ -62,7 +62,16 @@ pub fn path_decompose(
     for &src in sources {
         let src_dense =
             model.dense_of(src).ok_or_else(|| AttributionError::missing_var("source", src))?;
-        let paths = model.graph.directed_paths(src_dense, outcome_dense, max_paths, max_len)?;
+        let (paths, truncated) =
+            model.graph.directed_paths_with_budget(src_dense, outcome_dense, max_paths, max_len)?;
+        if truncated {
+            return Err(AttributionError::Budget {
+                message: format!(
+                    "path enumeration truncated at max_paths={max_paths} max_len={max_len}; \
+                             refusing an incomplete path total"
+                ),
+            });
+        }
         for path in paths {
             evaluations += 1;
             let mut share = 1.0;

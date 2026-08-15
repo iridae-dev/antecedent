@@ -23,3 +23,4 @@ compatibility analysis where applicable. See [docs/architecture.md](../docs/arch
 | [0016](0016-design-state.md) | Design and incremental state |
 | [0017](0017-release-prep.md) | Parity closure and 1.0 preparation (version/format clauses superseded by 0018) |
 | [0018](0018-release-version-history.md) | Release version history and artifact format correction |
+| [0019](0019-response-artifact-format.md) | Causal-response wire types and artifact format 0.3 |

@@ -156,7 +156,7 @@ impl PropensityWeighting {
             &model.clipped_scores,
             &problem.design_matrix,
             problem.design_ncols,
-        );
+        )?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -319,10 +319,10 @@ pub(crate) fn hajek_influence_se(
     propensity: &[f64],
     design_colmajor: &[f64],
     ncols: usize,
-) -> f64 {
+) -> Result<f64, EstimationError> {
     let n = treatment.len();
     if n < 2 || weights.len() != n || propensity.len() != n {
-        return f64::NAN;
+        return Ok(f64::NAN);
     }
     let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
     let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
@@ -335,7 +335,7 @@ pub(crate) fn hajek_influence_se(
         }
     }
     if sum_w1 <= 0.0 || sum_w0 <= 0.0 {
-        return f64::NAN;
+        return Ok(f64::NAN);
     }
     let nf = n as f64;
     let mut psi = vec![0.0; n];
@@ -370,14 +370,17 @@ pub(crate) fn hajek_influence_se(
                 gram[c * ncols + d] = acc / nf;
             }
         }
-        if let Some(alpha) = solve_symmetric_posdef(&mut gram, &mut rhs, ncols) {
-            for i in 0..n {
-                let mut adj = 0.0;
-                for c in 0..ncols {
-                    adj += scores[c * n + i] * alpha[c];
-                }
-                psi[i] -= adj;
+        let Some(alpha) = solve_symmetric_posdef(&mut gram, &mut rhs, ncols) else {
+            return Err(EstimationError::stats_msg(
+                "singular propensity-score Gram; refusing an uncorrected Hajek SE",
+            ));
+        };
+        for i in 0..n {
+            let mut adj = 0.0;
+            for c in 0..ncols {
+                adj += scores[c * n + i] * alpha[c];
             }
+            psi[i] -= adj;
         }
     }
 
@@ -385,7 +388,7 @@ pub(crate) fn hajek_influence_se(
     let var = psi.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (nf - 1.0);
     // Finite-sample inflation for estimated propensity (p design columns).
     let df = (nf - ncols.max(1) as f64).max(1.0);
-    (var / nf * (nf / df)).max(0.0).sqrt()
+    Ok((var / nf * (nf / df)).max(0.0).sqrt())
 }
 
 /// Gaussian elimination for a small dense system (propensity score projection).
@@ -394,7 +397,7 @@ pub(crate) fn hajek_influence_se(
 /// (matching `antecedent_stats::gram::invert_square`) so the verdict does not depend on the
 /// data's units — an absolute threshold would quietly accept a direction that is singular
 /// relative to the Gram matrix's own scale and hand back a garbage adjustment.
-fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
+pub(crate) fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
     let mut scale = 0.0_f64;
     for i in 0..p {
         scale = scale.max(a[i * p + i].abs());

@@ -470,10 +470,6 @@ fn identification_ok_for_prior(identification: &str, allow_unidentified: bool) -
             | "nonparametrically_identified"
             | "IdentifiedUnderParametricRestrictions"
             | "identified_under_parametric_restrictions"
-            | "IdentifiedUnderPriorRestrictions"
-            | "identified_under_prior_restrictions"
-            | "PartiallyIdentified"
-            | "partially_identified"
     )
 }
 
@@ -873,6 +869,22 @@ mod tests {
         let allowed = target.allow_unidentified();
         let reports2 = catalog.filter_compatible(&allowed);
         assert!(reports2[0].is_usable());
+    }
+
+    #[test]
+    fn filter_partially_identified_rejected_unless_allowed() {
+        let meta = PriorSourceMeta::new("pid", ate_estimand(), "PartiallyIdentified")
+            .with_design(design_tyz());
+        let catalog = PriorCatalog::from_sources(vec![PriorSourceRef::from_meta(meta)]);
+        let target = TargetDesign::new(ate_estimand(), ["t", "y"]);
+        let reports = catalog.filter_compatible(&target);
+        assert!(matches!(
+            &reports[0],
+            CompatibilityReport::Rejected {
+                reason: CompatibilityRejectReason::UnidentifiedSource { .. },
+                ..
+            }
+        ));
     }
 
     #[test]

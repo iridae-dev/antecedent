@@ -1,7 +1,7 @@
 //! Intervention normalization and hard-Set extraction for identifiers.
 //!
-//! Soft(constant), `Soft(additive_shift)`, Shift, degenerate Stochastic, and
-//! Sequence-of-Sets reduce to hard Sets (or Set levels) for nonparametric ID.
+//! `Soft(constant)` and Sequence-of-Sets reduce to hard Sets for nonparametric ID.
+//! Shift and `Soft(additive_shift)` are refused: X := X+δ is not do(X=δ).
 //! Arbitrary Soft families and continuous Stochastic policies remain unsupported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -35,7 +35,7 @@ pub(crate) fn intervention_kind_name(intervention: &Intervention) -> &'static st
 pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
     match kind {
         "Soft" => {
-            "supports hard Set (and Soft(constant)/Soft(additive_shift) reductions) only; \
+            "supports hard Set and Soft(constant) reductions only; \
              got Soft with an unsupported mechanism family"
         }
         "Shift" => "supports hard Set / Shift levels only; got an unsupported Shift form",
@@ -47,7 +47,7 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
             "supports Sequence of hard Sets only; got a Sequence containing non-Set steps"
         }
         _ => {
-            "supports hard Set interventions (plus Soft(constant), Shift, discrete Stochastic, \
+            "supports hard Set interventions (plus Soft(constant), discrete Stochastic, \
              Sequence-of-Sets reductions) only"
         }
     }
@@ -57,14 +57,16 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
 ///
 /// Reductions:
 /// - Soft(`constant`, `[v]`) → Set(v)
-/// - Soft(`additive_shift`, `[δ]`) / Shift(δ) → Set(δ) (absolute do-level for nonparametric ID)
 /// - Stochastic Bernoulli(0|1) → Set(0|1)
 /// - Sequence of (reducible-to-)Sets on one variable → last Set
 /// - Sequence of Sets on distinct variables → error here (use [`normalize_intervention_list`])
 ///
+/// Refused (not a hard do-level):
+/// - `Shift(δ)` and Soft(`additive_shift`, `[δ]`) — X := X+δ is not do(X=δ)
+///
 /// # Errors
 ///
-/// Unsupported Soft family, continuous Stochastic, empty/mixed Sequence, etc.
+/// Unsupported Soft family, additive shift, continuous Stochastic, empty/mixed Sequence, etc.
 pub(crate) fn normalize_to_set(
     intervention: &Intervention,
 ) -> Result<Intervention, IdentificationError> {
@@ -83,27 +85,18 @@ pub(crate) fn normalize_to_set(
                 ));
             }
             match family {
-                "constant" | "additive_shift" => {
-                    Ok(Intervention::set(*variable, Value::f64(param)))
-                }
+                "constant" => Ok(Intervention::set(*variable, Value::f64(param))),
+                "additive_shift" => Err(IdentificationError::unsupported(
+                    "Soft(additive_shift) is not a hard do-level; use Intervention::Set for \
+                     do(X=x) or a parametric SCM for a true additive shift",
+                )),
                 _ => Err(IdentificationError::unsupported(non_set_unsupported_message("Soft"))),
             }
         }
-        Intervention::Shift { variable, delta } => {
-            let Some(d) = delta.as_f64() else {
-                return Err(IdentificationError::unsupported(
-                    "Shift delta must be a finite f64 for nonparametric ID",
-                ));
-            };
-            if !d.is_finite() {
-                return Err(IdentificationError::unsupported(
-                    "Shift delta must be a finite f64 for nonparametric ID",
-                ));
-            }
-            // Nonparametric ID uses the same graph mutilation as hard do; the
-            // absolute level is the shift magnitude (do(X = δ) form).
-            Ok(Intervention::set(*variable, Value::f64(d)))
-        }
+        Intervention::Shift { .. } => Err(IdentificationError::unsupported(
+            "Shift(X := X+δ) is not do(X=δ); nonparametric ID refuses the reduction. \
+             Use Intervention::Set for a hard level, or a parametric SCM for an additive shift",
+        )),
         Intervention::Stochastic { variable, policy } => match policy {
             StochasticPolicy::Bernoulli { p } => {
                 if !p.is_finite() || !(0.0..=1.0).contains(p) {
@@ -218,7 +211,7 @@ pub(crate) fn require_hard_set_interventions<'a>(
     Ok(())
 }
 
-/// Extract the value from a hard Set, or after reducing Soft/Shift/Sequence/degenerate Stochastic.
+/// Extract the value from a hard Set, or after reducing Soft(constant)/Sequence/degenerate Stochastic.
 pub(crate) fn require_set_value(
     intervention: &Intervention,
     _algorithm: &str,
@@ -233,7 +226,7 @@ pub(crate) fn require_set_value(
 
 /// Normalize an ATE active/control pair.
 ///
-/// Soft(constant)/Shift/Sequence reduce to Sets. Non-degenerate Bernoulli sides
+/// Soft(constant)/Sequence reduce to Sets. Non-degenerate Bernoulli sides
 /// expand to a hard unit contrast `do(1) − do(0)` with scale `w_a − w_c` where
 /// `w` is the Bernoulli success probability (or 0/1 for a hard Set level in {0,1}).
 ///
@@ -318,11 +311,23 @@ mod tests {
     }
 
     #[test]
-    fn shift_reduces_to_set_level() {
+    fn shift_is_not_a_hard_set() {
         let v = VariableId::from_raw(0);
         let iv = Intervention::shift(v, Value::f64(0.25));
-        let n = normalize_to_set(&iv).unwrap();
-        assert_eq!(n, Intervention::set(v, Value::f64(0.25)));
+        let err = normalize_to_set(&iv).unwrap_err();
+        assert!(
+            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Shift"))
+        );
+    }
+
+    #[test]
+    fn soft_additive_shift_is_not_a_hard_set() {
+        let v = VariableId::from_raw(0);
+        let iv = Intervention::soft(v, MechanismOverride::named("additive_shift", vec![0.25]));
+        let err = normalize_to_set(&iv).unwrap_err();
+        assert!(
+            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("additive_shift"))
+        );
     }
 
     #[test]

@@ -1,0 +1,31 @@
+{
+  "fixture_id": "antecedent.observation.paper_equation_primitives",
+  "selected_outcome": {
+    "observed": [2.0, null, 4.0],
+    "indicator": [1.0, 0.0, 1.0],
+    "probabilities": [0.5, 0.5, 1.0],
+    "outcome_regression": [1.0, 3.0, 4.0],
+    "expected_aipw_pseudo_values": [3.0, 3.0, 4.0]
+  },
+  "kaplan_meier_ipcw": {
+    "time": [1.0, 2.0, 3.0],
+    "event": [0.0, 1.0, 1.0],
+    "entry": [0.0, 1.5, 0.0],
+    "survival_floor": 0.01,
+    "expected_without_entry": [0.0, 1.5, 1.5],
+    "expected_with_entry": [0.0, 1.0, 2.0]
+  },
+  "gaussian_observation_likelihood": {
+    "sigma": 1.0,
+    "means": [0.0, 0.0, 0.0, 0.0],
+    "observations": [
+      {"kind": "left_censored", "bound": 0.0},
+      {"kind": "right_censored", "bound": 0.0},
+      {"kind": "interval_censored", "lower": -1.0, "upper": 1.0},
+      {"kind": "truncated", "value": 0.0, "lower": -1.0, "upper": 1.0}
+    ],
+    "expected_log_likelihood": -2.305232894324563
+  },
+  "contract": "Independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW, and Gaussian censored/truncated likelihood equations; no external implementation parity is claimed.",
+  "tolerance": {"atol": 1e-12}
+}

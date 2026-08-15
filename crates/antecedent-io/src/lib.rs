@@ -7,6 +7,7 @@
 
 pub mod analysis_wire;
 pub mod arrow_section;
+pub mod causal_artifact;
 pub mod container;
 pub mod contrast_wire;
 pub mod convert;
@@ -33,7 +34,9 @@ pub mod prior_bank;
 pub mod provenance_wire;
 pub mod query_wire;
 pub mod reader;
+pub mod response_wire;
 pub mod trace;
+pub mod transport_interference_wire;
 pub mod wire;
 
 pub use analysis_wire::{
@@ -43,6 +46,10 @@ pub use analysis_wire::{
     identification_to_wire, refutation_from_wire, refutation_to_wire,
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
+pub use causal_artifact::{
+    CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, decode_causal_payload_artifact,
+    encode_causal_payload_artifact,
+};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
     CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
@@ -111,18 +118,38 @@ pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,
 };
 pub use query_wire::{
-    CausalQueryWire, InterventionWire, InterventionalDistributionQueryWire,
-    PathSpecificEffectQueryWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
-    ValueWire, causal_query_from_wire, causal_query_to_wire, interventional_distribution_from_wire,
+    AssignmentDesignWire, CausalQueryWire, ExposureLevelWire, ExposureMappingWire,
+    InterferenceFunctionalWire, InterferenceQueryWire, InterventionWire,
+    InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, SetInterventionWire,
+    TargetPopulationWire, TemporalPolicyWire, TransportQueryWire, ValueWire,
+    causal_query_from_wire, causal_query_to_wire, interference_query_from_wire,
+    interference_query_to_wire, interventional_distribution_from_wire,
     interventional_distribution_to_wire, path_specific_from_wire, path_specific_to_wire,
+    transport_query_from_wire, transport_query_to_wire,
 };
 pub use reader::{
     ArtifactReader, MappedArtifactReader, MappedSection, SectionAccess, SectionIndexEntry,
     SectionLoadStats,
 };
+pub use response_wire::{
+    CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
+    GridSpecWire, IdentificationStatusWire, ObservationAssumptionWire, ObservationSpecWire,
+    ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseQueryWire,
+    ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire, SupportRegionWire,
+    SupportReportWire, SupportStatusWire, causal_response_from_wire, causal_response_to_wire,
+    response_query_from_wire, response_query_to_wire,
+};
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
     assumptions_to_wire,
+};
+pub use transport_interference_wire::{
+    ExposureProbabilityMethodWire, InterferenceEstimateWire, NonTransportableCertificateWire,
+    PopulationFactorWire, RandomizationContrastWire, TransportCertificateWire,
+    TransportEffectEstimateWire, TransportFormulaWire, TransportIdentificationWire,
+    TransportOverlapDiagnosticWire, interference_estimate_from_wire, interference_estimate_to_wire,
+    transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
+    transport_identification_to_wire,
 };
 pub use wire::{
     AdmgWire, ArtifactKind, CpdagWire, DagWire, EndpointWire, FormatVersion, MarkedEdgeWire,

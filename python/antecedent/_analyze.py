@@ -7,7 +7,10 @@ extend via a handler rather than growing a monolith.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
+
+if TYPE_CHECKING:
+    from .results import CausalResponseView
 
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
@@ -45,6 +48,7 @@ from ._native import (
 from ._native import (
     analyze_mediation as _analyze_mediation,
 )
+from ._native import analyze_observation_response as _analyze_observation_response
 from ._native import (
     analyze_panel as _analyze_panel,
 )
@@ -54,6 +58,8 @@ from ._native import (
 from ._native import (
     analyze_path_specific as _analyze_path_specific,
 )
+from ._native import analyze_response as _analyze_response
+from ._native import analyze_response_pag as _analyze_response_pag
 from ._native import (
     analyze_temporal_discover as _analyze_temporal_discover,
 )
@@ -89,16 +95,36 @@ from .estimation import (
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
+from .observation import Complete as _ObservationComplete
 from .query import (
+    AverageDerivative,
     AverageEffect,
     ConditionalEffect,
     Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
     InterventionalDistribution,
+    InterventionResponse,
     MediationEffect,
     PathSpecificEffect,
+    PointDerivative,
     PulseEffect,
+    ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
+)
+
+_RESPONSE_QUERIES = (
+    ResponseCurve,
+    AverageDerivative,
+    PointDerivative,
+    Elasticity,
+    SemiElasticity,
+    DirectionalDerivative,
+    ResponseJacobian,
+    InterventionResponse,
 )
 
 _STATIC_DISCOVERY = (PC, GES, LiNGAM, NOTEARS, FCI, RFCI)
@@ -195,6 +221,438 @@ def handle_temporal_mediation(
         threads=threads,
     )
     return _wrap_temporal(raw)
+
+
+def handle_response(
+    data: Any,
+    query: Any,
+    *,
+    graph: Any,
+    discovery: Any,
+    inference: Frequentist | Bayesian,
+    identifier: str | None,
+    estimator: str | None,
+    estimator_config: Mapping[str, object] | None,
+    validators: Sequence[Any] | None,
+    refute_requested: bool,
+    refute: bool | str,
+    bootstrap_requested: bool,
+    seed: int,
+    threads: int,
+) -> Any:
+    """Identify and estimate a complete-observation continuous response."""
+    from .estimation import _static_edges
+    from .results import (
+        CausalResponseView,
+        IdentificationView,
+        ResponseEnvelopeView,
+        ResponseUncertainty,
+        ResponseValidationCheck,
+        ResponseValidationView,
+        ResponseView,
+        SupportDiagnostic,
+        SupportReport,
+    )
+    from .results.response import SupportStatus, UncertaintyKind
+
+    if discovery is not None:
+        raise ValueError("response queries do not yet support discovery=")
+    if isinstance(inference, Bayesian):
+        raise TypeError("response queries do not yet support inference=Bayesian(...)")
+    if isinstance(graph, Admg):
+        raise TypeError("response queries require a Dag or Pag; Admg is not supported on this path")
+    if isinstance(graph, Cpdag):
+        raise TypeError(
+            "response queries require a Dag or Pag; Cpdag is not supported on this path"
+        )
+    if (
+        graph is not None
+        and not isinstance(graph, (Dag, Pag))
+        and not isinstance(graph, (list, tuple))
+    ):
+        raise TypeError(
+            "response queries require a Dag, Pag, or directed edge list; "
+            f"got {type(graph).__name__}"
+        )
+    expected_estimator = {
+        "response_curve": "response.kennedy_dr",
+        "point_derivative": "response.kennedy_dr",
+        "elasticity": "response.kennedy_dr",
+        "semi_elasticity": "response.kennedy_dr",
+        "average_derivative": "response.riesz_ade",
+        "directional_derivative": "response.gam_derivative",
+        "response_jacobian": "response.gam_derivative",
+        "intervention_response": "response.intervention_gcomp",
+    }.get(query.kind)
+    expected_identifier = (
+        "generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"
+    )
+    if identifier not in (None, expected_identifier):
+        raise ValueError(
+            f"{query.kind} requires identifier={expected_identifier!r}; got {identifier!r}"
+        )
+    if estimator not in (None, expected_estimator):
+        raise ValueError(
+            f"{query.kind} requires estimator={expected_estimator!r}; got {estimator!r}"
+        )
+    if threads != 1:
+        raise ValueError("response queries currently require threads=1")
+    response_options: dict[str, object] = {}
+    if estimator_config is not None:
+        unknown = set(estimator_config) - {
+            "bandwidth",
+            "simultaneous_replicates",
+            "confidence_level",
+            "multiplier_seed",
+        }
+        if unknown:
+            raise ValueError(
+                "unknown response estimator_config keys: " + ", ".join(sorted(unknown))
+            )
+        response_options.update(estimator_config)
+        if "simultaneous_replicates" in response_options and "bandwidth" not in response_options:
+            raise ValueError(
+                "simultaneous response bands require an explicit estimator_config bandwidth"
+            )
+        # Point derivatives/elasticities require an explicit bandwidth (Silverman's rule is
+        # refused for m'/m''). Simultaneous bands remain MeanCurve-only.
+        if isinstance(query, (PointDerivative, Elasticity, SemiElasticity)):
+            if "simultaneous_replicates" in response_options:
+                raise ValueError(
+                    "simultaneous response bands currently apply to ResponseCurve only"
+                )
+            if "bandwidth" not in response_options:
+                raise ValueError(
+                    "PointDerivative/Elasticity/SemiElasticity require estimator_config bandwidth"
+                )
+        elif not isinstance(query, ResponseCurve):
+            raise ValueError(
+                "response estimator_config currently applies to ResponseCurve and point derivatives only"
+            )
+    if validators is not None:
+        raise ValueError("response queries do not accept scalar ATE validators")
+    if bootstrap_requested:
+        raise ValueError("response queries do not yet expose bootstrap= through analyze()")
+    mechanism = getattr(query, "observation", None)
+    # Complete() is the documented "outcome is observed directly" spelling and
+    # must be treated exactly like no mechanism at all everywhere below --
+    # otherwise a query carrying it is misrouted onto the observation-aware
+    # path, which does not (and should not) know how to handle it.
+    if isinstance(mechanism, _ObservationComplete):
+        mechanism = None
+    observation_assumptions = tuple(getattr(query, "observation_assumptions", ()))
+    if mechanism is None and observation_assumptions:
+        raise ValueError("observation_assumptions require an explicit observation mechanism")
+    if mechanism is not None and refute_requested:
+        raise ValueError(
+            "observation-aware curve validation is unavailable because subset refits must "
+            "re-estimate both the observation correction and response jointly"
+        )
+    if getattr(query, "target_population", None) is not None:
+        raise ValueError("response queries do not yet support target_population")
+    names, columns = as_columns(data)
+    at: list[float] | None
+    if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+        treatments = list(query.treatments)
+        outcomes = list(query.outcomes)
+        at = (
+            [query.at[name] for name in treatments]
+            if isinstance(query.at, Mapping)
+            else list(query.at)
+        )
+    elif isinstance(query, InterventionResponse):
+        from . import intervention as intervention_specs
+
+        supplied = query.intervention
+        interventions = (
+            list(supplied)
+            if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+            else [supplied]
+        )
+        if not interventions:
+            raise ValueError("InterventionResponse requires at least one intervention")
+        treatments = []
+        outcomes = [query.outcome]
+        intervention_kinds: list[str] = []
+        intervention_parameters: list[list[float]] = []
+        for spec in interventions:
+            if isinstance(spec, intervention_specs.Set):
+                kind, parameters = "set", [spec.value]
+            elif isinstance(spec, intervention_specs.Shift):
+                kind, parameters = "shift", [spec.delta]
+            elif isinstance(spec, intervention_specs.Bernoulli):
+                kind, parameters = "bernoulli", [spec.p]
+            elif isinstance(spec, intervention_specs.Gaussian):
+                kind, parameters = "gaussian", [spec.mean, spec.variance]
+            elif isinstance(spec, intervention_specs.Categorical):
+                kind, parameters = "categorical", list(spec.probabilities)
+            elif isinstance(spec, (intervention_specs.Soft, intervention_specs.Sequence)):
+                raise CausalUnsupportedError(
+                    f"{type(spec).__name__} interventions require a structural/temporal "
+                    "model and are not estimable by response.intervention_gcomp"
+                )
+            else:
+                raise TypeError(
+                    "InterventionResponse.intervention must be an antecedent.intervention "
+                    "specification or a sequence of specifications"
+                )
+            treatments.append(spec.variable)
+            intervention_kinds.append(kind)
+            intervention_parameters.append(parameters)
+        direction = None
+        at = None
+    else:
+        treatments = [query.treatment]
+        outcomes = [query.outcome]
+        at = [query.at] if hasattr(query, "at") else None
+    direction = None
+    if isinstance(query, DirectionalDerivative):
+        direction = (
+            [query.direction[name] for name in treatments]
+            if isinstance(query.direction, Mapping)
+            else list(query.direction)
+        )
+    scale = "identity"
+    if isinstance(query, Elasticity):
+        scale = "log_log"
+    elif isinstance(query, SemiElasticity):
+        scale = "log_treatment" if query.log_scale == "treatment" else "log_outcome"
+    weighting = getattr(query, "weighting", None) or "observed"
+    if not isinstance(weighting, str):
+        raise TypeError("AverageDerivative.weighting currently accepts 'observed'")
+    raw: Any
+    if mechanism is not None:
+        if response_options:
+            raise ValueError("observation-aware response does not yet compose estimator_config")
+        if not isinstance(query, ResponseCurve):
+            raise ValueError(
+                "observation-aware response execution currently supports MeanCurve only"
+            )
+        if isinstance(graph, Pag):
+            raise ValueError("observation-aware PAG response envelopes are not yet composed")
+        from .observation import (
+            _assumption_kwargs,
+            _ensure_latent_schema_column,
+            _mechanism_kwargs,
+        )
+
+        if len(observation_assumptions) != 1:
+            raise ValueError("observation-aware response requires exactly one explicit assumption")
+        names, columns = _ensure_latent_schema_column(names, columns, mechanism)
+        edges = _static_edges(graph)
+        observation_kwargs = _mechanism_kwargs(mechanism)
+        observation_kwargs.update(_assumption_kwargs(observation_assumptions[0]))
+        raw = cast(Any, _analyze_observation_response)(
+            names,
+            columns,
+            edges,
+            query.treatment,
+            query.outcome,
+            list(query.grid),
+            **observation_kwargs,
+        )
+    elif isinstance(graph, Pag):
+        if response_options:
+            raise ValueError("PAG response envelopes do not yet compose estimator_config")
+        if not isinstance(query, ResponseCurve):
+            raise ValueError("PAG response envelopes currently support MeanCurve only")
+        raw = _analyze_response_pag(
+            names,
+            columns,
+            graph,
+            query.treatment,
+            query.outcome,
+            list(query.grid),
+        )
+    else:
+        edges = _static_edges(graph)
+        raw = _analyze_response(
+            names,
+            columns,
+            edges,
+            query.kind,
+            treatments,
+            outcomes,
+            grid=list(query.grid) if isinstance(query, ResponseCurve) else None,
+            at=at,
+            direction=direction,
+            order=getattr(query, "order", 1),
+            scale=scale,
+            weighting=weighting,
+            intervention_kinds=(
+                intervention_kinds if isinstance(query, InterventionResponse) else None
+            ),
+            intervention_parameters=(
+                intervention_parameters if isinstance(query, InterventionResponse) else None
+            ),
+            bandwidth=cast(float | None, response_options.get("bandwidth")),
+            simultaneous_replicates=cast(
+                int | None, response_options.get("simultaneous_replicates")
+            ),
+            confidence_level=cast(float, response_options.get("confidence_level", 0.95)),
+            multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
+        )
+    response = (
+        ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
+        if raw.points and raw.values
+        else None
+    )
+    uncertainty = ResponseUncertainty(
+        cast(UncertaintyKind, raw.uncertainty_kind),
+        lower=raw.lower,
+        upper=raw.upper,
+        level=raw.level,
+        standard_error=raw.standard_error,
+        replicates=raw.replicates,
+        artifact_id=raw.artifact_id,
+    )
+    diagnostics = [
+        SupportDiagnostic(identifier, values, detail)
+        for identifier, values, detail in zip(
+            raw.diagnostic_ids,
+            raw.diagnostic_values,
+            raw.diagnostic_details,
+            strict=True,
+        )
+    ]
+    region = {
+        name: (lower, upper)
+        for name, lower, upper in zip(
+            raw.treatments, raw.support_minima, raw.support_maxima, strict=True
+        )
+    }
+    envelope = None
+    if getattr(raw, "identified_mass", None) is not None:
+        if raw.lower is None or raw.upper is None:
+            raise RuntimeError("native PAG response omitted its identified envelope")
+        if (
+            getattr(raw, "unidentified_mass", None) is None
+            or getattr(raw, "completion_count", None) is None
+            or getattr(raw, "truncated_completions", None) is None
+            or getattr(raw, "enumeration_capped", None) is None
+            or getattr(raw, "mass_scope", None) is None
+        ):
+            raise RuntimeError("native PAG response omitted its completion mass metadata")
+        envelope = ResponseEnvelopeView(
+            raw.treatments,
+            raw.outcomes,
+            raw.points,
+            raw.lower,
+            raw.upper,
+            raw.identified_mass,
+            raw.unidentified_mass,
+            raw.completion_count,
+            raw.truncated_completions,
+            raw.enumeration_capped,
+            cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+        )
+    validation = None
+    if refute_requested and refute is not False:
+        checks = [
+            ResponseValidationCheck(
+                "overlap.support",
+                "passed" if raw.support_status == "supported" else "failed",
+                None,
+                None,
+                f"curve support status is {raw.support_status!r}",
+            )
+        ]
+        if isinstance(query, ResponseCurve):
+            import numpy as np
+
+            rng = np.random.default_rng(seed)
+            subset_curves: list[list[list[float]]] = []
+            n_rows = len(columns[0])
+            subset_size = max(2, int(0.8 * n_rows))
+            for _ in range(10):
+                rows = np.sort(rng.choice(n_rows, size=subset_size, replace=False))
+                subset_columns = [column[rows] for column in columns]
+                if isinstance(graph, Pag):
+                    subset_raw = _analyze_response_pag(
+                        names,
+                        subset_columns,
+                        graph,
+                        query.treatment,
+                        query.outcome,
+                        list(query.grid),
+                    )
+                    # Envelope widths, not completion-conditioned point curves, are the
+                    # honest graph-class sensitivity target.
+                    assert subset_raw.lower is not None and subset_raw.upper is not None
+                    subset_curves.append(subset_raw.lower + subset_raw.upper)
+                else:
+                    subset_raw = _analyze_response(
+                        names,
+                        subset_columns,
+                        edges,
+                        query.kind,
+                        treatments,
+                        outcomes,
+                        grid=list(query.grid),
+                        scale=scale,
+                        weighting=weighting,
+                    )
+                    subset_curves.append(subset_raw.values)
+            baseline_rows = (
+                (raw.lower or []) + (raw.upper or []) if isinstance(graph, Pag) else raw.values
+            )
+            baseline_array = np.asarray(baseline_rows, dtype=float)
+            subset_mean = np.asarray(subset_curves, dtype=float).mean(axis=0)
+            max_shift = float(np.max(np.abs(subset_mean - baseline_array)))
+            checks.append(
+                ResponseValidationCheck(
+                    "data.subset",
+                    "informative",
+                    max_shift,
+                    None,
+                    "maximum absolute shift of the mean curve/envelope across ten "
+                    "deterministic 80% row-subset refits; no universal pass threshold is imposed",
+                    10,
+                )
+            )
+        checks.append(
+            ResponseValidationCheck(
+                "scalar_ate_refuters",
+                "skipped",
+                None,
+                None,
+                "placebo treatment, dummy outcome, random common cause, and scalar "
+                "sensitivity refuters do not define a function-valued curve check",
+            )
+        )
+        validation = ResponseValidationView(checks)
+    identification_operation = (
+        "identify.generalized_adjustment" if isinstance(graph, Pag) else "identify.response"
+    )
+    provenance = {
+        "operation_id": raw.provenance_id,
+        "operation_ids": [identification_operation, raw.provenance_id],
+    }
+    if validation is not None:
+        provenance["validation_operation_ids"] = [
+            "validate.overlap",
+            "validate.response_data_subset",
+        ]
+    return CausalResponseView(
+        estimand=query,
+        response=response,
+        estimate=raw.scalar if raw.scalar is not None else raw.matrix,
+        uncertainty=uncertainty,
+        support=SupportReport(
+            cast(SupportStatus, raw.support_status), region, diagnostics, raw.warnings
+        ),
+        identification=IdentificationView(
+            status=raw.identification,
+            method=("generalized.adjustment" if isinstance(graph, Pag) else "response.backdoor"),
+            adjustment_set=list(getattr(raw, "adjustment_set", ())),
+            assumption_count=len(raw.assumptions),
+            derivation_step_count=0,
+        ),
+        assumptions=raw.assumptions,
+        provenance=provenance,
+        envelope=envelope,
+        validation=validation,
+    )
 
 
 def handle_mediation(
@@ -1078,6 +1536,35 @@ def _handle_series_discover(
 # the per-kind key set is the only information the old `_dispatch_*` wrappers
 # carried, so it is kept explicit here rather than dispatched dynamically.
 _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
+    **{
+        kind: (
+            handle_response,
+            (
+                "graph",
+                "discovery",
+                "inference",
+                "identifier",
+                "estimator",
+                "estimator_config",
+                "validators",
+                "refute_requested",
+                "refute",
+                "bootstrap_requested",
+                "seed",
+                "threads",
+            ),
+        )
+        for kind in (
+            "response_curve",
+            "average_derivative",
+            "point_derivative",
+            "elasticity",
+            "semi_elasticity",
+            "directional_derivative",
+            "response_jacobian",
+            "intervention_response",
+        )
+    },
     "conditional": (
         handle_conditional,
         (
@@ -1132,6 +1619,14 @@ def analyze(
         | MediationEffect
         | Counterfactual
         | TemporalMediationEffect
+        | ResponseCurve
+        | AverageDerivative
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | DirectionalDerivative
+        | ResponseJacobian
+        | InterventionResponse
     ),
     graph: (
         Dag
@@ -1166,7 +1661,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     return_posterior_artifact: bool = False,
-) -> AnalysisResult:
+) -> AnalysisResult | CausalResponseView:
     """Identify then estimate a causal effect.
 
     Parameters
@@ -1180,7 +1675,10 @@ def analyze(
     query:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
         ``InterventionalDistribution``, ``PathSpecificEffect``,
-        ``MediationEffect``, ``Counterfactual``, or ``TemporalMediationEffect``.
+        ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``, or a
+        response-family query. Response-family queries return
+        :class:`antecedent.results.CausalResponseView`; other queries return
+        :class:`antecedent.AnalysisResult`.
     graph:
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
         ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
@@ -1220,14 +1718,31 @@ def analyze(
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
         hydrate). Default ``False``: UI summaries only.
     """
-    # Single source of truth for "is this one of the nine known query types" —
+    # Single source of truth for "is this a known query type" —
     # see `_coerce.coerce_query`'s docstring. Everything past this point in
-    # `analyze()` already implicitly requires one of those nine (the
+    # `analyze()` already implicitly requires a supported query (the
     # `_KIND_HANDLER_KEYS` dispatch plus the AverageEffect / Pulse-or-Sustained
-    # ladder below cover exactly the same nine kinds), so this makes the
+    # ladder below cover the same kinds), so this makes the
     # final `raise TypeError` at the bottom of this function unreachable in
     # practice; it stays as a defensive fallback rather than being deleted.
     coerce_query(query)
+    # An AcceptedGraph is already a reviewed discovery artifact. Unwrap it here so
+    # every query family gets the same artifact-first estimate path without ever
+    # re-entering discovery.
+    from .accepted_graph import AcceptedGraph
+
+    if isinstance(graph, AcceptedGraph):
+        if discovery is not None:
+            raise CausalUnsupportedError(
+                "analyze(graph=AcceptedGraph(...)) rejects discovery=; the structure "
+                "artifact is already accepted (call rediscover() explicitly to replace it)"
+            )
+        graph = graph.graph
+    # Explicit no-op spellings are important to staged APIs, whose historical
+    # defaults are ``refute=False`` and ``bootstrap=0``. They must not turn a
+    # response estimate into an unsupported refutation/bootstrap request.
+    refute_requested = refute not in (None, False, "none")
+    bootstrap_requested = bootstrap not in (None, 0)
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
     if not isinstance(estimator, (str, Estimator)) and estimator is not None:
@@ -1270,8 +1785,13 @@ def analyze(
                 "graph": graph,
                 "discovery": discovery,
                 "inference": inference,
-                "refute": resolved_refute,
+                "identifier": identifier,
+                "estimator": estimator,
+                "estimator_config": estimator_config,
                 "validators": validators,
+                "refute_requested": refute_requested,
+                "refute": resolved_refute,
+                "bootstrap_requested": bootstrap_requested,
                 "accept_discovered": accept_discovered,
                 "seed": seed,
                 "bootstrap": bootstrap,

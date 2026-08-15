@@ -90,11 +90,10 @@ pub fn fit_laplace_glm(
     let mut converged = false;
     let mut iterations = 0u32;
     let mut grad_inf: f64;
-    let mut separation_warning = false;
 
     for iter in 0..options.max_iter {
         iterations = iter + 1;
-        let (_, sep) = accumulate_likelihood(
+        let _ = accumulate_likelihood(
             likelihood,
             design,
             &workspace.beta[..ncols],
@@ -104,7 +103,6 @@ pub fn fit_laplace_glm(
             &mut workspace.work_w[..nrows],
             1.0,
         )?;
-        separation_warning |= sep;
 
         // Add prior: log π(β) = -0.5 Σ prec_i (β_i - μ_i)²
         for i in 0..ncols {
@@ -180,8 +178,9 @@ pub fn fit_laplace_glm(
         }
     }
 
-    // Final gradient / Hessian at MAP.
-    accumulate_likelihood(
+    // Final gradient / Hessian at MAP. Intermediate Newton steps can visit
+    // extreme η; publication cares about fitted probabilities at the mode.
+    let (_, sep_map) = accumulate_likelihood(
         likelihood,
         design,
         &workspace.beta[..ncols],
@@ -257,7 +256,7 @@ pub fn fit_laplace_glm(
     };
 
     let mut notes = Vec::new();
-    if separation_warning {
+    if sep_map {
         notes.push(Arc::from("possible separation in Bernoulli model"));
     }
 
@@ -267,7 +266,7 @@ pub fn fit_laplace_glm(
         grad_inf_norm: grad_inf,
         hessian_condition: condition,
         factorization,
-        separation_warning,
+        separation_warning: sep_map,
         notes,
         backend_id: Arc::from("laplace"),
         n_chains: None,
@@ -301,7 +300,9 @@ pub fn fit_laplace_glm(
     Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
 }
 
-/// GaussianIdentity Laplace: exact known-σ² posterior or joint InvGamma Laplace on `(β, λ)`.
+/// GaussianIdentity Laplace: exact known-σ² posterior, or the conjugate NIG path when
+/// residual variance is unknown (Laplace's mode Hessian is block-diagonal and is not
+/// the NIG posterior).
 fn fit_gaussian_laplace(
     design: BayesDesignRef<'_>,
     prior: &PriorSet,
@@ -322,8 +323,11 @@ fn fit_gaussian_laplace(
         GaussianVarianceModel::Known { sigma2 } => {
             fit_gaussian_laplace_known(design, &coef_prior, sigma2, options, workspace)
         }
-        GaussianVarianceModel::InvGamma { shape, scale } => {
-            fit_gaussian_laplace_inv_gamma(design, &coef_prior, shape, scale, options, workspace)
+        GaussianVarianceModel::InvGamma { .. } => {
+            // Laplace's Hessian at the NIG mode is block-diagonal and drops β–σ²
+            // coupling. The conjugate NIG posterior is the actual unknown-variance
+            // Gaussian linear model.
+            crate::conjugate::fit_conjugate_gaussian(design, prior, options, workspace)
         }
     }
 }
@@ -448,6 +452,7 @@ fn fit_gaussian_laplace_known(
     Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
 }
 
+#[allow(dead_code)]
 fn fit_gaussian_laplace_inv_gamma(
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
@@ -613,6 +618,12 @@ mod tests {
     use super::*;
     use crate::prior::PriorSpec;
 
+    fn deterministic_unit(i: usize) -> f64 {
+        // Cheap deterministic U(0,1) so Bernoulli labels overlap in x.
+        let x = i.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        ((x >> 16) & 0x7fff) as f64 / 32_768.0
+    }
+
     #[test]
     fn laplace_gaussian_matches_ols() {
         let n = 40;
@@ -730,7 +741,9 @@ mod tests {
             x[r] = 1.0;
             x[n + r] = xi;
             let p = 1.0 / (1.0 + (-(0.0 + 1.2 * xi)).exp());
-            y[r] = if p > 0.5 { 1.0 } else { 0.0 };
+            // Overlapping labels — hard p>0.5 assignment is complete separation
+            // and Laplace must refuse that posterior (M12).
+            y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };
         }
         let prior = PriorSet::weakly_informative(2);
         let mut ws = LaplaceWorkspace::default();
@@ -747,6 +760,36 @@ mod tests {
             .unwrap();
         assert!(fit.diagnostics.converged);
         assert!(fit.map[1] > 0.0);
+    }
+
+    #[test]
+    fn laplace_refuses_complete_separation() {
+        let n = 40;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let xi = (r as f64 - 20.0) * 0.4;
+            x[r] = 1.0;
+            x[n + r] = xi;
+            y[r] = if xi > 0.0 { 1.0 } else { 0.0 };
+        }
+        let prior = PriorSet::weakly_informative(2);
+        let mut ws = LaplaceWorkspace::default();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let opts = BayesFitOptions { n_draws: 50, seed: 2, ..BayesFitOptions::default() };
+        let err = fit_laplace_glm(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws)
+            .unwrap_err();
+        assert!(
+            matches!(err, ProbError::MissingDiagnostics { .. }),
+            "separated logistic Laplace must not publish: {err:?}"
+        );
     }
 
     #[test]
@@ -839,9 +882,8 @@ mod tests {
         let fit =
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .expect("noiseless InvGamma Laplace must publish");
+        assert_eq!(fit.diagnostics.backend_id.as_ref(), "conjugate_gaussian");
         assert!(fit.diagnostics.allows_posterior());
-        assert!(fit.diagnostics.grad_inf_norm < 1e-8, "grad={}", fit.diagnostics.grad_inf_norm);
-        assert!(fit.diagnostics.hessian_condition.is_finite());
     }
 
     #[test]
@@ -928,12 +970,8 @@ mod tests {
         assert!((neg_h_ll - a_const).abs() / a_const < 1e-3, "H_ll={neg_h_ll} A={a_const}");
 
         assert_eq!(fit.draws.schema.n_quantities(), 3);
-        let cov = fit.cov.as_ref().unwrap();
-        let a_inv = invert_spd(&a_beta, 2).unwrap();
-        let exp_l = lambda_ref.exp();
-        for i in 0..4 {
-            assert!((cov[i] - exp_l * a_inv[i]).abs() < 1e-9);
-        }
+        assert_eq!(fit.diagnostics.backend_id.as_ref(), "conjugate_gaussian");
+        assert!(fit.cov.is_none(), "NIG conjugate does not publish a Gaussian β-block covariance");
     }
 
     #[test]
@@ -1142,7 +1180,7 @@ mod tests {
             x[r] = 1.0;
             x[n + r] = xi;
             let p = antecedent_kernels::norm_cdf(0.2 + 0.8 * xi);
-            y[r] = if p > 0.5 { 1.0 } else { 0.0 };
+            y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };
         }
         let prior = PriorSet::weakly_informative(2);
         let design = BayesDesignRef {
@@ -1183,18 +1221,17 @@ mod tests {
         for i in 0..4 {
             assert!((cov[i] - cov_ref[i]).abs() < 1e-8, "cov[{i}]={} ref={}", cov[i], cov_ref[i]);
         }
-        // Observed curvature differs from Fisher at the MAP for this unbalanced design.
-        let mut fisher_w = 0.0;
-        let mut obs_w = 0.0;
-        for r in 0..n {
-            let e = eta[r];
-            let t = crate::likelihood_terms::probit_terms(y[r], e, 1.0).unwrap();
-            obs_w += t.neg_hessian_eta;
-            let mu = antecedent_kernels::norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
-            let dens = antecedent_kernels::norm_pdf(e);
-            fisher_w += (dens * dens) / (mu * (1.0 - mu));
-        }
-        assert!((obs_w - fisher_w).abs() > 1e-3, "obs={obs_w} fisher={fisher_w}");
+        // Observed curvature for a single probit trial is not Fisher information.
+        let e = 0.8;
+        let t = crate::likelihood_terms::probit_terms(1.0, e, 1.0).unwrap();
+        let mu = antecedent_kernels::norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
+        let dens = antecedent_kernels::norm_pdf(e);
+        let fisher = (dens * dens) / (mu * (1.0 - mu));
+        assert!(
+            (t.neg_hessian_eta - fisher).abs() > 1e-3,
+            "obs={} fisher={fisher}",
+            t.neg_hessian_eta
+        );
     }
 
     #[test]

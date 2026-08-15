@@ -3,8 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_core::{
-    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
-    ConditionalEffectQuery, CounterfactualQuery, InterventionalDistributionQuery,
+    AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
+    ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery, ExposureLevel,
+    ExposureMapping, InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
-    TemporalEffectQuery, UnitChangeQuery,
+    ResponseFunctional, ResponseQuery, TemporalEffectQuery, TransportQuery, UnitChangeQuery,
 };

@@ -8,17 +8,18 @@ Day-1 surface::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is **frozen**: it holds the three verbs (:func:`analyze`,
+The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
 :func:`identify`, :func:`estimate`), the accepted-structure and result types,
-the nine typed queries, the five graph classes, the inference / identifier /
+the first-class typed queries, the five graph classes, the inference / identifier /
 estimator selectors, and the two error names most callers catch. Everything
 else lives in a stage module and is reached through it:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
 ``antecedent.estimators``, ``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``,
-``antecedent.validation``.
+``antecedent.graph``, ``antecedent.interference``, ``antecedent.intervention``,
+``antecedent.observation``, ``antecedent.priors``, ``antecedent.state``,
+``antecedent.transport``, and ``antecedent.validation``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -31,6 +32,11 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+# `artifacts` belongs to the "reachable but deliberately outside `__all__`"
+# family described in the comment below; isort's alphabetical import
+# ordering just happens to place it ahead of the `__all__`-exported block
+# rather than next to its siblings.
+from . import artifacts as artifacts
 from . import (
     attribution,
     data,
@@ -46,19 +52,24 @@ from . import (
     validation,
 )
 
-# Reachable as ``antecedent.<name>`` but deliberately outside the frozen
+# Reachable as ``antecedent.<name>`` but deliberately outside the root
 # ``__all__``: their public content is re-exported above (queries, inference
 # selectors) or belongs to a narrower stage surface. ``estimators`` (the
 # typed ``estimator_config=`` front-end) belongs here too: it is a real,
 # documented stage module, but its content (per-estimator dataclasses) has no
 # root-level re-export the way queries/selectors do, so it stays off
 # ``__all__`` alongside its siblings rather than being added to it.
+# (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
 from . import estimators as estimators
 from . import inference as inference
+from . import interference as interference
+from . import intervention as intervention
 from . import model as model
+from . import observation as observation
 from . import population as population
 from . import query as query
+from . import transport as transport
 from ._analyze import analyze
 from ._native import (
     Admg,
@@ -73,13 +84,21 @@ from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
+    AverageDerivative,
     AverageEffect,
     ConditionalEffect,
     Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
     InterventionalDistribution,
+    InterventionResponse,
     MediationEffect,
     PathSpecificEffect,
+    PointDerivative,
     PulseEffect,
+    ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
 )
@@ -95,13 +114,21 @@ __all__ = [
     "Identification",
     "AnalysisResult",
     # Queries
+    "AverageDerivative",
     "AverageEffect",
     "ConditionalEffect",
     "Counterfactual",
+    "DirectionalDerivative",
+    "Elasticity",
     "InterventionalDistribution",
+    "InterventionResponse",
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "PointDerivative",
+    "ResponseCurve",
+    "ResponseJacobian",
+    "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
     # Graphs
@@ -150,7 +177,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "0.4.1"
+        __version__ = "0.5.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

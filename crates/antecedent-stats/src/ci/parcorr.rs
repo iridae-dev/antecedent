@@ -133,6 +133,14 @@ impl PartialCorrelation {
                         message: "block shuffle needs positive block_size and replicates",
                     });
                 }
+                if block_size > 1 && query.z_len > 0 {
+                    return Err(StatsError::Unsupported {
+                        message: "partial-correlation block shuffle is only implemented for an empty \
+                             conditioning set; with Z the permutation of X is not a valid null \
+                             for X ⊥ Y | Z. Set block_size = 1 to accept an exchangeable null \
+                             explicitly.",
+                    });
+                }
                 let p = block_shuffle_pvalue(
                     &ctx.kernel_policy,
                     columns,

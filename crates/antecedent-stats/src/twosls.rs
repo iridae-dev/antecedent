@@ -52,11 +52,9 @@ pub fn fit_wls(
 /// Weak-instrument diagnostic: joint significance of the excluded instruments in the
 /// first-stage regression of the endogenous variable on `[instruments | exogenous]`.
 ///
-/// This is purely informational — [`fit_2sls`] never hard-fails on a weak instrument
-/// (only on an EXACTLY degenerate one, at the caller level). A caller may compare
-/// `f_statistic` against a rule-of-thumb threshold itself (e.g. the Staiger-Stock /
-/// Stock-Yogo guideline of 10 for a single endogenous regressor); a future release could
-/// add an opt-in hard threshold on top of this diagnostic.
+/// [`fit_2sls`] never hard-fails on a weak instrument (only on an exactly
+/// degenerate first stage). Wald / 2SLS estimators refuse analytic Wald
+/// standard errors when `f_statistic < 10` (Staiger–Stock / Stock–Yogo).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FirstStageDiagnostics {
     /// F-statistic for the joint null that all excluded-instrument coefficients are zero,

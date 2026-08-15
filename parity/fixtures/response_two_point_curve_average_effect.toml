@@ -1,0 +1,6 @@
+id = "antecedent.two_point_curve_average_effect.linear_gaussian_contract"
+capability_ids = ["estimate.response.kennedy_dr"]
+fixture_dir = "conformance/response/two_point_curve_average_effect"
+tolerance_class = "Statistical"
+generator = "deterministic Rust DGP in crates/antecedent/tests/response_facade.rs"
+baseline_pin = "internal shared-linear-estimand contract; no external oracle"

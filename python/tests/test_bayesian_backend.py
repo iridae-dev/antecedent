@@ -42,7 +42,12 @@ def test_bayesian_conjugate_vs_laplace_backend():
     assert "conjugate" in (conjugate.posterior.backend or "").lower()
     assert np.isfinite(laplace.posterior.effect_mean)
     assert np.isfinite(conjugate.posterior.effect_mean)
-    assert laplace.posterior.backend != conjugate.posterior.backend
+    # Unknown-σ² GaussianIdentity Laplace is the NIG conjugate posterior (not a
+    # block-diagonal Laplace Hessian). Requesting backend="laplace" must not
+    # invent a different approximation.
+    assert laplace.posterior.backend == conjugate.posterior.backend
+    assert laplace.posterior.backend == "conjugate_gaussian"
+    assert abs(laplace.posterior.effect_mean - conjugate.posterior.effect_mean) < 0.05
 
 
 def test_bayesian_hmc_smoke():

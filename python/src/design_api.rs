@@ -114,6 +114,8 @@ fn objective_from_kind(
     decision_id: Option<u32>,
 ) -> PyResult<DesignObjective> {
     match kind {
+        // `eig` is a historical alias for heuristic graph-channel entropy, not
+        // expected information gain under a likelihood. See implemented_functional.
         "reduce_graph_entropy" | "eig" => Ok(DesignObjective::ReduceGraphEntropy),
         "increase_identification_probability" | "id_probability" => {
             let q = query_id.ok_or_else(|| {
@@ -486,6 +488,7 @@ pub(crate) fn rank_designs(
                 stderr: r.monte_carlo.stderr,
                 rank: r.rank,
                 rank_uncertain: r.rank_uncertain,
+                implemented_functional: r.implemented_functional.to_string(),
             })
             .collect();
         let violations: Vec<DesignConstraintViolation> = ranking

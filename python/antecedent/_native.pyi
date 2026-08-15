@@ -133,6 +133,103 @@ class AteAnalysisResult:
     validation: ValidationSection
     performance: PerformanceSection
 
+class ResponseAnalysisResult:
+    treatments: list[str]
+    outcomes: list[str]
+    points: list[list[float]]
+    values: list[list[float]]
+    scalar: float | None
+    matrix: list[list[float]] | None
+    uncertainty_kind: str
+    lower: list[list[float]] | None
+    upper: list[list[float]] | None
+    level: float | None
+    standard_error: float | None
+    replicates: int | None
+    artifact_id: str | None
+    support_status: str
+    support_minima: list[float]
+    support_maxima: list[float]
+    diagnostic_ids: list[str]
+    diagnostic_values: list[list[float]]
+    diagnostic_details: list[str]
+    warnings: list[str]
+    identification: str
+    adjustment_set: list[str]
+    assumptions: list[str]
+    provenance_id: str
+    identified_mass: float | None
+    unidentified_mass: float | None
+    completion_count: int | None
+    truncated_completions: int | None
+    enumeration_capped: bool | None
+    mass_scope: str | None
+
+class TransportIdentificationResult:
+    transportable: bool
+    formula_kind: str | None
+    rule: str | None
+    reason: str | None
+    message: str | None
+    selection_targets: list[str]
+    marginalize: list[str]
+    factor_populations: list[str]
+    factor_variables: list[list[str]]
+    factor_conditioned_on: list[list[str]]
+    factor_interventions: list[list[str]]
+
+class TrialTransportResult:
+    rule: str
+    ipw: float
+    aipw: float | None
+    selection_probability_min: float
+    selection_probability_max: float
+    selection_effective_sample_size: float
+    selection_extreme_weight_count: int
+    treatment_probability_min: float
+    treatment_probability_max: float
+    treatment_effective_sample_size: float
+    treatment_extreme_weight_count: int
+
+class InterferenceAnalysisResult:
+    horvitz_thompson: float
+    hajek: float
+    conservative_variance: float
+    from_probability_method: str
+    to_probability_method: str
+    minimum_exposure_probability: float
+
+class ObservationAdjustedOutcomeResult:
+    values: list[float]
+    weights: list[float]
+    method: str
+
+class ObservationResponseResult:
+    treatments: list[str]
+    outcomes: list[str]
+    points: list[list[float]]
+    values: list[list[float]]
+    scalar: float | None
+    matrix: list[list[float]] | None
+    uncertainty_kind: str
+    lower: list[list[float]] | None
+    upper: list[list[float]] | None
+    level: float | None
+    standard_error: float | None
+    replicates: int | None
+    artifact_id: str | None
+    support_status: str
+    support_minima: list[float]
+    support_maxima: list[float]
+    diagnostic_ids: list[str]
+    diagnostic_values: list[list[float]]
+    diagnostic_details: list[str]
+    warnings: list[str]
+    identification: str
+    adjustment_set: list[str]
+    assumptions: list[str]
+    provenance_id: str
+
 class RefutationReportView:
     refuter: str
     original_ate: float
@@ -428,6 +525,7 @@ class RankedDesign:
     stderr: float
     rank: int
     rank_uncertain: bool
+    implemented_functional: str
 
 class DesignConstraintViolation:
     candidate_index: int
@@ -808,6 +906,153 @@ def analyze_distribution(
     seed: int = 1,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
+def analyze_response(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    kind: str,
+    treatments: list[str],
+    outcomes: list[str],
+    *,
+    grid: list[float] | None = None,
+    at: list[float] | None = None,
+    direction: list[float] | None = None,
+    intervention_kinds: list[str] | None = None,
+    intervention_parameters: list[list[float]] | None = None,
+    order: int = 1,
+    scale: str = "identity",
+    weighting: str = "observed",
+    bandwidth: float | None = None,
+    simultaneous_replicates: int | None = None,
+    confidence_level: float = 0.95,
+    multiplier_seed: int = 0xA17E_CEDE_0500,
+) -> ResponseAnalysisResult: ...
+def analyze_response_pag(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    graph: Pag,
+    treatment: str,
+    outcome: str,
+    grid: list[float],
+    *,
+    max_completions: int = 32,
+) -> ResponseAnalysisResult: ...
+def identify_transport(
+    graph: Admg,
+    selections: list[str],
+    source_population: str,
+    target_population: str,
+    source_experiments: list[str],
+    kind: str,
+    treatments: list[str],
+    outcomes: list[str],
+    *,
+    grid: list[float] | None = None,
+    at: list[float] | None = None,
+    direction: list[float] | None = None,
+    order: int = 1,
+    scale: str = "identity",
+    weighting: str = "observed",
+) -> TransportIdentificationResult: ...
+def estimate_trial_transport(
+    identification: TransportIdentificationResult,
+    outcome: NDArray[np.float64],
+    treatment: list[bool],
+    trial: list[bool],
+    selection_probability: NDArray[np.float64],
+    treatment_probability: NDArray[np.float64],
+    *,
+    mu0: NDArray[np.float64] | None = None,
+    mu1: NDArray[np.float64] | None = None,
+) -> TrialTransportResult: ...
+def estimate_network_interference(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    edges: list[tuple[int, int, float]],
+    assignment_kind: str,
+    assignment_probabilities: list[float],
+    treated: int,
+    clusters: list[int],
+    treated_clusters: int,
+    exposure: str,
+    from_level: tuple[float, float],
+    to_level: tuple[float, float],
+    *,
+    probability_draws: int = 10_000,
+    seed: int = 1,
+) -> InterferenceAnalysisResult: ...
+def observation_adjusted_outcome(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    treatment: str,
+    outcome: str,
+    observation_kind: str,
+    latent: str,
+    *,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str,
+    assumption_variables: list[str] = ...,
+    structural_model: str | None = None,
+    delayed_entry: str | None = None,
+    correction: str = "aipw",
+    observation_probability_floor: float = 0.01,
+    censoring_survival_floor: float = 0.01,
+    crossfit_folds: int = 5,
+) -> ObservationAdjustedOutcomeResult: ...
+def analyze_observation_response(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    grid: list[float],
+    observation_kind: str,
+    latent: str,
+    *,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str,
+    assumption_variables: list[str] = ...,
+    structural_model: str | None = None,
+    delayed_entry: str | None = None,
+    correction: str = "aipw",
+    observation_probability_floor: float = 0.01,
+    censoring_survival_floor: float = 0.01,
+    crossfit_folds: int = 5,
+) -> ObservationResponseResult: ...
+def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
+    """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
+    ...
+
+def gaussian_observation_log_likelihood(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    treatment: str,
+    outcome: str,
+    observation_kind: str,
+    latent: str,
+    means: list[float],
+    sigma: float,
+    *,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str,
+    assumption_variables: list[str] = ...,
+    structural_model: str | None = None,
+) -> float: ...
 def analyze_path_specific(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1835,3 +2080,25 @@ def gamma_from_mean_and_ess(
     mean: float,
     ess: float,
 ) -> tuple[float, float]: ...
+
+class DecodedCausalArtifact:
+    @property
+    def artifact_id(self) -> str: ...
+    @property
+    def format_major(self) -> int: ...
+    @property
+    def format_minor(self) -> int: ...
+    @property
+    def payload_kind(self) -> str: ...
+    @property
+    def variable_names(self) -> list[str]: ...
+    @property
+    def payload_json(self) -> str: ...
+
+def encode_causal_artifact(
+    payload_kind: str,
+    variable_names: list[str],
+    payload_json: str,
+    artifact_id: str,
+) -> bytes: ...
+def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...

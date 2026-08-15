@@ -1,0 +1,17 @@
+feature_id = "estimate.trial_to_target"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.2: identification for a target population of nonparticipants", "Section 5.2, equation (2): inverse-odds weighting", "Section 5.3, equation (4): doubly robust estimator DR1"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/transport.rs",
+ "conformance/response/trial_transport (independent paper-equation fixture)",
+]

@@ -106,6 +106,8 @@ pub fn sample_with_overlay(
             continue;
         }
         if let Some(soft) = &overlay.soft[idx] {
+            let existing = model.mechanisms.get(node);
+            refuse_cross_family_soft(existing, soft)?;
             let slot = soft_to_slot(soft, gather.n_parents())?;
             sample_column(&slot, parents, rng, out, ws)?;
             apply_shift(out, overlay.shifts[idx]);
@@ -118,6 +120,54 @@ pub fn sample_with_overlay(
     }
 
     Ok(values.into_batch())
+}
+
+/// Soft overrides must share noise semantics with the fitted mechanism. Reusing a
+/// Discrete Uniform(0,1) residual as an additive Gaussian U (or the reverse) is not
+/// a well-defined counterfactual.
+fn refuse_cross_family_soft(
+    existing: &MechanismSlot,
+    soft: &MechanismOverride,
+) -> Result<(), ModelError> {
+    let have = noise_kind_slot(existing);
+    let want = noise_kind_override(soft.family_id.as_ref());
+    if have == "any" || have == want {
+        return Ok(());
+    }
+    Err(ModelError::Unsupported {
+        message: format!(
+            "cross-family soft override refused: fitted `{have}` vs override `{}` (`{want}`)",
+            soft.family_id
+        ),
+    })
+}
+
+fn noise_kind_slot(slot: &MechanismSlot) -> &'static str {
+    match slot {
+        MechanismSlot::Vacant | MechanismSlot::Pending { .. } | MechanismSlot::Dynamic { .. } => {
+            "any"
+        }
+        MechanismSlot::LinearGaussian { .. }
+        | MechanismSlot::HierarchicalLinear { .. }
+        | MechanismSlot::Bvar { .. } => "additive_gaussian",
+        MechanismSlot::Discrete { .. } => "discrete",
+        MechanismSlot::Constant { .. } => "constant",
+        MechanismSlot::LinearGaussianStateSpace { .. } => "lgssm",
+        MechanismSlot::GaussianProcess { .. } => "gaussian_process",
+    }
+}
+
+fn noise_kind_override(family_id: &str) -> &'static str {
+    match family_id {
+        "linear_gaussian" | "hierarchical_linear" | "bvar" | "additive_shift" => {
+            "additive_gaussian"
+        }
+        "discrete" => "discrete",
+        "constant" => "constant",
+        "lgssm" => "lgssm",
+        "gaussian_process" => "gaussian_process",
+        _ => "unknown",
+    }
 }
 
 /// Sample under interventions conditioned on observed node values.
@@ -608,6 +658,8 @@ pub fn sample_structural_with_overlay(
         }
         let noise_col = &noise_buf[idx * n_rows..(idx + 1) * n_rows];
         let slot = if let Some(soft) = &overlay.soft[idx] {
+            let existing = model.mechanisms.get(node);
+            refuse_cross_family_soft(existing, soft)?;
             soft_to_slot(soft, gather.n_parents())?
         } else {
             model.mechanisms.get(node).clone()

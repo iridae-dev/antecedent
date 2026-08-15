@@ -45,11 +45,18 @@ pub struct TemporalMediationEstimator {
     /// When true, [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
     /// are treated as their controlled counterparts (linear alias).
     pub allow_natural_controlled_alias: bool,
+    /// When true, publish the iid Sobel SE for the mediated contrast. Default false:
+    /// lagged rows are serially dependent, so the analytic SE is NaN unless this is set.
+    pub allow_iid_sobel_se: bool,
 }
 
 impl Default for TemporalMediationEstimator {
     fn default() -> Self {
-        Self { backend: FaerBackend, allow_natural_controlled_alias: false }
+        Self {
+            backend: FaerBackend,
+            allow_natural_controlled_alias: false,
+            allow_iid_sobel_se: false,
+        }
     }
 }
 
@@ -75,6 +82,14 @@ impl TemporalMediationEstimator {
     #[must_use]
     pub const fn with_allow_natural_controlled_alias(mut self, allow: bool) -> Self {
         self.allow_natural_controlled_alias = allow;
+        self
+    }
+
+    /// Publish the iid Sobel SE for the mediated contrast (anti-conservative under serial
+    /// correlation). Default is to leave `se_analytic` as NaN for mediated effects.
+    #[must_use]
+    pub const fn with_allow_iid_sobel_se(mut self, allow: bool) -> Self {
+        self.allow_iid_sobel_se = allow;
         self
     }
 
@@ -169,11 +184,16 @@ impl TemporalMediationEstimator {
                 (var_cp * delta * delta).max(0.0).sqrt()
             }
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
-                let var_a = coefficient_variance(&design_a, n, 2, 1, sigma2_a);
-                let var_b = coefficient_variance(&design_b, n, 3, 2, sigma2_b);
-                // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
-                let var_ab = b * b * var_a + a * a * var_b;
-                (var_ab * delta * delta).max(0.0).sqrt()
+                if self.allow_iid_sobel_se {
+                    let var_a = coefficient_variance(&design_a, n, 2, 1, sigma2_a);
+                    let var_b = coefficient_variance(&design_b, n, 3, 2, sigma2_b);
+                    // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
+                    // Valid only under iid rows (`allow_iid_sobel_se`).
+                    let var_ab = b * b * var_a + a * a * var_b;
+                    (var_ab * delta * delta).max(0.0).sqrt()
+                } else {
+                    f64::NAN
+                }
             }
         };
 
@@ -404,11 +424,24 @@ mod tests {
             (est.total.unwrap(), "total"),
             (est.direct.unwrap(), "direct"),
             (est.mediated.unwrap(), "mediated"),
-            (est.effect.se_analytic, "se_mediated_sobel"),
         ] {
             let expected = fixture["reference"][field].as_f64().unwrap();
             assert!((actual - expected).abs() <= tolerance, "{field}: {actual} != {expected}");
         }
+        assert!(
+            est.effect.se_analytic.is_nan(),
+            "iid Sobel SE is refused on lagged rows unless allow_iid_sobel_se"
+        );
+        let with_sobel = TemporalMediationEstimator::new()
+            .with_allow_iid_sobel_se(true)
+            .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
+            .unwrap();
+        let expected_se = fixture["reference"]["se_mediated_sobel"].as_f64().unwrap();
+        assert!(
+            (with_sobel.effect.se_analytic - expected_se).abs() <= tolerance,
+            "se_mediated_sobel: {} != {expected_se}",
+            with_sobel.effect.se_analytic
+        );
         // total = c*delta, direct = c'*delta, mediated = a*b*delta come from three separate
         // OLS fits, but T is identical across the reduced-form and full regressions, so
         // c = c' + a*b holds exactly in-sample by Frisch-Waugh-Lovell. This is a guaranteed

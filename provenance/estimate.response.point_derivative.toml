@@ -1,0 +1,23 @@
+feature_id = "estimate.response.point_derivative"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The Kennedy pseudo-outcome is smoothed by a local quadratic weighted least-
+# squares fit. Its fitted linear/quadratic coefficients give first/second
+# derivatives at the requested point. Log-scale variants are algebraic
+# transformations of that derivative; no extra causal identification theorem is
+# claimed.
+papers = [
+  { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2, equations (4)-(5): local-polynomial smoothing target"] },
+  { title = "Local Polynomial Regression: Optimal Kernels and Asymptotic Minimax Efficiency", doi = "10.1023/A:1003162622169", sections = ["Section 2, equations defining the local polynomial coefficient estimator and derivative extraction"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/src/response.rs",
+  "crates/antecedent-stats/src/response.rs",
+]
