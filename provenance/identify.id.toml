@@ -15,6 +15,10 @@ upstream_implementations_observed = [
 
 test_sources = [
  "clean-room Shpitser-Pearl ID recursion oracle (conformance/identify/id_hedge)",
- "black-box comparison against DoWhy general identify() (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
+ # Recorded, NOT exercised. These three DoWhy 0.14 fixtures are frozen oracles for
+ # the pending general ID / ID-IDC work; no test loads them, so no black-box
+ # comparison currently runs. Listing them as an active comparison claimed evidence
+ # that does not exist. Restore the comparison wording only when a test consumes them.
+ "recorded-but-unexercised DoWhy 0.14 identify() oracles, pending general ID (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
  "inline unit tests (crates/antecedent-identify/src/id.rs)",
 ]
