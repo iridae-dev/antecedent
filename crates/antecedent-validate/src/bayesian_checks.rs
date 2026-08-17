@@ -1314,7 +1314,7 @@ impl SimulationBasedCalibration {
     /// Passes only when **both** hold:
     /// - the mean rank fraction is in `[0.35, 0.65]` (catches gross location bias), and
     /// - the χ² uniformity statistic over the 10 rank bins is below
-    ///   [`SBC_CHI2_CRITICAL_9DF_P99`] (catches symmetric-about-0.5 U/M-shaped rank
+    ///   `SBC_CHI2_CRITICAL_9DF_P99` (catches symmetric-about-0.5 U/M-shaped rank
     ///   distributions — overdispersed / underdispersed posteriors — that a mean-only
     ///   band cannot see because they average out to ≈0.5).
     #[must_use]

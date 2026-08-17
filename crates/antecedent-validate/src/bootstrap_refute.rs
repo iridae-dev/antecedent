@@ -28,7 +28,7 @@ use crate::error::ValidationError;
 /// IID row bootstrap of the whole `(T, Y, Z…)` design; "passes" if the original point estimate
 /// falls inside the percentile confidence interval of the resampled ATEs.
 ///
-/// Each replicate refits with `estimator.bootstrap_replicates = 0` (per [`crate::common::fit_once`])
+/// Each replicate refits with `estimator.bootstrap_replicates = 0` (per the internal `fit_once` path)
 /// so this never creates a nested bootstrap pool inside the resample loop.
 #[derive(Clone, Debug)]
 pub struct BootstrapRefute {

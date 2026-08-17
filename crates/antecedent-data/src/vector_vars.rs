@@ -140,7 +140,7 @@ pub fn column_blocks_for_frame(
     Ok(Arc::from(blocks))
 }
 
-/// Expand every [`FixedVectorColumn`] in `data` into `dim` Float64 columns and
+/// Expand every [`FixedVectorColumn`](crate::FixedVectorColumn) in `data` into `dim` Float64 columns and
 /// register them as vector-variable groups.
 ///
 /// The original vector variable id becomes the first (logical) component; additional

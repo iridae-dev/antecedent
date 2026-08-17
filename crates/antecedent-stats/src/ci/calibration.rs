@@ -351,7 +351,7 @@ pub fn type_i_within_three_se(rate: f64, alpha: f64, trials: u32) -> bool {
     (rate - alpha).abs() <= 3.0 * se + 1e-12
 }
 
-/// Pearson χ² goodness-of-fit of `p_values` vs U[0,1] over `n_bins` equal bins.
+/// Pearson χ² goodness-of-fit of `p_values` vs U\[0,1\] over `n_bins` equal bins.
 ///
 /// Returns `(chi2, df)`. Permutation p-values live on a discrete lattice
 /// `(1+k)/(1+R)`; with enough trials and bins ≪ lattice size the continuous

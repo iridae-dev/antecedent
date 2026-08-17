@@ -10,7 +10,7 @@ use antecedent_core::VariableId;
 
 use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 
-/// Errors surfaced by [`simplify`] when it detects an ill-formed estimand instead of
+/// Errors surfaced by the crate's simplify entry points when they detect an ill-formed estimand instead of
 /// silently rewriting it.
 ///
 /// `eval_sum_out` / `eval_integral_out` (`crate::eval`) evaluate `SumOut` /

@@ -1,7 +1,8 @@
 //! Propensity-based estimators: weighting, stratification, and matching.
 //!
 //! All estimators here require propensity-based positivity diagnostics
-//! ([`OverlapPolicy::RequireDiagnostics`]) — [`OverlapPolicy::ExplicitOverride`] is refused
+//! ([`OverlapPolicy::RequireDiagnostics`](crate::OverlapPolicy::RequireDiagnostics)) —
+//! [`OverlapPolicy::ExplicitOverride`](crate::OverlapPolicy::ExplicitOverride) is refused
 //! because positivity is mandatory for propensity/matching methods.
 //!
 //! Bootstrap standard errors **refit the propensity model on every resample** rather than

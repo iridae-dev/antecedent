@@ -333,7 +333,7 @@ fn weighted_block_shuffle_pvalue(
 /// observed correlation, so it stayed favourable under permutation. Measured Type I
 /// at nominal α = 0.05 was ≈0.34 at `px = py = 2` and ≈0.81 at `px = py = 3`, rising
 /// with `n`. It is now ≈0.05 across shapes; see `multivariate_block_calibration_gate`
-/// in [`crate::ci::calibration`].
+/// in `crate::ci::calibration` (internal calibration suite, run via gate_calibration.sh).
 #[derive(Clone, Debug, Default)]
 pub struct MultivariatePartialCorrelation {
     inner: PartialCorrelation,

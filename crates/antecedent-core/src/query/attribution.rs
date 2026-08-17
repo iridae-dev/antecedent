@@ -57,7 +57,7 @@ pub enum PopulationSelector {
     All,
     /// Explicit row indices into a tabular view.
     Rows(Arc<[usize]>),
-    /// Multi-environment index (resolved against [`EnvironmentId`] maps at call sites).
+    /// Multi-environment index (resolved against [`EnvironmentId`](crate::ids::EnvironmentId) maps at call sites).
     Environment {
         /// Dense environment index into a multi-env container.
         env_index: usize,

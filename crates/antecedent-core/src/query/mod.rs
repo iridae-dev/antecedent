@@ -1,6 +1,6 @@
 //! Typed causal queries.
 //!
-//! Hot paths bind [`VariableId`]s; names are resolved only at API boundaries.
+//! Hot paths bind [`VariableId`](crate::ids::VariableId)s; names are resolved only at API boundaries.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
