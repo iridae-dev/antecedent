@@ -5,64 +5,83 @@ library = "antecedent"
 [[capabilities]]
 id = "design_state.candidate_types"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "Measure / Intervene / ObserveEnvironment / IncreaseSamplingRate plans"
 
 [[capabilities]]
 id = "design_state.eig"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/design_state/rank_candidates_eig"
 notes = "Discrete graph-posterior EIG via observation sampling + reweight; ID via unlock/identifier flags; SE via Gram/design analysis"
 
 [[capabilities]]
 id = "design_state.id_probability"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "IncreaseIdentificationProbability over WeightedGraphSamples"
 
 [[capabilities]]
 id = "design_state.effect_width"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
 
 [[capabilities]]
 id = "design_state.decision_utility"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
 
 [[capabilities]]
 id = "design_state.design_ranker"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/design_state/rank_candidates_eig"
 notes = "Batched MC with CRN, adaptive stop, constraint violations recorded; examples/python/rank_designs.py"
 
 [[capabilities]]
 id = "design_state.antecedent_state"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "CausalState event/apply/invalidation without auto-rerun (ADR 0016); examples/python/causal_state_workflow.py"
 
 [[capabilities]]
 id = "design_state.incremental_ols"
 status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/design_state/incremental_ols_match"
 notes = "LinearOlsSuffStats append matches full recompute"
 
 [[capabilities]]
 id = "design_state.streaming_cov"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "StreamingCovariance Welford updates"
 
 [[capabilities]]
 id = "design_state.cache_budget"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "ResultStore refuses over-budget inserts"
 
 [[capabilities]]
 id = "design_state.facade"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces"
 
 [[capabilities]]
 id = "design_state.incremental.particle_graph_score"
 status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/design_state/incremental_graph_score_match"
+limitations = "Delta-score totals are cross-checked against Antecedent's own batch recompute; the underlying particle-filter state is separately validated against a clean-room Kalman oracle (conformance/design_state/particle_filter_kalman)."
 notes = "Particle-filter LGSSM state + Gaussian BIC LocalScoreCache with delta_score; OLS/streaming cov/lag keys already shipped"
 
 [[capabilities]]
 id = "design_state.rolling_mechanism_diagnostics"
 status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/design_state/rolling_mechanism_diag_match"
 notes = "RollingMechanismDiagnostics bounded-window OLS + residual/CUSUM summaries under SuffStatStore; AppendData invalidates without clear; ReplaceData clears"

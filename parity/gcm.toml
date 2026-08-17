@@ -6,80 +6,109 @@ library = "antecedent"
 [[capabilities]]
 id = "gcm.model.compiled_plans"
 status = "done"
+evidence_kind = "implementation_exists"
 python_facade = "full"
 notes = "CompiledCausalModel topo + ParentGatherPlan (Rust); Python FittedGcm + mechanism_kinds()"
 
 [[capabilities]]
 id = "gcm.model.mechanisms"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/discrete_hierarchical_glm"
 python_facade = "full"
 notes = "Linear Gaussian, discrete, constant batch kernels; Python mechanism_kinds summarizes selected families"
 
 [[capabilities]]
 id = "gcm.model.registry_fit"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/gaussian_process"
 notes = "MechanismRegistry auto-assignment; no silent default"
 
 [[capabilities]]
 id = "gcm.model.sampling"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/do_sampling_grid"
 python_facade = "full"
 notes = "Observational/interventional overlays; soft/stochastic/sequence; Python sample_do / FittedGcm"
 
 [[capabilities]]
 id = "gcm.do_sampling"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/do_sampling_weighting"
+limitations = "See the estimate.toml twin row: analytic means for weighting; finiteness only for kde/mcmc; templated DoWhy blocks unread."
 python_facade = "full"
 notes = "Weighting, KDE, MCMC do-samplers; Python sample_do / sample_interventional_distribution"
 
 [[capabilities]]
 id = "gcm.do_sampling.shift"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/do_sampling_grid"
+limitations = "Shift semantics asserted via inline analytic expectation (2*delta); no shift-specific frozen fixture exists."
 python_facade = "full"
 notes = "Additive shift do(X := X + delta) alongside hard do(X := v); FittedGcm.sample_do(shifts=...), sample_do(shift=True), sample_interventional_distribution(shift=True); overlay.rs applies shifts, collision between interventions/shifts is a raised error"
 
 [[capabilities]]
 id = "gcm.model.falsification"
 status = "done"
+evidence_kind = "internal_known_truth"
 notes = "Residual CI, local Markov, predictive checks"
 
 [[capabilities]]
 id = "gcm.counterfactual.aap"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/gcm/nested_temporal_counterfactual"
 python_facade = "full"
 notes = "Abduction-action-prediction; Python Counterfactual query + FittedGcm.counterfactual_ite"
 
 [[capabilities]]
 id = "gcm.attribution.basic"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/arrow_strength"
 notes = "Anomaly scores + arrow strength + intrinsic influence"
 
 [[capabilities]]
 id = "gcm.attribution.shapley"
 status = "done"
+evidence_kind = "internal_known_truth"
 notes = "Exact + MC Shapley with size limits, budget, MC stderr, coalition cache"
 
 [[capabilities]]
 id = "gcm.attribution.distribution_change"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/distribution_change_grid"
 notes = "Mechanism-swap distribution-change attribution"
 
 [[capabilities]]
 id = "gcm.attribution.robust"
 status = "done"
+evidence_kind = "internal_cross_check"
+limitations = "Agreement is with Antecedent's own distribution_change on deterministic data; no independent truth."
 notes = "Regression-hybrid robust distribution-change"
 
 [[capabilities]]
 id = "gcm.attribution.unit_change"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/mechanism_unit_change"
 notes = "Per-unit input attribution via Shapley"
 
 [[capabilities]]
 id = "gcm.attribution.feature_relevance"
 status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Rank-order assertion only; no numeric target and no fixture."
 notes = "Interventional feature relevance scores"
 
 [[capabilities]]
 id = "gcm.attribution.structure"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/structure_change_grid"
 notes = "Dual-graph parent-set structure-change attribution"

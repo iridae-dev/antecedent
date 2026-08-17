@@ -39,6 +39,30 @@ Each `[[capabilities]]` row uses:
 | `owner` | see below | Owning domain |
 | `notes` | no | Free-form evidence / gate pointers |
 | `python_facade` | no | `full` \| `thin` |
+| `evidence_kind` | on `done` rows | See table below |
+| `external_oracle` | with external kinds | `"<project> <pin>"` |
+| `known_truth_fixture` | no | Strongest exercised fixture path |
+| `limitations` | no | What the evidence does **not** demonstrate |
+
+**`evidence_kind`** states exactly what proposition the row's evidence
+demonstrates, so wording in `notes` cannot outrun it. Required on every `done`
+row except in `release.toml` (infrastructure rows; evidence map lives in
+`gate_release.sh`). Values, weakest to strongest:
+
+| Value | Demonstrated proposition |
+|-------|--------------------------|
+| `implementation_exists` | Code + ordinary unit tests; no numerical truth |
+| `internal_known_truth` | Matches a closed-form / analytic / clean-room fixture |
+| `internal_cross_check` | Agrees with another Antecedent estimator only |
+| `frozen_external_oracle` | Matches a frozen, pinned upstream-package run |
+| `behavioral_parity` | Agrees with an upstream package across a range of inputs |
+| `contract_equivalence` | Theorem-level / method-contract argument |
+
+For the two external kinds, `external_oracle` and `known_truth_fixture` are
+required, and the gate enforces the fixture-authoritative rule: the named
+project must literally appear in the frozen fixture. A clean-room enumeration
+is `internal_known_truth` no matter what the row's prose says — the 2026-08
+audit found fourteen ledger rows that had drifted the other way.
 
 **`group` / `description` / `owner`** are required in
 [estimate.toml](estimate.toml), [discovery.toml](discovery.toml), and
