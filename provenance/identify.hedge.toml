@@ -15,5 +15,8 @@ upstream_implementations_observed = [
 
 test_sources = [
  "hedge certificate case in clean-room ID oracle (conformance/identify/id_hedge)",
- "black-box comparison against DoWhy non-identifiable case (conformance/identify/general_id_hedge)",
+ # Recorded, NOT exercised: no test loads this fixture, so no black-box comparison
+ # currently runs. Same correction as provenance/identify.id.toml; found by
+ # scripts/gate_evidence_reachability.sh on its first run.
+ "recorded-but-unexercised DoWhy non-identifiable-case oracle, pending general ID (conformance/identify/general_id_hedge)",
 ]

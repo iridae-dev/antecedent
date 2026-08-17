@@ -33,6 +33,8 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
+bash scripts/gate_metadata_consistency.sh
+bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
