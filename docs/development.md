@@ -6,10 +6,18 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 ## CI vs local gates
 
-GitHub Actions Rust CI (`ci.yml`) runs **fmt**, **clippy**, **`cargo test --workspace`**,
-and **DCO** (plus an optional crates.io publish dry-run when manifests change).
-It does **not** run feature gates, `gate_release.sh`, Criterion smokes, or
-`cargo deny`.
+GitHub Actions CI (`ci.yml`) runs two relevant jobs on every PR:
+
+- **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
+  crates.io publish dry-run when manifests change).
+- **`gates`** — `scripts/gate_release.sh`, which runs the parity-manifest schema
+  check, the provenance schema/path check, and the ten feature gates.
+
+CI does **not** run `gate_calibration.sh` or the Criterion bench smokes per PR.
+The statistical calibration suite runs weekly via
+[`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
+(`schedule` + `workflow_dispatch`); `cargo deny` runs inside `gate_release.sh`
+only when `cargo-deny` is on PATH, which it is not in CI.
 
 ## Gates (local / slow path)
 
