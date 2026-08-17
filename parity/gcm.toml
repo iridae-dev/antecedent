@@ -1,7 +1,7 @@
 # GCM / counterfactual capability inventory
 # Status: pending | in_progress | done
 
-library = "causal"
+library = "antecedent"
 
 [[capabilities]]
 id = "gcm.model.compiled_plans"
