@@ -1,6 +1,6 @@
 # Status: pending | in_progress | done
 
-library = "causal"
+library = "antecedent"
 
 [[capabilities]]
 id = "design_state.candidate_types"

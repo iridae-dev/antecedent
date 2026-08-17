@@ -1,7 +1,7 @@
 # Bayesian core capability inventory
 # Status: pending | in_progress | done
 
-library = "causal"
+library = "antecedent"
 
 [[capabilities]]
 id = "bayes.prob.columnar_posteriors"
