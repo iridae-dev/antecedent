@@ -105,5 +105,6 @@ Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
 RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path
-baselines, security review (`release.toml`, ADR 0017). Package version remains
-0.1.0.
+baselines, security review (`release.toml`, ADR 0017). Package version is
+whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
+here; a hardcoded copy in this file sat five minor releases behind for months.
