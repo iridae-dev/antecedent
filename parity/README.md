@@ -64,6 +64,17 @@ project must literally appear in the frozen fixture. A clean-room enumeration
 is `internal_known_truth` no matter what the row's prose says — the 2026-08
 audit found fourteen ledger rows that had drifted the other way.
 
+What these fields do **not** mean, stated once so readers do not infer it:
+`evidence_kind` names the *strongest demonstrated* proposition, not the only
+evidence a row has, and says nothing about whether that evidence is
+scientifically sufficient — `frozen_external_oracle` means "matched a pinned
+upstream run on the frozen cases", not "correct", and an upstream package can
+be wrong. `limitations` is a curated list of the caveats a reader most needs,
+not an exhaustive one; its absence is not a claim of none. A scipy/numpy pin
+recording the *computational substrate* of a clean-room harness does not make
+the evidence external — external means an upstream implementation of the
+capability under test produced the compared values.
+
 **`group` / `description` / `owner`** are required in
 [estimate.toml](estimate.toml), [discovery.toml](discovery.toml), and
 [context.toml](context.toml), and unused elsewhere.

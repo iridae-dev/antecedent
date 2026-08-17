@@ -80,6 +80,30 @@ pub struct ContinuousResponseOptions {
     /// Deterministic seed for simultaneous-band multipliers.
     pub multiplier_seed: u64,
     /// Export per-row pseudo-outcomes and influence values as support diagnostics.
+    ///
+    /// Off by default; the estimate is identical either way. When set, three
+    /// channels are appended to `support.diagnostics`, for `N` retained rows
+    /// and `G` grid points:
+    ///
+    /// - `response.row_index` — 0-based positions of retained rows in the data
+    ///   as received (after caller preprocessing, before the all-finite row
+    ///   filter); exact integers stored as `f64`.
+    /// - `response.row_pseudo_outcome` — cross-fitted Kennedy pseudo-outcomes
+    ///   `φ_i`, outcome units, aligned with `row_index`. Fold = retained-row
+    ///   position mod `folds`; nuisances for row `i` exclude `i`'s fold.
+    /// - `response.row_influence` — `G * N`, grid-major (`value[g*N + i]`):
+    ///   the local-WLS influence of row `i` on the fitted level at grid point
+    ///   `g`, `ψ = w_i · [(XᵀWX)⁻¹]₀ · x_i · (φ_i − x_iᵀβ̂)`. Sums to zero per
+    ///   grid point (WLS normal equation); reported pointwise
+    ///   `SE(g) = √(Σ_i ψ²)`, and both bands are `m̂ ± c·SE` with these values.
+    ///
+    /// These are diagnostics conditional on the estimator's construction: the
+    /// pseudo-outcomes are treated as fixed data, so nuisance and bandwidth
+    /// uncertainty are NOT inside the influences, and `ψ` is not the Kennedy
+    /// estimator's semiparametric efficient influence function. Channel ids,
+    /// alignment, and layout are stable; values may change when the internal
+    /// construction changes. Full contract:
+    /// `docs/causal-responses.md#row-diagnostic-export-contract`.
     pub export_row_diagnostics: bool,
 }
 
