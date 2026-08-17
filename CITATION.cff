@@ -17,9 +17,11 @@ doi: 10.5281/zenodo.21556247
 date-released: "2026-08-15"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
-license:
-  - MIT
-  - Apache-2.0
+# Single SPDX string, not a YAML list. Zenodo's CITATION.cff ingestion rejects the
+# list form: v0.4.0 archived with this exact spelling, and every release after the
+# switch to a list (bfb6144) failed with "CITATION.cff failed". Stricter CFF
+# validators dislike the OR expression; Zenodo is the consumer that matters here.
+license: "MIT OR Apache-2.0"
 keywords:
   - causal inference
   - identification
