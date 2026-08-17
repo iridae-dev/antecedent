@@ -29,8 +29,12 @@ fn fixture_dir() -> PathBuf {
 fn conformance_migrate_three_kinds_at_stable() {
     let raw = fs::read_to_string(fixture_dir().join("expected.json")).unwrap();
     let v: Value = serde_json::from_str(&raw).unwrap();
-    assert_eq!(v["stable_format"]["major"], 0);
-    assert_eq!(v["stable_format"]["minor"], 2);
+    // Validate the fixture against the live constant rather than a second hardcoded
+    // copy of it. The previous form asserted `minor == 2` against a fixture that also
+    // said 2, so it agreed with itself while both drifted a full version behind
+    // `STABLE_FORMAT` (0.3) — the drift this fixture exists to catch.
+    assert_eq!(v["stable_format"]["major"], u64::from(STABLE_FORMAT.major));
+    assert_eq!(v["stable_format"]["minor"], u64::from(STABLE_FORMAT.minor));
 
     for art in [schema_graph_artifact(), analysis_trace_artifact(), posterior_artifact()] {
         let mut buf = Vec::new();
