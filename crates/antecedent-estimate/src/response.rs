@@ -79,6 +79,8 @@ pub struct ContinuousResponseOptions {
     pub simultaneous_replicates: Option<u32>,
     /// Deterministic seed for simultaneous-band multipliers.
     pub multiplier_seed: u64,
+    /// Export per-row pseudo-outcomes and influence values as support diagnostics.
+    pub export_row_diagnostics: bool,
 }
 
 impl Default for ContinuousResponseOptions {
@@ -92,6 +94,7 @@ impl Default for ContinuousResponseOptions {
             confidence_level: 0.95,
             simultaneous_replicates: None,
             multiplier_seed: 0xA17E_CEDE_0500,
+            export_row_diagnostics: false,
         }
     }
 }
@@ -274,7 +277,7 @@ impl ContinuousResponseEstimator {
             influences.push(fit.influences);
             robust_se.push(fit.robust_standard_error);
         }
-        let support = support_report(
+        let mut support = support_report(
             grid,
             &sample.treatments,
             &ess,
@@ -282,6 +285,38 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             density_floor_rows,
         );
+        if self.options.export_row_diagnostics {
+            let n = sample.len();
+            let flat_influences: Vec<f64> =
+                influences.iter().flat_map(|row| row.iter().copied()).collect();
+            // Downstream result layers require finite diagnostic values; refuse
+            // rather than publish a non-finite influence into the export channel.
+            if flat_influences.iter().any(|value| !value.is_finite()) {
+                return Err(EstimationError::unsupported(
+                    "row-diagnostic export encountered a non-finite influence value",
+                ));
+            }
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from("response.row_index"),
+                values: Arc::from(
+                    sample.keep.iter().map(|&index| index as f64).collect::<Vec<_>>(),
+                ),
+                detail: Arc::from("original dataframe row index of each retained complete row"),
+            });
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from("response.row_pseudo_outcome"),
+                values: Arc::from(pseudo),
+                detail: Arc::from("cross-fitted Kennedy pseudo-outcome per retained row"),
+            });
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from("response.row_influence"),
+                values: Arc::from(flat_influences),
+                detail: Arc::from(format!(
+                    "row-major by grid point, grid_len={}, n={n}: value[g*N + i]",
+                    grid.len()
+                )),
+            });
+        }
         let uncertainty = if let Some(replicates) = self.options.simultaneous_replicates {
             simultaneous_multiplier_band(
                 &mean,
@@ -764,6 +799,8 @@ impl ContinuousResponseEstimator {
 
 #[derive(Clone, Debug)]
 struct CompleteSample {
+    /// Original dataframe row index of each retained complete row.
+    keep: Vec<usize>,
     outcome: Vec<f64>,
     treatments: Vec<f64>,
     treatment_matrix: Vec<f64>,
@@ -821,6 +858,7 @@ impl CompleteSample {
             adjustment_matrix.extend(keep.iter().map(|&i| column[i]));
         }
         Ok(Self {
+            keep,
             outcome,
             treatments,
             treatment_matrix,
@@ -1712,6 +1750,7 @@ mod tests {
             outcome.push(1.0 + treatments[i] + 0.5 * z);
         }
         let sample = CompleteSample {
+            keep: (0..n).collect(),
             outcome,
             treatments: treatments.clone(),
             treatment_matrix: treatments,
@@ -1739,6 +1778,66 @@ mod tests {
             "edf and n-1 denominators coincide; the test cannot discriminate"
         );
         assert!(got > wrong, "edf-aware σ must exceed the n-1 understatement");
+    }
+
+    #[test]
+    fn row_diagnostics_export_is_opt_in_and_aligned_to_retained_rows() {
+        let (data, a, y, x) = confounded_curve(200);
+        // Poison one row so a retained-row index gap is observable in the export.
+        let mut columns: Vec<Vec<f64>> =
+            (0..3).map(|c| data.float64_values(VariableId::from_raw(c)).unwrap()).collect();
+        columns[1][7] = f64::NAN;
+        let data = TabularData::from_f64_columns([
+            ("a", columns[0].as_slice()),
+            ("y", columns[1].as_slice()),
+            ("x", columns[2].as_slice()),
+        ])
+        .unwrap();
+        let grid = [-0.4, 0.0, 0.4];
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from(grid))),
+        });
+        let run = |export: bool| {
+            let mut estimator = ContinuousResponseEstimator::new([x]);
+            estimator.options.export_row_diagnostics = export;
+            estimator
+                .estimate_identified(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                )
+                .unwrap()
+        };
+        let off = run(false);
+        assert!(
+            off.support.diagnostics.iter().all(|d| !d.id.starts_with("response.row_")),
+            "row diagnostics must be absent when the flag is off"
+        );
+        let on = run(true);
+        let diagnostic = |id: &str| {
+            on.support
+                .diagnostics
+                .iter()
+                .find(|d| d.id.as_ref() == id)
+                .unwrap_or_else(|| panic!("missing diagnostic {id}"))
+        };
+        let n = 199; // one NaN row dropped
+        let row_index = diagnostic("response.row_index");
+        assert_eq!(row_index.values.len(), n);
+        let expected: Vec<f64> = (0..200).filter(|&i| i != 7).map(f64::from).collect();
+        assert_eq!(row_index.values.as_ref(), expected.as_slice());
+        let pseudo = diagnostic("response.row_pseudo_outcome");
+        assert_eq!(pseudo.values.len(), n);
+        assert!(pseudo.values.iter().all(|v| v.is_finite()));
+        let influence = diagnostic("response.row_influence");
+        assert_eq!(influence.values.len(), grid.len() * n);
+        assert!(influence.values.iter().all(|v| v.is_finite()));
+        assert!(influence.detail.contains("grid_len=3"));
+        // The export must not perturb the estimate itself.
+        assert_eq!(off.estimate, on.estimate);
+        assert_eq!(off.uncertainty, on.uncertainty);
     }
 
     #[test]

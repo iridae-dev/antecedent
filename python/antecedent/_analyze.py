@@ -304,6 +304,7 @@ def handle_response(
             "simultaneous_replicates",
             "confidence_level",
             "multiplier_seed",
+            "export_row_diagnostics",
         }
         if unknown:
             raise ValueError(
@@ -491,6 +492,7 @@ def handle_response(
             ),
             confidence_level=cast(float, response_options.get("confidence_level", 0.95)),
             multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
+            export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
         )
     response = (
         ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)

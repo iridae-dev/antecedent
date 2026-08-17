@@ -90,7 +90,7 @@ pub(crate) struct ResponseAnalysisResult {
     direction=None, intervention_kinds=None, intervention_parameters=None,
     order=1, scale="identity", weighting="observed", bandwidth=None,
     simultaneous_replicates=None, confidence_level=0.95,
-    multiplier_seed=0xA17E_CEDE_0500
+    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_response(
@@ -113,6 +113,7 @@ fn analyze_response(
     simultaneous_replicates: Option<u32>,
     confidence_level: f64,
     multiplier_seed: u64,
+    export_row_diagnostics: bool,
 ) -> PyResult<ResponseAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -179,6 +180,7 @@ fn analyze_response(
         estimator.options.simultaneous_replicates = simultaneous_replicates;
         estimator.options.confidence_level = confidence_level;
         estimator.options.multiplier_seed = multiplier_seed;
+        estimator.options.export_row_diagnostics = export_row_diagnostics;
         let response = estimator
             .estimate_identified(
                 &data,

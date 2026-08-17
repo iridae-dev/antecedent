@@ -386,6 +386,37 @@ def test_response_simultaneous_band_is_public_and_requires_explicit_bandwidth():
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr_simultaneous"
 
 
+def test_response_row_diagnostics_export_is_opt_in():
+    rng = np.random.default_rng(73)
+    confounder = rng.normal(size=300)
+    treatment = 0.6 * confounder + rng.normal(size=300)
+    outcome = 2.0 * treatment + confounder + rng.normal(scale=0.2, size=300)
+    data = {"x": confounder, "a": treatment, "y": outcome}
+    graph = [("x", "a"), ("x", "y"), ("a", "y")]
+    grid = [-0.5, 0.0, 0.5]
+    query = antecedent.ResponseCurve("a", "y", grid=grid)
+
+    plain = antecedent.analyze(data, query=query, graph=graph)
+    assert not any(d.id.startswith("response.row_") for d in plain.support.diagnostics)
+
+    result = antecedent.analyze(
+        data,
+        query=query,
+        graph=graph,
+        estimator_config={"bandwidth": 0.35, "export_row_diagnostics": True},
+    )
+    by_id = {diagnostic.id: diagnostic for diagnostic in result.support.diagnostics}
+    row_index = by_id["response.row_index"]
+    pseudo = by_id["response.row_pseudo_outcome"]
+    influence = by_id["response.row_influence"]
+    n = len(row_index.values)
+    assert n == 300
+    assert list(row_index.values) == list(range(300))
+    assert len(pseudo.values) == n
+    assert len(influence.values) == len(grid) * n
+    assert "grid_len=3" in influence.detail
+
+
 def test_response_refuses_ignored_threads():
     with pytest.raises(ValueError, match="threads=1"):
         antecedent.analyze(
