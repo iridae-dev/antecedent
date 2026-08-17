@@ -459,8 +459,19 @@ mod tests {
             .build()
             .unwrap();
         let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
+        // Frozen expectation: read from the conformance fixture rather than
+        // duplicating its numbers here. The fixture was previously loaded by
+        // nothing — this test hardcoded the same values, so the two could
+        // drift apart with neither noticing.
+        let fx: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/interventional_distribution/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fx["method"], "general.id");
+        assert_eq!(fx["estimator"], "functional.distribution");
+        let (mean, tol) = (fx["mean"].as_f64().unwrap(), fx["tolerance"].as_f64().unwrap());
         let dist = result.distribution.expect("distribution payload");
-        assert!((dist.mean - 0.7).abs() < 0.05, "mean={}", dist.mean);
+        assert!((dist.mean - mean).abs() < tol, "mean={}", dist.mean);
         assert!(result.estimate.ate.is_finite());
     }
 
@@ -534,8 +545,34 @@ mod tests {
             .build()
             .unwrap();
         let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
-        assert!((result.estimate.ate - 1.0).abs() < 0.05, "ate={}", result.estimate.ate);
-        assert_eq!(result.estimand.method.as_ref(), "path_specific.natural");
+        // Frozen expectations: both path_specific_natural fixtures were
+        // previously loaded by nothing while this test hardcoded the same
+        // values (found by the evidence-reachability gate's word-boundary
+        // scan — the fixture basename matched this function's *name*).
+        let ctxfx: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/context/path_specific_natural/expected.json"
+        ))
+        .unwrap();
+        let (ate, tol) = (ctxfx["ate"].as_f64().unwrap(), ctxfx["tolerance"].as_f64().unwrap());
+        assert!((result.estimate.ate - ate).abs() < tol, "ate={}", result.estimate.ate);
+        assert_eq!(result.estimand.method.as_ref(), ctxfx["method"].as_str().unwrap());
+        let idfx: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/path_specific_natural/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(idfx["method"], "path_specific.natural");
+        let want_status: String = idfx["status"]
+            .as_str()
+            .unwrap()
+            .split('_')
+            .map(|w| {
+                let mut c = w.chars();
+                c.next()
+                    .map(|f| f.to_ascii_uppercase().to_string() + c.as_str())
+                    .unwrap_or_default()
+            })
+            .collect();
+        assert_eq!(format!("{:?}", result.identification.status), want_status);
     }
 
     /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.

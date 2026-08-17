@@ -54,6 +54,25 @@ corpus_files = [
 ]
 corpus = "\n".join(p.read_text(errors="ignore") for p in corpus_files)
 
+
+def referenced(name: str) -> bool:
+    """True when `name` appears in the corpus as a path/string component.
+
+    Word-boundary matched: an occurrence embedded in a longer identifier does
+    not count. Found the hard way — `conformance/context/path_specific_natural`
+    passed the original substring scan solely because a test *function* was
+    named `end_to_end_path_specific_natural_effect`; the test hardcodes its own
+    scenario and never reads the fixture. Real references are quote- or
+    slash-delimited (`load_expected("gam")`, `join(".../general_id_hedge/...")`)
+    and survive this rule.
+    """
+    for m in re.finditer(re.escape(name), corpus):
+        before = corpus[m.start() - 1] if m.start() > 0 else ""
+        after = corpus[m.end()] if m.end() < len(corpus) else ""
+        if not re.match(r"[A-Za-z0-9_]", before) and not re.match(r"[A-Za-z0-9_]", after):
+            return True
+    return False
+
 # ------------------------------------------------ declared unexercised list
 declared = {}
 unex_path = root / "conformance/UNEXERCISED.toml"
@@ -70,13 +89,13 @@ if unex_path.exists():
 fixtures = sorted(p for p in root.glob("conformance/*/*") if p.is_dir())
 for f in fixtures:
     path = f.as_posix()
-    referenced = f.name in corpus
-    if referenced and path in declared:
+    is_ref = referenced(f.name)
+    if is_ref and path in declared:
         fail.append(
             f"{path} is loaded by executing code but still listed in "
             "conformance/UNEXERCISED.toml — remove the entry (the list only shrinks)"
         )
-    if not referenced and path not in declared:
+    if not is_ref and path not in declared:
         fail.append(
             f"{path} is loaded by no Rust/Python test or gate script and is not "
             "declared in conformance/UNEXERCISED.toml — either wire a consuming "

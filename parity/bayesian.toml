@@ -6,128 +6,173 @@ library = "antecedent"
 [[capabilities]]
 id = "bayes.prob.columnar_posteriors"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "antecedent-prob PosteriorDraws SoA; no object-per-draw"
 
 [[capabilities]]
 id = "bayes.prob.priors"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_support"
 notes = "PriorSet / GaussianCoefficientPrior / InvGamma; contrasts required for categoricals"
 
 [[capabilities]]
 id = "bayes.backend.conjugate_gaussian"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conjugate_gaussian"
 notes = "Analytic Normal–Inv-Gamma / known-σ²"
 
 [[capabilities]]
 id = "bayes.backend.laplace_glm"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/laplace_glm"
 notes = "Native Laplace MAP + Cholesky/LDLT + diagnostics gate (ADR 0006)"
 
 [[capabilities]]
 id = "bayes.estimate.gcomp"
 status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
 notes = "BayesianGComputationAte shares backdoor IR with frequentist path"
 
 [[capabilities]]
 id = "bayes.estimate.temporal_gcomp"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
 notes = "BayesianTemporalGcomp on TemporalLinearAdjustment::prepare lag-aligned design; CausalAnalysis InferenceMode::Bayesian; panel stacked via analyze_panel (python_facade=full); conformance/bayesian/temporal_pulse"
 
 [[capabilities]]
 id = "bayes.estimate.graph_envelopes"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/graph_effect_envelope"
 notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by default"
 
 [[capabilities]]
 id = "bayes.validate.ppc"
 status = "done"
+evidence_kind = "implementation_exists"
+known_truth_fixture = "conformance/bayesian/ppc"
 notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive"
 
 [[capabilities]]
 id = "bayes.validate.prior_sensitivity"
 status = "done"
+evidence_kind = "implementation_exists"
+known_truth_fixture = "conformance/bayesian/prior_sensitivity"
 notes = "Isotropic prior-scale grid"
 
 [[capabilities]]
 id = "bayes.data.bayesian_bootstrap"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "ResamplingPlan::BayesianBootstrap weight plans"
 
 [[capabilities]]
 id = "bayes.io.posterior_artifact"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "CBOR meta + f64 LE draws section"
 
 [[capabilities]]
 id = "bayes.io.posterior_artifact_summary_only"
 status = "done"
+evidence_kind = "implementation_exists"
 python_facade = "full"
 notes = "PosteriorArtifact.from_moments (mean/sd/quantiles, no draws); encode_posterior_artifact emits draws_encoding=none, decode_posterior_artifact round-trips with an empty draws vector; hydrate_prior_from_posterior_bytes / default_hydrate_mapping in crates/antecedent/src/inference.rs read only wire mean/sd/quantities (never draws), so Bayesian(prior_from=<summary-only bytes>) hydrates end to end; crates/antecedent-io/src/posterior.rs::posterior_meta_only_skips_draws + posterior_convert.rs::summary_payload_encoding_omits_draw_bytes; python/tests/test_prior_bank.py::test_summary_only_artifact_round_trips_and_hydrates_prior"
 
 [[capabilities]]
 id = "bayes.facade.inference_mode"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "InferenceMode::Bayesian + Python posterior_* summaries"
 
 [[capabilities]]
 id = "bayes.model.pcm_scm_registry"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "The fixture is documentation-only (no test reads it; its reference block is self-referential). The executed evidence is the exact-enumeration unit harness in antecedent-discovery."
 notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full); gate evidence: unit harness + conformance/bayesian/dag_posterior"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
 status = "done"
+evidence_kind = "implementation_exists"
 notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota BVAR; LGSSM Kalman EM; GP hyperparam grid (feature gaussian-process) — "
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"
 status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Per-PR evidence is ESS/R-hat/divergence unit tests only. SBC/coverage tests are #[ignore]d and run weekly via gate_calibration.sh; the ArviZ pin in conformance/validate/bayesian_checks is loaded by no test."
 notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck; SBC separate"
 
 [[capabilities]]
 id = "bayes.ci.tests"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/discovery/bayesian_ci"
+limitations = "Clean-room conjugate NIG oracle executed with pinned scipy/numpy as computational substrate (sha256-recorded); no upstream implementation of the CI test itself was consulted."
 notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12)"
 
 [[capabilities]]
 id = "bayes.prior_bank.catalog"
 status = "done"
+evidence_kind = "implementation_exists"
+known_truth_fixture = "conformance/bayesian/prior_bank_catalog"
 notes = "PriorSourceMeta / PriorCatalog / CompatibilityReport; CBOR prior_source.meta; durable coef labels; python_facade=full (antecedent.priors.PriorCatalog); conformance/bayesian/prior_bank_catalog"
 
 [[capabilities]]
 id = "bayes.prior_bank.effect_map"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_effect_map"
 notes = "EffectPrior + HydrateMapping hydrate_prior; BayesianConfig.prior_from_artifact; python_facade=full (Bayesian.mapping / PriorMapping); conformance/bayesian/prior_bank_effect_map"
 
 [[capabilities]]
 id = "bayes.prior_bank.power_mixture"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_power_mixture"
 notes = "ExternalPriorWeight + compose_external_priors (power precision-add + mixture moment-match); python_facade=full (compose_external_priors / ComposedPrior); conformance/bayesian/prior_bank_power_mixture"
 
 [[capabilities]]
 id = "bayes.prior_bank.conflict"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_conflict_shrink"
 notes = "ConflictPolicy α shrink via prior-PPC/KL; BayesianConfig.prior_from_composed; ConflictSummary on posterior + diagnostics; α-multiplier prior sensitivity under refute=Full (PriorSensitivity::standard_alpha_grid); python_facade=full (ConflictPolicy); conformance/bayesian/prior_bank_conflict_shrink + prior_bank_alpha_sensitivity"
 
 [[capabilities]]
 id = "bayes.prior_bank.transport"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_transport"
 notes = "TransportPolicy (InvariantConditionalOutcome / EffectModifiers / Propensity); population-tag mismatch requires policy (error_code=transport_policy_required); optional unit reweight; Propensity without weights → α=0; python_facade=full (TransportPolicy on compose_external_priors); unsupported environment/unidentified shifts not claimed; conformance/bayesian/prior_bank_transport"
 
 [[capabilities]]
 id = "bayes.prior_bank.ess_accounting"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_ess"
 python_facade = "full"
 notes = "ExternalPriorSource.ess (caller-declared prior-strength N) + ComposedPrior.effective_ess / .composed_ess / .kish_ess; composed_ess is path-dependent (Some only when every contributing power-path source declares ess; always None on the mixture path — moment-matching folds in between-component spread, so summing source ESS would overstate composed strength); kish_ess is a Kish (1965) concentration diagnostic over applied alphas (power) or mixture weights (mixture), shared via antecedent_prob::kish_ess (also used by TransportAdjustment::kish_ess); explicitly distinct from MCMC/autocorrelation ESS on posterior diagnostics; python_facade=full (ExternalPriorSourceSpec.ess / ComposedPrior.effective_ess/.composed_ess/.kish_ess on compose_external_priors); conformance/bayesian/prior_bank_ess"
 
 [[capabilities]]
 id = "bayes.prior_bank.conjugate_moment_match"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_conjugate_moment_match"
 python_facade = "full"
 notes = "BetaHyperparameters / GammaHyperparameters (crates/antecedent-prob/src/conjugate_moment_match.rs) expose two constructors per family, not one: from_moments(mean, variance) matches both moments exactly, with prior-strength ESS (alpha+beta-2 for Beta, shape-1 for Gamma) read back as a derived consequence and allowed to be negative (a proper prior weaker than the flat/reference prior is truthfully reported, not an error); from_mean_and_ess(mean, ess) matches the mean and a caller-declared ESS exactly with no variance parameter, since mean+ess alone determine every other moment (ess=0 degrades to Beta(1,1)/Gamma(shape=1) reference strength, never vanishing or improper; negative ess input is rejected). Replaces an earlier single from_moments(mean, variance, target_ess) whose variance argument never affected the output (checked for the Beta support bound, then discarded by the rescale to target_ess) and which rejected satisfiable Beta requests as a result — that signature no longer exists. Out-of-support (mean, variance) on from_moments is rejected via ProbError, never silently clamped (Beta requires var < mean*(1-mean), no epsilon slack; Gamma only requires mean>0, var>0). This is a standalone hyperparameter converter, NOT a new PriorSpec variant and NOT a new supported inference path — no backend in this crate (conjugate.rs, laplace.rs, hmc.rs, gaussian_target.rs) accepts anything but a GaussianCoefficientPrior design-matrix prior plus a residual-variance model, so a Beta/Gamma prior has nothing to plug into; python_facade=full (antecedent.priors.beta_from_moments / beta_from_mean_and_ess / gamma_from_moments / gamma_from_mean_and_ess); conformance/bayesian/prior_conjugate_moment_match"
 

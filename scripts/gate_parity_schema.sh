@@ -32,21 +32,47 @@ STATUS_VALUES = {"pending", "in_progress", "done"}
 FACADE_VALUES = {"full", "thin", "none"}
 BASE_REQUIRED = ("id", "status")
 
+# What kind of proposition the row's evidence actually demonstrates. Required on
+# every `done` row (release.toml exempt — its rows are release infrastructure
+# with their own evidence map in gate_release.sh, not scientific capabilities).
+# The 2026-08 audit found rows whose notes read as external-package agreement
+# while the fixture's own oracle block recorded clean-room enumeration; this
+# field makes the claim strength machine-readable so wording cannot outrun it.
+EVIDENCE_KINDS = {
+    # code + ordinary unit tests; no numerical evidence against a truth
+    "implementation_exists",
+    # conformance fixture/test against closed-form, analytic, or clean-room truth
+    "internal_known_truth",
+    # agreement with another Antecedent estimator/module only
+    "internal_cross_check",
+    # frozen fixture recording an actual pinned upstream-package run, consumed
+    # by an executing test
+    "frozen_external_oracle",
+    # agreement with an upstream package across a range of inputs
+    "behavioral_parity",
+    # theorem-level / method-contract argument
+    "contract_equivalence",
+}
+# Kinds that assert an upstream package produced the truth being matched.
+EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
+
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
 # Kept explicit rather than inferred from whichever keys the majority of rows
 # happen to carry: the richer schema is what exposed the row that motivated this
 # gate, so it has to be a stated contract, not a statistical accident.
+# Second tuple element: whether `done` rows must carry `evidence_kind`.
+# Only release.toml is exempt (infrastructure rows, evidence map in gate_release.sh).
 MANIFESTS = {
-    "parity/estimate.toml": ("group", "description", "owner"),
-    "parity/discovery.toml": ("group", "description", "owner"),
-    "parity/context.toml": ("group", "description", "owner"),
-    "parity/bayesian.toml": (),
-    "parity/pag.toml": (),
-    "parity/gcm.toml": (),
-    "parity/attribution.toml": (),
-    "parity/design_state.toml": (),
-    "parity/release.toml": (),
-    "parity/response.toml": (),
+    "parity/estimate.toml": (("group", "description", "owner"), True),
+    "parity/discovery.toml": (("group", "description", "owner"), True),
+    "parity/context.toml": (("group", "description", "owner"), True),
+    "parity/bayesian.toml": ((), True),
+    "parity/pag.toml": ((), True),
+    "parity/gcm.toml": ((), True),
+    "parity/attribution.toml": ((), True),
+    "parity/design_state.toml": ((), True),
+    "parity/release.toml": ((), False),
+    "parity/response.toml": ((), True),
 }
 
 # The parser every feature gate embeds. Reproduced verbatim so this gate checks
@@ -76,7 +102,7 @@ for path in sorted(root.glob("parity/*.toml")):
     if re.search(r"^\[\[capabilities\]\]", path.read_text(), re.M):
         problems.append(f"{rel}: has capability rows but is not enrolled in gate_parity_schema.sh")
 
-for rel, extra_required in MANIFESTS.items():
+for rel, (extra_required, requires_evidence) in MANIFESTS.items():
     path = root / rel
     if not path.exists():
         problems.append(f"{rel}: manifest missing")
@@ -116,6 +142,62 @@ for rel, extra_required in MANIFESTS.items():
         if facade is not None and facade not in FACADE_VALUES:
             problems.append(
                 f"{rel}: {label} python_facade={facade!r} not in {sorted(FACADE_VALUES)}"
+            )
+
+        # ------------------------------------------- evidence-kind contract
+        kind = row.get("evidence_kind")
+        if kind is not None and kind not in EVIDENCE_KINDS:
+            problems.append(
+                f"{rel}: {label} evidence_kind={kind!r} not in {sorted(EVIDENCE_KINDS)}"
+            )
+        if requires_evidence and status == "done" and kind is None:
+            problems.append(
+                f"{rel}: {label} is done without evidence_kind — state what the "
+                "evidence demonstrates (implementation_exists is a legal answer; "
+                "an implied one is not)"
+            )
+
+        oracle = row.get("external_oracle")
+        fixture = row.get("known_truth_fixture")
+
+        if fixture is not None:
+            if not isinstance(fixture, str) or not (root / fixture).exists():
+                problems.append(
+                    f"{rel}: {label} known_truth_fixture {fixture!r} does not exist"
+                )
+
+        if kind in EXTERNAL_KINDS:
+            if not isinstance(oracle, str) or not oracle.strip():
+                problems.append(
+                    f"{rel}: {label} claims {kind} without external_oracle "
+                    "(project + pin)"
+                )
+            elif not isinstance(fixture, str):
+                problems.append(
+                    f"{rel}: {label} claims {kind} without known_truth_fixture "
+                    "pointing at the frozen fixture"
+                )
+            else:
+                # Fixture-authoritative rule: the named project must actually
+                # appear in the frozen fixture. The audit found ledger rows
+                # claiming scikit-learn/pcalg/causaleffect against fixtures
+                # whose oracle blocks recorded clean-room computation.
+                fdir = root / fixture
+                files = [fdir] if fdir.is_file() else sorted(fdir.glob("*"))
+                blob = "\n".join(
+                    f.read_text(errors="ignore").lower() for f in files if f.is_file()
+                )
+                token = oracle.split()[0].lower()
+                if token not in blob:
+                    problems.append(
+                        f"{rel}: {label} names external oracle {oracle!r} but "
+                        f"{fixture} never records {token!r} — the fixture's own "
+                        "oracle block is authoritative"
+                    )
+        elif oracle is not None:
+            problems.append(
+                f"{rel}: {label} carries external_oracle but evidence_kind="
+                f"{kind!r} does not claim an external comparison — drop one"
             )
 
         if isinstance(cid, str) and cid.strip():
