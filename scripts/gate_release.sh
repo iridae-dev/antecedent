@@ -28,6 +28,9 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
+echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
+bash scripts/gate_evidence_reachability.sh
+
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh

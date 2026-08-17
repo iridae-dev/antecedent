@@ -1,0 +1,40 @@
+# Recorded-but-unexercised conformance fixtures.
+#
+# Every fixture directory under conformance/ must be loaded by an executing
+# test, or declared here. This file is the machine-readable form of "we froze
+# an oracle for work that has not shipped yet" — a legitimate practice that
+# went wrong when three pinned-baseline general-ID fixtures sat unexercised while
+# provenance, parity pointers, and generated docs all described the comparison
+# in the present tense.
+#
+# Enforced by scripts/gate_evidence_reachability.sh, in both directions:
+#   - an orphaned fixture not listed here fails the gate;
+#   - a fixture listed here that a test starts loading fails the gate until the
+#     entry is removed (the list may only shrink toward zero).
+#
+# A fixture listed here must not be cited as active evidence anywhere:
+# no `closed` oracle-closure row may point at it, and any provenance or parity
+# citation must carry the word "unexercised" or "recorded".
+#
+# Fields: `dir` (fixture directory), `reason` (why no test loads it),
+# `blocked_on` (what has to ship before a consumer can exist).
+
+[[unexercised]]
+dir = "conformance/identify/general_id_backdoor_chain"
+reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
+blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
+
+[[unexercised]]
+dir = "conformance/identify/general_id_frontdoor"
+reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
+blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
+
+[[unexercised]]
+dir = "conformance/identify/general_id_hedge"
+reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
+blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
+
+[[unexercised]]
+dir = "conformance/manufacturing/temporal_pressure_defect"
+reason = "The manufacturing temporal tests (crates/antecedent/tests/manufacturing_temporal.rs) generate their own series via manufacturing_series(n) and never read this fixture; it froze a scenario description nothing consumes."
+blocked_on = "either a test that loads this fixture and checks expected_ate under its SCM, or deletion if the in-test generator is judged the better record"

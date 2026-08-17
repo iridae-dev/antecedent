@@ -100,6 +100,7 @@ cargo test -p antecedent-validate --test refuters
 cargo test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
 cargo test -p antecedent-stats --lib ci::calibration
 cargo test -p antecedent-stats --test foundations_oracle
+cargo test -p antecedent-stats --test uncertainty_routing_contract
 cargo test -p antecedent-stats --test advanced_ci_oracle
 cargo test -p antecedent-stats --test bayesian_ci_oracle
 cargo test -p antecedent-discovery --test multiplicity_oracle
