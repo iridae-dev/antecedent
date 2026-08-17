@@ -35,6 +35,11 @@ def allowed(path: Path) -> bool:
     # The allowlist gate itself must mention the pattern.
     if s == "scripts/gate_upstream_names.sh":
         return True
+    # Same reason: the metadata-consistency gate checks that the oracle ledger
+    # never names an upstream package its fixture does not record, which requires
+    # holding the list of upstream package names.
+    if s == "scripts/gate_metadata_consistency.sh":
+        return True
     # Domain inventories / README may cite baseline pin *paths* only.
     if s in {"parity/estimate.toml", "parity/discovery.toml", "parity/README.md"}:
         return True
