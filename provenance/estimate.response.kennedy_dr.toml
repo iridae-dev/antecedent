@@ -9,6 +9,24 @@ papers = [
   { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator of the effect curve"] },
 ]
 
+# Derived from the Kennedy et al. construction, not the exact estimator analyzed
+# there. Cross-fitting is present, but the nuisance classes and the bandwidth rule
+# are narrower than the paper assumes, so its rate and inference results are not
+# inherited wholesale. The sibling record
+# estimate.response.kennedy_dr_simultaneous.toml carries the matching disclaimer
+# for the band; this record previously carried none despite sharing the machinery.
+#
+# The doubly robust *property* implied by this feature_id is not empirically
+# demonstrated: no test misspecifies exactly one nuisance. See
+# parity/response.toml (estimate.response.kennedy_dr) for the evidence actually held.
+implementation_deviations = [
+ "nuisances restricted to additive cubic-B-spline GAMs (one 1-D smooth per column, no interaction/tensor terms), not the arbitrary consistent learners the paper's theory admits",
+ "nuisance penalty lambda is a fixed caller-supplied constant (default 1.0); the GCV selection path in fit_gam is never invoked, so nuisance complexity does not grow with n",
+ "conditional treatment density is a Gaussian plug-in from a GAM conditional mean plus a single pooled homoskedastic residual scale, not a nonparametric conditional density estimator",
+ "default curve bandwidth is Silverman's normal-reference KDE rule on the marginal treatment distribution, not a bandwidth selected for local-polynomial regression risk as in Section 3.2",
+ "cross-fitting folds are deterministic index-modulo splits rather than randomized sample splitting",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
