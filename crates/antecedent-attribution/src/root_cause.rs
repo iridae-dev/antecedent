@@ -49,7 +49,7 @@ pub fn root_cause_rank(
     Ok(ranks)
 }
 
-/// Aggregate attribution results over a [`ModelCollection`] by weighted mean.
+/// Aggregate attribution results over a [`ModelCollection`](antecedent_model::ModelCollection) by weighted mean.
 ///
 /// # Errors
 ///

@@ -253,7 +253,9 @@ impl WaldIv {
     ///
     /// # Errors
     ///
-    /// See [`prepare_iv_problem`].
+    /// Incompatible estimand (method or variable roles do not match an IV
+    /// problem) or unsupported query options (e.g. effect modifiers) during
+    /// problem preparation.
     pub fn prepare(
         &self,
         data: &TabularData,
@@ -600,7 +602,9 @@ impl TwoStageLeastSquares {
     ///
     /// # Errors
     ///
-    /// See [`prepare_iv_problem`].
+    /// Incompatible estimand (method or variable roles do not match an IV
+    /// problem) or unsupported query options (e.g. effect modifiers) during
+    /// problem preparation.
     pub fn prepare(
         &self,
         data: &TabularData,

@@ -235,7 +235,9 @@ impl FrontDoorTwoStage {
     ///
     /// # Errors
     ///
-    /// See [`prepare_frontdoor_problem`].
+    /// Incompatible estimand (method or variable roles do not match a
+    /// front-door problem) or unsupported query options during problem
+    /// preparation.
     pub fn prepare(
         &self,
         data: &TabularData,

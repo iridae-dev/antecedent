@@ -14,7 +14,7 @@ use super::error::QueryError;
 #[derive(Clone, Debug, PartialEq)]
 /// Interventional distribution query P(Y | do(...), Z).
 ///
-/// Distinct from [`ChangeAttributionQuery`] (population/period change attribution).
+/// Distinct from [`ChangeAttributionQuery`](super::ChangeAttributionQuery) (population/period change attribution).
 /// Identify via ID (empty conditioning) or IDC (nonempty conditioning);
 /// GCM sampling remains available via `sample_interventional_distribution`.
 pub struct InterventionalDistributionQuery {
@@ -88,7 +88,7 @@ impl InterventionalDistributionQuery {
 
 /// Path-specific effect / contribution query.
 ///
-/// Prefer this over overloading [`MediationQuery`]. Path *contribution*
+/// Prefer this over overloading [`MediationQuery`](super::MediationQuery). Path *contribution*
 /// attribution is available via GCM `path_decompose`; path-restricted natural
 /// effects identify/estimate via the ID family (`path_specific.natural`) and
 /// `functional.effect` plug-in estimation.
