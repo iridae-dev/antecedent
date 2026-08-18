@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   intersects the complete-case mask with the predicate (named predicates
   need `with_population_registry`), matching the propensity path. The
   previous code accepted Predicate and estimated the full-sample ATE.
+- **GLM ATT/ATC analytic SEs use the arm-law gradient.** Point estimates
+  already averaged `μ(a,Z)−μ(c,Z)` over the target arm; the delta/sandwich
+  gradient averaged over every row. Under a nonlinear link that is the ATE
+  gradient, so CIs were for the wrong functional.
 
 ### Round 4 — backlog completion
 

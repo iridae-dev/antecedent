@@ -365,6 +365,8 @@ impl GlmAdjustmentAte {
                 problem.active,
                 problem.control,
                 glm_fit.deviance,
+                &problem.treatment,
+                &problem.target_population,
             ),
             other => gcomp_sandwich_se(
                 other,
@@ -381,6 +383,8 @@ impl GlmAdjustmentAte {
                 self.cluster_ids.as_deref(),
                 self.multiway_ids.as_deref(),
                 self.panel_times.as_deref(),
+                &problem.treatment,
+                &problem.target_population,
             )?,
         };
 
@@ -446,11 +450,7 @@ fn average_gcomp_for_target(
     let mut sum = 0.0;
     let mut count = 0usize;
     for (i, &d) in diffs.iter().enumerate() {
-        let include = match target {
-            TargetPopulation::Treated => treatment.get(i).copied().unwrap_or(0.0) > 0.5,
-            TargetPopulation::Untreated => treatment.get(i).copied().unwrap_or(1.0) <= 0.5,
-            _ => true,
-        };
+        let include = include_gcomp_row(target, treatment.get(i).copied().unwrap_or(0.0));
         if include {
             sum += d;
             count += 1;
@@ -462,6 +462,14 @@ fn average_gcomp_for_target(
         ));
     }
     Ok(sum / count as f64)
+}
+
+fn include_gcomp_row(target: &TargetPopulation, t: f64) -> bool {
+    match target {
+        TargetPopulation::Treated => t > 0.5,
+        TargetPopulation::Untreated => t <= 0.5,
+        _ => true,
+    }
 }
 
 /// Response-scale derivative `dμ/dη` at `eta`.
@@ -500,11 +508,13 @@ fn fisher_weight(family: GlmFamily, eta: f64) -> f64 {
 /// Delta-method standard error for the g-computation ATE, **conditional on the observed
 /// covariate rows** (standard g-computation practice).
 ///
-/// With gradient `g = (1/n) Σ_i [μ'(η_i1)·x_i1 − μ'(η_i0)·x_i0]` over the coefficient vector
-/// (where `x_i1`/`x_i0` are row `i` with the treatment column set to `active`/`control`) and
-/// `Cov(β̂) = φ·(XᵀWX)⁻¹` — the inverse Fisher information at the fit, `W = diag(w(η_i))`
-/// with Bernoulli/logit / Poisson `w = μ'` and probit `w = φ²/(μ(1−μ))`, dispersion
-/// `φ = RSS/(n−p)` for Gaussian and `1` otherwise — the SE is `sqrt(gᵀ Cov(β̂) g)`.
+/// With gradient `g = (1/n⋆) Σ_{i ∈ T} [μ'(η_i1)·x_i1 − μ'(η_i0)·x_i0]` over the
+/// coefficient vector, where `T` is the target population (all rows, treated, or
+/// untreated) and `n⋆ = |T|`. `x_i1`/`x_i0` are row `i` with the treatment column
+/// set to `active`/`control`. `Cov(β̂) = φ·(XᵀWX)⁻¹` is still the full-sample
+/// inverse Fisher information at the fit (`W = diag(w(η_i))` with
+/// Bernoulli/logit / Poisson `w = μ'` and probit `w = φ²/(μ(1−μ))`, dispersion
+/// `φ = RSS/(n−p)` for Gaussian and `1` otherwise). The SE is `sqrt(gᵀ Cov(β̂) g)`.
 /// Returns `NaN` when the information matrix is singular.
 #[allow(clippy::too_many_arguments)]
 fn gcomp_delta_method_se(
@@ -517,6 +527,8 @@ fn gcomp_delta_method_se(
     active: f64,
     control: f64,
     deviance: f64,
+    treatment: &[f64],
+    target: &TargetPopulation,
 ) -> f64 {
     // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
     let mut x_w = vec![0.0; nrows * ncols];
@@ -543,8 +555,18 @@ fn gcomp_delta_method_se(
         | GlmFamily::NegativeBinomial => 1.0,
     };
 
-    let grad =
-        gcomp_gradient(family, x_colmajor, nrows, ncols, t_col, coefficients, active, control);
+    let grad = gcomp_gradient(
+        family,
+        x_colmajor,
+        nrows,
+        ncols,
+        t_col,
+        coefficients,
+        active,
+        control,
+        treatment,
+        target,
+    );
 
     let mut quad = 0.0;
     for i in 0..ncols {
@@ -576,6 +598,8 @@ fn gcomp_sandwich_se(
     cluster_ids: Option<&[u32]>,
     multiway_ids: Option<&[Vec<u32>]>,
     panel_times: Option<&[i64]>,
+    treatment: &[f64],
+    target: &TargetPopulation,
 ) -> Result<f64, EstimationError> {
     let (score_u, fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
@@ -601,10 +625,22 @@ fn gcomp_sandwich_se(
             active,
             control,
             0.0,
+            treatment,
+            target,
         ));
     };
-    let grad =
-        gcomp_gradient(family, x_colmajor, nrows, ncols, t_col, coefficients, active, control);
+    let grad = gcomp_gradient(
+        family,
+        x_colmajor,
+        nrows,
+        ncols,
+        t_col,
+        coefficients,
+        active,
+        control,
+        treatment,
+        target,
+    );
     let mut quad = 0.0;
     for i in 0..ncols {
         for j in 0..ncols {
@@ -759,10 +795,16 @@ fn gcomp_gradient(
     coefficients: &[f64],
     active: f64,
     control: f64,
+    treatment: &[f64],
+    target: &TargetPopulation,
 ) -> Vec<f64> {
-    let n = nrows as f64;
     let mut grad = vec![0.0; ncols];
+    let mut count = 0usize;
     for r in 0..nrows {
+        if !include_gcomp_row(target, treatment.get(r).copied().unwrap_or(0.0)) {
+            continue;
+        }
+        count += 1;
         let mut eta_active = 0.0;
         let mut eta_control = 0.0;
         for c in 0..ncols {
@@ -788,6 +830,7 @@ fn gcomp_gradient(
             grad[c] += d1 * x1 - d0 * x0;
         }
     }
+    let n = count.max(1) as f64;
     for g in &mut grad {
         *g /= n;
     }
@@ -1190,6 +1233,39 @@ mod tests {
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate.is_finite());
+    }
+
+    #[test]
+    fn att_se_differs_from_ate_se_under_logit() {
+        let (data, estimand) = binary_scm(800, 5);
+        let est = GlmAdjustmentAte { bootstrap_replicates: 0, ..GlmAdjustmentAte::new() };
+        let ate_q =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let att_q = ate_q.clone().with_target_population(TargetPopulation::Treated);
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let ate = est
+            .fit(
+                &est.prepare(&data, &estimand, &ate_q).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let att = est
+            .fit(
+                &est.prepare(&data, &estimand, &att_q).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(ate.se_analytic.is_finite() && att.se_analytic.is_finite());
+        assert!(
+            (ate.se_analytic - att.se_analytic).abs() > 1e-8,
+            "logit ATT SE must not reuse the ATE gradient; ate_se={} att_se={}",
+            ate.se_analytic,
+            att.se_analytic
+        );
     }
 
     #[test]
