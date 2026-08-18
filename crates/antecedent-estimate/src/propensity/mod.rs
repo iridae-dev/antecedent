@@ -90,7 +90,7 @@ mod tests {
     use super::*;
     use crate::error::EstimationError;
     use crate::overlap::OverlapPolicy;
-    use crate::propensity::weighting::hajek_difference;
+    use crate::propensity::weighting::{hajek_difference, hajek_influence_se};
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let (t, y, z) = confounded_columns(n, seed);
@@ -227,6 +227,35 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.4, "att={}", effect.ate);
+    }
+
+    #[test]
+    fn weighting_trim_analytic_se_uses_retained_n() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 21);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let untrimmed =
+            PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+        let trimmed = PropensityWeighting { overlap: trim_overlap(), ..untrimmed.clone() };
+        let mut ws = PropensityEstimationWorkspace::default();
+        let raw = untrimmed
+            .fit(
+                &untrimmed.prepare(&data, &estimand, &query).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let clean = trimmed
+            .fit(
+                &trimmed.prepare(&data, &estimand, &query).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(raw.se_analytic.is_finite() && clean.se_analytic.is_finite());
+        assert!(clean.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
     }
 
     #[test]
@@ -387,6 +416,26 @@ mod tests {
         let weights = [0.0, 0.0, 1.0, 1.0];
         let err = hajek_difference(&treatment, &outcome, &weights).unwrap_err();
         assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
+    }
+
+    #[test]
+    fn hajek_influence_se_zero_weight_rows_dilute_n() {
+        // One treated unit trimmed (w=0). Same Hajek ψ, different n: full-sample
+        // SE is anti-conservative relative to the retained-row SE.
+        let t_full = [1.0, 1.0, 0.0, 0.0];
+        let y_full = [3.0, 5.0, 1.0, 2.0];
+        let w_full = [2.0, 0.0, 1.0, 1.0];
+        let e_full = [0.5, 0.01, 0.5, 0.5];
+        let se_full = hajek_influence_se(&t_full, &y_full, &w_full, &e_full, &[], 0).unwrap();
+        let t_kept = [1.0, 0.0, 0.0];
+        let y_kept = [3.0, 1.0, 2.0];
+        let w_kept = [2.0, 1.0, 1.0];
+        let e_kept = [0.5, 0.5, 0.5];
+        let se_kept = hajek_influence_se(&t_kept, &y_kept, &w_kept, &e_kept, &[], 0).unwrap();
+        assert!(
+            se_kept > se_full,
+            "retained-n SE must exceed full-n SE with zero-weight rows; full={se_full} kept={se_kept}"
+        );
     }
 
     #[test]

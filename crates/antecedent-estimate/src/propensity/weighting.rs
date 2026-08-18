@@ -11,7 +11,8 @@ use antecedent_stats::{FaerBackend, GlmOptions};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
+    clip_of, default_propensity_overlap, gather, gather_colmajor,
+    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -149,14 +150,29 @@ impl PropensityWeighting {
         );
         apply_target_weights(&mut weights, problem.target_weights.as_deref());
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let se_analytic = hajek_influence_se(
-            &problem.treatment,
-            &problem.outcome,
-            &weights,
-            &model.clipped_scores,
-            &problem.design_matrix,
-            problem.design_ncols,
-        )?;
+        let se_analytic = match trim_retained_rows(&model.fit.scores, trim)? {
+            Some(idx) => {
+                let t = gather(&problem.treatment, &idx);
+                let y = gather(&problem.outcome, &idx);
+                let w = gather(&weights, &idx);
+                let e = gather(&model.clipped_scores, &idx);
+                let design = gather_colmajor(
+                    &problem.design_matrix,
+                    problem.nrows,
+                    problem.design_ncols,
+                    &idx,
+                );
+                hajek_influence_se(&t, &y, &w, &e, &design, problem.design_ncols)?
+            }
+            None => hajek_influence_se(
+                &problem.treatment,
+                &problem.outcome,
+                &weights,
+                &model.clipped_scores,
+                &problem.design_matrix,
+                problem.design_ncols,
+            )?,
+        };
 
         let boot = if self.bootstrap_replicates == 0 {
             None
