@@ -17,11 +17,15 @@ doi: 10.5281/zenodo.21556247
 date-released: "2026-08-18"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
-# Single SPDX string, not a YAML list. Zenodo's CITATION.cff ingestion rejects the
-# list form: v0.4.0 archived with this exact spelling, and every release after the
-# switch to a list (bfb6144) failed with "CITATION.cff failed". Stricter CFF
-# validators dislike the OR expression; Zenodo is the consumer that matters here.
-license: "MIT OR Apache-2.0"
+# CFF 1.2.0 cannot express the SPDX expression "MIT OR Apache-2.0"; the list is
+# the schema-valid spelling of the dual license. Zenodo accepts neither form
+# (zenodo/zenodo#2515) — the string→list→string flip-flop in bfb6144/ccafe22 each
+# fixed one consumer while breaking the other. Zenodo now reads .zenodo.json
+# instead and ignores this file entirely, so this file serves only CFF-schema
+# consumers (GitHub's citation widget, cffconvert). Keep .zenodo.json present.
+license:
+  - MIT
+  - Apache-2.0
 keywords:
   - causal inference
   - identification

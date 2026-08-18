@@ -1,0 +1,23 @@
+{
+    "upload_type": "software",
+    "title": "Antecedent",
+    "description": "Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.",
+    "creators": [
+        {
+            "name": "Hinshaw, Charles",
+            "orcid": "0009-0000-2421-4351"
+        },
+        {
+            "name": "Antecedent Contributors"
+        }
+    ],
+    "license": "mit",
+    "notes": "Dual-licensed under MIT or Apache-2.0, at your option. Zenodo metadata accepts a single license identifier; see the LICENSE-MIT and LICENSE-APACHE files in the repository.",
+    "keywords": [
+        "causal inference",
+        "identification",
+        "Bayesian inference",
+        "graph discovery",
+        "counterfactuals"
+    ]
+}

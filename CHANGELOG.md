@@ -66,8 +66,13 @@ package versions are **0.5.1**.
 - All 40 rustdoc warnings resolved workspace-wide; public `# Errors` docs no
   longer reference private items, and `EXTREME_WEIGHT_THRESHOLD` is public so
   the transport diagnostic doc links a real value.
-- `CITATION.cff` uses a single SPDX license expression so Zenodo ingestion
-  succeeds.
+- Citation metadata split by consumer: Zenodo ingests a new `.zenodo.json`
+  (and ignores `CITATION.cff` when it is present), while `CITATION.cff`
+  carries the CFF-1.2.0-schema-valid license list for GitHub's citation
+  widget and `cffconvert`. Zenodo rejects both the list form and the SPDX
+  OR-expression (zenodo/zenodo#2515), so no single spelling could satisfy
+  every consumer; the metadata gate now checks both files stay present and
+  consistent.
 
 ### Changed
 

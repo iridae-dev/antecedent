@@ -39,6 +39,33 @@ if not m:
 elif m.group(1) != version:
     fail.append(f"CITATION.cff version {m.group(1)!r} != Cargo.toml {version!r}")
 
+# .zenodo.json is what Zenodo actually ingests (it ignores CITATION.cff when
+# present); CITATION.cff carries the CFF-schema-valid license list for GitHub's
+# citation widget and cffconvert. Zenodo rejects both the list form and the
+# SPDX OR-expression (zenodo/zenodo#2515), so removing either file — or letting
+# their shared facts drift — re-breaks a release consumer.
+zenodo_path = Path(".zenodo.json")
+if not zenodo_path.is_file():
+    fail.append(".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose license list it rejects")
+else:
+    try:
+        zenodo = json.loads(zenodo_path.read_text())
+    except json.JSONDecodeError as e:
+        fail.append(f".zenodo.json is not valid JSON: {e}")
+    else:
+        if zenodo.get("upload_type") != "software":
+            fail.append('.zenodo.json upload_type must be "software"')
+        if not zenodo.get("license"):
+            fail.append(".zenodo.json has no license (Zenodo would guess from the repo)")
+        elif zenodo["license"] != zenodo["license"].lower():
+            fail.append(f".zenodo.json license {zenodo['license']!r} must be a lowercase Zenodo id")
+        cff_orcids = set(re.findall(r"orcid.org/(\S+?)['\"]", citation))
+        zen_orcids = {c["orcid"] for c in zenodo.get("creators", []) if "orcid" in c}
+        if cff_orcids != zen_orcids:
+            fail.append(
+                f"creator ORCIDs differ: CITATION.cff {sorted(cff_orcids)} vs .zenodo.json {sorted(zen_orcids)}"
+            )
+
 # A hardcoded version in prose is the drift that started this gate. parity/README.md
 # carried "Package version remains 0.1.0" for five minor releases.
 for doc in ["parity/README.md", "docs/development.md"]:
