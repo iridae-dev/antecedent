@@ -625,6 +625,7 @@ impl StudyBuilder {
             custom_validators: self.custom_validators,
             latency_mode,
             stage_sink: self.stage_sink,
+            identification_cache: None,
         })
     }
 }

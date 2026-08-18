@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance / quality
 
+- **Prepared estimates identify once.** `Study::prepare` now runs static
+  identification at prepare time and every `PreparedStudy` estimate click
+  reuses it (exact: identification reads only prepare-frozen inputs), with an
+  `exec.identify.cached` diagnostic making the reuse observable and tested.
+  RD-sharp, Bayesian g-comp, posterior-graph, bidirected-ADMG, and PAG
+  configurations keep their identify-per-run paths. The Python
+  `PreparedAnalysis` handle holds its `PreparedStudy` behind an `Arc`, so
+  per-click detach is a refcount bump instead of a deep clone.
 - **`ComputeBudget.wall_ms` is documented as advisory.** The field was already
   rustdoc'd as not a hard stop; `StudyBuilder::compute_budget` and the
   architecture execution-model notes now say the same.

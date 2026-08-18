@@ -19,10 +19,27 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
+use antecedent_expr::IdentifiedEstimand;
+use antecedent_identify::IdentificationResult;
+
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
 use super::helpers::{project_for_ate_estimate, run_refuters};
 use super::stage::{STAGE_VALIDATE, StageClock};
+
+/// Prepare-time identification products for the static ATE path.
+///
+/// Everything identification reads — identifier, graph, query, RD config — is
+/// frozen when the handle is built, and identification is deterministic, so an
+/// estimate click reuses these instead of re-running identification. Results
+/// carry an `exec.identify.cached` diagnostic so reuse is observable.
+#[derive(Clone, Debug)]
+pub struct CachedStaticIdentification {
+    /// Identification result computed at prepare time.
+    pub identification: IdentificationResult,
+    /// Estimand selected for the prepared estimator.
+    pub estimand: IdentifiedEstimand,
+}
 
 /// Durable handle: fixed schema, graph, query, and estimator; swap data and re-estimate.
 ///
@@ -192,7 +209,64 @@ impl Study {
                 });
             }
         };
-        Ok(PreparedStudy { analysis: self.clone(), plan, schema })
+        let mut analysis = self.clone();
+        analysis.identification_cache = self.prepare_static_identification(&plan)?.map(Arc::new);
+        Ok(PreparedStudy { analysis, plan, schema })
+    }
+
+    /// Compute the static-path identification once at prepare time.
+    ///
+    /// Mirrors `execute_static`'s stage-1 inputs exactly. Configurations that
+    /// dispatch elsewhere (sharp RD, Bayesian g-comp, bidirected ADMGs, PAG
+    /// envelopes) return `None` and keep their identify-per-run behavior.
+    fn prepare_static_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{
+            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static_query_with_rd,
+            select_estimand,
+        };
+        let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
+        let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianGcomp) {
+            return Ok(None);
+        }
+        let CausalQuery::AverageEffect(query) = &self.query else {
+            return Ok(None);
+        };
+        // A posterior-backed study holds only a placeholder `graph` shape;
+        // identification against it would be meaningless.
+        if self.graph_posterior.is_some() {
+            return Ok(None);
+        }
+        // Resolve the same static DAG `execute` would hand to `execute_static`.
+        let graph = match self.graph.class() {
+            GraphClass::Dag => self.graph.as_dag().cloned(),
+            GraphClass::Cpdag | GraphClass::Admg => plan.static_graph().cloned(),
+            _ => None,
+        };
+        let Some(graph) = graph else {
+            return Ok(None);
+        };
+        if self.graph.class() == GraphClass::Admg
+            && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
+        {
+            return Ok(None);
+        }
+        let rd = self.rd.map(|c| {
+            antecedent_identify::SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth)
+        });
+        let identification = identify_static_query_with_rd(
+            identifier_id,
+            &graph,
+            &CausalQuery::AverageEffect(query.clone()),
+            rd,
+        )?;
+        let estimand = select_estimand(&identification, estimator_id)?;
+        Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 }
 

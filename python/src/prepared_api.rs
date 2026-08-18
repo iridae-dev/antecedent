@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, Study};
 use antecedent_core::AverageEffectQuery;
 use antecedent_data::{TableView, tabular_from_record_batch};
@@ -18,7 +20,9 @@ use crate::{
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
 #[pyclass(name = "PreparedAnalysis")]
 pub struct PyPreparedAnalysis {
-    inner: PreparedStudy,
+    /// Arc so per-click estimate/refute detach with a refcount bump, not a
+    /// deep `PreparedStudy` clone; `refresh` clones-on-write to swap data.
+    inner: Arc<PreparedStudy>,
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
     last: Option<antecedent::StudyResult>,
@@ -120,7 +124,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: prepared, names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None })
         })
     }
 
@@ -141,7 +145,7 @@ impl PyPreparedAnalysis {
         }
         let batch = columns_to_batch(&names, &columns)?;
         drop(columns);
-        let inner = self.inner.clone();
+        let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
             let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
@@ -177,7 +181,7 @@ impl PyPreparedAnalysis {
         }
         let batch = columns_to_batch(&names, &columns)?;
         drop(columns);
-        let mut inner = self.inner.clone();
+        let mut inner = (*self.inner).clone();
         let out_names = self.names.clone();
         let (updated, mapped, result) = detach_catch(py, move || {
             let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
@@ -192,7 +196,7 @@ impl PyPreparedAnalysis {
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((inner, mapped, result))
         })?;
-        self.inner = updated;
+        self.inner = Arc::new(updated);
         self.last = Some(result);
         Ok(mapped)
     }
@@ -222,7 +226,7 @@ impl PyPreparedAnalysis {
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
         drop(columns);
-        let inner = self.inner.clone();
+        let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
             let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;

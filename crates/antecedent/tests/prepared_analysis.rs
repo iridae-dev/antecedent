@@ -123,6 +123,16 @@ fn prepared_reestimate_matches_fresh_analyze() {
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     assert_eq!(first.physical_plan.plan_id, fresh.physical_plan.plan_id);
     assert_eq!(second.physical_plan.plan_id, first.physical_plan.plan_id);
+
+    // Prepared clicks reuse prepare-time identification (observable, and only
+    // there): fresh runs must not carry the marker.
+    for result in [&first, &second] {
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "prepared estimate missing exec.identify.cached diagnostic"
+        );
+    }
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
 }
 
 #[test]
@@ -203,10 +213,13 @@ fn prepared_second_shot_cheaper_than_full_run() {
         second <= prepare_plus_first.saturating_mul(2),
         "second={second:?} prepare+first={prepare_plus_first:?}"
     );
-    // Stronger check: plan is retained (no recompile path).
-    assert_eq!(
-        prepared.plan().record.plan_id.as_ref(),
-        prepared.estimate(&data, &ctx).unwrap().physical_plan.plan_id.as_ref()
+    // Stronger check: plan is retained (no recompile path) and identification
+    // is served from the prepare-time cache rather than re-derived per click.
+    let third = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(prepared.plan().record.plan_id.as_ref(), third.physical_plan.plan_id.as_ref());
+    assert!(
+        third.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "prepared second shot did not hit the identification cache"
     );
 }
 
