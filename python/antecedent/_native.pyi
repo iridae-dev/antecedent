@@ -965,6 +965,7 @@ def analyze_response(
     confidence_level: float = 0.95,
     multiplier_seed: int = 0xA17E_CEDE_0500,
     export_row_diagnostics: bool = False,
+    accepted: bool = False,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
