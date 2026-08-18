@@ -451,6 +451,12 @@ pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
     idx.iter().map(|&i| values[i]).collect()
 }
 
+/// [`gather`] into a reused buffer for replicate loops.
+pub(crate) fn gather_into(out: &mut Vec<f64>, values: &[f64], idx: &[usize]) {
+    out.clear();
+    out.extend(idx.iter().map(|&i| values[i]));
+}
+
 pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {
     let mut out = Vec::with_capacity(idx.len() * dim);
     for &i in idx {

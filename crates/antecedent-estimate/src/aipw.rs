@@ -37,7 +37,6 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, PropensityWorkspace,
-    fit_propensity,
 };
 
 use crate::adjustment::EffectEstimate;
@@ -45,7 +44,7 @@ use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    gather, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
+    gather, gather_into, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
     trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
@@ -335,6 +334,14 @@ impl AipwAte {
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
+        // Replicate-invariant scratch (grow-only, per the workspace contract
+        // above): clipped scores plus trim-path gather buffers. The no-trim
+        // default borrows the bootstrap buffers instead of cloning them.
+        let mut e = vec![0.0; n];
+        let mut design_trim: Vec<f64> = Vec::new();
+        let mut t_trim: Vec<f64> = Vec::new();
+        let mut y_trim: Vec<f64> = Vec::new();
+        let mut e_trim: Vec<f64> = Vec::new();
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D0_u64, n, |idx| {
             crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
             crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
@@ -345,7 +352,7 @@ impl AipwAte {
                 ncols,
                 idx,
             );
-            let Ok(fit) = fit_propensity(
+            if antecedent_stats::fit_propensity_in_place(
                 &x_boot,
                 n,
                 ncols,
@@ -353,43 +360,48 @@ impl AipwAte {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            ) else {
+            )
+            .is_err()
+            {
                 return Ok(None);
-            };
-            let raw = fit.scores;
-            let mut e = raw.clone();
+            }
+            let raw = &workspace.propensity.scores[..n];
+            e.copy_from_slice(raw);
             if let Some(c) = clip {
                 clamp_scores(&mut e, c);
             }
-            let Ok(retained) = trim_retained_rows(&raw, trim) else {
+            let Ok(retained) = trim_retained_rows(raw, trim) else {
                 return Ok(None);
             };
-            let (design_used, t_used, y_used, e_used) = match &retained {
-                Some(rows) => {
-                    let mut design = Vec::new();
-                    select_rows_colmajor(&x_boot, n, ncols, rows, &mut design);
-                    (design, gather(&t_boot, rows), gather(&y_boot, rows), gather(&e, rows))
-                }
-                None => (x_boot.clone(), t_boot.clone(), y_boot.clone(), e),
-            };
+            let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
+                match &retained {
+                    Some(rows) => {
+                        select_rows_colmajor(&x_boot, n, ncols, rows, &mut design_trim);
+                        gather_into(&mut t_trim, &t_boot, rows);
+                        gather_into(&mut y_trim, &y_boot, rows);
+                        gather_into(&mut e_trim, &e, rows);
+                        (&design_trim, &t_trim, &y_trim, &e_trim)
+                    }
+                    None => (&x_boot, &t_boot, &y_boot, &e),
+                };
             let nrows = t_used.len();
             let Ok((beta0, beta1)) = fit_outcome_models(
-                &design_used,
+                design_used,
                 nrows,
                 ncols,
-                &t_used,
-                &y_used,
+                t_used,
+                y_used,
                 self.backend,
                 workspace,
             ) else {
                 return Ok(None);
             };
-            predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
-            predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
+            predict_colmajor(design_used, nrows, ncols, &beta0, &mut workspace.mu0);
+            predict_colmajor(design_used, nrows, ncols, &beta1, &mut workspace.mu1);
             if aipw_psi(
-                &t_used,
-                &y_used,
-                &e_used,
+                t_used,
+                y_used,
+                e_used,
                 &workspace.mu0,
                 &workspace.mu1,
                 &problem.target_population,
