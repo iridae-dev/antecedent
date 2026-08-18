@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zeroed out-of-trim weights; the influence SE still divided by full-sample
   n, so trimming looked more precise than it was. Analytic SE now subsets
   to retained rows (matching AIPW).
+- **Newey–West after trim/matching requires panel times.** Consecutive IF
+  indices are not calendar time once rows are dropped or rematched.
+  `influence_se_kind` refuses `NeweyWest` when a retained-row map is
+  present without `panel_times`; with times, Bartlett products use calendar
+  gaps rather than the retained index.
 
 ### Round 4 — backlog completion
 
