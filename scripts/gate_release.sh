@@ -197,6 +197,9 @@ required_baselines = [
     "regime_mediation.md",
     "shapley.md",
     "design_state.md",
+    "response_interference.md",
+    "laplace_glm.md",
+    "posterior_functional.md",
 ]
 for name in required_baselines:
     if not (root / "benches/baselines" / name).exists():
