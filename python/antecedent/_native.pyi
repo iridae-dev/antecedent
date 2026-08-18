@@ -476,6 +476,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
         latency: str | None = None,
+        accepted: bool = False,
     ) -> PreparedAnalysis: ...
     def plan_summary(self) -> dict[str, str]: ...
     def estimate(

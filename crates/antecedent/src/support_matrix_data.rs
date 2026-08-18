@@ -150,5 +150,12 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+    },
+    LicensedCell {
+        query: "ResponseCurve",
+        graph_class: "Dag",
+        structure: "accepted",
+        inference: "Frequentist",
+        validation: "none",
     }
 ];

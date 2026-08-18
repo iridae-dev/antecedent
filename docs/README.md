@@ -19,6 +19,7 @@ explicit stage contracts. Package version **0.5.2**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [0.6.0 release notes](release-notes/v0.6.0.md) | Contract cut (draft); matrix is the license |
 | [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |
 | [0.5.1 release notes](release-notes/v0.5.1.md) | Honesty gates and row diagnostics |
 | [0.5.0 release notes](release-notes/v0.5.0.md) | Causal-response release |

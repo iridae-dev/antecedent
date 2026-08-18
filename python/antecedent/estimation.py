@@ -861,6 +861,7 @@ class PreparedAnalysis:
                 seed=seed,
                 threads=threads,
                 latency=latency,
+                accepted=structure_accepted,
             )
             return cls(native, kind="response_curve", query=query)
         if not isinstance(query, AverageEffect):

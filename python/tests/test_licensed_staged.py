@@ -46,6 +46,7 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
         (_ATE_DATA, _ACCEPTED, _ATE, False),
         (_ATE_DATA, _ACCEPTED, _ATE, "cheap"),
         (_CURVE_DATA, _EDGES, _CURVE, False),
+        (_CURVE_DATA, _ACCEPTED, _CURVE, False),
     ],
     ids=[
         "ate_explicit_none",
@@ -53,6 +54,7 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
         "ate_accepted_none",
         "ate_accepted_cheap",
         "curve_explicit_none",
+        "curve_accepted_none",
     ],
 )
 def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute):
@@ -62,6 +64,8 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute):
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=graph, query=query, refute=refute, seed=1, latency="interactive"
     )
+    if isinstance(graph, antecedent.AcceptedGraph) and hasattr(prepared, "structure_source"):
+        assert prepared.structure_source == "accepted"
     click = prepared.estimate(data, seed=1)
     if isinstance(query, antecedent.ResponseCurve):
         assert click.response is not None and fresh.response is not None
