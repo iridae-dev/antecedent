@@ -261,12 +261,17 @@ impl PosteriorPredictiveCheck {
         let mut mean_summaries = Vec::with_capacity(n_draws);
         let mut disp_summaries = Vec::with_capacity(n_draws);
         let mut y_pred = vec![0.0; n];
+        let mut beta = vec![0.0; p];
         for d in 0..n_draws {
+            // Coefficients depend only on (d, c); hoist the fallible draw
+            // accessor out of the row loop (n×p calls per draw → p).
+            for (c, slot) in beta.iter_mut().enumerate() {
+                *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
+            }
             for r in 0..n {
                 let mut eta = 0.0;
-                for c in 0..p {
+                for (c, &b) in beta.iter().enumerate() {
                     let x = problem.design.matrix[c * n + r];
-                    let b = posterior.draws.get(d, c).map_err(ValidationError::from)?;
                     eta += x * b;
                 }
                 y_pred[r] = self.family.mean_from_eta(eta);

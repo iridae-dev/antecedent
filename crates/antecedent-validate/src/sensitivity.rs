@@ -260,14 +260,28 @@ impl PartialLinearSensitivity {
     }
 }
 
-/// Nadaraya–Watson leave-one-out prediction of `y` on covariate rows (`n × dim`, row-major).
-fn nw_loo_predict(y: &[f64], cov_rowmajor: &[f64], dim: usize, bandwidth: f64) -> Vec<f64> {
-    let n = y.len();
+/// Nadaraya–Watson leave-one-out prediction of two targets sharing one
+/// covariate matrix (`n × dim`, row-major).
+///
+/// The kernel weight depends only on the covariates, so predicting `y1` and
+/// `y2` in one pass halves the O(n²·dim) distance/`exp` work versus two calls;
+/// per-target accumulation order is unchanged, so each output matches the
+/// single-target form bit for bit.
+fn nw_loo_predict_pair(
+    y1: &[f64],
+    y2: &[f64],
+    cov_rowmajor: &[f64],
+    dim: usize,
+    bandwidth: f64,
+) -> (Vec<f64>, Vec<f64>) {
+    let n = y1.len();
     let h2 = (bandwidth.max(1e-6)).powi(2);
-    let mut out = vec![0.0; n];
+    let mut out1 = vec![0.0; n];
+    let mut out2 = vec![0.0; n];
     for i in 0..n {
         let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
-        let mut num = 0.0;
+        let mut num1 = 0.0;
+        let mut num2 = 0.0;
         let mut den = 0.0;
         for j in 0..n {
             if i == j {
@@ -280,12 +294,14 @@ fn nw_loo_predict(y: &[f64], cov_rowmajor: &[f64], dim: usize, bandwidth: f64) -
                 d2 += t * t;
             }
             let w = (-0.5 * d2 / h2).exp();
-            num += w * y[j];
+            num1 += w * y1[j];
+            num2 += w * y2[j];
             den += w;
         }
-        out[i] = if den > 1e-15 { num / den } else { y[i] };
+        out1[i] = if den > 1e-15 { num1 / den } else { y1[i] };
+        out2[i] = if den > 1e-15 { num2 / den } else { y2[i] };
     }
-    out
+    (out1, out2)
 }
 
 /// SD of `target` after linearly regressing it on the adjustment set, i.e. `SD(target | Z)`.
@@ -429,8 +445,7 @@ impl NonparametricSensitivity {
             return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
         }
         let h = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(&cov, n, dim));
-        let t_hat = nw_loo_predict(&t, &cov, dim, h);
-        let y_hat = nw_loo_predict(&y, &cov, dim, h);
+        let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h);
         let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
         let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
 
