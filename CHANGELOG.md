@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   differential test pins Gram ATEs to the per-point QR path under
   `BackendSensitive` before the fast path is the default.
 
+- **Sensitivity Gram uses the post-replace complete-case set.** Replacing T/Y
+  marks those columns all-valid, so the QR data-pass can keep rows that were
+  missing on the original T/Y. Gram now compiles on that same table.
+
 ### Correctness — localized audit
 
 - **Nested CF refuses row-coupled mechanisms.** The per-unit fallback froze

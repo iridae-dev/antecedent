@@ -74,6 +74,27 @@ fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
     (TabularData::new(storage), estimand, 2.0)
 }
 
+fn with_invalid_treatment_row(data: &TabularData, row: usize) -> TabularData {
+    let n = data.row_count();
+    let storage = data.storage();
+    let OwnedColumn::Float64(t) = &storage.columns()[0] else {
+        panic!("toy treatment is float64");
+    };
+    let mut bytes = vec![0xFFu8; n.div_ceil(8)];
+    bytes[row / 8] &= !(1 << (row % 8));
+    let validity = ValidityBitmap::from_bytes(bytes, n).unwrap();
+    let mut cols = storage.columns().to_vec();
+    cols[0] = OwnedColumn::Float64(Float64Column::new(t.id, t.values.clone(), validity).unwrap());
+    let storage = OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        cols,
+        storage.analysis_mask().cloned(),
+        storage.weights().map(Arc::from),
+    )
+    .unwrap();
+    TabularData::new(storage)
+}
+
 #[test]
 fn placebo_near_zero_on_null() {
     let fixture: serde_json::Value =
@@ -953,6 +974,56 @@ fn sensitivity_gram_matches_data_pass_partial_linear_bounded_u() {
         assert!(
             ToleranceClass::BackendSensitive.close(*gram_ate, *data_ate),
             "bounded-U grid[{i}]: gram={gram_ate} data-pass={data_ate}"
+        );
+    }
+}
+
+#[test]
+fn sensitivity_gram_matches_data_pass_when_treatment_has_invalids() {
+    // Replacing T/Y marks them all-valid, so the data-pass refit can resurrect
+    // a row that was missing on T. Gram must use that same post-replace row set.
+    let (complete, estimand, _) = toy_confounded();
+    let data = with_invalid_treatment_row(&complete, 10);
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(47);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let grid = [0.01, 0.1, 0.3];
+    let data_ates = crate::sensitivity::grid_ates_data_pass(
+        &problem,
+        &mut ws,
+        &ctx,
+        &est,
+        &grid,
+        0xA7E0_000A_0000_u64,
+        false,
+    )
+    .unwrap();
+    let gram_ates = crate::sensitivity::grid_ates_gram(
+        &problem,
+        &est,
+        &ctx,
+        &grid,
+        0xA7E0_000A_0000_u64,
+        false,
+    )
+    .unwrap()
+    .expect("Gram path should compile on static OLS");
+    for (i, (data_ate, gram_ate)) in data_ates.iter().zip(&gram_ates).enumerate() {
+        assert!(
+            ToleranceClass::BackendSensitive.close(*gram_ate, *data_ate),
+            "invalid-T grid[{i}]: gram={gram_ate} data-pass={data_ate}"
         );
     }
 }
