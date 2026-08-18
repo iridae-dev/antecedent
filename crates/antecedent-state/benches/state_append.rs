@@ -10,30 +10,44 @@ use antecedent_core::{AverageEffectQuery, CacheBudget, CausalQuery, VariableId};
 use antecedent_state::{CausalState, DataBatchRef, LinearOlsSuffStats, StateEvent};
 use criterion::{Criterion, criterion_group, criterion_main};
 
+fn run_append_once() -> CausalState {
+    let mut state = CausalState::new(CacheBudget::new(1 << 20));
+    let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+    )));
+    let _ = state.refresh_results(&[(q, 1, 32)]);
+    state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2));
+    for i in 0..64u64 {
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from(format!("b{i}")),
+                nrows: 8,
+                bytes: 64,
+            }))
+            .expect("apply");
+        let key: Arc<str> = Arc::from("ols");
+        let ols = state.suff_stats.ols.get_mut(&key).unwrap();
+        ols.append_row(&[1.0, i as f64], 2.0 * i as f64).unwrap();
+    }
+    state
+}
+
 fn bench_append(c: &mut Criterion) {
     c.bench_function("state_append_invalidate_ols", |b| {
-        b.iter(|| {
-            let mut state = CausalState::new(CacheBudget::new(1 << 20));
-            let q = state.queries.register(CausalQuery::AverageEffect(
-                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
-            ));
-            let _ = state.refresh_results(&[(q, 1, 32)]);
-            state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2));
-            for i in 0..64u64 {
-                state
-                    .apply(StateEvent::AppendData(DataBatchRef {
-                        id: Arc::from(format!("b{i}")),
-                        nrows: 8,
-                        bytes: 64,
-                    }))
-                    .expect("apply");
-                let key: Arc<str> = Arc::from("ols");
-                let ols = state.suff_stats.ols.get_mut(&key).unwrap();
-                ols.append_row(&[1.0, i as f64], 2.0 * i as f64).unwrap();
-            }
-            state
-        });
+        b.iter(run_append_once);
     });
+
+    // Soft-budget gate from benches/baselines/design_state.md, executed on
+    // every bench invocation including the `--test` smoke.
+    let t0 = std::time::Instant::now();
+    let state = run_append_once();
+    let elapsed = t0.elapsed();
+    drop(state);
+    assert!(
+        elapsed < std::time::Duration::from_millis(20),
+        "state_append_invalidate_ols exceeded soft budget: {elapsed:?}"
+    );
 }
 
 criterion_group!(benches, bench_append);

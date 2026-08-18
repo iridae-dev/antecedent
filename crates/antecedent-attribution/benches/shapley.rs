@@ -52,28 +52,31 @@ fn shapley_benches(c: &mut Criterion) {
     });
     c.bench_function("shapley_exact_10p_cached", |b| {
         b.iter(|| {
-            let players: Vec<_> = (0..10u32).map(ComponentId::from_raw).collect();
-            let mut payoff =
-                AdditivePayoff { weights: (0..10).map(|i| f64::from(i + 1)).collect() };
-            let cfg = ShapleyConfig::exact().with_max_exact_components(12);
-            let mut ctx = ExecutionContext::for_tests(1);
-            ctx.cache_policy = CachePolicy::enabled(Some(10_000_000));
-            black_box(estimate_shapley(&players, &cfg, &mut payoff, &ctx).unwrap());
+            run_exact_10p();
         });
     });
-}
 
-fn latency_gate_assert() {
+    // Soft-budget gates from benches/baselines/shapley.md, executed on every
+    // bench invocation including the `--test` smoke (matching the rpcmci /
+    // temporal_mediation gate pattern).
     let t0 = Instant::now();
     run_mc(8, 200, true);
     let elapsed = t0.elapsed();
     assert!(elapsed < Duration::from_millis(500), "shapley_mc_8p_200_cached took {elapsed:?}");
+    let t0 = Instant::now();
+    run_exact_10p();
+    let elapsed = t0.elapsed();
+    assert!(elapsed < Duration::from_millis(200), "shapley_exact_10p_cached took {elapsed:?}");
+}
+
+fn run_exact_10p() {
+    let players: Vec<_> = (0..10u32).map(ComponentId::from_raw).collect();
+    let mut payoff = AdditivePayoff { weights: (0..10).map(|i| f64::from(i + 1)).collect() };
+    let cfg = ShapleyConfig::exact().with_max_exact_components(12);
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.cache_policy = CachePolicy::enabled(Some(10_000_000));
+    black_box(estimate_shapley(&players, &cfg, &mut payoff, &ctx).unwrap());
 }
 
 criterion_group!(benches, shapley_benches);
 criterion_main!(benches);
-
-#[allow(dead_code)]
-fn _gate_entry() {
-    latency_gate_assert();
-}
