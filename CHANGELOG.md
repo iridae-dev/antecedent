@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance / quality
+
+- **`ComputeBudget.wall_ms` is documented as advisory.** The field was already
+  rustdoc'd as not a hard stop; `StudyBuilder::compute_budget` and the
+  architecture execution-model notes now say the same.
+
 ### Correctness — localized audit
 
 - **Temporal CPDAG/PAG reject future→past arrowheads.** `TemporalDag` already
