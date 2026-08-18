@@ -236,6 +236,7 @@ def handle_response(
     bootstrap_requested: bool,
     seed: int,
     threads: int,
+    structure_accepted: bool = False,
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
     from .estimation import _static_edges
@@ -261,17 +262,19 @@ def handle_response(
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         raise TypeError("response queries do not yet support inference=Bayesian(...)")
-    if query.kind in {
-        "average_derivative",
-        "directional_derivative",
-        "elasticity",
-        "point_derivative",
-        "response_jacobian",
-        "semi_elasticity",
-    }:
-        raise CausalUnsupportedError(
-            "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
-        )
+    # Derivative cells (AverageDerivative/DirectionalDerivative/Elasticity/PointDerivative/
+    # ResponseJacobian/SemiElasticity) used to be refused right here with a hand-typed
+    # literal duplicating parity/support_closed.toml. That duplication was a drift risk:
+    # the native `analyze_response` (python/src/response_api.rs) now consults the
+    # generated support matrix itself (via `antecedent::support::refuse_if_not_applicable`)
+    # before running, and raises the identical "refused: ..." text straight from the TOML,
+    # so the hand-rolled check here was redundant and has been removed.
+    #
+    # The Pag/Admg/Cpdag check below must stay: unlike the derivative check, it is not
+    # just a refusal message, it is the routing gate that decides whether this call
+    # reaches `_analyze_response` at all versus `_analyze_response_pag` a few lines down.
+    # Its literal text is asserted against parity/support_closed.toml in
+    # test_response_support_matrix.py so it cannot silently drift.
     if isinstance(graph, (Admg, Cpdag, Pag)):
         raise CausalUnsupportedError("refused: ResponseCurve is licensed only on a Dag.")
     if (
@@ -502,6 +505,7 @@ def handle_response(
             confidence_level=cast(float, response_options.get("confidence_level", 0.95)),
             multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
             export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
+            accepted=structure_accepted,
         )
     response = (
         ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
@@ -602,6 +606,7 @@ def handle_response(
                         grid=list(query.grid),
                         scale=scale,
                         weighting=weighting,
+                        accepted=structure_accepted,
                     )
                     subset_curves.append(subset_raw.values)
             baseline_rows = (
@@ -1503,6 +1508,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
                 "bootstrap_requested",
                 "seed",
                 "threads",
+                "structure_accepted",
             ),
         )
         for kind in (
@@ -1754,6 +1760,7 @@ def analyze(
                 "seed": seed,
                 "bootstrap": bootstrap,
                 "threads": threads,
+                "structure_accepted": structure_accepted,
             },
         )
 

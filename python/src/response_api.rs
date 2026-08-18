@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
+use antecedent::{GraphClass, InferenceMode, RefuteSuite};
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
     IdentificationStatus, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
@@ -90,7 +92,7 @@ pub(crate) struct ResponseAnalysisResult {
     direction=None, intervention_kinds=None, intervention_parameters=None,
     order=1, scale="identity", weighting="observed", bandwidth=None,
     simultaneous_replicates=None, confidence_level=0.95,
-    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false
+    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_response(
@@ -114,6 +116,7 @@ fn analyze_response(
     confidence_level: f64,
     multiplier_seed: u64,
     export_row_diagnostics: bool,
+    accepted: bool,
 ) -> PyResult<ResponseAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -139,16 +142,35 @@ fn analyze_response(
             weighting,
         )?;
         let query = ResponseQuery::new(functional);
+        // Consult the generated support matrix before running, exactly like
+        // `StudyBuilder::build` does for every other analyze path. `analyze_response`
+        // never routes through `StudyBuilder` (it drives `ResponseIdentifier` /
+        // `ContinuousResponseEstimator` directly for its custom estimator options), so
+        // without this the matrix's closed/not-applicable rules were only enforced by
+        // hand-typed literals on the Python side and could silently drift from
+        // `parity/support_closed.toml`. This path only ever reaches a bare `Dag` (Pag /
+        // Admg / Cpdag graphs are routed to other native entry points before they get
+        // here), it is always frequentist, and it never runs the scalar
+        // placebo/dummy-outcome/RCC refuters that `RefuteSuite` governs elsewhere —
+        // those are skipped for response queries — so the validation axis is `none`.
+        let structure =
+            if accepted { StructureSource::Accepted } else { StructureSource::Explicit };
+        let causal_query = CausalQuery::Response(query.clone());
+        if let Some(cell) = support_cell(
+            &causal_query,
+            GraphClass::Dag,
+            structure,
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        ) {
+            refuse_if_not_applicable(cell).map_err(py_err)?;
+        }
         let identifier = ResponseIdentifier::new();
         let prepared = identifier
             .prepare_with_assumptions(&dag, AssumptionSet::new())
             .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
         let identification = identifier
-            .identify(
-                &prepared,
-                &CausalQuery::Response(query.clone()),
-                &mut IdentificationWorkspace::default(),
-            )
+            .identify(&prepared, &causal_query, &mut IdentificationWorkspace::default())
             .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
         if identification.status != IdentificationStatus::NonparametricallyIdentified {
             return Err(PyValueError::new_err(
