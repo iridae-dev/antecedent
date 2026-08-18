@@ -516,6 +516,21 @@ class PreparedAnalysis:
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_intervention_response(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        treatments: list[str],
+        intervention_kinds: list[str],
+        intervention_parameters: list[list[float]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_distribution(
         names: list[str],
         columns: Sequence[NDArray[np.float64]],
@@ -1175,6 +1190,7 @@ def analyze_conditional(
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze_mediation(
     names: list[str],

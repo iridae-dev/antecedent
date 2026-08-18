@@ -112,6 +112,17 @@ known_truth_fixture = "conformance/context/conditional_effect"
 limitations = "Prepared handle only, on an explicit Dag; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator)."
 
 [[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/context/conditional_effect"
+limitations = "Prepared handle only; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator). The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the AverageEffect explicit/accepted cells share theirs."
+
+[[cell]]
 query = "PathSpecificEffect"
 graph_class = "Dag"
 structure = "explicit"
@@ -121,6 +132,28 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/path_specific_natural"
 limitations = "Prepared handle only, on an explicit Dag; identifier is PathSpecificNatural and estimator is FunctionalEffect, both fixed (no alternative identifier/estimator on this cell)."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+limitations = "response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. The fixture pins a hard Set intervention; the g-computation strategy is shared across all supported intervention kinds (see response.rs::intervention_response), so this is the representative cell."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/intervention_response"
+limitations = "response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the ResponseCurve explicit/accepted cells share theirs."
 
 [[cell]]
 query = "InterventionalDistribution"

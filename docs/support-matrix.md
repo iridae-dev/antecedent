@@ -12,10 +12,10 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 | Status | Count |
 |---|---|
 | Cartesian product | 2394 |
-| Licensed | 13 |
+| Licensed | 16 |
 | n/a | 1218 |
 | Refused (enforced) | 816 |
-| Refused (default, not yet enforced) | 347 |
+| Refused (default, not yet enforced) | 344 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -98,6 +98,9 @@ Other refused cells still run until licensed or closed.
 | `ResponseCurve` | `Dag` | `accepted` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
 | `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
 | `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
 | `PathSpecificEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/path_specific_natural`) |
+| `InterventionResponse` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
+| `InterventionResponse` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
 | `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/id_hedge`) |
 | `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |

@@ -212,6 +212,71 @@ fn intervention_response_runs_through_public_study_facade_with_its_own_strategy(
     assert!((value - 1.5).abs() < 0.25, "value={value}");
 }
 
+/// Known-truth pin for `response.intervention_gcomp`: see
+/// `conformance/response/intervention_response/expected.json`. Same deterministic
+/// generator as `intervention_response_runs_through_public_study_facade_with_its_own_strategy`
+/// above (zero outcome noise), but checked against the fixture's analytically pinned
+/// `true_response` rather than a hand-typed literal in the test body.
+#[test]
+fn intervention_response_conforms_to_known_truth_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/intervention_response/expected.json"
+    ))
+    .unwrap();
+    let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * treatment[i] + 0.8 * z[i]).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", treatment.as_slice()),
+        ("y", outcome.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let set_value = fixture["contract"]["intervention"]["value"].as_f64().unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(
+            VariableId::from_raw(0),
+            Value::f64(set_value),
+        )]),
+    });
+
+    // Exercise both the direct `Study::run` path and the prepared handle (which is
+    // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
+    // and pin both against the same fixture truth.
+    let study = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::Response(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
+    let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
+    let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
+
+    let truth = fixture["contract"]["true_response"].as_f64().unwrap();
+    let tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
+    for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
+        let response = result.response.as_ref().unwrap();
+        assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        else {
+            panic!("{label}: expected scalar intervention response");
+        };
+        assert!(
+            (value - truth).abs() <= tolerance,
+            "{label}: value={value} truth={truth} tolerance={tolerance}"
+        );
+    }
+}
+
 #[test]
 fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(

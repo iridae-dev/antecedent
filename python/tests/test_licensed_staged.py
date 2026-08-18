@@ -59,6 +59,7 @@ def _conditional_table(n: int = 120):
 _CONDITIONAL_DATA = _conditional_table()
 _CONDITIONAL_EDGES = [("t", "y"), ("w", "y")]
 _CONDITIONAL_DAG = antecedent.Dag.from_edges(["t", "y", "w"], _CONDITIONAL_EDGES)
+_CONDITIONAL_ACCEPTED = antecedent.AcceptedGraph.from_graph(_CONDITIONAL_DAG, algorithm_id="hand")
 _CONDITIONAL = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
 
 
@@ -108,6 +109,30 @@ _DISTRIBUTION_DAG = antecedent.Dag.from_edges(["t", "y", "z"], _DISTRIBUTION_EDG
 _DISTRIBUTION = antecedent.InterventionalDistribution(outcome="y", interventions={"t": 1.0})
 
 
+# -- InterventionResponse fixture ------------------------------------------------------
+#
+# Same deterministic generator as the Rust known-truth pin
+# (conformance/response/intervention_response/expected.json /
+# crates/antecedent/tests/response_facade.rs::intervention_response_conforms_to_known_truth_fixture):
+# zero-noise linear structural mean, hard do(t := 0.25).
+
+
+def _intervention_response_table(n: int = 240):
+    z = np.array([math.sin(i / 17.0) for i in range(n)])
+    t = z + np.array([math.cos(i / 11.0) for i in range(n)])
+    y = 1.0 + 2.0 * t + 0.8 * z
+    return {"t": t, "y": y, "z": z}
+
+
+_IR_DATA = _intervention_response_table()
+_IR_EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
+_IR_DAG = antecedent.Dag.from_edges(["t", "y", "z"], _IR_EDGES)
+_IR_ACCEPTED = antecedent.AcceptedGraph.from_graph(_IR_DAG, algorithm_id="hand")
+_IR = antecedent.InterventionResponse(
+    outcome="y", intervention=antecedent.intervention.Set("t", 0.25)
+)
+
+
 @pytest.mark.parametrize(
     "data, graph, query, refute, inference",
     [
@@ -122,8 +147,11 @@ _DISTRIBUTION = antecedent.InterventionalDistribution(outcome="y", interventions
         (_CURVE_DATA, _EDGES, _CURVE, False, None),
         (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
         (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, False, None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_ACCEPTED, _CONDITIONAL, False, None),
         (_PATH_DATA, _PATH_DAG, _PATH_SPECIFIC, False, None),
         (_DISTRIBUTION_DATA, _DISTRIBUTION_DAG, _DISTRIBUTION, False, None),
+        (_IR_DATA, _IR_DAG, _IR, False, None),
+        (_IR_DATA, _IR_ACCEPTED, _IR, False, None),
     ],
     ids=[
         "ate_explicit_none",
@@ -137,8 +165,11 @@ _DISTRIBUTION = antecedent.InterventionalDistribution(outcome="y", interventions
         "curve_explicit_none",
         "curve_accepted_none",
         "conditional_explicit_none",
+        "conditional_accepted_none",
         "path_specific_explicit_none",
         "distribution_explicit_none",
+        "intervention_response_explicit_none",
+        "intervention_response_accepted_none",
     ],
 )
 def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, inference):
@@ -166,6 +197,11 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
     if isinstance(query, antecedent.ResponseCurve):
         assert click.response is not None and fresh.response is not None
         assert click.response.values == fresh.response.values
+        return
+    if isinstance(query, antecedent.InterventionResponse):
+        assert isinstance(click.estimate, float) and isinstance(fresh.estimate, float)
+        assert math.isfinite(click.estimate) and math.isfinite(fresh.estimate)
+        assert click.estimate == fresh.estimate
         return
     assert math.isfinite(click.ate) and math.isfinite(fresh.ate)
     assert abs(click.ate - fresh.ate) < 1e-12

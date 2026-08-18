@@ -228,6 +228,100 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Compile once from tabular columns + DAG edges (static InterventionResponse).
+    ///
+    /// Reuses `response_api::build_functional`'s `"intervention_response"` branch
+    /// (the same construction `analyze_response` uses) so a prepared handle's
+    /// `ResponseFunctional::InterventionResponse` is built identically to the
+    /// one-shot `analyze()` path. The generic `CausalQuery::Response(_)` branch on
+    /// `PreparedStudy` (see `analysis/prepared.rs`) already caches identification
+    /// for any response functional on a supplied `Dag`, so no new prepare-time
+    /// machinery is needed beyond constructing the query.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        outcome,
+        treatments,
+        intervention_kinds,
+        intervention_parameters,
+        *,
+        seed=1,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_intervention_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        edges: Vec<(String, String)>,
+        outcome: String,
+        treatments: Vec<String>,
+        intervention_kinds: Vec<String>,
+        intervention_parameters: Vec<Vec<f64>>,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let batch = columns_to_batch(&names, &columns)?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        drop(columns);
+
+        detach_catch(py, move || {
+            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+            let data = loaded.data;
+            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
+            let functional = crate::response_api::build_functional(
+                "intervention_response",
+                &treatment_ids,
+                &outcome_ids,
+                None,
+                None,
+                None,
+                Some(intervention_kinds),
+                Some(intervention_parameters),
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
+            )?;
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(query)
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None })
+        })
+    }
+
     /// Compile once from tabular columns + DAG edges (static ConditionalEffect).
     #[staticmethod]
     #[pyo3(signature = (

@@ -399,7 +399,7 @@ fn analyze_response_pag(
     })
 }
 
-fn resolve_names(
+pub(crate) fn resolve_names(
     schema: &antecedent_core::CausalSchema,
     names: &[String],
 ) -> PyResult<Vec<VariableId>> {
