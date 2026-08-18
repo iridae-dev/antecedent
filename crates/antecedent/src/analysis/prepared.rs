@@ -318,6 +318,18 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             message: "PreparedStudy requires tabular data and AverageEffect",
         });
     };
+    // A posterior-backed study carries only a placeholder graph shape, so the
+    // class checks below would see `Dag` and admit it — but every estimate
+    // click would then re-identify per posterior graph inside `execute()`,
+    // violating the prepared freeze contract (ADR 0020). Refuse with the
+    // matrix id until a graph-posterior cell is licensed on the staged handle.
+    if analysis.graph_posterior.is_some() {
+        return Err(CausalError::Support {
+            id: crate::support::SupportRefusal::Refused,
+            message: "graph_posterior is not on the prepared handle; identification runs \
+                per-graph inside execute. Use analyze, or accept a single graph.",
+        });
+    }
     match &analysis.query {
         CausalQuery::AverageEffect(_) => {
             if !is_supplied_static_graph(analysis.graph.class()) {

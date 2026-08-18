@@ -204,7 +204,7 @@ mod support_tests {
 #[cfg(test)]
 mod identify_only_tests {
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, InterventionalDistributionQuery, Intervention, Value,
+        AverageEffectQuery, CausalQuery, Intervention, InterventionalDistributionQuery, Value,
         VariableId,
     };
     use antecedent_data::TabularData;
@@ -215,22 +215,19 @@ mod identify_only_tests {
     use crate::support::SupportRefusal;
 
     fn toy_data() -> TabularData {
-        TabularData::from_f64_columns([
-            ("t", &[0.0_f64, 1.0][..]),
-            ("y", &[0.0_f64, 1.0][..]),
-        ])
-        .unwrap()
+        TabularData::from_f64_columns([("t", &[0.0_f64, 1.0][..]), ("y", &[0.0_f64, 1.0][..])])
+            .unwrap()
     }
 
     fn ate() -> AverageEffectQuery {
         AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
     }
 
-    fn assert_identify_only_refused(err: CausalError, message: &'static str) {
+    fn assert_identify_only_refused(err: &CausalError, message: &'static str) {
         assert!(
             matches!(
                 err,
-                CausalError::Support { id: SupportRefusal::Refused, message: m } if m == message
+                CausalError::Support { id: SupportRefusal::Refused, message: m } if *m == message
             ),
             "{err:?}"
         );
@@ -259,9 +256,38 @@ mod identify_only_tests {
             .identify_only()
             .unwrap_err();
         assert_identify_only_refused(
-            err,
+            &err,
             "identify_only is not a graph-posterior cell; identification \
                           runs per-graph inside execute.",
+        );
+    }
+
+    #[test]
+    fn prepare_refuses_graph_posterior_with_matrix_id() {
+        let gp = GraphPosterior::new(
+            2,
+            vec![1.0],
+            vec![0u64],
+            vec![0.0; 4],
+            vec![0.0; 4],
+            1.0,
+            InferenceDiagnostics::analytic("test"),
+            0,
+        )
+        .unwrap();
+        let err = Study::tabular(toy_data())
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+            .build()
+            .unwrap()
+            .prepare(&ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert_identify_only_refused(
+            &err,
+            "graph_posterior is not on the prepared handle; identification runs \
+                per-graph inside execute. Use analyze, or accept a single graph.",
         );
     }
 
@@ -282,7 +308,7 @@ mod identify_only_tests {
             .unwrap()
             .identify_only()
             .unwrap_err();
-        assert_identify_only_refused(err, "identify_only on an ADMG supports AverageEffect only.");
+        assert_identify_only_refused(&err, "identify_only on an ADMG supports AverageEffect only.");
     }
 
     #[test]
@@ -297,6 +323,9 @@ mod identify_only_tests {
             .unwrap()
             .identify_only()
             .unwrap_err();
-        assert_identify_only_refused(err, "identify_only supports static DAG and ADMG graphs only.");
+        assert_identify_only_refused(
+            &err,
+            "identify_only supports static DAG and ADMG graphs only.",
+        );
     }
 }
