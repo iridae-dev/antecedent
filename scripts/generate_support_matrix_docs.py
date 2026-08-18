@@ -220,6 +220,7 @@ def render_rust(na_rules: list[dict], closed_rules: list[dict], cells: list[dict
     return f"""//! Generated from `parity/support_*.toml`. Do not edit.
 
 #![allow(missing_docs)]
+#![cfg_attr(rustfmt, rustfmt::skip)]
 
 #[derive(Clone, Copy, Debug)]
 pub struct NaRule {{
