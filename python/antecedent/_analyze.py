@@ -45,9 +45,6 @@ from ._native import (
 from ._native import (
     analyze_events as _analyze_events,
 )
-from ._native import (
-    analyze_mediation as _analyze_mediation,
-)
 from ._native import analyze_observation_response as _analyze_observation_response
 from ._native import (
     analyze_panel as _analyze_panel,
@@ -680,28 +677,8 @@ def handle_mediation(
     bootstrap: int | None,
     threads: int,
 ) -> Any:
-    from .estimation import _static_edges, _wrap_ate
-
-    if discovery is not None:
-        raise ValueError("MediationEffect does not support discovery=")
-    edges = _static_edges(graph)
-    names, columns = as_columns(data)
-    raw = _analyze_mediation(
-        names,
-        columns,
-        edges,
-        query.treatment,
-        query.outcome,
-        list(query.mediators),
-        contrast=query.contrast,
-        control_level=query.control_level,
-        active_level=query.active_level,
-        refute=refute,
-        seed=seed,
-        bootstrap=bootstrap,
-        threads=threads,
-    )
-    return _wrap_ate(raw)
+    del data, query, graph, discovery, refute, seed, bootstrap, threads
+    raise CausalUnsupportedError("refused: MediationEffect is not on the staged handle.")
 
 
 def handle_counterfactual(
@@ -1054,6 +1031,8 @@ def handle_temporal_pulse(
     threads: int,
     regimes: Sequence[int] | None,
 ) -> Any:
+    if isinstance(query, SustainedEffect):
+        raise CausalUnsupportedError("refused: SustainedEffect is not on the staged handle.")
     from .estimation import (
         _discovery_algorithm,
         _lagged_edges,

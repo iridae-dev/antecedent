@@ -18,6 +18,8 @@ _REASON_PATH_DIST = (
     "Dag cells, and those cells are not staged yet."
 )
 _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
+_REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
+_REASON_SUSTAINED = "refused: SustainedEffect is not on the staged handle."
 
 
 def _two_node_table(n: int = 48, seed: int = 3):
@@ -65,6 +67,18 @@ _REFUSED = [
         antecedent.Counterfactual("t", "y"),
         {"graph": _DAG},
         _REASON_COUNTERFACTUAL,
+    ),
+    (
+        "mediation",
+        antecedent.MediationEffect("t", "y", mediators=["m"]),
+        {"graph": [("t", "m"), ("m", "y")]},
+        _REASON_MEDIATION,
+    ),
+    (
+        "sustained",
+        antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
+        {"graph": [("t", 1, "y", 0)]},
+        _REASON_SUSTAINED,
     ),
 ]
 
