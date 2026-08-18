@@ -92,6 +92,47 @@ def test_response_curve_pag_literal_matches_support_closed_toml():
     assert str(ei.value) == f"refused: {reason}"
 
 
+def test_intervention_response_pag_literal_matches_support_closed_toml():
+    """`_analyze.py`'s hand-rolled InterventionResponse/off-Dag refusal must not drift.
+
+    Same routing gate as `test_response_curve_pag_literal_matches_support_closed_toml`
+    (`handle_response`'s `isinstance(graph, (Admg, Cpdag, Pag))` check), but
+    `InterventionResponse` gets its own closed-rule text so the raised message doesn't
+    misdescribe the query as `ResponseCurve`.
+    """
+    rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
+    matches = [
+        rule
+        for rule in rules
+        if rule.get("queries") == ["InterventionResponse"]
+        and set(rule.get("graph_classes", [])) == {"Pag", "Cpdag", "Admg"}
+    ]
+    assert len(matches) == 1, matches
+    reason = matches[0]["reason"]
+
+    from antecedent._analyze import handle_response
+    from antecedent.errors import CausalUnsupportedError
+
+    with pytest.raises(CausalUnsupportedError) as ei:
+        handle_response(
+            _DATA,
+            antecedent.InterventionResponse("y", intervention={"t": 1.0}),
+            graph=antecedent.Pag.from_marked_edges(["t", "y"], [("t", "y", "circle", "arrow")]),
+            discovery=None,
+            inference=antecedent.Frequentist(),
+            identifier=None,
+            estimator=None,
+            estimator_config=None,
+            validators=None,
+            refute_requested=False,
+            refute=False,
+            bootstrap_requested=False,
+            seed=1,
+            threads=1,
+        )
+    assert str(ei.value) == f"refused: {reason}"
+
+
 def test_accepted_graph_analyze_response_curve_threads_accepted(monkeypatch):
     """`AcceptedGraph.analyze` with a ResponseCurve must reach native with accepted=True.
 

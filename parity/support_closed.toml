@@ -38,3 +38,35 @@ reason = "SustainedEffect is not on the staged handle."
 [[closed]]
 queries = ["TransportQuery", "InterferenceQuery"]
 reason = "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Cpdag", "Admg", "Pag"]
+reason = "ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm."
+
+[[closed]]
+queries = ["PathSpecificEffect"]
+graph_classes = ["Admg", "Pag"]
+structures = ["explicit"]
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Admg", "Pag"]
+structures = ["explicit"]
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Cpdag", "Admg", "Pag"]
+reason = "InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag."
+
+[[closed]]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+reason = "Graph-posterior compilation requires Bayesian inference: a graph posterior is a mixture over structures, and only Bayesian inference can combine per-graph effect draws into an envelope."

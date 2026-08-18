@@ -113,6 +113,46 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: None,
         validations: None,
         reason: "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.",
+    },
+    NaRule {
+        queries: Some(&["ConditionalEffect"]),
+        graph_classes: Some(&["Cpdag", "Admg", "Pag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm.",
+    },
+    NaRule {
+        queries: Some(&["PathSpecificEffect", "InterventionalDistribution"]),
+        graph_classes: Some(&["Admg", "Pag"]),
+        structures: Some(&["explicit"]),
+        inferences: None,
+        validations: None,
+        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).",
+    },
+    NaRule {
+        queries: Some(&["InterventionResponse"]),
+        graph_classes: Some(&["Cpdag", "Admg", "Pag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm.",
+    },
+    NaRule {
+        queries: Some(&["TemporalMediationEffect"]),
+        graph_classes: Some(&["TemporalCpdag", "TemporalPag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag.",
+    },
+    NaRule {
+        queries: None,
+        graph_classes: None,
+        structures: Some(&["graph_posterior"]),
+        inferences: Some(&["Frequentist"]),
+        validations: None,
+        reason: "Graph-posterior compilation requires Bayesian inference: a graph posterior is a mixture over structures, and only Bayesian inference can combine per-graph effect draws into an envelope.",
     }
 ];
 

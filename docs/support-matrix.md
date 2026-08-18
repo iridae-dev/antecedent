@@ -14,8 +14,8 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 | Cartesian product | 2394 |
 | Licensed | 16 |
 | n/a | 1218 |
-| Refused (enforced) | 816 |
-| Refused (default, not yet enforced) | 344 |
+| Refused (enforced) | 993 |
+| Refused (default, not yet enforced) | 167 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -83,6 +83,11 @@ Other refused cells still run until licensed or closed.
 - queries ∈ {MediationEffect} — MediationEffect is not on the staged handle.
 - queries ∈ {SustainedEffect} — SustainedEffect is not on the staged handle.
 - queries ∈ {TransportQuery, InterferenceQuery} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.
+- queries ∈ {ConditionalEffect} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm.
+- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).
+- queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm.
+- queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} — TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag.
+- structures ∈ {graph_posterior} ∧ inferences ∈ {Frequentist} — Graph-posterior compilation requires Bayesian inference: a graph posterior is a mixture over structures, and only Bayesian inference can combine per-graph effect draws into an envelope.
 
 ## Licensed cells
 
