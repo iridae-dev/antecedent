@@ -45,6 +45,10 @@ impl Default for LaggedFrameOptions {
 #[derive(Clone, Debug)]
 pub struct LaggedFrame {
     variables: Arc<[VariableId]>,
+    /// O(1) variable → slot lookup; `column_index` sits inside per-candidate
+    /// MCI loops, where a linear scan over `variables` was cubic-ish in
+    /// variable count.
+    slot_index: std::collections::HashMap<VariableId, usize>,
     max_lag: u32,
     n_effective: usize,
     n_lags: usize,
@@ -52,6 +56,11 @@ pub struct LaggedFrame {
     values: Vec<f64>,
     /// Per lagged-column validity (`ncols` bitmaps, each length `n_effective`).
     validity: Vec<ValidityBitmap>,
+}
+
+/// Variable → slot map for O(1) [`LaggedFrame::column_index`].
+fn slot_map(variables: &Arc<[VariableId]>) -> std::collections::HashMap<VariableId, usize> {
+    variables.iter().enumerate().map(|(i, &v)| (v, i)).collect()
 }
 
 impl LaggedFrame {
@@ -166,7 +175,9 @@ impl LaggedFrame {
             }
         }
 
-        Ok(Self { variables: Arc::from(variables), max_lag, n_effective, n_lags, values, validity })
+        let variables: Arc<[VariableId]> = Arc::from(variables);
+        let slot_index = slot_map(&variables);
+        Ok(Self { variables, slot_index, max_lag, n_effective, n_lags, values, validity })
     }
 
     /// Variables in slot order.
@@ -208,7 +219,7 @@ impl LaggedFrame {
     /// Dense column index for `(variable, lag)`, or `None` if unknown / out of range.
     #[must_use]
     pub fn column_index(&self, variable: VariableId, lag: Lag) -> Option<usize> {
-        let slot = self.variables.iter().position(|&v| v == variable)?;
+        let slot = *self.slot_index.get(&variable)?;
         let l = lag.raw() as usize;
         if l >= self.n_lags {
             return None;
@@ -306,6 +317,7 @@ impl LaggedFrame {
         }
         Ok(Self {
             variables: Arc::clone(&self.variables),
+            slot_index: self.slot_index.clone(),
             max_lag: self.max_lag,
             n_effective: n_new,
             n_lags: self.n_lags,
@@ -361,6 +373,7 @@ impl LaggedFrame {
         }
         Ok(Self {
             variables: Arc::clone(&first.variables),
+            slot_index: first.slot_index.clone(),
             max_lag: first.max_lag,
             n_effective: n_eff,
             n_lags: first.n_lags,
@@ -419,8 +432,10 @@ impl LaggedFrame {
                 validity.push(ValidityBitmap::all_valid(n_eff));
             }
         }
+        let variables: Arc<[VariableId]> = Arc::from(vars);
         Ok(Self {
-            variables: Arc::from(vars),
+            slot_index: slot_map(&variables),
+            variables,
             max_lag: self.max_lag,
             n_effective: n_eff,
             n_lags,

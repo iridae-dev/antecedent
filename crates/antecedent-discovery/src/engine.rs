@@ -861,13 +861,22 @@ impl PcmciEngine {
             ));
         }
 
-        let ncols = frame.ncols();
-        let need = ncols.saturating_mul(n_keep);
+        // Compact only the columns this query reads — x, y, then Z, with the
+        // query remapped onto that dense layout. The historical loop compacted
+        // all `frame.ncols()` columns per CI test (O(ncols·n) copy per test);
+        // the CI implementations read exactly `columns[q.x]`, `columns[q.y]`,
+        // and the Z columns, so the selected sub-matrix yields bit-identical
+        // statistics (the prepared plan records only n/ncols/plan).
+        let z_len = workspace.z_flat.len();
+        let selected: Vec<usize> =
+            [xi, yi].into_iter().chain(workspace.z_flat.iter().copied()).collect();
+        let n_sel = selected.len();
+        let need = n_sel.saturating_mul(n_keep);
         if workspace.compact_values.len() < need {
             workspace.compact_values.resize(need, 0.0);
         }
-        for c in 0..ncols {
-            let src = frame.column(c);
+        for (c, &src_col) in selected.iter().enumerate() {
+            let src = frame.column(src_col);
             let dst = &mut workspace.compact_values[c * n_keep..(c + 1) * n_keep];
             let mut j = 0usize;
             for (i, &k) in keep.iter().enumerate() {
@@ -882,19 +891,20 @@ impl PcmciEngine {
             confidence: ConfidenceMethod::default(),
         };
         {
-            let cols: Vec<&[f64]> = (0..ncols)
+            let cols: Vec<&[f64]> = (0..n_sel)
                 .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
                 .collect();
             workspace.prepared_ci =
                 Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
         let cols: Vec<&[f64]> =
-            (0..ncols).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
-        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
+            (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
+        let z_remap: Vec<usize> = (2..2 + z_len).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
         let req = CiBatchRequest {
             columns: &cols,
             queries: &queries,
-            z_flat: &workspace.z_flat,
+            z_flat: &z_remap,
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
