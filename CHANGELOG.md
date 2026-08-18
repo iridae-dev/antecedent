@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identifies ATE under linearity (or LATE under monotonicity). AutoIdentifier
   still collects those Wald estimands; the envelope stays nonparametric when a
   backdoor/ID estimand is also present.
+- **Matching gathers multiway cluster labels after trim.** `cluster_ids` and
+  `panel_times` were already restricted to retained rows; `multiway_ids` stayed
+  full-sample length, so a Multiway SE after trim either errored or paired
+  the wrong units.
 - **Discriminating-path search flags length/budget truncation.** `max_len < 4`
   or `max_paths == 0` previously returned `truncated = false`, and longer
   candidates skipped by the length cap were dropped silently, so R4 could

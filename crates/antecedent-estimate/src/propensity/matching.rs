@@ -22,9 +22,9 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, gather, gather_optional_row_labels, gather_rowmajor,
-    prepare_propensity_problem_with_registry, restrict_to_rows, split_by_treatment, trim_of,
-    trim_retained_rows,
+    clip_of, default_propensity_overlap, gather, gather_optional_multiway,
+    gather_optional_row_labels, gather_rowmajor, prepare_propensity_problem_with_registry,
+    restrict_to_rows, split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -272,6 +272,11 @@ impl PropensityMatching {
             retained.as_deref(),
             "panel_times",
         )?;
+        let multiway_used = gather_optional_multiway(
+            self.multiway_ids.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+        )?;
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -284,7 +289,7 @@ impl PropensityMatching {
             self.se_kind,
             clusters_used.as_deref(),
             tw_used.as_deref(),
-            self.multiway_ids.as_ref(),
+            multiway_used.as_ref(),
             times_used.as_deref(),
         )?;
 
@@ -485,6 +490,16 @@ pub(crate) fn matching_contrast(
     if let Some(times) = panel_times {
         if times.len() != treatment.len() {
             return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
+        }
+    }
+    if let Some(dims) = multiway_ids {
+        for (i, d) in dims.iter().enumerate() {
+            if d.len() != treatment.len() {
+                return Err(EstimationError::data_msg(format!(
+                    "matching multiway_ids[{i}] length {} != treatment rows",
+                    d.len()
+                )));
+            }
         }
     }
     let (treated_idx, control_idx) = split_by_treatment(treatment);

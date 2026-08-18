@@ -407,6 +407,28 @@ pub(crate) fn gather_optional_row_labels<T: Copy>(
     }))
 }
 
+/// Gather each multiway cluster dimension with the same retained-row map as treatment.
+pub(crate) fn gather_optional_multiway(
+    dims: Option<&[Vec<u32>]>,
+    nrows: usize,
+    retained: Option<&[usize]>,
+) -> Result<Option<Vec<Vec<u32>>>, EstimationError> {
+    let Some(dims) = dims else {
+        return Ok(None);
+    };
+    let mut out = Vec::with_capacity(dims.len());
+    for (i, d) in dims.iter().enumerate() {
+        let name = format!("multiway_ids[{i}]");
+        let Some(gathered) =
+            gather_optional_row_labels(Some(d.as_slice()), nrows, retained, &name)?
+        else {
+            return Ok(None);
+        };
+        out.push(gathered);
+    }
+    Ok(Some(out))
+}
+
 pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
