@@ -64,6 +64,8 @@ otherwise compilation returns `ReviewRequired`.
 
 - `ExecutionContext` owns thread budget, RNG seeds, memory limits, and kernel policy.
 - No private global thread pools; no recursive oversubscription.
+- `ComputeBudget.wall_ms` is advisory: it is recorded on the resolved budget and
+  is not a hard wall-clock stop. Use a cancellation token to abort.
 - Workspaces and prepared designs are reused across bootstrap / draw batches.
 - SIMD is an implementation detail behind library-owned views (`KernelPolicy`).
 - Python callbacks are explicit slow paths; the physical plan marks them.
