@@ -49,8 +49,9 @@ pub use registry::{
 };
 pub use sample::{
     refuse_cross_family_soft, sample_conditional_interventional, sample_interventional,
-    sample_observational, sample_posterior_predictive, sample_stochastic,
-    sample_structural_with_overlay, sample_with_overlay, soft_to_slot,
+    sample_observational, sample_observational_into, sample_posterior_predictive,
+    sample_stochastic, sample_structural_with_overlay, sample_with_overlay,
+    sample_with_overlay_into, soft_to_slot,
 };
 
 /// Crate version.

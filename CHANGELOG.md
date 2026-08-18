@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still quadratic, but each check now issues one partial-correlation batch
   instead of a `test_one` per pair (and local Markov no longer rebuilds
   parent columns inside the inner loop).
+- **Coalition sampling reuses a `ValueBatch` buffer.** `sample_observational_into`
+  writes into a caller slice; distribution-change and structure-change
+  Shapley loops keep one buffer across masks instead of freezing a fresh
+  `Arc` per coalition.
 
 ### Correctness — localized audit
 
