@@ -87,6 +87,9 @@ impl DSeparationWorkspace {
 impl Dag {
     /// Whether `x` is d-separated from `y` given `z` (boolean; no path alloc).
     ///
+    /// If `Z ∩ {x,y} ≠ ∅` the query is ill-posed and this returns `false`
+    /// (not separated), matching PAG m-separation / definite-status activity.
+    ///
     /// # Errors
     ///
     /// Unknown node ids.
@@ -115,6 +118,9 @@ impl Dag {
             self.validate_node_pub(v)?;
         }
         if x == y {
+            return Ok(false);
+        }
+        if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
         Ok(self.d_sep_active_path(x, y, z, ws, overlay).is_none())
@@ -171,6 +177,11 @@ impl Dag {
         }
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
+        }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(SeparationResult::Connected {
+                active_path: vec![PathStep { node: x }, PathStep { node: y }],
+            });
         }
         if let Some(path) = self.d_sep_active_path(x, y, z, ws, overlay) {
             Ok(SeparationResult::Connected {
@@ -247,12 +258,6 @@ impl Dag {
         ws.visited.clear();
         for p in &mut ws.pred {
             *p = None;
-        }
-        if ws.conditioning.contains(x) || ws.conditioning.contains(y) {
-            // If x or y is in Z, they are not d-connected as open endpoints
-            // for the classical X⊥Y|Z query (conditioning includes the node).
-            // Treat as separated when either endpoint is conditioned.
-            return None;
         }
         ws.frontier.clear();
         ws.frontier.push(x);

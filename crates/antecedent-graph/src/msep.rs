@@ -34,6 +34,9 @@ impl Admg {
         if x == y {
             return Ok(false);
         }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(false);
+        }
         Ok(self.m_sep_bool(x, y, z, ws))
     }
 
@@ -76,6 +79,11 @@ impl Admg {
         }
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
+        }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(SeparationResult::Connected {
+                active_path: vec![PathStep { node: x }, PathStep { node: y }],
+            });
         }
         if let Some(path) = self.m_sep_active_path(x, y, z, ws) {
             Ok(SeparationResult::Connected { active_path: path })
@@ -312,10 +320,6 @@ impl Admg {
                 *p = None;
             }
         }
-        if ws.conditioning.contains(x) || ws.conditioning.contains(y) {
-            // If either endpoint is conditioned, they are separated unless x==y (handled earlier).
-            return false;
-        }
         ws.frontier.push(x);
         ws.visited.insert(x);
         while let Some(u) = ws.frontier.pop() {
@@ -366,6 +370,17 @@ mod tests {
         let mut ws = DSeparationWorkspace::default();
         assert!(!g.is_m_separated(x, y, &[], &mut ws).unwrap());
         assert!(g.is_m_separated(x, y, &[z], &mut ws).unwrap());
+    }
+
+    #[test]
+    fn endpoint_in_z_is_not_m_separated() {
+        let mut g = Admg::with_variables(2);
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        g.insert_directed(x, y).unwrap();
+        let mut ws = DSeparationWorkspace::default();
+        assert!(!g.is_m_separated(x, y, &[x], &mut ws).unwrap());
+        assert!(!g.is_m_separated(x, y, &[y], &mut ws).unwrap());
     }
 
     #[test]
@@ -506,6 +521,9 @@ impl Pag {
         if x == y {
             return Ok(false);
         }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(false);
+        }
         let search = self.definite_status_paths(x, y, max_paths, max_len)?;
         if search.paths.iter().any(|p| self.path_active_given(&p.nodes, z)) {
             return Ok(false);
@@ -536,6 +554,11 @@ impl Pag {
         }
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
+        }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(SeparationResult::Connected {
+                active_path: vec![PathStep { node: x }, PathStep { node: y }],
+            });
         }
         let search = self.definite_status_paths(x, y, max_paths, max_len)?;
         if let Some(p) = search.paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
@@ -589,6 +612,17 @@ mod pag_msep_tests {
         g.insert_directed(b, c).unwrap();
         assert!(!g.is_m_separated(a, c, &[], 32, 8).unwrap());
         assert!(g.is_m_separated(a, c, &[b], 32, 8).unwrap());
+    }
+
+    #[test]
+    fn endpoint_in_z_is_not_m_separated() {
+        let mut g = Pag::with_variables(2);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        g.insert_directed(a, b).unwrap();
+        assert!(!g.is_m_separated(a, b, &[a], 32, 8).unwrap());
+        assert!(!g.is_m_separated(a, b, &[b], 32, 8).unwrap());
+        assert!(g.path_active_given(&[a, b], &[a]));
     }
 
     #[test]
