@@ -186,3 +186,64 @@ def test_default_refused_pag_ate_still_runs():
         seed=1,
     )
     assert np.isfinite(result.ate)
+
+
+# -- 2026-08-19: allowlist introduction (parity/support_allowlist.toml). PAG ATE
+# above is one allowlisted family; the temporal PulseEffect family is another.
+
+
+def test_allowlisted_pulse_effect_temporal_dag_still_runs():
+    """PulseEffect x TemporalDag x explicit is on the allowlist (running,
+    unlicensed, not closed): the temporal backdoor path is fully wired for both
+    inference modes and every validation suite, but has no cell-shaped
+    known-truth fixture the way the static AverageEffect family does."""
+    n = 200
+    t = np.array([float(i % 2) for i in range(n)])
+    y = np.zeros(n)
+    for i in range(1, n):
+        y[i] = 0.5 * t[i - 1] + 0.1 * y[i - 1] + 0.01 * (i % 5)
+    data = {"t": t, "y": y}
+    graph = [("t", 1, "y", 0)]
+    result = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.PulseEffect(
+            treatment="t", outcome="y", treatment_lag=1, horizon_steps=1
+        ),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.ate)
+
+
+def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
+    """AverageEffect x Admg(bidirected) x Bayesian is a newly-enforced closure
+    (parity/support_closed.toml, 2026-08-19 addition): general ID is the only
+    identifier compile.rs wires for a bidirected ADMG, and it is not compatible
+    with the bayesian.gcomp estimator that inference=Bayesian selects. Reachable
+    from Python (unlike ConditionalEffect/TemporalMediationEffect x Bayesian,
+    which _analyze.py itself pre-empts with a TypeError before reaching native
+    code) because AverageEffect x Admg passes a bare Admg graph straight through
+    to native support-matrix consultation."""
+    n = 300
+    u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
+    t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u)])
+    data = {"t": t, "m": m, "y": y}
+    admg = antecedent.Admg.from_edges(
+        ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+    )
+    with pytest.raises(CausalUnsupportedError) as ei:
+        antecedent.analyze(
+            data,
+            graph=admg,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+    msg = str(ei.value)
+    assert msg.startswith("refused: General ID"), msg

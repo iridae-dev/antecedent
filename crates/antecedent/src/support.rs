@@ -1,9 +1,15 @@
 //! Public support-matrix lookup.
 //!
-//! Axes, n/a predicates, and licensed cells are generated from
-//! `parity/support_*.toml`. Dispatch refuses [`CellStatus::NotApplicable`]
-//! now. Cells in `parity/support_closed.toml` raise [`SupportRefusal::Refused`].
-//! Remaining default-refused cells still run until licensed or closed.
+//! Axes, n/a predicates, licensed cells, closed rules, and the allowlist are
+//! generated from `parity/support_*.toml`. A cell is exactly one of: licensed
+//! (`parity/support_licensed.toml`), n/a (`parity/support_n_a.toml`, typed
+//! impossibility, [`SupportRefusal::NotApplicable`]), closed
+//! (`parity/support_closed.toml`, fail-shut, [`SupportRefusal::Refused`]), or
+//! allowlisted (`parity/support_allowlist.toml`, running and unlicensed, named
+//! with a `reason` and a `parent` licensed/keep-running family). Any refused
+//! cell not matched by the allowlist fails closed with
+//! [`SupportRefusal::Refused`] — the fifth, unnamed bucket that existed before
+//! this partition ("default-refused, still runs") no longer exists.
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
@@ -13,7 +19,7 @@ use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::support_matrix_data::{CLOSED_RULES, LICENSED, NA_RULES};
+use crate::support_matrix_data::{ALLOWED_RULES, CLOSED_RULES, LICENSED, NA_RULES};
 
 /// Stable support-matrix refusal id.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -353,24 +359,62 @@ fn closed_reason(cell: SupportCell) -> Option<&'static str> {
     None
 }
 
-/// Refuse n/a cells and enforced closed holes. Licensed and remaining
-/// default-refused cells pass.
+/// Why `cell` is on the named running-but-unlicensed allowlist
+/// (`parity/support_allowlist.toml`), if it is.
+#[must_use]
+pub fn allowed_reason(cell: SupportCell) -> Option<&'static str> {
+    allowed_rule(cell).map(|rule| rule.reason)
+}
+
+/// The licensed or keep-running family `cell`'s allowlist row rides, if it is
+/// on the allowlist (`parity/support_allowlist.toml`'s `parent` field).
+#[must_use]
+pub fn allowed_parent(cell: SupportCell) -> Option<&'static str> {
+    allowed_rule(cell).map(|rule| rule.parent)
+}
+
+fn allowed_rule(cell: SupportCell) -> Option<&'static crate::support_matrix_data::AllowedRule> {
+    ALLOWED_RULES.iter().find(|rule| {
+        axis_in(rule.queries, cell.query)
+            && axis_in(rule.graph_classes, cell.graph_class)
+            && axis_in(rule.structures, cell.structure)
+            && axis_in(rule.inferences, cell.inference)
+            && axis_in(rule.validations, cell.validation)
+    })
+}
+
+/// The single static message every unmatched `Refused` cell reports. Cell
+/// coordinates vary at runtime — the caller's [`CausalError::Support`] already
+/// carries the offending cell in its own context — so this stays a fixed,
+/// shared string rather than one formatted per cell.
+const UNLICENSED_AND_NOT_ALLOWED: &str = "cell is neither licensed (parity/support_licensed.toml) nor on the named \
+     running allowlist (parity/support_allowlist.toml); it is refused.";
+
+/// Refuse n/a cells, enforced closed holes, and any refused cell not on the
+/// named running allowlist. Licensed and allowlisted cells pass.
 ///
 /// # Errors
 ///
-/// [`CausalError::Support`] when the cell is n/a or matches
-/// `parity/support_closed.toml`.
+/// [`CausalError::Support`] when the cell is n/a, matches
+/// `parity/support_closed.toml`, or is refused and not matched by
+/// `parity/support_allowlist.toml`.
 pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
-        CellStatus::Refused => match closed_reason(cell) {
-            Some(reason) => {
-                Err(CausalError::Support { id: SupportRefusal::Refused, message: reason })
+        CellStatus::Refused => {
+            if let Some(reason) = closed_reason(cell) {
+                return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
             }
-            None => Ok(CellStatus::Refused),
-        },
+            if allowed_reason(cell).is_some() {
+                return Ok(CellStatus::Refused);
+            }
+            Err(CausalError::Support {
+                id: SupportRefusal::Refused,
+                message: UNLICENSED_AND_NOT_ALLOWED,
+            })
+        }
         CellStatus::Licensed => Ok(CellStatus::Licensed),
     }
 }
@@ -1022,5 +1066,205 @@ mod tests {
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let graph = AcceptedGraph::pag(pag);
         assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Pag);
+    }
+
+    // -- allowlist -----------------------------------------------------------
+
+    /// One concrete [`SupportCell`] that satisfies `rule`, using the rule's own
+    /// first listed value on each constrained axis and a harmless default
+    /// (`Dag` / `explicit` / `Frequentist` / `none`) on every unconstrained one.
+    /// Every `ALLOWED_RULES` entry constrains `queries`, so this always picks a
+    /// real query; disjointness from licensed / n/a / closed cells is enforced by
+    /// `scripts/gate_support_matrix.sh`, not re-derived here.
+    fn representative_cell(rule: &crate::support_matrix_data::AllowedRule) -> SupportCell {
+        SupportCell {
+            query: rule
+                .queries
+                .and_then(|xs| xs.first())
+                .copied()
+                .expect("every allowed rule constrains queries"),
+            graph_class: rule.graph_classes.and_then(|xs| xs.first()).copied().unwrap_or("Dag"),
+            structure: rule.structures.and_then(|xs| xs.first()).copied().unwrap_or("explicit"),
+            inference: rule.inferences.and_then(|xs| xs.first()).copied().unwrap_or("Frequentist"),
+            validation: rule.validations.and_then(|xs| xs.first()).copied().unwrap_or("none"),
+        }
+    }
+
+    /// Every row in `parity/support_allowlist.toml` fires: `classify` reports
+    /// `Refused` (not licensed, not n/a) and `allowed_reason`/`allowed_parent`
+    /// both return the row's own text for a representative cell.
+    #[test]
+    fn every_allowlist_rule_fires_on_its_representative_cell() {
+        use crate::support_matrix_data::ALLOWED_RULES;
+        assert!(!ALLOWED_RULES.is_empty(), "the allowlist introduced 2026-08-19 must not be empty");
+        for rule in ALLOWED_RULES {
+            let cell = representative_cell(rule);
+            assert_eq!(
+                classify(cell),
+                CellStatus::Refused,
+                "{cell:?} (rule reason: {})",
+                rule.reason
+            );
+            assert_eq!(allowed_reason(cell), Some(rule.reason), "{cell:?}");
+            assert_eq!(allowed_parent(cell), Some(rule.parent), "{cell:?}");
+            assert!(!rule.parent.is_empty(), "rule parent must be non-empty: {}", rule.reason);
+            // Allowlisted cells still run: refuse_if_not_applicable passes them through.
+            assert_eq!(refuse_if_not_applicable(cell).unwrap(), CellStatus::Refused, "{cell:?}");
+        }
+    }
+
+    /// End-to-end: a PAG ATE study (allowlisted, not licensed) still succeeds
+    /// after the enforcement flip, under both inference modes.
+    #[test]
+    fn build_pag_ate_still_runs_after_enforcement_flip() {
+        let mut pag = Pag::with_variables(2);
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let data = antecedent_data::TabularData::from_f64_columns([
+            ("t", [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0].as_slice()),
+            ("y", [0.0, 2.0, 0.1, 2.1, 0.0, 2.0, 0.1, 2.1].as_slice()),
+        ])
+        .unwrap();
+        let result = crate::analysis::Study::tabular(data)
+            .graph(pag)
+            .query(ate_query())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&antecedent_core::ExecutionContext::for_tests(1))
+            .unwrap();
+        assert!(result.estimate.ate.is_finite());
+    }
+
+    /// End-to-end: a now-enforced refused cell (`AverageEffect` on a bidirected
+    /// `Admg` under Bayesian inference — verified dead: `parity/support_closed.toml`
+    /// closes it, never returned a number before this change either) reports the
+    /// stable closed-rule error, not a free-form `Unsupported`.
+    #[test]
+    fn build_refuses_admg_bayesian_with_closed_rule_error() {
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let data = antecedent_data::TabularData::from_f64_columns([
+            ("t", [0.0, 1.0, 0.0, 1.0].as_slice()),
+            ("y", [0.0, 2.0, 0.1, 2.1].as_slice()),
+        ])
+        .unwrap();
+        let err = crate::analysis::Study::tabular(data)
+            .graph(admg)
+            .query(ate_query())
+            .inference(InferenceMode::Bayesian(crate::inference::BayesianConfig::conjugate()))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap_err();
+        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }), "{err}");
+        assert!(
+            err.to_string().starts_with("refused: General ID"),
+            "expected the closed-rule message, got: {err}"
+        );
+    }
+
+    /// End-to-end: a reachable, genuinely-unlicensed-and-unallowed cell now fails
+    /// closed with the shared stable message instead of silently running.
+    /// `ConditionalEffect` under Bayesian inference is closed (dishonest — it
+    /// silently ran Frequentist before), so this instead exercises a cell with no
+    /// closed rule at all: `InterventionalDistribution` on an explicit `Cpdag`,
+    /// which the matrix marks refused (not n/a, not closed) yet is structurally
+    /// unreachable by any caller (`Cpdag` has no `IntoGraphInput`/explicit path;
+    /// see `explicit_graph_input!`), so `classify` alone is enough to prove the
+    /// flip — there is no live caller path left to build a `Study` against it.
+    #[test]
+    fn classify_reports_unreachable_refused_cell_as_enforced_with_no_allowlist_match() {
+        let cell = cell("InterventionalDistribution", "Cpdag", "explicit", "Frequentist", "none");
+        assert_eq!(classify(cell), CellStatus::Refused);
+        assert!(closed_reason(cell).is_none(), "not covered by an explicit closed rule");
+        assert!(allowed_reason(cell).is_none(), "not on the allowlist (unreachable, not running)");
+        let err = refuse_if_not_applicable(cell).unwrap_err();
+        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
+        assert_eq!(err.to_string(), format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"));
+    }
+
+    /// Deterministic sample of the enforced-refused set: iterate the full
+    /// cartesian product in a fixed order and take every 37th cell (37 is
+    /// coprime with every axis length so the sample sweeps all axes, not just
+    /// one). For every sampled cell that is refused, neither closed nor
+    /// allowlisted: `classify` reports `Refused`, `closed_reason`/`allowed_reason`
+    /// are both `None`, and `refuse_if_not_applicable` errors with the shared
+    /// stable message. Pure `support.rs`-level: no engine execution.
+    #[test]
+    fn deterministic_sample_of_enforced_refused_cells_all_fail_closed() {
+        use crate::support_matrix_data::LICENSED;
+
+        let queries = [
+            "AverageDerivative",
+            "AverageEffect",
+            "ConditionalEffect",
+            "Counterfactual",
+            "DirectionalDerivative",
+            "Elasticity",
+            "InterventionalDistribution",
+            "InterventionResponse",
+            "MediationEffect",
+            "PathSpecificEffect",
+            "PointDerivative",
+            "PulseEffect",
+            "ResponseCurve",
+            "ResponseJacobian",
+            "SemiElasticity",
+            "SustainedEffect",
+            "TemporalMediationEffect",
+            "TransportQuery",
+            "InterferenceQuery",
+        ];
+        let graphs = ["Dag", "Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"];
+        let structures = ["explicit", "accepted", "graph_posterior"];
+        let inferences = ["Frequentist", "Bayesian"];
+        let validations = ["none", "cheap", "full"];
+
+        let mut all_cells = Vec::new();
+        for q in queries {
+            for g in graphs {
+                for s in structures {
+                    for inf in inferences {
+                        for v in validations {
+                            all_cells.push(cell(q, g, s, inf, v));
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(all_cells.len(), 19 * 7 * 3 * 2 * 3);
+
+        let mut sampled = 0usize;
+        let mut refused_checked = 0usize;
+        let mut i = 0usize;
+        while i < all_cells.len() {
+            let c = all_cells[i];
+            sampled += 1;
+            let is_licensed = LICENSED.iter().any(|row| {
+                row.query == c.query
+                    && row.graph_class == c.graph_class
+                    && row.structure == c.structure
+                    && row.inference == c.inference
+                    && row.validation == c.validation
+            });
+            let na = matches!(classify(c), CellStatus::NotApplicable { .. });
+            if !is_licensed && !na && closed_reason(c).is_none() && allowed_reason(c).is_none() {
+                refused_checked += 1;
+                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+                let err = refuse_if_not_applicable(c).unwrap_err();
+                assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
+                assert_eq!(
+                    err.to_string(),
+                    format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"),
+                    "{c:?}"
+                );
+            }
+            i += 37;
+        }
+        assert!(sampled > 0);
+        assert!(
+            refused_checked > 0,
+            "the deterministic sample must hit at least one enforced-refused cell"
+        );
     }
 }
