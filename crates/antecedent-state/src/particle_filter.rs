@@ -24,8 +24,18 @@ impl Default for LgssmParams {
     }
 }
 
+/// Reusable per-step scratch: normalized weights and the resampling target
+/// buffer. A cache only — never part of the filter's semantic state.
+#[derive(Clone, Debug, Default)]
+struct StepScratch {
+    /// Normalized weights, refreshed once per [`ParticleFilterState::step`].
+    weights: Vec<f64>,
+    /// Resampling target; swapped with `particles` instead of reallocating.
+    particles: Vec<f64>,
+}
+
 /// Serializable particle-filter state (no borrowed buffers / callbacks).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ParticleFilterState {
     /// Particle count.
     pub n_particles: usize,
@@ -43,6 +53,22 @@ pub struct ParticleFilterState {
     pub rng_state: u64,
     /// Retention.
     pub retention: RetentionPolicy,
+    /// Per-step scratch buffers (excluded from equality; see [`StepScratch`]).
+    scratch: StepScratch,
+}
+
+// Manual impl so the scratch cache never participates in state equality.
+impl PartialEq for ParticleFilterState {
+    fn eq(&self, other: &Self) -> bool {
+        self.n_particles == other.n_particles
+            && self.particles == other.particles
+            && self.log_weights == other.log_weights
+            && self.n_obs == other.n_obs
+            && self.data_version == other.data_version
+            && self.params == other.params
+            && self.rng_state == other.rng_state
+            && self.retention == other.retention
+    }
 }
 
 impl ParticleFilterState {
@@ -77,6 +103,7 @@ impl ParticleFilterState {
             params,
             rng_state: rng.state(),
             retention: RetentionPolicy::BoundedWindow { max_rows: n_particles as u64 },
+            scratch: StepScratch::default(),
         })
     }
 
@@ -112,7 +139,12 @@ impl ParticleFilterState {
             self.log_weights[i] += log_norm - 0.5 * err * err * inv_var;
         }
         self.n_obs = self.n_obs.saturating_add(1);
-        if self.ess() < 0.5 * self.n_particles as f64 {
+        // Normalize once per step; the ESS check and (when triggered) the
+        // resample below share this buffer instead of re-exponentiating.
+        normalized_weights_into(&self.log_weights, &mut self.scratch.weights);
+        let sum_sq: f64 = self.scratch.weights.iter().map(|w| w * w).sum();
+        let ess = if sum_sq <= 0.0 { 0.0 } else { 1.0 / sum_sq };
+        if ess < 0.5 * self.n_particles as f64 {
             systematic_resample(self, &mut rng);
         }
         self.rng_state = rng.state();
@@ -140,36 +172,51 @@ impl ParticleFilterState {
 }
 
 fn normalized_weights(log_w: &[f64]) -> Vec<f64> {
-    let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if !max.is_finite() {
-        let u = 1.0 / log_w.len().max(1) as f64;
-        return vec![u; log_w.len()];
-    }
-    let mut w: Vec<f64> = log_w.iter().map(|lw| (lw - max).exp()).collect();
-    let sum: f64 = w.iter().sum::<f64>().max(1e-300);
-    for wi in &mut w {
-        *wi /= sum;
-    }
+    let mut w = Vec::new();
+    normalized_weights_into(log_w, &mut w);
     w
 }
 
+/// Allocation-free core of [`normalized_weights`]: same arithmetic, writing
+/// into a caller-owned buffer.
+fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) {
+    let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    out.clear();
+    if !max.is_finite() {
+        let u = 1.0 / log_w.len().max(1) as f64;
+        out.resize(log_w.len(), u);
+        return;
+    }
+    out.extend(log_w.iter().map(|lw| (lw - max).exp()));
+    let sum: f64 = out.iter().sum::<f64>().max(1e-300);
+    for wi in out {
+        *wi /= sum;
+    }
+}
+
+/// Resample using the normalized weights already in `state.scratch.weights`
+/// (refreshed by the caller this step); swaps the particle buffers and zeroes
+/// `log_weights` in place instead of reallocating either.
 fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     let n = state.n_particles;
-    let w = normalized_weights(&state.log_weights);
     let u0 = rng.next_f64() / n as f64;
-    let mut new_particles = vec![0.0; n];
-    let mut cum = w[0];
-    let mut i = 0usize;
-    for j in 0..n {
-        let target = u0 + j as f64 / n as f64;
-        while target > cum && i + 1 < n {
-            i += 1;
-            cum += w[i];
+    {
+        let StepScratch { weights: w, particles: new_particles } = &mut state.scratch;
+        new_particles.clear();
+        new_particles.resize(n, 0.0);
+        let mut cum = w[0];
+        let mut i = 0usize;
+        for j in 0..n {
+            let target = u0 + j as f64 / n as f64;
+            while target > cum && i + 1 < n {
+                i += 1;
+                cum += w[i];
+            }
+            new_particles[j] = state.particles[i];
         }
-        new_particles[j] = state.particles[i];
     }
-    state.particles = new_particles;
-    state.log_weights = vec![0.0; n];
+    std::mem::swap(&mut state.particles, &mut state.scratch.particles);
+    state.log_weights.fill(0.0);
 }
 
 fn standard_normal(rng: &mut CausalRng) -> f64 {

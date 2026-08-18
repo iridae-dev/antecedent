@@ -70,19 +70,33 @@ pub struct ArtifactManifest {
 ///
 /// Logical bytes are reference-counted so writers can share Arrow / draw buffers
 /// without cloning.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SectionBytes {
     /// Section id matching the manifest.
     pub id: String,
     /// Logical (decompressed) payload.
     pub data: Arc<[u8]>,
+    /// Pack-time zstd on-wire bytes (the exact buffer the descriptor hashed).
+    /// [`EncodedArtifact::write_to`] streams this instead of re-encoding;
+    /// `None` for uncompressed sections or sections built without packing.
+    packed_on_wire: Option<Arc<[u8]>>,
 }
+
+// Manual impl: the on-wire cache is derived from `data` and must not affect
+// section equality.
+impl PartialEq for SectionBytes {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.data == other.data
+    }
+}
+
+impl Eq for SectionBytes {}
 
 impl SectionBytes {
     /// Owned section from a byte vector.
     #[must_use]
     pub fn new(id: impl Into<String>, data: impl Into<Arc<[u8]>>) -> Self {
-        Self { id: id.into(), data: data.into() }
+        Self { id: id.into(), data: data.into(), packed_on_wire: None }
     }
 }
 
@@ -128,7 +142,10 @@ impl EncodedArtifact {
             });
         }
         // Precompute on-wire for compressed sections; uncompressed use logical borrow.
-        let mut compressed_bufs: Vec<Option<Vec<u8>>> = Vec::with_capacity(self.sections.len());
+        // Sections packed via `pack_section` / `pack_section_shared` carry the
+        // pack-time zstd buffer, so no section is zstd-encoded twice; the size
+        // and BLAKE3 guards below still validate whichever buffer is streamed.
+        let mut compressed_bufs: Vec<Option<Arc<[u8]>>> = Vec::with_capacity(self.sections.len());
         for (desc, sec) in self.manifest.sections.iter().zip(self.sections.iter()) {
             if desc.id != sec.id {
                 return Err(IoError::ManifestMismatch { message: "section id mismatch" });
@@ -138,10 +155,15 @@ impl EncodedArtifact {
             if sec.data.len() != expected_uncomp {
                 return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
             }
-            let on_wire_owned =
-                encode_on_wire_owned(sec.data.as_ref(), desc.compression.as_deref())?;
+            let on_wire_owned: Option<Arc<[u8]>> =
+                match (desc.compression.as_deref(), &sec.packed_on_wire) {
+                    (Some(COMPRESSION_ZSTD), Some(cached)) => Some(Arc::clone(cached)),
+                    (compression, _) => {
+                        encode_on_wire_owned(sec.data.as_ref(), compression)?.map(Arc::from)
+                    }
+                };
             let on_wire: &[u8] = match &on_wire_owned {
-                Some(v) => v.as_slice(),
+                Some(v) => v.as_ref(),
                 None => sec.data.as_ref(),
             };
             let expected_comp =
@@ -175,7 +197,7 @@ impl EncodedArtifact {
             .map(|((d, s), o)| (d, s, o))
         {
             let on_wire: &[u8] = match owned {
-                Some(v) => v.as_slice(),
+                Some(v) => v.as_ref(),
                 None => sec.data.as_ref(),
             };
             let len = u32::try_from(on_wire.len()).map_err(|_| IoError::TooLarge)?;
@@ -196,7 +218,7 @@ impl EncodedArtifact {
         let mut sections = Vec::with_capacity(manifest.sections.len());
         for desc in &manifest.sections {
             let logical = read_section_logical(&mut r, desc)?;
-            sections.push(SectionBytes { id: desc.id.clone(), data: Arc::from(logical) });
+            sections.push(SectionBytes::new(desc.id.clone(), logical));
         }
         Ok(Self { manifest, sections })
     }
@@ -217,7 +239,7 @@ impl EncodedArtifact {
         for desc in &manifest.sections {
             if want.contains(desc.id.as_str()) {
                 let logical = read_section_logical(&mut r, desc)?;
-                sections.push(SectionBytes { id: desc.id.clone(), data: Arc::from(logical) });
+                sections.push(SectionBytes::new(desc.id.clone(), logical));
             } else {
                 skip_section_verified(&mut r, desc)?;
             }
@@ -330,12 +352,23 @@ pub fn section_descriptor_with_policy(
     logical: &[u8],
     policy: CompressPolicy,
 ) -> SectionDescriptor {
+    descriptor_and_on_wire(id, content_type, logical, policy).0
+}
+
+/// Descriptor plus the compressed on-wire buffer it hashed (when compressed),
+/// so packers can retain the buffer for [`EncodedArtifact::write_to`].
+fn descriptor_and_on_wire(
+    id: impl Into<String>,
+    content_type: impl Into<String>,
+    logical: &[u8],
+    policy: CompressPolicy,
+) -> (SectionDescriptor, Option<Vec<u8>>) {
     let (compression, on_wire_owned) = choose_on_wire(logical, policy);
     let on_wire: &[u8] = on_wire_owned.as_deref().unwrap_or(logical);
     let hash = blake3::hash(on_wire);
     let mut blake3_bytes = [0u8; 32];
     blake3_bytes.copy_from_slice(hash.as_bytes());
-    SectionDescriptor {
+    let desc = SectionDescriptor {
         id: id.into(),
         content_type: content_type.into(),
         encoding_version: 1,
@@ -345,7 +378,8 @@ pub fn section_descriptor_with_policy(
         uncompressed_size: u64::try_from(logical.len()).unwrap_or(u64::MAX),
         blake3: blake3_bytes,
         logical_schema: "cbor.v1".into(),
-    }
+    };
+    (desc, on_wire_owned)
 }
 
 /// Pack logical bytes into a descriptor + logical [`SectionBytes`].
@@ -368,8 +402,9 @@ pub fn pack_section_shared(
     policy: CompressPolicy,
 ) -> (SectionDescriptor, SectionBytes) {
     let id = id.into();
-    let desc = section_descriptor_with_policy(id.clone(), content_type, logical.as_ref(), policy);
-    (desc, SectionBytes { id, data: logical })
+    let (desc, on_wire) =
+        descriptor_and_on_wire(id.clone(), content_type, logical.as_ref(), policy);
+    (desc, SectionBytes { id, data: logical, packed_on_wire: on_wire.map(Arc::from) })
 }
 
 /// Returns `(compression_tag, Some(owned_on_wire))` when compressed, or
@@ -544,6 +579,34 @@ mod tests {
             CompressPolicy::Auto,
         );
         assert_eq!(desc.compression.as_deref(), Some(COMPRESSION_ZSTD));
+    }
+
+    /// The pack-time on-wire cache must produce byte-identical files: writing
+    /// with the cached zstd buffer and writing with the cache stripped (forcing
+    /// a fresh encode) must emit the same bytes, and both must round-trip.
+    #[test]
+    fn cached_on_wire_writes_identical_bytes_to_reencode() {
+        let payload: Vec<u8> = (0u32..32 * 1024).map(|i| u8::try_from(i % 251).unwrap()).collect();
+        let (desc, sec) = pack_section(
+            "blob",
+            "application/octet-stream",
+            payload.clone(),
+            CompressPolicy::Always,
+        );
+        assert!(sec.packed_on_wire.is_some(), "Always-compressed pack must cache on-wire bytes");
+        let stripped = SectionBytes::new(sec.id.clone(), Arc::clone(&sec.data));
+        assert!(stripped.packed_on_wire.is_none());
+
+        let cached_art = tiny_artifact(vec![(desc.clone(), sec)]);
+        let stripped_art = tiny_artifact(vec![(desc, stripped)]);
+        let mut cached_buf = Vec::new();
+        cached_art.write_to(&mut cached_buf).unwrap();
+        let mut stripped_buf = Vec::new();
+        stripped_art.write_to(&mut stripped_buf).unwrap();
+        assert_eq!(cached_buf, stripped_buf, "cached write must match re-encoded write");
+
+        let decoded = EncodedArtifact::read_from(cached_buf.as_slice()).unwrap();
+        assert_eq!(&*decoded.sections[0].data, payload.as_slice());
     }
 
     #[test]

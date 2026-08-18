@@ -125,11 +125,11 @@ fn mean_loglik(model: &CompiledCausalModel, data: &TabularData) -> Result<f64, M
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
+        let y = data.float64_cow(var).map_err(ModelError::from)?;
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
+            let col = data.float64_cow(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -172,12 +172,12 @@ fn residual_summary(
             continue;
         }
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
+        let y = data.float64_cow(var).map_err(ModelError::from)?;
         ws.prepare(n, gather.n_parents().max(1));
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
+            let col = data.float64_cow(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -231,8 +231,8 @@ fn residual_independence_tests(
                 continue;
             }
             let ovar = model.output_layout.variables[other];
-            let x = data.float64_values(ovar).map_err(ModelError::from)?;
-            let cols: [&[f64]; 2] = [resid.as_slice(), x.as_slice()];
+            let x = data.float64_cow(ovar).map_err(ModelError::from)?;
+            let cols: [&[f64]; 2] = [resid.as_slice(), &x];
             let res = test
                 .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, ctx)
                 .map_err(ModelError::from)?;
@@ -276,19 +276,19 @@ fn local_markov_tests(
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
+        let y = data.float64_cow(var).map_err(ModelError::from)?;
         let parent_ids: Vec<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
         for other in local_markov_others(model, node, &parent_ids) {
             let ovar = model.output_layout.variables[other];
-            let x = data.float64_values(ovar).map_err(ModelError::from)?;
-            let mut cols: Vec<&[f64]> = vec![y.as_slice(), x.as_slice()];
-            let mut cond_storage: Vec<Vec<f64>> = Vec::new();
+            let x = data.float64_cow(ovar).map_err(ModelError::from)?;
+            let mut cols: Vec<&[f64]> = vec![&y, &x];
+            let mut cond_storage: Vec<std::borrow::Cow<'_, [f64]>> = Vec::new();
             for &p in &parent_ids {
                 let pv = model.output_layout.variables[p];
-                cond_storage.push(data.float64_values(pv).map_err(ModelError::from)?);
+                cond_storage.push(data.float64_cow(pv).map_err(ModelError::from)?);
             }
             for c in &cond_storage {
-                cols.push(c.as_slice());
+                cols.push(c);
             }
             let z: Vec<usize> = (2..cols.len()).collect();
             let res = test
@@ -345,6 +345,17 @@ fn permutation_baseline(
     let var = model.output_layout.variables[last.as_usize()];
     let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
+    // The parent gather is invariant across permutations (only y is shuffled),
+    // so build the parent matrix once instead of re-copying it per replicate.
+    let gather = model.gather_for(last).unwrap();
+    let n = y.len();
+    let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
+    for (pi, &p) in gather.parents.iter().enumerate() {
+        let pv = model.output_layout.variables[p.as_usize()];
+        let col = data.float64_cow(pv).map_err(ModelError::from)?;
+        parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+    }
+    let mut lp = vec![0.0; n];
     for _ in 0..n_perm {
         // Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964)
         for i in (1..y.len()).rev() {
@@ -352,20 +363,11 @@ fn permutation_baseline(
             y.swap(i, j.min(i));
         }
         // Score only the last node under shuffled y.
-        let gather = model.gather_for(last).unwrap();
-        let n = y.len();
-        let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
-            parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
-        }
         let parents = ParentBatch {
             n_rows: n,
             n_parents: gather.n_parents(),
             values: &parent_mat[..gather.n_parents().saturating_mul(n)],
         };
-        let mut lp = vec![0.0; n];
         log_prob_column(model.mechanisms.get(last), &y, parents, &mut lp)?;
         acc += lp.iter().filter(|v| v.is_finite()).sum::<f64>() / n.max(1) as f64;
     }

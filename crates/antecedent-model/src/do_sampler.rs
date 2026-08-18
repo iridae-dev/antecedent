@@ -89,8 +89,8 @@ impl WeightingDoSampler {
         let t_dense = model
             .dense_of(self.treatment)
             .ok_or_else(|| ModelError::Shape { message: "treatment not in model".into() })?;
-        let y = data.float64_values(self.outcome).map_err(ModelError::from)?;
-        let t = data.float64_values(self.treatment).map_err(ModelError::from)?;
+        let y = data.float64_cow(self.outcome).map_err(ModelError::from)?;
+        let t = data.float64_cow(self.treatment).map_err(ModelError::from)?;
         let n = y.len();
         let gather = model
             .gather_for(t_dense)
@@ -133,7 +133,7 @@ impl WeightingDoSampler {
         let mut parent_cols = Vec::new();
         for &p in gather.parents.iter() {
             let var = model.output_layout.variables[p.as_usize()];
-            parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
+            parent_cols.push(data.float64_cow(var).map_err(ModelError::from)?);
         }
         let n_par = gather.n_parents();
         let mut parent_mat = vec![0.0; n * n_par];

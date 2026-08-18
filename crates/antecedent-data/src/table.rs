@@ -30,6 +30,39 @@ pub trait TableView {
     /// Unknown variable or type issues.
     fn column(&self, id: VariableId) -> Result<ColumnView<'_>, DataError>;
 
+    /// Borrow a native `Float64` column as a contiguous slice (no allocation).
+    ///
+    /// Unlike [`TableView::float64_values`], no coercion is attempted: `Int64`
+    /// and `Boolean` columns error so callers stay on the copying path for
+    /// them. Use [`TableView::float64_cow`] to get borrowed-when-possible
+    /// semantics with the same values as `float64_values`.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variable or non-`Float64` column type.
+    fn float64_slice(&self, id: VariableId) -> Result<&[f64], DataError> {
+        match self.column(id)? {
+            ColumnView::Float64(c) => Ok(c.values.as_slice()),
+            _ => Err(DataError::TypeMismatch { id, expected: "native float64 (borrowed slice)" }),
+        }
+    }
+
+    /// Column values as `f64`, borrowed when the column is native `Float64`.
+    ///
+    /// Yields exactly the same values as [`TableView::float64_values`]
+    /// (including the `Int64`/`Boolean` coercions), but avoids the copy for
+    /// native `Float64` columns.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variable or unsupported column type.
+    fn float64_cow(&self, id: VariableId) -> Result<std::borrow::Cow<'_, [f64]>, DataError> {
+        match self.float64_slice(id) {
+            Ok(s) => Ok(std::borrow::Cow::Borrowed(s)),
+            Err(_) => self.float64_values(id).map(std::borrow::Cow::Owned),
+        }
+    }
+
     /// Copy a column into an owned `f64` buffer.
     ///
     /// Native `Float64` columns are copied as-is. `Int64` and `Boolean` columns
