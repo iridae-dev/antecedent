@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 4 — backlog completion
+
+- **Expr evaluator**: `EmpiricalTableProvider::support` memoizes its cartesian
+  products (hits are an `Arc` clone; invalidated on `set_domain`);
+  probability lookups use a borrowed factor-key view instead of ~5 owned
+  allocations per lookup; loop evaluators share one scoped mutable
+  assignment (push/restore) instead of cloning per row; free variables are
+  computed once at compile time; empty-set interning is cached; and the
+  prepared functional-distribution arena is `Arc`-shared instead of
+  deep-cloned per bootstrap replicate.
+- **Attribution**: `structure_change` now performs exactly two GCM fits
+  total (baseline and comparison hybrids, composed per mask by slot
+  selection) instead of two full refits per coalition — pinned bit-for-bit
+  against an inline reimplementation of the per-coalition path across every
+  mask; robust payoffs precompute parent sources and reuse flat buffers
+  across coalitions; `distribution_change` patches a persistent slot buffer
+  incrementally between masks; and a documented planned-evaluation budget
+  (`MAX_COALITION_SAMPLE_BUDGET`) refuses runaway `2^k × n_samples` plans up
+  front instead of running for hours.
+- **Validate/data**: bootstrap resampling rebuilds the table once per
+  replicate via new `TabularData::with_replaced_floats` (was once per
+  column, with per-column weight deep-copies); the warmed propensity
+  workspace now reaches the OverlapRule and Riesz refuters (workspace reuse
+  only — each still fits over its own mask); sensitivity residualization
+  builds its adjustment design once for both targets; `complete_case_mask`
+  gained a buffer-reusing form and its doubled call was deduplicated.
+- **Model/counterfactual/state/io**: `TableView::float64_slice`/`float64_cow`
+  provide borrowed column access, adopted across mechanism fitting,
+  evaluation, do-sampling, and abduction (the old accessor copied the full
+  column at every call site); `permutation_baseline` hoists loop-invariant
+  gathers out of the permutation loop; `dense_of`/`gather_for` are O(1) via
+  compile-time maps; `is_low_cardinality` early-exits instead of sorting a
+  full copy; the particle filter reuses step scratch and swaps particle
+  buffers (bit-identical trajectories); artifacts are zstd-encoded and
+  BLAKE3-hashed once instead of twice (pack-time on-wire buffer streamed at
+  write), `causal_artifact` stops double-cloning its payload, the mmap
+  reader memoizes section verification, and the zero-copy counters
+  (`mmap_views`, bytes-loaded bounds) are now asserted.
+- **Masked temporal discovery**: the masked-frame CI path compacted **all**
+  frame columns per CI test; it now compacts only the columns the query
+  reads (x, y, Z, remapped) — per-test cost no longer scales with total
+  column count. `LaggedFrame::column_index` is O(1) via a slot map (was a
+  linear scan inside per-candidate MCI loops).
+- `NetworkData` incoming adjacency is a true CSR (one edge array + offsets;
+  was `n + 1` allocations with per-unit `Arc`s), same per-unit edge order.
+- **GP mechanism family refuses above `GP_FAMILY_MAX_ROWS = 2_000`** — a
+  documented behavior change: the 20-combination × O(n³) hyperparameter grid
+  with an O(n²) Gram is unusable above a few thousand rows; the refusal is
+  recorded in `failed_families` and selection falls back to other families.
+- New baseline docs for `laplace_glm` and `posterior_functional` (measured
+  on the reference machine), wired into `docs/hot_paths.md` and the release
+  gate's required-baselines list alongside `response_interference`.
+
 ### Round 3 — backlog burn-down
 
 - **Nested counterfactual is no longer quadratic in units**: the unit-wise

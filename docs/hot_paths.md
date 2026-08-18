@@ -31,6 +31,8 @@ allocation/memory contracts, and owning crates.
 | RPCMCI / temporal mediation | `antecedent-discovery` / `antecedent-estimate` | `rpcmci`, `temporal_mediation` | [regime_mediation.md](../benches/baselines/regime_mediation.md) | Multi-env plans must not clone sibling series |
 | Shapley attribution | `antecedent-attribution` | `shapley` | [shapley.md](../benches/baselines/shapley.md) | Coalition cache; exact size gates |
 | Design ranking / state append | `antecedent-design` / `antecedent-state` | `design_rank`, `state_append` | [design_state.md](../benches/baselines/design_state.md) | MonteCarloBudget; CacheBudget refuse |
+| Laplace GLM fit | `antecedent-prob` | `laplace_glm` | [laplace_glm.md](../benches/baselines/laplace_glm.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench) |
+| Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
 | Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row` |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
