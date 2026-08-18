@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Discrete Uniform residual used as additive Gaussian U (and the reverse);
   abduction–prediction applied the soft slot to the abduced noise without
   that check.
+- **Uncovered PD-path search flags `max_len` truncation.** Hitting the length
+  cap on a path that had not reached the target (or a zero path budget)
+  used to return `truncated = false`, so FCI/LPCMCI R9/R10 treated an
+  incomplete search as done.
 
 ### Round 4 — backlog completion
 
