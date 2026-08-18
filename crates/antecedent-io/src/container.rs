@@ -236,12 +236,13 @@ impl EncodedArtifact {
     pub fn read_selective<R: Read>(mut r: R, want: &HashSet<&str>) -> Result<Self, IoError> {
         let (manifest, mut r) = read_header_and_manifest(&mut r)?;
         let mut sections = Vec::new();
+        let mut scratch = vec![0u8; SKIP_SCRATCH];
         for desc in &manifest.sections {
             if want.contains(desc.id.as_str()) {
                 let logical = read_section_logical(&mut r, desc)?;
                 sections.push(SectionBytes::new(desc.id.clone(), logical));
             } else {
-                skip_section_verified(&mut r, desc)?;
+                skip_section_verified(&mut r, desc, &mut scratch)?;
             }
         }
         Ok(Self { manifest, sections })
@@ -308,7 +309,14 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
 }
 
 /// Consume an on-wire section, verifying BLAKE3, without retaining the payload.
-fn skip_section_verified<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<(), IoError> {
+///
+/// `scratch` is a caller-owned skip buffer reused across sections (grown to
+/// [`SKIP_SCRATCH`] on first use).
+fn skip_section_verified<R: Read>(
+    r: &mut R,
+    desc: &SectionDescriptor,
+    scratch: &mut Vec<u8>,
+) -> Result<(), IoError> {
     let mut len_buf = [0u8; 4];
     r.read_exact(&mut len_buf)?;
     let len = usize::try_from(u32::from_le_bytes(len_buf)).map_err(|_| IoError::TooLarge)?;
@@ -319,11 +327,13 @@ fn skip_section_verified<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result
     if len > MAX_SECTION_BYTES {
         return Err(IoError::TooLarge);
     }
+    if scratch.len() < SKIP_SCRATCH {
+        scratch.resize(SKIP_SCRATCH, 0);
+    }
     let mut hasher = blake3::Hasher::new();
     let mut remaining = len;
-    let mut scratch = vec![0u8; SKIP_SCRATCH];
     while remaining > 0 {
-        let n = remaining.min(SKIP_SCRATCH);
+        let n = remaining.min(scratch.len());
         r.read_exact(&mut scratch[..n])?;
         hasher.update(&scratch[..n]);
         remaining -= n;
