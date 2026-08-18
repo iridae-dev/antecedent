@@ -138,7 +138,7 @@ pub fn identify_with(
     let structure_version = structure.version();
     if let Some(cell) = crate::support::support_cell(
         query,
-        structure.class(),
+        crate::support::effective_graph_class(structure, query),
         crate::support::StructureSource::Accepted,
         &crate::inference::InferenceMode::Frequentist,
         crate::analysis::RefuteSuite::None,
