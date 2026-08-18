@@ -481,6 +481,35 @@ mod tests {
     }
 
     #[test]
+    fn propensity_matching_trim_gathers_multiway_labels() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 15);
+        let n = data.row_count();
+        let dim_a: Vec<u32> = (0..n).map(|i| u32::try_from(i % 20).unwrap_or(0)).collect();
+        let dim_b: Vec<u32> = (0..n).map(|i| u32::try_from(i % 15).unwrap_or(0)).collect();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let est = PropensityMatching {
+            bootstrap_replicates: 0,
+            overlap: trim_overlap(),
+            se_kind: crate::se::AnalyticSeKind::Multiway,
+            multiway_ids: Some(vec![dim_a, dim_b]),
+            ..PropensityMatching::new()
+        };
+        let mut ws = PropensityEstimationWorkspace::default();
+        let fit = est
+            .fit(
+                &est.prepare(&data, &estimand, &query).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0);
+        assert!(fit.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
+    }
+
+    #[test]
     fn distance_matching_trim_excludes_extreme_propensity_unit() {
         let (data, estimand) = confounded_scm_with_outlier(800, 14);
         let query =
@@ -499,6 +528,35 @@ mod tests {
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
         let report = clean.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
+    }
+
+    #[test]
+    fn distance_matching_trim_gathers_multiway_labels() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 16);
+        let n = data.row_count();
+        let dim_a: Vec<u32> = (0..n).map(|i| u32::try_from(i % 20).unwrap_or(0)).collect();
+        let dim_b: Vec<u32> = (0..n).map(|i| u32::try_from(i % 15).unwrap_or(0)).collect();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let est = DistanceMatching {
+            bootstrap_replicates: 0,
+            overlap: trim_overlap(),
+            se_kind: crate::se::AnalyticSeKind::Multiway,
+            multiway_ids: Some(vec![dim_a, dim_b]),
+            ..DistanceMatching::new()
+        };
+        let mut ws = PropensityEstimationWorkspace::default();
+        let fit = est
+            .fit(
+                &est.prepare(&data, &estimand, &query).unwrap(),
+                &mut ws,
+                &ctx(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0);
+        assert!(fit.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
     }
 
     #[test]
