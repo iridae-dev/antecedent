@@ -90,6 +90,8 @@ for path in [
     "conformance/bayesian/prior_conjugate_moment_match/expected.json",
     "conformance/validate/bayesian_checks/expected.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
+    "crates/antecedent-prob/benches/hmc.rs",
+    "crates/antecedent-prob/benches/mcmc_stats.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",
 ]:
     if not (root / path).exists():
@@ -125,6 +127,8 @@ cargo test -p antecedent --test manufacturing_temporal
 
 echo "== criterion smoke (reuse gates) =="
 cargo bench -p antecedent-prob --bench laplace_glm -- --test
+cargo bench -p antecedent-prob --bench hmc -- --test
+cargo bench -p antecedent-prob --bench mcmc_stats -- --test
 cargo bench -p antecedent-estimate --bench posterior_functional -- --test
 
 echo "== Python panel Bayesian facade smoke =="

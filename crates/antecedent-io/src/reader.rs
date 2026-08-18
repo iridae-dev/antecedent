@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
@@ -10,7 +11,8 @@ use std::sync::Arc;
 use memmap2::Mmap;
 
 use crate::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, decode_on_wire_arc, read_header_and_manifest,
+    ArtifactManifest, EncodedArtifact, SectionBytes, decode_on_wire_arc, decode_on_wire_arc_owned,
+    read_header_and_manifest,
 };
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
@@ -111,6 +113,7 @@ impl SectionAccess {
 pub struct ArtifactReader<R> {
     manifest: ArtifactManifest,
     index: Vec<SectionIndexEntry>,
+    by_id: HashMap<String, usize>,
     inner: R,
     stats: SectionLoadStats,
 }
@@ -125,7 +128,8 @@ impl<R: Read + Seek> ArtifactReader<R> {
         let (manifest, index, mut stats) = index_seekable(&mut inner)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
-        Ok(Self { manifest, index, inner, stats })
+        let by_id = index_by_id(&index);
+        Ok(Self { manifest, index, by_id, inner, stats })
     }
 
     /// Manifest (always available after open).
@@ -170,7 +174,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
             return Err(IoError::ChecksumMismatch { section: id.into() });
         }
         let (logical, decompressed) =
-            decode_on_wire_arc(&on_wire, desc.compression.as_deref(), &desc.id)?;
+            decode_on_wire_arc_owned(on_wire, desc.compression.as_deref(), &desc.id)?;
         let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
         if logical.len() != expected {
             return Err(IoError::Decompress {
@@ -206,16 +210,15 @@ impl<R: Read + Seek> ArtifactReader<R> {
         let mut sections = Vec::with_capacity(ids.len());
         for id in ids {
             let access = self.load_section(&id)?;
-            sections.push(SectionBytes { id, data: access.into_shared() });
+            sections.push(SectionBytes::new(id, access.into_shared()));
         }
         Ok(EncodedArtifact { manifest: self.manifest, sections })
     }
 
     fn lookup(&self, id: &str) -> Result<(&SectionIndexEntry, &SectionDescriptor), IoError> {
-        let pos = self
-            .index
-            .iter()
-            .position(|e| e.id == id)
+        let pos = *self
+            .by_id
+            .get(id)
             .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))?;
         Ok((&self.index[pos], &self.manifest.sections[pos]))
     }
@@ -239,7 +242,12 @@ pub struct MappedArtifactReader {
     mmap: Arc<Mmap>,
     manifest: ArtifactManifest,
     index: Vec<SectionIndexEntry>,
+    by_id: HashMap<String, usize>,
     stats: SectionLoadStats,
+    /// Per-section BLAKE3-verification memo: the mapped file is immutable for
+    /// the reader's lifetime, so a section verified once is not re-hashed on
+    /// every subsequent view.
+    verified: Vec<bool>,
 }
 
 impl MappedArtifactReader {
@@ -264,7 +272,9 @@ impl MappedArtifactReader {
         let (manifest, index, mut stats) = index_seekable(&mut cursor)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
-        Ok(Self { mmap, manifest, index, stats })
+        let by_id = index_by_id(&index);
+        let verified = vec![false; index.len()];
+        Ok(Self { mmap, manifest, index, by_id, stats, verified })
     }
 
     /// Manifest.
@@ -291,10 +301,9 @@ impl MappedArtifactReader {
     ///
     /// Unknown id, compressed section, or checksum mismatch.
     pub fn load_section_mapped(&mut self, id: &str) -> Result<MappedSection, IoError> {
-        let (entry, desc) = {
-            let (e, d) = self.lookup(id)?;
-            (e.clone(), d.clone())
-        };
+        let pos = self.lookup_pos(id)?;
+        let entry = self.index[pos].clone();
+        let desc = self.manifest.sections[pos].clone();
         if desc.compression.is_some() {
             return Err(IoError::MappedCompressed { section: id.into() });
         }
@@ -304,9 +313,12 @@ impl MappedArtifactReader {
             return Err(IoError::Io("mmap section range out of bounds".into()));
         }
         let on_wire = &self.mmap[start..start + len];
-        let hash = blake3::hash(on_wire);
-        if hash.as_bytes() != &desc.blake3 {
-            return Err(IoError::ChecksumMismatch { section: id.into() });
+        if !self.verified[pos] {
+            let hash = blake3::hash(on_wire);
+            if hash.as_bytes() != &desc.blake3 {
+                return Err(IoError::ChecksumMismatch { section: id.into() });
+            }
+            self.verified[pos] = true;
         }
         let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
         if on_wire.len() != expected {
@@ -329,19 +341,21 @@ impl MappedArtifactReader {
     ///
     /// Unknown section, checksum, or decompress failures.
     pub fn load_section(&mut self, id: &str) -> Result<SectionAccess, IoError> {
-        let (entry, desc) = {
-            let (e, d) = self.lookup(id)?;
-            (e.clone(), d.clone())
-        };
+        let pos = self.lookup_pos(id)?;
+        let entry = self.index[pos].clone();
+        let desc = self.manifest.sections[pos].clone();
         if desc.compression.is_none() {
             return Ok(SectionAccess::Mapped(self.load_section_mapped(id)?));
         }
         let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
         let on_wire = &self.mmap[start..start + len];
-        let hash = blake3::hash(on_wire);
-        if hash.as_bytes() != &desc.blake3 {
-            return Err(IoError::ChecksumMismatch { section: id.into() });
+        if !self.verified[pos] {
+            let hash = blake3::hash(on_wire);
+            if hash.as_bytes() != &desc.blake3 {
+                return Err(IoError::ChecksumMismatch { section: id.into() });
+            }
+            self.verified[pos] = true;
         }
         let (logical, decompressed) =
             decode_on_wire_arc(on_wire, desc.compression.as_deref(), &desc.id)?;
@@ -365,14 +379,20 @@ impl MappedArtifactReader {
         Ok(SectionAccess::Shared(logical))
     }
 
-    fn lookup(&self, id: &str) -> Result<(&SectionIndexEntry, &SectionDescriptor), IoError> {
-        let pos = self
-            .index
-            .iter()
-            .position(|e| e.id == id)
-            .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))?;
-        Ok((&self.index[pos], &self.manifest.sections[pos]))
+    fn lookup_pos(&self, id: &str) -> Result<usize, IoError> {
+        self.by_id
+            .get(id)
+            .copied()
+            .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))
     }
+}
+
+fn index_by_id(index: &[SectionIndexEntry]) -> HashMap<String, usize> {
+    let mut by_id = HashMap::with_capacity(index.len());
+    for (i, entry) in index.iter().enumerate() {
+        by_id.entry(entry.id.clone()).or_insert(i);
+    }
+    by_id
 }
 
 fn index_seekable<R: Read + Seek>(
@@ -456,6 +476,15 @@ mod tests {
         let mapped = reader.load_section_mapped("blob").unwrap();
         assert_eq!(mapped.as_bytes().len(), 48 * 1024);
         assert_eq!(mapped.as_bytes()[0], 0xEF);
+        // Zero-copy accounting: exactly one mapped view, no owned-load or
+        // decompression counters disturbed (DESIGN rule 22).
+        assert_eq!(reader.stats().mmap_views, 1);
+        assert_eq!(reader.stats().decompressions, 0);
+        // A second view of the same section reuses the memoized verification
+        // (no re-hash) and still counts as a view with identical bytes.
+        let again = reader.load_section_mapped("blob").unwrap();
+        assert_eq!(again.as_bytes(), mapped.as_bytes());
+        assert_eq!(reader.stats().mmap_views, 2);
         let _ = std::fs::remove_file(&path);
     }
 

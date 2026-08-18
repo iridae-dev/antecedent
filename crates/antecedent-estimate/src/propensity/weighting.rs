@@ -7,11 +7,12 @@
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, GlmOptions, fit_propensity};
+use antecedent_stats::{FaerBackend, GlmOptions};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
+    clip_of, default_propensity_overlap, gather, gather_colmajor,
+    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -149,14 +150,29 @@ impl PropensityWeighting {
         );
         apply_target_weights(&mut weights, problem.target_weights.as_deref());
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let se_analytic = hajek_influence_se(
-            &problem.treatment,
-            &problem.outcome,
-            &weights,
-            &model.clipped_scores,
-            &problem.design_matrix,
-            problem.design_ncols,
-        )?;
+        let se_analytic = match trim_retained_rows(&model.fit.scores, trim)? {
+            Some(idx) => {
+                let t = gather(&problem.treatment, &idx);
+                let y = gather(&problem.outcome, &idx);
+                let w = gather(&weights, &idx);
+                let e = gather(&model.clipped_scores, &idx);
+                let design = gather_colmajor(
+                    &problem.design_matrix,
+                    problem.nrows,
+                    problem.design_ncols,
+                    &idx,
+                );
+                hajek_influence_se(&t, &y, &w, &e, &design, problem.design_ncols)?
+            }
+            None => hajek_influence_se(
+                &problem.treatment,
+                &problem.outcome,
+                &weights,
+                &model.clipped_scores,
+                &problem.design_matrix,
+                problem.design_ncols,
+            )?,
+        };
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -191,6 +207,10 @@ impl PropensityWeighting {
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
+        // Replicate-invariant scratch: scores stay in `workspace.propensity.scores`,
+        // and the clipped / weight buffers are reused across replicates.
+        let mut clipped = vec![0.0; n];
+        let mut w = vec![0.0; n];
         let tw = problem.target_weights.as_deref();
         bootstrap_se(self.bootstrap_replicates, ctx, 0x9A17_u64, n, |idx| {
             crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
@@ -202,7 +222,7 @@ impl PropensityWeighting {
                 ncols,
                 idx,
             );
-            let Ok(fit) = fit_propensity(
+            if antecedent_stats::fit_propensity_in_place(
                 &x_boot,
                 n,
                 ncols,
@@ -210,15 +230,17 @@ impl PropensityWeighting {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            ) else {
+            )
+            .is_err()
+            {
                 return Ok(None);
-            };
-            let raw = fit.scores;
-            let mut clipped = raw.clone();
+            }
+            let raw = &workspace.propensity.scores[..n];
+            clipped.copy_from_slice(raw);
             if let Some(c) = clip {
                 clamp_scores(&mut clipped, c);
             }
-            let mut w = compute_ipw_weights(&t_boot, &clipped, &raw, target, trim);
+            compute_ipw_weights_into(&mut w, &t_boot, &clipped, raw, target, trim);
             if let Some(full_tw) = tw {
                 for (r, &src) in idx.iter().enumerate() {
                     w[r] *= full_tw[src];
@@ -253,19 +275,29 @@ pub(crate) fn compute_ipw_weights(
     target: IpwTarget,
     trim: Option<f64>,
 ) -> Vec<f64> {
-    treatment
-        .iter()
-        .zip(scores_for_weight)
-        .zip(scores_for_trim)
-        .map(|((&t, &e), &raw)| {
-            if let Some(tr) = trim {
-                if raw < tr || raw > 1.0 - tr {
-                    return 0.0;
-                }
-            }
+    let mut out = vec![0.0; treatment.len()];
+    compute_ipw_weights_into(&mut out, treatment, scores_for_weight, scores_for_trim, target, trim);
+    out
+}
+
+/// In-place form of [`compute_ipw_weights`] for replicate loops with a reused buffer.
+pub(crate) fn compute_ipw_weights_into(
+    out: &mut [f64],
+    treatment: &[f64],
+    scores_for_weight: &[f64],
+    scores_for_trim: &[f64],
+    target: IpwTarget,
+    trim: Option<f64>,
+) {
+    for (slot, ((&t, &e), &raw)) in
+        out.iter_mut().zip(treatment.iter().zip(scores_for_weight).zip(scores_for_trim))
+    {
+        *slot = if let Some(tr) = trim {
+            if raw < tr || raw > 1.0 - tr { 0.0 } else { target.weight(t, e) }
+        } else {
             target.weight(t, e)
-        })
-        .collect()
+        };
+    }
 }
 
 pub(crate) fn hajek_difference(

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss)]
+#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 
@@ -65,10 +65,12 @@ fn fitted_model() -> CompiledCausalModel {
 fn bench_interventional(c: &mut Criterion) {
     let model = fitted_model();
     let ctx = ExecutionContext::for_tests(1);
+    // Workspace hoisted so the bench measures the reused steady state, not a
+    // cold workspace per iteration.
+    let mut ws = MechanismWorkspace::default();
     c.bench_function("sample_interventional_n1000_overlay", |b| {
         b.iter(|| {
             let mut rng = CausalRng::from_seed(7);
-            let mut ws = MechanismWorkspace::default();
             sample_interventional(
                 &model,
                 &[Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
@@ -80,6 +82,17 @@ fn bench_interventional(c: &mut Criterion) {
             .unwrap()
         });
     });
+
+    // Reuse gate (matching the laplace_glm / posterior_functional pattern):
+    // after a warm call, further sampling must not grow the workspace.
+    let mut rng = CausalRng::from_seed(7);
+    let iv = [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))];
+    sample_interventional(&model, &iv, 1000, &mut rng, &mut ws, &ctx).unwrap();
+    let grow0 = ws.grow_count;
+    for _ in 0..5 {
+        sample_interventional(&model, &iv, 1000, &mut rng, &mut ws, &ctx).unwrap();
+    }
+    assert_eq!(ws.grow_count, grow0, "sampling workspace must reuse buffers");
 }
 
 criterion_group!(benches, bench_interventional);

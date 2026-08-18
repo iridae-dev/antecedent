@@ -105,19 +105,10 @@ impl TemporalPag {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
-            // Directed edge must not point future → past (smaller lag = closer to present).
-            if let Some((from, to)) = edge.parent_child() {
-                if let (NodeRef::Lagged { lag: lf, .. }, NodeRef::Lagged { lag: lt, .. }) =
-                    (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
-                {
-                    // Lag is non-negative steps into the past; edge from larger lag to smaller
-                    // lag goes past→present (allowed). from lag < to lag means future→past.
-                    if lf.raw() < lt.raw() {
-                        return Err(GraphError::InvalidEndpoints {
-                            message: "TemporalPag rejects future-to-past directed edges",
-                        });
-                    }
-                }
+            // Definite arrowhead into an earlier lag is a future→past causal claim
+            // (Tail→Arrow and Circle→Arrow). Bidirected / undirected marks are not.
+            if let Some((from, to)) = edge.causal_arrow_direction() {
+                crate::types::reject_future_to_past(&self.nodes, from, to)?;
             }
         }
         marked_storage::insert_marked_finish(&mut self.adj, edge)
@@ -215,10 +206,12 @@ impl TemporalPag {
     /// When the new marks form a definite directed edge, rejects orientations that
     /// would create a directed cycle (same check as [`crate::pag::Pag::set_marks`]).
     /// On cycle, previous marks are restored and [`GraphError::Cycle`] is returned.
+    /// A definite or partial arrowhead into an earlier lag is rejected as
+    /// [`GraphError::FutureToPast`] without mutating the edge.
     ///
     /// # Errors
     ///
-    /// Missing edge or directed cycle after orientation.
+    /// Missing edge, directed cycle after orientation, or future→past arrowhead.
     pub fn set_marks(
         &mut self,
         a: DenseNodeId,
@@ -231,6 +224,10 @@ impl TemporalPag {
         let Some(previous) = self.edge_between(a, b) else {
             return Err(GraphError::UnknownNode { id: a.raw() });
         };
+        let proposed = MarkedEdge { a, b, at_a, at_b, middle: previous.middle };
+        if let Some((from, to)) = proposed.causal_arrow_direction() {
+            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+        }
         marked_storage::set_marks_finish(&mut self.adj, a, b, at_a, at_b, previous)
     }
 
@@ -436,9 +433,31 @@ mod tests {
         let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
         let present = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(0)).unwrap();
         // present -> past is future to past
-        assert!(g.insert_directed(present, past).is_err());
+        assert!(matches!(g.insert_directed(present, past), Err(GraphError::FutureToPast { .. })));
         // past -> present ok
         g.insert_directed(past, present).unwrap();
+    }
+
+    #[test]
+    fn rejects_future_to_past_circle_arrow_and_set_marks() {
+        let mut g = TemporalPag::empty();
+        let present = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let past = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        assert!(matches!(
+            g.insert_circle_arrow(present, past),
+            Err(GraphError::FutureToPast { .. })
+        ));
+        g.insert_circle_circle_with_middle(present, past, MiddleMark::Empty).unwrap();
+        assert!(matches!(
+            g.set_marks(present, past, Endpoint::Circle, Endpoint::Arrow),
+            Err(GraphError::FutureToPast { .. })
+        ));
+        let e = g.edge_between(present, past).unwrap();
+        assert!(matches!(e.at_a, Endpoint::Circle));
+        assert!(matches!(e.at_b, Endpoint::Circle));
+        g.set_marks(past, present, Endpoint::Circle, Endpoint::Arrow).unwrap();
+        let e = g.edge_between(past, present).unwrap();
+        assert_eq!(e.causal_arrow_direction(), Some((past, present)));
     }
 
     #[test]

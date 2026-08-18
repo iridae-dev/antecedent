@@ -110,6 +110,7 @@ def test_static_nested_sections_mirror_flat_fields():
     assert raw.performance.cancelled == raw.cancelled
     assert raw.performance.early_stopped == raw.early_stopped
     assert list(raw.performance.stage_timings) == list(raw.stage_timings)
+    assert raw.performance.bytes_borrowed is None
 
     # Frequentist path: no posterior computed, on either the section or the flat
     # fields it mirrors.

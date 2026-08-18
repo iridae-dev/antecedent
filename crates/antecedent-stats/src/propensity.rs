@@ -63,6 +63,41 @@ pub fn fit_propensity(
     Ok(fit)
 }
 
+/// Fit propensity scores into `workspace.scores` without allocating a per-fit vector.
+///
+/// Bootstrap replicate loops use this form: scores land in
+/// `workspace.scores[..nrows]` (the buffer [`PropensityWorkspace::prepare`]
+/// sized), coefficients stay on the returned [`GlmFit`], and no per-replicate
+/// heap allocation occurs. Numerically identical to [`fit_propensity`].
+///
+/// # Errors
+///
+/// Shape mismatch, non-binary treatment, GLM failure, non-convergence, or separation.
+pub fn fit_propensity_in_place(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    if treatment.len() != nrows {
+        return Err(StatsError::Shape { message: "treatment length != nrows" });
+    }
+    workspace.prepare(nrows);
+    let glm = fit_glm(
+        GlmFamily::BinomialLogit,
+        GlmDesignRef { x_colmajor, nrows, ncols, y: treatment },
+        backend,
+        &mut workspace.ols,
+        options,
+    )?;
+    glm.require_ok()?;
+    predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
+    Ok(glm)
+}
+
 /// Diagnostic propensity fit that keeps soft-clamped scores under separation / non-convergence.
 ///
 /// Estimation paths must use [`fit_propensity`]. Overlap / positivity diagnostics use this

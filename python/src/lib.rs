@@ -956,6 +956,9 @@ struct PerformanceSection {
     /// `(stage name, elapsed nanoseconds)` pairs. Empty when not recorded.
     #[pyo3(get)]
     stage_timings: Vec<(String, u64)>,
+    /// Arrow CDI bytes borrowed at ingest (`None` when not an Arrow path).
+    #[pyo3(get)]
+    bytes_borrowed: Option<u64>,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -1249,7 +1252,7 @@ fn tabular_from_arrow_c_objs(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<antecedent_data::TabularData> {
+) -> PyResult<(antecedent_data::TabularData, u64)> {
     if names.len() != columns.len() {
         return Err(CausalDataError::new_err("names and columns length mismatch"));
     }
@@ -1259,7 +1262,7 @@ fn tabular_from_arrow_c_objs(
         cdi_cols.push(ArrowCColumn { name, array, schema });
     }
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
-    Ok(loaded.data)
+    Ok((loaded.data, loaded.bytes_borrowed))
 }
 
 /// Default coalition / semantic cache budget for Python production contexts

@@ -724,7 +724,7 @@ impl BayesianGComputationAte {
             offsets: None,
         };
 
-        let mut fit = match self.backend {
+        let fit = match self.backend {
             BayesianBackendKind::ConjugateGaussian => ConjugateGaussianBackend.fit(
                 likelihood,
                 design_ref,
@@ -784,7 +784,7 @@ impl BayesianGComputationAte {
         let mut n_draws = fit.draws.n_draws;
         // Adaptive MVN sampling uses the β-block covariance only; drop residual-variance
         // columns so batch merges match `PosteriorSchema::coefficients`.
-        let mut coef_draws = coefficient_only_draws(&fit.draws)?;
+        let coef_draws = coefficient_only_draws(&fit.draws)?;
 
         if laplace_adaptive {
             let cov = fit.cov.as_ref().ok_or_else(|| {
@@ -793,6 +793,7 @@ impl BayesianGComputationAte {
             let map = fit.map.clone();
             let batch = 32usize;
             let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
+            let mut extra_blocks: Vec<PosteriorDraws> = Vec::new();
             let mut width_prev: Option<f64> = None;
 
             // Evaluate initial block.
@@ -856,13 +857,14 @@ impl BayesianGComputationAte {
                     ctx,
                 )?;
                 effect_acc.extend_from_slice(&effect_out.values[..add]);
-                coef_draws = merge_coefficient_draws(&coef_draws, &extra_draws)?;
+                // Accumulate blocks; one concatenation after the loop replaces
+                // the former per-batch merge + clone (O(D²) copying in D draws).
+                extra_blocks.push(extra_draws);
                 n_draws = next;
-                fit.draws = coef_draws.clone();
             }
 
             // Rebuild combined posterior from accumulated effects + final coef draws.
-            let mechanism_draws = coef_draws;
+            let mechanism_draws = concat_coefficient_draws(&coef_draws, &extra_blocks)?;
             let mut quantities = mechanism_draws.schema.quantities.to_vec();
             quantities.retain(|q| !matches!(q, PosteriorQuantityKind::ResidualVariance));
             let effect_idx = quantities.len();
@@ -1248,23 +1250,38 @@ fn quantile_width_95(values: &[f64]) -> f64 {
 }
 
 /// Concatenate two coefficient-only posterior draw tables (same schema).
-fn merge_coefficient_draws(
-    a: &PosteriorDraws,
-    b: &PosteriorDraws,
+/// Concatenate an initial draw block with follow-on blocks in one pass.
+///
+/// Column-major layout identical to pairwise-merging the blocks in order,
+/// without the quadratic intermediate copies.
+fn concat_coefficient_draws(
+    first: &PosteriorDraws,
+    rest: &[PosteriorDraws],
 ) -> Result<PosteriorDraws, EstimationError> {
-    if a.schema != b.schema {
-        return Err(EstimationError::stats_msg("merge_coefficient_draws: schema mismatch"));
+    if rest.is_empty() {
+        return Ok(first.clone());
     }
-    let n_q = a.schema.quantities.len();
-    let n = a.n_draws + b.n_draws;
+    for block in rest {
+        if block.schema != first.schema {
+            return Err(EstimationError::stats_msg("concat_coefficient_draws: schema mismatch"));
+        }
+    }
+    let n_q = first.schema.quantities.len();
+    let n = first.n_draws + rest.iter().map(|b| b.n_draws).sum::<usize>();
     let mut values = vec![0.0; n * n_q];
     for q in 0..n_q {
-        let col_a = a.column(q).map_err(EstimationError::from)?;
-        let col_b = b.column(q).map_err(EstimationError::from)?;
-        values[q * n..q * n + a.n_draws].copy_from_slice(col_a);
-        values[q * n + a.n_draws..(q + 1) * n].copy_from_slice(col_b);
+        let mut offset = q * n;
+        let col = first.column(q).map_err(EstimationError::from)?;
+        values[offset..offset + first.n_draws].copy_from_slice(col);
+        offset += first.n_draws;
+        for block in rest {
+            let col = block.column(q).map_err(EstimationError::from)?;
+            values[offset..offset + block.n_draws].copy_from_slice(col);
+            offset += block.n_draws;
+        }
     }
-    PosteriorDraws::from_column_major(a.schema.clone(), n, values).map_err(EstimationError::from)
+    PosteriorDraws::from_column_major(first.schema.clone(), n, values)
+        .map_err(EstimationError::from)
 }
 
 /// Keep coefficient columns only (drop residual-variance / other non-β quantities).

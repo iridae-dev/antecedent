@@ -20,7 +20,7 @@ use antecedent_model::{
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::coalition::full_coalition_mask;
-use crate::distribution_change::{PlayerKind, hybrid_mechanisms, mechanism_players};
+use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
 use crate::prep::{
     require_mechanism_components, require_shapley_config, resolve_change_populations,
@@ -74,7 +74,6 @@ pub fn distribution_change_robust(
 
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
-    let kinds = vec![PlayerKind::Mechanism; players.len()];
 
     let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
         graph_model,
@@ -105,6 +104,10 @@ pub fn distribution_change_robust(
             players: players.clone(),
             outcome: query.outcome,
             fitted: Vec::new(),
+            columns: Vec::new(),
+            node_pred: Vec::new(),
+            outcome_idx: None,
+            n_rows: 0,
         };
         payoff.fit()?;
         let v0 = payoff.value(0)?;
@@ -113,16 +116,14 @@ pub fn distribution_change_robust(
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     } else {
-        let mut payoff = RobustMechanismPayoff {
-            template: graph_model.clone(),
-            baseline: baseline_mechs,
-            comparison: comparison_mechs,
-            baseline_data: &baseline_data,
-            players: players.clone(),
-            kinds,
-            outcome: outcome_dense,
-            ws: MechanismWorkspace::default(),
-        };
+        let mut payoff = RobustMechanismPayoff::new(
+            graph_model.clone(),
+            baseline_mechs,
+            comparison_mechs,
+            &baseline_data,
+            &players,
+            outcome_dense,
+        )?;
         let v0 = payoff.value(0)?;
         let full = full_coalition_mask(players.len())?;
         let v_full = payoff.value(full)?;
@@ -160,10 +161,20 @@ fn model_slot_is_linear(
     )
 }
 
+/// Where a regression input column comes from at payoff-evaluation time.
+enum ParentSource {
+    /// Predicted column of an earlier player (index into the player list).
+    Player(usize),
+    /// Owned baseline data column (index into `RobustLinearPayoff::columns`).
+    Column(usize),
+}
+
 struct NodeRegression {
     baseline_beta: Vec<f64>,
     comparison_beta: Vec<f64>,
-    parents: Vec<VariableId>,
+    /// Per-parent input source, resolved once at fit time (was an O(k) player
+    /// scan plus a full `float64_values` column copy per row per parent).
+    sources: Vec<ParentSource>,
 }
 
 struct RobustLinearPayoff<'a> {
@@ -173,6 +184,13 @@ struct RobustLinearPayoff<'a> {
     players: Vec<ComponentId>,
     outcome: VariableId,
     fitted: Vec<NodeRegression>,
+    /// Non-player parent columns from the baseline population, fetched once.
+    columns: Vec<Vec<f64>>,
+    /// Flat `k × n` prediction scratch reused across coalitions.
+    node_pred: Vec<f64>,
+    /// Index of the outcome among the players, if present.
+    outcome_idx: Option<usize>,
+    n_rows: usize,
 }
 
 impl RobustLinearPayoff<'_> {
@@ -180,7 +198,11 @@ impl RobustLinearPayoff<'_> {
         let backend = FaerBackend;
         let mut ws = LeastSquaresWorkspace::default();
         self.fitted.clear();
-        for &comp in &self.players {
+        self.columns.clear();
+        self.n_rows = self.baseline.row_count();
+        self.outcome_idx = self.players.iter().position(|c| c.variable() == self.outcome);
+        let mut column_vars: Vec<VariableId> = Vec::new();
+        for (i, &comp) in self.players.iter().enumerate() {
             let dense = self
                 .model
                 .dense_of(comp.variable())
@@ -194,99 +216,163 @@ impl RobustLinearPayoff<'_> {
                 .iter()
                 .map(|&p| self.model.output_layout.variables[p.as_usize()])
                 .collect();
+            let mut sources = Vec::with_capacity(parents.len());
+            for &p in &parents {
+                if let Some(pj) = self.players.iter().position(|c| c.variable() == p) {
+                    // Players come from `mechanism_players` in topological order,
+                    // so a parent that is itself a player always precedes `i`.
+                    assert!(pj < i, "player parent must precede its child in topo order");
+                    sources.push(ParentSource::Player(pj));
+                } else {
+                    let ci = if let Some(ci) = column_vars.iter().position(|&v| v == p) {
+                        ci
+                    } else {
+                        column_vars.push(p);
+                        self.columns.push(self.baseline.float64_values(p)?);
+                        self.columns.len() - 1
+                    };
+                    sources.push(ParentSource::Column(ci));
+                }
+            }
             let baseline_beta =
                 fit_linear(self.baseline, comp.variable(), &parents, backend, &mut ws)?;
             let comparison_beta =
                 fit_linear(self.comparison, comp.variable(), &parents, backend, &mut ws)?;
-            self.fitted.push(NodeRegression { baseline_beta, comparison_beta, parents });
+            self.fitted.push(NodeRegression { baseline_beta, comparison_beta, sources });
         }
+        self.node_pred = vec![0.0; self.players.len() * self.n_rows];
         Ok(())
     }
 }
 
 impl CoalitionPayoff for RobustLinearPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let n = self.baseline.row_count();
-        let mut pred_out = vec![0.0; n];
-        let mut outcome_seen = false;
-        let mut node_pred: Vec<Vec<f64>> = Vec::with_capacity(self.players.len());
-        for (i, &comp) in self.players.iter().enumerate() {
+        let n = self.n_rows;
+        let Some(outcome_idx) = self.outcome_idx else {
+            return Err(AttributionError::unsupported(
+                "robust payoff: outcome is not among Shapley players",
+            ));
+        };
+        for i in 0..self.players.len() {
             let fit = &self.fitted[i];
             let beta =
                 if mask & (1u64 << i) != 0 { &fit.comparison_beta } else { &fit.baseline_beta };
-            let mut col = vec![0.0; n];
+            // Earlier players' predictions (`done`) feed the current column (`col`).
+            let (done, rest) = self.node_pred.split_at_mut(i * n);
+            let col = &mut rest[..n];
             for r in 0..n {
                 let mut yhat = beta[0];
-                for (pi, &p) in fit.parents.iter().enumerate() {
-                    let x = if let Some(pj) = self.players.iter().position(|c| c.variable() == p) {
-                        node_pred[pj][r]
-                    } else {
-                        self.baseline.float64_values(p)?[r]
+                for (pi, src) in fit.sources.iter().enumerate() {
+                    let x = match *src {
+                        ParentSource::Player(pj) => done[pj * n + r],
+                        ParentSource::Column(ci) => self.columns[ci][r],
                     };
                     yhat += beta.get(pi + 1).copied().unwrap_or(0.0) * x;
                 }
                 col[r] = yhat;
             }
-            if comp.variable() == self.outcome {
-                pred_out.clone_from(&col);
-                outcome_seen = true;
-            }
-            node_pred.push(col);
         }
-        if !outcome_seen {
-            return Err(AttributionError::unsupported(
-                "robust payoff: outcome is not among Shapley players",
-            ));
-        }
-        Ok(pred_out.iter().sum::<f64>() / n.max(1) as f64)
+        let col = &self.node_pred[outcome_idx * n..(outcome_idx + 1) * n];
+        Ok(col.iter().sum::<f64>() / n.max(1) as f64)
     }
 }
 
 /// Nonlinear robust payoff: hybrid mechanisms, evaluate at ε=0 on baseline parents.
-struct RobustMechanismPayoff<'a> {
+///
+/// All per-coalition allocations are hoisted to construction: the baseline data
+/// columns (`base_values`), the working value matrix, the gathered-parent scratch
+/// (disjoint from the mechanism workspace, so no per-node `to_vec` copy is needed
+/// to satisfy the borrow checker — same layout as `sample_with_overlay`'s hoisted
+/// `parent_buf` in `antecedent-model/src/sample.rs`), the zero-noise column, and
+/// the dense-node → player map (was an O(n) `dense_of` scan per player). Instead
+/// of cloning the full model with a rebuilt hybrid store per coalition, each
+/// node's slot is chosen directly from the baseline/comparison store — the same
+/// slot the hybrid store would have held (players here are all mechanism-kind).
+struct RobustMechanismPayoff {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
-    baseline_data: &'a TabularData,
-    players: Vec<ComponentId>,
-    kinds: Vec<PlayerKind>,
     outcome: DenseNodeId,
     ws: MechanismWorkspace,
+    /// Player index per dense node (aligned with the player bit order).
+    node_player: Vec<Option<usize>>,
+    /// Baseline data columns in dense-node order, fetched once.
+    base_values: Vec<f64>,
+    /// Working value matrix reused across coalitions.
+    values: Vec<f64>,
+    /// Gathered-parent scratch reused across nodes and coalitions.
+    parent_scratch: Vec<f64>,
+    /// Zero-noise column reused across nodes and coalitions.
+    zeros: Vec<f64>,
+    n_rows: usize,
 }
 
-impl CoalitionPayoff for RobustMechanismPayoff<'_> {
+impl RobustMechanismPayoff {
+    fn new(
+        template: CompiledCausalModel,
+        baseline: CompiledMechanismStore,
+        comparison: CompiledMechanismStore,
+        baseline_data: &TabularData,
+        players: &[ComponentId],
+        outcome: DenseNodeId,
+    ) -> Result<Self, AttributionError> {
+        let n = baseline_data.row_count();
+        let n_nodes = template.n_nodes();
+        let mut node_player = vec![None; n_nodes];
+        for (i, comp) in players.iter().enumerate() {
+            if let Some(dense) = template.dense_of(comp.variable()) {
+                node_player[dense.as_usize()] = Some(i);
+            }
+        }
+        let mut base_values = vec![0.0; n * n_nodes];
+        for (i, &var) in template.output_layout.variables.iter().enumerate() {
+            let col = baseline_data.float64_values(var)?;
+            base_values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
+        }
+        Ok(Self {
+            template,
+            baseline,
+            comparison,
+            outcome,
+            ws: MechanismWorkspace::default(),
+            node_player,
+            values: base_values.clone(),
+            base_values,
+            parent_scratch: Vec::new(),
+            zeros: vec![0.0; n],
+            n_rows: n,
+        })
+    }
+}
+
+impl CoalitionPayoff for RobustMechanismPayoff {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let store = hybrid_mechanisms(
-            &self.baseline,
-            &self.comparison,
-            &self.template,
-            &self.players,
-            &self.kinds,
-            mask,
-        );
-        let model = self.template.clone().with_mechanisms(store);
-        let n = self.baseline_data.row_count();
-        let n_nodes = model.n_nodes();
-        let mut values = vec![0.0; n * n_nodes];
-        for (i, &var) in model.output_layout.variables.iter().enumerate() {
-            let col = self.baseline_data.float64_values(var)?;
-            values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
+        let n = self.n_rows;
+        self.values.copy_from_slice(&self.base_values);
+        // Topo re-evaluate each node at zero noise under hybrid mechanisms
+        // (`parent_gathers` is aligned with `node_order`, so this iteration is the
+        // former `node_order` + `gather_for` walk without the O(n) lookups).
+        for gather in self.template.parent_gathers.iter() {
+            let node = gather.child;
+            let n_parents = gather.n_parents();
+            let need = n_parents.max(1).saturating_mul(n);
+            if self.parent_scratch.len() < need {
+                self.parent_scratch.resize(need, 0.0);
+            }
+            gather.gather(&self.values, n, &mut self.parent_scratch);
+            let parents = ParentBatch {
+                n_rows: n,
+                n_parents,
+                values: &self.parent_scratch[..n_parents.saturating_mul(n)],
+            };
+            let use_comparison =
+                matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
+            let slot =
+                if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
+            let out = &mut self.values[node.as_usize() * n..(node.as_usize() + 1) * n];
+            evaluate_column(slot, parents, &self.zeros, out, &mut self.ws)?;
         }
-        // Topo re-evaluate each node at zero noise under hybrid mechanisms.
-        for &node in model.node_order.iter() {
-            let gather = model
-                .gather_for(node)
-                .ok_or(AttributionError::MissingArtifact("missing gather"))?;
-            self.ws.prepare(n, gather.n_parents().max(1));
-            gather.gather(&values, n, &mut self.ws.parents);
-            let parent_owned = self.ws.parents[..gather.n_parents().saturating_mul(n)].to_vec();
-            let parents =
-                ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
-            let zeros = vec![0.0; n];
-            let out = &mut values[node.as_usize() * n..(node.as_usize() + 1) * n];
-            evaluate_column(model.mechanisms.get(node), parents, &zeros, out, &mut self.ws)?;
-        }
-        let col = &values[self.outcome.as_usize() * n..(self.outcome.as_usize() + 1) * n];
+        let col = &self.values[self.outcome.as_usize() * n..(self.outcome.as_usize() + 1) * n];
         Ok(col.iter().sum::<f64>() / n.max(1) as f64)
     }
 }

@@ -9,9 +9,11 @@ use antecedent_core::{
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_data::{
-    DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
+    ColumnView, DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
+
+use crate::panel_slice::PanelSliceTemplate;
 use antecedent_estimate::{
     EffectEstimate, EstimationWorkspace, IpwTarget, LinearAdjustmentAte, OverlapPolicy,
     OverlapReport, TemporalLinearAdjustment,
@@ -115,6 +117,31 @@ pub struct RefutationProblem<'a> {
     pub estimator: Option<&'a str>,
     /// When set, refits use [`TemporalLinearAdjustment`] on the lag-aligned design.
     pub temporal: Option<TemporalRefitContext<'a>>,
+    /// Prepare-time per-unit slice plan. Filled by [`crate::PreparedRefutation::compile`];
+    /// callers constructing a problem directly leave this unset and the panel refit
+    /// compiles a plan from [`Self::temporal`] on first use.
+    pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
+}
+
+impl<'a> RefutationProblem<'a> {
+    /// Construct a refutation problem. Panel slice reuse is compiled by
+    /// [`crate::PreparedRefutation::compile`].
+    #[must_use]
+    pub fn new(
+        data: &'a TabularData,
+        estimand: &'a IdentifiedEstimand,
+        query: &'a AverageEffectQuery,
+        original: &'a EffectEstimate,
+        estimator: Option<&'a str>,
+        temporal: Option<TemporalRefitContext<'a>>,
+    ) -> Self {
+        Self { data, estimand, query, original, estimator, temporal, panel_slices: None }
+    }
+
+    pub(crate) fn with_panel_slices(mut self, slices: Option<&'a PanelSliceTemplate<'a>>) -> Self {
+        self.panel_slices = slices;
+        self
+    }
 }
 
 impl RefutationProblem<'_> {
@@ -191,7 +218,14 @@ pub(crate) fn refit_effect(
     let estimator =
         TemporalLinearAdjustment::new().with_inner(forced_refit_estimator(caller_estimator));
     if let Some(panel) = temporal.panel {
-        let rebuilt = panel_from_stacked(panel, data)?;
+        let owned;
+        let slices = if let Some(plan) = problem.panel_slices {
+            plan
+        } else {
+            owned = PanelSliceTemplate::from_panel(panel, problem.data)?;
+            &owned
+        };
+        let rebuilt = slices.apply_stacked(data)?;
         let prep = if extra_contemporaneous.is_empty() {
             let (prep, _cluster_ids, _panel_times) = estimator
                 .prepare_panel(
@@ -301,76 +335,6 @@ fn panel_prepare_with_extras(
     })
 }
 
-/// Rebuild a panel from stacked tabular mutations (same unit lengths as `original`).
-pub(crate) fn panel_from_stacked(
-    original: &PanelData,
-    stacked: &TabularData,
-) -> Result<PanelData, ValidationError> {
-    let expected = original.total_rows();
-    if stacked.row_count() != expected {
-        return Err(ValidationError::data_msg(format!(
-            "stacked panel refute rows {} != panel total_rows {expected}",
-            stacked.row_count()
-        )));
-    }
-    let mut offset = 0usize;
-    let mut units = Vec::with_capacity(original.unit_count());
-    for u in original.units() {
-        let n = u.series.row_count();
-        let slice = slice_tabular(stacked, offset, n)?;
-        let series =
-            TimeSeriesData::try_new(slice.storage().clone(), u.series.time_index().clone())
-                .map_err(ValidationError::from)?;
-        units.push(PanelUnit { unit_id: u.unit_id, series });
-        offset += n;
-    }
-    PanelData::try_new(Arc::from(units)).map_err(ValidationError::from)
-}
-
-fn slice_tabular(
-    data: &TabularData,
-    start: usize,
-    len: usize,
-) -> Result<TabularData, ValidationError> {
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
-    let storage = data.storage();
-    let end = start + len;
-    if end > data.row_count() {
-        return Err(ValidationError::NotApplicable { message: "panel slice out of range" });
-    }
-    let mut cols = Vec::with_capacity(storage.columns().len());
-    for col in storage.columns() {
-        match col {
-            OwnedColumn::Float64(c) => {
-                let values: Arc<[f64]> = Arc::from(c.values[start..end].to_vec());
-                let validity = ValidityBitmap::all_valid(len);
-                cols.push(OwnedColumn::Float64(
-                    Float64Column::new(c.id, values, validity).map_err(ValidationError::from)?,
-                ));
-            }
-            _ => {
-                return Err(ValidationError::NotApplicable {
-                    message: "panel refute slice requires float64 columns",
-                });
-            }
-        }
-    }
-    let mask = storage.analysis_mask().map(|m| {
-        let mut bytes = vec![0u8; len.div_ceil(8)];
-        for i in 0..len {
-            if m.is_valid(start + i) {
-                bytes[i / 8] |= 1 << (i % 8);
-            }
-        }
-        ValidityBitmap::from_bytes(bytes, len)
-    });
-    let mask = mask.transpose().map_err(ValidationError::from)?;
-    let weights = storage.weights().map(|w| Arc::<[f64]>::from(w[start..end].to_vec()));
-    let new_storage = OwnedColumnarStorage::try_new(storage.schema().clone(), cols, mask, weights)
-        .map_err(ValidationError::from)?;
-    Ok(TabularData::new(new_storage))
-}
-
 /// Stack panel units into one tabular table (row-major concat) for refute mutations.
 pub fn stack_panel_tabular(panel: &PanelData) -> Result<TabularData, ValidationError> {
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
@@ -468,17 +432,8 @@ pub(crate) fn fit_diagnostic_propensity(
     Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })
 }
 
-/// Build an [`OverlapReport`] from a diagnostic propensity fit.
-pub(crate) fn diagnostic_overlap_report(
-    problem: &RefutationProblem<'_>,
-    glm_options: &GlmOptions,
-    policy: OverlapPolicy,
-) -> Result<OverlapReport, ValidationError> {
-    let mut ws = PropensityWorkspace::default();
-    diagnostic_overlap_report_with(problem, glm_options, policy, &mut ws)
-}
-
-/// Like [`diagnostic_overlap_report`], reusing a warmed propensity workspace.
+/// Build an [`OverlapReport`] from a diagnostic propensity fit, reusing a warmed
+/// propensity workspace (callers without one pass a local `PropensityWorkspace::default()`).
 pub(crate) fn diagnostic_overlap_report_with(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
@@ -666,12 +621,24 @@ pub(crate) fn with_resampled_rows(
     row_idx: &[usize],
     keep: &[bool],
 ) -> Result<TabularData, ValidationError> {
-    let mut out = data.clone();
+    // One storage rebuild for all k resampled columns (weights/mask copied once), not one
+    // per column: at 200 bootstrap replicates the per-column rebuild dominated the loop.
+    // `resample_ids` are distinct by construction (treatment, outcome, then covariates), so
+    // gathering every column from the source table matches the old sequential replacement.
+    let mut replacements: Vec<(VariableId, Arc<[f64]>)> = Vec::with_capacity(resample_ids.len());
     for &id in resample_ids {
-        let full = float64_full(&out, id)?;
-        let resampled: Vec<f64> = row_idx.iter().map(|&i| full[i]).collect();
-        out = with_replaced_float(&out, id, Arc::from(resampled))?;
+        // Gather straight from the borrowed float64 view when the column is natively float;
+        // the coercing owned-copy fallback keeps non-float ids surfacing the same
+        // `TypeMismatch` from the replace step as before.
+        let resampled: Vec<f64> = if let Ok(ColumnView::Float64(c)) = data.column(id) {
+            row_idx.iter().map(|&i| c.values[i]).collect()
+        } else {
+            let full = float64_full(data, id)?;
+            row_idx.iter().map(|&i| full[i]).collect()
+        };
+        replacements.push((id, Arc::from(resampled)));
     }
+    let out = data.with_replaced_floats(&replacements).map_err(ValidationError::from)?;
     if keep.iter().all(|&k| k) {
         return Ok(out);
     }

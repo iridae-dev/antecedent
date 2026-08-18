@@ -1,5 +1,10 @@
 //! Laplace GLM workspace-reuse benchmark .
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(
+    missing_docs,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
+)]
 
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, LaplaceWorkspace,

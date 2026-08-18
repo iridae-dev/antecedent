@@ -27,6 +27,16 @@ fn chain_blocked_by_middle() {
 }
 
 #[test]
+fn endpoint_in_z_is_not_d_separated() {
+    let g = chain3();
+    let mut ws = DSeparationWorkspace::default();
+    let x = DenseNodeId::from_raw(0);
+    let y = DenseNodeId::from_raw(2);
+    assert!(!g.is_d_separated(x, y, &[x], &mut ws).unwrap());
+    assert!(!g.is_d_separated(x, y, &[y], &mut ws).unwrap());
+}
+
+#[test]
 fn collider_opens_with_conditioning() {
     // x -> z <- y
     let mut g = Dag::with_variables(3);

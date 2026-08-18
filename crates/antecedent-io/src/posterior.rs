@@ -260,8 +260,24 @@ mod tests {
         let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
-        let got = decode_posterior_meta_from_seek(std::io::Cursor::new(buf)).unwrap();
+        let got = decode_posterior_meta_from_seek(std::io::Cursor::new(buf.clone())).unwrap();
         assert_eq!(got.n_draws, 8192);
         assert_eq!(got.backend_id, "laplace");
+
+        // Zero-copy accounting (DESIGN rule 22): a meta-only read must not pay
+        // for the 64 KiB draws section — bytes_loaded stays below the draws
+        // payload and the draws section remains skipped.
+        let mut reader =
+            crate::reader::ArtifactReader::open_seek(std::io::Cursor::new(buf)).unwrap();
+        let _ = reader.load_section("posterior.meta").unwrap();
+        let stats = reader.stats();
+        let draws_bytes = (8192 * std::mem::size_of::<f64>()) as u64;
+        assert_eq!(stats.sections_loaded, 1);
+        assert!(
+            stats.bytes_loaded < draws_bytes,
+            "meta-only load read {} bytes (draws section is {draws_bytes})",
+            stats.bytes_loaded
+        );
+        assert!(stats.sections_skipped >= 1);
     }
 }

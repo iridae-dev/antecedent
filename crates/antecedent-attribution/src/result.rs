@@ -63,6 +63,8 @@ pub struct CacheStats {
     pub entries: u64,
     /// Approximate bytes retained.
     pub bytes: u64,
+    /// True if at least one unique insert was refused because the byte budget was full.
+    pub saturated: bool,
 }
 
 /// Full change-attribution output.

@@ -185,6 +185,29 @@ for method in ledger.get("method", []):
     except json.JSONDecodeError as exc:
         fail.append(f"oracle_closure {mid}: {fixture} is not valid JSON ({exc})")
 
+# --------------------------------------------- 6. crate README staleness
+# crates/antecedent/README.md carried `antecedent = "0.1"` and a
+# `CausalAnalysis::builder()` example four minor releases after both were
+# retired. Crate READMEs are the crates.io landing pages: a dependency line
+# must match the workspace major.minor, and retired API names must not
+# survive there.
+major_minor = ".".join(version.split(".")[:2])
+# Retired names (longest first so one match reports once, not per substring):
+# `CausalAnalysis` (renamed to `Study`; covers `CausalAnalysis::builder`) and
+# the pre-rename workspace name, same rule as check 3.
+RETIRED_README_NAMES = ["CausalAnalysis", "causal-library"]
+dep_version_re = re.compile(r'^\s*antecedent[\w-]*\s*=\s*"(\d+\.\d+)(?:\.\d+)?"', re.M)
+for path in sorted(root.glob("crates/*/README.md")) + [Path("python/README.md")]:
+    text = path.read_text()
+    for dep_ver in dep_version_re.findall(text):
+        if dep_ver != major_minor:
+            fail.append(
+                f"{path} shows dependency version {dep_ver!r}; workspace is {major_minor}"
+            )
+    for name in RETIRED_README_NAMES:
+        if name in text:
+            fail.append(f"{path} mentions retired name {name!r}")
+
 if fail:
     print("Metadata consistency gate FAILED:")
     for f in fail:

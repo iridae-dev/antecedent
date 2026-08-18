@@ -28,8 +28,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
     FaerBackend, GamOptions, GamWorkspace, SmoothSpec, fit_gam, gaussian_density,
-    gaussian_local_quadratic, gaussian_local_quadratic_influence, normal_ppf, predict_gam,
-    silverman_bandwidth,
+    gaussian_local_quadratic, gaussian_local_quadratic_influence, normal_ppf, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -672,6 +671,22 @@ impl ContinuousResponseEstimator {
                     .collect::<Result<_, _>>()?,
                 None => vec![constant_treatment_mean; train.len()],
             };
+            // The outcome nuisance is additive, so a counterfactual prediction
+            // decomposes exactly: μ̂(a, X_j) = μ̂(A_j, X_j) − f_T(A_j) + f_T(a),
+            // where f_T is the centered treatment smooth. Averaging over the
+            // training rows therefore needs one covariate offset per fold plus a
+            // single smooth evaluation per validation row — O(n) per fold instead
+            // of the |valid|×|train| full-prediction double loop.
+            let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+            })?;
+            let mut covariate_offset = 0.0;
+            for (position, &j) in train.iter().enumerate() {
+                let treat_partial =
+                    outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
+                covariate_offset += outcome_fit.fitted[position] - treat_partial;
+            }
+            covariate_offset /= train.len() as f64;
             for &i in &valid {
                 let observed_x = sample.raw_row(i);
                 let mu_observed = predict_one(&outcome_fit, &observed_x)?;
@@ -686,19 +701,13 @@ impl ContinuousResponseEstimator {
                 }
                 let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
-                let mut marginal_mu = 0.0;
-                for (position, &j) in train.iter().enumerate() {
-                    marginal_density += gaussian_density(
-                        sample.treatment_matrix[i],
-                        train_treatment_means[position],
-                        sigma,
-                    );
-                    let mut row = sample.raw_row(j);
-                    row[0] = sample.treatment_matrix[i];
-                    marginal_mu += predict_one(&outcome_fit, &row)?;
+                for &train_mean in &train_treatment_means {
+                    marginal_density +=
+                        gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
                 }
                 marginal_density /= train.len() as f64;
-                marginal_mu /= train.len() as f64;
+                let marginal_mu = covariate_offset
+                    + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
                     + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
             }
@@ -973,7 +982,7 @@ fn fit_additive(
 }
 
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
-    Ok(predict_gam(fit, raw_row, 1, raw_row.len())?[0])
+    Ok(fit.predict_row(raw_row)?)
 }
 
 fn treatment_sigma(
@@ -1558,6 +1567,61 @@ mod tests {
         assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(response.support.diagnostics[0].values.len(), 3);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
+    }
+
+    #[test]
+    fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
+        // The O(n) covariate-offset form must agree with the definitional
+        // |valid|×|train| double loop (full counterfactual prediction per pair)
+        // up to floating-point re-association.
+        let (data, a, y, x) = confounded_curve(160);
+        let estimator = ContinuousResponseEstimator::new([x]);
+        let sample = CompleteSample::read(&data, y, &[a], &estimator.adjustment_set).unwrap();
+        let fast = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
+
+        let n = sample.len();
+        let folds = estimator.options.folds;
+        let mut brute = vec![0.0; n];
+        for fold in 0..folds {
+            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
+            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+            let outcome_fit = estimator.fit_outcome(&sample, &train).unwrap();
+            let treatment_fit = estimator.fit_treatment(&sample, &train).unwrap();
+            let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
+            let constant_mean = sample.train_treatment_mean(&train);
+            for &i in &valid {
+                let mu_observed = predict_one(&outcome_fit, &sample.raw_row(i)).unwrap();
+                let treatment_mean = match treatment_fit.as_ref() {
+                    Some(fit) => predict_one(fit, &sample.adjustment_row(i)).unwrap(),
+                    None => constant_mean,
+                };
+                let raw_density =
+                    gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
+                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
+                let mut marginal_density = 0.0;
+                let mut marginal_mu = 0.0;
+                for &j in &train {
+                    let mean_j = match treatment_fit.as_ref() {
+                        Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
+                        None => constant_mean,
+                    };
+                    marginal_density += gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
+                    let mut row = sample.raw_row(j);
+                    row[0] = sample.treatment_matrix[i];
+                    marginal_mu += predict_one(&outcome_fit, &row).unwrap();
+                }
+                marginal_density /= train.len() as f64;
+                marginal_mu /= train.len() as f64;
+                brute[i] = marginal_mu
+                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+            }
+        }
+        for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
+            assert!(
+                (fast_i - brute_i).abs() <= 1e-9 * brute_i.abs().max(1.0),
+                "row {i}: fast={fast_i} brute={brute_i}"
+            );
+        }
     }
 
     #[test]

@@ -193,16 +193,20 @@ impl MechanismRegistry {
         for gather in model.parent_gathers.iter() {
             let node = gather.child;
             let var = model.output_layout.variables[node.as_usize()];
-            let y = data.float64_values(var).map_err(ModelError::from)?;
+            let y = data.float64_cow(var).map_err(ModelError::from)?;
             let is_discrete = is_low_cardinality(&y, 8);
             let families: &[MechanismFamily] =
                 if is_discrete { &self.discrete } else { &self.continuous };
 
             let mut candidates = Vec::new();
+            let mut fits: Vec<(MechanismFamily, MechanismSlot)> = Vec::new();
             let mut failed = Vec::new();
             for &family in families {
                 match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
-                    Ok(c) => candidates.push(c),
+                    Ok((c, slot)) => {
+                        candidates.push(c);
+                        fits.push((family, slot));
+                    }
                     Err(e) => failed.push((family, e.to_string())),
                 }
             }
@@ -223,7 +227,14 @@ impl MechanismRegistry {
             let selected = policy.select(&candidates).ok_or_else(|| ModelError::Unsupported {
                 message: "selection policy produced no family".into(),
             })?;
-            let fitted = fit_family(selected, gather, model, data, &y, backend, &mut ls_ws)?;
+            // The scoring fit for the selected family is the fit (same inputs,
+            // deterministic solvers); reuse it instead of refitting from scratch.
+            let fitted = fits
+                .into_iter()
+                .find_map(|(family, slot)| (family == selected).then_some(slot))
+                .ok_or_else(|| ModelError::Unsupported {
+                    message: "selected family missing a retained fit".into(),
+                })?;
             slots[node.as_usize()] = fitted.clone();
             assignments.push(MechanismAssignment {
                 node,
@@ -262,11 +273,21 @@ impl SelectionPolicy {
 }
 
 fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
-    let mut vals: Vec<i64> =
-        y.iter().filter(|v| v.is_finite()).map(|v| (v * 1e6).round() as i64).collect();
-    vals.sort_unstable();
-    vals.dedup();
-    !vals.is_empty() && vals.len() <= max_levels
+    // Distinct-value scan with early exit: at most `max_levels` keys are ever
+    // retained, and the (max_levels + 1)-th distinct key bails out immediately.
+    // Equivalent to the historical sort+dedup of a full column copy (same 1e-6
+    // quantization, non-finite values skipped) without the O(n log n) copy.
+    let mut seen: Vec<i64> = Vec::with_capacity(max_levels.min(64));
+    for v in y.iter().filter(|v| v.is_finite()) {
+        let key = (v * 1e6).round() as i64;
+        if !seen.contains(&key) {
+            if seen.len() == max_levels {
+                return false;
+            }
+            seen.push(key);
+        }
+    }
+    !seen.is_empty()
 }
 
 /// Residual variance above which [`MechanismFamily::Constant`] is inadmissible.
@@ -285,7 +306,7 @@ fn score_family(
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
-) -> Result<MechanismCandidate, ModelError> {
+) -> Result<(MechanismCandidate, MechanismSlot), ModelError> {
     let fitted = fit_family(family, gather, model, data, y, backend, ls_ws)?;
     let score = match &fitted {
         MechanismSlot::LinearGaussian { intercept, coeffs, sigma }
@@ -356,12 +377,15 @@ fn score_family(
         }
         _ => f64::NEG_INFINITY,
     };
-    Ok(MechanismCandidate {
-        family,
-        score,
-        fit_cost: 1.0 + gather.n_parents() as f64,
-        eval_cost: 1.0 + gather.n_parents() as f64,
-    })
+    Ok((
+        MechanismCandidate {
+            family,
+            score,
+            fit_cost: 1.0 + gather.n_parents() as f64,
+            eval_cost: 1.0 + gather.n_parents() as f64,
+        },
+        fitted,
+    ))
 }
 
 fn fit_family(
@@ -420,7 +444,7 @@ fn fit_family(
             }
             for (pi, &parent) in gather.parents.iter().enumerate() {
                 let var = model.output_layout.variables[parent.as_usize()];
-                let col = data.float64_values(var).map_err(ModelError::from)?;
+                let col = data.float64_cow(var).map_err(ModelError::from)?;
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
@@ -492,15 +516,15 @@ fn fit_family(
     }
 }
 
-fn gather_parent_cols(
+fn gather_parent_cols<'d>(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
-    data: &TabularData,
-) -> Result<Vec<Vec<f64>>, ModelError> {
-    let mut parent_cols: Vec<Vec<f64>> = Vec::with_capacity(gather.n_parents());
+    data: &'d TabularData,
+) -> Result<Vec<std::borrow::Cow<'d, [f64]>>, ModelError> {
+    let mut parent_cols = Vec::with_capacity(gather.n_parents());
     for &parent in gather.parents.iter() {
         let var = model.output_layout.variables[parent.as_usize()];
-        parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
+        parent_cols.push(data.float64_cow(var).map_err(ModelError::from)?);
     }
     Ok(parent_cols)
 }
@@ -558,7 +582,7 @@ fn fit_hierarchical_linear(
                 y.iter().sum::<f64>() / n.max(1) as f64
                     - coeffs.iter().enumerate().try_fold(0.0, |acc, (i, c)| {
                         let var = model.output_layout.variables[gather.parents[i].as_usize()];
-                        let col = data.float64_values(var).map_err(ModelError::from)?;
+                        let col = data.float64_cow(var).map_err(ModelError::from)?;
                         let mean = col.iter().sum::<f64>() / n.max(1) as f64;
                         Ok::<_, ModelError>(acc + c * mean)
                     })?
@@ -611,7 +635,7 @@ fn fit_hierarchical_glm(
     }
     for (pi, &parent) in gather.parents.iter().enumerate() {
         let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let col = data.float64_cow(var).map_err(ModelError::from)?;
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
@@ -661,7 +685,7 @@ fn fit_bvar_minnesota(
     }
     for (pi, &parent) in gather.parents.iter().enumerate() {
         let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let col = data.float64_cow(var).map_err(ModelError::from)?;
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
@@ -773,7 +797,7 @@ fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
         if !var.role_hints.contains(RoleHint::UnitId) {
             continue;
         }
-        let Ok(col) = data.float64_values(var.id) else {
+        let Ok(col) = data.float64_cow(var.id) else {
             continue;
         };
         if col.len() != n {
@@ -781,7 +805,7 @@ fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
         }
         let mut groups = Vec::with_capacity(n);
         let mut ok = true;
-        for &v in &col {
+        for &v in col.iter() {
             if !v.is_finite() {
                 ok = false;
                 break;
@@ -866,7 +890,7 @@ fn fit_linear_gaussian(
     }
     for (pi, &parent) in gather.parents.iter().enumerate() {
         let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let col = data.float64_cow(var).map_err(ModelError::from)?;
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
@@ -899,6 +923,20 @@ fn fit_linear_gaussian(
     Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
 }
 
+/// Row cap for the [`MechanismFamily::GaussianProcess`] grid search.
+///
+/// The fit runs a 20-cell `(ℓ, σ)` grid where every cell builds an O(n²) dense
+/// Gram matrix and factors it with an O(n³) Cholesky. At n = 2 000 that is a
+/// 32 MB Gram and ≈ 20 · n³/3 ≈ 5×10¹⁰ flops — seconds on current hardware and
+/// the last point where the exact GP is a reasonable candidate; n = 10 000
+/// would already need 800 MB and minutes per node. Above the cap
+/// `fit_family(GaussianProcess)` refuses with [`ModelError::Unsupported`]
+/// instead of silently hanging; because model selection records failed
+/// families and picks among the rest, the refusal is surfaced in
+/// [`MechanismAssignment::failed_families`] and another family is selected.
+#[cfg(feature = "gaussian-process")]
+pub const GP_FAMILY_MAX_ROWS: usize = 2_000;
+
 #[cfg(feature = "gaussian-process")]
 /// Grid-search RBF GP hyperparameters by exact Cholesky NLML.
 ///
@@ -917,6 +955,15 @@ fn fit_gaussian_process(
     if p == 0 {
         return Err(ModelError::Unsupported {
             message: "GaussianProcess requires at least one parent".into(),
+        });
+    }
+    if n > GP_FAMILY_MAX_ROWS {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "GaussianProcess is limited to {GP_FAMILY_MAX_ROWS} rows (got {n}): the exact \
+                 Cholesky grid search is O(n³) per cell with an O(n²) Gram matrix; use another \
+                 mechanism family (or subsample) for larger data"
+            ),
         });
     }
     let parent_cols = gather_parent_cols(gather, model, data)?;
@@ -993,11 +1040,7 @@ fn residual_mse(
 ) -> Result<f64, ModelError> {
     let n = y.len();
     let mut sse = 0.0;
-    let mut parent_cols: Vec<Vec<f64>> = Vec::with_capacity(gather.n_parents());
-    for &parent in gather.parents.iter() {
-        let var = model.output_layout.variables[parent.as_usize()];
-        parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
-    }
+    let parent_cols = gather_parent_cols(gather, model, data)?;
     for r in 0..n {
         let mut pred = intercept;
         for (p, col) in parent_cols.iter().enumerate() {
@@ -1061,7 +1104,7 @@ fn discrete_mean_loglik(
     let mut parent_mat = vec![0.0; n * p.max(1)];
     for (pi, &parent) in gather.parents.iter().enumerate() {
         let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let col = data.float64_cow(var).map_err(ModelError::from)?;
         let base = pi * n;
         parent_mat[base..base + n].copy_from_slice(&col[..n]);
     }
@@ -1128,6 +1171,90 @@ mod tests {
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         (TabularData::new(storage), g)
+    }
+
+    /// The early-exiting distinct scan must agree with the historical
+    /// sort+dedup implementation on ties, NaN/±inf, negatives, and the
+    /// quantization boundary (values closer than 1e-6 collapse to one level).
+    #[test]
+    fn is_low_cardinality_matches_sort_dedup_reference() {
+        fn reference(y: &[f64], max_levels: usize) -> bool {
+            let mut vals: Vec<i64> =
+                y.iter().filter(|v| v.is_finite()).map(|v| (v * 1e6).round() as i64).collect();
+            vals.sort_unstable();
+            vals.dedup();
+            !vals.is_empty() && vals.len() <= max_levels
+        }
+        let cases: [&[f64]; 8] = [
+            &[],
+            &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY],
+            &[1.0, 1.0, 1.0, 1.0],
+            &[-3.0, -3.0, 2.0, 2.0, f64::NAN, -3.0],
+            &[0.0, -0.0, 1e-7, 2e-7, 5e-7], // all quantize to the same level
+            &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+            &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            &[-1.5, 1.5, -1.5, 1.5, 0.25, f64::NAN, -8.75],
+        ];
+        for y in cases {
+            for max_levels in [0usize, 1, 2, 8] {
+                assert_eq!(
+                    is_low_cardinality(y, max_levels),
+                    reference(y, max_levels),
+                    "mismatch for y={y:?} max_levels={max_levels}"
+                );
+            }
+        }
+    }
+
+    /// Above [`GP_FAMILY_MAX_ROWS`] the GP family must refuse (recorded in
+    /// `failed_families`) instead of running the multi-minute O(n³) grid, and
+    /// selection must still pick another family.
+    #[cfg(feature = "gaussian-process")]
+    #[test]
+    fn gp_family_refuses_above_row_cap_and_selection_falls_back() {
+        let n = GP_FAMILY_MAX_ROWS + 1;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin() * 3.0).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 1.0 + 2.0 * x + (x * 0.5).cos() * 0.01).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (_, assigns) = MechanismRegistry::with_bayesian_families()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let child = assigns.iter().find(|a| a.node == DenseNodeId::from_raw(1)).unwrap();
+        let gp_failure = child
+            .failed_families
+            .iter()
+            .find(|(f, _)| *f == MechanismFamily::GaussianProcess)
+            .expect("GP refusal must be recorded, not silently absent");
+        assert!(gp_failure.1.contains("limited to"), "message: {}", gp_failure.1);
+        assert_ne!(child.selected, MechanismFamily::GaussianProcess);
+        assert!(!child.candidates.iter().any(|c| c.family == MechanismFamily::GaussianProcess));
     }
 
     #[test]

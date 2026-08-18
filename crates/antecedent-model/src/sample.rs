@@ -37,6 +37,26 @@ pub fn sample_observational(
     sample_with_overlay(&view, n_rows, rng, ws)
 }
 
+/// Sample observational draws into a caller-owned column-major buffer.
+///
+/// `values` must be at least `n_rows * n_nodes`. The buffer is overwritten,
+/// not grown; coalition loops can reuse one allocation across masks.
+///
+/// # Errors
+///
+/// Unfitted mechanisms, `n_rows == 0`, or a short buffer.
+pub fn sample_observational_into(
+    model: &CompiledCausalModel,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    values: &mut [f64],
+    _ctx: &ExecutionContext,
+) -> Result<(), ModelError> {
+    let view = ModelView::observational(model);
+    sample_with_overlay_into(&view, n_rows, rng, ws, values)
+}
+
 /// Sample under interventions (compiled to an overlay; model is not cloned).
 ///
 /// # Errors
@@ -67,6 +87,24 @@ pub fn sample_with_overlay(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<ValueBatch, ModelError> {
+    let n_nodes = view.model.n_nodes();
+    let mut values_buf = vec![0.0; n_rows.saturating_mul(n_nodes)];
+    sample_with_overlay_into(view, n_rows, rng, ws, &mut values_buf)?;
+    Ok(ValueBatch { n_rows, n_nodes, values: std::sync::Arc::from(values_buf) })
+}
+
+/// Ancestral sample into a caller-owned column-major buffer.
+///
+/// # Errors
+///
+/// Shape, overlay, or mechanism failures.
+pub fn sample_with_overlay_into(
+    view: &ModelView<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    values: &mut [f64],
+) -> Result<(), ModelError> {
     if n_rows == 0 {
         return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
     }
@@ -76,23 +114,27 @@ pub fn sample_with_overlay(
     view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
-    let mut values_buf = vec![0.0; n_rows * n_nodes];
-    let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
+    let mut values = ValueBatchMut::new(n_rows, n_nodes, values)?;
     let overlay = view.overlay.as_ref();
 
+    // Gather target hoisted out of the node loop (grow-only) so the parent
+    // batch borrows a buffer disjoint from `ws` — `sample_column` needs
+    // `&mut ws` while parents stay alive, which previously forced a fresh
+    // `to_vec` per node.
+    let mut parent_buf: Vec<f64> = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let idx = node.as_usize();
-        ws.prepare(n_rows, gather.n_parents().max(1));
-        gather.gather(values.values, n_rows, &mut ws.parents);
+        let need = gather.n_parents().max(1).saturating_mul(n_rows);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_rows, &mut parent_buf);
         let parents = ParentBatch {
             n_rows,
             n_parents: gather.n_parents(),
-            values: &ws.parents[..gather.n_parents().saturating_mul(n_rows)],
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
         };
-        // Copy parents to owned so we can mutably write the child column.
-        let parent_owned = parents.values.to_vec();
-        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
 
         let out = values.column_mut(idx)?;
 
@@ -119,13 +161,17 @@ pub fn sample_with_overlay(
         apply_shift(out, overlay.shifts[idx]);
     }
 
-    Ok(values.into_batch())
+    Ok(())
 }
 
 /// Soft overrides must share noise semantics with the fitted mechanism. Reusing a
 /// Discrete Uniform(0,1) residual as an additive Gaussian U (or the reverse) is not
 /// a well-defined counterfactual.
-fn refuse_cross_family_soft(
+///
+/// # Errors
+///
+/// [`ModelError::Unsupported`] when the fitted slot and override disagree on noise kind.
+pub fn refuse_cross_family_soft(
     existing: &MechanismSlot,
     soft: &MechanismOverride,
 ) -> Result<(), ModelError> {
@@ -231,11 +277,15 @@ pub fn sample_conditional_interventional(
     let mut accepted = vec![0.0; n_rows * n_nodes];
     let mut got = 0usize;
     let max_attempts = n_rows.saturating_mul(100).max(100);
+    // Overlay built once; the attempt loop previously rebuilt it (five
+    // per-node vectors plus a linear id scan per intervention) per candidate.
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    let view = ModelView::with_overlay(model, overlay);
     for _ in 0..max_attempts {
         if got >= n_rows {
             break;
         }
-        let batch = sample_interventional(model, interventions, 1, rng, ws, ctx)?;
+        let batch = sample_with_overlay(&view, 1, rng, ws)?;
         let mut ok = true;
         for (i, &node) in condition_nodes.iter().enumerate() {
             let v = batch.column(node.as_usize())?[0];
@@ -288,17 +338,20 @@ fn sample_conditional_interventional_lw(
     let mut log_w = vec![0.0; n_particles];
     let mut lp_buf = vec![0.0; n_particles];
 
+    let mut parent_buf: Vec<f64> = Vec::new();
     for (ci, &node) in condition_nodes.iter().enumerate() {
         let gather = model.gather_for(node).ok_or_else(|| ModelError::Unsupported {
             message: format!("missing gather for condition node {node:?}"),
         })?;
-        ws.prepare(n_particles, gather.n_parents().max(1));
-        gather.gather(&proposal.values, n_particles, &mut ws.parents);
-        let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_particles)].to_vec();
+        let need = gather.n_parents().max(1).saturating_mul(n_particles);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(&proposal.values, n_particles, &mut parent_buf);
         let parents = ParentBatch {
             n_rows: n_particles,
             n_parents: gather.n_parents(),
-            values: &parent_owned,
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_particles)],
         };
         // Score the *conditioned* value under each particle's parents.
         let conditioned = vec![condition_values[ci]; n_particles];
@@ -639,13 +692,20 @@ pub fn sample_structural_with_overlay(
     let mut values_buf = vec![0.0; n_rows * n_nodes];
     let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
     let overlay = view.overlay.as_ref();
+    let mut parent_buf: Vec<f64> = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let idx = node.as_usize();
-        ws.prepare(n_rows, gather.n_parents().max(1));
-        gather.gather(values.values, n_rows, &mut ws.parents);
-        let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_rows)].to_vec();
-        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
+        let need = gather.n_parents().max(1).saturating_mul(n_rows);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_rows, &mut parent_buf);
+        let parents = ParentBatch {
+            n_rows,
+            n_parents: gather.n_parents(),
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
+        };
         let out = values.column_mut(idx)?;
         if let Some(v) = overlay.hard_set[idx] {
             out.fill(v);
@@ -778,5 +838,23 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ModelError::Unsupported { .. }), "expected Unsupported, got {err:?}");
+    }
+
+    #[test]
+    fn observational_into_matches_allocating_sample() {
+        let model = fitted_chain();
+        let ctx = ExecutionContext::for_tests(1);
+        let n_rows = 16usize;
+        let n_nodes = model.n_nodes();
+        let mut rng_a = CausalRng::from_seed(7);
+        let mut rng_b = CausalRng::from_seed(7);
+        let mut ws_a = MechanismWorkspace::default();
+        let mut ws_b = MechanismWorkspace::default();
+        let batch = sample_observational(&model, n_rows, &mut rng_a, &mut ws_a, &ctx).unwrap();
+        let mut buf = vec![0.0; n_rows * n_nodes];
+        sample_observational_into(&model, n_rows, &mut rng_b, &mut ws_b, &mut buf, &ctx).unwrap();
+        assert_eq!(&*batch.values, buf.as_slice());
+        sample_observational_into(&model, n_rows, &mut rng_b, &mut ws_b, &mut buf, &ctx).unwrap();
+        assert_eq!(buf.len(), n_rows * n_nodes);
     }
 }

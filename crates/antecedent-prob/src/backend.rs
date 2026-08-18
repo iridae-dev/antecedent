@@ -109,6 +109,10 @@ pub struct LaplaceWorkspace {
     pub step: Vec<f64>,
     /// Working coefficients (ncols).
     pub beta: Vec<f64>,
+    /// Position / Newton `beta_old` (ncols or unconstrained HMC dim).
+    pub q: Vec<f64>,
+    /// Momentum / triangular-solve scratch (same length as `q`).
+    pub p: Vec<f64>,
     /// Linear predictor / mu / working residual (nrows).
     pub eta: Vec<f64>,
     /// Working weights / variance terms (nrows).
@@ -128,6 +132,8 @@ impl LaplaceWorkspace {
         grew |= resize_min(&mut self.factor, ncols.saturating_mul(ncols));
         grew |= resize_min(&mut self.step, ncols);
         grew |= resize_min(&mut self.beta, ncols);
+        grew |= resize_min(&mut self.q, ncols);
+        grew |= resize_min(&mut self.p, ncols);
         grew |= resize_min(&mut self.eta, nrows);
         grew |= resize_min(&mut self.work_w, nrows);
         let draw_need = n_draws.saturating_mul(ncols).max(ncols);
@@ -145,6 +151,8 @@ impl LaplaceWorkspace {
             &mut self.factor,
             &mut self.step,
             &mut self.beta,
+            &mut self.q,
+            &mut self.p,
             &mut self.eta,
             &mut self.work_w,
             &mut self.draw_scratch,

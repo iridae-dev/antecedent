@@ -121,15 +121,18 @@ impl TransportIdentifier {
             }));
         }
 
+        // One reachability workspace for every ancestry probe in this identify
+        // call; `reaches()` would otherwise allocate a fresh workspace per pair.
+        let mut reach_ws = antecedent_graph::GraphWorkspace::default();
         let relevant_selection = diagram
             .selection_targets()
             .iter()
             .copied()
             .filter(|selection| {
                 !treatments.contains(selection)
-                    && outcomes
-                        .iter()
-                        .any(|outcome| graph.reaches(dense(*selection), dense(*outcome)))
+                    && outcomes.iter().any(|outcome| {
+                        graph.reaches_with(dense(*selection), dense(*outcome), &mut reach_ws)
+                    })
             })
             .collect::<Vec<_>>();
         if relevant_selection.is_empty() {
@@ -159,7 +162,7 @@ impl TransportIdentifier {
         let safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z))
             && relevant_selection.iter().all(|z| {
                 let dz = dense(*z);
-                !treatments.iter().any(|x| graph.reaches(dense(*x), dz))
+                !treatments.iter().any(|x| graph.reaches_with(dense(*x), dz, &mut reach_ws))
                     && graph.parents(dz).is_empty()
                     && graph.bidirected_neighbors(dz).is_empty()
             });
@@ -279,11 +282,14 @@ fn s_admissible_standardizers(
     treatments: &[VariableId],
 ) -> Result<Option<Arc<[VariableId]>>, IdentificationError> {
     let graph = diagram.causal_graph();
+    let mut reach_ws = antecedent_graph::GraphWorkspace::default();
     let candidates = (0..graph.node_count())
         .filter_map(|i| u32::try_from(i).ok().map(VariableId::from_raw))
         .filter(|candidate| !outcomes.contains(candidate) && !treatments.contains(candidate))
         .filter(|candidate| {
-            !treatments.iter().any(|treatment| graph.reaches(dense(*treatment), dense(*candidate)))
+            !treatments.iter().any(|treatment| {
+                graph.reaches_with(dense(*treatment), dense(*candidate), &mut reach_ws)
+            })
         })
         .collect::<Vec<_>>();
     // Exhaustive subset search is intentionally bounded. Larger diagrams retain the
@@ -294,43 +300,62 @@ fn s_admissible_standardizers(
     let augmented = treatment_mutilated_selection_graph(diagram, treatments)?;
     let selection_offset = graph.node_count();
     let mut workspace = DSeparationWorkspace::default();
-    for size in 0..=candidates.len() {
-        for mask in 0_u64..(1_u64 << candidates.len()) {
-            if usize::try_from(mask.count_ones()).expect("u32 fits usize") != size {
-                continue;
+    // Selection-node ids are loop-invariant; precompute once.
+    let selection_nodes: Vec<DenseNodeId> = (0..diagram.selection_targets().len())
+        .map(|selection_index| {
+            u32::try_from(selection_offset + selection_index).map(DenseNodeId::from_raw).map_err(
+                |_| IdentificationError::msg("selection diagram exceeds u32 node capacity"),
+            )
+        })
+        .collect::<Result<_, _>>()?;
+    let k = candidates.len();
+    let mut standardizers: Vec<VariableId> = Vec::with_capacity(k);
+    let mut conditioned: Vec<DenseNodeId> = Vec::with_capacity(k);
+    // Size-ascending, then numerically ascending within a size — the same
+    // visiting order as the historical full 2^k scan with a popcount filter,
+    // but enumerating only the C(k, size) masks per size (Gosper's hack).
+    for size in 0..=k {
+        let mut mask: u64 = if size == 0 { 0 } else { (1_u64 << size) - 1 };
+        loop {
+            standardizers.clear();
+            conditioned.clear();
+            for (i, variable) in candidates.iter().enumerate() {
+                if (mask >> i) & 1 == 1 {
+                    standardizers.push(*variable);
+                    conditioned.push(dense(*variable));
+                }
             }
-            let standardizers = candidates
-                .iter()
-                .enumerate()
-                .filter_map(|(i, variable)| ((mask >> i) & 1 == 1).then_some(*variable))
-                .collect::<Vec<_>>();
-            let conditioned = standardizers.iter().copied().map(dense).collect::<Vec<_>>();
             let mut separated = true;
-            for outcome in outcomes {
-                for selection_index in 0..diagram.selection_targets().len() {
-                    let raw = u32::try_from(selection_offset + selection_index).map_err(|_| {
-                        IdentificationError::msg("selection diagram exceeds u32 node capacity")
-                    })?;
+            'outcomes: for outcome in outcomes {
+                for &selection_node in &selection_nodes {
                     if !augmented
                         .is_m_separated(
                             dense(*outcome),
-                            DenseNodeId::from_raw(raw),
+                            selection_node,
                             &conditioned,
                             &mut workspace,
                         )
                         .map_err(IdentificationError::from)?
                     {
                         separated = false;
-                        break;
+                        break 'outcomes;
                     }
-                }
-                if !separated {
-                    break;
                 }
             }
             if separated {
                 return Ok(Some(standardizers.into()));
             }
+            if size == 0 {
+                break;
+            }
+            // Next-higher mask with the same popcount.
+            let low = mask & mask.wrapping_neg();
+            let ripple = mask + low;
+            let next = (((ripple ^ mask) >> 2) / low) | ripple;
+            if next >= (1_u64 << k) {
+                break;
+            }
+            mask = next;
         }
     }
     Ok(None)

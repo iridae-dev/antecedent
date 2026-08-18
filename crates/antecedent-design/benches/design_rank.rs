@@ -66,6 +66,16 @@ fn bench_rank(c: &mut Criterion) {
                 .expect("rank")
         });
     });
+
+    // Soft-budget gate from benches/baselines/design_state.md, executed on
+    // every bench invocation including the `--test` smoke.
+    let t0 = std::time::Instant::now();
+    ranker.rank(&DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx).expect("rank");
+    let elapsed = t0.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_millis(50),
+        "design_rank_eig_8_candidates exceeded soft budget: {elapsed:?}"
+    );
 }
 
 criterion_group!(benches, bench_rank);

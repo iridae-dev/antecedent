@@ -104,14 +104,14 @@ fn refuters_and_sensitivity_smoke() {
     assert!(pinned.len() >= 14, "expected.json must pin the validator set");
 
     let (data, estimand, query, original, mut ws, ctx) = problem_setup();
-    let problem = RefutationProblem {
-        data: &data,
-        estimand: &estimand,
-        query: &query,
-        original: &original,
-        estimator: Some("linear.adjustment.ate"),
-        temporal: None,
-    };
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
 
     assert!(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);

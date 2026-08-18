@@ -124,14 +124,14 @@ fn shared_workspace_placebo_parity_and_capacity() {
 
     let estimand = id_run.estimand.clone();
     let estimate = id_run.estimate.clone();
-    let problem = RefutationProblem {
-        data: &data,
-        estimand: &estimand,
-        query: &query,
-        original: &estimate,
-        estimator: Some("linear.adjustment"),
-        temporal: None,
-    };
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &estimate,
+        Some("linear.adjustment"),
+        None,
+    );
 
     let mut warmed = EstimationWorkspace::default();
     let mut est = LinearAdjustmentAte::new();
@@ -203,14 +203,14 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     assert!(score_grows >= 1 && score_cap > 0, "point propensity fit must warm buffers");
     assert!(estimate.ate.is_finite());
 
-    let problem = RefutationProblem {
-        data: &data,
-        estimand: &estimand,
-        query: &query,
-        original: &estimate,
-        estimator: Some("propensity.weighting"),
-        temporal: None,
-    };
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &estimate,
+        Some("propensity.weighting"),
+        None,
+    );
     let _ = OverlapRefuter::new()
         .refute_with_propensity(&problem, &mut ws.propensity.propensity)
         .unwrap();

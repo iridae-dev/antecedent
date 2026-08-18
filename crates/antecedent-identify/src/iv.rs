@@ -136,7 +136,8 @@ impl InstrumentalVariableIdentifier {
         let mut derivation = DerivationTrace::default();
         derivation.push(
             "iv.criterion",
-            "Z relevant to T given ∅ and d-separated from Y in G with T's out-edges cut",
+            "Z relevant to T given ∅ and d-separated from Y in G with T's out-edges cut; \
+             Wald identifies ATE under linearity (or LATE under monotonicity)",
         );
 
         if valid.is_empty() {
@@ -174,7 +175,7 @@ impl InstrumentalVariableIdentifier {
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }
 
-        Ok(IdentificationResult::identified(
+        Ok(IdentificationResult::identified_under_parametric_restrictions(
             query,
             estimands,
             arena,
@@ -242,7 +243,7 @@ mod tests {
         ));
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
         assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
         // The confounder U itself must never be reported as a valid instrument.
         assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
@@ -268,7 +269,7 @@ mod tests {
         ));
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
         assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
     }
 

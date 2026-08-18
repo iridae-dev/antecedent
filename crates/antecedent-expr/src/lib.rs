@@ -235,6 +235,12 @@ pub struct CausalExprArena {
     node_index: HashMap<ExprNode, ExprId>,
     /// Derivation metadata (optional; not part of semantic equality).
     derivation: HashMap<u32, DerivationMeta>,
+    /// Cached id of the interned empty variable set. The empty sets are
+    /// requested by nearly every builder and evaluator; caching skips the
+    /// intern-table lookup on repeat calls.
+    empty_var_set_id: Option<VarSetId>,
+    /// Cached id of the interned empty intervention set (see above).
+    empty_intervention_set_id: Option<InterventionSetId>,
 }
 
 impl CausalExprArena {
@@ -249,10 +255,11 @@ impl CausalExprArena {
         let mut v: Vec<VariableId> = vars.into_iter().collect();
         v.sort_unstable();
         v.dedup();
-        let key: Arc<[VariableId]> = Arc::from(v);
-        if let Some(id) = self.var_set_index.get(&key) {
+        // Borrow-based lookup: allocate the Arc key only on a cache miss.
+        if let Some(id) = self.var_set_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[VariableId]> = Arc::from(v);
         let id = VarSetId(u32::try_from(self.var_sets.len()).expect("var set id"));
         self.var_sets.push(Arc::clone(&key));
         self.var_set_index.insert(key, id);
@@ -267,10 +274,10 @@ impl CausalExprArena {
         let mut v: Vec<InterventionAssignment> = assignments.into_iter().collect();
         v.sort_by_key(|a| a.variable.raw());
         v.dedup_by_key(|a| a.variable.raw());
-        let key: Arc<[InterventionAssignment]> = Arc::from(v);
-        if let Some(id) = self.intervention_index.get(&key) {
+        if let Some(id) = self.intervention_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[InterventionAssignment]> = Arc::from(v);
         let id = InterventionSetId(u32::try_from(self.interventions.len()).expect("id"));
         self.interventions.push(Arc::clone(&key));
         self.intervention_index.insert(key, id);
@@ -290,12 +297,22 @@ impl CausalExprArena {
 
     /// Empty var set.
     pub fn empty_var_set(&mut self) -> VarSetId {
-        self.intern_var_set([])
+        if let Some(id) = self.empty_var_set_id {
+            return id;
+        }
+        let id = self.intern_var_set([]);
+        self.empty_var_set_id = Some(id);
+        id
     }
 
     /// Empty intervention set.
     pub fn empty_intervention_set(&mut self) -> InterventionSetId {
-        self.intern_intervention_assignments([])
+        if let Some(id) = self.empty_intervention_set_id {
+            return id;
+        }
+        let id = self.intern_intervention_assignments([]);
+        self.empty_intervention_set_id = Some(id);
+        id
     }
 
     /// Look up a var set.
@@ -318,10 +335,11 @@ impl CausalExprArena {
 
     /// Intern an expression list.
     pub fn intern_list(&mut self, exprs: impl IntoIterator<Item = ExprId>) -> ExprListId {
-        let key: Arc<[ExprId]> = Arc::from(exprs.into_iter().collect::<Vec<_>>());
-        if let Some(id) = self.list_index.get(&key) {
+        let v: Vec<ExprId> = exprs.into_iter().collect();
+        if let Some(id) = self.list_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[ExprId]> = Arc::from(v);
         let id = ExprListId(u32::try_from(self.lists.len()).expect("list id"));
         self.lists.push(Arc::clone(&key));
         self.list_index.insert(key, id);

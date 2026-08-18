@@ -6,9 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AverageEffectQuery, PopulationRegistry, PredicateExpr, TargetPopulation, VariableId,
-};
+use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
@@ -247,14 +245,13 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;
     match &query.target_population {
-        TargetPopulation::Predicate(PredicateExpr::Rows(_) | PredicateExpr::Named(_)) => {
-            let sel = query
-                .target_population
-                .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-            for (i, slot) in row_mask.iter_mut().enumerate() {
-                *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
-            }
+        TargetPopulation::Predicate(_) => {
+            crate::prepare::intersect_predicate_mask(
+                &mut row_mask,
+                &query.target_population,
+                n_full,
+                registry,
+            )?;
         }
         TargetPopulation::CustomDistribution(_) => {
             let sel = query
@@ -410,6 +407,28 @@ pub(crate) fn gather_optional_row_labels<T: Copy>(
     }))
 }
 
+/// Gather each multiway cluster dimension with the same retained-row map as treatment.
+pub(crate) fn gather_optional_multiway(
+    dims: Option<&[Vec<u32>]>,
+    nrows: usize,
+    retained: Option<&[usize]>,
+) -> Result<Option<Vec<Vec<u32>>>, EstimationError> {
+    let Some(dims) = dims else {
+        return Ok(None);
+    };
+    let mut out = Vec::with_capacity(dims.len());
+    for (i, d) in dims.iter().enumerate() {
+        let name = format!("multiway_ids[{i}]");
+        let Some(gathered) =
+            gather_optional_row_labels(Some(d.as_slice()), nrows, retained, &name)?
+        else {
+            return Ok(None);
+        };
+        out.push(gathered);
+    }
+    Ok(Some(out))
+}
+
 pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
@@ -449,6 +468,31 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
 
 pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
     idx.iter().map(|&i| values[i]).collect()
+}
+
+/// Extract rows `idx` from a column-major `nrows × ncols` matrix.
+pub(crate) fn gather_colmajor(
+    matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    idx: &[usize],
+) -> Vec<f64> {
+    let m = idx.len();
+    let mut out = vec![0.0; m * ncols];
+    for c in 0..ncols {
+        let src_base = c * nrows;
+        let dst_base = c * m;
+        for (r, &i) in idx.iter().enumerate() {
+            out[dst_base + r] = matrix[src_base + i];
+        }
+    }
+    out
+}
+
+/// [`gather`] into a reused buffer for replicate loops.
+pub(crate) fn gather_into(out: &mut Vec<f64>, values: &[f64], idx: &[usize]) {
+    out.clear();
+    out.extend(idx.iter().map(|&i| values[i]));
 }
 
 pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {

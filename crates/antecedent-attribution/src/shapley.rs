@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode};
+use antecedent_core::{
+    AllocationMethod, CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
+};
 use antecedent_kernels::shuffle;
 use antecedent_stats::student_t_ppf;
 
@@ -110,6 +112,70 @@ pub fn check_shapley_size(
     Ok(())
 }
 
+/// Ceiling on `planned coalition evaluations × per-coalition sample draws` for the
+/// sampled change-attribution payoffs (`distribution_change`, `structure_change`).
+///
+/// Rationale: each coalition evaluation on those paths ancestrally samples
+/// `n_samples` rows through every mechanism in the model, so total work scales with
+/// the product of the two knobs. [`check_shapley_size`] bounds the *player count*
+/// but not that product: exact mode caps at 12 components by default yet is
+/// overridable, `max_components` defaults to 64 for Monte Carlo, and the Shapley
+/// sample count multiplies the per-coalition draw count silently. At roughly
+/// 10–100 ns per sampled value, `1e8` planned draws is already seconds-to-minutes
+/// of single-core work. Every supported default stays far below the ceiling
+/// (exact `k = 12` with the default `2_000` draws/coalition plans
+/// `2^12 × 2_000 ≈ 8.2e6`; Monte Carlo at the 64-player cap with `200`
+/// permutations plans `200 × 65 × 2_000 = 2.6e7`), while an exact override at
+/// `k = 20` (`2^20 × 2_000 ≈ 2.1e9`) or an oversized Monte Carlo schedule is
+/// refused up front instead of silently running for hours.
+pub const MAX_COALITION_SAMPLE_BUDGET: u64 = 100_000_000;
+
+/// Fail-closed guard on the planned sampling volume of a coalition game.
+///
+/// `planned coalition evaluations` counts the *distinct* coalition masks the
+/// estimator schedules (exact: `2^k`; Monte Carlo / permutation: `samples × (k+1)`
+/// marginal-chain evaluations) — the irreducible minimum with a warm coalition
+/// cache. Multiplied by the per-coalition draw count `n_samples_per_eval` and
+/// compared against [`MAX_COALITION_SAMPLE_BUDGET`]. Non-Shapley allocations pass:
+/// sequential allocation is `O(k)` evaluations and path-based allocation performs
+/// no coalition sampling at all.
+///
+/// # Errors
+///
+/// [`AttributionError::SizeLimit`] when the planned volume exceeds the ceiling
+/// (mirrors [`check_shapley_size`]'s posture: refuse up front, clearly, rather
+/// than start a run that cannot finish in reasonable time).
+pub(crate) fn check_coalition_sample_budget(
+    n_players: usize,
+    allocation: &AllocationMethod,
+    n_samples_per_eval: usize,
+) -> Result<(), AttributionError> {
+    let AllocationMethod::Shapley { approximation } = allocation else {
+        return Ok(());
+    };
+    let planned: u128 = match approximation.mode {
+        // Distinct coalitions; `check_shapley_size` separately rejects k >= 64.
+        ShapleyMode::Exact => 1u128 << n_players.min(64),
+        ShapleyMode::MonteCarlo { n_samples } => {
+            (n_samples as u128).saturating_mul(n_players as u128 + 1)
+        }
+        ShapleyMode::Permutation { n_permutations } => {
+            (n_permutations as u128).saturating_mul(n_players as u128 + 1)
+        }
+        // Unknown modes are rejected later by `estimate_shapley`.
+        _ => return Ok(()),
+    };
+    let total = planned.saturating_mul(n_samples_per_eval.max(1) as u128);
+    if total > u128::from(MAX_COALITION_SAMPLE_BUDGET) {
+        return Err(AttributionError::SizeLimit {
+            kind: "planned coalition sample draws",
+            requested: usize::try_from(total).unwrap_or(usize::MAX),
+            max: usize::try_from(MAX_COALITION_SAMPLE_BUDGET).unwrap_or(usize::MAX),
+        });
+    }
+    Ok(())
+}
+
 /// Estimate Shapley values for `players` under `payoff`.
 ///
 /// Uses a semantic [`CoalitionCache`] keyed by coalition mask. Approximate
@@ -132,6 +198,9 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     check_shapley_size(n, config)?;
 
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
+    if matches!(config.mode, ShapleyMode::Exact) {
+        cache.enable_dense_index(n);
+    }
     let mut budget = ComputeBudget::default();
 
     let eval = |mask: u64,
@@ -194,15 +263,20 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             // the mean is large relative to the variance.
             let mut phi_m2 = vec![0.0; n];
             let mut completed = 0u64;
+            // Permutation scratch reused across samples (was two fresh Vecs
+            // per permutation).
+            let mut order: Vec<usize> = Vec::with_capacity(n);
+            let mut sample_phi = vec![0.0; n];
             for _ in 0..n_samples {
                 if ctx.cancellation.is_cancelled() {
                     break;
                 }
-                let mut order: Vec<usize> = (0..n).collect();
+                order.clear();
+                order.extend(0..n);
                 shuffle(&mut rng, &mut order);
                 let mut mask = 0u64;
                 let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
-                let mut sample_phi = vec![0.0; n];
+                sample_phi.fill(0.0);
                 for &i in &order {
                     let bit = 1u64 << i;
                     mask |= bit;
@@ -268,6 +342,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
         return Err(AttributionError::invalid_input("sequential order is empty"));
     }
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
+    cache.enable_dense_index(order.len());
     let mut budget = ComputeBudget::default();
     let eval = |mask: u64,
                 payoff: &mut P,
@@ -550,6 +625,35 @@ mod tests {
             let ratio = se / expected_se;
             assert!((0.7..1.3).contains(&ratio), "se={se} expected≈{expected_se} ratio={ratio}");
         }
+    }
+
+    #[test]
+    fn coalition_sample_budget_guard_refuses_runaway_plans() {
+        // Exact k=20 with the default 2_000 draws/coalition plans ~2.1e9 draws.
+        let exact = AllocationMethod::Shapley { approximation: ShapleyConfig::exact() };
+        let err = check_coalition_sample_budget(20, &exact, 2_000).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                AttributionError::SizeLimit { kind: "planned coalition sample draws", .. }
+            ),
+            "unexpected error: {err:?}"
+        );
+
+        // Oversized Monte Carlo schedule: 1e6 permutations × 65 chain evals × 2_000 draws.
+        let mc = AllocationMethod::Shapley { approximation: ShapleyConfig::monte_carlo(1_000_000) };
+        assert!(check_coalition_sample_budget(64, &mc, 2_000).is_err());
+
+        // Supported defaults pass with wide margin.
+        assert!(check_coalition_sample_budget(12, &exact, 2_000).is_ok());
+        let mc_default =
+            AllocationMethod::Shapley { approximation: ShapleyConfig::monte_carlo(200) };
+        assert!(check_coalition_sample_budget(64, &mc_default, 2_000).is_ok());
+
+        // Non-Shapley allocations never coalition-sample at scale; always pass.
+        let seq =
+            AllocationMethod::Sequential { order: std::sync::Arc::from(Vec::<ComponentId>::new()) };
+        assert!(check_coalition_sample_budget(64, &seq, usize::MAX).is_ok());
     }
 
     #[test]
