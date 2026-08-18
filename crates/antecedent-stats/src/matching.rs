@@ -128,6 +128,74 @@ impl MatchingIndex {
         Ok(Some((self.donor_rows[best_i], best_d)))
     }
 
+    /// `k`-th self-distances of a matrix against itself without building an index.
+    ///
+    /// Equivalent to `MatchingIndex::exact(features, dim, &(0..n).collect(), distance)`
+    /// followed by [`Self::kth_distances`] with the same matrix as queries — the loop
+    /// body is identical, so results match bit for bit — but with no feature/donor
+    /// copies. `dist_scratch` is a reused per-query distance buffer. Permutation-null
+    /// loops that vary one column of `features_rowmajor` between calls use this form.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, `k == 0`, `n <= k`, or `n` over [`EXACT_MATCHING_ROW_LIMIT`].
+    pub fn kth_self_distances(
+        features_rowmajor: &[f64],
+        n: usize,
+        dim: usize,
+        distance: MatchingDistance,
+        k: usize,
+        out: &mut [f64],
+        dist_scratch: &mut Vec<f64>,
+    ) -> Result<(), StatsError> {
+        if n > EXACT_MATCHING_ROW_LIMIT {
+            return Err(StatsError::Shape {
+                message: "donor count exceeds exact matching row limit",
+            });
+        }
+        if dim == 0 {
+            return Err(StatsError::Shape { message: "matching dim must be > 0" });
+        }
+        if distance == MatchingDistance::Absolute && dim != 1 {
+            return Err(StatsError::Shape { message: "Absolute distance requires dim == 1" });
+        }
+        if k == 0 {
+            return Err(StatsError::Shape { message: "k must be > 0" });
+        }
+        if features_rowmajor.len() != n.saturating_mul(dim) {
+            return Err(StatsError::Shape { message: "features length != n * dim" });
+        }
+        if out.len() < n {
+            return Err(StatsError::Shape { message: "output too short" });
+        }
+        if n <= k {
+            return Err(StatsError::Shape { message: "not enough donors for k" });
+        }
+        if dist_scratch.len() < n {
+            dist_scratch.resize(n, 0.0);
+        }
+        let dists = &mut dist_scratch[..n];
+        for q in 0..n {
+            let query = &features_rowmajor[q * dim..(q + 1) * dim];
+            for i in 0..n {
+                let row = &features_rowmajor[i * dim..(i + 1) * dim];
+                dists[i] = match distance {
+                    MatchingDistance::Euclidean => euclidean(query, row),
+                    MatchingDistance::Absolute => (query[0] - row[0]).abs(),
+                };
+            }
+            // Skip self-match at distance 0 when query is a donor; k-th among others ≈ index k
+            // when self is present as exact 0.
+            let min = dists.iter().copied().fold(f64::INFINITY, f64::min);
+            let idx = (if min < 1e-15 { k } else { k - 1 }).min(dists.len() - 1);
+            let (_, kth, _) = dists.select_nth_unstable_by(idx, |a, b| {
+                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            out[q] = *kth;
+        }
+        Ok(())
+    }
+
     /// Mean distance to the `k`-th nearest donor for each query row (row-major queries).
     ///
     /// # Errors
@@ -265,6 +333,37 @@ mod tests {
         let idx = MatchingIndex::exact(&donors, 1, &[0, 1], MatchingDistance::Absolute).unwrap();
         assert!(idx.nearest(&[0.05], Some(0.1)).unwrap().is_some());
         assert!(idx.nearest(&[5.0], Some(0.1)).unwrap().is_none());
+    }
+
+    #[test]
+    fn kth_self_distances_matches_index_path_bit_for_bit() {
+        // The kNN permutation null uses the index-free form; it must reproduce
+        // MatchingIndex::exact + kth_distances exactly.
+        let n = 40usize;
+        let dim = 3usize;
+        let feats: Vec<f64> =
+            (0..n * dim).map(|i| ((i * 17 + 3) % 29) as f64 * 0.37 - 4.0).collect();
+        let donors: Vec<usize> = (0..n).collect();
+        let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean).unwrap();
+        for k in [1usize, 3, 7] {
+            let mut via_index = vec![0.0; n];
+            idx.kth_distances(&feats, n, k, &mut via_index).unwrap();
+            let mut direct = vec![0.0; n];
+            let mut scratch = Vec::new();
+            MatchingIndex::kth_self_distances(
+                &feats,
+                n,
+                dim,
+                MatchingDistance::Euclidean,
+                k,
+                &mut direct,
+                &mut scratch,
+            )
+            .unwrap();
+            for (q, (a, b)) in via_index.iter().zip(&direct).enumerate() {
+                assert!(a.to_bits() == b.to_bits(), "k={k} query {q}: {a:?} vs {b:?}");
+            }
+        }
     }
 
     #[test]
