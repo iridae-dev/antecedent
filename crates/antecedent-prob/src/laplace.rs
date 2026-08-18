@@ -210,7 +210,9 @@ pub fn fit_laplace_glm(
         Ok(chol) => {
             let cond = condition_from_chol(&chol, ncols);
             workspace.factor[..ncols * ncols].copy_from_slice(&chol);
-            let cov = invert_spd(&hess, ncols)?;
+            // Reuse the factor just computed instead of refactorizing inside
+            // invert_spd (two O(p³/3) Choleskys of the same matrix).
+            let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
             (HessianFactorization::Cholesky, cov, cond)
         }
         Err(_) => {

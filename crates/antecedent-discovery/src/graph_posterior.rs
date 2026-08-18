@@ -22,7 +22,7 @@ use antecedent_graph::algo::is_dag;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
-    all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess,
+    all_chains_moved, max_split_rhat, mcmc_summary,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -719,7 +719,8 @@ pub fn graph_chain_diagnostics(
             }
         }
     }
-    let mut rhat = max_split_rhat(&filtered, n_chains, n_draws, k);
+    let summary = mcmc_summary(&filtered, n_chains, n_draws, k);
+    let mut rhat = summary.max_rhat;
     // If R-hat is infinite due to zero within-chain variance on a disagreeing
     // parameter, fall back to the max finite split-R among params that vary
     // within at least one chain; refuse (Inf) only when every kept param is stuck.
@@ -743,12 +744,7 @@ pub fn graph_chain_diagnostics(
         rhat = if any_finite { finite_max } else { f64::INFINITY };
     }
     let moved = all_chains_moved(&filtered, n_chains, n_draws, k);
-    (
-        rhat,
-        min_bulk_ess(&filtered, n_chains, n_draws, k),
-        min_tail_ess(&filtered, n_chains, n_draws, k),
-        moved,
-    )
+    (rhat, summary.min_bulk_ess, summary.min_tail_ess, moved)
 }
 
 #[cfg(test)]

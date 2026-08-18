@@ -41,6 +41,13 @@ pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
 /// Cholesky failure.
 pub fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
     let chol = cholesky_spd(a, n)?;
+    Ok(invert_spd_from_chol(&chol, n))
+}
+
+/// Inverse from an existing Cholesky factor (skips the redundant O(n³/3)
+/// refactorization when the caller already holds one).
+#[must_use]
+pub fn invert_spd_from_chol(chol: &[f64], n: usize) -> Vec<f64> {
     let mut inv = vec![0.0; n * n];
     let mut eye_col = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -62,7 +69,7 @@ pub fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
             inv[i * n + col] = acc / chol[i * n + i];
         }
     }
-    Ok(inv)
+    inv
 }
 
 /// Solve `A x = b` for SPD `A` via Cholesky; writes into `x`.
