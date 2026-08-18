@@ -88,6 +88,14 @@ is_rate_limited() {
   grep -qiE 'too many requests|rate limit|try again|429' <<<"$1"
 }
 
+is_index_lag() {
+  # A dependent published right after its deps can race crates.io index
+  # propagation: verify resolves `antecedent-* = ^X.Y.Z` before the index
+  # serves it. Same error text as a genuinely absent dep, but in topological
+  # execute order the dep was just uploaded, so retry rather than abort.
+  grep -qiE 'failed to select a version for the requirement `antecedent-|no matching package named `antecedent-' <<<"$1"
+}
+
 if [[ "$MODE" == "dry-run" ]]; then
   echo "Dry-run publish for ${#CRATES[@]} crates (no upload)."
   packaged=0
@@ -162,9 +170,9 @@ for crate in "${CRATES[@]}"; do
       skipped=$((skipped + 1))
       break
     fi
-    if is_rate_limited "$out" && [[ "$attempt" -lt "$MAX_RETRIES" ]]; then
+    if { is_rate_limited "$out" || is_index_lag "$out"; } && [[ "$attempt" -lt "$MAX_RETRIES" ]]; then
       wait=$((SLEEP_SECS * attempt))
-      echo "rate limited (attempt ${attempt}/${MAX_RETRIES}); sleeping ${wait}s…" >&2
+      echo "transient (rate limit or index propagation; attempt ${attempt}/${MAX_RETRIES}); sleeping ${wait}s…" >&2
       sleep "$wait"
       attempt=$((attempt + 1))
       continue

@@ -321,7 +321,10 @@ pub fn trial_to_target_effect(
 /// Weight magnitude above which [`TransportOverlapDiagnostic::extreme_weight_count`] flags a
 /// row. This is a diagnostic threshold meant to draw a reviewer's eye to poor overlap; it is not
 /// an inferential cutoff and does not itself clip, trim, or otherwise change any estimate.
-const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
+/// Weight magnitude above which a transport weight counts as extreme in
+/// diagnostics. A tripwire for reporting, not an inferential cutoff — no
+/// trimming or clipping is applied at this value.
+pub const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
 
 fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnostic {
     TransportOverlapDiagnostic {

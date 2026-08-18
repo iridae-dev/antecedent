@@ -1,4 +1,4 @@
-//! Owned tabular storage implementing [`TableView`](crate::table::TableView).
+//! Owned tabular storage implementing [`TableView`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

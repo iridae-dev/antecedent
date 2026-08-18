@@ -12,7 +12,7 @@ use crate::error::StatsError;
 pub struct KnnDependenceWorkspace {
     /// Built neighbor index generation (bumps only on rebuild).
     pub index_generation: u64,
-    /// Number of times a new [`MatchingIndex`] was constructed.
+    /// Number of times a new [`MatchingIndex`](crate::matching::MatchingIndex) was constructed.
     pub index_builds: u32,
     /// Last built feature dim.
     pub last_dim: usize,

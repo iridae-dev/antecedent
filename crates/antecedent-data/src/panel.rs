@@ -94,7 +94,7 @@ impl PanelData {
     ///
     /// # Errors
     ///
-    /// Propagates [`MultiEnvironmentData::try_new`] failures (should not occur for a
+    /// Propagates [`MultiEnvironmentData::try_new`](crate::MultiEnvironmentData::try_new) failures (should not occur for a
     /// well-formed panel).
     pub fn as_multi_env(&self) -> Result<crate::multi_env::MultiEnvironmentData, DataError> {
         let series: Vec<TimeSeriesData> = self.units.iter().map(|u| u.series.clone()).collect();

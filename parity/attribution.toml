@@ -1,79 +1,105 @@
 # Status: pending | in_progress | done
 
-library = "causal"
+library = "antecedent"
 
 [[capabilities]]
 id = "attribution.shapley"
 status = "done"
+evidence_kind = "internal_known_truth"
 python_facade = "full"
 notes = "Exact + Monte Carlo / permutation Shapley with size limits and MC stderr"
 
 [[capabilities]]
 id = "attribution.coalition_cache"
 status = "done"
+evidence_kind = "implementation_exists"
 python_facade = "thin"
 notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (ExecutionContext; no dedicated Python type)"
 
 [[capabilities]]
 id = "attribution.distribution_change"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/distribution_change_grid"
 python_facade = "full"
 notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley; antecedent.attribution.attribute_distribution_change"
 
 [[capabilities]]
 id = "attribution.distribution_change_robust"
 status = "done"
+evidence_kind = "internal_cross_check"
+limitations = "Agreement is with Antecedent's own distribution_change on deterministic data; no independent truth."
 python_facade = "full"
 notes = "Regression-hybrid robust variant; antecedent.attribution.attribute_distribution_change_robust"
 
 [[capabilities]]
 id = "attribution.mechanism_change_detection"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/mechanism_change_detect"
+limitations = "Qualitative detection truth (which mechanism changed), not a numeric magnitude."
 python_facade = "full"
 notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); antecedent.attribution.mechanism_change_detection"
 
 [[capabilities]]
 id = "attribution.mechanism_change_kernel"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/mechanism_change_kernel_shift"
+limitations = "Qualitative detection truth, not a numeric magnitude."
 notes = "MMD² RBF kernel two-sample on residuals"
 
 [[capabilities]]
 id = "attribution.mechanism_change_change_point"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/mechanism_change_change_point"
+limitations = "Qualitative detection truth, not a numeric magnitude."
 notes = "Known-split Gaussian change-point on concatenated residuals"
 
 [[capabilities]]
 id = "attribution.unit_change"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/mechanism_unit_change"
 python_facade = "full"
 notes = "Per-unit input Shapley vs reference parents; antecedent.attribution.attribute_unit_change"
 
 [[capabilities]]
 id = "attribution.path_decompose"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/path_allocation"
 python_facade = "full"
 notes = "Directed-path product decomposition on DAG; antecedent.attribution.attribute_paths / attribute_path_specific"
 
 [[capabilities]]
 id = "attribution.feature_relevance"
 status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Rank-order assertion only; no numeric target and no fixture."
 python_facade = "full"
 notes = "Interventional do-contrast relevance scores; antecedent.attribution.attribute_feature_relevance"
 
 [[capabilities]]
 id = "attribution.root_cause"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/anomaly_root_cause"
 python_facade = "full"
 notes = "Ranking + optional graph/posterior contribution blocks; antecedent.attribution.rank_root_causes / anomaly_attribution"
 
 [[capabilities]]
 id = "attribution.structure"
 status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/attribution/structure_change_grid"
 python_facade = "full"
 notes = "Dual-graph parent-set Shapley structure_change; antecedent.attribution.attribute_structure_change"
 
 [[capabilities]]
 id = "attribution.facade"
 status = "done"
+evidence_kind = "internal_known_truth"
 python_facade = "full"
 notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python antecedent.attribution + package helpers"

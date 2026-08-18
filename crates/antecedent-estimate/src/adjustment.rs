@@ -535,6 +535,16 @@ impl LinearAdjustmentAte {
                 let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
                 let fit = fit_huber_m(x, n, p, y, &opts, &self.backend, &mut workspace.ols)
                     .map_err(EstimationError::from)?;
+                // An unconverged IRLS run is a snapshot of an unfinished reweighting
+                // sequence, not the M-estimator's fixed point; publishing it — and, via
+                // the `true` below, an analytic SE derived from it — would attach robust-
+                // estimand semantics to a number that has none. Mirrors the GAM backfit
+                // gate in `response.rs::fit_additive`.
+                if !fit.converged {
+                    return Err(EstimationError::unsupported(
+                        "Huber M-estimator did not converge; refuse rather than publish an unfinished fit",
+                    ));
+                }
                 let mut residuals = vec![0.0; n];
                 let mut rss = 0.0;
                 for r in 0..n {

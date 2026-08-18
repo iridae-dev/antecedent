@@ -5,7 +5,91 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — 0.5.0
+## [Unreleased]
+
+No changes yet on top of 0.5.1.
+
+## [0.5.1] — 2026-08-18
+
+Makes the claim→evidence chain machine-checkable, adds the gates that keep
+it honest, and one new opt-in estimator feature. Workspace and Python
+package versions are **0.5.1**.
+
+### Added
+
+- Opt-in per-row response diagnostics (`export_row_diagnostics`): retained-row
+  indices, cross-fitted Kennedy pseudo-outcomes, and grid-major local-WLS
+  influences, with a documented mathematical contract
+  (`docs/causal-responses.md`, "Row-diagnostic export contract") covering
+  centering, the exact SE/band reconstruction identities, layout, row-index
+  semantics, cross-fitting, and stability. Non-finite influences are refused
+  rather than exported.
+- `scripts/gate_metadata_consistency.sh`: cross-file drift gate — package
+  version, artifact format vs `STABLE_FORMAT`, retired library names,
+  duplicate provenance ids, DOI syntax, and oracle-ledger/fixture agreement.
+- `scripts/gate_evidence_reachability.sh`: every conformance fixture must be
+  loaded by an executing test or declared in `conformance/UNEXERCISED.toml`
+  (a two-way, shrink-only ledger); unexercised fixtures cannot back closed
+  oracle rows or unmarked citations; new provenance records must carry
+  `implementation_deviations` (139 legacy records frozen in a shrink-only
+  backlog).
+- Machine-readable `evidence_kind` on every `done` parity capability row
+  (168 rows classified), with `external_oracle`, `known_truth_fixture`, and
+  `limitations`; the schema gate enforces the fixture-authoritative rule for
+  external claims.
+- Consuming contract test for `conformance/estimate/uncertainty_routing`
+  (routing table vs `SandwichKind`, both directions); the fixture was
+  previously recorded but loaded by nothing.
+
+### Fixed
+
+- Python builds pin `profile = "release"` in `[tool.maturin]`. Previously a
+  stale editable install (e.g. after a version bump) was silently rebuilt by
+  the PEP 517/660 backend in Cargo's debug profile — bit-identical estimates
+  at ~50× the wall time. `antecedent._native` now exports
+  `__build_optimized__`, importing a debug-profile extension emits a
+  `RuntimeWarning`, and the pytest suite hard-fails on an unoptimized
+  extension (opt out with `ANTECEDENT_ALLOW_DEBUG_NATIVE=1`) instead of
+  degrading silently.
+- `LinearAdjustmentAte` with `fit_kind = huber` refused on unconverged IRLS
+  instead of publishing the last iterate with an analytic SE.
+- `artifact_migrate` conformance now asserts against the live `STABLE_FORMAT`
+  instead of a second hardcoded copy that had drifted to 0.2.
+- `parity/oracle_closure.toml` realigned to its fixtures' own oracle blocks:
+  14 rows no longer name upstream packages the frozen fixtures never
+  recorded, and 9 `pending-generation` pins were replaced with the real pins
+  the fixtures carry.
+- Two end-to-end tests now read the `path_specific_natural` and
+  `interventional_distribution` fixtures they previously duplicated by hand;
+  the reachability scan is word-boundary matched so identifier-name
+  coincidences no longer count as fixture references.
+- All 40 rustdoc warnings resolved workspace-wide; public `# Errors` docs no
+  longer reference private items, and `EXTREME_WEIGHT_THRESHOLD` is public so
+  the transport diagnostic doc links a real value.
+- Citation metadata split by consumer: Zenodo ingests a new `.zenodo.json`
+  (and ignores `CITATION.cff` when it is present), while `CITATION.cff`
+  carries the CFF-1.2.0-schema-valid license list for GitHub's citation
+  widget and `cffconvert`. Zenodo rejects both the list form and the SPDX
+  OR-expression (zenodo/zenodo#2515), so no single spelling could satisfy
+  every consumer; the metadata gate now checks both files stay present and
+  consistent.
+
+### Changed
+
+- Estimate-manifest evidence honesty: rows whose conformance tests assert the
+  fixture's synthetic `true_effect` (not the recorded DoWhy estimate) are now
+  classified `internal_known_truth` with explicit limitations; only
+  `estimate.linear_regression` (DoWhy, StableFloat) and `estimate.conditional`
+  (statsmodels, atol 2e-9) claim `frozen_external_oracle` in that group.
+- Provenance records for `estimate.aipw` and `estimate.response.kennedy_dr`
+  now carry explicit `implementation_deviations` (no cross-fitting in AIPW;
+  restricted nuisance families, Gaussian plug-in density, Silverman default
+  bandwidth, and deterministic folds in the Kennedy curve).
+- The three recorded general-ID oracles are declared recorded-but-unexercised
+  everywhere they are cited; stale `causal`/`causal-library` identifiers and
+  the "Format 0.1 frozen" / "CI does not run gates" statements corrected.
+
+## [0.5.0] — 2026-08-15
 
 Large causal-response release. Workspace and Python package versions are **0.5.0**.
 

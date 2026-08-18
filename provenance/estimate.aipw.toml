@@ -10,6 +10,19 @@ papers = [
  { title = "Doubly Robust Estimation of Causal Effects", doi = "10.1093/aje/kwq439", sections = ["Doubly robust estimator"] },
 ]
 
+# Derived from the AIPW/Neyman-orthogonal score, NOT the exact estimator analyzed
+# in Chernozhukov et al. (2018). That paper's central device is cross-fitting, and
+# this implementation has none: `aipw.rs` fits the GLM propensity and the OLS
+# outcome regressions on the full sample. (`split_by_treatment` splits by treatment
+# arm, not by fold.) The DML convergence-rate and Donsker-free guarantees therefore
+# do not transfer; the applicable citation for the uncross-fit estimator is Funk et
+# al. (2011). Cross-fitted continuous-treatment work lives in
+# estimate.response.kennedy_dr, which does fold.
+implementation_deviations = [
+ "no cross-fitting: propensity and outcome nuisances are fit on the full sample, so Chernozhukov et al.'s sample-splitting premise is not met and its rate conditions are not inherited",
+ "nuisance families are fixed GLM (propensity) and OLS (outcome), not the arbitrary ML learners the DML analysis admits",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]

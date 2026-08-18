@@ -35,8 +35,19 @@ def allowed(path: Path) -> bool:
     # The allowlist gate itself must mention the pattern.
     if s == "scripts/gate_upstream_names.sh":
         return True
-    # Domain inventories / README may cite baseline pin *paths* only.
-    if s in {"parity/estimate.toml", "parity/discovery.toml", "parity/README.md"}:
+    # Same reason: the metadata-consistency gate checks that the oracle ledger
+    # never names an upstream package its fixture does not record, which requires
+    # holding the list of upstream package names.
+    if s == "scripts/gate_metadata_consistency.sh":
+        return True
+    # Parity manifests carry structured `external_oracle` / `limitations`
+    # fields whose entire purpose is naming the oracle behind a done row (same
+    # category as oracle_closure.toml above). The schema gate enforces that a
+    # named oracle actually appears in the cited fixture, so a stray vendor
+    # name here fails gate_parity_schema.sh rather than passing silently.
+    if s.startswith("parity/") and s.endswith(".toml"):
+        return True
+    if s == "parity/README.md":
         return True
     # Positioning / comparison docs intentionally name upstream libraries.
     if s in {"README.md", "docs/README.md", "docs/comparison.md", "docs/index.md"}:

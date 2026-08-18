@@ -1,4 +1,4 @@
-//! Low-level borrowed views and numerical kernels for causal-library.
+//! Low-level borrowed views and numerical kernels for Antecedent.
 //!
 //! Scalar kernels are the correctness reference. Portable-optimized and
 //! architecture-specific paths must pass the same differential tests

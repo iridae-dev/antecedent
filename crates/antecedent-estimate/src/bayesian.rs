@@ -183,7 +183,7 @@ pub fn hydrate_prior_from_posterior(
 
 /// Bridge from a banked posterior into a target design's coefficient prior.
 ///
-/// Mirrors [`antecedent_io::PriorMapping`] without depending on `antecedent-io` (avoids a
+/// Mirrors `antecedent_io::PriorMapping` without depending on `antecedent-io` (avoids a
 /// cycle). Convert at the facade.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HydrateMapping {

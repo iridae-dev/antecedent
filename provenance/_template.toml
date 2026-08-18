@@ -12,6 +12,23 @@ papers = [
  { title = "Paper title", doi = "10.xxxx/xxxxx", sections = ["Algorithm 1"] },
 ]
 
+# Required whenever the implementation does not reproduce the cited procedure
+# exactly. A citation must not imply theorem inheritance the code has not earned.
+# Distinguish "derived from this construction" from "implements the exact
+# estimator analyzed in this paper", and say which this is.
+#
+# Record every departure a reader would need in order to judge whether the
+# paper's guarantees transfer. Common kinds: cross-fitting present/absent,
+# restricted nuisance model families, bandwidth selection rule, smoother order,
+# variance estimator, bootstrap/refitting behavior, optimization procedure,
+# certified subset rather than the full algorithm.
+#
+# Use `implementation_deviations = []` only when the implementation genuinely
+# reproduces the cited procedure; that is an assertion, not a default.
+implementation_deviations = [
+ # "no cross-fitting; nuisances fit on the full sample (paper's Definition 3.1 assumes sample splitting)",
+]
+
 upstream_implementations_observed = [
  # { project = "tigramite", exposure = "none" | "previous familiarity" | "black-box comparison only" },
 ]

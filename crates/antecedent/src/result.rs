@@ -37,7 +37,8 @@ pub struct StudyResult {
     pub estimate: EffectEstimate,
     /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
     pub response: Option<CausalResponse>,
-    /// Full interventional distribution when the query was [`CausalQuery::Distribution`].
+    /// Full interventional distribution when the query was
+    /// [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution).
     pub distribution: Option<InterventionalDistributionEstimate>,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.
     pub posterior: Option<CausalPosterior>,

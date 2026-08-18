@@ -1326,6 +1326,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     bounds_api::register(m)?;
     artifact_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
+    // Surfaced so the Python package can refuse to stay silent when an
+    // unoptimized extension sneaks in: a stale editable install rebuilt through
+    // PEP 517/660 defaults to Cargo's debug profile, which keeps every estimate
+    // bit-identical while making analyze_ate ~50x slower.
+    m.add("__build_optimized__", !cfg!(debug_assertions))?;
     Ok(())
 }
 

@@ -367,7 +367,7 @@ fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: u
     (lmask >> b) & 1 == 1
 }
 
-/// Build a [`TemporalDag`] from contemporaneous + lag masks (DBN template atom).
+/// Build a [`TemporalDag`](antecedent_graph::TemporalDag) from contemporaneous + lag masks (DBN template atom).
 ///
 /// Contemporaneous edges use lag 0 → lag 0; lag-`ℓ` edges use source lag `ℓ`
 /// into contemporaneous targets.

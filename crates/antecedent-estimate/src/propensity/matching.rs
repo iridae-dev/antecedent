@@ -209,7 +209,7 @@ impl PropensityMatching {
     ///
     /// # Errors
     ///
-    /// See [`PropensityWeighting::prepare`].
+    /// See [`PropensityWeighting::prepare`](crate::propensity::PropensityWeighting::prepare).
     pub fn prepare(
         &self,
         data: &TabularData,

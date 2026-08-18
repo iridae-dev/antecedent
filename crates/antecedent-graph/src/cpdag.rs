@@ -1,8 +1,8 @@
 //! Static CPDAG and temporal CPDAG.
 //!
-//! Undirected marks use [`Endpoint::Tail`]–[`Endpoint::Tail`].
-//! Orientation conflicts use [`Endpoint::Conflict`]–[`Endpoint::Conflict`] (`x-x`).
-//! [`Endpoint::Circle`] is rejected (reserved for PAG/LPCMCI).
+//! Undirected marks use [`Endpoint::Tail`](crate::Endpoint::Tail)–tail.
+//! Orientation conflicts use [`Endpoint::Conflict`](crate::Endpoint::Conflict)–conflict (`x-x`).
+//! [`Endpoint::Circle`](crate::Endpoint::Circle) is rejected (reserved for PAG/LPCMCI).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -585,7 +585,7 @@ impl TemporalCpdag {
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
 
-    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`](crate::Endpoint::Conflict) on both ends).
     ///
     /// # Errors
     ///

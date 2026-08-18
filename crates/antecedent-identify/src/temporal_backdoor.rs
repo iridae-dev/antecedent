@@ -1,6 +1,6 @@
 //! Temporal identification over finite unfolded graphs.
 //!
-//! **Pulse:** a stationary [`TemporalDag`] is unfolded to a static [`Dag`], then
+//! **Pulse:** a stationary [`TemporalDag`] is unfolded to a static [`Dag`](antecedent_graph::Dag), then
 //! [`BackdoorIdentifier`] runs on the treatment/outcome nodes.
 //!
 //! **Sustained:** the same unfolding covers the sustained window; identification
