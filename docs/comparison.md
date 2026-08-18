@@ -130,9 +130,10 @@ estimand.
 If your question is a flexible ML dose–response under assumed unconfoundedness,
 Kennedy-style tooling or EconML may still be a better fit for the *estimator*.
 If your question is whether a demand curve, elasticity, or transported response
-is identified from a graph — and what happens when support is weak or the
-structure is incomplete — Antecedent is the engine that keeps those judgments
-from collapsing into one number.
+is identified from a graph — and what happens when support is weak — Antecedent
+is the engine that keeps those judgments from collapsing into one number.
+Incomplete-graph (PAG) response cells are not licensed; see the
+[support matrix](support-matrix.md).
 
 ## When to use each
 

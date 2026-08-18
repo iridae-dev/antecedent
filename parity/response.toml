@@ -5,9 +5,12 @@
 
 [[capabilities]]
 id = "identify.response"
-status = "pending"
+status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/response/two_point_curve_average_effect"
+limitations = "Single well-specified linear DGP; identification is exercised only as the staged ResponseCurve path that shares this fixture with estimate.response.kennedy_dr. Conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. Does not demonstrate DoWhy adjustment-set/formula parity or ehkennedy identification parity."
 python_facade = "thin"
-notes = "Candidate oracle: the baseline pinned in parity/baselines/dowhy.toml for back-door adjustment-set/formula cases. Response-estimand preservation still needs a dedicated frozen fixture."
+notes = "Staged ResponseCurve identification, same frozen fixture as estimate.response.kennedy_dr: conformance/response/two_point_curve_average_effect compares the two-point ResponseCurve contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. DoWhy (parity/baselines/dowhy.toml) remains an unclaimed candidate; no external identification oracle is pinned."
 
 [[capabilities]]
 id = "estimate.response.kennedy_dr"
@@ -17,24 +20,6 @@ known_truth_fixture = "conformance/response/two_point_curve_average_effect"
 limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested)."
 python_facade = "full"
 notes = "Claimed shared-linear-contract conformance: frozen fixture conformance/response/two_point_curve_average_effect compares ResponseCurve(kennedy_dr) two-point contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. External ehkennedy/npcausal::ctseff remains an unclaimed candidate (nuisance/bandwidth contract not pinned)."
-
-[[capabilities]]
-id = "estimate.response.riesz_ade"
-status = "pending"
-python_facade = "thin"
-notes = "Candidate oracle: the paper-author alse repository. No immutable commit or frozen output is recorded yet."
-
-[[capabilities]]
-id = "estimate.response.gam_derivative"
-status = "pending"
-python_facade = "thin"
-notes = "Candidates: mgcv and pyGAM on a fixed additive surface. Basis, penalty, and finite-difference contracts must be aligned before selecting and pinning an oracle."
-
-[[capabilities]]
-id = "stats.response.local_polynomial"
-status = "pending"
-python_facade = "thin"
-notes = "Candidate oracle: an independently configured R local-polynomial implementation. Kernel, polynomial order, bandwidth, and plug-in uncertainty semantics require an exact contract first."
 
 [[capabilities]]
 id = "identify.binary_iv_bounds"
