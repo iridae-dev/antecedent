@@ -133,8 +133,9 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let CausalQuery::AverageEffect(query) = &self.analysis.query else {
-            return Err(CausalError::Unsupported {
-                message: "PreparedStudy::refute requires AverageEffect",
+            return Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "PreparedStudy::refute is licensed for AverageEffect only",
             });
         };
         if prior.treatment != query.treatment || prior.outcome != query.outcome {

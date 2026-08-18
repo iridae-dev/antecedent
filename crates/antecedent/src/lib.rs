@@ -91,7 +91,9 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::StudyResult;
-pub use support::{CellStatus, StructureSource, SupportCell, SupportRefusal, classify};
+pub use support::{
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
+};
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,
 // `antecedent::gcm`, `antecedent::io`, `antecedent::design`, `antecedent::state`, `antecedent::graph`,

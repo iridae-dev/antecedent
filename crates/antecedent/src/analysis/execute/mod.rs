@@ -102,6 +102,8 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
+    /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
+    pub(crate) structure_source: crate::support::StructureSource,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
     pub(crate) bootstrap_replicates: u32,
@@ -131,6 +133,7 @@ impl std::fmt::Debug for Study {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("graph_posterior", &self.graph_posterior)
+            .field("structure_source", &self.structure_source)
             .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
