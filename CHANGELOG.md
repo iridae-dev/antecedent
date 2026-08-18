@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-08-18
+
+Performance pass plus a localized correctness audit. Workspace and Python
+package versions are **0.5.2**.
+
 ### Performance / quality
 
 - **Prepared estimates identify once.** `Study::prepare` now runs static
