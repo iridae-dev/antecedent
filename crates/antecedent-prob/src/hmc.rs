@@ -766,6 +766,7 @@ fn neg_log_posterior_grad(
         &mut workspace.eta[..nrows],
         &mut workspace.work_w[..nrows],
         1.0,
+        false,
     )?;
     for i in 0..ncols {
         let diff = beta[i] - coef_prior.mean[i];

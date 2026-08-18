@@ -102,6 +102,7 @@ pub fn fit_laplace_glm(
             &mut workspace.eta[..nrows],
             &mut workspace.work_w[..nrows],
             1.0,
+            true,
         )?;
 
         // Add prior: log π(β) = -0.5 Σ prec_i (β_i - μ_i)²
@@ -189,6 +190,7 @@ pub fn fit_laplace_glm(
         &mut workspace.eta[..nrows],
         &mut workspace.work_w[..nrows],
         1.0,
+        true,
     )?;
     for i in 0..ncols {
         let diff = workspace.beta[i] - coef_prior.mean[i];
@@ -1110,6 +1112,7 @@ mod tests {
             &mut eta,
             &mut work_w,
             1.0,
+            true,
         )
         .unwrap();
         for i in 0..2 {
@@ -1211,6 +1214,7 @@ mod tests {
             &mut eta,
             &mut work_w,
             1.0,
+            true,
         )
         .unwrap();
         for i in 0..2 {
