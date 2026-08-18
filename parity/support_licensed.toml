@@ -88,3 +88,25 @@ staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
 limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."

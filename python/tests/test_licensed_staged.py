@@ -38,17 +38,22 @@ _CURVE_DATA = _curve_table()
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
 
 
+_BAYES = antecedent.Bayesian(backend="conjugate", n_draws=64)
+
+
 @pytest.mark.parametrize(
-    "data, graph, query, refute",
+    "data, graph, query, refute, inference",
     [
-        (_ATE_DATA, _DAG, _ATE, False),
-        (_ATE_DATA, _DAG, _ATE, "cheap"),
-        (_ATE_DATA, _DAG, _ATE, "full"),
-        (_ATE_DATA, _ACCEPTED, _ATE, False),
-        (_ATE_DATA, _ACCEPTED, _ATE, "cheap"),
-        (_ATE_DATA, _ACCEPTED, _ATE, "full"),
-        (_CURVE_DATA, _EDGES, _CURVE, False),
-        (_CURVE_DATA, _ACCEPTED, _CURVE, False),
+        (_ATE_DATA, _DAG, _ATE, False, None),
+        (_ATE_DATA, _DAG, _ATE, "cheap", None),
+        (_ATE_DATA, _DAG, _ATE, "full", None),
+        (_ATE_DATA, _ACCEPTED, _ATE, False, None),
+        (_ATE_DATA, _ACCEPTED, _ATE, "cheap", None),
+        (_ATE_DATA, _ACCEPTED, _ATE, "full", None),
+        (_ATE_DATA, _DAG, _ATE, False, _BAYES),
+        (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
+        (_CURVE_DATA, _EDGES, _CURVE, False, None),
+        (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
     ],
     ids=[
         "ate_explicit_none",
@@ -57,16 +62,30 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
         "ate_accepted_none",
         "ate_accepted_cheap",
         "ate_accepted_full",
+        "ate_explicit_bayesian_none",
+        "ate_accepted_bayesian_none",
         "curve_explicit_none",
         "curve_accepted_none",
     ],
 )
-def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute):
+def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, inference):
     fresh = antecedent.analyze(
-        data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1
+        data,
+        graph=graph,
+        query=query,
+        refute=refute,
+        bootstrap=0,
+        seed=1,
+        inference=inference,
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data, graph=graph, query=query, refute=refute, seed=1, latency="interactive"
+        data,
+        graph=graph,
+        query=query,
+        refute=refute,
+        seed=1,
+        latency="interactive",
+        inference=inference,
     )
     if isinstance(graph, antecedent.AcceptedGraph) and hasattr(prepared, "structure_source"):
         assert prepared.structure_source == "accepted"
