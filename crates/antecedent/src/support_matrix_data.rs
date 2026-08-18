@@ -202,4 +202,18 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "none",
     },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "accepted",
+        inference: "Bayesian",
+        validation: "none",
+    },
 ];
