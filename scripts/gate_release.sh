@@ -199,6 +199,10 @@ required_baselines = [
     "design_state.md",
     "response_interference.md",
     "laplace_glm.md",
+    "hmc.md",
+    "mcmc_stats.md",
+    "sample_overlay.md",
+    "counterfactual_batch.md",
     "posterior_functional.md",
 ]
 for name in required_baselines:
