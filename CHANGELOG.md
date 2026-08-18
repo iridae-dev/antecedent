@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Criterion smokes (workspace reuse; HMC `--test` is not a publication gate).
   Linear-Gaussian counterfactual predict now exercises `unit_rows`. GCM
   interventional sampling has a baseline doc.
+- **Hot-path baseline metadata gate.** `scripts/gate_hot_path_baselines.sh`
+  (via `gate_release.sh`) checks every `hot_paths.md` Baseline link exists
+  and records a wall-time or an explicit waiver. `GATE_CRITERION_MEANS=1`
+  optionally compares local Criterion means; CI does not enforce M1 numbers.
 
 ### Correctness — localized audit
 

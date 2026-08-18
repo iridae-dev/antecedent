@@ -28,6 +28,9 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
+echo "== hot-path baseline metadata =="
+bash scripts/gate_hot_path_baselines.sh
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 

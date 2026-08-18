@@ -9,3 +9,5 @@ Sparse and stress criterion benches (run with `--test` in `gate_pag.sh`):
 
 These establish local regression baselines for exit criteria; absolute
 timings are machine-dependent.
+
+Numeric wall-time gate: none published (`--test` smoke only).
