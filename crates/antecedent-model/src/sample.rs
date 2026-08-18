@@ -37,6 +37,26 @@ pub fn sample_observational(
     sample_with_overlay(&view, n_rows, rng, ws)
 }
 
+/// Sample observational draws into a caller-owned column-major buffer.
+///
+/// `values` must be at least `n_rows * n_nodes`. The buffer is overwritten,
+/// not grown; coalition loops can reuse one allocation across masks.
+///
+/// # Errors
+///
+/// Unfitted mechanisms, `n_rows == 0`, or a short buffer.
+pub fn sample_observational_into(
+    model: &CompiledCausalModel,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    values: &mut [f64],
+    _ctx: &ExecutionContext,
+) -> Result<(), ModelError> {
+    let view = ModelView::observational(model);
+    sample_with_overlay_into(&view, n_rows, rng, ws, values)
+}
+
 /// Sample under interventions (compiled to an overlay; model is not cloned).
 ///
 /// # Errors
@@ -67,6 +87,24 @@ pub fn sample_with_overlay(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<ValueBatch, ModelError> {
+    let n_nodes = view.model.n_nodes();
+    let mut values_buf = vec![0.0; n_rows.saturating_mul(n_nodes)];
+    sample_with_overlay_into(view, n_rows, rng, ws, &mut values_buf)?;
+    Ok(ValueBatch { n_rows, n_nodes, values: std::sync::Arc::from(values_buf) })
+}
+
+/// Ancestral sample into a caller-owned column-major buffer.
+///
+/// # Errors
+///
+/// Shape, overlay, or mechanism failures.
+pub fn sample_with_overlay_into(
+    view: &ModelView<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    values: &mut [f64],
+) -> Result<(), ModelError> {
     if n_rows == 0 {
         return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
     }
@@ -76,8 +114,7 @@ pub fn sample_with_overlay(
     view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
-    let mut values_buf = vec![0.0; n_rows * n_nodes];
-    let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
+    let mut values = ValueBatchMut::new(n_rows, n_nodes, values)?;
     let overlay = view.overlay.as_ref();
 
     // Gather target hoisted out of the node loop (grow-only) so the parent
@@ -124,7 +161,7 @@ pub fn sample_with_overlay(
         apply_shift(out, overlay.shifts[idx]);
     }
 
-    Ok(values.into_batch())
+    Ok(())
 }
 
 /// Soft overrides must share noise semantics with the fitted mechanism. Reusing a
@@ -801,5 +838,23 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ModelError::Unsupported { .. }), "expected Unsupported, got {err:?}");
+    }
+
+    #[test]
+    fn observational_into_matches_allocating_sample() {
+        let model = fitted_chain();
+        let ctx = ExecutionContext::for_tests(1);
+        let n_rows = 16usize;
+        let n_nodes = model.n_nodes();
+        let mut rng_a = CausalRng::from_seed(7);
+        let mut rng_b = CausalRng::from_seed(7);
+        let mut ws_a = MechanismWorkspace::default();
+        let mut ws_b = MechanismWorkspace::default();
+        let batch = sample_observational(&model, n_rows, &mut rng_a, &mut ws_a, &ctx).unwrap();
+        let mut buf = vec![0.0; n_rows * n_nodes];
+        sample_observational_into(&model, n_rows, &mut rng_b, &mut ws_b, &mut buf, &ctx).unwrap();
+        assert_eq!(&*batch.values, buf.as_slice());
+        sample_observational_into(&model, n_rows, &mut rng_b, &mut ws_b, &mut buf, &ctx).unwrap();
+        assert_eq!(buf.len(), n_rows * n_nodes);
     }
 }

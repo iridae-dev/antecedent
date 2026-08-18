@@ -16,7 +16,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, SelectionPolicy, sample_observational,
+    MechanismWorkspace, SelectionPolicy, sample_observational_into,
 };
 use antecedent_stats::mean_var;
 
@@ -120,6 +120,7 @@ pub fn distribution_change(
         seed: options.seed,
         ctx,
         ws: MechanismWorkspace::default(),
+        values_buf: Vec::new(),
         baseline_law: None,
     };
 
@@ -270,6 +271,8 @@ struct MechanismSwapPayoff<'a> {
     seed: u64,
     ctx: &'a ExecutionContext,
     ws: MechanismWorkspace,
+    /// Reused ancestral-sample buffer (`n_samples × n_nodes`).
+    values_buf: Vec<f64>,
     /// Cached `(μ₀, σ₀²)` of the all-baseline outcome law for KL payoffs.
     baseline_law: Option<(f64, f64)>,
 }
@@ -332,9 +335,22 @@ impl MechanismSwapPayoff<'_> {
 
         let model = self.template.clone().with_mechanisms(store);
         let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-        let batch =
-            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
-        let col = batch.column(self.outcome.as_usize())?;
+        let n_rows = self.n_samples.max(1);
+        let n_nodes = model.n_nodes();
+        let need = n_rows.saturating_mul(n_nodes);
+        if self.values_buf.len() < need {
+            self.values_buf.resize(need, 0.0);
+        }
+        sample_observational_into(
+            &model,
+            n_rows,
+            &mut rng,
+            &mut self.ws,
+            &mut self.values_buf[..need],
+            self.ctx,
+        )?;
+        let start = self.outcome.as_usize() * n_rows;
+        let col = &self.values_buf[start..start + n_rows];
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
     }
