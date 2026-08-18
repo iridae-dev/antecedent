@@ -25,7 +25,7 @@ reason = "ResponseCurve is licensed only on a Dag."
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 structures = ["graph_posterior", "accepted"]
-reason = "Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet."
+reason = "Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged."
 
 [[closed]]
 queries = ["MediationEffect"]

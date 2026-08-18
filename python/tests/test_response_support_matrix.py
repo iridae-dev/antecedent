@@ -118,3 +118,35 @@ def test_accepted_graph_analyze_response_curve_threads_accepted(monkeypatch):
     result = antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
     assert captured["accepted"] is False
     assert result.response is not None
+
+
+def test_path_distribution_literals_match_support_closed_toml():
+    """The three hand-rolled path/distribution refusals in `_analyze.py` must not drift.
+
+    They fire as routing gates (discovery= and accepted-structure pre-checks)
+    before the native support-matrix consultation, so they cannot be derived
+    from the TOML across the language boundary. Pin source text against the
+    TOML reason so either side changing alone fails loudly.
+    """
+    import inspect
+
+    import antecedent._analyze as _analyze
+
+    rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
+    matches = [
+        rule
+        for rule in rules
+        if set(rule.get("queries", []))
+        == {"PathSpecificEffect", "InterventionalDistribution"}
+    ]
+    assert len(matches) == 1, matches
+    reason = matches[0]["reason"]
+    source = inspect.getsource(_analyze)
+    # The literal is wrapped across two adjacent string fragments; normalize.
+    collapsed = source.replace('"\n            "', "")
+    count = collapsed.count(f"refused: {reason}")
+    assert count >= 3, (
+        f"expected the TOML reason to appear at the three hand-rolled sites; "
+        f"found {count}: {reason!r}"
+    )
+

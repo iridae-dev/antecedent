@@ -720,7 +720,7 @@ def handle_distribution(
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells, and those cells are not staged yet."
+            "Dag cells; accepted and graph-posterior structures are not staged."
         )
     else:
         edges = _static_edges(graph)
@@ -758,7 +758,7 @@ def handle_path_specific(
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells, and those cells are not staged yet."
+            "Dag cells; accepted and graph-posterior structures are not staged."
         )
     else:
         edges = _static_edges(graph)
@@ -1740,7 +1740,7 @@ def analyze(
     if structure_accepted and kind in {"path_specific", "distribution"}:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells, and those cells are not staged yet."
+            "Dag cells; accepted and graph-posterior structures are not staged."
         )
 
     if kind and kind in _KIND_HANDLER_KEYS:

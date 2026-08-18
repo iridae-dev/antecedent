@@ -15,7 +15,7 @@ _REASON_DERIVATIVE = (
 _REASON_RESPONSE_PAG = "refused: ResponseCurve is licensed only on a Dag."
 _REASON_PATH_DIST = (
     "refused: Path and distribution queries are licensed only as explicit "
-    "Dag cells, and those cells are not staged yet."
+    "Dag cells; accepted and graph-posterior structures are not staged."
 )
 _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
