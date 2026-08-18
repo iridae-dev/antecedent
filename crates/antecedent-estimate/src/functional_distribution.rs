@@ -92,8 +92,10 @@ impl FunctionalDistributionWorkspace {
 pub struct PreparedFunctionalDistribution {
     /// Identified estimand (`GeneralId` / IDC).
     pub estimand: IdentifiedEstimand,
-    /// Expression arena owning the functional.
-    pub arena: CausalExprArena,
+    /// Expression arena owning the functional. Shared (never mutated after
+    /// `prepare`), so per-replicate bootstrap clones of the prepared object
+    /// stay cheap instead of deep-copying the arena.
+    pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator for the functional root.
     pub compiled: CompiledEvaluator,
     /// Empirical CPT provider built from data.
@@ -216,7 +218,7 @@ impl FunctionalDistribution {
 
         Ok(PreparedFunctionalDistribution {
             estimand: estimand.clone(),
-            arena: arena.clone(),
+            arena: Arc::new(arena.clone()),
             compiled,
             provider,
             outcomes: Arc::clone(&query.outcomes),
@@ -389,8 +391,9 @@ impl FunctionalDistribution {
 pub struct PreparedFunctionalEffect {
     /// Identified estimand.
     pub estimand: IdentifiedEstimand,
-    /// Arena owning the functional.
-    pub arena: CausalExprArena,
+    /// Arena owning the functional. Shared (never mutated after `prepare`);
+    /// see [`PreparedFunctionalDistribution::arena`].
+    pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator.
     pub compiled: CompiledEvaluator,
     /// Empirical CPT provider.
@@ -471,7 +474,7 @@ impl FunctionalEffect {
         let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
         Ok(PreparedFunctionalEffect {
             estimand: estimand.clone(),
-            arena: arena.clone(),
+            arena: Arc::new(arena.clone()),
             compiled,
             provider,
             assumptions,

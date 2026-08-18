@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::VariableId;
+use antecedent_core::{Value, VariableId};
 
 use crate::provider::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
 use crate::{
@@ -52,6 +52,10 @@ enum EvalOp {
 #[derive(Clone, Debug)]
 pub struct CompiledEvaluator {
     ops: Vec<EvalOp>,
+    /// Sorted, deduplicated free variables per slot. A static property of the
+    /// plan, computed once at compile time; `Expectation` evaluation reads it
+    /// on every call instead of re-deriving it per evaluation.
+    free_vars: Vec<Arc<[VariableId]>>,
     root: usize,
 }
 
@@ -73,7 +77,8 @@ impl CompiledEvaluator {
         let mut ops = Vec::new();
         let mut expr_to_slot = HashMap::new();
         let root_slot = compile_rec(arena, root, &mut ops, &mut expr_to_slot)?;
-        Ok(Self { ops, root: root_slot })
+        let free_vars = compute_free_vars(&ops, arena);
+        Ok(Self { ops, free_vars, root: root_slot })
     }
 
     /// Evaluate once against a provider.
@@ -102,7 +107,12 @@ impl CompiledEvaluator {
         ctx: &EvalContext,
         env: &Assignment,
     ) -> Result<f64, EvalError> {
-        self.eval_slot(arena, provider, ctx, env, self.root)
+        // One clone per evaluation: `eval_slot` threads a single mutable
+        // scratch assignment through the whole plan, with each scope binding
+        // and restoring its own variables (see `with_scoped_bindings`) rather
+        // than cloning the assignment per support row.
+        let mut scratch = env.clone();
+        self.eval_slot(arena, provider, ctx, &mut scratch, self.root)
     }
 
     /// Evaluate over all posterior draws (`provider.n_draws()`), or a single
@@ -134,7 +144,7 @@ impl CompiledEvaluator {
         arena: &CausalExprArena,
         provider: &dyn DistributionProvider,
         ctx: &EvalContext,
-        env: &Assignment,
+        env: &mut Assignment,
         slot: usize,
     ) -> Result<f64, EvalError> {
         // Density / scalar under `env`. Expectations and contrasts are scalars;
@@ -147,12 +157,14 @@ impl CompiledEvaluator {
                     intervention: arena.intervention_assignments(*intervention),
                     domain: *domain,
                 };
-                // Interventions bind targets; merge into lookup assignment.
-                let mut lookup = env.clone();
-                for a in spec.intervention {
-                    lookup.set(a.variable, a.value.clone());
-                }
-                provider.probability(&spec, &lookup, ctx)
+                // Interventions bind targets; bind them into the shared
+                // scratch assignment for the lookup, restored on exit.
+                with_scoped_bindings(env, spec.intervention.iter().map(|a| a.variable), |env| {
+                    for a in spec.intervention {
+                        env.set(a.variable, a.value.clone());
+                    }
+                    provider.probability(&spec, env, ctx)
+                })
             }
             EvalOp::Product { children } => {
                 let mut prod = 1.0;
@@ -193,24 +205,28 @@ impl CompiledEvaluator {
         arena: &CausalExprArena,
         provider: &dyn DistributionProvider,
         ctx: &EvalContext,
-        env: &Assignment,
+        env: &mut Assignment,
         variables: VarSetId,
         body: usize,
     ) -> Result<f64, EvalError> {
         let vars = arena.var_set(variables);
         let rows = provider.support(vars, ctx)?;
-        let mut sum = 0.0;
-        for row in rows.iter() {
-            if row.len() != vars.len() {
-                return Err(EvalError::SupportShape { expected: vars.len(), actual: row.len() });
+        with_scoped_bindings(env, vars.iter().copied(), |env| {
+            let mut sum = 0.0;
+            for row in rows.iter() {
+                if row.len() != vars.len() {
+                    return Err(EvalError::SupportShape {
+                        expected: vars.len(),
+                        actual: row.len(),
+                    });
+                }
+                for (i, &v) in vars.iter().enumerate() {
+                    env.set(v, row[i].clone());
+                }
+                sum += self.eval_slot(arena, provider, ctx, env, body)?;
             }
-            let mut extended = env.clone();
-            for (i, &v) in vars.iter().enumerate() {
-                extended.set(v, row[i].clone());
-            }
-            sum += self.eval_slot(arena, provider, ctx, &extended, body)?;
-        }
-        Ok(sum)
+            Ok(sum)
+        })
     }
 
     fn eval_integral_out(
@@ -218,45 +234,50 @@ impl CompiledEvaluator {
         arena: &CausalExprArena,
         provider: &dyn DistributionProvider,
         ctx: &EvalContext,
-        env: &Assignment,
+        env: &mut Assignment,
         variables: VarSetId,
         body: usize,
     ) -> Result<f64, EvalError> {
         let vars = arena.var_set(variables);
         if let Some(nodes) = provider.quadrature(vars, ctx)? {
-            let mut acc = 0.0;
-            for (row, weight) in nodes.iter() {
-                if row.len() != vars.len() {
-                    return Err(EvalError::SupportShape {
-                        expected: vars.len(),
-                        actual: row.len(),
-                    });
+            return with_scoped_bindings(env, vars.iter().copied(), |env| {
+                let mut acc = 0.0;
+                for (row, weight) in nodes.iter() {
+                    if row.len() != vars.len() {
+                        return Err(EvalError::SupportShape {
+                            expected: vars.len(),
+                            actual: row.len(),
+                        });
+                    }
+                    for (i, &v) in vars.iter().enumerate() {
+                        env.set(v, row[i].clone());
+                    }
+                    acc += *weight * self.eval_slot(arena, provider, ctx, env, body)?;
                 }
-                let mut extended = env.clone();
-                for (i, &v) in vars.iter().enumerate() {
-                    extended.set(v, row[i].clone());
-                }
-                acc += *weight * self.eval_slot(arena, provider, ctx, &extended, body)?;
-            }
-            return Ok(acc);
+                Ok(acc)
+            });
         }
         // Discrete / counting-measure fallback (IntegralOut ≡ SumOut).
         let rows = provider.support(vars, ctx).map_err(|e| match e {
             EvalError::EmptySupport(_) => EvalError::UnsupportedIntegralOut,
             other => other,
         })?;
-        let mut sum = 0.0;
-        for row in rows.iter() {
-            if row.len() != vars.len() {
-                return Err(EvalError::SupportShape { expected: vars.len(), actual: row.len() });
+        with_scoped_bindings(env, vars.iter().copied(), |env| {
+            let mut sum = 0.0;
+            for row in rows.iter() {
+                if row.len() != vars.len() {
+                    return Err(EvalError::SupportShape {
+                        expected: vars.len(),
+                        actual: row.len(),
+                    });
+                }
+                for (i, &v) in vars.iter().enumerate() {
+                    env.set(v, row[i].clone());
+                }
+                sum += self.eval_slot(arena, provider, ctx, env, body)?;
             }
-            let mut extended = env.clone();
-            for (i, &v) in vars.iter().enumerate() {
-                extended.set(v, row[i].clone());
-            }
-            sum += self.eval_slot(arena, provider, ctx, &extended, body)?;
-        }
-        Ok(sum)
+            Ok(sum)
+        })
     }
 
     fn eval_expectation(
@@ -264,14 +285,16 @@ impl CompiledEvaluator {
         arena: &CausalExprArena,
         provider: &dyn DistributionProvider,
         ctx: &EvalContext,
-        env: &Assignment,
+        env: &mut Assignment,
         outcome_var: VariableId,
         distribution: usize,
     ) -> Result<f64, EvalError> {
         // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
-        let free = free_vars_of_slot(self, arena, distribution);
-        let unbound: Vec<VariableId> = free.into_iter().filter(|v| env.get(*v).is_none()).collect();
-        let mut enum_vars = unbound;
+        // Free variables per slot are precomputed at compile time; only the
+        // env-dependent filtering happens per evaluation.
+        let free = &self.free_vars[distribution];
+        let mut enum_vars: Vec<VariableId> =
+            free.iter().copied().filter(|v| env.get(*v).is_none()).collect();
         if !enum_vars.contains(&outcome_var) && env.get(outcome_var).is_none() {
             enum_vars.push(outcome_var);
         }
@@ -285,24 +308,53 @@ impl CompiledEvaluator {
         }
 
         let rows = provider.support(&enum_vars, ctx)?;
-        let mut acc = 0.0;
-        for row in rows.iter() {
-            if row.len() != enum_vars.len() {
-                return Err(EvalError::SupportShape {
-                    expected: enum_vars.len(),
-                    actual: row.len(),
-                });
+        with_scoped_bindings(env, enum_vars.iter().copied(), |env| {
+            let mut acc = 0.0;
+            for row in rows.iter() {
+                if row.len() != enum_vars.len() {
+                    return Err(EvalError::SupportShape {
+                        expected: enum_vars.len(),
+                        actual: row.len(),
+                    });
+                }
+                for (i, &v) in enum_vars.iter().enumerate() {
+                    env.set(v, row[i].clone());
+                }
+                let dens = self.eval_slot(arena, provider, ctx, env, distribution)?;
+                let y = provider.outcome(outcome_var, env, ctx)?;
+                acc += y * dens;
             }
-            let mut extended = env.clone();
-            for (i, &v) in enum_vars.iter().enumerate() {
-                extended.set(v, row[i].clone());
-            }
-            let dens = self.eval_slot(arena, provider, ctx, &extended, distribution)?;
-            let y = provider.outcome(outcome_var, &extended, ctx)?;
-            acc += y * dens;
-        }
-        Ok(acc)
+            Ok(acc)
+        })
     }
+}
+
+/// Run `f` against the shared scratch assignment, then restore any prior
+/// bindings of `vars` (removing bindings that did not exist before).
+///
+/// Evaluation bindings are strictly stack-scoped — sum/integral/expectation
+/// rows and intervention targets shadow outer bindings only for the duration
+/// of the nested evaluation — so saving and restoring just those variables is
+/// observationally identical to the previous clone-per-row scheme, without the
+/// per-row `Assignment` clone. Restoration also runs on the error path so a
+/// failed inner evaluation leaves the scratch assignment as it found it.
+fn with_scoped_bindings<T>(
+    env: &mut Assignment,
+    vars: impl IntoIterator<Item = VariableId>,
+    f: impl FnOnce(&mut Assignment) -> Result<T, EvalError>,
+) -> Result<T, EvalError> {
+    let saved: Vec<(VariableId, Option<Value>)> =
+        vars.into_iter().map(|v| (v, env.get(v).cloned())).collect();
+    let result = f(env);
+    for (v, prev) in saved {
+        match prev {
+            Some(value) => env.set(v, value),
+            None => {
+                env.remove(v);
+            }
+        }
+    }
+    result
 }
 
 fn compile_rec(
@@ -354,63 +406,52 @@ fn compile_rec(
     Ok(slot)
 }
 
-fn free_vars_of_slot(
-    compiled: &CompiledEvaluator,
-    arena: &CausalExprArena,
-    slot: usize,
-) -> Vec<VariableId> {
-    let mut out = Vec::new();
-    free_vars_rec(compiled, arena, slot, &mut out);
-    out.sort_by_key(|v| v.raw());
-    out.dedup();
-    out
-}
-
-fn free_vars_rec(
-    compiled: &CompiledEvaluator,
-    arena: &CausalExprArena,
-    slot: usize,
-    out: &mut Vec<VariableId>,
-) {
-    match &compiled.ops[slot] {
-        EvalOp::Distribution { variables, conditioned_on, intervention, .. } => {
-            out.extend_from_slice(arena.var_set(*variables));
-            let bound: Vec<VariableId> =
-                arena.intervention_assignments(*intervention).iter().map(|a| a.variable).collect();
-            for &v in arena.var_set(*conditioned_on) {
-                if !bound.iter().any(|b| *b == v) {
-                    out.push(v);
+/// Per-slot free variables (sorted, deduplicated), computed once per compile.
+///
+/// Slots are emitted post-order by `compile_rec`, so every child index is
+/// smaller than its parent's and a single forward pass suffices.
+///
+/// The `Distribution` arm must agree with `simplify::free_vars` (see the
+/// comment there): `conditioned_on` variables bound by the accompanying
+/// `intervention` set are do(·)-fixed, not free.
+fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[VariableId]>> {
+    let mut out: Vec<Arc<[VariableId]>> = Vec::with_capacity(ops.len());
+    for op in ops {
+        let mut vars: Vec<VariableId> = match op {
+            EvalOp::Distribution { variables, conditioned_on, intervention, .. } => {
+                let mut vars = arena.var_set(*variables).to_vec();
+                let bound = arena.intervention_assignments(*intervention);
+                for &v in arena.var_set(*conditioned_on) {
+                    if !bound.iter().any(|a| a.variable == v) {
+                        vars.push(v);
+                    }
                 }
+                vars
             }
-        }
-        EvalOp::Product { children } => {
-            for &c in children.iter() {
-                free_vars_rec(compiled, arena, c, out);
+            EvalOp::Product { children } => {
+                children.iter().flat_map(|&c| out[c].iter().copied()).collect()
             }
-        }
-        EvalOp::SumOut { variables, body } | EvalOp::IntegralOut { variables, body } => {
-            let mut inner = Vec::new();
-            free_vars_rec(compiled, arena, *body, &mut inner);
-            let bound = arena.var_set(*variables);
-            for v in inner {
-                if !bound.iter().any(|b| *b == v) {
-                    out.push(v);
-                }
+            EvalOp::SumOut { variables, body } | EvalOp::IntegralOut { variables, body } => {
+                let bound = arena.var_set(*variables);
+                out[*body].iter().copied().filter(|v| !bound.contains(v)).collect()
             }
-        }
-        EvalOp::Ratio { numerator, denominator } => {
-            free_vars_rec(compiled, arena, *numerator, out);
-            free_vars_rec(compiled, arena, *denominator, out);
-        }
-        EvalOp::Expectation { function, distribution } => {
-            free_vars_rec(compiled, arena, *distribution, out);
-            out.push(function.variable());
-        }
-        EvalOp::Contrast { left, right, .. } => {
-            free_vars_rec(compiled, arena, *left, out);
-            free_vars_rec(compiled, arena, *right, out);
-        }
+            EvalOp::Ratio { numerator, denominator } => {
+                out[*numerator].iter().chain(out[*denominator].iter()).copied().collect()
+            }
+            EvalOp::Expectation { function, distribution } => {
+                let mut vars = out[*distribution].to_vec();
+                vars.push(function.variable());
+                vars
+            }
+            EvalOp::Contrast { left, right, .. } => {
+                out[*left].iter().chain(out[*right].iter()).copied().collect()
+            }
+        };
+        vars.sort_by_key(|v| v.raw());
+        vars.dedup();
+        out.push(Arc::from(vars));
     }
+    out
 }
 
 #[cfg(test)]
@@ -910,6 +951,131 @@ mod tests {
             arena.compile(exp).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         // 0*0.25 + 2*0.75 = 1.5
         assert!((val - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn evaluation_is_stable_across_repeated_calls() {
+        // Support memoization and the shared scratch assignment must leave
+        // repeated evaluations bitwise identical (nested SumOut + Expectation
+        // exercise both caches on the second call).
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let z = v(2);
+        let expr = arena.backdoor_ate(t, y, &[z], f(1.0), f(0.0));
+        let provider = backdoor_provider(t, y, z);
+        let compiled = arena.compile(expr).unwrap();
+        let first = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
+        let second = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
+        let third = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
+        assert_eq!(first.to_bits(), second.to_bits());
+        assert_eq!(first.to_bits(), third.to_bits());
+        assert!((first - 0.45).abs() < 1e-12, "ate={first}");
+    }
+
+    #[test]
+    fn scoped_intervention_binding_restores_between_siblings() {
+        // SumOut_z Product[ P(· | z, do(z:=1)), P(z) ]: the first factor binds
+        // z:=1 for its own lookup only; the sibling P(z) must still see the
+        // row's z. Correct scoping gives Σ_z 2.0 · P(z) = 2.0; a leaked
+        // binding would give 2.0 · P(z=1) per row = 2.8.
+        let mut arena = CausalExprArena::new();
+        let z = v(0);
+        let zset = arena.intern_var_set([z]);
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let do_z1 = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: z,
+            value: f(1.0),
+        }]);
+        let shadowed = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: zset,
+            intervention: do_z1,
+            domain: DomainRef::Observational,
+        });
+        let z_marginal = arena.intern(ExprNode::Distribution {
+            variables: zset,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let product = {
+            let list = arena.intern_list([shadowed, z_marginal]);
+            arena.intern(ExprNode::Product(list))
+        };
+        let sum = arena.intern(ExprNode::SumOut { variables: zset, expr: product });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        let interv = [InterventionAssignment { variable: z, value: f(1.0) }];
+        let shadow_spec = FactorSpec {
+            variables: &[],
+            conditioned_on: &[z],
+            intervention: &interv,
+            domain: DomainRef::Observational,
+        };
+        p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 2.0).unwrap();
+        let marg_spec = FactorSpec {
+            variables: &[z],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(0.0))]), 0.3).unwrap();
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.7).unwrap();
+
+        let val =
+            arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((val - 2.0).abs() < 1e-12, "val={val}");
+    }
+
+    #[test]
+    fn expectation_respects_env_bound_conditioning() {
+        // E[Y | z] with z pre-bound in the environment: the compile-time
+        // free-variable set of the distribution slot is filtered against the
+        // environment, so only Y is enumerated and the bound z selects the
+        // right conditional column.
+        let mut arena = CausalExprArena::new();
+        let y = v(0);
+        let z = v(1);
+        let yset = arena.intern_var_set([y]);
+        let zset = arena.intern_var_set([z]);
+        let empty_i = arena.empty_intervention_set();
+        let dist = arena.intern(ExprNode::Distribution {
+            variables: yset,
+            conditioned_on: zset,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let exp = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: dist,
+        });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(y, [f(0.0), f(2.0)]);
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        let spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[z],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        for (yv, zv, prob) in [(0.0, 0.0, 0.25), (2.0, 0.0, 0.75), (0.0, 1.0, 1.0), (2.0, 1.0, 0.0)]
+        {
+            p.insert_probability(&spec, &Assignment::from_pairs([(y, f(yv)), (z, f(zv))]), prob)
+                .unwrap();
+        }
+        let compiled = arena.compile(exp).unwrap();
+        let env0 = Assignment::from_pairs([(z, f(0.0))]);
+        let e0 = compiled.evaluate_with(&arena, &p, &EvalContext::default(), &env0).unwrap();
+        assert!((e0 - 1.5).abs() < 1e-12, "E[Y|z=0]={e0}");
+        let env1 = Assignment::from_pairs([(z, f(1.0))]);
+        let e1 = compiled.evaluate_with(&arena, &p, &EvalContext::default(), &env1).unwrap();
+        assert!(e1.abs() < 1e-12, "E[Y|z=1]={e1}");
+        // The caller's environment is never mutated by evaluation.
+        assert_eq!(env0.entries(), &[(z, f(0.0))]);
     }
 
     #[test]

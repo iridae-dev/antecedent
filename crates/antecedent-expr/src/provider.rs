@@ -2,9 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, PoisonError, RwLock};
 
 use antecedent_core::{Value, VariableId};
 
@@ -12,6 +14,9 @@ use crate::{DomainRef, InterventionAssignment};
 
 /// Weighted quadrature nodes: assignment rows paired with integration weights.
 pub type QuadratureNodes = Arc<[(Arc<[Value]>, f64)]>;
+
+/// Shared cartesian support rows, as returned by [`DistributionProvider::support`].
+type SupportRows = Arc<[Arc<[Value]>]>;
 
 /// Evaluation context (optional posterior draw index).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -70,6 +75,18 @@ impl Assignment {
     pub fn extend_from(&mut self, other: &Assignment) {
         for (v, val) in &other.entries {
             self.set(*v, val.clone());
+        }
+    }
+
+    /// Remove the binding for `var`, returning the previous value (if any).
+    ///
+    /// Lets evaluators treat one shared assignment as a binding stack: scoped
+    /// bindings are `set` on entry and removed (or restored) on exit instead
+    /// of cloning the whole assignment per scope.
+    pub fn remove(&mut self, var: VariableId) -> Option<Value> {
+        match self.entries.binary_search_by_key(&var.raw(), |(v, _)| v.raw()) {
+            Ok(i) => Some(self.entries.remove(i).1),
+            Err(_) => None,
         }
     }
 
@@ -215,7 +232,11 @@ pub trait DistributionProvider {
 }
 
 /// Canonical key for a factor table row.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+///
+/// `Hash`/`PartialEq` are defined via [`FactorKeyView`] (not derived) so the
+/// owned key and the borrowed lookup view hash and compare identically — the
+/// `Borrow` contract the allocation-free `probability` lookup relies on.
+#[derive(Clone, Debug, Eq)]
 struct FactorKey {
     variables: Arc<[VariableId]>,
     conditioned_on: Arc<[VariableId]>,
@@ -225,9 +246,113 @@ struct FactorKey {
     values: Arc<[Value]>,
 }
 
+/// Borrowed view of a [`FactorKey`], usable as a `HashMap` lookup key.
+///
+/// `probability` is the innermost evaluator call; building an owned
+/// `FactorKey` there costs several `Arc` allocations per lookup. The view
+/// borrows the spec slices directly and only needs the caller to assemble the
+/// value row, so a lookup allocates that single row and nothing else.
+#[derive(Clone, Copy)]
+struct FactorKeyView<'a> {
+    variables: &'a [VariableId],
+    conditioned_on: &'a [VariableId],
+    intervention: &'a [InterventionAssignment],
+    domain: DomainRef,
+    /// Concatenation of values for `variables` then `conditioned_on`.
+    values: &'a [Value],
+}
+
+/// Unifies owned and borrowed factor keys behind one hash/equality identity,
+/// so `HashMap<FactorKey, f64>::get` accepts a [`FactorKeyView`] through
+/// `Borrow<dyn FactorKeyLookup>` without constructing a `FactorKey`.
+trait FactorKeyLookup {
+    fn view(&self) -> FactorKeyView<'_>;
+}
+
+impl FactorKeyLookup for FactorKey {
+    fn view(&self) -> FactorKeyView<'_> {
+        FactorKeyView {
+            variables: &self.variables,
+            conditioned_on: &self.conditioned_on,
+            intervention: &self.intervention,
+            domain: self.domain,
+            values: &self.values,
+        }
+    }
+}
+
+impl FactorKeyLookup for FactorKeyView<'_> {
+    fn view(&self) -> FactorKeyView<'_> {
+        *self
+    }
+}
+
+impl<'a> Borrow<dyn FactorKeyLookup + 'a> for FactorKey {
+    fn borrow(&self) -> &(dyn FactorKeyLookup + 'a) {
+        self
+    }
+}
+
+/// Single hashing routine for both key forms; hashing slices (rather than the
+/// `Arc` wrappers) keeps the streams identical for owned and borrowed keys.
+fn hash_factor_view<H: Hasher>(v: &FactorKeyView<'_>, state: &mut H) {
+    v.variables.hash(state);
+    v.conditioned_on.hash(state);
+    v.intervention.hash(state);
+    v.domain.hash(state);
+    v.values.hash(state);
+}
+
+impl Hash for FactorKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        hash_factor_view(&self.view(), state);
+    }
+}
+
+impl PartialEq for FactorKey {
+    fn eq(&self, other: &Self) -> bool {
+        factor_views_eq(&self.view(), &other.view())
+    }
+}
+
+impl Hash for dyn FactorKeyLookup + '_ {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        hash_factor_view(&self.view(), state);
+    }
+}
+
+impl PartialEq for dyn FactorKeyLookup + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        factor_views_eq(&self.view(), &other.view())
+    }
+}
+
+impl Eq for dyn FactorKeyLookup + '_ {}
+
+fn factor_views_eq(a: &FactorKeyView<'_>, b: &FactorKeyView<'_>) -> bool {
+    a.variables == b.variables
+        && a.conditioned_on == b.conditioned_on
+        && a.intervention == b.intervention
+        && a.domain == b.domain
+        && a.values == b.values
+}
+
+/// Value row for a factor key: `variables` then `conditioned_on`, cloned out
+/// of the assignment. This is the only per-lookup allocation on the hot path.
+fn factor_values(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<Vec<Value>, EvalError> {
+    let mut values = Vec::with_capacity(spec.variables.len() + spec.conditioned_on.len());
+    for &v in spec.variables.iter().chain(spec.conditioned_on.iter()) {
+        let Some(val) = assignment.get(v) else {
+            return Err(EvalError::MissingBinding(v));
+        };
+        values.push(val.clone());
+    }
+    Ok(values)
+}
+
+/// Owned key for table inserts (cold path; lookups use [`FactorKeyView`]).
 fn factor_key(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<FactorKey, EvalError> {
-    let mut values = assignment.values_for(spec.variables)?;
-    values.extend(assignment.values_for(spec.conditioned_on)?);
+    let values = factor_values(spec, assignment)?;
     Ok(FactorKey {
         variables: Arc::from(spec.variables),
         conditioned_on: Arc::from(spec.conditioned_on),
@@ -238,10 +363,32 @@ fn factor_key(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<FactorKe
 }
 
 /// Tabular empirical distribution provider (discrete factors + domains).
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct EmpiricalTableProvider {
     domains: HashMap<VariableId, Arc<[Value]>>,
     tables: HashMap<FactorKey, f64>,
+    /// Memoized cartesian supports keyed by the queried variable list.
+    ///
+    /// `support` takes `&self` (trait signature), so interior mutability is
+    /// required; `RwLock` rather than `RefCell` keeps the provider `Sync` for
+    /// callers that share it across threads. A cache hit is a cheap `Arc`
+    /// clone. Only `set_domain` changes what `support` would return, so it is
+    /// the one invalidation point.
+    support_cache: RwLock<HashMap<Vec<VariableId>, SupportRows>>,
+}
+
+impl Clone for EmpiricalTableProvider {
+    fn clone(&self) -> Self {
+        Self {
+            domains: self.domains.clone(),
+            tables: self.tables.clone(),
+            // Carrying the memoized supports over is safe: they are a pure
+            // function of `domains`, which is cloned alongside.
+            support_cache: RwLock::new(
+                self.support_cache.read().unwrap_or_else(PoisonError::into_inner).clone(),
+            ),
+        }
+    }
 }
 
 impl EmpiricalTableProvider {
@@ -258,6 +405,9 @@ impl EmpiricalTableProvider {
         let mut seen = std::collections::HashSet::new();
         v.retain(|x| seen.insert(x.clone()));
         self.domains.insert(var, Arc::from(v));
+        // Memoized supports are cartesian products of the domains; any domain
+        // change invalidates every cached row set.
+        self.support_cache.write().unwrap_or_else(PoisonError::into_inner).clear();
     }
 
     /// Insert a factor probability for the given spec + assignment.
@@ -284,8 +434,17 @@ impl DistributionProvider for EmpiricalTableProvider {
         assignment: &Assignment,
         _ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
-        let key = factor_key(spec, assignment)?;
-        self.tables.get(&key).copied().ok_or(EvalError::MissingTableEntry)
+        // Borrowed-key lookup: no owned `FactorKey` (and its per-field `Arc`
+        // allocations) on the hot path — only the value row is assembled.
+        let values = factor_values(spec, assignment)?;
+        let key = FactorKeyView {
+            variables: spec.variables,
+            conditioned_on: spec.conditioned_on,
+            intervention: spec.intervention,
+            domain: spec.domain,
+            values: &values,
+        };
+        self.tables.get(&key as &dyn FactorKeyLookup).copied().ok_or(EvalError::MissingTableEntry)
     }
 
     fn support(
@@ -293,9 +452,18 @@ impl DistributionProvider for EmpiricalTableProvider {
         vars: &[VariableId],
         _ctx: &EvalContext,
     ) -> Result<Arc<[Arc<[Value]>]>, EvalError> {
-        if vars.is_empty() {
-            return Ok(Arc::from(vec![Arc::from(Vec::<Value>::new())]));
+        // Callers (SumOut / IntegralOut / Expectation) request the same
+        // variable sets on every draw, replicate, and nesting level; the
+        // cartesian product is a pure function of `domains`, so memoize it and
+        // hand back a shared `Arc` on hits. Errors (missing / empty domain)
+        // are not cached — that path aborts evaluation anyway.
+        if let Some(hit) =
+            self.support_cache.read().unwrap_or_else(PoisonError::into_inner).get(vars)
+        {
+            return Ok(Arc::clone(hit));
         }
+        // `vars.is_empty()` needs no special case: the fold below yields the
+        // single empty row, matching the pre-memoization behavior.
         let mut rows: Vec<Vec<Value>> = vec![Vec::new()];
         for &v in vars {
             let domain = self.domains.get(&v).ok_or(EvalError::EmptySupport(v))?;
@@ -312,8 +480,12 @@ impl DistributionProvider for EmpiricalTableProvider {
             }
             rows = next;
         }
-        let out: Vec<Arc<[Value]>> = rows.into_iter().map(Arc::from).collect();
-        Ok(Arc::from(out))
+        let out: Arc<[Arc<[Value]>]> = rows.into_iter().map(Arc::from).collect();
+        self.support_cache
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(vars.to_vec(), Arc::clone(&out));
+        Ok(out)
     }
 
     fn outcome(
@@ -566,6 +738,67 @@ mod tests {
         let assignment = Assignment::from_pairs([(y, f(0.0))]);
         let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();
         assert_eq!(err, EvalError::MissingTableEntry);
+    }
+
+    #[test]
+    fn support_memoizes_and_invalidates_on_set_domain() {
+        // A repeated `support` query must be a cheap clone of the same shared
+        // rows (memoization), and `set_domain` — the only mutation that can
+        // change what `support` returns — must invalidate the cache.
+        let mut p = EmpiricalTableProvider::new();
+        let a = v(0);
+        let b = v(1);
+        p.set_domain(a, [f(0.0), f(1.0)]);
+        p.set_domain(b, [f(0.0), f(1.0), f(2.0)]);
+        let ctx = EvalContext::default();
+        let first = p.support(&[a, b], &ctx).unwrap();
+        assert_eq!(first.len(), 6);
+        let second = p.support(&[a, b], &ctx).unwrap();
+        assert!(Arc::ptr_eq(&first, &second), "cache hit must return the shared rows");
+        p.set_domain(b, [f(0.0), f(1.0)]);
+        let third = p.support(&[a, b], &ctx).unwrap();
+        assert!(!Arc::ptr_eq(&first, &third), "set_domain must invalidate the cache");
+        // Cartesian order (outer var major, domain order minor) is unchanged.
+        let rows: Vec<Vec<f64>> =
+            third.iter().map(|r| r.iter().map(|x| x.as_f64().unwrap()).collect()).collect();
+        assert_eq!(rows, vec![vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0], vec![1.0, 1.0]]);
+    }
+
+    #[test]
+    fn empty_support_query_yields_single_empty_row() {
+        // The empty query has one row (the empty assignment); the memoized
+        // path must preserve that vacuous-product convention.
+        let p = EmpiricalTableProvider::new();
+        let rows = p.support(&[], &EvalContext::default()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].is_empty());
+    }
+
+    #[test]
+    fn borrowed_key_lookup_matches_owned_insert() {
+        // `probability` looks up via the borrowed `FactorKeyView`; it must hit
+        // entries inserted via the owned `FactorKey` (same hash/equality
+        // identity across every component) and still miss when any component
+        // — value row or domain — differs.
+        let mut p = EmpiricalTableProvider::new();
+        let y = v(0);
+        let z = v(1);
+        let t = v(2);
+        let interv = [InterventionAssignment { variable: t, value: f(1.0) }];
+        let spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[z],
+            intervention: &interv,
+            domain: DomainRef::Interventional,
+        };
+        let assign = Assignment::from_pairs([(y, f(1.0)), (z, f(0.0))]);
+        p.insert_probability(&spec, &assign, 0.25).unwrap();
+        let ctx = EvalContext::default();
+        assert!((p.probability(&spec, &assign, &ctx).unwrap() - 0.25).abs() < 1e-15);
+        let other = Assignment::from_pairs([(y, f(1.0)), (z, f(1.0))]);
+        assert_eq!(p.probability(&spec, &other, &ctx).unwrap_err(), EvalError::MissingTableEntry);
+        let obs = FactorSpec { domain: DomainRef::Observational, ..spec.clone() };
+        assert_eq!(p.probability(&obs, &assign, &ctx).unwrap_err(), EvalError::MissingTableEntry);
     }
 
     #[test]

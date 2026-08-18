@@ -235,6 +235,12 @@ pub struct CausalExprArena {
     node_index: HashMap<ExprNode, ExprId>,
     /// Derivation metadata (optional; not part of semantic equality).
     derivation: HashMap<u32, DerivationMeta>,
+    /// Cached id of the interned empty variable set. The empty sets are
+    /// requested by nearly every builder and evaluator; caching skips the
+    /// intern-table lookup on repeat calls.
+    empty_var_set_id: Option<VarSetId>,
+    /// Cached id of the interned empty intervention set (see above).
+    empty_intervention_set_id: Option<InterventionSetId>,
 }
 
 impl CausalExprArena {
@@ -291,12 +297,22 @@ impl CausalExprArena {
 
     /// Empty var set.
     pub fn empty_var_set(&mut self) -> VarSetId {
-        self.intern_var_set([])
+        if let Some(id) = self.empty_var_set_id {
+            return id;
+        }
+        let id = self.intern_var_set([]);
+        self.empty_var_set_id = Some(id);
+        id
     }
 
     /// Empty intervention set.
     pub fn empty_intervention_set(&mut self) -> InterventionSetId {
-        self.intern_intervention_assignments([])
+        if let Some(id) = self.empty_intervention_set_id {
+            return id;
+        }
+        let id = self.intern_intervention_assignments([]);
+        self.empty_intervention_set_id = Some(id);
+        id
     }
 
     /// Look up a var set.

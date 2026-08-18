@@ -341,7 +341,7 @@ fn free_vars(
         ExprNode::Distribution { variables, conditioned_on, intervention, .. } => {
             let mut vars: Vec<VariableId> = arena.var_set(variables).to_vec();
             // `conditioned_on` variables bound by the accompanying `intervention` set
-            // are do(·)-fixed, not free — mirrors `eval::free_vars_rec`'s
+            // are do(·)-fixed, not free — mirrors `eval::compute_free_vars`'s
             // `Distribution` arm (`eval.rs`), which this function must agree with:
             // both feed the "does the body depend on the summed variable" check in
             // `rewrite_sum_out`/`rewrite_integral_out` above, and a discrepancy there
