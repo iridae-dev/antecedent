@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 3 — backlog burn-down
+
+- **Nested counterfactual is no longer quadratic in units**: the unit-wise
+  fallback (taken whenever outer values vary across units — the normal case)
+  ran a full-table predict per unit, O(n_units²·nodes). A column-frozen
+  single pass evaluates all units at once for row-independent mechanisms —
+  bit-identical to the historical loop (differential-pinned, including
+  stochastic inner interventions via the shared RNG-stream argument);
+  temporal mechanisms keep the exact per-unit fallback.
+- `mcmc_stats`: autocovariances are computed lazily and stop at the Geyer
+  truncation point instead of all n−1 lags (O(m·n²) → O(m·n·τ),
+  bit-identical); `mcmc_summary` computes max R̂ + min bulk/tail ESS in one
+  diagnostics pass where the publication gates previously paid 3×.
+- GLM HMC carries the current log-posterior across iterations (the Gaussian
+  path already did); Laplace reuses its Cholesky factor for the mode
+  covariance instead of refactorizing inside `invert_spd`.
+- `McmcDoSampler` carries the current state's KDE density across Metropolis
+  iterations (exact 2× on the chain's dominant cost); rejection sampling
+  builds its intervention overlay once, not per candidate row.
+- `NonparametricSensitivity` fuses the treatment/outcome Nadaraya–Watson
+  passes (identical kernel weights, computed once — exact 2× on an uncapped
+  O(n²·dim) path); the posterior predictive check hoists per-draw
+  coefficients out of the row loop.
+- **Fixed (correctness): `local_markov_tests` paired topo-order positions
+  with dense-id tables** — on any graph whose topological order is not the
+  identity permutation of dense ids it tested the wrong variable pairs
+  (including self-pairs). Comparison sets are now derived in dense-id space;
+  p-value sets change on affected graphs, where the old values compared the
+  wrong columns.
+- Crate READMEs brought up to the 0.5 surface (the facade README advertised
+  `antecedent = "0.1"` and the retired `CausalAnalysis::builder()` API);
+  `gate_metadata_consistency.sh` now fails on stale README dependency
+  versions and retired API names.
+
 ### Round 2 — expanded coverage (model, counterfactual, prob, attribution, expr, io, CI nulls)
 
 All bit-identical or exact-identity rewrites; no statistical semantics change.
