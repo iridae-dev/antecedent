@@ -86,6 +86,11 @@ impl ConditionalIndependenceTest for GSquared {
                     let mut y_perm = request.columns[q.y].to_vec();
                     let mut rng = ctx.rng.stream(0x65C0_u64.wrapping_add(qi as u64));
                     let mut null_ge = 0u32;
+                    // X codes and Z strata are invariant under a Y-only
+                    // permutation; only the Y codes change per replicate.
+                    let xi: Vec<i32> =
+                        request.columns[q.x].iter().map(|v| v.round() as i32).collect();
+                    let mut yi_perm: Vec<i32> = vec![0; n];
                     for _ in 0..n_perm {
                         if block_size > 1 {
                             block_permute_contiguous(&mut y_perm, block_size, &mut rng);
@@ -97,10 +102,11 @@ impl ConditionalIndependenceTest for GSquared {
                                 }
                             }
                         }
-                        let mut cols: Vec<&[f64]> = request.columns.to_vec();
-                        cols[q.y] = &y_perm;
+                        for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
+                            *code = value.round() as i32;
+                        }
                         let (g_null, _) =
-                            g_squared_statistic(&cols, q.x, q.y, z, n, workspace, policy)?;
+                            g_squared_from_parts(&xi, &yi_perm, &strata, workspace, policy)?;
                         if g_null >= g {
                             null_ge = null_ge.saturating_add(1);
                         }
@@ -155,29 +161,33 @@ fn g_squared_statistic(
 ) -> Result<(f64, f64), StatsError> {
     let xi: Vec<i32> = columns[x].iter().map(|v| v.round() as i32).collect();
     let yi: Vec<i32> = columns[y].iter().map(|v| v.round() as i32).collect();
-    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
-    for r in 0..n {
-        let key = if z.is_empty() {
-            0u64
-        } else {
-            let mut h = 0xcbf2_9ce4_8422_2325_u64;
-            for &zc in z {
-                let v = columns[zc][r].round() as i32;
-                h ^= u64::from(v as u32);
-                h = h.wrapping_mul(0x0100_0000_01b3);
-            }
-            h
-        };
-        strata.entry(key).or_default().push(r);
-    }
+    let strata = gsq_strata(columns, z, n);
+    g_squared_from_parts(&xi, &yi, &strata, workspace, policy)
+}
+
+/// G² over precomputed integer codes and Z strata.
+///
+/// Strata are iterated in the given order; [`gsq_strata`] returns them in
+/// sorted-key order, so the per-stratum accumulation (and therefore the last
+/// bits of G²) is deterministic across runs — the previous `HashMap` iteration
+/// depended on the process hash seed. Permutation nulls hoist the code/strata
+/// construction (X codes and Z strata are invariant under Y-only permutation)
+/// and call this per replicate.
+fn g_squared_from_parts(
+    xi: &[i32],
+    yi: &[i32],
+    strata: &[Vec<usize>],
+    workspace: &mut CiWorkspace,
+    policy: &KernelPolicy,
+) -> Result<(f64, f64), StatsError> {
     let mut g_total = 0.0;
     let mut df_total = 0.0;
     let mut any = false;
-    for rows in strata.values() {
+    for rows in strata {
         if rows.len() < 2 {
             continue;
         }
-        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace, policy);
+        let (g, df) = g_squared_on_rows(xi, yi, rows, workspace, policy);
         g_total += g;
         df_total += df;
         any = true;
