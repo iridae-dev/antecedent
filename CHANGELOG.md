@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Correctness — localized audit
+
+- **Temporal CPDAG/PAG reject future→past arrowheads.** `TemporalDag` already
+  refused source lag nearer the present than the target. `TemporalCpdag`
+  `insert_directed` / `orient_undirected` and `TemporalPag` Circle→Arrow
+  inserts / `set_marks` did not. A definite or partial arrowhead into an
+  earlier lag now returns `GraphError::FutureToPast` (shared helper with
+  `TemporalDag`).
+
 ### Round 4 — backlog completion
 
 - **Expr evaluator**: `EmpiricalTableProvider::support` memoizes its cartesian
