@@ -217,14 +217,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let report = OverlapRuleRefuter::new().refute(&problem).unwrap();
         assert_eq!(report.refuter.as_ref(), "overlap.rule");
         assert!(report.informative);

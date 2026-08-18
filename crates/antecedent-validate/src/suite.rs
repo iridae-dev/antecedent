@@ -702,14 +702,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);
