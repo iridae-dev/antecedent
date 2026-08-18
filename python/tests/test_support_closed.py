@@ -20,6 +20,11 @@ _REASON_PATH_DIST = (
 _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
 _REASON_SUSTAINED = "refused: SustainedEffect is not on the staged handle."
+_REASON_INTERVENTION_RESPONSE_OFF_DAG = (
+    "refused: InterventionResponse executes only on a supplied static Dag, the same "
+    "requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response "
+    "compile arm."
+)
 
 
 def _two_node_table(n: int = 48, seed: int = 3):
@@ -35,6 +40,7 @@ _DAG = antecedent.Dag.from_edges(["t", "y"], _EDGES)
 _PAG = antecedent.Pag.from_marked_edges(["t", "y"], [("t", "y", "circle", "arrow")])
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
+_ADMG = antecedent.Admg.from_edges(["t", "y"], _EDGES)
 
 
 _REFUSED = [
@@ -79,6 +85,42 @@ _REFUSED = [
         antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
         {"graph": [("t", 1, "y", 0)]},
         _REASON_SUSTAINED,
+    ),
+    # Second enforced-refusal wave (parity/support_closed.toml): ConditionalEffect /
+    # InterventionResponse / TemporalMediationEffect off a supplied Dag, and any
+    # graph-posterior structure under Frequentist inference.
+    #
+    # Only InterventionResponse × Admg/Pag has a representative row here.
+    # ConditionalEffect × Cpdag/Admg/Pag, PathSpecificEffect/InterventionalDistribution ×
+    # Admg/Pag (explicit), and TemporalMediationEffect × TemporalCpdag/TemporalPag are all
+    # closed on the Rust support matrix (see crates/antecedent/src/support.rs's
+    # `closed_conditional_effect_off_dag_is_enforced` /
+    # `closed_path_and_distribution_on_explicit_admg_pag_is_enforced` /
+    # `closed_temporal_mediation_off_temporal_dag_is_enforced` tests), but none of them are
+    # reachable through `antecedent.analyze()`: `_static_edges`/`_lagged_edges`
+    # (python/antecedent/estimation.py) only coerce `Dag`/`Cpdag`/`TemporalDag`/edge-list
+    # inputs, so a bare `Admg`/`Pag`/`TemporalCpdag`/`TemporalPag` fails the
+    # `for a, b in graph` unpack *before* the call ever reaches the native support-matrix
+    # consultation (a `ValueError`, not `CausalUnsupportedError`); a `Cpdag` is converted to
+    # a plain oriented edge list client-side, so it is indistinguishable from an explicit Dag
+    # by the time it reaches native code and never carries a `Cpdag` class tag to classify.
+    # Likewise graph_posterior × Frequentist is pre-empted by `_analyze.py`'s own
+    # `discovery=`/`inference=` check (`handle_static_ate_discover`, line ~817), which raises
+    # `TypeError("graph-posterior discovery requires inference=Bayesian(...) for effect
+    # mixture")` before `Study::build` ever runs. The Rust closures still apply to the Rust
+    # surface (`crates/antecedent/src/support.rs`); they are simply unreachable from this
+    # Python entry point today.
+    (
+        "intervention_response_admg",
+        antecedent.InterventionResponse("y", intervention={"t": 1.0}),
+        {"graph": _ADMG},
+        _REASON_INTERVENTION_RESPONSE_OFF_DAG,
+    ),
+    (
+        "intervention_response_pag",
+        antecedent.InterventionResponse("y", intervention={"t": 1.0}),
+        {"graph": _PAG},
+        _REASON_INTERVENTION_RESPONSE_OFF_DAG,
     ),
 ]
 

@@ -275,9 +275,18 @@ def handle_response(
     # The Pag/Admg/Cpdag check below must stay: unlike the derivative check, it is not
     # just a refusal message, it is the routing gate that decides whether this call
     # reaches `_analyze_response` at all versus `_analyze_response_pag` a few lines down.
-    # Its literal text is asserted against parity/support_closed.toml in
-    # test_response_support_matrix.py so it cannot silently drift.
+    # Both literals are asserted against parity/support_closed.toml in
+    # test_response_support_matrix.py so neither can silently drift. `InterventionResponse`
+    # gets its own closed-rule text (parity/support_closed.toml's InterventionResponse ×
+    # [Cpdag, Admg, Pag] rule) rather than reusing the ResponseCurve one below it, since the
+    # ResponseCurve wording would misdescribe an InterventionResponse refusal.
     if isinstance(graph, (Admg, Cpdag, Pag)):
+        if isinstance(query, InterventionResponse):
+            raise CausalUnsupportedError(
+                "refused: InterventionResponse executes only on a supplied static Dag, the "
+                "same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no "
+                "Response compile arm."
+            )
         raise CausalUnsupportedError("refused: ResponseCurve is licensed only on a Dag.")
     if (
         graph is not None

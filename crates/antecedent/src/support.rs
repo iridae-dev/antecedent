@@ -554,6 +554,263 @@ mod tests {
         }
     }
 
+    #[test]
+    fn closed_conditional_effect_off_dag_is_enforced() {
+        for graph in ["Cpdag", "Admg", "Pag"] {
+            let status =
+                classify(cell("ConditionalEffect", graph, "accepted", "Frequentist", "none"));
+            assert_eq!(status, CellStatus::Refused, "{graph}");
+            let err = refuse_if_not_applicable(cell(
+                "ConditionalEffect",
+                graph,
+                "accepted",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(
+                err.to_string().starts_with("refused: ConditionalEffect compiles only against"),
+                "{graph}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
+        for query in ["PathSpecificEffect", "InterventionalDistribution"] {
+            for graph in ["Admg", "Pag"] {
+                let status = classify(cell(query, graph, "explicit", "Frequentist", "none"));
+                assert_eq!(status, CellStatus::Refused, "{query}/{graph}");
+                let err =
+                    refuse_if_not_applicable(cell(query, graph, "explicit", "Frequentist", "none"))
+                        .unwrap_err();
+                assert!(
+                    err.to_string().starts_with(
+                        "refused: Path and distribution queries execute only on a supplied"
+                    ),
+                    "{query}/{graph}: {err}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn closed_intervention_response_off_dag_is_enforced() {
+        for graph in ["Cpdag", "Admg", "Pag"] {
+            let err = refuse_if_not_applicable(cell(
+                "InterventionResponse",
+                graph,
+                "explicit",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(
+                err.to_string().starts_with("refused: InterventionResponse executes only on"),
+                "{graph}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn closed_temporal_mediation_off_temporal_dag_is_enforced() {
+        for graph in ["TemporalCpdag", "TemporalPag"] {
+            let status =
+                classify(cell("TemporalMediationEffect", graph, "accepted", "Frequentist", "none"));
+            assert_eq!(status, CellStatus::Refused, "{graph}");
+            let err = refuse_if_not_applicable(cell(
+                "TemporalMediationEffect",
+                graph,
+                "accepted",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(
+                err.to_string().starts_with("refused: TemporalMediationEffect compiles only"),
+                "{graph}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn closed_graph_posterior_frequentist_is_enforced() {
+        let status =
+            classify(cell("AverageEffect", "Dag", "graph_posterior", "Frequentist", "none"));
+        assert_eq!(status, CellStatus::Refused);
+        let err = refuse_if_not_applicable(cell(
+            "AverageEffect",
+            "Dag",
+            "graph_posterior",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(
+            err.to_string().starts_with("refused: Graph-posterior compilation requires Bayesian"),
+            "{err}"
+        );
+    }
+
+    /// End-to-end: `Study::build` itself refuses a graph-posterior study run under
+    /// `InferenceMode::Frequentist`, with the new closed-rule id, before `run()` would
+    /// otherwise reach `compile_graph_posterior`'s own free-form `Unsupported`.
+    #[test]
+    #[allow(clippy::many_single_char_names)]
+    fn build_refuses_graph_posterior_under_frequentist() {
+        use antecedent_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
+        use antecedent_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+        };
+        use std::sync::Arc;
+
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [("t", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)]
+        {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let n = 10;
+        let t = vec![0.0; n];
+        let y = vec![0.0; n];
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let gp = crate::discovery::discover_exact_dag_posterior(
+            &data,
+            &[VariableId::from_raw(0), VariableId::from_raw(1)],
+            &crate::discovery::BayesianDiscoverParams::default(),
+            &ctx,
+        )
+        .unwrap();
+
+        let err = crate::analysis::Study::tabular(data)
+            .graph_posterior(gp)
+            .query(ate_query())
+            .inference(crate::inference::InferenceMode::Frequentist)
+            .build()
+            .unwrap_err();
+        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
+        assert!(
+            err.to_string().starts_with("refused: Graph-posterior compilation requires Bayesian"),
+            "{err}"
+        );
+    }
+
+    /// End-to-end off-Dag static case: `Study::build` refuses a `ConditionalEffect`
+    /// query on a supplied Cpdag with the new closed-rule id.
+    #[test]
+    #[allow(clippy::many_single_char_names)]
+    fn build_refuses_conditional_effect_on_cpdag() {
+        use antecedent_core::{
+            AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
+            ValueType,
+        };
+        use antecedent_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+        };
+        use std::sync::Arc;
+
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("z", RoleHint::Context),
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let n = 10;
+        let z = vec![0.0; n];
+        let t = vec![0.0; n];
+        let y = vec![0.0; n];
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+
+        let mut cpdag = Cpdag::with_variables(3);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        cpdag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+
+        let inner =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2))
+                .with_effect_modifiers(vec![VariableId::from_raw(0)]);
+        let query = antecedent_core::ConditionalEffectQuery::try_new(inner).unwrap();
+
+        let err = crate::analysis::Study::tabular(data)
+            .graph(AcceptedGraph::cpdag(cpdag).unwrap())
+            .query(query)
+            .build()
+            .unwrap_err();
+        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
+        assert!(
+            err.to_string().starts_with("refused: ConditionalEffect compiles only against"),
+            "{err}"
+        );
+    }
+
     // -- `effective_graph_class` --------------------------------------------
 
     use antecedent_core::{AverageEffectQuery, TemporalEffectQuery, VariableId};

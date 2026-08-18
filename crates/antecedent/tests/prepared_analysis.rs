@@ -703,13 +703,13 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
-/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) builds fine (the
-/// support matrix does not close this cell at `.build()`), but `.prepare()` must still
-/// refuse it: these three query kinds are staged Dag-only.
+/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) now refuses these
+/// three query kinds at `.build()` itself: `parity/support_closed.toml` closes
+/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Cpdag / Admg /
+/// Pag (they are staged Dag-only), so the matrix catches the mismatch before `.prepare()`
+/// would otherwise have to.
 #[test]
 fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
-    let ctx = ExecutionContext::for_tests(1);
-
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -720,8 +720,6 @@ fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
         .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
         .build()
-        .unwrap()
-        .prepare(&ctx)
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
 
@@ -736,8 +734,6 @@ fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
         .estimator(EstimatorId::FunctionalEffect)
         .refute(RefuteSuite::None)
         .build()
-        .unwrap()
-        .prepare(&ctx)
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
 
@@ -753,8 +749,6 @@ fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
         .estimator(EstimatorId::FunctionalDistribution)
         .refute(RefuteSuite::None)
         .build()
-        .unwrap()
-        .prepare(&ctx)
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
     let _ = admg;

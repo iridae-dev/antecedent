@@ -236,6 +236,8 @@ mod identify_only_tests {
 
     #[test]
     fn identify_only_refuses_graph_posterior() {
+        // graph_posterior x Frequentist is now closed at `build()`, so reach
+        // identify_only's own guard through the still-open Bayesian cell.
         let gp = GraphPosterior::new(
             2,
             vec![1.0],
@@ -251,6 +253,7 @@ mod identify_only_tests {
             .graph_posterior(gp)
             .query(ate())
             .refute(RefuteSuite::None)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
             .build()
             .unwrap()
             .identify_only()
@@ -292,7 +295,11 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn identify_only_refuses_bidirected_admg_non_ate() {
+    fn bidirected_admg_non_ate_refuses_at_build_with_matrix_id() {
+        // Every non-AverageEffect query on an ADMG is now a closed cell, so
+        // the refusal fires at `build()` with the stable matrix reason.
+        // identify_only's own ADMG guard stays as defense in depth but is no
+        // longer reachable through the public builder.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -305,10 +312,12 @@ mod identify_only_tests {
             .query(CausalQuery::Distribution(query))
             .refute(RefuteSuite::None)
             .build()
-            .unwrap()
-            .identify_only()
             .unwrap_err();
-        assert_identify_only_refused(&err, "identify_only on an ADMG supports AverageEffect only.");
+        assert!(
+            matches!(&err, CausalError::Support { id: SupportRefusal::Refused, .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().starts_with("refused:"), "{err}");
     }
 
     #[test]

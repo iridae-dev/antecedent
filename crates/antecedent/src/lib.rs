@@ -348,14 +348,17 @@ mod tests {
             &ctx,
         )
         .unwrap();
+        // Structure/inference support-matrix closure (parity/support_closed.toml:
+        // structures=["graph_posterior"], inferences=["Frequentist"]) now refuses this
+        // combination at `build()` itself, before it would otherwise reach `compile`'s
+        // own free-form `graph-posterior discovery requires inference=Bayesian` error —
+        // same outcome (still refused), earlier and with a stable id.
         let err = Study::tabular(data)
             .graph_posterior(gp)
             .query(query)
             .inference(InferenceMode::Frequentist)
             .refute(RefuteSuite::None)
             .build()
-            .unwrap()
-            .compile(&ctx)
             .unwrap_err();
         let msg = err.to_string();
         assert!(

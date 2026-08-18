@@ -11,7 +11,7 @@ from antecedent.errors import CausalUnsupportedError
 
 _PATH_DIST_REFUSED = (
     "refused: Path and distribution queries are licensed only as explicit Dag "
-    "cells, and those cells are not staged yet."
+    "cells; accepted and graph-posterior structures are not staged."
 )
 
 
