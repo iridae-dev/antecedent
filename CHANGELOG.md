@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Coalition cache dense index + saturation flag.** Exact Shapley with
   `k ≤ 16` looks up payoffs by mask instead of hashing; a full byte budget
   sets `CacheStats.saturated` instead of refusing silently.
+- **Local Markov / residual independence batch CI.** Pair enumeration is
+  still quadratic, but each check now issues one partial-correlation batch
+  instead of a `test_one` per pair (and local Markov no longer rebuilds
+  parent columns inside the inner loop).
 
 ### Correctness — localized audit
 
