@@ -7,7 +7,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use antecedent::{AcceptedGraph, LatencyMode, PreparedStudy, RefuteSuite, Study};
+use antecedent::{
+    AcceptedGraph, BayesianConfig, InferenceMode, LatencyMode, PreparedStudy, RefuteSuite, Study,
+};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -248,6 +250,79 @@ fn prepared_second_shot_cheaper_than_full_run() {
         third.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared second shot did not hit the identification cache"
     );
+}
+
+fn build_bayesian_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
+    Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .latency_mode(LatencyMode::Interactive)
+        .refute(RefuteSuite::None)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn prepared_bayesian_reestimate_matches_fresh_analyze() {
+    let (data, dag, query) = confounded_scm(300, 53);
+    let ctx = ExecutionContext::for_tests(1);
+
+    let fresh =
+        build_bayesian_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
+    let prepared = build_bayesian_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+
+    assert!(first.estimate.ate.is_finite());
+    // Bit-identical ATE and posterior summaries between the prepared click and
+    // a fresh, un-prepared run: identification caching must not perturb the
+    // downstream Bayesian fit (same prep, prior, draws, seed).
+    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
+    assert_eq!(
+        format!("{:?}", first.identification.status),
+        format!("{:?}", fresh.identification.status)
+    );
+
+    let first_post = first.posterior.as_ref().expect("prepared run must carry a posterior");
+    let fresh_post = fresh.posterior.as_ref().expect("fresh run must carry a posterior");
+    assert_eq!(first_post.summaries.n_draws, fresh_post.summaries.n_draws);
+    let first_bits: Vec<u64> = first_post.summaries.mean.iter().map(|v| v.to_bits()).collect();
+    let fresh_bits: Vec<u64> = fresh_post.summaries.mean.iter().map(|v| v.to_bits()).collect();
+    assert_eq!(first_bits, fresh_bits);
+    let first_sd_bits: Vec<u64> = first_post.summaries.sd.iter().map(|v| v.to_bits()).collect();
+    let fresh_sd_bits: Vec<u64> = fresh_post.summaries.sd.iter().map(|v| v.to_bits()).collect();
+    assert_eq!(first_sd_bits, fresh_sd_bits);
+
+    // Only the prepared click carries the cache marker.
+    assert!(
+        first.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "prepared Bayesian estimate missing exec.identify.cached diagnostic"
+    );
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+}
+
+#[test]
+fn prepared_bayesian_two_clicks_agree_exactly() {
+    let (data, dag, query) = confounded_scm(250, 61);
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = build_bayesian_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+
+    assert_eq!(first.estimate.ate.to_bits(), second.estimate.ate.to_bits());
+    let first_post = first.posterior.as_ref().expect("posterior");
+    let second_post = second.posterior.as_ref().expect("posterior");
+    let first_bits: Vec<u64> = first_post.summaries.mean.iter().map(|v| v.to_bits()).collect();
+    let second_bits: Vec<u64> = second_post.summaries.mean.iter().map(|v| v.to_bits()).collect();
+    assert_eq!(first_bits, second_bits);
+    for result in [&first, &second] {
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "prepared Bayesian click missing exec.identify.cached diagnostic"
+        );
+    }
 }
 
 #[test]

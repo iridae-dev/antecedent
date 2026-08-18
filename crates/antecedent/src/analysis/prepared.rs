@@ -239,9 +239,10 @@ impl Study {
 
     /// Compute the static-path identification once at prepare time.
     ///
-    /// Mirrors `execute_static`'s stage-1 inputs exactly. Configurations that
-    /// dispatch elsewhere (sharp RD, Bayesian g-comp, bidirected ADMGs, PAG
-    /// envelopes) return `None` and keep their identify-per-run behavior.
+    /// Mirrors `execute_static`'s (and, for `bayesian.gcomp`, `execute_bayesian`'s)
+    /// stage-1 inputs exactly. Configurations that dispatch elsewhere (sharp RD,
+    /// bidirected ADMGs, PAG envelopes, graph posteriors) return `None` and keep
+    /// their identify-per-run behavior.
     fn prepare_static_identification(
         &self,
         plan: &PhysicalExecutionPlan,
@@ -254,7 +255,7 @@ impl Study {
         let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
-        if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianGcomp) {
+        if matches!(estimator_id, EstimatorId::RdSharp) {
             return Ok(None);
         }
         if self.graph_posterior.is_some() {
@@ -275,13 +276,23 @@ impl Study {
                 {
                     return Ok(None);
                 }
-                let rd = self.rd.map(|c| {
-                    antecedent_identify::SharpRdConfig::new(
-                        c.running_variable,
-                        c.cutoff,
-                        c.bandwidth,
-                    )
-                });
+                // `execute_bayesian` never consults `self.rd` (it calls
+                // `identify_static`, which is `identify_static_query_with_rd`
+                // with `rd: None`); mirror that exactly so the cached
+                // identification matches what an uncached Bayesian run would
+                // compute, even if a caller set `.rd_config(..)` alongside
+                // `bayesian.gcomp`.
+                let rd = if matches!(estimator_id, EstimatorId::BayesianGcomp) {
+                    None
+                } else {
+                    self.rd.map(|c| {
+                        antecedent_identify::SharpRdConfig::new(
+                            c.running_variable,
+                            c.cutoff,
+                            c.bandwidth,
+                        )
+                    })
+                };
                 let identification = identify_static_query_with_rd(
                     identifier_id,
                     &graph,
