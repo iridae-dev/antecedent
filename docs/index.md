@@ -50,7 +50,7 @@ observation-aware pricing. The Rust entry point is
 
 Package version is **0.5.1**; see
 [ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md) and
-the [draft 0.5.0 notes](release-notes/v0.5.0.md).
+the [0.5.1 notes](release-notes/v0.5.1.md).
 
 ## Guides
 
