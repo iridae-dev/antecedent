@@ -31,7 +31,21 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Temporal contrast queries require a temporal graph class.",
     },
     NaRule {
-        queries: Some(&["AverageDerivative", "AverageEffect", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity"]),
+        queries: Some(&[
+            "AverageDerivative",
+            "AverageEffect",
+            "ConditionalEffect",
+            "Counterfactual",
+            "DirectionalDerivative",
+            "Elasticity",
+            "InterventionalDistribution",
+            "InterventionResponse",
+            "PathSpecificEffect",
+            "PointDerivative",
+            "ResponseCurve",
+            "ResponseJacobian",
+            "SemiElasticity",
+        ]),
         graph_classes: Some(&["TemporalDag", "TemporalCpdag", "TemporalPag"]),
         structures: None,
         inferences: None,
@@ -39,7 +53,16 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.",
     },
     NaRule {
-        queries: Some(&["AverageDerivative", "DirectionalDerivative", "Elasticity", "InterventionResponse", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity"]),
+        queries: Some(&[
+            "AverageDerivative",
+            "DirectionalDerivative",
+            "Elasticity",
+            "InterventionResponse",
+            "PointDerivative",
+            "ResponseCurve",
+            "ResponseJacobian",
+            "SemiElasticity",
+        ]),
         graph_classes: None,
         structures: Some(&["graph_posterior"]),
         inferences: None,
@@ -53,7 +76,7 @@ pub static NA_RULES: &[NaRule] = &[
         inferences: None,
         validations: None,
         reason: "Stage transport and interference queries are not a temporal-graph cell.",
-    }
+    },
 ];
 
 pub static CLOSED_RULES: &[NaRule] = &[
@@ -66,7 +89,14 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "Counterfactual is not on the staged handle.",
     },
     NaRule {
-        queries: Some(&["AverageDerivative", "DirectionalDerivative", "Elasticity", "PointDerivative", "ResponseJacobian", "SemiElasticity"]),
+        queries: Some(&[
+            "AverageDerivative",
+            "DirectionalDerivative",
+            "Elasticity",
+            "PointDerivative",
+            "ResponseJacobian",
+            "SemiElasticity",
+        ]),
         graph_classes: None,
         structures: None,
         inferences: None,
@@ -112,7 +142,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: None,
         validations: None,
         reason: "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.",
-    }
+    },
 ];
 
 pub static LICENSED: &[LicensedCell] = &[
@@ -133,6 +163,13 @@ pub static LICENSED: &[LicensedCell] = &[
     LicensedCell {
         query: "AverageEffect",
         graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "full",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
@@ -143,6 +180,13 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "accepted",
+        inference: "Frequentist",
+        validation: "full",
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -157,5 +201,5 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
-    }
+    },
 ];

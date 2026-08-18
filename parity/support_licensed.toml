@@ -10,6 +10,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+limitations = "The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
 
 [[cell]]
 query = "AverageEffect"
@@ -20,7 +21,18 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point."
+limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/validate/refuters"
+limitations = "Evidence pins the placebo + random-common-cause refuters on the default linear estimator. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
 
 [[cell]]
 query = "AverageEffect"
@@ -31,6 +43,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+limitations = "The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
 
 [[cell]]
 query = "AverageEffect"
@@ -41,7 +54,18 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point."
+limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/validate/refuters"
+limitations = "Evidence pins the placebo + random-common-cause refuters on the default linear estimator. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp)."
 
 [[cell]]
 query = "ResponseCurve"
@@ -52,6 +76,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
+limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
 
 [[cell]]
 query = "ResponseCurve"
@@ -62,3 +87,4 @@ validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
+limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
