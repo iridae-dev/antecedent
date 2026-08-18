@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sixteen licensed cells; two are real promotions.** `ConditionalEffect`
+  × `Dag` × accepted (the analyze path was silently dropping the
+  `AcceptedGraph` marker for conditional queries — fixed) and
+  `InterventionResponse` × `Dag` × {explicit, accepted} on a new
+  known-truth fixture (`conformance/response/intervention_response`,
+  analytic `E[Y|do(T)]` under a zero-noise linear SCM, tolerance pinned
+  at 3× the measured GAM regularization bias) with a
+  `prepare_intervention_response` staged surface.
+- **Honest graph-class collapses.** Cell classification collapses an ADMG
+  with no bidirected edges and a (structurally always fully-oriented)
+  CPDAG to the `Dag` cell under `AverageEffect`, and complete
+  `TemporalCpdag`/`TemporalPag` to `TemporalDag` under temporal-effect
+  queries — query-scoped to exactly where compile coerces to those paths.
+  Static PAGs never collapse: circle marks are information.
+- **Release notes cannot drift from the matrix.** The licensed-cell block
+  in `docs/release-notes/v0.6.0.md` is generated between markers and
+  enrolled in the release gate's regenerate-and-diff step; the prose
+  package-version gate now scans README and the docs landing pages.
 - **Thirteen licensed cells.** `ConditionalEffect`, `PathSpecificEffect`,
   and `InterventionalDistribution` × `Dag` × explicit × Frequentist × none
   are licensed on the staged handle: prepare caches their identification,
