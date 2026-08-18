@@ -39,6 +39,10 @@ pub enum AnalyticSeKind {
     /// Multiway cluster-robust; requires `multiway_ids` (one `Vec<u32>` per dimension).
     Multiway,
     /// Newey–West HAC with the given lag.
+    ///
+    /// Consecutive influence-function indices are treated as calendar time.
+    /// After trim or matching the IF dispatcher requires `panel_times` and
+    /// applies Bartlett products to those labels instead of the retained index.
     NeweyWest {
         /// Maximum autocorrelation lag.
         lag: usize,
@@ -340,6 +344,8 @@ pub(crate) fn multiway_influence_se(
 }
 
 /// Newey–West HAC SE for a scalar IF sequence (Bartlett kernel).
+///
+/// Consecutive `ψ` indices are treated as unit-spaced calendar time.
 #[must_use]
 pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
     let n = psi.len();
@@ -359,6 +365,45 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
         let mut g = 0.0;
         for i in k..n {
             g += d[i] * d[i - k];
+        }
+        g /= n as f64;
+        hac += 2.0 * bartlett_weight(k, l_eff) * g;
+    }
+    (hac.max(0.0) / n as f64).sqrt()
+}
+
+/// Newey–West HAC using calendar gaps in `times` rather than ψ index.
+///
+/// Pair `(i, j)` contributes to lag `k` iff `times[i] − times[j] = k`.
+/// When `times` is `0..n-1` in ψ order this matches [`newey_west_influence_se`].
+#[must_use]
+pub(crate) fn newey_west_influence_se_at_times(psi: &[f64], times: &[i64], lag: usize) -> f64 {
+    let n = psi.len();
+    if n < 2 || times.len() != n {
+        return f64::NAN;
+    }
+    let mean = psi.iter().sum::<f64>() / n as f64;
+    let d: Vec<f64> = psi.iter().map(|v| v - mean).collect();
+    let mut gamma0 = 0.0;
+    for &x in &d {
+        gamma0 += x * x;
+    }
+    gamma0 /= n as f64;
+    let mut hac = gamma0;
+    let span = match (times.iter().min(), times.iter().max()) {
+        (Some(&t0), Some(&t1)) => usize::try_from(t1.saturating_sub(t0).max(0)).unwrap_or(0),
+        _ => 0,
+    };
+    let l_eff = effective_nw_lag(lag, span.min(n.saturating_sub(1)));
+    for k in 1..=l_eff {
+        let k_i = i64::try_from(k).unwrap_or(i64::MAX);
+        let mut g = 0.0;
+        for i in 0..n {
+            for j in 0..n {
+                if times[i].checked_sub(times[j]) == Some(k_i) {
+                    g += d[i] * d[j];
+                }
+            }
         }
         g /= n as f64;
         hac += 2.0 * bartlett_weight(k, l_eff) * g;
@@ -442,7 +487,28 @@ pub(crate) fn influence_se_kind(
             let gathered: Vec<Vec<u32>> = dims.iter().map(|d| gather_ids(d)).collect();
             multiway_influence_se(psi, &gathered)?
         }
-        AnalyticSeKind::NeweyWest { lag } => newey_west_influence_se(psi, lag),
+        AnalyticSeKind::NeweyWest { lag } => {
+            if row_map.is_some() {
+                let times_full = match panel_times {
+                    Some(times) if times.len() == nrows => times,
+                    Some(times) => {
+                        return Err(EstimationError::data_msg(format!(
+                            "panel_times length {} != nrows {nrows}",
+                            times.len()
+                        )));
+                    }
+                    None => {
+                        return Err(EstimationError::unsupported(
+                            "AnalyticSeKind::NeweyWest with retained/matched rows requires estimator.panel_times; consecutive IF indices are not calendar time",
+                        ));
+                    }
+                };
+                let t = gather_times(times_full);
+                newey_west_influence_se_at_times(psi, &t, lag)
+            } else {
+                newey_west_influence_se(psi, lag)
+            }
+        }
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups_full = require_clusters(cluster_ids, nrows)?;
             let times_full = require_panel_times(panel_times, nrows)?;
@@ -686,5 +752,66 @@ mod tests {
                 "lag={lag}: panel={panel_meat} series={series_meat}"
             );
         }
+    }
+
+    #[test]
+    fn newey_west_at_times_matches_index_on_unit_grid() {
+        let psi = [1.0, -0.5, 0.25, -0.75, 0.5];
+        let times: Vec<i64> = (0..psi.len() as i64).collect();
+        for lag in [0usize, 1, 2, 10] {
+            let a = newey_west_influence_se(&psi, lag);
+            let b = newey_west_influence_se_at_times(&psi, &times, lag);
+            assert!((a - b).abs() < 1e-12, "lag={lag}: index={a} times={b}");
+        }
+    }
+
+    #[test]
+    fn newey_west_at_times_does_not_treat_calendar_gaps_as_lag_one() {
+        let psi = [1.0, 2.0, 4.0];
+        let gapped = [0i64, 1, 3];
+        let se_index = newey_west_influence_se(&psi, 1);
+        let se_time = newey_west_influence_se_at_times(&psi, &gapped, 1);
+        assert!(
+            (se_index - se_time).abs() > 1e-12,
+            "gapped calendar times must not reuse consecutive-index Bartlett products"
+        );
+    }
+
+    #[test]
+    fn newey_west_row_map_without_times_is_unsupported() {
+        let psi = [1.0, 2.0, 4.0];
+        let row_map = [0usize, 1, 3];
+        let err = influence_se_kind(
+            AnalyticSeKind::NeweyWest { lag: 1 },
+            &psi,
+            4,
+            None,
+            None,
+            None,
+            Some(&row_map),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("panel_times"), "err={err}");
+    }
+
+    #[test]
+    fn newey_west_row_map_uses_gathered_panel_times() {
+        let psi = [1.0, 2.0, 4.0];
+        let times = [0i64, 1, 2, 3];
+        let row_map = [0usize, 1, 3];
+        let se = influence_se_kind(
+            AnalyticSeKind::NeweyWest { lag: 1 },
+            &psi,
+            4,
+            None,
+            None,
+            Some(&times),
+            Some(&row_map),
+        )
+        .unwrap();
+        let expected = newey_west_influence_se_at_times(&psi, &[0, 1, 3], 1);
+        assert!((se - expected).abs() < 1e-12);
+        let naive = newey_west_influence_se(&psi, 1);
+        assert!((se - naive).abs() > 1e-12, "gathered times 0,1,3 must not use index-lag Bartlett");
     }
 }
