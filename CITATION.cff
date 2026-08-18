@@ -12,9 +12,9 @@ authors:
     given-names: Charles
     orcid: "https://orcid.org/0009-0000-2421-4351"
   - name: Antecedent Contributors
-version: 0.5.0
+version: 0.5.1
 doi: 10.5281/zenodo.21556247
-date-released: "2026-08-15"
+date-released: "2026-08-18"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
 # Single SPDX string, not a YAML list. Zenodo's CITATION.cff ingestion rejects the

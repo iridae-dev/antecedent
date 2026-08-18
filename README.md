@@ -109,12 +109,12 @@ aspirations.
 * **Parity.** Applicable public behaviour stays in parity across the Rust and Python APIs.
   [`parity/`](parity/)
 
-As of 0.5.0:
+As of 0.5.1:
 
 | | |
 |---|---|
-| Rust tests | 1438 |
-| Python tests | 693 |
+| Rust tests | 1447 |
+| Python tests | 706 |
 | Coverage floor | 85%, enforced in CI |
 | Conformance fixtures | 136 documented cases |
 | Platforms | CPython 3.11–3.14 on Linux, macOS, Windows; Rust 1.85+ |
@@ -131,7 +131,8 @@ endorsement by the referenced projects.
 
 The 0.4.0 correctness audit found and fixed twenty-five defects — see
 [the release notes](docs/release-notes/v0.4.0.md) for what they were and why they mattered.
-Draft 0.5.0 notes are in [docs/release-notes/v0.5.0.md](docs/release-notes/v0.5.0.md).
+The 0.5.1 release is described in
+[docs/release-notes/v0.5.1.md](docs/release-notes/v0.5.1.md).
 
 ## Install
 
@@ -141,7 +142,7 @@ cargo add antecedent          # Rust 1.85+
 ```
 
 Wheels are on PyPI and attached to each GitHub Release. No other language bindings are
-provided. This branch is package version **0.5.0** (crates.io / PyPI publish on tag).
+provided. This branch is package version **0.5.1** (crates.io / PyPI publish on tag).
 
 ## Documentation
 
