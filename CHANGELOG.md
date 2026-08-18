@@ -56,6 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or `max_paths == 0` previously returned `truncated = false`, and longer
   candidates skipped by the length cap were dropped silently, so R4 could
   miss a path and still claim a complete search.
+- **PAG GAC forbids `Forb(T,Y)`, not all of `De(T)`.** Candidates were
+  `An({T,Y}) \ De(T)`, which drops side-effect descendants of `T` that GAC
+  allows (`Forb = De(cn)`, `cn = De(T) ∩ An(Y) \ {T}`).
 
 ### Round 4 — backlog completion
 
