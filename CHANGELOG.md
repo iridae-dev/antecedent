@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IO section lookup and skip scratch.** Seekable / mmap readers index sections
   by id instead of scanning; `read_selective` reuses one 64 KiB skip buffer
   across unread sections.
+- **Laplace Newton reuses workspace buffers.** The per-iteration hessian/grad/
+  `beta_old` `to_vec`s are gone; `solve_spd` can factor into caller storage
+  instead of allocating a Cholesky and `y` on every call.
 
 ### Correctness — localized audit
 
