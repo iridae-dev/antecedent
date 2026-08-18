@@ -43,6 +43,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_upstream_names.sh
   bash scripts/gate_response_calibration.sh
   bash scripts/gate_causal_artifacts.sh
+  bash scripts/gate_estimate_reuse.sh
 fi
 
 python3 - <<'PY'
@@ -231,9 +232,11 @@ cargo bench -p antecedent-kernels --bench reductions -- --test
 cargo bench -p antecedent-graph --bench traversal -- --test
 cargo bench -p antecedent-graph --bench dseparation -- --test
 cargo bench -p antecedent-identify --bench adjustment -- --test
+cargo bench -p antecedent-kernels --bench partial_correlation -- --test
 cargo bench -p antecedent-discovery --bench pcmci -- --test
 cargo bench -p antecedent-design --bench design_rank -- --test
 cargo bench -p antecedent-state --bench state_append -- --test
+cargo bench -p antecedent-estimate --bench response_interference -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

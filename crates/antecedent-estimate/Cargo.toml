@@ -42,3 +42,7 @@ harness = false
 [[bench]]
 name = "temporal_mediation"
 harness = false
+
+[[bench]]
+name = "response_interference"
+harness = false
