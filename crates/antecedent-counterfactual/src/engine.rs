@@ -160,7 +160,6 @@ impl CounterfactualEngine {
         let mut noise = vec![0.0; n * n_nodes];
         let mut kind = NoiseInferenceKind::Invertible;
         let mut assumed_columns = vec![false; n_nodes];
-        let mut ws = MechanismWorkspace::default();
 
         // Load factual values.
         let mut values = vec![0.0; n * n_nodes];
@@ -182,6 +181,9 @@ impl CounterfactualEngine {
             }
         }
 
+        // Gather target hoisted out of the node loop (grow-only), replacing a
+        // fresh per-node copy of the gathered parent matrix.
+        let mut parent_buf: Vec<f64> = Vec::new();
         for gather in self.model.parent_gathers.iter() {
             let node = gather.child;
             let idx = node.as_usize();
@@ -190,11 +192,16 @@ impl CounterfactualEngine {
                 sample_noise_column(self.model.mechanisms.get(node), n, rng, out)?;
                 continue;
             }
-            ws.prepare(n, gather.n_parents().max(1));
-            gather.gather(&values, n, &mut ws.parents);
-            let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n)].to_vec();
-            let parents =
-                ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
+            let need = gather.n_parents().max(1).saturating_mul(n);
+            if parent_buf.len() < need {
+                parent_buf.resize(need, 0.0);
+            }
+            gather.gather(&values, n, &mut parent_buf);
+            let parents = ParentBatch {
+                n_rows: n,
+                n_parents: gather.n_parents(),
+                values: &parent_buf[..gather.n_parents().saturating_mul(n)],
+            };
             let y = &values[idx * n..(idx + 1) * n];
             let mode =
                 infer_noise_column_rng(self.model.mechanisms.get(node), y, parents, out, rng)?;
@@ -260,17 +267,19 @@ impl CounterfactualEngine {
             let mut values_buf = vec![0.0; n_units * n_nodes];
             let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
 
+            let mut parent_buf: Vec<f64> = Vec::new();
             for gather in self.model.parent_gathers.iter() {
                 let node = gather.child;
                 let idx = node.as_usize();
-                ws.prepare(n_units, gather.n_parents().max(1));
-                gather.gather(values.values, n_units, &mut ws.parents);
-                let parent_owned =
-                    ws.parents[..gather.n_parents().saturating_mul(n_units)].to_vec();
+                let need = gather.n_parents().max(1).saturating_mul(n_units);
+                if parent_buf.len() < need {
+                    parent_buf.resize(need, 0.0);
+                }
+                gather.gather(values.values, n_units, &mut parent_buf);
                 let parents = ParentBatch {
                     n_rows: n_units,
                     n_parents: gather.n_parents(),
-                    values: &parent_owned,
+                    values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
                 };
                 let out = values.column_mut(idx)?;
                 if let Some(v) = overlay.hard_set[idx] {
