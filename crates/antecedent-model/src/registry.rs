@@ -199,10 +199,14 @@ impl MechanismRegistry {
                 if is_discrete { &self.discrete } else { &self.continuous };
 
             let mut candidates = Vec::new();
+            let mut fits: Vec<(MechanismFamily, MechanismSlot)> = Vec::new();
             let mut failed = Vec::new();
             for &family in families {
                 match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
-                    Ok(c) => candidates.push(c),
+                    Ok((c, slot)) => {
+                        candidates.push(c);
+                        fits.push((family, slot));
+                    }
                     Err(e) => failed.push((family, e.to_string())),
                 }
             }
@@ -223,7 +227,14 @@ impl MechanismRegistry {
             let selected = policy.select(&candidates).ok_or_else(|| ModelError::Unsupported {
                 message: "selection policy produced no family".into(),
             })?;
-            let fitted = fit_family(selected, gather, model, data, &y, backend, &mut ls_ws)?;
+            // The scoring fit for the selected family is the fit (same inputs,
+            // deterministic solvers); reuse it instead of refitting from scratch.
+            let fitted = fits
+                .into_iter()
+                .find_map(|(family, slot)| (family == selected).then_some(slot))
+                .ok_or_else(|| ModelError::Unsupported {
+                    message: "selected family missing a retained fit".into(),
+                })?;
             slots[node.as_usize()] = fitted.clone();
             assignments.push(MechanismAssignment {
                 node,
@@ -285,7 +296,7 @@ fn score_family(
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
-) -> Result<MechanismCandidate, ModelError> {
+) -> Result<(MechanismCandidate, MechanismSlot), ModelError> {
     let fitted = fit_family(family, gather, model, data, y, backend, ls_ws)?;
     let score = match &fitted {
         MechanismSlot::LinearGaussian { intercept, coeffs, sigma }
@@ -356,12 +367,15 @@ fn score_family(
         }
         _ => f64::NEG_INFINITY,
     };
-    Ok(MechanismCandidate {
-        family,
-        score,
-        fit_cost: 1.0 + gather.n_parents() as f64,
-        eval_cost: 1.0 + gather.n_parents() as f64,
-    })
+    Ok((
+        MechanismCandidate {
+            family,
+            score,
+            fit_cost: 1.0 + gather.n_parents() as f64,
+            eval_cost: 1.0 + gather.n_parents() as f64,
+        },
+        fitted,
+    ))
 }
 
 fn fit_family(

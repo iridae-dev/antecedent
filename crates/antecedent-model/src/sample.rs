@@ -80,19 +80,24 @@ pub fn sample_with_overlay(
     let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
     let overlay = view.overlay.as_ref();
 
+    // Gather target hoisted out of the node loop (grow-only) so the parent
+    // batch borrows a buffer disjoint from `ws` — `sample_column` needs
+    // `&mut ws` while parents stay alive, which previously forced a fresh
+    // `to_vec` per node.
+    let mut parent_buf: Vec<f64> = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let idx = node.as_usize();
-        ws.prepare(n_rows, gather.n_parents().max(1));
-        gather.gather(values.values, n_rows, &mut ws.parents);
+        let need = gather.n_parents().max(1).saturating_mul(n_rows);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_rows, &mut parent_buf);
         let parents = ParentBatch {
             n_rows,
             n_parents: gather.n_parents(),
-            values: &ws.parents[..gather.n_parents().saturating_mul(n_rows)],
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
         };
-        // Copy parents to owned so we can mutably write the child column.
-        let parent_owned = parents.values.to_vec();
-        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
 
         let out = values.column_mut(idx)?;
 
@@ -288,17 +293,20 @@ fn sample_conditional_interventional_lw(
     let mut log_w = vec![0.0; n_particles];
     let mut lp_buf = vec![0.0; n_particles];
 
+    let mut parent_buf: Vec<f64> = Vec::new();
     for (ci, &node) in condition_nodes.iter().enumerate() {
         let gather = model.gather_for(node).ok_or_else(|| ModelError::Unsupported {
             message: format!("missing gather for condition node {node:?}"),
         })?;
-        ws.prepare(n_particles, gather.n_parents().max(1));
-        gather.gather(&proposal.values, n_particles, &mut ws.parents);
-        let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_particles)].to_vec();
+        let need = gather.n_parents().max(1).saturating_mul(n_particles);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(&proposal.values, n_particles, &mut parent_buf);
         let parents = ParentBatch {
             n_rows: n_particles,
             n_parents: gather.n_parents(),
-            values: &parent_owned,
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_particles)],
         };
         // Score the *conditioned* value under each particle's parents.
         let conditioned = vec![condition_values[ci]; n_particles];
@@ -639,13 +647,20 @@ pub fn sample_structural_with_overlay(
     let mut values_buf = vec![0.0; n_rows * n_nodes];
     let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
     let overlay = view.overlay.as_ref();
+    let mut parent_buf: Vec<f64> = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let idx = node.as_usize();
-        ws.prepare(n_rows, gather.n_parents().max(1));
-        gather.gather(values.values, n_rows, &mut ws.parents);
-        let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_rows)].to_vec();
-        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
+        let need = gather.n_parents().max(1).saturating_mul(n_rows);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_rows, &mut parent_buf);
+        let parents = ParentBatch {
+            n_rows,
+            n_parents: gather.n_parents(),
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
+        };
         let out = values.column_mut(idx)?;
         if let Some(v) = overlay.hard_set[idx] {
             out.fill(v);
