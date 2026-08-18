@@ -6,7 +6,9 @@
 //! # Search completeness
 //!
 //! Per MAG completion, adjustment sets are searched among subsets of
-//! `An({T,Y}) \ (Desc(T) ∪ {T,Y})` in the completion ADMG, tested for m-separation of
+//! `An({T,Y}) ∪ (De(T) \ Forb(T,Y))` excluding `Forb(T,Y) ∪ {T,Y}`, where
+//! `Forb(T,Y) = De(cn(T,Y))` and `cn(T,Y) = De(T) ∩ An(Y) \ {T}` (nodes on
+//! proper causal paths from `T` to `Y`). Each subset is tested for m-separation of
 //! `T` and `Y` in `G_{\underline{T}}` (outgoing edges from `T` removed). Enumeration is
 //! by increasing set size and stops at the first valid set (minimal-first). Completions
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
@@ -310,7 +312,7 @@ fn identify_on_mag_completion(
             d.push(
                 "generalized.adjustment",
                 format!(
-                    "Z (size {}) m-separates T from Y in G_underbar{{T}} among ancestor candidates",
+                    "Z (size {}) m-separates T from Y in G_underline{{T}} among GAC candidates",
                     z_vars.len()
                 ),
             );
@@ -328,20 +330,32 @@ fn mag_dense_to_var(mag: &Pag, id: DenseNodeId) -> Result<VariableId, Identifica
     }
 }
 
-/// Candidates = An({T,Y}) \ (Desc(T) ∪ {T,Y}) in the ADMG.
+/// Candidates = `(An({T,Y}) ∪ De(T)) \ (Forb(T,Y) ∪ {T,Y})`.
+///
+/// `Forb(T,Y) = De(cn)` with `cn = De(T) ∩ An(Y) \ {T}`. Side-effect descendants
+/// of `T` that are not on a proper causal path to `Y` are allowed; mediators
+/// and their descendants are not.
 fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<DenseNodeId> {
     let an = directed_closure(admg, &[t, y], true);
-    let desc_t = directed_closure(admg, &[t], false);
+    let de_t = directed_closure(admg, &[t], false);
+    let an_y = directed_closure(admg, &[y], true);
+    let mut cn = Vec::new();
+    for i in 0..admg.node_count() {
+        let id = DenseNodeId::from_raw(i as u32);
+        if id != t && de_t.contains(id) && an_y.contains(id) {
+            cn.push(id);
+        }
+    }
+    let forb = directed_closure(admg, &cn, false);
     let mut out = Vec::new();
     for i in 0..admg.node_count() {
         let id = DenseNodeId::from_raw(i as u32);
-        if id == t || id == y {
+        if id == t || id == y || forb.contains(id) {
             continue;
         }
-        if !an.contains(id) || desc_t.contains(id) {
-            continue;
+        if an.contains(id) || de_t.contains(id) {
+            out.push(id);
         }
-        out.push(id);
     }
     out
 }
@@ -582,5 +596,26 @@ mod tests {
         // only the capped one is flagged as truncated -- proving the two are distinguishable
         // rather than both being folded indistinguishably into `unidentified_weight`.
         assert!(capped_env.truncated_completions > genuine_env.truncated_completions);
+    }
+
+    #[test]
+    fn gac_candidates_allow_side_effect_descendants_of_t() {
+        // T → M → Y, T → W, U → T, U → Y. W ∈ De(T) but W ∉ Forb(T,Y)=De({M,Y}).
+        let mut g = Admg::with_variables(5);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let m = DenseNodeId::from_raw(2);
+        let w = DenseNodeId::from_raw(3);
+        let u = DenseNodeId::from_raw(4);
+        g.insert_directed(t, m).unwrap();
+        g.insert_directed(m, y).unwrap();
+        g.insert_directed(t, w).unwrap();
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+        let c = adjustment_candidates(&g, t, y);
+        assert!(c.contains(&u), "confounder must remain a candidate: {c:?}");
+        assert!(c.contains(&w), "GAC allows side-effect descendant W: {c:?}");
+        assert!(!c.contains(&m), "mediator is in Forb: {c:?}");
+        assert!(!c.contains(&t) && !c.contains(&y));
     }
 }
