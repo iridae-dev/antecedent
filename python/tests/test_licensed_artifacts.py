@@ -84,6 +84,22 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
         },
         ["t", "y"],
     ),
+    "InterventionResponse": (
+        {
+            "response": {
+                "functional": {
+                    "intervention_response": {
+                        "outcome": 1,
+                        "interventions": [{"set": {"variable": 0, "value": {"float64": 0.25}}}],
+                    }
+                },
+                "target_population": "all_observed",
+                "observation": "complete",
+                "observation_assumptions": [],
+            }
+        },
+        ["t", "y"],
+    ),
 }
 
 

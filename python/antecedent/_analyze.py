@@ -157,6 +157,7 @@ def handle_conditional(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    structure_accepted: bool = False,
 ) -> Any:
     from .estimation import _static_edges, _wrap_ate
 
@@ -180,6 +181,7 @@ def handle_conditional(
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
+        accepted=structure_accepted,
     )
     return _wrap_ate(raw)
 
@@ -1533,6 +1535,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
             "seed",
             "bootstrap",
             "threads",
+            "structure_accepted",
         ),
     ),
     "temporal_mediation": (

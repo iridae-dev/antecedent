@@ -1991,7 +1991,7 @@ pub(crate) struct GraphEdge {
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, modifier, *,
     control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=50, threads=1
+    refute=None, validators=None, seed=1, bootstrap=50, threads=1, accepted=false
 ))]
 fn analyze_conditional(
     py: Python<'_>,
@@ -2008,6 +2008,7 @@ fn analyze_conditional(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
@@ -2025,8 +2026,7 @@ fn analyze_conditional(
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::tabular(data)
-            .graph(dag)
+        let analysis = bind_dag(Study::tabular(data), dag, accepted)
             .query(CausalQuery::ConditionalEffect(cq))
             .refute(suite)
             .custom_validators(custom_validators)
