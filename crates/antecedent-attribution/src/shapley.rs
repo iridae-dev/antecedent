@@ -198,6 +198,9 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     check_shapley_size(n, config)?;
 
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
+    if matches!(config.mode, ShapleyMode::Exact) {
+        cache.enable_dense_index(n);
+    }
     let mut budget = ComputeBudget::default();
 
     let eval = |mask: u64,
@@ -339,6 +342,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
         return Err(AttributionError::invalid_input("sequential order is empty"));
     }
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
+    cache.enable_dense_index(order.len());
     let mut budget = ComputeBudget::default();
     let eval = |mask: u64,
                 payoff: &mut P,

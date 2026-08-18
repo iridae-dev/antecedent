@@ -108,6 +108,7 @@ pub fn unit_change(
         budget.samples += est.budget.samples;
         cache_stats.hits += est.cache_stats.hits;
         cache_stats.misses += est.cache_stats.misses;
+        cache_stats.saturated |= est.cache_stats.saturated;
         if let Some(se) = est.monte_carlo_stderr {
             sum_se2 += se * se;
             n_se += 1;
