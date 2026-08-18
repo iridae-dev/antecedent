@@ -130,7 +130,11 @@ pub fn sample_with_overlay(
 /// Soft overrides must share noise semantics with the fitted mechanism. Reusing a
 /// Discrete Uniform(0,1) residual as an additive Gaussian U (or the reverse) is not
 /// a well-defined counterfactual.
-fn refuse_cross_family_soft(
+///
+/// # Errors
+///
+/// [`ModelError::Unsupported`] when the fitted slot and override disagree on noise kind.
+pub fn refuse_cross_family_soft(
     existing: &MechanismSlot,
     soft: &MechanismOverride,
 ) -> Result<(), ModelError> {
