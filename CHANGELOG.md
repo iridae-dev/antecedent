@@ -7,7 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes yet on top of 0.5.1.
+Performance pass over the documented hot-path contracts (ADR 0011) and the
+0.5.0 causal-response / interference surface. No statistical semantics change:
+every rewritten loop is either bit-identical (differential-tested) or an exact
+algebraic identity (parity-tested against the definitional form).
+
+### Fixed
+
+- **`ResponseCurve` / Kennedy DR was O(n²) in rows** — the cross-fitted
+  pseudo-outcome loop re-predicted the additive outcome GAM for every
+  (validation × training) pair. The additive structure makes the covariate
+  part of that average fold-constant; it is now hoisted (exact identity,
+  pinned by `pseudo_outcome_additive_hoist_matches_brute_force_double_loop`).
+  Measured: n=20k analyze went from 100.3 s to 1.31 s (77×); n=10k from
+  24.0 s to 0.35 s. The remaining super-linear term is the definitional
+  marginal-density KDE sum, O(n²/K) cheap ops.
+- `GamFit::predict_row` / `smooth_partial`: allocation-free span-local
+  B-spline prediction (a cubic has 4 nonzero bases), bit-identical to
+  `predict_gam` (pinned by two new tests). Replaces ~9 heap allocations per
+  prediction on every response/ADE/Jacobian path.
+- **Interference MC exposure probabilities**: the cluster design scanned a
+  `Vec` per unit per draw — O(draws × n × treated_clusters) — and every draw
+  re-sorted ids, re-validated the whole edge list, and allocated fresh
+  assignment/exposure buffers. A precomputed `AssignmentSampler` now reuses
+  all buffers, O(n + clusters) per draw, bit-identical to the old sampler
+  (differential test
+  `monte_carlo_sampler_reuse_is_bit_identical_to_one_shot_reference`).
+- Propensity / AIPW bootstrap replicate loops honored their workspace
+  contract in name only: `fit_propensity` sized `workspace.scores` then
+  allocated a fresh vector anyway (making the bench's `scores_grow_count`
+  assertion vacuous), and AIPW's default no-trim path cloned the full design
+  matrix plus three O(n) vectors per replicate. New `fit_propensity_in_place`
+  plus reused clip/weight/gather buffers; the existing bench gate is now
+  meaningful.
+- Adaptive Bayesian draws accumulated batches by re-merging and re-cloning the
+  full coefficient matrix each batch (O(D²) copying); blocks are now
+  concatenated once (`concat_coefficient_draws`). Draw counts and widths
+  unchanged (pinned by `adaptive_draws_preserve_exact_nig_count_and_width`).
+- Transport identification: the S-admissible subset scan enumerated all 2^k
+  masks k+1 times (22M trips at the k=20 cap); it now enumerates each
+  combination once via Gosper's hack in the identical visiting order, with
+  loop-invariant selection nodes and buffers hoisted. Reachability probes
+  reuse one `GraphWorkspace` instead of allocating per pair.
+- `EfficientBackdoorIdentifier` truncated silently at `max_results`; it now
+  emits a derivation note, matching `BackdoorIdentifier`.
+- Python: `analyze(arrow_table, ..., on_stage=...)` raised `TypeError` — the
+  Arrow C entry point lacked the parameter the dict path had (regression test
+  added); `estimate_trial_transport` now releases the GIL like the
+  interference path.
+
+### Added
+
+- `response_interference` Criterion bench with asserted 1 s soft-budget gates
+  (`kennedy_curve_n4k_grid5`, `interference_cluster_n10k_2kdraws`) — the
+  pre-0.5.2 quadratic loop fails it by ~4×. Wired into `gate_release.sh` and
+  `docs/hot_paths.md` with a new baseline doc.
+
+### Changed (gates and baselines)
+
+- The Shapley 500 ms latency gate was dead code (`#[allow(dead_code)]` entry
+  point never invoked) and the 200 ms exact-path budget had no assert; both
+  now execute on every bench invocation. `design_rank` / `state_append` soft
+  budgets (50 ms / 20 ms) are now asserted rather than prose. The matching
+  bench's tautological "reuse gate" (a local counter incremented once) was
+  removed in favor of the real estimate-side test it pretended to be.
+- `benches/baselines/pcmci.md` re-established at 6.73 ms (gate 8.08 ms): the
+  recorded 1.59 ms is not reproducible on the reference machine at any commit
+  from 2026-07-19 to HEAD (bisect-benched at four points, 6.0–7.1 ms
+  throughout); measured genuine drift is +11%, explained by the 0.4.0
+  correctness fixes.
+- `gate_release.sh` now runs the `partial_correlation` smoke (previously in no
+  gate) and `gate_estimate_reuse.sh` (previously claimed as a PR gate by
+  `benches/baselines/propensity.md` but wired to nothing).
+- Stale names corrected: `docs/hot_paths.md` cited three test names that no
+  longer exist and a Rust discovery-refusal guard that was retired in favor of
+  the Python-side guard (`docs/artifacts.md` updated to say so);
+  `benches/baselines/ci_orientation.md` named a nonexistent bench target
+  (`ci_phase5` → `ci_framework`); `regime_mediation.md` budgets now state the
+  asserted gate values (10 / 40 ms) instead of numbers 2× tighter than any
+  gate enforced.
 
 ## [0.5.1] — 2026-08-18
 
