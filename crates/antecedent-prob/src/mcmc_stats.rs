@@ -41,6 +41,53 @@ pub fn parameter_mcmc_diagnostics(
     (0..n_params).map(|p| diagnostics_one(samples, n_chains, n_draws, n_params, p)).collect()
 }
 
+/// One-pass gate summary: max R̂ plus min bulk/tail ESS.
+#[derive(Clone, Copy, Debug)]
+pub struct McmcSummary {
+    /// Maximum rank∪folded split R̂ across parameters (`∞` if any fails).
+    pub max_rhat: f64,
+    /// Minimum bulk ESS across parameters.
+    pub min_bulk_ess: f64,
+    /// Minimum tail ESS across parameters.
+    pub min_tail_ess: f64,
+}
+
+/// Compute [`max_split_rhat`], [`min_bulk_ess`], and [`min_tail_ess`] from one
+/// diagnostics pass. The three standalone reducers each recompute every
+/// parameter's diagnostics — publication gates that need all three were paying
+/// 3× the (quadratic-in-draws) work for identical values.
+#[must_use]
+pub fn mcmc_summary(
+    samples: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+) -> McmcSummary {
+    let rhat_guard = n_chains < 2 || n_draws < 8 || n_params == 0;
+    let ess_guard = n_chains == 0 || n_draws < 8 || n_params == 0;
+    if rhat_guard && ess_guard {
+        return McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 };
+    }
+    let diags = parameter_mcmc_diagnostics(samples, n_chains, n_draws, n_params);
+    let mut max_rhat = 0.0_f64;
+    let mut min_bulk = f64::INFINITY;
+    let mut min_tail = f64::INFINITY;
+    for d in &diags {
+        if d.rhat.is_finite() {
+            max_rhat = max_rhat.max(d.rhat);
+        } else {
+            max_rhat = f64::INFINITY;
+        }
+        min_bulk = min_bulk.min(d.ess_bulk);
+        min_tail = min_tail.min(d.ess_tail);
+    }
+    McmcSummary {
+        max_rhat: if rhat_guard { f64::INFINITY } else { max_rhat },
+        min_bulk_ess: if ess_guard || !min_bulk.is_finite() { 0.0 } else { min_bulk },
+        min_tail_ess: if ess_guard || !min_tail.is_finite() { 0.0 } else { min_tail },
+    }
+}
+
 /// Maximum rank∪folded R-hat across parameters (`∞` if any fails).
 #[must_use]
 pub fn max_split_rhat(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64 {
@@ -310,49 +357,50 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
 }
 
 /// Geyer (1992) IPS + IMS ESS on split-chain segments (segment-major layout).
+///
+/// Autocovariances are computed lazily per lag and stop at the Geyer
+/// truncation point (the first non-positive pair sum) — the truncation rule
+/// only ever reads lags `≤ 2t+1`, so evaluating all `n−1` lags up front was
+/// O(m·n²) work of which O(m·n·τ) is used. Per-lag arithmetic, the
+/// truncation test, and the monotone clamp are unchanged, so the result is
+/// bit-identical to the eager form.
 fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let s = (m * n) as f64;
-    let (var_hat, acov) = split_autocovariances(seg_major, m, n);
-    if !(var_hat > 0.0) || acov.is_empty() {
+    let stats = split_segment_stats(seg_major, m, n);
+    let var_hat = stats.var_hat;
+    if !(var_hat > 0.0) || n == 0 {
         return 0.0;
     }
-    // ρ̂_t = acov[t] / var_hat; Geyer initial positive sequence on pair sums.
-    let mut rho_hat = Vec::with_capacity(acov.len());
-    for &a in &acov {
-        rho_hat.push(a / var_hat);
-    }
-    // Pair sums P_t = ρ_{2t} + ρ_{2t+1}.
-    let max_pairs = (rho_hat.len().saturating_sub(1)) / 2;
+    // Pair sums P_t = ρ_{2t} + ρ_{2t+1}, ρ̂_t = Â_t / var̂⁺; lags 2t, 2t+1
+    // must both exist, i.e. 2t+1 ≤ n−1.
+    let max_pairs = n.saturating_sub(1) / 2;
     if max_pairs == 0 {
         return s;
     }
-    let mut pairs = Vec::with_capacity(max_pairs);
+    // Stan/Vehtari (2021): τ̂ = −1 + 2 Σ P_t' over the initial positive,
+    // monotone-nonincreasing pair sequence.
+    let mut tau = -1.0;
+    let mut prev_pair = f64::INFINITY;
+    let mut any_pair = false;
     for t in 0..max_pairs {
-        let p = rho_hat[2 * t] + rho_hat[2 * t + 1];
-        pairs.push(p);
-    }
-    // Initial positive sequence: truncate at first non-positive pair.
-    let mut truncate = pairs.len();
-    for (i, &p) in pairs.iter().enumerate() {
+        let a0 =
+            if 2 * t == 0 { var_hat } else { lag_autocovariance(seg_major, m, n, 2 * t, &stats) };
+        let a1 = lag_autocovariance(seg_major, m, n, 2 * t + 1, &stats);
+        let mut p = a0 / var_hat + a1 / var_hat;
+        // Initial positive sequence: truncate at first non-positive pair.
         if p <= 0.0 {
-            truncate = i;
             break;
         }
-    }
-    if truncate == 0 {
-        return s;
-    }
-    pairs.truncate(truncate);
-    // Initial monotone sequence: enforce nonincreasing.
-    for i in 1..pairs.len() {
-        if pairs[i] > pairs[i - 1] {
-            pairs[i] = pairs[i - 1];
+        // Initial monotone sequence: enforce nonincreasing.
+        if p > prev_pair {
+            p = prev_pair;
         }
-    }
-    // Stan/Vehtari (2021): τ̂ = −1 + 2 Σ P_t' with P_t' = ρ̂_{2t'} + ρ̂_{2t'+1}.
-    let mut tau = -1.0;
-    for &p in &pairs {
+        prev_pair = p;
+        any_pair = true;
         tau += 2.0 * p;
+    }
+    if !any_pair {
+        return s;
     }
     // Stan/ArviZ floor τ̂ at 1/log10(S), not 1, and do not clamp ESS to S: antithetic
     // (negatively autocorrelated) chains are legitimately super-efficient and can exceed the
@@ -362,7 +410,14 @@ fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     s / tau
 }
 
-fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64>) {
+/// Per-segment means/variances plus W and var̂⁺ (shared by R̂ and the lags).
+struct SegmentStats {
+    means: Vec<f64>,
+    w: f64,
+    var_hat: f64,
+}
+
+fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     let nf = n as f64;
     let mut means = vec![0.0; m];
     let mut vars = vec![0.0; m];
@@ -396,28 +451,32 @@ fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64
     }
     b = nf * b / (m as f64 - 1.0);
     let var_hat = ((nf - 1.0) / nf) * w + b / nf;
+    SegmentStats { means, w, var_hat }
+}
 
-    // Mean autocovariance across chains at each lag (unbiased within-chain).
-    // Stan/Vehtari (2021): Â_0 = var̂⁺, Â_t = var̂⁺ − W + ā_t for t>0, so
-    // ρ̂_t = 1 − (W − ā_t)/var̂⁺ (not ā_t/var̂⁺, which ignores between-chain).
-    let max_lag = n.saturating_sub(1);
-    let mut acov = vec![0.0; max_lag + 1];
-    acov[0] = var_hat;
-    for lag in 1..=max_lag {
-        let mut acc = 0.0;
-        for seg in 0..m {
-            let base = seg * n;
-            let mean = means[seg];
-            let mut num = 0.0;
-            for d in 0..(n - lag) {
-                num += (seg_major[base + d] - mean) * (seg_major[base + d + lag] - mean);
-            }
-            acc += num / (nf - 1.0);
+/// Â_lag for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
+/// Â_t = var̂⁺ − W + ā_t, so ρ̂_t = 1 − (W − ā_t)/var̂⁺ — not ā_t/var̂⁺,
+/// which ignores between-chain variance).
+fn lag_autocovariance(
+    seg_major: &[f64],
+    m: usize,
+    n: usize,
+    lag: usize,
+    stats: &SegmentStats,
+) -> f64 {
+    let nf = n as f64;
+    let mut acc = 0.0;
+    for seg in 0..m {
+        let base = seg * n;
+        let mean = stats.means[seg];
+        let mut num = 0.0;
+        for d in 0..(n - lag) {
+            num += (seg_major[base + d] - mean) * (seg_major[base + d + lag] - mean);
         }
-        let a_bar = acc / m as f64;
-        acov[lag] = var_hat - w + a_bar;
+        acc += num / (nf - 1.0);
     }
-    (var_hat, acov)
+    let a_bar = acc / m as f64;
+    stats.var_hat - stats.w + a_bar
 }
 
 #[inline]

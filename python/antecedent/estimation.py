@@ -199,6 +199,7 @@ def _section_performance(raw: Any) -> Any:
         cancelled=bool(getattr(raw, "cancelled", False)),
         early_stopped=bool(getattr(raw, "early_stopped", False)),
         stage_timings=getattr(raw, "stage_timings", None),
+        bytes_borrowed=getattr(raw, "bytes_borrowed", None),
     )
 
 
@@ -359,6 +360,7 @@ def _wrap_ate(
             early_stopped=bool(sec_performance.early_stopped),
             stage_timings={str(k): int(v) for k, v in (sec_performance.stage_timings or [])}
             or None,
+            bytes_borrowed=getattr(sec_performance, "bytes_borrowed", None),
         ),
         diagnostics=list(raw.diagnostics),
         provenance={

@@ -243,7 +243,10 @@ impl ValidationSuite {
         Ok(out)
     }
 
-    /// Like [`Self::run`], reusing a warmed propensity workspace for overlap diagnostics.
+    /// Like [`Self::run`], reusing one warmed propensity workspace across every validator
+    /// that fits a diagnostic propensity (Overlap, `OverlapRule`, Riesz), so the suite warms
+    /// the GLM buffers once instead of fitting cold per refuter. Workspace reuse only:
+    /// each refuter still runs its own fit over its own mask, so scores are never shared.
     ///
     /// # Errors
     ///
@@ -257,14 +260,24 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            if id == ValidatorId::Overlap {
-                out.push(ValidationOutcome::Report(
+            // Temporal designs fall through to `run_one`, which returns the same
+            // `NotApplicable` outcomes as the plain `run` path for these validators.
+            let outcome = match id {
+                ValidatorId::Overlap => ValidationOutcome::Report(
                     crate::overlap::OverlapRefuter::new()
                         .refute_with_propensity(problem, propensity)?,
-                ));
-            } else {
-                out.push(self.run_one(id, problem, workspace, ctx)?);
-            }
+                ),
+                ValidatorId::OverlapRule if problem.temporal.is_none() => {
+                    ValidationOutcome::Report(
+                        OverlapRuleRefuter::new().refute_with_propensity(problem, propensity)?,
+                    )
+                }
+                ValidatorId::Riesz if problem.temporal.is_none() => ValidationOutcome::Report(
+                    RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
+                ),
+                _ => self.run_one(id, problem, workspace, ctx)?,
+            };
+            out.push(outcome);
         }
         for custom in &self.custom {
             out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));
@@ -689,14 +702,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);

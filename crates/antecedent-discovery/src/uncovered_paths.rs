@@ -52,6 +52,21 @@ fn marks_from_to<G: PagOps>(
     if e.a == from { Some((e.at_a, e.at_b)) } else { Some((e.at_b, e.at_a)) }
 }
 
+const AFTER_CIRCLE_CIRCLE: &[EndpointPattern] = &[
+    EndpointPattern::circle_circle(),
+    EndpointPattern::circle_arrow(),
+    EndpointPattern::directed(),
+];
+const AFTER_DIRECTED: &[EndpointPattern] = &[EndpointPattern::directed()];
+
+fn next_allowed_after(at_from: Endpoint, at_to: Endpoint) -> &'static [EndpointPattern] {
+    if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
+        AFTER_CIRCLE_CIRCLE
+    } else {
+        AFTER_DIRECTED
+    }
+}
+
 fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> bool {
     if let Some(p) = pat.at_from {
         if at_from != p {
@@ -84,7 +99,8 @@ pub fn is_potentially_directed<G: PagOps>(graph: &G, from: DenseNodeId, to: Dens
 /// `path[i]` not adjacent to `path[i+2]`).
 ///
 /// Returns `(paths, truncated)` where `truncated` is true if the search stopped because
-/// `max_paths` was reached while further candidates remained.
+/// `max_paths` was reached, `max_len` pruned a path that had not reached `end`, or
+/// the budget was zero (`max_paths == 0`).
 #[must_use]
 pub fn uncovered_pd_paths_with_budget<G: PagOps>(
     graph: &G,
@@ -96,8 +112,11 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
 ) -> (Vec<Vec<DenseNodeId>>, bool) {
     let mut out = Vec::new();
     let mut truncated = false;
-    if start == end || max_paths == 0 || max_len < 3 {
-        return (out, false);
+    if max_paths == 0 {
+        return (out, true);
+    }
+    if start == end || max_len < 3 {
+        return (out, max_len < 3 && start != end);
     }
     #[allow(clippy::too_many_arguments, clippy::items_after_statements)]
     fn search<G: PagOps>(
@@ -118,6 +137,12 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
             return;
         }
         if path.len() >= max_len {
+            for (next, _, _) in graph.neighbors(cur) {
+                if !path.contains(&next) {
+                    *truncated = true;
+                    break;
+                }
+            }
             return;
         }
         let nbrs: Vec<_> = graph.neighbors(cur).into_iter().map(|(n, _, _)| n).collect();
@@ -141,18 +166,17 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
             if !allowed.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
                 continue;
             }
-            let next_allowed: &[EndpointPattern] =
-                if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
-                    &[
-                        EndpointPattern::circle_circle(),
-                        EndpointPattern::circle_arrow(),
-                        EndpointPattern::directed(),
-                    ]
-                } else {
-                    &[EndpointPattern::directed()]
-                };
             path.push(next);
-            search(graph, end, path, next_allowed, max_paths, max_len, out, truncated);
+            search(
+                graph,
+                end,
+                path,
+                next_allowed_after(at_from, at_to),
+                max_paths,
+                max_len,
+                out,
+                truncated,
+            );
             path.pop();
         }
     }
@@ -173,18 +197,17 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
         if !initial.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
             continue;
         }
-        let next_allowed: &[EndpointPattern] =
-            if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
-                &[
-                    EndpointPattern::circle_circle(),
-                    EndpointPattern::circle_arrow(),
-                    EndpointPattern::directed(),
-                ]
-            } else {
-                &[EndpointPattern::directed()]
-            };
         path.push(next);
-        search(graph, end, &mut path, next_allowed, max_paths, max_len, &mut out, &mut truncated);
+        search(
+            graph,
+            end,
+            &mut path,
+            next_allowed_after(at_from, at_to),
+            max_paths,
+            max_len,
+            &mut out,
+            &mut truncated,
+        );
         path.pop();
     }
     (out, truncated)
@@ -201,4 +224,49 @@ pub fn uncovered_pd_paths<G: PagOps>(
     max_len: usize,
 ) -> Vec<Vec<DenseNodeId>> {
     uncovered_pd_paths_with_budget(graph, start, end, initial, max_paths, max_len).0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_graph::Pag;
+
+    fn directed_chain4() -> Pag {
+        let mut g = Pag::with_variables(4);
+        let n = |i| DenseNodeId::from_raw(i);
+        g.insert_directed(n(0), n(1)).unwrap();
+        g.insert_directed(n(1), n(2)).unwrap();
+        g.insert_directed(n(2), n(3)).unwrap();
+        g
+    }
+
+    #[test]
+    fn max_len_that_prunes_an_unfinished_path_is_truncated() {
+        let g = directed_chain4();
+        let a = DenseNodeId::from_raw(0);
+        let d = DenseNodeId::from_raw(3);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        let initial = [EndpointPattern::directed()];
+        let (paths, truncated) = uncovered_pd_paths_with_budget(&g, a, d, &initial, 8, 3);
+        assert!(paths.is_empty());
+        assert!(truncated, "max_len=3 must not claim a complete search of a 4-node path");
+        let (paths, truncated) = uncovered_pd_paths_with_budget(&g, a, d, &initial, 8, 4);
+        assert_eq!(paths, vec![vec![a, b, c, d]]);
+        assert!(!truncated);
+    }
+
+    #[test]
+    fn zero_path_budget_is_truncated() {
+        let g = directed_chain4();
+        let (_, truncated) = uncovered_pd_paths_with_budget(
+            &g,
+            DenseNodeId::from_raw(0),
+            DenseNodeId::from_raw(3),
+            &[EndpointPattern::directed()],
+            0,
+            8,
+        );
+        assert!(truncated);
+    }
 }

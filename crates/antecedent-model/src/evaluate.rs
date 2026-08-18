@@ -9,12 +9,17 @@
     clippy::needless_range_loop
 )]
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
-use antecedent_stats::ci::{CiWorkspace, PartialCorrelation, SignificanceMethod};
+use antecedent_stats::ci::{
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod,
+    PartialCorrelation, SignificanceMethod,
+};
 
 use crate::batch::{MechanismWorkspace, ParentBatch};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
@@ -125,11 +130,11 @@ fn mean_loglik(model: &CompiledCausalModel, data: &TabularData) -> Result<f64, M
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
+        let y = data.float64_cow(var).map_err(ModelError::from)?;
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
+            let col = data.float64_cow(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -172,12 +177,12 @@ fn residual_summary(
             continue;
         }
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
+        let y = data.float64_cow(var).map_err(ModelError::from)?;
         ws.prepare(n, gather.n_parents().max(1));
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
+            let col = data.float64_cow(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -214,32 +219,42 @@ fn residual_independence_tests(
     _alpha: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, ModelError> {
-    let mut ps = Vec::new();
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
+    let n_nodes = model.n_nodes();
     let children = child_adjacency(model);
+
+    let mut obs_store: Vec<Cow<'_, [f64]>> = Vec::with_capacity(n_nodes);
+    for i in 0..n_nodes {
+        let var = model.output_layout.variables[i];
+        obs_store.push(data.float64_cow(var).map_err(ModelError::from)?);
+    }
+    let mut cols: Vec<&[f64]> = obs_store.iter().map(std::convert::AsRef::as_ref).collect();
+    let mut resid_col = vec![None; n_nodes];
+    for (i, r) in residuals.iter().enumerate() {
+        if let Some(v) = r {
+            resid_col[i] = Some(cols.len());
+            cols.push(v.as_slice());
+        }
+    }
+
+    let mut queries = Vec::new();
     for (node_i, resid_opt) in residuals.iter().enumerate() {
-        let Some(resid) = resid_opt else { continue };
+        let Some(_) = resid_opt else { continue };
+        let Some(rx) = resid_col[node_i] else { continue };
         let gather = model.gather_for(DenseNodeId::from_raw(node_i as u32)).unwrap();
-        let parent_set: std::collections::HashSet<usize> =
-            gather.parents.iter().map(|p| p.as_usize()).collect();
+        let parent_set: HashSet<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
         let descendants = descendants_of(&children, node_i);
-        for other in 0..model.n_nodes() {
+        for other in 0..n_nodes {
             // ANM residuals are independent of non-descendants (parents already skipped).
             // Dependence on descendants is expected and must not falsify a correct model.
             if other == node_i || parent_set.contains(&other) || descendants.contains(&other) {
                 continue;
             }
-            let ovar = model.output_layout.variables[other];
-            let x = data.float64_values(ovar).map_err(ModelError::from)?;
-            let cols: [&[f64]; 2] = [resid.as_slice(), x.as_slice()];
-            let res = test
-                .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, ctx)
-                .map_err(ModelError::from)?;
-            ps.push(res.p_value);
+            queries.push(CiQuery { x: rx, y: other, z_start: 0, z_len: 0 });
         }
     }
-    Ok(ps)
+    ci_pvalues(&test, &cols, &queries, &[], &mut ws, ctx)
 }
 
 fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
@@ -253,8 +268,8 @@ fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
     children
 }
 
-fn descendants_of(children: &[Vec<usize>], node: usize) -> std::collections::HashSet<usize> {
-    let mut out = std::collections::HashSet::new();
+fn descendants_of(children: &[Vec<usize>], node: usize) -> HashSet<usize> {
+    let mut out = HashSet::new();
     let mut stack = children.get(node).cloned().unwrap_or_default();
     while let Some(v) = stack.pop() {
         if out.insert(v) {
@@ -272,37 +287,78 @@ fn local_markov_tests(
 ) -> Result<Vec<f64>, ModelError> {
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
-    let mut ps = Vec::new();
+    let n_nodes = model.n_nodes();
+    let mut storage: Vec<Cow<'_, [f64]>> = Vec::with_capacity(n_nodes);
+    for i in 0..n_nodes {
+        let var = model.output_layout.variables[i];
+        storage.push(data.float64_cow(var).map_err(ModelError::from)?);
+    }
+    let cols: Vec<&[f64]> = storage.iter().map(std::convert::AsRef::as_ref).collect();
+
+    let mut queries = Vec::new();
+    let mut z_flat = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
-        let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(ModelError::from)?;
         let parent_ids: Vec<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
-        let node_pos = model.node_order.iter().position(|d| *d == node).unwrap_or(0);
-        for (oi, _) in model.node_order.iter().enumerate() {
-            if oi >= node_pos || parent_ids.contains(&oi) {
-                continue;
-            }
-            let ovar = model.output_layout.variables[oi];
-            let x = data.float64_values(ovar).map_err(ModelError::from)?;
-            let mut cols: Vec<&[f64]> = vec![y.as_slice(), x.as_slice()];
-            let mut cond_storage: Vec<Vec<f64>> = Vec::new();
-            for &p in &parent_ids {
-                let pv = model.output_layout.variables[p];
-                cond_storage.push(data.float64_values(pv).map_err(ModelError::from)?);
-            }
-            for c in &cond_storage {
-                cols.push(c.as_slice());
-            }
-            let z: Vec<usize> = (2..cols.len()).collect();
-            let res = test
-                .test_one(&cols, &z, SignificanceMethod::Analytic, &mut ws, ctx)
-                .map_err(ModelError::from)?;
-            ps.push(res.p_value);
+        let others = local_markov_others(model, node, &parent_ids);
+        if others.is_empty() {
+            continue;
         }
-        let _ = var;
+        let z_start = z_flat.len();
+        z_flat.extend_from_slice(&parent_ids);
+        let z_len = parent_ids.len();
+        for other in others {
+            queries.push(CiQuery { x: node.as_usize(), y: other, z_start, z_len });
+        }
     }
-    Ok(ps)
+    ci_pvalues(&test, &cols, &queries, &z_flat, &mut ws, ctx)
+}
+
+fn ci_pvalues(
+    test: &PartialCorrelation,
+    columns: &[&[f64]],
+    queries: &[CiQuery],
+    z_flat: &[usize],
+    ws: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, ModelError> {
+    if queries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let req = CiBatchRequest {
+        columns,
+        queries,
+        z_flat,
+        significance: SignificanceMethod::Analytic,
+        confidence: ConfidenceMethod::default(),
+    };
+    let out = test.test_batch_adhoc(&req, ws, ctx)?;
+    Ok(out.results.into_iter().map(|r| r.p_value).collect())
+}
+
+/// Dense ids of the local-Markov comparison set for `node`: nodes strictly
+/// earlier in topological order that are not parents of `node`.
+///
+/// The historical loop compared topo-order *positions* against dense-id parent
+/// sets and indexed the variable table by position — correct only when the
+/// topological order happens to be the identity permutation of dense ids; on
+/// any other order it tested the wrong variable pairs.
+fn local_markov_others(
+    model: &CompiledCausalModel,
+    node: antecedent_graph::DenseNodeId,
+    parent_ids: &[usize],
+) -> Vec<usize> {
+    let mut out = Vec::new();
+    for &other in model.node_order.iter() {
+        if other == node {
+            break; // strictly earlier in topo order
+        }
+        let od = other.as_usize();
+        if !parent_ids.contains(&od) {
+            out.push(od);
+        }
+    }
+    out
 }
 
 fn permutation_baseline(
@@ -324,6 +380,17 @@ fn permutation_baseline(
     let var = model.output_layout.variables[last.as_usize()];
     let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
+    // The parent gather is invariant across permutations (only y is shuffled),
+    // so build the parent matrix once instead of re-copying it per replicate.
+    let gather = model.gather_for(last).unwrap();
+    let n = y.len();
+    let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
+    for (pi, &p) in gather.parents.iter().enumerate() {
+        let pv = model.output_layout.variables[p.as_usize()];
+        let col = data.float64_cow(pv).map_err(ModelError::from)?;
+        parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+    }
+    let mut lp = vec![0.0; n];
     for _ in 0..n_perm {
         // Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964)
         for i in (1..y.len()).rev() {
@@ -331,20 +398,11 @@ fn permutation_baseline(
             y.swap(i, j.min(i));
         }
         // Score only the last node under shuffled y.
-        let gather = model.gather_for(last).unwrap();
-        let n = y.len();
-        let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(ModelError::from)?;
-            parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
-        }
         let parents = ParentBatch {
             n_rows: n,
             n_parents: gather.n_parents(),
             values: &parent_mat[..gather.n_parents().saturating_mul(n)],
         };
-        let mut lp = vec![0.0; n];
         log_prob_column(model.mechanisms.get(last), &y, parents, &mut lp)?;
         acc += lp.iter().filter(|v| v.is_finite()).sum::<f64>() / n.max(1) as f64;
     }
@@ -419,6 +477,30 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::Dag;
+
+    #[test]
+    fn local_markov_pairs_use_dense_ids_not_topo_positions() {
+        // Graph 1→0, 0→2: topological order [1, 0, 2] is not the identity
+        // permutation of dense ids. The historical position-indexed loop
+        // paired node 0 with variables[0] — itself — because position 0 in
+        // topo order held node 1, but the variable table is dense-id-indexed.
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        assert_eq!(
+            compiled.node_order.iter().map(|d| d.as_usize()).collect::<Vec<_>>(),
+            vec![1, 0, 2],
+            "fixture requires a non-identity topological order"
+        );
+        // Node 0 (parent {1}): the only earlier topo node is its parent — no
+        // comparison pairs. The buggy loop produced one (a self-pair).
+        assert!(local_markov_others(&compiled, DenseNodeId::from_raw(0), &[1]).is_empty());
+        // Node 2 (parent {0}): earlier topo nodes {1, 0} minus parent → {1}.
+        assert_eq!(local_markov_others(&compiled, DenseNodeId::from_raw(2), &[0]), vec![1]);
+        // Node 1 (root, first in topo order): nothing earlier.
+        assert!(local_markov_others(&compiled, DenseNodeId::from_raw(1), &[]).is_empty());
+    }
 
     #[test]
     fn evaluation_runs_on_linear_scm() {

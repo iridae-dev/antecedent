@@ -79,12 +79,26 @@ impl RieszSensitivity {
         _workspace: &mut EstimationWorkspace,
         _ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        let mut local = antecedent_stats::PropensityWorkspace::default();
+        self.refute_with_propensity(problem, &mut local)
+    }
+
+    /// Like [`Self::refute`], reusing a warmed propensity workspace for the diagnostic fit.
+    ///
+    /// # Errors
+    ///
+    /// Empty grid, data/GLM failures, or non-binary treatment.
+    pub fn refute_with_propensity(
+        &self,
+        problem: &RefutationProblem<'_>,
+        propensity: &mut antecedent_stats::PropensityWorkspace,
+    ) -> Result<RefutationReport, ValidationError> {
         if self.delta_grid.is_empty() {
             return Err(ValidationError::NotApplicable {
                 message: "Riesz sensitivity requires a non-empty delta_grid",
             });
         }
-        let (alpha, y, ipw_ate) = self.representer_and_ipw(problem)?;
+        let (alpha, y, ipw_ate) = self.representer_and_ipw(problem, propensity)?;
         let sd_y = crate::common::sample_sd(&y).max(1e-12);
         let n = alpha.len() as f64;
         let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
@@ -139,9 +153,9 @@ impl RieszSensitivity {
     fn representer_and_ipw(
         &self,
         problem: &RefutationProblem<'_>,
+        propensity: &mut antecedent_stats::PropensityWorkspace,
     ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
-        let mut local_ws = antecedent_stats::PropensityWorkspace::default();
-        let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, &mut local_ws)?;
+        let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, propensity)?;
         let y = cols.outcome.expect("outcome requested");
         let nrows = cols.treatment.len();
         for &ti in &cols.treatment {
@@ -266,14 +280,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let report = RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.riesz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);

@@ -217,7 +217,8 @@ impl FrontDoorTwoStage {
     }
 
     /// Set the analytic SE policy for the stacked path-sum sandwich (default
-    /// [`AnalyticSeKind::Hc0`]). Supports Homoskedastic/Hc0/Hc1/Cluster only.
+    /// [`AnalyticSeKind::Hc0`]). Supports Hc0/Hc1/Cluster only; Homoskedastic is
+    /// refused (it previously aliased HC0 meat).
     #[must_use]
     pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
@@ -509,7 +510,12 @@ fn stacked_theta_cov_and_grad(
         .ok_or_else(|| EstimationError::stats_msg("singular stacked front-door bread"))?;
 
     let meat = match se_kind {
-        AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
+        AnalyticSeKind::Homoskedastic => {
+            return Err(EstimationError::unsupported(
+                "FrontDoorTwoStage stacked SE does not implement classical Homoskedastic meat; use Hc0",
+            ));
+        }
+        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
             let mut meat = stacked_hc_meat(stages, cross_stage);
             if matches!(se_kind, AnalyticSeKind::Hc1) {
                 if n_rows <= n_params {
@@ -532,7 +538,7 @@ fn stacked_theta_cov_and_grad(
         | AnalyticSeKind::NeweyWest { .. }
         | AnalyticSeKind::PanelClusterHac { .. } => {
             return Err(EstimationError::unsupported(
-                "FrontDoorTwoStage stacked SE supports Homoskedastic/Hc0/Hc1/Cluster only",
+                "FrontDoorTwoStage stacked SE supports Hc0/Hc1/Cluster only",
             ));
         }
     };
@@ -816,6 +822,20 @@ mod tests {
         };
         let err = est.prepare(&data, &estimand, &query()).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
+    }
+
+    #[test]
+    fn frontdoor_two_stage_refuses_homoskedastic_se() {
+        let (data, estimand) = frontdoor_scm(200, 4);
+        let est = FrontDoorTwoStage {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            ..FrontDoorTwoStage::new()
+        };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let err = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
+        assert!(err.to_string().contains("Homoskedastic"), "err={err}");
     }
 
     #[test]

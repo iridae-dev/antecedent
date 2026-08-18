@@ -16,7 +16,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, SelectionPolicy, sample_observational,
+    MechanismWorkspace, SelectionPolicy, sample_observational_into,
 };
 use antecedent_stats::mean_var;
 
@@ -92,19 +92,35 @@ pub fn distribution_change(
     if players.is_empty() {
         return Err(AttributionError::invalid_input("no components to attribute"));
     }
+    crate::shapley::check_coalition_sample_budget(
+        players.len(),
+        &query.allocation,
+        options.n_samples,
+    )?;
+
+    // Player → dense-node mapping hoisted out of the per-coalition path (was an
+    // O(n_nodes) `dense_of` scan per player per coalition).
+    let player_dense: Vec<Option<DenseNodeId>> =
+        players.iter().map(|c| graph_model.dense_of(c.variable())).collect();
+    // Persistent slot scratch: starts at the all-baseline (mask 0) store and is
+    // patched incrementally between masks.
+    let slot_scratch: Vec<MechanismSlot> = baseline_mechs.slots.to_vec();
 
     let mut payoff = MechanismSwapPayoff {
         template: graph_model.clone(),
         baseline: baseline_mechs,
         comparison: comparison_mechs,
-        players: players.clone(),
         player_kinds,
+        player_dense,
+        slot_scratch,
+        scratch_mask: 0,
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
         seed: options.seed,
         ctx,
         ws: MechanismWorkspace::default(),
+        values_buf: Vec::new(),
         baseline_law: None,
     };
 
@@ -237,43 +253,26 @@ pub(crate) fn joint_players(
     Ok((players, kinds))
 }
 
-/// Build a mechanism store that uses comparison slots for mechanism bits set in `mask`.
-pub(crate) fn hybrid_mechanisms(
-    baseline: &CompiledMechanismStore,
-    comparison: &CompiledMechanismStore,
-    model: &CompiledCausalModel,
-    players: &[ComponentId],
-    kinds: &[PlayerKind],
-    mask: u64,
-) -> CompiledMechanismStore {
-    let n = model.n_nodes();
-    let mut slots: Vec<MechanismSlot> = (0..n).map(|i| baseline.slots[i].clone()).collect();
-    for (i, comp) in players.iter().enumerate() {
-        if mask & (1u64 << i) == 0 {
-            continue;
-        }
-        if matches!(kinds[i], PlayerKind::Input) {
-            continue;
-        }
-        if let Some(dense) = model.dense_of(comp.variable()) {
-            slots[dense.as_usize()] = comparison.slots[dense.as_usize()].clone();
-        }
-    }
-    CompiledMechanismStore { slots: Arc::from(slots) }
-}
-
 struct MechanismSwapPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
-    players: Vec<ComponentId>,
     player_kinds: Vec<PlayerKind>,
+    /// Dense node per player, hoisted at construction.
+    player_dense: Vec<Option<DenseNodeId>>,
+    /// Persistent hybrid-slot scratch reflecting `scratch_mask`: baseline slots
+    /// everywhere except comparison slots for set mechanism-player bits.
+    slot_scratch: Vec<MechanismSlot>,
+    /// Mask currently applied to `slot_scratch`.
+    scratch_mask: u64,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
     seed: u64,
     ctx: &'a ExecutionContext,
     ws: MechanismWorkspace,
+    /// Reused ancestral-sample buffer (`n_samples × n_nodes`).
+    values_buf: Vec<f64>,
     /// Cached `(μ₀, σ₀²)` of the all-baseline outcome law for KL payoffs.
     baseline_law: Option<(f64, f64)>,
 }
@@ -316,20 +315,42 @@ impl MechanismSwapPayoff<'_> {
     /// mean — a variance shift, a shape change — produced identical coalition values and was
     /// attributed exactly zero.
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        let store = hybrid_mechanisms(
-            &self.baseline,
-            &self.comparison,
-            &self.template,
-            &self.players,
-            &self.player_kinds,
-            mask,
-        );
+        // Patch the persistent slot scratch incrementally: only bits that changed
+        // since the previous mask are touched (restore to baseline on clear, swap
+        // in the comparison slot on set). `Input`-kind players never swap slots,
+        // exactly as before; the resulting store is value-identical to rebuilding
+        // the full hybrid from baseline for every coalition.
+        let diff = mask ^ self.scratch_mask;
+        for (i, dense) in self.player_dense.iter().enumerate() {
+            if diff & (1u64 << i) == 0 || matches!(self.player_kinds[i], PlayerKind::Input) {
+                continue;
+            }
+            let Some(d) = dense else { continue };
+            let idx = d.as_usize();
+            let src = if mask & (1u64 << i) != 0 { &self.comparison } else { &self.baseline };
+            self.slot_scratch[idx] = src.slots[idx].clone();
+        }
+        self.scratch_mask = mask;
+        let store = CompiledMechanismStore { slots: self.slot_scratch.iter().cloned().collect() };
 
         let model = self.template.clone().with_mechanisms(store);
         let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-        let batch =
-            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
-        let col = batch.column(self.outcome.as_usize())?;
+        let n_rows = self.n_samples.max(1);
+        let n_nodes = model.n_nodes();
+        let need = n_rows.saturating_mul(n_nodes);
+        if self.values_buf.len() < need {
+            self.values_buf.resize(need, 0.0);
+        }
+        sample_observational_into(
+            &model,
+            n_rows,
+            &mut rng,
+            &mut self.ws,
+            &mut self.values_buf[..need],
+            self.ctx,
+        )?;
+        let start = self.outcome.as_usize() * n_rows;
+        let col = &self.values_buf[start..start + n_rows];
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
     }

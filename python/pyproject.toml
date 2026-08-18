@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "antecedent"
-version = "0.5.1"
+version = "0.5.2"
 description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"

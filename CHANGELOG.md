@@ -7,7 +7,347 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes yet on top of 0.5.1.
+## [0.5.2] — 2026-08-18
+
+Performance pass plus a localized correctness audit. Workspace and Python
+package versions are **0.5.2**.
+
+### Performance / quality
+
+- **Prepared estimates identify once.** `Study::prepare` now runs static
+  identification at prepare time and every `PreparedStudy` estimate click
+  reuses it (exact: identification reads only prepare-frozen inputs), with an
+  `exec.identify.cached` diagnostic making the reuse observable and tested.
+  RD-sharp, Bayesian g-comp, posterior-graph, bidirected-ADMG, and PAG
+  configurations keep their identify-per-run paths. The Python
+  `PreparedAnalysis` handle holds its `PreparedStudy` behind an `Arc`, so
+  per-click detach is a refcount bump instead of a deep clone.
+- **`ComputeBudget.wall_ms` is documented as advisory.** The field was already
+  rustdoc'd as not a hard stop; `StudyBuilder::compute_budget` and the
+  architecture execution-model notes now say the same.
+- **No direct `rayon`.** A workspace-invariant test refuses a direct `rayon`
+  dependency so parallelism stays on `ExecutionContext` (transitive lockfile
+  entries from faer / criterion are out of scope).
+- **IO section lookup and skip scratch.** Seekable / mmap readers index sections
+  by id instead of scanning; `read_selective` reuses one 64 KiB skip buffer
+  across unread sections.
+- **Laplace Newton reuses workspace buffers.** The per-iteration hessian/grad/
+  `beta_old` `to_vec`s are gone; `solve_spd` can factor into caller storage
+  instead of allocating a Cholesky and `y` on every call.
+- **HMC leapfrog reuses `LaplaceWorkspace` q/p/grad.** Transition kernels no
+  longer allocate position, momentum, and gradient vectors on every draw.
+- **Coalition cache dense index + saturation flag.** Exact Shapley with
+  `k ≤ 16` looks up payoffs by mask instead of hashing; a full byte budget
+  sets `CacheStats.saturated` instead of refusing silently.
+- **Local Markov / residual independence batch CI.** Pair enumeration is
+  still quadratic, but each check now issues one partial-correlation batch
+  instead of a `test_one` per pair (and local Markov no longer rebuilds
+  parent columns inside the inner loop).
+- **Coalition sampling reuses a `ValueBatch` buffer.** `sample_observational_into`
+  writes into a caller slice; distribution-change and structure-change
+  Shapley loops keep one buffer across masks instead of freezing a fresh
+  `Arc` per coalition.
+- **HMC / MCMC / GCM / CF benches.** `fit_hmc_glm` and `mcmc_summary` have
+  Criterion smokes (workspace reuse; HMC `--test` is not a publication gate).
+  Linear-Gaussian counterfactual predict now exercises `unit_rows`. GCM
+  interventional sampling has a baseline doc.
+- **Hot-path baseline metadata gate.** `scripts/gate_hot_path_baselines.sh`
+  (via `gate_release.sh`) checks every `hot_paths.md` Baseline link exists
+  and records a wall-time or an explicit waiver. `GATE_CRITERION_MEANS=1`
+  optionally compares local Criterion means; CI does not enforce M1 numbers.
+- **Gather allocation count.** An integration-test `#[global_allocator]`
+  asserts `gather` into a pre-sized buffer allocates nothing after setup.
+- **Arrow CDI `bytes_borrowed` on analysis results.** The Arrow analyze path
+  keeps the ingest borrow count on `ExecutionPerformanceRecord` /
+  `PerformanceView`. PyArrow tables still use CDI whenever the C exporter
+  works; `latency=interactive` is not a gate on that ingest path.
+- **Panel refute refits reuse per-unit column Arcs.** `PreparedRefutation::compile`
+  builds a slice template from the stacked table; each replicate swaps only
+  mutated or appended columns instead of copying every float column per unit.
+- **Static-linear sensitivity grid is one Gram + per-point Cholesky.** The
+  `[1, T, Z, u]` sufficient statistics replace a data pass at every partial-R²
+  grid point for OLS (temporal / ridge / lasso / Huber keep the old path). A
+  differential test pins Gram ATEs to the per-point QR path under
+  `BackendSensitive` before the fast path is the default.
+
+- **Sensitivity Gram uses the post-replace complete-case set.** Replacing T/Y
+  marks those columns all-valid, so the QR data-pass can keep rows that were
+  missing on the original T/Y. Gram now compiles on that same table.
+
+### Correctness — localized audit
+
+- **Nested CF refuses row-coupled mechanisms.** The per-unit fallback froze
+  every node to unit `u`'s value across the full column; a state-space
+  outcome then mixed other units' noise. That path now errors. Trajectory
+  evaluation is unaffected (`unit_rows: None` over the real series).
+- **Temporal CPDAG/PAG reject future→past arrowheads.** `TemporalDag` already
+  refused source lag nearer the present than the target. `TemporalCpdag`
+  `insert_directed` / `orient_undirected` and `TemporalPag` Circle→Arrow
+  inserts / `set_marks` did not. A definite or partial arrowhead into an
+  earlier lag now returns `GraphError::FutureToPast` (shared helper with
+  `TemporalDag`).
+- **Linear/GLM adjustment honor `TargetPopulation::Predicate`.** Prepare now
+  intersects the complete-case mask with the predicate (named predicates
+  need `with_population_registry`), matching the propensity path. The
+  previous code accepted Predicate and estimated the full-sample ATE.
+- **GLM ATT/ATC analytic SEs use the arm-law gradient.** Point estimates
+  already averaged `μ(a,Z)−μ(c,Z)` over the target arm; the delta/sandwich
+  gradient averaged over every row. Under a nonlinear link that is the ATE
+  gradient, so CIs were for the wrong functional.
+- **Trimmed IPW Hajek analytic SE uses retained n.** Point estimates already
+  zeroed out-of-trim weights; the influence SE still divided by full-sample
+  n, so trimming looked more precise than it was. Analytic SE now subsets
+  to retained rows (matching AIPW).
+- **Newey–West after trim/matching requires panel times.** Consecutive IF
+  indices are not calendar time once rows are dropped or rematched.
+  `influence_se_kind` refuses `NeweyWest` when a retained-row map is
+  present without `panel_times`; with times, Bartlett products use calendar
+  gaps rather than the retained index.
+- **Soft CF refuses cross-family noise reuse.** Sampling already rejected a
+  Discrete Uniform residual used as additive Gaussian U (and the reverse);
+  abduction–prediction applied the soft slot to the abduced noise without
+  that check.
+- **Uncovered PD-path search flags `max_len` truncation.** Hitting the length
+  cap on a path that had not reached the target (or a zero path budget)
+  used to return `truncated = false`, so FCI/LPCMCI R9/R10 treated an
+  incomplete search as done.
+- **IV Wald reports parametric identification.** Graph relevance and exclusion
+  checks were already sound; the status claimed nonparametric ATE. Wald
+  identifies ATE under linearity (or LATE under monotonicity). AutoIdentifier
+  still collects those Wald estimands; the envelope stays nonparametric when a
+  backdoor/ID estimand is also present.
+- **Matching gathers multiway cluster labels after trim.** `cluster_ids` and
+  `panel_times` were already restricted to retained rows; `multiway_ids` stayed
+  full-sample length, so a Multiway SE after trim either errored or paired
+  the wrong units.
+- **Front-door stacked SE refuses Homoskedastic.** Homoskedastic previously
+  reused HC0 meat. The constructor default is already HC0; asking for
+  classical Homoskedastic now errors instead of silently aliasing.
+- **Discriminating-path search flags length/budget truncation.** `max_len < 4`
+  or `max_paths == 0` previously returned `truncated = false`, and longer
+  candidates skipped by the length cap were dropped silently, so R4 could
+  miss a path and still claim a complete search.
+- **PAG GAC forbids `Forb(T,Y)`, not all of `De(T)`.** Candidates were
+  `An({T,Y}) \ De(T)`, which drops side-effect descendants of `T` that GAC
+  allows (`Forb = De(cn)`, `cn = De(T) ∩ An(Y) \ {T}`).
+- **Endpoint ∈ Z is not d/m-separated.** DAG d-sep treated `X ⊥ Y | X` as
+  separated; PAG definite-status activity treated the same query as connected.
+  All three now return not-separated when `Z ∩ {X,Y} ≠ ∅`.
+
+### Round 4 — backlog completion
+
+- **Expr evaluator**: `EmpiricalTableProvider::support` memoizes its cartesian
+  products (hits are an `Arc` clone; invalidated on `set_domain`);
+  probability lookups use a borrowed factor-key view instead of ~5 owned
+  allocations per lookup; loop evaluators share one scoped mutable
+  assignment (push/restore) instead of cloning per row; free variables are
+  computed once at compile time; empty-set interning is cached; and the
+  prepared functional-distribution arena is `Arc`-shared instead of
+  deep-cloned per bootstrap replicate.
+- **Attribution**: `structure_change` now performs exactly two GCM fits
+  total (baseline and comparison hybrids, composed per mask by slot
+  selection) instead of two full refits per coalition — pinned bit-for-bit
+  against an inline reimplementation of the per-coalition path across every
+  mask; robust payoffs precompute parent sources and reuse flat buffers
+  across coalitions; `distribution_change` patches a persistent slot buffer
+  incrementally between masks; and a documented planned-evaluation budget
+  (`MAX_COALITION_SAMPLE_BUDGET`) refuses runaway `2^k × n_samples` plans up
+  front instead of running for hours.
+- **Validate/data**: bootstrap resampling rebuilds the table once per
+  replicate via new `TabularData::with_replaced_floats` (was once per
+  column, with per-column weight deep-copies); the warmed propensity
+  workspace now reaches the OverlapRule and Riesz refuters (workspace reuse
+  only — each still fits over its own mask); sensitivity residualization
+  builds its adjustment design once for both targets; `complete_case_mask`
+  gained a buffer-reusing form and its doubled call was deduplicated.
+- **Model/counterfactual/state/io**: `TableView::float64_slice`/`float64_cow`
+  provide borrowed column access, adopted across mechanism fitting,
+  evaluation, do-sampling, and abduction (the old accessor copied the full
+  column at every call site); `permutation_baseline` hoists loop-invariant
+  gathers out of the permutation loop; `dense_of`/`gather_for` are O(1) via
+  compile-time maps; `is_low_cardinality` early-exits instead of sorting a
+  full copy; the particle filter reuses step scratch and swaps particle
+  buffers (bit-identical trajectories); artifacts are zstd-encoded and
+  BLAKE3-hashed once instead of twice (pack-time on-wire buffer streamed at
+  write), `causal_artifact` stops double-cloning its payload, the mmap
+  reader memoizes section verification, and the zero-copy counters
+  (`mmap_views`, bytes-loaded bounds) are now asserted.
+- **Masked temporal discovery**: the masked-frame CI path compacted **all**
+  frame columns per CI test; it now compacts only the columns the query
+  reads (x, y, Z, remapped) — per-test cost no longer scales with total
+  column count. `LaggedFrame::column_index` is O(1) via a slot map (was a
+  linear scan inside per-candidate MCI loops).
+- `NetworkData` incoming adjacency is a true CSR (one edge array + offsets;
+  was `n + 1` allocations with per-unit `Arc`s), same per-unit edge order.
+- **GP mechanism family refuses above `GP_FAMILY_MAX_ROWS = 2_000`** — a
+  documented behavior change: the 20-combination × O(n³) hyperparameter grid
+  with an O(n²) Gram is unusable above a few thousand rows; the refusal is
+  recorded in `failed_families` and selection falls back to other families.
+- New baseline docs for `laplace_glm` and `posterior_functional` (measured
+  on the reference machine), wired into `docs/hot_paths.md` and the release
+  gate's required-baselines list alongside `response_interference`.
+
+### Round 3 — backlog burn-down
+
+- **Nested counterfactual is no longer quadratic in units**: the unit-wise
+  fallback (taken whenever outer values vary across units — the normal case)
+  ran a full-table predict per unit, O(n_units²·nodes). A column-frozen
+  single pass evaluates all units at once for row-independent mechanisms —
+  bit-identical to the historical loop (differential-pinned, including
+  stochastic inner interventions via the shared RNG-stream argument);
+  temporal mechanisms keep the exact per-unit fallback.
+- `mcmc_stats`: autocovariances are computed lazily and stop at the Geyer
+  truncation point instead of all n−1 lags (O(m·n²) → O(m·n·τ),
+  bit-identical); `mcmc_summary` computes max R̂ + min bulk/tail ESS in one
+  diagnostics pass where the publication gates previously paid 3×.
+- GLM HMC carries the current log-posterior across iterations (the Gaussian
+  path already did); Laplace reuses its Cholesky factor for the mode
+  covariance instead of refactorizing inside `invert_spd`.
+- `McmcDoSampler` carries the current state's KDE density across Metropolis
+  iterations (exact 2× on the chain's dominant cost); rejection sampling
+  builds its intervention overlay once, not per candidate row.
+- `NonparametricSensitivity` fuses the treatment/outcome Nadaraya–Watson
+  passes (identical kernel weights, computed once — exact 2× on an uncapped
+  O(n²·dim) path); the posterior predictive check hoists per-draw
+  coefficients out of the row loop.
+- **Fixed (correctness): `local_markov_tests` paired topo-order positions
+  with dense-id tables** — on any graph whose topological order is not the
+  identity permutation of dense ids it tested the wrong variable pairs
+  (including self-pairs). Comparison sets are now derived in dense-id space;
+  p-value sets change on affected graphs, where the old values compared the
+  wrong columns.
+- Crate READMEs brought up to the 0.5 surface (the facade README advertised
+  `antecedent = "0.1"` and the retired `CausalAnalysis::builder()` API);
+  `gate_metadata_consistency.sh` now fails on stale README dependency
+  versions and retired API names.
+
+### Round 2 — expanded coverage (model, counterfactual, prob, attribution, expr, io, CI nulls)
+
+All bit-identical or exact-identity rewrites; no statistical semantics change.
+
+- **CI permutation nulls stop redoing loop-invariant work per replicate.**
+  GPDC: the X-side centered distance matrix (n²) was recomputed, with two
+  fresh n² buffers, for each of the 49 replicates — now prepared once per
+  query with reused side buffers (`dcor_from_sides`, bit-pinned against the
+  monolithic form). kNN: the null rebuilt a full `MatchingIndex` (plus
+  feature/donor copies) per replicate while the workspace's cached index sat
+  unused — now rewrites the Y column of a per-query feature buffer and
+  computes k-th self-distances index-free (`MatchingIndex::kth_self_distances`,
+  bit-pinned against the index path). G²: X codes and Z strata are invariant
+  under a Y-only permutation and are now hoisted; strata are summed in
+  sorted-key order, fixing a genuine determinism defect (the observed G²'s
+  last bits depended on `HashMap` iteration order, which varies per process).
+- **GCM model selection no longer fits the winning family twice**:
+  `score_family` returned only a score and the winner was refit from scratch
+  with identical inputs; the scoring fit is now retained — ~2× on every
+  `assign_and_fit` (the deterministic refit was bit-identical by construction).
+- **Ancestral sampling / abduction / counterfactual predict no longer copy the
+  gathered parent matrix per node**: five `ws.parents…to_vec()` sites (a
+  borrow-checker workaround) replaced with a grow-only gather buffer hoisted
+  out of each node loop.
+- **HMC leapfrog gradients no longer compute the full observed Hessian**:
+  `accumulate_likelihood` unconditionally accumulated O(n·p²) curvature that
+  the HMC path never reads — roughly (p+1)/2× of every gradient evaluation,
+  ×(L+1) per draw per chain. Gated behind `want_hessian` (Laplace keeps it);
+  gradients, and therefore draws, are bit-identical.
+- Attribution: `unit_change` re-copied every parent column per row
+  (O(rows·parents·n) memcpy for per-row scalars) — columns read once;
+  `score_anomalies` hardcoded a test execution context that silently disabled
+  the coalition cache (2^k·(1+k/2) instead of 2^k payoff evaluations per row
+  at exact k=12 — a 7× penalty; the cache is numerically neutral for the
+  deterministic payoff); the Shapley MC loop allocated two vectors per
+  permutation (hoisted).
+- Expr: interning built the `Arc` key before the cache lookup, so every hit
+  paid two allocations — borrow-based lookup allocates only on miss.
+- IO: the seek reader's uncompressed-section path made a full extra copy
+  inside a function documented "decode without copying" — the owned buffer is
+  now moved into the `Arc` (`decode_on_wire_arc_owned`).
+- The `sample_overlay` bench constructed its `MechanismWorkspace` inside
+  `b.iter()` — the bench guarding workspace reuse measured the cold case —
+  and asserted nothing; the workspace is hoisted and a `grow_count` reuse
+  gate now runs on every invocation.
+
+### Round 1
+
+Performance pass over the documented hot-path contracts (ADR 0011) and the
+0.5.0 causal-response / interference surface. No statistical semantics change:
+every rewritten loop is either bit-identical (differential-tested) or an exact
+algebraic identity (parity-tested against the definitional form).
+
+### Fixed
+
+- **`ResponseCurve` / Kennedy DR was O(n²) in rows** — the cross-fitted
+  pseudo-outcome loop re-predicted the additive outcome GAM for every
+  (validation × training) pair. The additive structure makes the covariate
+  part of that average fold-constant; it is now hoisted (exact identity,
+  pinned by `pseudo_outcome_additive_hoist_matches_brute_force_double_loop`).
+  Measured: n=20k analyze went from 100.3 s to 1.31 s (77×); n=10k from
+  24.0 s to 0.35 s. The remaining super-linear term is the definitional
+  marginal-density KDE sum, O(n²/K) cheap ops.
+- `GamFit::predict_row` / `smooth_partial`: allocation-free span-local
+  B-spline prediction (a cubic has 4 nonzero bases), bit-identical to
+  `predict_gam` (pinned by two new tests). Replaces ~9 heap allocations per
+  prediction on every response/ADE/Jacobian path.
+- **Interference MC exposure probabilities**: the cluster design scanned a
+  `Vec` per unit per draw — O(draws × n × treated_clusters) — and every draw
+  re-sorted ids, re-validated the whole edge list, and allocated fresh
+  assignment/exposure buffers. A precomputed `AssignmentSampler` now reuses
+  all buffers, O(n + clusters) per draw, bit-identical to the old sampler
+  (differential test
+  `monte_carlo_sampler_reuse_is_bit_identical_to_one_shot_reference`).
+- Propensity / AIPW bootstrap replicate loops honored their workspace
+  contract in name only: `fit_propensity` sized `workspace.scores` then
+  allocated a fresh vector anyway (making the bench's `scores_grow_count`
+  assertion vacuous), and AIPW's default no-trim path cloned the full design
+  matrix plus three O(n) vectors per replicate. New `fit_propensity_in_place`
+  plus reused clip/weight/gather buffers; the existing bench gate is now
+  meaningful.
+- Adaptive Bayesian draws accumulated batches by re-merging and re-cloning the
+  full coefficient matrix each batch (O(D²) copying); blocks are now
+  concatenated once (`concat_coefficient_draws`). Draw counts and widths
+  unchanged (pinned by `adaptive_draws_preserve_exact_nig_count_and_width`).
+- Transport identification: the S-admissible subset scan enumerated all 2^k
+  masks k+1 times (22M trips at the k=20 cap); it now enumerates each
+  combination once via Gosper's hack in the identical visiting order, with
+  loop-invariant selection nodes and buffers hoisted. Reachability probes
+  reuse one `GraphWorkspace` instead of allocating per pair.
+- `EfficientBackdoorIdentifier` truncated silently at `max_results`; it now
+  emits a derivation note, matching `BackdoorIdentifier`.
+- Python: `analyze(arrow_table, ..., on_stage=...)` raised `TypeError` — the
+  Arrow C entry point lacked the parameter the dict path had (regression test
+  added); `estimate_trial_transport` now releases the GIL like the
+  interference path.
+
+### Added
+
+- `response_interference` Criterion bench with asserted 1 s soft-budget gates
+  (`kennedy_curve_n4k_grid5`, `interference_cluster_n10k_2kdraws`) — the
+  pre-0.5.2 quadratic loop fails it by ~4×. Wired into `gate_release.sh` and
+  `docs/hot_paths.md` with a new baseline doc.
+
+### Changed (gates and baselines)
+
+- The Shapley 500 ms latency gate was dead code (`#[allow(dead_code)]` entry
+  point never invoked) and the 200 ms exact-path budget had no assert; both
+  now execute on every bench invocation. `design_rank` / `state_append` soft
+  budgets (50 ms / 20 ms) are now asserted rather than prose. The matching
+  bench's tautological "reuse gate" (a local counter incremented once) was
+  removed in favor of the real estimate-side test it pretended to be.
+- `benches/baselines/pcmci.md` re-established at 6.73 ms (gate 8.08 ms): the
+  recorded 1.59 ms is not reproducible on the reference machine at any commit
+  from 2026-07-19 to HEAD (bisect-benched at four points, 6.0–7.1 ms
+  throughout); measured genuine drift is +11%, explained by the 0.4.0
+  correctness fixes.
+- `gate_release.sh` now runs the `partial_correlation` smoke (previously in no
+  gate) and `gate_estimate_reuse.sh` (previously claimed as a PR gate by
+  `benches/baselines/propensity.md` but wired to nothing).
+- Stale names corrected: `docs/hot_paths.md` cited three test names that no
+  longer exist and a Rust discovery-refusal guard that was retired in favor of
+  the Python-side guard (`docs/artifacts.md` updated to say so);
+  `benches/baselines/ci_orientation.md` named a nonexistent bench target
+  (`ci_phase5` → `ci_framework`); `regime_mediation.md` budgets now state the
+  asserted gate values (10 / 40 ms) instead of numbers 2× tighter than any
+  gate enforced.
 
 ## [0.5.1] — 2026-08-18
 

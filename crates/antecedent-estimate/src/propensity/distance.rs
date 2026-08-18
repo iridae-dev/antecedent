@@ -10,7 +10,7 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity
 use super::matching::matching_contrast;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
-    default_propensity_overlap, gather_optional_row_labels,
+    default_propensity_overlap, gather_optional_multiway, gather_optional_row_labels,
     prepare_propensity_problem_with_registry, restrict_to_rows, to_row_major, trim_of,
     trim_retained_rows,
 };
@@ -231,6 +231,11 @@ impl DistanceMatching {
             retained.as_deref(),
             "panel_times",
         )?;
+        let multiway_used = gather_optional_multiway(
+            self.multiway_ids.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+        )?;
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -243,7 +248,7 @@ impl DistanceMatching {
             self.se_kind,
             clusters_used.as_deref(),
             tw_used.as_deref(),
-            self.multiway_ids.as_ref(),
+            multiway_used.as_ref(),
             times_used.as_deref(),
         )?;
 

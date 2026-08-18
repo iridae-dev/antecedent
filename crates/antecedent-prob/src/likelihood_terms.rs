@@ -204,6 +204,11 @@ pub(crate) fn validate_design(
 ///
 /// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
+///
+/// `want_hessian: false` skips the O(n·p²) curvature accumulation entirely
+/// (leaving `neg_hess` zeroed); the gradient is bit-identical either way. HMC
+/// leapfrog steps read only the gradient, so they use the cheap form.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn accumulate_likelihood(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -213,6 +218,7 @@ pub(crate) fn accumulate_likelihood(
     eta: &mut [f64],
     work_w: &mut [f64],
     gaussian_sigma2: f64,
+    want_hessian: bool,
 ) -> Result<(f64, bool), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
@@ -251,14 +257,16 @@ pub(crate) fn accumulate_likelihood(
             grad[c] += x * score_scale;
         }
         // −Hessian = X' diag(−ℓ'') X
-        for c1 in 0..ncols {
-            let x1 = design.x_colmajor[c1 * nrows + r];
-            for c2 in c1..ncols {
-                let x2 = design.x_colmajor[c2 * nrows + r];
-                let add = work_w[r] * x1 * x2;
-                neg_hess[c1 * ncols + c2] += add;
-                if c1 != c2 {
-                    neg_hess[c2 * ncols + c1] += add;
+        if want_hessian {
+            for c1 in 0..ncols {
+                let x1 = design.x_colmajor[c1 * nrows + r];
+                for c2 in c1..ncols {
+                    let x2 = design.x_colmajor[c2 * nrows + r];
+                    let add = work_w[r] * x1 * x2;
+                    neg_hess[c1 * ncols + c2] += add;
+                    if c1 != c2 {
+                        neg_hess[c2 * ncols + c1] += add;
+                    }
                 }
             }
         }

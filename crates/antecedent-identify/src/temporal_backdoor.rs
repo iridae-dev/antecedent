@@ -37,8 +37,7 @@ use crate::error::IdentificationError;
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
 use crate::prepared::PreparedAdmg;
-use crate::result::{IdentificationResult, IdentificationStatus};
-use antecedent_expr::EstimandMethod;
+use crate::result::IdentificationResult;
 
 /// Identifies [`TemporalEffectQuery`]s via backdoor adjustment over a finite
 /// unfolding of a stationary [`TemporalDag`] template.
@@ -294,6 +293,10 @@ impl TemporalBackdoorIdentifier {
             history += 1;
         };
 
+        // Both sides of the temporal contrast, not just the active level: the
+        // historical path applied only `active` to every treatment-time node
+        // and relabeled the one-sided interventional distribution as the
+        // temporal *effect* — a contrast the emitted functional never encoded.
         let active = match &query.active {
             Intervention::Set { value, .. } => value.clone(),
             _ => {
@@ -302,37 +305,38 @@ impl TemporalBackdoorIdentifier {
                 ));
             }
         };
-        let interventions: Vec<Intervention> = treatment_nodes
-            .iter()
-            .map(|&d| Intervention::set(VariableId::from_raw(d), active.clone()))
-            .collect();
+        let control = match &query.control {
+            Intervention::Set { value, .. } => value.clone(),
+            _ => {
+                return Err(IdentificationError::unsupported(
+                    "multi-time temporal ID requires Set interventions on both contrast sides",
+                ));
+            }
+        };
+        let schedule: Vec<VariableId> =
+            treatment_nodes.iter().map(|&d| VariableId::from_raw(d)).collect();
         let outcome_var = VariableId::from_raw(outcome_dense);
-        let q = CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery {
-            outcomes: Arc::from([outcome_var]),
-            interventions: Arc::from(interventions),
-            conditioning: Arc::from([]),
-            target_population: query.target_population.clone(),
-        });
 
         let prepared = PreparedAdmg::from_dag(&unfolded.dag)?;
         let id = IdIdentifier::new();
         let mut ws = IdentificationWorkspace::default();
-        let mut result = id.identify(&prepared, &q, &mut ws)?;
+        let mut result = id.identify_schedule_contrast(
+            &prepared,
+            outcome_var,
+            &schedule,
+            &active,
+            &control,
+            CausalQuery::TemporalEffect(query.clone()),
+            &mut ws,
+        )?;
         result.derivation.push(
             "temporal.schedule",
             format!(
-                "sequential / g-formula ID on unfolded window history={history} \
-                 active_offsets={offsets:?} ({} treatment nodes)",
+                "sequential / g-formula contrast on unfolded window history={history} \
+                 active_offsets={offsets:?} ({} treatment nodes, both contrast levels)",
                 treatment_nodes.len()
             ),
         );
-        // Re-tag query as the original temporal effect for callers.
-        result.query = CausalQuery::TemporalEffect(query.clone());
-        if result.status == IdentificationStatus::NonparametricallyIdentified {
-            if let Some(est) = result.estimands.first_mut() {
-                est.method = Arc::from(EstimandMethod::GeneralId.as_str());
-            }
-        }
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
         Ok(TemporalIdentificationResult {
             result,
@@ -661,6 +665,80 @@ mod tests {
         let res = identifier.identify_temporal(&template, &query).unwrap();
         assert_eq!(res.result.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.result.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.schedule"));
+    }
+
+    /// P1 regression: the sustained/dynamic path identified only the *active*
+    /// level and relabeled the one-sided distribution as a temporal effect.
+    /// The functional must be the two-sided contrast: evaluated on a provider
+    /// with E[Y|do(T=1)] = 0.9 and E[Y|do(T=0)] = 0.2 it returns 0.7 — the
+    /// pre-fix emission had no contrast (and no expectation) to evaluate.
+    #[test]
+    fn sustained_contrast_encodes_both_levels_numerically() {
+        use antecedent_core::Value;
+        use antecedent_expr::{
+            Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec,
+            InterventionAssignment,
+        };
+
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
+        let query = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1,
+            1.0,
+        );
+        let identifier = TemporalBackdoorIdentifier::new();
+        let res = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(res.result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            res.result
+                .derivation
+                .steps
+                .iter()
+                .any(|s| s.detail.as_ref().contains("both contrast levels")),
+            "derivation must record the two-sided schedule contrast"
+        );
+
+        // Synthetic unfolded ids for T@0 and the outcome node.
+        let t0 = VariableId::from_raw(
+            res.indexer
+                .dense_id(TemporalNodeKey { variable: VariableId::from_raw(0), offset: 0 })
+                .unwrap(),
+        );
+        let y_out = VariableId::from_raw(res.indexer.dense_id(res.outcome_key).unwrap());
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(t0, [Value::f64(0.0), Value::f64(1.0)]);
+        p.set_domain(y_out, [Value::f64(0.0), Value::f64(1.0)]);
+        for (tlev, p_y1) in [(1.0, 0.9), (0.0, 0.2)] {
+            let interv = [InterventionAssignment { variable: t0, value: Value::f64(tlev) }];
+            for (yval, prob) in [(1.0, p_y1), (0.0, 1.0 - p_y1)] {
+                let spec = FactorSpec {
+                    variables: &[y_out],
+                    conditioned_on: &[t0],
+                    intervention: &interv,
+                    domain: DomainRef::Interventional,
+                };
+                let assign =
+                    Assignment::from_pairs([(y_out, Value::f64(yval)), (t0, Value::f64(tlev))]);
+                p.insert_probability(&spec, &assign, prob).unwrap();
+            }
+        }
+        let est = res.result.estimands.first().expect("schedule estimand");
+        let ate = res
+            .result
+            .arena
+            .compile(est.functional)
+            .unwrap()
+            .evaluate(&res.result.arena, &p, &EvalContext::default())
+            .unwrap();
+        assert!(
+            (ate - 0.7).abs() < 1e-12,
+            "sustained contrast must encode both levels: got {ate}, expected 0.7"
+        );
     }
 
     #[test]

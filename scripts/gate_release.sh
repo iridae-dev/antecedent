@@ -28,6 +28,9 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
+echo "== hot-path baseline metadata =="
+bash scripts/gate_hot_path_baselines.sh
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 
@@ -43,6 +46,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_upstream_names.sh
   bash scripts/gate_response_calibration.sh
   bash scripts/gate_causal_artifacts.sh
+  bash scripts/gate_estimate_reuse.sh
 fi
 
 python3 - <<'PY'
@@ -196,6 +200,13 @@ required_baselines = [
     "regime_mediation.md",
     "shapley.md",
     "design_state.md",
+    "response_interference.md",
+    "laplace_glm.md",
+    "hmc.md",
+    "mcmc_stats.md",
+    "sample_overlay.md",
+    "counterfactual_batch.md",
+    "posterior_functional.md",
 ]
 for name in required_baselines:
     if not (root / "benches/baselines" / name).exists():
@@ -231,9 +242,11 @@ cargo bench -p antecedent-kernels --bench reductions -- --test
 cargo bench -p antecedent-graph --bench traversal -- --test
 cargo bench -p antecedent-graph --bench dseparation -- --test
 cargo bench -p antecedent-identify --bench adjustment -- --test
+cargo bench -p antecedent-kernels --bench partial_correlation -- --test
 cargo bench -p antecedent-discovery --bench pcmci -- --test
 cargo bench -p antecedent-design --bench design_rank -- --test
 cargo bench -p antecedent-state --bench state_append -- --test
+cargo bench -p antecedent-estimate --bench response_interference -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

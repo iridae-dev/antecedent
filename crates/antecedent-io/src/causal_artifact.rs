@@ -8,12 +8,12 @@ use std::collections::HashSet;
 use antecedent_core::{Assumption, AssumptionScope, ResponseQuery};
 use serde::{Deserialize, Serialize};
 
+use crate::container::{CompressPolicy, pack_section_shared};
 use crate::{
     ArtifactKind, ArtifactManifest, CausalQueryWire, CausalResponseWire, EncodedArtifact,
-    InterferenceEstimateWire, IoError, ProvenanceWire, STABLE_FORMAT, SectionBytes,
-    SemanticVersion, TransportEffectEstimateWire, TransportIdentificationWire,
-    causal_query_from_wire, causal_response_from_wire, from_cbor, read_and_migrate,
-    section_descriptor, to_cbor, transport_effect_from_wire,
+    InterferenceEstimateWire, IoError, ProvenanceWire, STABLE_FORMAT, SemanticVersion,
+    TransportEffectEstimateWire, TransportIdentificationWire, causal_query_from_wire,
+    causal_response_from_wire, from_cbor, read_and_migrate, to_cbor, transport_effect_from_wire,
 };
 
 const HEADER_SECTION: &str = "causal_payload.header";
@@ -96,10 +96,20 @@ pub fn encode_causal_payload_artifact(
         CausalPayloadWire::TransportEstimate(value) => to_cbor(value)?,
         CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value)?,
     };
-    let sections = vec![
-        SectionBytes::new(HEADER_SECTION, header_bytes.clone()),
-        SectionBytes::new(PAYLOAD_SECTION, payload_bytes.clone()),
-    ];
+    // Descriptors are built from the shared buffers (no header/payload clones);
+    // `pack_section_shared` moves each Vec into its section via `Arc`.
+    let (header_desc, header_sec) = pack_section_shared(
+        HEADER_SECTION,
+        "application/cbor",
+        std::sync::Arc::from(header_bytes),
+        CompressPolicy::Auto,
+    );
+    let (payload_desc, payload_sec) = pack_section_shared(
+        PAYLOAD_SECTION,
+        "application/cbor",
+        std::sync::Arc::from(payload_bytes),
+        CompressPolicy::Auto,
+    );
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
             format_version: STABLE_FORMAT,
@@ -107,13 +117,10 @@ pub fn encode_causal_payload_artifact(
             artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
             library_version: SemanticVersion::from_crate_version(antecedent_core::VERSION)?,
             artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(HEADER_SECTION, "application/cbor", &header_bytes),
-                section_descriptor(PAYLOAD_SECTION, "application/cbor", &payload_bytes),
-            ],
+            sections: vec![header_desc, payload_desc],
             provenance: ProvenanceWire { note: "canonical causal wire payload".into() },
         },
-        sections,
+        sections: vec![header_sec, payload_sec],
     })
 }
 
@@ -870,7 +877,7 @@ mod tests {
     use crate::{
         FormatVersion, IdentificationStatusWire, ResponseFunctionalWire,
         ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
-        SupportRegionWire, SupportReportWire, SupportStatusWire,
+        SectionBytes, SupportRegionWire, SupportReportWire, SupportStatusWire, section_descriptor,
     };
 
     fn response_query() -> CausalQueryWire {

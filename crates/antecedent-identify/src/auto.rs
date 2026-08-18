@@ -411,14 +411,26 @@ impl AutoIdentifier {
             return Ok(out);
         }
 
-        let mut out = IdentificationResult::identified(
-            query.clone(),
-            estimands,
-            arena,
-            derivation,
-            assumptions,
-            perf,
-        );
+        let wald_only = estimands.iter().all(|e| e.method_kind().ok() == Some(EstimandMethod::Iv));
+        let mut out = if wald_only {
+            IdentificationResult::identified_under_parametric_restrictions(
+                query.clone(),
+                estimands,
+                arena,
+                derivation,
+                assumptions,
+                perf,
+            )
+        } else {
+            IdentificationResult::identified(
+                query.clone(),
+                estimands,
+                arena,
+                derivation,
+                assumptions,
+                perf,
+            )
+        };
         out.diagnostics = diagnostics;
         Ok(out)
     }
@@ -440,7 +452,13 @@ impl AutoIdentifier {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match run() {
-            Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
+            Ok(res)
+                if matches!(
+                    res.status,
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                ) =>
+            {
                 derivation.push(
                     "auto.method",
                     format!("{name}: identified ({} estimand(s))", res.estimands.len()),

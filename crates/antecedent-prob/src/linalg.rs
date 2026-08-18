@@ -10,9 +10,13 @@ use crate::error::ProbError;
 ///
 /// # Errors
 ///
-/// Non-positive pivot.
-pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
-    let mut l = vec![0.0; n * n];
+/// Non-positive pivot, or `l` shorter than `n²`.
+pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), ProbError> {
+    let nn = n.saturating_mul(n);
+    if a.len() < nn || l.len() < nn {
+        return Err(ProbError::Numerical { message: "Cholesky buffer shorter than n²".into() });
+    }
+    l[..nn].fill(0.0);
     for i in 0..n {
         for j in 0..=i {
             let mut sum = a[i * n + j];
@@ -31,6 +35,17 @@ pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
             }
         }
     }
+    Ok(())
+}
+
+/// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
+///
+/// # Errors
+///
+/// Non-positive pivot.
+pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
+    let mut l = vec![0.0; n.saturating_mul(n)];
+    cholesky_spd_into(a, n, &mut l)?;
     Ok(l)
 }
 
@@ -41,6 +56,13 @@ pub fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
 /// Cholesky failure.
 pub fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
     let chol = cholesky_spd(a, n)?;
+    Ok(invert_spd_from_chol(&chol, n))
+}
+
+/// Inverse from an existing Cholesky factor (skips the redundant O(n³/3)
+/// refactorization when the caller already holds one).
+#[must_use]
+pub fn invert_spd_from_chol(chol: &[f64], n: usize) -> Vec<f64> {
     let mut inv = vec![0.0; n * n];
     let mut eye_col = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -62,17 +84,13 @@ pub fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
             inv[i * n + col] = acc / chol[i * n + i];
         }
     }
-    Ok(inv)
+    inv
 }
 
-/// Solve `A x = b` for SPD `A` via Cholesky; writes into `x`.
+/// Solve `L L' x = b` given a lower-triangular Cholesky factor; writes into `x`.
 ///
-/// # Errors
-///
-/// Cholesky failure.
-pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), ProbError> {
-    let chol = cholesky_spd(a, n)?;
-    let mut y = vec![0.0; n];
+/// `y` is forward-substitution scratch (length `n`).
+pub fn solve_chol_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64], x: &mut [f64]) {
     for i in 0..n {
         let mut acc = b[i];
         for j in 0..i {
@@ -87,7 +105,39 @@ pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), Pr
         }
         x[i] = acc / chol[i * n + i];
     }
+}
+
+/// Solve `A x = b` for SPD `A` via Cholesky, using caller buffers for the factor and `y`.
+///
+/// # Errors
+///
+/// Cholesky failure.
+pub fn solve_spd_into(
+    a: &[f64],
+    n: usize,
+    b: &[f64],
+    x: &mut [f64],
+    factor: &mut [f64],
+    y: &mut [f64],
+) -> Result<(), ProbError> {
+    cholesky_spd_into(a, n, factor)?;
+    solve_chol_into(factor, n, b, y, x);
     Ok(())
+}
+
+/// Solve `A x = b` for SPD `A` via Cholesky; writes into `x`.
+///
+/// Allocating wrapper around [`solve_spd_into`]. Prefer the into-variant on
+/// hot paths that already own factor / `y` buffers.
+///
+/// # Errors
+///
+/// Cholesky failure.
+#[allow(dead_code)] // allocating wrapper; tests and one-shot callers
+pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), ProbError> {
+    let mut factor = vec![0.0; n.saturating_mul(n)];
+    let mut y = vec![0.0; n];
+    solve_spd_into(a, n, b, x, &mut factor, &mut y)
 }
 
 /// LDLT factorization fallback for indefinite / poorly conditioned matrices.
@@ -135,4 +185,25 @@ pub fn condition_from_chol(chol: &[f64], n: usize) -> f64 {
     }
     let ratio = max_d / min_d;
     ratio * ratio
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solve_spd_into_matches_allocating_solve() {
+        // SPD: A = [[4, 1], [1, 3]]
+        let a = [4.0, 1.0, 1.0, 3.0];
+        let b = [1.0, 2.0];
+        let mut x_alloc = [0.0; 2];
+        solve_spd(&a, 2, &b, &mut x_alloc).unwrap();
+        let mut x_into = [0.0; 2];
+        let mut factor = [0.0; 4];
+        let mut y = [0.0; 2];
+        solve_spd_into(&a, 2, &b, &mut x_into, &mut factor, &mut y).unwrap();
+        for i in 0..2 {
+            assert!((x_alloc[i] - x_into[i]).abs() < 1e-12);
+        }
+    }
 }

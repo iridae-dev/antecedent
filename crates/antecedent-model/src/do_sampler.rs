@@ -89,8 +89,8 @@ impl WeightingDoSampler {
         let t_dense = model
             .dense_of(self.treatment)
             .ok_or_else(|| ModelError::Shape { message: "treatment not in model".into() })?;
-        let y = data.float64_values(self.outcome).map_err(ModelError::from)?;
-        let t = data.float64_values(self.treatment).map_err(ModelError::from)?;
+        let y = data.float64_cow(self.outcome).map_err(ModelError::from)?;
+        let t = data.float64_cow(self.treatment).map_err(ModelError::from)?;
         let n = y.len();
         let gather = model
             .gather_for(t_dense)
@@ -133,7 +133,7 @@ impl WeightingDoSampler {
         let mut parent_cols = Vec::new();
         for &p in gather.parents.iter() {
             let var = model.output_layout.variables[p.as_usize()];
-            parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
+            parent_cols.push(data.float64_cow(var).map_err(ModelError::from)?);
         }
         let n_par = gather.n_parents();
         let mut parent_mat = vec![0.0; n * n_par];
@@ -364,6 +364,11 @@ impl McmcDoSampler {
         let degenerate =
             pilot_bw < 1e-6 || pilot_col.iter().all(|&v| (v - pilot_col[0]).abs() < 1e-12);
 
+        // `current` changes only on accept, so its density is carried across
+        // iterations instead of re-summing the O(pilot) KDE twice per step —
+        // an exact 2× on the dominant cost of the chain.
+        let mut p_cur =
+            if degenerate { f64::NAN } else { KdeDoSampler::density(&kde, current).max(1e-300) };
         for i in 0..iters {
             if degenerate {
                 let idx = (rng.next_f64() * pilot_col.len() as f64).floor() as usize
@@ -374,12 +379,12 @@ impl McmcDoSampler {
             } else {
                 let z = standard_normal(rng);
                 let prop = current + self.proposal_sd * z;
-                let p_cur = KdeDoSampler::density(&kde, current).max(1e-300);
                 let p_prop = KdeDoSampler::density(&kde, prop).max(1e-300);
                 let accept = (p_prop / p_cur).min(1.0);
                 total += 1;
                 if rng.next_f64() < accept {
                     current = prop;
+                    p_cur = p_prop;
                     accepted += 1;
                 }
             }

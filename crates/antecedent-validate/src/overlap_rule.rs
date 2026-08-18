@@ -15,7 +15,7 @@ use std::sync::Arc;
 use antecedent_estimate::{OverlapPolicy, OverlapReport};
 use antecedent_stats::GlmOptions;
 
-use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report};
+use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report_with};
 use crate::error::ValidationError;
 
 /// Common-support / trimming-rule assessment.
@@ -51,10 +51,24 @@ impl OverlapRuleRefuter {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<RefutationReport, ValidationError> {
+        let mut local = antecedent_stats::PropensityWorkspace::default();
+        self.refute_with_propensity(problem, &mut local)
+    }
+
+    /// Like [`Self::refute`], reusing a warmed propensity workspace for diagnostic fits.
+    ///
+    /// # Errors
+    ///
+    /// Data failures while building a diagnostic-only propensity fit.
+    pub fn refute_with_propensity(
+        &self,
+        problem: &RefutationProblem<'_>,
+        propensity: &mut antecedent_stats::PropensityWorkspace,
+    ) -> Result<RefutationReport, ValidationError> {
         let eps = self.rule_eps.clamp(1e-6, 0.49);
         let report = match &problem.original.overlap_report {
             Some(r) => r.clone(),
-            None => self.diagnostic_report(problem, eps)?,
+            None => self.diagnostic_report(problem, eps, propensity)?,
         };
         // Prefer the §14.3 support field when the report's band matches the declared rule;
         // if the observed range sits fully inside the band, retention is exactly 1. A reused
@@ -67,7 +81,7 @@ impl OverlapRuleRefuter {
         } else if report.propensity_min >= eps && report.propensity_max <= 1.0 - eps {
             1.0
         } else {
-            self.diagnostic_report(problem, eps)?.target_population_support
+            self.diagnostic_report(problem, eps, propensity)?.target_population_support
         };
         let passed = retained >= self.min_retained_fraction;
         Ok(RefutationReport {
@@ -93,11 +107,13 @@ impl OverlapRuleRefuter {
         &self,
         problem: &RefutationProblem<'_>,
         eps: f64,
+        propensity: &mut antecedent_stats::PropensityWorkspace,
     ) -> Result<OverlapReport, ValidationError> {
-        diagnostic_overlap_report(
+        diagnostic_overlap_report_with(
             problem,
             &self.glm_options,
             OverlapPolicy::RequireDiagnostics { clip: Some(eps), trim: None },
+            propensity,
         )
     }
 }
@@ -201,14 +217,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let report = OverlapRuleRefuter::new().refute(&problem).unwrap();
         assert_eq!(report.refuter.as_ref(), "overlap.rule");
         assert!(report.informative);

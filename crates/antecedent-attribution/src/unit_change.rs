@@ -83,11 +83,12 @@ pub fn unit_change(
     let approximation =
         require_shapley_config(&query.allocation, "unit_change supports Shapley allocation")?;
 
+    // Parent columns read once; the per-row loop needs one scalar per column,
+    // and `float64_values` copies the whole column on every call.
+    let parent_cols: Vec<Vec<f64>> =
+        parents.iter().map(|&p| data.float64_values(p)).collect::<Result<Vec<_>, _>>()?;
     for (ui, &row) in rows.iter().enumerate() {
-        let factual: Vec<f64> = parents
-            .iter()
-            .map(|&p| data.float64_values(p).map(|c| c[row]))
-            .collect::<Result<Vec<_>, _>>()?;
+        let factual: Vec<f64> = parent_cols.iter().map(|c| c[row]).collect();
         let noise = exo.noise[outcome_dense.as_usize() * exo.n_units + row];
 
         let mut payoff = UnitPayoff {
@@ -107,6 +108,7 @@ pub fn unit_change(
         budget.samples += est.budget.samples;
         cache_stats.hits += est.cache_stats.hits;
         cache_stats.misses += est.cache_stats.misses;
+        cache_stats.saturated |= est.cache_stats.saturated;
         if let Some(se) = est.monte_carlo_stderr {
             sum_se2 += se * se;
             n_se += 1;

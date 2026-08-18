@@ -101,6 +101,29 @@ impl IdentificationResult {
         }
     }
 
+    /// Identified under parametric restrictions (e.g. IV Wald / LATE).
+    #[must_use]
+    pub fn identified_under_parametric_restrictions(
+        query: CausalQuery,
+        estimands: Vec<IdentifiedEstimand>,
+        arena: CausalExprArena,
+        derivation: DerivationTrace,
+        required_assumptions: AssumptionSet,
+        performance: IdentificationPerformanceRecord,
+    ) -> Self {
+        Self {
+            status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            query,
+            estimands,
+            arena,
+            derivation,
+            required_assumptions,
+            diagnostics: Vec::new(),
+            performance,
+            hedge: None,
+        }
+    }
+
     /// Not-identified result (empty estimands / fresh arena).
     #[must_use]
     pub fn not_identified(

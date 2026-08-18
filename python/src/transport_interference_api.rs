@@ -246,6 +246,7 @@ fn transport_result(
 ))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_trial_transport(
+    py: Python<'_>,
     identification: PyRef<'_, TransportIdentificationResult>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: Vec<bool>,
@@ -277,17 +278,22 @@ fn estimate_trial_transport(
     let propensity = treatment_probability.as_array().iter().copied().collect::<Vec<_>>();
     let mu0 = mu0.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let mu1 = mu1.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
-    let regressions = mu0.as_deref().zip(mu1.as_deref());
-    let estimate = trial_to_target_effect(
-        &identification.identification,
-        &y,
-        &treatment,
-        &trial,
-        &selection,
-        &propensity,
-        regressions,
-    )
-    .map_err(py_err)?;
+    let identification = identification.identification.clone();
+    // Buffers are owned copies now; run the estimator off the GIL like the
+    // interference path below.
+    let estimate = detach_catch(py, move || {
+        let regressions = mu0.as_deref().zip(mu1.as_deref());
+        trial_to_target_effect(
+            &identification,
+            &y,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            regressions,
+        )
+        .map_err(py_err)
+    })?;
     Ok(TrialTransportResult {
         rule,
         ipw: estimate.ipw,

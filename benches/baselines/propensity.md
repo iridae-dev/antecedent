@@ -22,3 +22,5 @@ Owner: `antecedent-estimate` / `PropensityWeighting::fit`
   same refit-per-replicate pattern; only the IPW-weighting path is currently benched.
 - Matching-based bootstraps rebuild a `MatchingIndex` when resampled donors change the
   geometry key; point estimates retain the index across compatible fits.
+
+Numeric wall-time gate: none published (reuse / `--test` smoke only).

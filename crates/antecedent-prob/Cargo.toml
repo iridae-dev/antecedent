@@ -17,8 +17,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.5.1", path = "../antecedent-core" }
-antecedent-kernels = { version = "0.5.1", path = "../antecedent-kernels" }
+antecedent-core = { version = "0.5.2", path = "../antecedent-core" }
+antecedent-kernels = { version = "0.5.2", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
 [features]
@@ -34,4 +34,12 @@ serde_json = { workspace = true }
 
 [[bench]]
 name = "laplace_glm"
+harness = false
+
+[[bench]]
+name = "hmc"
+harness = false
+
+[[bench]]
+name = "mcmc_stats"
 harness = false

@@ -3,22 +3,31 @@
 Workload: `pcmci_n500_p4_lag2` — lagged PCMCI (PC parents + MCI, FDR off,
 `max_cond_size=1`, `max_lag=2`) on a synthetic 4-variable series of length 500.
 
-Established: 2026-07-21 (refreshed after LaggedFrame / hot-path rewrite)
+Established: 2026-08-18 (0.5.2 performance pass)
 Machine class: Apple M1 Max (arm64), 64 GB
-Criterion sample size: 10
+Criterion sample size: 100
 
 ## Accepted measurement
 
 | Metric | Value |
 |--------|-------|
-| mean wall time | **1.59 ms** |
-| CI (lower / upper) | 1.58 ms / 1.61 ms |
+| mean wall time | **6.73 ms** |
+| CI (lower / upper) | 6.72 ms / 6.74 ms |
 
 ## Acceptance
 
 Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
 the same machine class require an approved explanation and replacement baseline
-. Gate: mean ≤ **1.91 ms** (20% over 1.59 ms).
+. Gate: mean ≤ **8.08 ms** (20% over 6.73 ms).
+
+**Replacement note (2026-08-18).** The previously recorded 1.59 ms baseline is
+not reproducible on the reference machine at any commit: re-running this bench
+at 9aa3ce2 (2026-07-19), 9d54254 (2026-07-25), 3acced0 (2026-07-29), and
+current HEAD measures 6.0–7.1 ms throughout. The recorded number therefore did
+not describe this workload on this machine class, and no code regression
+matches it. Measured drift over that commit range is +11% (6.07 → 6.73 ms),
+attributable to the 0.4.0 correctness fixes (bounded MCI conditioning, FDR
+fail-closed) — an explained, accepted increase.
 
 ## Declared allocation budget
 
@@ -39,9 +48,12 @@ workers; no global pool).
 
 | Threads | mean wall time |
 |---------|----------------|
-| 1 | **10.28 ms** |
-| 2 | **5.62 ms** (~1.83×) |
-| 4 | **6.77 ms** (overhead-dominated vs 2 on this size) |
+| 1 | **2.98 ms** |
+| 2 | **1.75 ms** (~1.71×) |
+| 4 | **1.05 ms** (~2.84×) |
+
+(Refreshed 2026-08-18 alongside the headline baseline; the prior recorded
+numbers — 10.28 / 5.62 / 6.77 ms — came from the same unreproducible run.)
 
 Refresh after algorithm changes:
 

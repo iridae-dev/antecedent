@@ -123,6 +123,13 @@ impl ConditionalIndependenceTest for KnnDependence {
         }
         let n_perm = nonparametric_permutation_count(request.significance);
         let block_size = requested_block_size(request.significance);
+        // Null-loop scratch, reused across replicates and queries: the permuted
+        // feature matrix differs from the primary index's only in the Y column,
+        // so each replicate rewrites that column and computes k-th self-distances
+        // directly — no per-replicate index construction or feature copies.
+        let mut null_feats: Vec<f64> = Vec::new();
+        let mut null_dists: Vec<f64> = Vec::new();
+        let mut null_dist_scratch: Vec<f64> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
@@ -146,6 +153,14 @@ impl ConditionalIndependenceTest for KnnDependence {
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
+            // The primary index's feature matrix has exactly the x/y/z layout the
+            // null needs; clone it once per query and rewrite the Y column per
+            // replicate.
+            null_feats.clear();
+            null_feats.extend_from_slice(&workspace.knn.features);
+            if null_dists.len() < n {
+                null_dists.resize(n, 0.0);
+            }
             for _ in 0..n_perm {
                 if block_size > 1 {
                     block_permute_contiguous(&mut y_perm, block_size, &mut rng);
@@ -157,15 +172,23 @@ impl ConditionalIndependenceTest for KnnDependence {
                         }
                     }
                 }
-                let mut cols: Vec<&[f64]> = request.columns.to_vec();
-                cols[q.y] = &y_perm;
-                let null = knn_mi_proxy_ephemeral(&cols, q.x, q.y, z, self.k)?;
+                for (r, &value) in y_perm.iter().enumerate() {
+                    null_feats[r * dim + 1] = value;
+                }
+                MatchingIndex::kth_self_distances(
+                    &null_feats[..n * dim],
+                    n,
+                    dim,
+                    MatchingDistance::Euclidean,
+                    self.k,
+                    &mut null_dists,
+                    &mut null_dist_scratch,
+                )?;
+                let null = -null_dists[..n].iter().sum::<f64>() / n as f64;
                 if null >= stat {
                     null_ge = null_ge.saturating_add(1);
                 }
             }
-            // Restore primary index after nulls.
-            ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             debug_assert_eq!(workspace.knn.index_builds, builds_before);
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
             // df is not defined for this distance statistic; leave 0 rather than claim n.
@@ -252,31 +275,6 @@ fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64
     idx.kth_distances(&knn.features, n, k, &mut knn.distances)?;
     let mean = knn.distances.iter().sum::<f64>() / n as f64;
     Ok(-mean)
-}
-
-fn knn_mi_proxy_ephemeral(
-    columns: &[&[f64]],
-    x: usize,
-    y: usize,
-    z: &[usize],
-    k: usize,
-) -> Result<f64, StatsError> {
-    let n = columns[x].len();
-    let dim = 2 + z.len();
-    let mut feats = vec![0.0; n * dim];
-    for r in 0..n {
-        feats[r * dim] = columns[x][r];
-        feats[r * dim + 1] = columns[y][r];
-        for (j, &zc) in z.iter().enumerate() {
-            feats[r * dim + 2 + j] = columns[zc][r];
-        }
-    }
-    let donors: Vec<usize> = (0..n).collect();
-    let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean)
-        .map_err(|e| StatsError::Backend(e.to_string()))?;
-    let mut dists = vec![0.0; n];
-    idx.kth_distances(&feats, n, k, &mut dists)?;
-    Ok(-dists.iter().sum::<f64>() / n as f64)
 }
 
 /// Coarse Z strata for permutation nulls: each Z column is binned into terciles
@@ -554,12 +552,21 @@ impl ConditionalIndependenceTest for Gpdc {
         let block_size = requested_block_size(request.significance);
         let n_perm = nonparametric_permutation_count(request.significance);
         let policy = &ctx.kernel_policy;
+        // The X-side centered distance matrix is invariant under Y permutations;
+        // prepare each side once per query and recompute only the Y side per
+        // replicate, into buffers reused across queries and replicates.
+        let mut x_side = CenteredDistances::default();
+        let mut y_side = CenteredDistances::default();
+        let mut center_row = Vec::new();
+        let mut center_col = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
             let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
-            let dcor = distance_correlation(policy, &rx, &ry);
+            x_side.prepare(policy, &rx, &mut center_row, &mut center_col);
+            y_side.prepare(policy, &ry, &mut center_row, &mut center_col);
+            let dcor = dcor_from_sides(&x_side, &y_side);
             // Permutation null: permute the Y residuals (Z influence already removed) and
             // recompute dCor; add-one p-value keeps it in (0, 1]. `block_size > 1` permutes
             // contiguous blocks so the residual's serial dependence survives into the null;
@@ -573,7 +580,8 @@ impl ConditionalIndependenceTest for Gpdc {
                 } else {
                     shuffle(&mut rng, &mut ry_perm);
                 }
-                if distance_correlation(policy, &rx, &ry_perm) >= dcor {
+                y_side.prepare(policy, &ry_perm, &mut center_row, &mut center_col);
+                if dcor_from_sides(&x_side, &y_side) >= dcor {
                     null_ge = null_ge.saturating_add(1);
                 }
             }
@@ -582,6 +590,61 @@ impl ConditionalIndependenceTest for Gpdc {
         }
         Ok(CiBatchResult { results })
     }
+}
+
+/// One series' double-centered pairwise-distance matrix and its distance variance.
+///
+/// [`dcor_from_sides`] over two prepared sides matches [`distance_correlation`]
+/// bit for bit: each accumulator runs over the same indices in the same order,
+/// only split across calls.
+#[derive(Default)]
+struct CenteredDistances {
+    a: Vec<f64>,
+    n: usize,
+    dvar: f64,
+}
+
+impl CenteredDistances {
+    fn prepare(
+        &mut self,
+        policy: &KernelPolicy,
+        series: &[f64],
+        row: &mut Vec<f64>,
+        col: &mut Vec<f64>,
+    ) {
+        let n = series.len();
+        self.n = n;
+        if n < 2 {
+            self.a.clear();
+            self.dvar = 0.0;
+            return;
+        }
+        self.a.resize(n * n, 0.0);
+        antecedent_kernels::pairwise_l1_fill(policy, series, &mut self.a);
+        double_center_inplace_with(&mut self.a, n, row, col);
+        let mut dvar = 0.0;
+        for &v in &self.a {
+            dvar += v * v;
+        }
+        self.dvar = dvar / (n * n) as f64;
+    }
+}
+
+fn dcor_from_sides(x: &CenteredDistances, y: &CenteredDistances) -> f64 {
+    let n = x.n;
+    if n < 2 || y.n != n {
+        return 0.0;
+    }
+    let mut dcov2 = 0.0;
+    for (&ax, &ay) in x.a.iter().zip(&y.a) {
+        dcov2 += ax * ay;
+    }
+    dcov2 /= (n * n) as f64;
+    if x.dvar <= 0.0 || y.dvar <= 0.0 {
+        return 0.0;
+    }
+    // Székely et al. (2007) dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
+    (dcov2.max(0.0) / (x.dvar * y.dvar).sqrt()).sqrt()
 }
 
 fn gp_residual(
@@ -626,6 +689,9 @@ fn gp_residual(
     Ok((0..n).map(|i| centered[i] - pred[i]).collect())
 }
 
+/// Reference implementation retained for the differential test of
+/// [`dcor_from_sides`]; production paths use the side-cached form.
+#[cfg(test)]
 fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
     let n = x.len();
     if n < 2 {
@@ -655,9 +721,19 @@ fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
     (dcov2.max(0.0) / (dvarx * dvary).sqrt()).sqrt()
 }
 
+#[cfg(test)]
 fn double_center_inplace(a: &mut [f64], n: usize) {
-    let mut row = vec![0.0; n];
-    let mut col = vec![0.0; n];
+    let mut row = Vec::new();
+    let mut col = Vec::new();
+    double_center_inplace_with(a, n, &mut row, &mut col);
+}
+
+/// [`double_center_inplace`] with caller-owned row/column scratch for replicate loops.
+fn double_center_inplace_with(a: &mut [f64], n: usize, row: &mut Vec<f64>, col: &mut Vec<f64>) {
+    row.clear();
+    row.resize(n, 0.0);
+    col.clear();
+    col.resize(n, 0.0);
     let mut mean = 0.0;
     for i in 0..n {
         for j in 0..n {
@@ -684,6 +760,24 @@ mod tests {
     use crate::ci::types::{
         CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
     };
+
+    /// The GPDC null recomputes only the Y-side centered distance matrix per
+    /// replicate; the split accumulation must match the monolithic
+    /// `distance_correlation` bit for bit.
+    #[test]
+    fn dcor_from_sides_matches_monolithic_distance_correlation() {
+        let policy = KernelPolicy::default_policy();
+        let x: Vec<f64> = (0..64).map(|i| ((i * 13 + 5) % 31) as f64 * 0.17 - 2.0).collect();
+        let y: Vec<f64> = (0..64).map(|i| ((i * 7 + 11) % 23) as f64 * 0.31 - 3.0).collect();
+        let mut xs = CenteredDistances::default();
+        let mut ys = CenteredDistances::default();
+        let (mut row, mut col) = (Vec::new(), Vec::new());
+        xs.prepare(&policy, &x, &mut row, &mut col);
+        ys.prepare(&policy, &y, &mut row, &mut col);
+        let split = dcor_from_sides(&xs, &ys);
+        let mono = distance_correlation(&policy, &x, &y);
+        assert!(split.to_bits() == mono.to_bits(), "split={split:?} mono={mono:?}");
+    }
 
     /// A test that cannot honour `block_size` must refuse it rather than discard it — but these
     /// three draw that line in different places, and this pins all three.

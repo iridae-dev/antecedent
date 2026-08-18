@@ -520,7 +520,8 @@ impl TemporalCpdag {
     /// # Errors
     ///
     /// Unknown nodes, duplicates, illegal marks, contemporaneous self-edges,
-    /// lagged self-loops (reported as [`GraphError::Cycle`]), or directed cycles.
+    /// lagged self-loops (reported as [`GraphError::Cycle`]), directed cycles,
+    /// or future→past directed edges ([`GraphError::FutureToPast`]).
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
@@ -544,6 +545,9 @@ impl TemporalCpdag {
             // A lagged self-loop on a single node is a cycle once oriented,
             // matching TemporalDag which reports Cycle for dense self-loops.
             return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
+        }
+        if let Some((from, to)) = edge.parent_child() {
+            crate::types::reject_future_to_past(&self.nodes, from, to)?;
         }
         marked_storage::insert_marked_finish(&mut self.adj, edge)
     }
@@ -574,7 +578,8 @@ impl TemporalCpdag {
     ///
     /// # Errors
     ///
-    /// Missing edge, already directed, cycle, or unknown nodes.
+    /// Missing edge, already directed, cycle, unknown nodes, or a future→past
+    /// orientation ([`GraphError::FutureToPast`]).
     pub fn orient_undirected(
         &mut self,
         from: DenseNodeId,
@@ -582,10 +587,9 @@ impl TemporalCpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
+        crate::types::reject_future_to_past(&self.nodes, from, to)?;
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
-
-    /// Mark an existing edge as an `x-x` conflict ([`Endpoint::Conflict`](crate::Endpoint::Conflict) on both ends).
     ///
     /// # Errors
     ///
@@ -890,6 +894,18 @@ mod tests {
         g.insert_directed(c, y).unwrap();
         assert_eq!(g.edge_between(c, y).unwrap().parent_child(), Some((c, y)));
         assert!(g.add_node(NodeRef::Static(VariableId::from_raw(2))).is_err());
+    }
+
+    #[test]
+    fn rejects_future_to_past_directed_and_orient() {
+        let mut g = TemporalCpdag::empty();
+        let present = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let past = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        assert!(matches!(g.insert_directed(present, past), Err(GraphError::FutureToPast { .. })));
+        g.insert_undirected(present, past).unwrap();
+        assert!(matches!(g.orient_undirected(present, past), Err(GraphError::FutureToPast { .. })));
+        g.orient_undirected(past, present).unwrap();
+        assert_eq!(g.edge_between(past, present).unwrap().parent_child(), Some((past, present)));
     }
 
     #[test]

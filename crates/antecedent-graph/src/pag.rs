@@ -398,6 +398,9 @@ impl Pag {
             return false;
         }
         let in_z = |n: DenseNodeId| z.iter().any(|&v| v == n);
+        if in_z(path[0]) || in_z(path[path.len() - 1]) {
+            return true;
+        }
         for i in 1..path.len() - 1 {
             let pred = path[i - 1];
             let v = path[i];

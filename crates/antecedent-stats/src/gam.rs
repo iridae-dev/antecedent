@@ -528,6 +528,75 @@ pub fn fitted_from_gam(fit: &GamFit) -> &[f64] {
     &fit.fitted
 }
 
+impl GamFit {
+    /// Predict one row without heap allocation (hot-path form of [`predict_gam`]).
+    ///
+    /// Evaluates only the `CUBIC_ORDER` nonzero basis functions per smooth via the
+    /// span-local Cox–de Boor recursion; the result matches a one-row
+    /// [`predict_gam`] call bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// Row shorter than the fit's raw column layout, or internal length mismatch.
+    pub fn predict_row(&self, raw_row: &[f64]) -> Result<f64, StatsError> {
+        if self.smooths.len() != self.raw_cols.len() || self.smooths.len() != self.centers.len() {
+            return Err(StatsError::Backend(
+                "GAM fit smooth/raw_col/center length mismatch".into(),
+            ));
+        }
+        let mut pred = self.intercept;
+        let mut coef_off = 0usize;
+        for (j, smooth) in self.smooths.iter().enumerate() {
+            let raw_col = self.raw_cols[j];
+            let Some(&x) = raw_row.get(raw_col) else {
+                return Err(StatsError::Shape { message: "predict raw column out of range" });
+            };
+            pred += self.smooth_dot(smooth, coef_off, x) - self.centers[j];
+            coef_off += smooth.n_basis;
+        }
+        Ok(pred)
+    }
+
+    /// Centered contribution `f_j(x) − c_j` of one smooth term at a scalar `x`.
+    ///
+    /// For an additive fit, a prediction is
+    /// `intercept + Σ_j smooth_partial(j, x_j)`; callers exploiting additivity
+    /// (e.g. averaging over covariates at a fixed treatment) can evaluate a single
+    /// term instead of a full row.
+    ///
+    /// # Errors
+    ///
+    /// `smooth_index` out of range.
+    pub fn smooth_partial(&self, smooth_index: usize, x: f64) -> Result<f64, StatsError> {
+        if smooth_index >= self.smooths.len() || smooth_index >= self.centers.len() {
+            return Err(StatsError::Shape { message: "smooth index out of range" });
+        }
+        let coef_off: usize = self.smooths[..smooth_index].iter().map(|s| s.n_basis).sum();
+        let smooth = &self.smooths[smooth_index];
+        Ok(self.smooth_dot(smooth, coef_off, x) - self.centers[smooth_index])
+    }
+
+    /// Index of the smooth attached to raw predictor column `raw_col`, if any.
+    #[must_use]
+    pub fn smooth_for_raw_col(&self, raw_col: usize) -> Option<usize> {
+        self.raw_cols.iter().position(|&c| c == raw_col)
+    }
+
+    /// Uncentered `f_j(x) = Σ_b B_b(x) β_b` over the span-local nonzero bases.
+    fn smooth_dot(&self, smooth: &RecordedSmooth, coef_off: usize, x: f64) -> f64 {
+        let (span, values) = cubic_bspline_nonzeros(x, smooth.knots.as_ref());
+        let first = span.saturating_sub(CUBIC_DEGREE);
+        let mut s = 0.0;
+        for (i, &v) in values.iter().enumerate() {
+            let b = first + i;
+            if b < smooth.n_basis {
+                s += v * self.coefficients[coef_off + b];
+            }
+        }
+        s
+    }
+}
+
 fn validate_raw_layout(
     x_colmajor: &[f64],
     nrows: usize,
@@ -608,15 +677,9 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
     Ok(knots)
 }
 
-/// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
-fn eval_cubic_bspline(
-    x: f64,
-    knots: &[f64],
-    n_basis: usize,
-    out: &mut [f64],
-    row: usize,
-    nrows: usize,
-) {
+/// Span-local Cox–de Boor evaluation: the knot span and the `CUBIC_ORDER`
+/// nonzero cubic basis values at `x` (all other basis functions are exactly 0).
+fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
     // Clamp to open interval of the interior so the last basis is hit at xmax.
     let eps = 1e-14;
     let left = knots[CUBIC_DEGREE];
@@ -658,6 +721,24 @@ fn eval_cubic_bspline(
         ndu[j][j] = saved;
     }
 
+    let mut values = [0.0_f64; CUBIC_ORDER];
+    for (i, v) in values.iter_mut().enumerate() {
+        *v = ndu[i][CUBIC_DEGREE];
+    }
+    (span, values)
+}
+
+/// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
+fn eval_cubic_bspline(
+    x: f64,
+    knots: &[f64],
+    n_basis: usize,
+    out: &mut [f64],
+    row: usize,
+    nrows: usize,
+) {
+    let (span, values) = cubic_bspline_nonzeros(x, knots);
+
     // Zero all bases for this row then write the order nonzeros.
     for b in 0..n_basis {
         out[b * nrows + row] = 0.0;
@@ -666,7 +747,7 @@ fn eval_cubic_bspline(
     for i in 0..CUBIC_ORDER {
         let b = first + i;
         if b < n_basis {
-            out[b * nrows + row] = ndu[i][CUBIC_DEGREE];
+            out[b * nrows + row] = values[i];
         }
     }
 }
@@ -943,6 +1024,71 @@ mod tests {
         assert!(fit.edf_approx > 1.0);
         assert_eq!(fit.diagnostics.backend, "gam");
         assert_eq!(fit.smooths.len(), 2);
+    }
+
+    #[test]
+    fn predict_row_matches_predict_gam_bit_for_bit() {
+        let n = 200usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let x2: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % n) as f64 / n as f64 - 0.5).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 1.0 + (3.0 * x1[i]).sin() + x2[i] * x2[i] + 0.01 * (i % 5) as f64)
+            .collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
+        let specs = [SmoothSpec::new(0, 8, 0.5), SmoothSpec::new(1, 6, 1.0)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        // Probe on and off the training support, including the clamped edges.
+        for &(a, b) in
+            &[(0.0, -0.5), (0.31, 0.12), (1.0, 0.49), (-0.2, 0.0), (1.3, -0.7), (0.777, 0.123)]
+        {
+            let row = [a, b];
+            let batch = predict_gam(&fit, &row, 1, 2).unwrap()[0];
+            let single = fit.predict_row(&row).unwrap();
+            assert!(
+                batch.to_bits() == single.to_bits(),
+                "predict_row diverged at ({a},{b}): batch={batch:?} single={single:?}"
+            );
+            // Additivity: intercept + Σ_j smooth_partial(j, x_j) is the same prediction.
+            let additive = fit.intercept
+                + fit.smooth_partial(0, a).unwrap()
+                + fit.smooth_partial(1, b).unwrap();
+            assert!(
+                (additive - single).abs() <= 1e-12 * single.abs().max(1.0),
+                "smooth_partial decomposition diverged at ({a},{b})"
+            );
+        }
+        assert_eq!(fit.smooth_for_raw_col(0), Some(0));
+        assert_eq!(fit.smooth_for_raw_col(1), Some(1));
+        assert_eq!(fit.smooth_for_raw_col(2), None);
+    }
+
+    #[test]
+    fn predict_row_matches_training_fitted_values() {
+        // A training-row prediction must reproduce the cached in-sample fitted
+        // value exactly; the pseudo-outcome hoist in antecedent-estimate relies
+        // on `fitted[position]` standing in for a full re-prediction.
+        let n = 150usize;
+        let x1 = linspace(n, -2.0, 2.0);
+        let x2: Vec<f64> = (0..n).map(|i| ((i * 13 + 1) % n) as f64 / n as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 0.3 * x1[i] - 0.8 * x2[i] + (x1[i] * 1.7).cos()).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
+        let specs = [SmoothSpec::new(0, 7, 0.2), SmoothSpec::new(1, 5, 0.7)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        for r in 0..n {
+            let row = [x1[r], x2[r]];
+            let pred = fit.predict_row(&row).unwrap();
+            assert!(
+                pred.to_bits() == fit.fitted[r].to_bits(),
+                "row {r}: predict_row={pred:?} fitted={:?}",
+                fit.fitted[r]
+            );
+        }
     }
 
     #[test]

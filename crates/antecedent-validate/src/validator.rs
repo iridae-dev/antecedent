@@ -17,6 +17,7 @@ use crate::evalue::EValue;
 use crate::graph_refute::GraphRefuter;
 use crate::overlap::OverlapRefuter;
 use crate::overlap_rule::OverlapRuleRefuter;
+use crate::panel_slice::PanelSliceTemplate;
 use crate::placebo::PlaceboTreatment;
 use crate::rcc::RandomCommonCause;
 use crate::riesz::RieszSensitivity;
@@ -63,11 +64,30 @@ pub trait Validator<A>: sealed::Sealed {
     ) -> Result<Self::Report, ValidationError>;
 }
 
-/// Prepared effect-refutation problem (borrowed inputs + no extra state).
-#[derive(Clone, Copy, Debug)]
+/// Prepared effect-refutation problem: borrowed inputs plus a per-unit panel
+/// slice plan when `problem.temporal` targets a panel.
+#[derive(Clone, Debug)]
 pub struct PreparedRefutation<'a> {
     /// Underlying refutation problem.
     pub problem: RefutationProblem<'a>,
+    /// Per-unit slice template compiled from the original stacked table.
+    pub panel: Option<PanelSliceTemplate<'a>>,
+}
+
+impl<'a> PreparedRefutation<'a> {
+    /// Compile reusable panel-slice state for `problem`.
+    ///
+    /// # Errors
+    ///
+    /// Stacked row count disagrees with the panel, or a unit's column count
+    /// disagrees with the panel schema.
+    pub fn compile(problem: &RefutationProblem<'a>) -> Result<Self, ValidationError> {
+        let panel = match problem.temporal.and_then(|t| t.panel) {
+            Some(p) => Some(PanelSliceTemplate::from_panel(p, problem.data)?),
+            None => None,
+        };
+        Ok(Self { problem: *problem, panel })
+    }
 }
 
 /// Run `validator` end-to-end (prepare → validate) for suite dispatch.
@@ -104,7 +124,7 @@ macro_rules! impl_effect_validator {
                 artifact: &RefutationProblem<'a>,
                 _ctx: &ExecutionContext,
             ) -> Result<Self::Prepared, ValidationError> {
-                Ok(PreparedRefutation { problem: *artifact })
+                PreparedRefutation::compile(artifact)
             }
 
             fn validate(
@@ -113,7 +133,8 @@ macro_rules! impl_effect_validator {
                 workspace: &mut EstimationWorkspace,
                 ctx: &ExecutionContext,
             ) -> Result<Self::Report, ValidationError> {
-                ($call)(self, &prepared.problem, workspace, ctx)
+                let problem = prepared.problem.with_panel_slices(prepared.panel.as_ref());
+                ($call)(self, &problem, workspace, ctx)
             }
         }
     };
@@ -162,7 +183,7 @@ macro_rules! impl_stateless_effect_validator {
                 artifact: &RefutationProblem<'a>,
                 _ctx: &ExecutionContext,
             ) -> Result<Self::Prepared, ValidationError> {
-                Ok(PreparedRefutation { problem: *artifact })
+                PreparedRefutation::compile(artifact)
             }
 
             fn validate(
@@ -171,7 +192,8 @@ macro_rules! impl_stateless_effect_validator {
                 _workspace: &mut EstimationWorkspace,
                 _ctx: &ExecutionContext,
             ) -> Result<Self::Report, ValidationError> {
-                ($call)(self, &prepared.problem)
+                let problem = prepared.problem.with_panel_slices(prepared.panel.as_ref());
+                ($call)(self, &problem)
             }
         }
     };

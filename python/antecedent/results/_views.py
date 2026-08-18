@@ -338,6 +338,7 @@ class PerformanceView:
     cancelled: bool = False
     early_stopped: bool = False
     stage_timings: dict[str, int] | None = None
+    bytes_borrowed: int | None = None
 
     def __repr__(self) -> str:
         bits: list[str] = []
@@ -345,6 +346,8 @@ class PerformanceView:
             bits.append(f"wall={self.wall_time_ns / 1e6:.1f}ms")
         if self.peak_memory_bytes is not None:
             bits.append(f"peak_mem={self.peak_memory_bytes / 1e6:.1f}MB")
+        if self.bytes_borrowed is not None:
+            bits.append(f"borrowed={self.bytes_borrowed}")
         if self.cancelled:
             bits.append("cancelled")
         if self.early_stopped:

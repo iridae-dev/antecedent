@@ -16,3 +16,5 @@ Owner: `antecedent-stats` / `MatchingIndex::exact` and
 
 - Larger-n approximate indexes are out of estimate matching scope.
 - Differential tests compare `nearest` against `nearest_euclidean_scalar`.
+
+Numeric wall-time gate: none published (reuse / `--test` smoke only).

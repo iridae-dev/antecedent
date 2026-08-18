@@ -25,11 +25,6 @@ reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the ge
 blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
 
 [[unexercised]]
-dir = "conformance/identify/general_id_frontdoor"
-reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
-blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
-
-[[unexercised]]
 dir = "conformance/identify/general_id_hedge"
 reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
 blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"

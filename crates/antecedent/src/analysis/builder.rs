@@ -385,6 +385,10 @@ impl StudyBuilder {
     }
 
     /// Field-level compute budget overrides (applied after latency mode mapping).
+    ///
+    /// [`ComputeBudget::wall_ms`] is advisory only: it is recorded on the
+    /// resolved budget and is not a hard stop. Bootstrap, draw, and refute
+    /// overrides *are* applied. Cancellation is a separate token, not this field.
     #[must_use]
     pub fn compute_budget(mut self, budget: ComputeBudget) -> Self {
         if budget.bootstrap.is_some() {
@@ -621,6 +625,7 @@ impl StudyBuilder {
             custom_validators: self.custom_validators,
             latency_mode,
             stage_sink: self.stage_sink,
+            identification_cache: None,
         })
     }
 }

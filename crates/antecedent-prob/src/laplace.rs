@@ -28,7 +28,9 @@ use crate::gaussian_target::{
     PosteriorTarget, gaussian_target_from_model, prior_quadratic, rss_and_xtwr,
 };
 use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
-use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd};
+use crate::linalg::{
+    cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd_into,
+};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
 
@@ -102,6 +104,7 @@ pub fn fit_laplace_glm(
             &mut workspace.eta[..nrows],
             &mut workspace.work_w[..nrows],
             1.0,
+            true,
         )?;
 
         // Add prior: log π(β) = -0.5 Σ prec_i (β_i - μ_i)²
@@ -124,9 +127,16 @@ pub fn fit_laplace_glm(
         // Solve (−H) step = grad for Newton step maximizing log-posterior.
         // We store neg_hessian = −∇²ℓ; Newton: β ← β + (−H)^{-1} ∇ℓ
         workspace.step[..ncols].fill(0.0);
-        let hess = workspace.neg_hessian[..ncols * ncols].to_vec();
-        let grad = workspace.grad[..ncols].to_vec();
-        if solve_spd(&hess, ncols, &grad, &mut workspace.step[..ncols]).is_err() {
+        if solve_spd_into(
+            &workspace.neg_hessian[..ncols * ncols],
+            ncols,
+            &workspace.grad[..ncols],
+            &mut workspace.step[..ncols],
+            &mut workspace.factor[..ncols * ncols],
+            &mut workspace.p[..ncols],
+        )
+        .is_err()
+        {
             // Damped fallback: take gradient step with small step size.
             let scale = 1e-2 / grad_inf.max(1.0);
             for i in 0..ncols {
@@ -136,12 +146,12 @@ pub fn fit_laplace_glm(
 
         // Damped line search
         let mut step_scale = 1.0;
-        let beta_old = workspace.beta[..ncols].to_vec();
+        workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
         let mut accepted = false;
         let old_obj = log_posterior_value(
             likelihood,
             design,
-            &beta_old,
+            &workspace.q[..ncols],
             &coef_prior,
             &prec,
             &mut workspace.eta[..nrows],
@@ -149,7 +159,7 @@ pub fn fit_laplace_glm(
         )?;
         for _ in 0..8 {
             for i in 0..ncols {
-                workspace.beta[i] = beta_old[i] + step_scale * workspace.step[i];
+                workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
             }
             match log_posterior_value(
                 likelihood,
@@ -172,7 +182,7 @@ pub fn fit_laplace_glm(
         }
         if !accepted {
             for i in 0..ncols {
-                workspace.beta[i] = beta_old[i];
+                workspace.beta[i] = workspace.q[i];
             }
             break;
         }
@@ -189,6 +199,7 @@ pub fn fit_laplace_glm(
         &mut workspace.eta[..nrows],
         &mut workspace.work_w[..nrows],
         1.0,
+        true,
     )?;
     for i in 0..ncols {
         let diff = workspace.beta[i] - coef_prior.mean[i];
@@ -208,7 +219,9 @@ pub fn fit_laplace_glm(
         Ok(chol) => {
             let cond = condition_from_chol(&chol, ncols);
             workspace.factor[..ncols * ncols].copy_from_slice(&chol);
-            let cov = invert_spd(&hess, ncols)?;
+            // Reuse the factor just computed instead of refactorizing inside
+            // invert_spd (two O(p³/3) Choleskys of the same matrix).
+            let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
             (HessianFactorization::Cholesky, cov, cond)
         }
         Err(_) => {
@@ -1110,6 +1123,7 @@ mod tests {
             &mut eta,
             &mut work_w,
             1.0,
+            true,
         )
         .unwrap();
         for i in 0..2 {
@@ -1211,6 +1225,7 @@ mod tests {
             &mut eta,
             &mut work_w,
             1.0,
+            true,
         )
         .unwrap();
         for i in 0..2 {

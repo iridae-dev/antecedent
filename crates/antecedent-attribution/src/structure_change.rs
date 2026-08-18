@@ -7,6 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -16,14 +17,14 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
-    CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismWorkspace,
-    SelectionPolicy, sample_observational,
+    CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
+    MechanismWorkspace, SelectionPolicy, sample_observational_into,
 };
 use antecedent_stats::mean_var;
 
 use crate::change_common::{ChangeOptions, run_change_allocation, total_change};
 use crate::coalition::full_coalition_mask;
-use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
+use crate::distribution_change::DifferenceMeasure;
 use crate::error::AttributionError;
 use crate::prep::{
     require_structure_components, resolve_change_populations, resolve_outcome_dense,
@@ -87,21 +88,40 @@ pub fn structure_change(
             "no structure components to attribute (parent sets agree on outcome ancestors)",
         ));
     }
+    crate::shapley::check_coalition_sample_budget(
+        players.len(),
+        &query.allocation,
+        options.n_samples,
+    )?;
+
+    // Player → dense-node mapping hoisted out of the per-coalition path (this is
+    // invariant across coalitions; it was previously recomputed per mask).
+    let variables = &baseline_model.output_layout.variables;
+    let player_nodes: Vec<DenseNodeId> = players
+        .iter()
+        .map(|c| {
+            let idx = variables.iter().position(|v| *v == c.variable()).expect("player in layout");
+            DenseNodeId::from_raw(idx as u32)
+        })
+        .collect();
 
     let mut payoff = StructureSwapPayoff {
         baseline_graph: Arc::clone(&baseline_model.graph),
         comparison_graph: Arc::clone(&comparison_model.graph),
-        variables: Arc::clone(&baseline_model.output_layout.variables),
         baseline_data,
         comparison_data,
         players: players.clone(),
+        player_nodes,
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
         seed: options.seed,
         ctx,
         ws: MechanismWorkspace::default(),
+        values_buf: Vec::new(),
         baseline_law: None,
+        fits: None,
+        compiled_cache: HashMap::new(),
     };
 
     let v0 = payoff.value(0)?;
@@ -252,20 +272,54 @@ pub(crate) fn hybrid_structure_dag(
     Ok(g)
 }
 
+/// Mechanism stores backing every coalition's hybrid model.
+///
+/// Only *player* nodes' parent sets vary across coalition masks; every other node
+/// keeps its baseline parent set in every hybrid. A node's mechanism fit depends
+/// only on `(node, parent set, population)` — `MechanismRegistry::assign_and_fit`
+/// fits each node independently from its own column and its parents' columns via
+/// deterministic solvers (no RNG anywhere in the fit paths, and the compiled model
+/// is consulted only for the shared variable layout, which is identical across
+/// hybrids). So there are exactly two distinct fits per node, not two full-model
+/// refits per coalition:
+///
+/// * `baseline`: fit on the baseline population under the all-baseline hybrid
+///   (mask 0) — supplies every non-player node and every unset player bit.
+/// * `comparison`: fit on the comparison population under the full-coalition
+///   hybrid — supplies each set player bit (its comparison parent set).
+///
+/// Hybrid parent *order* is also invariant: `hybrid_structure_dag` inserts each
+/// node's parents by iterating the source graph's parent slice, so the gather-plan
+/// parent order (and hence coefficient alignment) for a node is identical in every
+/// hybrid that gives it the same parent-set source. Composing per-mask stores from
+/// these two fits is therefore numerically identical to the previous per-coalition
+/// double refit (pinned by `memoized_fits_match_per_coalition_refit`).
+struct StructureFits {
+    baseline: CompiledMechanismStore,
+    comparison: CompiledMechanismStore,
+}
+
 struct StructureSwapPayoff<'a> {
     baseline_graph: Arc<Dag>,
     comparison_graph: Arc<Dag>,
-    variables: Arc<[VariableId]>,
     baseline_data: TabularData,
     comparison_data: TabularData,
     players: Vec<ComponentId>,
+    /// Dense node per player (aligned with `players`), hoisted at construction.
+    player_nodes: Vec<DenseNodeId>,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
     seed: u64,
     ctx: &'a ExecutionContext,
     ws: MechanismWorkspace,
+    /// Reused ancestral-sample buffer (`n_samples × n_nodes`).
+    values_buf: Vec<f64>,
     baseline_law: Option<(f64, f64)>,
+    /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
+    fits: Option<StructureFits>,
+    /// Memoized compiled hybrid graphs keyed by coalition mask.
+    compiled_cache: HashMap<u64, CompiledCausalModel>,
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
@@ -293,48 +347,96 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
 }
 
 impl StructureSwapPayoff<'_> {
-    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        let player_nodes: Vec<DenseNodeId> = self
-            .players
-            .iter()
-            .map(|c| {
-                let idx = self
-                    .variables
-                    .iter()
-                    .position(|v| *v == c.variable())
-                    .expect("player in layout");
-                DenseNodeId::from_raw(idx as u32)
-            })
-            .collect();
-
+    /// Compile (or fetch the memoized) hybrid graph for `mask`.
+    ///
+    /// Cyclic hybrids are not cached: the error is re-raised on every request,
+    /// exactly as the previous per-coalition compile did.
+    fn compiled_for(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
+        if let Some(compiled) = self.compiled_cache.get(&mask) {
+            return Ok(compiled.clone());
+        }
         let hybrid = hybrid_structure_dag(
             &self.baseline_graph,
             &self.comparison_graph,
-            &player_nodes,
+            &self.player_nodes,
             mask,
         )?;
         let compiled = CompiledCausalModel::compile(hybrid)?;
+        self.compiled_cache.insert(mask, compiled.clone());
+        Ok(compiled)
+    }
 
-        let (base_store, _) = MechanismRegistry::standard().assign_and_fit(
-            &compiled,
+    /// Fit the two memoized stores on first use (see [`StructureFits`]).
+    ///
+    /// This compiles the full-coalition hybrid up front, so a cyclic full
+    /// coalition now errors on the first payoff evaluation instead of at
+    /// `v_full`; both evaluations happen back-to-back inside `structure_change`
+    /// before any allocation, so the public result is the same error. Likewise a
+    /// fit failure on the comparison population surfaces under the full-coalition
+    /// hybrid structure rather than per mask — previously each mask also fit the
+    /// comparison population (mostly discarding the result), so failures could
+    /// surface under structures whose fits were never used.
+    fn ensure_fits(&mut self) -> Result<(), AttributionError> {
+        if self.fits.is_some() {
+            return Ok(());
+        }
+        let full_mask = full_coalition_mask(self.players.len())?;
+        let compiled_baseline = self.compiled_for(0)?;
+        let compiled_full = self.compiled_for(full_mask)?;
+        let (baseline, _) = MechanismRegistry::standard().assign_and_fit(
+            &compiled_baseline,
             &self.baseline_data,
             SelectionPolicy::BestScore,
         )?;
-        let (cmp_store, _) = MechanismRegistry::standard().assign_and_fit(
-            &compiled,
+        let (comparison, _) = MechanismRegistry::standard().assign_and_fit(
+            &compiled_full,
             &self.comparison_data,
             SelectionPolicy::BestScore,
         )?;
+        self.fits = Some(StructureFits { baseline, comparison });
+        Ok(())
+    }
 
-        let kinds = vec![crate::distribution_change::PlayerKind::Mechanism; self.players.len()];
-        let mixed: CompiledMechanismStore =
-            hybrid_mechanisms(&base_store, &cmp_store, &compiled, &self.players, &kinds, mask);
-        let model = compiled.with_mechanisms(mixed);
+    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+        self.ensure_fits()?;
+        let compiled = self.compiled_for(mask)?;
+        let fits = self.fits.as_ref().expect("fits ensured above");
+
+        // Compose the hybrid store from the two memoized fits: comparison-fitted
+        // slots for set player bits, baseline-fitted slots everywhere else. This
+        // matches the old `hybrid_mechanisms(base_store, cmp_store, ..)` output
+        // exactly (see the `StructureFits` docs for why the per-node fits agree).
+        let n = compiled.n_nodes();
+        let mut slots: Vec<MechanismSlot> = Vec::with_capacity(n);
+        for i in 0..n {
+            let node = DenseNodeId::from_raw(i as u32);
+            let use_comparison = self
+                .player_nodes
+                .iter()
+                .enumerate()
+                .any(|(pi, &p)| p == node && (mask & (1u64 << pi)) != 0);
+            let store = if use_comparison { &fits.comparison } else { &fits.baseline };
+            slots.push(store.slots[i].clone());
+        }
+        let model = compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
 
         let mut rng = self.ctx.rng.stream(0x5C01_u64.wrapping_add(self.seed));
-        let batch =
-            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
-        let col = batch.column(self.outcome.as_usize())?;
+        let n_rows = self.n_samples.max(1);
+        let n_nodes = model.n_nodes();
+        let need = n_rows.saturating_mul(n_nodes);
+        if self.values_buf.len() < need {
+            self.values_buf.resize(need, 0.0);
+        }
+        sample_observational_into(
+            &model,
+            n_rows,
+            &mut rng,
+            &mut self.ws,
+            &mut self.values_buf[..need],
+            self.ctx,
+        )?;
+        let start = self.outcome.as_usize() * n_rows;
+        let col = &self.values_buf[start..start + n_rows];
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
     }
@@ -350,6 +452,7 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::DenseNodeId;
+    use antecedent_model::sample_observational;
     use serde::Deserialize;
 
     /// Baseline X→Y vs comparison Z→Y; Y intercept/slope differ across periods.
@@ -465,6 +568,151 @@ mod tests {
             result.total_change
         );
         assert_eq!(result.unidentified.len(), expected.unidentified.len());
+    }
+
+    /// Pins the memoization refactor: for every coalition mask, the payoff's
+    /// memoized two-fit composition must reproduce, bit for bit, the previous
+    /// implementation's per-coalition double refit (hybrid compile, baseline fit,
+    /// comparison fit, slot mix, CRN sampling). No fit-call counter is reachable
+    /// from this crate (`assign_and_fit` keeps no call statistics), so numeric
+    /// equality against an inline reimplementation of the old path is the pinned
+    /// evidence instead.
+    #[test]
+    fn memoized_fits_match_per_coalition_refit() {
+        // Two players: baseline x→m, x→y vs comparison z→m, m→y.
+        let n = 80usize;
+        let mut b = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("x", RoleHint::Context),
+            ("z", RoleHint::Context),
+            ("m", RoleHint::Context),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(role),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut xv = Vec::with_capacity(n);
+        let mut zv = Vec::with_capacity(n);
+        let mut mv = Vec::with_capacity(n);
+        let mut yv = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = (i % 40) as f64 * 0.1;
+            let z = ((i + 7) % 40) as f64 * 0.1;
+            let m = if i < 40 { 0.5 + 1.5 * x } else { 2.0 + 0.8 * z };
+            let y = if i < 40 { 1.0 + 2.0 * x } else { 3.0 + 1.2 * m };
+            xv.push(x);
+            zv.push(z);
+            mv.push(m);
+            yv.push(y);
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![xv, zv, mv, yv]
+            .into_iter()
+            .enumerate()
+            .map(|(vi, vals)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(vi as u32),
+                        Arc::from(vals),
+                        validity.clone(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+
+        let x = DenseNodeId::from_raw(0);
+        let z = DenseNodeId::from_raw(1);
+        let m = DenseNodeId::from_raw(2);
+        let y = DenseNodeId::from_raw(3);
+        let mut g0 = Dag::with_variables(4);
+        g0.insert_directed(x, m).unwrap();
+        g0.insert_directed(x, y).unwrap();
+        let mut g1 = Dag::with_variables(4);
+        g1.insert_directed(z, m).unwrap();
+        g1.insert_directed(m, y).unwrap();
+        let baseline = CompiledCausalModel::compile(g0).unwrap();
+        let comparison = CompiledCausalModel::compile(g1).unwrap();
+
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(3),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_components(AttributionComponents::Structure);
+        let ctx = ExecutionContext::for_tests(1);
+        let (baseline_data, comparison_data) =
+            crate::prep::resolve_change_populations(&data, &query).unwrap();
+
+        let players = vec![
+            ComponentId::from_variable(VariableId::from_raw(2)),
+            ComponentId::from_variable(VariableId::from_raw(3)),
+        ];
+        let player_nodes = vec![m, y];
+        let seed = 9u64;
+        let n_samples = 300usize;
+
+        let mut payoff = StructureSwapPayoff {
+            baseline_graph: Arc::clone(&baseline.graph),
+            comparison_graph: Arc::clone(&comparison.graph),
+            baseline_data: baseline_data.clone(),
+            comparison_data: comparison_data.clone(),
+            players,
+            player_nodes: player_nodes.clone(),
+            outcome: y,
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples,
+            seed,
+            ctx: &ctx,
+            ws: MechanismWorkspace::default(),
+            values_buf: Vec::new(),
+            baseline_law: None,
+            fits: None,
+            compiled_cache: HashMap::new(),
+        };
+
+        for mask in 0..4u64 {
+            // Reference: the pre-memoization per-coalition path, inlined.
+            let hybrid =
+                hybrid_structure_dag(&baseline.graph, &comparison.graph, &player_nodes, mask)
+                    .unwrap();
+            let compiled = CompiledCausalModel::compile(hybrid).unwrap();
+            let (base_store, _) = MechanismRegistry::standard()
+                .assign_and_fit(&compiled, &baseline_data, SelectionPolicy::BestScore)
+                .unwrap();
+            let (cmp_store, _) = MechanismRegistry::standard()
+                .assign_and_fit(&compiled, &comparison_data, SelectionPolicy::BestScore)
+                .unwrap();
+            let mut slots = base_store.slots.to_vec();
+            for (pi, &p) in player_nodes.iter().enumerate() {
+                if mask & (1u64 << pi) != 0 {
+                    slots[p.as_usize()] = cmp_store.slots[p.as_usize()].clone();
+                }
+            }
+            let model =
+                compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
+            let mut rng = ctx.rng.stream(0x5C01_u64.wrapping_add(seed));
+            let mut ws = MechanismWorkspace::default();
+            let batch = sample_observational(&model, n_samples, &mut rng, &mut ws, &ctx).unwrap();
+            let (mu_ref, var_ref) = mean_var(batch.column(y.as_usize()).unwrap());
+            let var_ref = var_ref.max(1e-12);
+
+            let (mu, var) = payoff.sample_outcome_law(mask).unwrap();
+            assert!(
+                mu.to_bits() == mu_ref.to_bits() && var.to_bits() == var_ref.to_bits(),
+                "mask={mask}: memoized ({mu}, {var}) != refit ({mu_ref}, {var_ref})"
+            );
+        }
     }
 
     #[test]

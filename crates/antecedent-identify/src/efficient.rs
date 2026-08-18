@@ -150,7 +150,16 @@ impl EfficientBackdoorIdentifier {
         if o_set.iter().all(|v| !forbidden.contains(*v))
             && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
         {
-            return Self::finish(ate, query, prepared, dag, &[o_set], examined, "optimal (O-set)");
+            return Self::finish(
+                ate,
+                query,
+                prepared,
+                dag,
+                &[o_set],
+                examined,
+                "optimal (O-set)",
+                false,
+            );
         }
 
         // Fallback: minimum-cardinality search, sizes ascending, stopping at
@@ -177,6 +186,7 @@ impl EfficientBackdoorIdentifier {
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
+        let mut truncated = false;
         'sizes: for size in 0..=m {
             let mut early_stop = false;
             let mut enum_err: Option<IdentificationError> = None;
@@ -205,6 +215,7 @@ impl EfficientBackdoorIdentifier {
                 return Err(e);
             }
             if early_stop {
+                truncated = true;
                 break 'sizes;
             }
             if !valid.is_empty() {
@@ -248,9 +259,10 @@ impl EfficientBackdoorIdentifier {
             })
         });
         let best = vec![valid.into_iter().next().expect("non-empty")];
-        Self::finish(ate, query, prepared, dag, &best, examined, "min_cardinality")
+        Self::finish(ate, query, prepared, dag, &best, examined, "min_cardinality", truncated)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn finish(
         ate: &AverageEffectQuery,
         query: CausalQuery,
@@ -259,6 +271,7 @@ impl EfficientBackdoorIdentifier {
         chosen: &[Vec<DenseNodeId>],
         examined: u64,
         rule: &str,
+        truncated: bool,
     ) -> Result<IdentificationResult, IdentificationError> {
         let z = &chosen[0];
         let vars: Vec<VariableId> =
@@ -278,6 +291,14 @@ impl EfficientBackdoorIdentifier {
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
         let mut derivation = DerivationTrace::default();
         derivation.push("backdoor.efficient", format!("selected via {rule}; |Z|={}", vars.len()));
+        if truncated {
+            // Mirror `BackdoorIdentifier`: hitting `max_results` must leave a
+            // visible mark, not silently narrow the enumeration.
+            derivation.push(
+                "backdoor.efficient",
+                "enumeration truncated at max_results; smaller-cost sets may exist beyond the cap",
+            );
+        }
         let mut assumptions = default_assumptions();
         for record in &prepared.declared_assumptions().entries {
             assumptions.push(record.clone());

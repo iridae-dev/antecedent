@@ -240,4 +240,41 @@ impl MarkedEdge {
             _ => None,
         }
     }
+
+    /// Source → arrowhead for a definite or partially directed edge.
+    ///
+    /// Tail→Arrow and Circle→Arrow both place a definite arrowhead at the
+    /// child. Bidirected, undirected, and conflict marks return [`None`].
+    #[must_use]
+    pub fn causal_arrow_direction(self) -> Option<(DenseNodeId, DenseNodeId)> {
+        match (self.at_a, self.at_b) {
+            (Endpoint::Tail | Endpoint::Circle, Endpoint::Arrow) => Some((self.a, self.b)),
+            (Endpoint::Arrow, Endpoint::Tail | Endpoint::Circle) => Some((self.b, self.a)),
+            _ => None,
+        }
+    }
+}
+
+/// Reject an edge whose source lag is nearer the present than its target lag.
+///
+/// No-op when either endpoint is not lagged (context nodes, static). Callers
+/// must already have validated the dense ids.
+pub(crate) fn reject_future_to_past(
+    nodes: &[NodeRef],
+    from: DenseNodeId,
+    to: DenseNodeId,
+) -> Result<(), GraphError> {
+    if let (NodeRef::Lagged { lag: from_lag, .. }, NodeRef::Lagged { lag: to_lag, .. }) =
+        (nodes[from.as_usize()], nodes[to.as_usize()])
+    {
+        if from_lag < to_lag {
+            return Err(GraphError::FutureToPast {
+                from: from.raw(),
+                to: to.raw(),
+                from_lag,
+                to_lag,
+            });
+        }
+    }
+    Ok(())
 }

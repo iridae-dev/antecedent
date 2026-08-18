@@ -304,6 +304,7 @@ class PerformanceSection:
     cancelled: bool
     early_stopped: bool
     stage_timings: list[tuple[str, int]]
+    bytes_borrowed: int | None
 
 class PosteriorArtifact:
     n_draws: int
@@ -761,6 +762,7 @@ def analyze_ate_arrow_c(
     latency: str | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
+    on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze(
