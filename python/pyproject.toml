@@ -37,6 +37,10 @@ Documentation = "https://antecedent.readthedocs.io/"
 features = ["pyo3/extension-module"]
 python-source = "."
 module-name = "antecedent._native"
+# PEP 517/660 builds (including the editable rebuild uv triggers whenever this
+# file changes) default to Cargo's debug profile, which ships an unoptimized
+# faer/pulp and makes analyze_ate ~50x slower with bit-identical output.
+profile = "release"
 
 [dependency-groups]
 dev = [

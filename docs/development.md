@@ -68,6 +68,18 @@ uv run ruff format --check antecedent tests ../examples/python
 uv run mypy
 ```
 
+## Native extension builds
+
+All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
+editable rebuild uv performs when the install goes stale — compile with Cargo's
+release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
+Do not remove that pin: the PEP 517/660 default is the debug profile, which
+produces bit-identical estimates at roughly 50× the wall time, so nothing
+downstream notices. A debug-profile extension warns on import (the flag is
+`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
+fails the pytest suite — locally and in CI — if the extension under test is
+unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
+
 ## Tests that matter
 
 | Kind | Role |

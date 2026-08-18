@@ -43,6 +43,14 @@ package versions are **0.5.1**.
 
 ### Fixed
 
+- Python builds pin `profile = "release"` in `[tool.maturin]`. Previously a
+  stale editable install (e.g. after a version bump) was silently rebuilt by
+  the PEP 517/660 backend in Cargo's debug profile — bit-identical estimates
+  at ~50× the wall time. `antecedent._native` now exports
+  `__build_optimized__`, importing a debug-profile extension emits a
+  `RuntimeWarning`, and the pytest suite hard-fails on an unoptimized
+  extension (opt out with `ANTECEDENT_ALLOW_DEBUG_NATIVE=1`) instead of
+  degrading silently.
 - `LinearAdjustmentAte` with `fit_kind = huber` refused on unconverged IRLS
   instead of publishing the last iterate with an analytic SE.
 - `artifact_migrate` conformance now asserts against the live `STABLE_FORMAT`
