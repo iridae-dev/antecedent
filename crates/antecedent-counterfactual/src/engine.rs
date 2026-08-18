@@ -164,7 +164,7 @@ impl CounterfactualEngine {
         // Load factual values.
         let mut values = vec![0.0; n * n_nodes];
         for (i, &var) in self.model.output_layout.variables.iter().enumerate() {
-            match data.float64_values(var) {
+            match data.float64_cow(var) {
                 Ok(col) => values[i * n..(i + 1) * n].copy_from_slice(&col[..n]),
                 Err(e) => {
                     if missing.allows_missing() {

@@ -344,6 +344,12 @@ pub struct CompiledCausalModel {
     pub output_layout: ModelOutputLayout,
     /// Source DAG (shared; never cloned per intervention).
     pub graph: Arc<Dag>,
+    /// Variable → dense-id map backing [`CompiledCausalModel::dense_of`]
+    /// (first occurrence wins, matching the historical linear scan).
+    var_to_dense: Arc<std::collections::HashMap<VariableId, DenseNodeId>>,
+    /// Dense id → index into `parent_gathers`, backing
+    /// [`CompiledCausalModel::gather_for`] without a per-call linear scan.
+    gather_slot: Arc<[u32]>,
 }
 
 impl CompiledCausalModel {
@@ -378,9 +384,16 @@ impl CompiledCausalModel {
             let _ = id;
         }
         let mut gathers = Vec::with_capacity(order.len());
-        for &child in &order {
+        let mut gather_slot = vec![0u32; n];
+        for (gi, &child) in order.iter().enumerate() {
             let parents = graph.parents(child).to_vec();
+            gather_slot[child.as_usize()] = gi as u32;
             gathers.push(ParentGatherPlan { child, parents: Arc::from(parents) });
+        }
+        let mut var_to_dense = std::collections::HashMap::with_capacity(n);
+        for (i, &v) in variables.iter().enumerate() {
+            // First occurrence wins, like the linear `position` scan it replaces.
+            var_to_dense.entry(v).or_insert_with(|| DenseNodeId::from_raw(i as u32));
         }
         let node_order = Arc::from(order);
         Ok(Self {
@@ -392,6 +405,8 @@ impl CompiledCausalModel {
             parent_gathers: Arc::from(gathers),
             mechanisms: CompiledMechanismStore::vacant(n),
             graph: Arc::new(graph),
+            var_to_dense: Arc::new(var_to_dense),
+            gather_slot: Arc::from(gather_slot),
         })
     }
 
@@ -401,14 +416,10 @@ impl CompiledCausalModel {
         self.graph.node_count()
     }
 
-    /// Dense id for a variable, if present.
+    /// Dense id for a variable, if present (O(1) via the compile-time map).
     #[must_use]
     pub fn dense_of(&self, var: VariableId) -> Option<DenseNodeId> {
-        self.output_layout
-            .variables
-            .iter()
-            .position(|v| *v == var)
-            .map(|i| DenseNodeId::from_raw(i as u32))
+        self.var_to_dense.get(&var).copied()
     }
 
     /// Replace mechanism store (fit / assignment).
@@ -418,10 +429,10 @@ impl CompiledCausalModel {
         self
     }
 
-    /// Gather plan for a child dense id.
+    /// Gather plan for a child dense id (O(1) via the compile-time index).
     #[must_use]
     pub fn gather_for(&self, child: DenseNodeId) -> Option<&ParentGatherPlan> {
-        self.parent_gathers.iter().find(|g| g.child == child)
+        self.gather_slot.get(child.as_usize()).map(|&gi| &self.parent_gathers[gi as usize])
     }
 }
 
