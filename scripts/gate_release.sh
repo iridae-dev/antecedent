@@ -31,6 +31,9 @@ bash scripts/gate_metadata_consistency.sh
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
 
+echo "== public support matrix =="
+bash scripts/gate_support_matrix.sh
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 
@@ -119,6 +122,11 @@ for path in [
     "docs/hot_paths.md",
     "docs/security_review.md",
     "docs/conformance/README.md",
+    "docs/support-matrix.md",
+    "parity/support_axes.toml",
+    "parity/support_licensed.toml",
+    "parity/support_n_a.toml",
+    "adr/0020-support-matrix-and-prepared-workflow.md",
     "deny.toml",
     "conformance/interchange/graph_dot_json/expected.json",
     "conformance/interchange/graph_gml_networkx/expected.json",
@@ -228,6 +236,14 @@ python3 scripts/generate_conformance_docs.py
 if ! git diff --exit-code -- docs/conformance >/dev/null; then
   echo "docs/conformance is stale; commit regenerated output"
   git diff --stat -- docs/conformance
+  exit 1
+fi
+
+echo "== regenerate support-matrix docs (must be clean) =="
+python3 scripts/generate_support_matrix_docs.py
+if ! git diff --exit-code -- docs/support-matrix.md >/dev/null; then
+  echo "docs/support-matrix.md is stale; commit regenerated output"
+  git diff --stat -- docs/support-matrix.md
   exit 1
 fi
 
