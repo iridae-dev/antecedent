@@ -426,7 +426,8 @@ pub(crate) fn decode_on_wire(
     }
 }
 
-/// Decode without copying when already uncompressed — returns owned only when needed.
+/// Decode borrowed on-wire bytes (mmap path; the uncompressed case there is
+/// served by `SectionAccess::Mapped` and never reaches this copy).
 pub(crate) fn decode_on_wire_arc(
     on_wire: &[u8],
     compression: Option<&str>,
@@ -442,6 +443,20 @@ pub(crate) fn decode_on_wire_arc(
             Ok((Arc::from(v), true))
         }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
+    }
+}
+
+/// Decode owned on-wire bytes: the uncompressed case moves the buffer into the
+/// `Arc` with no copy (the seek reader previously paid a full extra copy of
+/// every uncompressed section here).
+pub(crate) fn decode_on_wire_arc_owned(
+    on_wire: Vec<u8>,
+    compression: Option<&str>,
+    section: &str,
+) -> Result<(Arc<[u8]>, bool), IoError> {
+    match compression {
+        None => Ok((Arc::from(on_wire), false)),
+        _ => decode_on_wire_arc(&on_wire, compression, section),
     }
 }
 

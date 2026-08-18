@@ -249,10 +249,11 @@ impl CausalExprArena {
         let mut v: Vec<VariableId> = vars.into_iter().collect();
         v.sort_unstable();
         v.dedup();
-        let key: Arc<[VariableId]> = Arc::from(v);
-        if let Some(id) = self.var_set_index.get(&key) {
+        // Borrow-based lookup: allocate the Arc key only on a cache miss.
+        if let Some(id) = self.var_set_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[VariableId]> = Arc::from(v);
         let id = VarSetId(u32::try_from(self.var_sets.len()).expect("var set id"));
         self.var_sets.push(Arc::clone(&key));
         self.var_set_index.insert(key, id);
@@ -267,10 +268,10 @@ impl CausalExprArena {
         let mut v: Vec<InterventionAssignment> = assignments.into_iter().collect();
         v.sort_by_key(|a| a.variable.raw());
         v.dedup_by_key(|a| a.variable.raw());
-        let key: Arc<[InterventionAssignment]> = Arc::from(v);
-        if let Some(id) = self.intervention_index.get(&key) {
+        if let Some(id) = self.intervention_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[InterventionAssignment]> = Arc::from(v);
         let id = InterventionSetId(u32::try_from(self.interventions.len()).expect("id"));
         self.interventions.push(Arc::clone(&key));
         self.intervention_index.insert(key, id);
@@ -318,10 +319,11 @@ impl CausalExprArena {
 
     /// Intern an expression list.
     pub fn intern_list(&mut self, exprs: impl IntoIterator<Item = ExprId>) -> ExprListId {
-        let key: Arc<[ExprId]> = Arc::from(exprs.into_iter().collect::<Vec<_>>());
-        if let Some(id) = self.list_index.get(&key) {
+        let v: Vec<ExprId> = exprs.into_iter().collect();
+        if let Some(id) = self.list_index.get(v.as_slice()) {
             return *id;
         }
+        let key: Arc<[ExprId]> = Arc::from(v);
         let id = ExprListId(u32::try_from(self.lists.len()).expect("list id"));
         self.lists.push(Arc::clone(&key));
         self.list_index.insert(key, id);

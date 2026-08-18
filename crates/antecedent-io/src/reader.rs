@@ -10,7 +10,8 @@ use std::sync::Arc;
 use memmap2::Mmap;
 
 use crate::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, decode_on_wire_arc, read_header_and_manifest,
+    ArtifactManifest, EncodedArtifact, SectionBytes, decode_on_wire_arc, decode_on_wire_arc_owned,
+    read_header_and_manifest,
 };
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
@@ -170,7 +171,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
             return Err(IoError::ChecksumMismatch { section: id.into() });
         }
         let (logical, decompressed) =
-            decode_on_wire_arc(&on_wire, desc.compression.as_deref(), &desc.id)?;
+            decode_on_wire_arc_owned(on_wire, desc.compression.as_deref(), &desc.id)?;
         let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
         if logical.len() != expected {
             return Err(IoError::Decompress {
