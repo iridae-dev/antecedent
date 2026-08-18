@@ -170,9 +170,22 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
                 Some("MediationEffect")
             }
         },
-        CausalQuery::TemporalEffect(q) => match q.policy {
+        CausalQuery::TemporalEffect(q) => match &q.policy {
             TemporalPolicy::Pulse { .. } => Some("PulseEffect"),
             TemporalPolicy::Sustained { .. } => Some("SustainedEffect"),
+            // A dynamic rule is classified by its evaluated schedule shape so it
+            // cannot dodge the matrix: one active step rides the Pulse cell
+            // (the engine estimates it as a rule-tagged pulse), any longer
+            // schedule is a sustained intervention and hits the Sustained
+            // closure. Mirrors `refuse_multi_step_schedule` in
+            // antecedent-estimate, which already refuses multi-step Dynamic.
+            TemporalPolicy::Dynamic { active_at, .. } => {
+                if active_at.len() == 1 {
+                    Some("PulseEffect")
+                } else {
+                    Some("SustainedEffect")
+                }
+            }
             _ => None,
         },
         CausalQuery::Response(q) => match &q.functional {
@@ -277,6 +290,24 @@ mod tests {
         validation: &'static str,
     ) -> SupportCell {
         SupportCell { query, graph_class: graph, structure, inference, validation }
+    }
+
+    #[test]
+    fn dynamic_policy_classifies_by_schedule_shape() {
+        use antecedent_core::{DynamicRuleId, TemporalEffectQuery, TemporalPolicy, VariableId};
+        let make = |active_at: &[i32]| {
+            let mut q =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+            q.policy = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), active_at.to_vec());
+            CausalQuery::TemporalEffect(q)
+        };
+        assert_eq!(query_axis_name(&make(&[0]), GraphClass::TemporalDag), Some("PulseEffect"));
+        // A multi-step dynamic schedule is a sustained intervention; it must
+        // hit the Sustained closure, not bypass the matrix.
+        assert_eq!(
+            query_axis_name(&make(&[0, 1]), GraphClass::TemporalDag),
+            Some("SustainedEffect")
+        );
     }
 
     #[test]
