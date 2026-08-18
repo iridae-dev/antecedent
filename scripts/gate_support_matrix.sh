@@ -43,6 +43,7 @@ def load(rel: str) -> dict:
 axes = load("parity/support_axes.toml")
 na_doc = load("parity/support_n_a.toml")
 closed_doc = load("parity/support_closed.toml")
+allow_doc = load("parity/support_allowlist.toml")
 lic_doc = load("parity/support_licensed.toml")
 
 queries = list(axes.get("queries") or [])
@@ -216,6 +217,54 @@ for i, rule in enumerate(closed_rules, 1):
 def is_closed(cell: dict) -> bool:
     return (not is_n_a(cell)) and any(rule_matches(rule, cell) for rule in closed_rules)
 
+# --- allowlist rules -----------------------------------------------------------
+allowed_rules = allow_doc.get("allowed") or []
+for i, rule in enumerate(allowed_rules, 1):
+    label = f"parity/support_allowlist.toml rule #{i}"
+    if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
+        fail.append(f"{label}: missing reason")
+    if not isinstance(rule.get("parent"), str) or not rule["parent"].strip():
+        fail.append(f"{label}: missing parent")
+    for key, legal in AXIS_KEYS.items():
+        vals = rule.get(key)
+        if vals is None:
+            continue
+        if not isinstance(vals, list) or not vals:
+            fail.append(f"{label}: {key} must be a non-empty list")
+            continue
+        for v in vals:
+            if v not in legal:
+                fail.append(f"{label}: {key} value {v!r} is not an axis value")
+
+def is_allowed(cell: dict) -> bool:
+    return (
+        (not is_n_a(cell))
+        and (not is_closed(cell))
+        and any(rule_matches(rule, cell) for rule in allowed_rules)
+    )
+
+# An allowed rule must not match any licensed, n/a, or closed cell -- the
+# allowlist is a true partition of the running-but-unlicensed remainder.
+if all_queries and graph_classes and structures and inferences and validations:
+    lic_keys_for_disjointness = {
+        (row.get("query"), row.get("graph_class"), row.get("structure"), row.get("inference"), row.get("validation"))
+        for row in (lic_doc.get("cell") or [])
+    }
+    for i, rule in enumerate(allowed_rules, 1):
+        label = f"parity/support_allowlist.toml rule #{i}"
+        for q, g, s, inf, v in product(
+            all_queries, graph_classes, structures, inferences, validations
+        ):
+            if not rule_matches(rule, {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v}):
+                continue
+            cell = {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v}
+            if (q, g, s, inf, v) in lic_keys_for_disjointness:
+                fail.append(f"{label}: matches licensed cell {(q, g, s, inf, v)}")
+            elif is_n_a(cell):
+                fail.append(f"{label}: matches an n/a cell {(q, g, s, inf, v)}")
+            elif is_closed(cell):
+                fail.append(f"{label}: matches a closed cell {(q, g, s, inf, v)}")
+
 # --- licensed cells ----------------------------------------------------------
 cells = lic_doc.get("cell") or []
 seen: set[tuple[str, ...]] = set()
@@ -280,12 +329,15 @@ for i, row in enumerate(cells, 1):
         fail.append(f"{label}: cell is n/a under support_n_a.toml; cannot license it")
     if all(cell.values()) and is_closed(cell):
         fail.append(f"{label}: cell is closed under support_closed.toml; cannot license it")
+    if all(cell.values()) and is_allowed(cell):
+        fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
 
 # --- counts ------------------------------------------------------------------
 if all_queries and graph_classes and structures and inferences and validations:
     cartesian = 0
     n_a_count = 0
     closed_count = 0
+    allowed_count = 0
     for q, g, s, inf, v in product(
         all_queries, graph_classes, structures, inferences, validations
     ):
@@ -301,13 +353,15 @@ if all_queries and graph_classes and structures and inferences and validations:
             n_a_count += 1
         elif is_closed(cell):
             closed_count += 1
+        elif is_allowed(cell):
+            allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
     if refused < 0:
         fail.append("licensed + n/a exceeds the cartesian product")
-    if closed_count > refused:
-        fail.append("closed refusals exceed remaining refused cells")
+    if closed_count + allowed_count > refused:
+        fail.append("closed + allowlisted exceed remaining refused cells")
 else:
-    cartesian = n_a_count = closed_count = refused = 0
+    cartesian = n_a_count = closed_count = allowed_count = refused = 0
     fail.append("axes are incomplete; cannot form a cartesian product")
 
 if fail:
@@ -318,6 +372,7 @@ if fail:
 
 print(
     f"Support matrix OK ({cartesian} cells; {len(cells)} licensed; "
-    f"{n_a_count} n/a; {closed_count} closed; {refused - closed_count} default-refused)"
+    f"{n_a_count} n/a; {closed_count} closed; {allowed_count} allowlisted; "
+    f"{refused - closed_count - allowed_count} refused (enforced, no allowlist match))"
 )
 PY
