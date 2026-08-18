@@ -144,14 +144,8 @@ pub(crate) fn run_refuters(
     custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     temporal: Option<antecedent_validate::TemporalRefitContext<'_>>,
 ) -> Result<Vec<RefutationReport>, CausalError> {
-    let problem = RefutationProblem {
-        data,
-        estimand,
-        query,
-        original: estimate,
-        estimator: Some(estimator),
-        temporal,
-    };
+    let problem =
+        RefutationProblem::new(data, estimand, query, estimate, Some(estimator), temporal);
     let mut validation = match suite {
         RefuteSuite::None => {
             if custom.is_empty() {

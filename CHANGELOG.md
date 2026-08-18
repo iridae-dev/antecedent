@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps the ingest borrow count on `ExecutionPerformanceRecord` /
   `PerformanceView`. PyArrow tables still use CDI whenever the C exporter
   works; `latency=interactive` is not a gate on that ingest path.
+- **Panel refute refits reuse per-unit column Arcs.** `PreparedRefutation::compile`
+  builds a slice template from the stacked table; each replicate swaps only
+  mutated or appended columns instead of copying every float column per unit.
+- **Static-linear sensitivity grid is one Gram + per-point Cholesky.** The
+  `[1, T, Z, u]` sufficient statistics replace a data pass at every partial-R²
+  grid point for OLS (temporal / ridge / lasso / Huber keep the old path). A
+  differential test pins Gram ATEs to the per-point QR path under
+  `BackendSensitive` before the fast path is the default.
 
 ### Correctness — localized audit
 

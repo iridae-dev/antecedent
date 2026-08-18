@@ -280,14 +280,14 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let problem = RefutationProblem {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            original: &original,
-            estimator: Some("linear.adjustment.ate"),
-            temporal: None,
-        };
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
         let report = RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.riesz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);

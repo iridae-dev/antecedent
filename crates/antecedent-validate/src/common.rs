@@ -9,9 +9,11 @@ use antecedent_core::{
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_data::{
-    ColumnView, DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
+    ColumnView, DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
+
+use crate::panel_slice::PanelSliceTemplate;
 use antecedent_estimate::{
     EffectEstimate, EstimationWorkspace, IpwTarget, LinearAdjustmentAte, OverlapPolicy,
     OverlapReport, TemporalLinearAdjustment,
@@ -115,6 +117,31 @@ pub struct RefutationProblem<'a> {
     pub estimator: Option<&'a str>,
     /// When set, refits use [`TemporalLinearAdjustment`] on the lag-aligned design.
     pub temporal: Option<TemporalRefitContext<'a>>,
+    /// Prepare-time per-unit slice plan. Filled by [`crate::PreparedRefutation::compile`];
+    /// callers constructing a problem directly leave this unset and the panel refit
+    /// compiles a plan from [`Self::temporal`] on first use.
+    pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
+}
+
+impl<'a> RefutationProblem<'a> {
+    /// Construct a refutation problem. Panel slice reuse is compiled by
+    /// [`crate::PreparedRefutation::compile`].
+    #[must_use]
+    pub fn new(
+        data: &'a TabularData,
+        estimand: &'a IdentifiedEstimand,
+        query: &'a AverageEffectQuery,
+        original: &'a EffectEstimate,
+        estimator: Option<&'a str>,
+        temporal: Option<TemporalRefitContext<'a>>,
+    ) -> Self {
+        Self { data, estimand, query, original, estimator, temporal, panel_slices: None }
+    }
+
+    pub(crate) fn with_panel_slices(mut self, slices: Option<&'a PanelSliceTemplate<'a>>) -> Self {
+        self.panel_slices = slices;
+        self
+    }
 }
 
 impl RefutationProblem<'_> {
@@ -191,7 +218,14 @@ pub(crate) fn refit_effect(
     let estimator =
         TemporalLinearAdjustment::new().with_inner(forced_refit_estimator(caller_estimator));
     if let Some(panel) = temporal.panel {
-        let rebuilt = panel_from_stacked(panel, data)?;
+        let owned;
+        let slices = if let Some(plan) = problem.panel_slices {
+            plan
+        } else {
+            owned = PanelSliceTemplate::from_panel(panel, problem.data)?;
+            &owned
+        };
+        let rebuilt = slices.apply_stacked(data)?;
         let prep = if extra_contemporaneous.is_empty() {
             let (prep, _cluster_ids, _panel_times) = estimator
                 .prepare_panel(
@@ -299,76 +333,6 @@ fn panel_prepare_with_extras(
         active,
         control,
     })
-}
-
-/// Rebuild a panel from stacked tabular mutations (same unit lengths as `original`).
-pub(crate) fn panel_from_stacked(
-    original: &PanelData,
-    stacked: &TabularData,
-) -> Result<PanelData, ValidationError> {
-    let expected = original.total_rows();
-    if stacked.row_count() != expected {
-        return Err(ValidationError::data_msg(format!(
-            "stacked panel refute rows {} != panel total_rows {expected}",
-            stacked.row_count()
-        )));
-    }
-    let mut offset = 0usize;
-    let mut units = Vec::with_capacity(original.unit_count());
-    for u in original.units() {
-        let n = u.series.row_count();
-        let slice = slice_tabular(stacked, offset, n)?;
-        let series =
-            TimeSeriesData::try_new(slice.storage().clone(), u.series.time_index().clone())
-                .map_err(ValidationError::from)?;
-        units.push(PanelUnit { unit_id: u.unit_id, series });
-        offset += n;
-    }
-    PanelData::try_new(Arc::from(units)).map_err(ValidationError::from)
-}
-
-fn slice_tabular(
-    data: &TabularData,
-    start: usize,
-    len: usize,
-) -> Result<TabularData, ValidationError> {
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
-    let storage = data.storage();
-    let end = start + len;
-    if end > data.row_count() {
-        return Err(ValidationError::NotApplicable { message: "panel slice out of range" });
-    }
-    let mut cols = Vec::with_capacity(storage.columns().len());
-    for col in storage.columns() {
-        match col {
-            OwnedColumn::Float64(c) => {
-                let values: Arc<[f64]> = Arc::from(c.values[start..end].to_vec());
-                let validity = ValidityBitmap::all_valid(len);
-                cols.push(OwnedColumn::Float64(
-                    Float64Column::new(c.id, values, validity).map_err(ValidationError::from)?,
-                ));
-            }
-            _ => {
-                return Err(ValidationError::NotApplicable {
-                    message: "panel refute slice requires float64 columns",
-                });
-            }
-        }
-    }
-    let mask = storage.analysis_mask().map(|m| {
-        let mut bytes = vec![0u8; len.div_ceil(8)];
-        for i in 0..len {
-            if m.is_valid(start + i) {
-                bytes[i / 8] |= 1 << (i % 8);
-            }
-        }
-        ValidityBitmap::from_bytes(bytes, len)
-    });
-    let mask = mask.transpose().map_err(ValidationError::from)?;
-    let weights = storage.weights().map(|w| Arc::<[f64]>::from(w[start..end].to_vec()));
-    let new_storage = OwnedColumnarStorage::try_new(storage.schema().clone(), cols, mask, weights)
-        .map_err(ValidationError::from)?;
-    Ok(TabularData::new(new_storage))
 }
 
 /// Stack panel units into one tabular table (row-major concat) for refute mutations.
