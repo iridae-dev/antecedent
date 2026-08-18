@@ -193,7 +193,7 @@ pub(super) fn envelope_to_identification_result(
     )
 }
 
-pub(super) fn admg_has_bidirected(admg: &Admg) -> bool {
+pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
     (0..admg.node_count()).any(|i| {
         let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         !admg.bidirected_neighbors(id).is_empty()

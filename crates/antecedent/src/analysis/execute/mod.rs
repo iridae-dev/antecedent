@@ -117,6 +117,12 @@ pub struct Study {
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
+    /// Prepare-time identification for the static ATE path, set only by
+    /// [`Study::prepare`]. Identification depends solely on
+    /// (identifier, graph, query, rd) — all frozen at prepare — so reusing it
+    /// per estimate click is exact; `None` (every builder-constructed study)
+    /// keeps the identify-per-run behavior.
+    pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
 }
 
 impl std::fmt::Debug for Study {
@@ -140,6 +146,7 @@ impl std::fmt::Debug for Study {
             .field("custom_validators", &self.custom_validators.len())
             .field("latency_mode", &self.latency_mode)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
+            .field("identification_cache_is_some", &self.identification_cache.is_some())
             .finish()
     }
 }

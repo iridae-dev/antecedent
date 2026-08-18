@@ -29,14 +29,23 @@ impl super::Study {
         }
 
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
-        let rd = self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
-        let identification = identify_static_query_with_rd(
-            identifier_id,
-            graph,
-            &CausalQuery::AverageEffect(query.clone()),
-            rd,
-        )?;
-        let estimand = select_estimand(&identification, estimator_id)?;
+        // Prepared handles identify once at prepare time; identification reads
+        // only (identifier, graph, query, rd), all frozen there, so reuse is
+        // exact and observable via the `exec.identify.cached` diagnostic below.
+        let identify_cached = self.identification_cache.is_some();
+        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
+            (cache.identification.clone(), cache.estimand.clone())
+        } else {
+            let rd = self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
+            let identification = identify_static_query_with_rd(
+                identifier_id,
+                graph,
+                &CausalQuery::AverageEffect(query.clone()),
+                rd,
+            )?;
+            let estimand = select_estimand(&identification, estimator_id)?;
+            (identification, estimand)
+        };
         let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
@@ -176,6 +185,14 @@ impl super::Study {
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
+        if identify_cached {
+            diagnostics.push(Diagnostic::new(
+                "exec.identify.cached",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "identification reused from the prepare-time cache".to_string(),
+            ));
+        }
         if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
             diagnostics.push(d);
         }
