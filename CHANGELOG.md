@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already averaged `μ(a,Z)−μ(c,Z)` over the target arm; the delta/sandwich
   gradient averaged over every row. Under a nonlinear link that is the ATE
   gradient, so CIs were for the wrong functional.
+- **Trimmed IPW Hajek analytic SE uses retained n.** Point estimates already
+  zeroed out-of-trim weights; the influence SE still divided by full-sample
+  n, so trimming looked more precise than it was. Analytic SE now subsets
+  to retained rows (matching AIPW).
 
 ### Round 4 — backlog completion
 

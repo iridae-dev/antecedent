@@ -448,6 +448,25 @@ pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
     idx.iter().map(|&i| values[i]).collect()
 }
 
+/// Extract rows `idx` from a column-major `nrows × ncols` matrix.
+pub(crate) fn gather_colmajor(
+    matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    idx: &[usize],
+) -> Vec<f64> {
+    let m = idx.len();
+    let mut out = vec![0.0; m * ncols];
+    for c in 0..ncols {
+        let src_base = c * nrows;
+        let dst_base = c * m;
+        for (r, &i) in idx.iter().enumerate() {
+            out[dst_base + r] = matrix[src_base + i];
+        }
+    }
+    out
+}
+
 /// [`gather`] into a reused buffer for replicate loops.
 pub(crate) fn gather_into(out: &mut Vec<f64>, values: &[f64], idx: &[usize]) {
     out.clear();
