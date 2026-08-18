@@ -65,7 +65,10 @@ def test_sustained_vs_pulse_policy_accepted():
     # a single treatment column — the pipeline refuses instead of silently
     # estimating a one-node proxy, which is what this assertion previously
     # accepted a finite number from.
-    with pytest.raises(antecedent.errors.CausalEstimateError, match="Sustained spanning"):
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError,
+        match="refused: SustainedEffect is not on the staged handle.",
+    ):
         antecedent.analyze(
             data,
             graph=edges,

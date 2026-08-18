@@ -393,4 +393,26 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn closed_mediation_and_sustained_are_enforced() {
+        let err = refuse_if_not_applicable(cell(
+            "MediationEffect",
+            "Dag",
+            "explicit",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+        let err = refuse_if_not_applicable(cell(
+            "SustainedEffect",
+            "TemporalDag",
+            "explicit",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+    }
 }

@@ -247,14 +247,8 @@ fn static_mediation_natural_rejected() {
         .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
         .build()
-        .unwrap()
-        .compile_logical()
         .unwrap_err();
-    let msg = err.to_string();
-    assert!(
-        msg.contains("natural") || msg.contains("Total") || msg.contains("temporal"),
-        "unexpected error: {msg}"
-    );
+    assert!(err.to_string().starts_with("refused:"), "{err}");
 }
 
 #[test]

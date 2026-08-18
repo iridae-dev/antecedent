@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   family, ResponseCurve on Pag/Cpdag/Admg, and PathSpecific /
   InterventionalDistribution with accepted or graph-posterior structure.
   Remaining default-refused cells still run until licensed or closed.
+  `MediationEffect` and `SustainedEffect` are now in that closed set.
+  `identify_only` graph-posterior / ADMG / non-DAG refusals use the same
+  `refused:` id instead of a stringly `Unsupported`.
 
 ## [0.5.2] — 2026-08-18
 

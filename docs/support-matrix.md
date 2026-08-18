@@ -14,8 +14,8 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 | Cartesian product | 2394 |
 | Licensed | 5 |
 | n/a | 1110 |
-| Refused (enforced) | 492 |
-| Refused (default, not yet enforced) | 787 |
+| Refused (enforced) | 672 |
+| Refused (default, not yet enforced) | 607 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -79,6 +79,8 @@ Other refused cells still run until licensed or closed.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} — Derivative cells are not licensed; only ResponseCurve on a Dag is staged.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Pag, Cpdag, Admg} — ResponseCurve is licensed only on a Dag.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ structures ∈ {graph_posterior, accepted} — Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet.
+- queries ∈ {MediationEffect} — MediationEffect is not on the staged handle.
+- queries ∈ {SustainedEffect} — SustainedEffect is not on the staged handle.
 
 ## Licensed cells
 

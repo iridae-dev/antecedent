@@ -200,3 +200,103 @@ mod support_tests {
         assert!(estimand.adjustment_set.is_empty());
     }
 }
+
+#[cfg(test)]
+mod identify_only_tests {
+    use antecedent_core::{
+        AverageEffectQuery, CausalQuery, InterventionalDistributionQuery, Intervention, Value,
+        VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_graph::{Admg, DenseNodeId, Pag};
+    use antecedent_prob::InferenceDiagnostics;
+
+    use super::*;
+    use crate::support::SupportRefusal;
+
+    fn toy_data() -> TabularData {
+        TabularData::from_f64_columns([
+            ("t", &[0.0_f64, 1.0][..]),
+            ("y", &[0.0_f64, 1.0][..]),
+        ])
+        .unwrap()
+    }
+
+    fn ate() -> AverageEffectQuery {
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+    }
+
+    fn assert_identify_only_refused(err: CausalError, message: &'static str) {
+        assert!(
+            matches!(
+                err,
+                CausalError::Support { id: SupportRefusal::Refused, message: m } if m == message
+            ),
+            "{err:?}"
+        );
+        assert_eq!(err.to_string(), format!("refused: {message}"));
+    }
+
+    #[test]
+    fn identify_only_refuses_graph_posterior() {
+        let gp = GraphPosterior::new(
+            2,
+            vec![1.0],
+            vec![0u64],
+            vec![0.0; 4],
+            vec![0.0; 4],
+            1.0,
+            InferenceDiagnostics::analytic("test"),
+            0,
+        )
+        .unwrap();
+        let err = Study::tabular(toy_data())
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .identify_only()
+            .unwrap_err();
+        assert_identify_only_refused(
+            err,
+            "identify_only is not a graph-posterior cell; identification \
+                          runs per-graph inside execute.",
+        );
+    }
+
+    #[test]
+    fn identify_only_refuses_bidirected_admg_non_ate() {
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let err = Study::tabular(toy_data())
+            .graph(admg)
+            .query(CausalQuery::Distribution(query))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .identify_only()
+            .unwrap_err();
+        assert_identify_only_refused(err, "identify_only on an ADMG supports AverageEffect only.");
+    }
+
+    #[test]
+    fn identify_only_refuses_non_dag_admg_graph() {
+        let mut pag = Pag::with_variables(2);
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let err = Study::tabular(toy_data())
+            .graph(pag)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .identify_only()
+            .unwrap_err();
+        assert_identify_only_refused(err, "identify_only supports static DAG and ADMG graphs only.");
+    }
+}
