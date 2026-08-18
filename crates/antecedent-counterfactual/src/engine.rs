@@ -219,7 +219,8 @@ impl CounterfactualEngine {
         })
     }
 
-    /// Predict counterfactual outcomes for worlds sharing abduced noise.
+    /// Predict counterfactual outcomes for worlds sharing abduced noise,
+    /// retaining every node column (historical layout).
     ///
     /// # Errors
     ///
@@ -233,21 +234,70 @@ impl CounterfactualEngine {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
+        self.predict_impl(exo, worlds, outcomes, allow_nested, false, ws, ctx)
+    }
+
+    /// [`Self::predict`] retaining only the requested outcome columns.
+    ///
+    /// Evaluation is identical (every node is still computed in topological
+    /// order — ancestors feed descendants); only *retention* differs, so the
+    /// result stores `n_worlds × outcomes × n_units` instead of
+    /// `n_worlds × n_nodes × n_units`. Outcome columns match [`Self::predict`]
+    /// bit for bit; non-outcome nodes read as `NaN` via
+    /// [`CounterfactualResult::get`] and error via
+    /// [`CounterfactualResult::outcome_column`].
+    ///
+    /// # Errors
+    ///
+    /// Overlay / evaluation failures.
+    pub fn predict_retaining_outcomes(
+        &self,
+        exo: &ExogenousPosterior,
+        worlds: &[CounterfactualWorld],
+        outcomes: &[VariableId],
+        allow_nested: bool,
+        ws: &mut MechanismWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualResult, CounterfactualError> {
+        self.predict_impl(exo, worlds, outcomes, allow_nested, true, ws, ctx)
+    }
+
+    fn resolve_outcomes(
+        &self,
+        outcomes: &[VariableId],
+    ) -> Result<Vec<DenseNodeId>, CounterfactualError> {
+        outcomes
+            .iter()
+            .map(|&o| {
+                self.model.dense_of(o).ok_or_else(|| {
+                    CounterfactualError::model_msg(format!("outcome {o} not in model"))
+                })
+            })
+            .collect()
+    }
+
+    fn predict_impl(
+        &self,
+        exo: &ExogenousPosterior,
+        worlds: &[CounterfactualWorld],
+        outcomes: &[VariableId],
+        allow_nested: bool,
+        outcomes_only: bool,
+        ws: &mut MechanismWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualResult, CounterfactualError> {
         if worlds.is_empty() {
             return Err(CounterfactualError::model_msg("no worlds"));
         }
         let n_units = exo.n_units;
         let n_nodes = exo.n_nodes;
         let n_worlds = worlds.len();
-        let mut outcome_dense = Vec::with_capacity(outcomes.len());
-        for &o in outcomes {
-            outcome_dense.push(self.model.dense_of(o).ok_or_else(|| {
-                CounterfactualError::model_msg(format!("outcome {o} not in model"))
-            })?);
-        }
+        let outcome_dense = self.resolve_outcomes(outcomes)?;
 
-        // Columnar: values[world * (n_nodes * n_units) + node * n_units + unit]
-        let mut all = vec![0.0; n_worlds * n_nodes * n_units];
+        // Columnar: values[world * (stored_width * n_units) + slot * n_units + unit]
+        let stored: Option<Vec<DenseNodeId>> = outcomes_only.then(|| outcome_dense.clone());
+        let stored_width = stored.as_ref().map_or(n_nodes, Vec::len);
+        let mut all = vec![0.0; n_worlds * stored_width * n_units];
         let mut notes = Vec::new();
         notes.push(Arc::from(format!("noise_inference={:?}", exo.kind)));
         let mut rng = ctx.rng.stream(0xCF_01);
@@ -311,10 +361,11 @@ impl CounterfactualEngine {
                 }
             }
 
-            let base = wi * n_nodes * n_units;
-            for node in 0..n_nodes {
+            let base = wi * stored_width * n_units;
+            for slot in 0..stored_width {
+                let node = stored.as_ref().map_or(slot, |r| r[slot].as_usize());
                 let src = &values_buf[node * n_units..(node + 1) * n_units];
-                let dest = base + node * n_units;
+                let dest = base + slot * n_units;
                 if let Some(rows) = unit_filter {
                     let mut tmp = vec![f64::NAN; n_units];
                     for &r in rows {
@@ -334,6 +385,7 @@ impl CounterfactualEngine {
             n_worlds,
             n_units,
             n_nodes,
+            retained_nodes: stored.map(Arc::from),
             outcomes: Arc::from(outcome_dense),
             noise_kind: exo.kind,
             notes,
@@ -358,7 +410,7 @@ impl CounterfactualEngine {
             CounterfactualWorld { unit_rows: None, interventions: Arc::from([active]) },
             CounterfactualWorld { unit_rows: None, interventions: Arc::from([control]) },
         ];
-        let res = self.predict(exo, &worlds, &[outcome], false, ws, ctx)?;
+        let res = self.predict_retaining_outcomes(exo, &worlds, &[outcome], false, ws, ctx)?;
         let o = self.model.dense_of(outcome).ok_or_else(|| {
             CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
         })?;
@@ -375,14 +427,20 @@ impl CounterfactualEngine {
 /// Counterfactual result tensor (world × node × unit), columnar.
 #[derive(Clone, Debug)]
 pub struct CounterfactualResult {
-    /// Flat storage.
+    /// Flat storage: `n_worlds × stored_width × n_units`, node-major within a
+    /// world. `stored_width` is `n_nodes` for full retention or
+    /// `retained_nodes.len()` for outcomes-only results.
     pub values: Arc<[f64]>,
     /// Worlds.
     pub n_worlds: usize,
     /// Units.
     pub n_units: usize,
-    /// Nodes.
+    /// Nodes in the model (the logical width; storage may retain fewer).
     pub n_nodes: usize,
+    /// Node columns actually retained, in storage order; `None` = every node
+    /// (the historical layout). Access values through [`Self::get`] /
+    /// [`Self::outcome_column`], which resolve slots either way.
+    pub retained_nodes: Option<Arc<[DenseNodeId]>>,
     /// Requested outcome dense ids.
     pub outcomes: Arc<[DenseNodeId]>,
     /// Noise inference kind (visible assumption).
@@ -392,10 +450,30 @@ pub struct CounterfactualResult {
 }
 
 impl CounterfactualResult {
-    /// Value at world/node/unit.
+    /// Storage width per world (retained columns).
+    #[must_use]
+    pub fn stored_width(&self) -> usize {
+        self.retained_nodes.as_ref().map_or(self.n_nodes, |r| r.len())
+    }
+
+    /// Storage slot of `node`, or `None` when the node was not retained.
+    #[must_use]
+    pub fn slot_of(&self, node: DenseNodeId) -> Option<usize> {
+        match &self.retained_nodes {
+            None => (node.as_usize() < self.n_nodes).then(|| node.as_usize()),
+            Some(r) => r.iter().position(|&n| n == node),
+        }
+    }
+
+    /// Value at world/node/unit (`NaN` when out of range or not retained,
+    /// matching the historical out-of-range convention).
     #[must_use]
     pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
-        let i = world * self.n_nodes * self.n_units + node.as_usize() * self.n_units + unit;
+        let Some(slot) = self.slot_of(node) else {
+            return f64::NAN;
+        };
+        let width = self.stored_width();
+        let i = world * width * self.n_units + slot * self.n_units + unit;
         self.values.get(i).copied().unwrap_or(f64::NAN)
     }
 
@@ -427,7 +505,11 @@ impl CounterfactualResult {
         if world >= self.n_worlds {
             return Err(CounterfactualError::model_msg("world index out of range"));
         }
-        let start = world * self.n_nodes * self.n_units + outcome.as_usize() * self.n_units;
+        let slot = self.slot_of(outcome).ok_or_else(|| {
+            CounterfactualError::model_msg("outcome column was not retained in this result")
+        })?;
+        let width = self.stored_width();
+        let start = world * width * self.n_units + slot * self.n_units;
         Ok(&self.values[start..start + self.n_units])
     }
 }
@@ -470,33 +552,57 @@ pub fn simultaneous_hard_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
-    let mut overlap = false;
-    for o in outer {
-        let Some(ov) = o.primary_variable() else {
-            continue;
-        };
-        for i in inner {
-            if i.primary_variable() == Some(ov) {
-                overlap = true;
-                break;
-            }
-        }
-        if overlap {
-            break;
-        }
-    }
-    if overlap {
-        return nested_counterfactual(engine, data, outer, inner, outcome, ws, ctx);
-    }
     let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
+    simultaneous_hard_counterfactual_with_exo(engine, &exo, outer, inner, outcome, ws, ctx)
+}
+
+/// [`simultaneous_hard_counterfactual`] against a caller-supplied
+/// [`ExogenousPosterior`]: callers looping over intervention pairs abduct once
+/// and share it instead of re-abducing (a full O(nodes · units) pass plus the
+/// factual materialization) on every call.
+///
+/// # Errors
+///
+/// Engine failures or unknown outcome.
+pub fn simultaneous_hard_counterfactual_with_exo(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    if interventions_overlap(outer, inner) {
+        return nested_counterfactual_with_exo(engine, exo, outer, inner, outcome, ws, ctx);
+    }
+    simultaneous_tail(engine, exo, outer, inner, outcome, ws, ctx)
+}
+
+fn simultaneous_tail(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
     let mut combined = outer.to_vec();
     combined.extend_from_slice(inner);
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
-    let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
+    let res = engine.predict_retaining_outcomes(exo, &[world], &[outcome], true, ws, ctx)?;
     let o = engine.model.dense_of(outcome).ok_or_else(|| {
         CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
     })?;
     Ok(res.streaming_outcome_mean(0, o))
+}
+
+fn interventions_overlap(outer: &[Intervention], inner: &[Intervention]) -> bool {
+    outer
+        .iter()
+        .filter_map(Intervention::primary_variable)
+        .any(|ov| inner.iter().any(|i| i.primary_variable() == Some(ov)))
 }
 
 /// Nested counterfactual (twin-network) under shared abduced noise.
@@ -523,6 +629,26 @@ pub fn nested_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
+    // Intervention-kind validation lives in the `_with_exo` body.
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
+    nested_counterfactual_with_exo(engine, &exo, outer, inner, outcome, ws, ctx)
+}
+
+/// [`nested_counterfactual`] against a caller-supplied [`ExogenousPosterior`]
+/// (abduct once, evaluate many nested queries).
+///
+/// # Errors
+///
+/// Unsupported intervention kinds or predict failures.
+pub fn nested_counterfactual_with_exo(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
     for iv in outer.iter().chain(inner.iter()) {
         match iv {
             Intervention::Set { .. }
@@ -542,11 +668,10 @@ pub fn nested_counterfactual(
             }
         }
     }
-
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let outer_world =
         CounterfactualWorld { unit_rows: None, interventions: Arc::from(outer.to_vec()) };
-    let outer_res = engine.predict(&exo, &[outer_world], &[], true, ws, ctx)?;
+    // Full retention: the freeze step below reads every non-inner node's column.
+    let outer_res = engine.predict(exo, &[outer_world], &[], true, ws, ctx)?;
 
     let n_nodes = exo.n_nodes;
     let n_units = exo.n_units;
@@ -598,7 +723,7 @@ pub fn nested_counterfactual(
         if row_independent {
             return nested_column_frozen_mean(
                 engine,
-                &exo,
+                exo,
                 &outer_res,
                 &overlay,
                 &inner_targets,
@@ -627,7 +752,7 @@ pub fn nested_counterfactual(
     let mut combined = freeze_ivs;
     combined.extend_from_slice(inner);
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
-    let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
+    let res = engine.predict(exo, &[world], &[outcome], true, ws, ctx)?;
     Ok(res.streaming_outcome_mean(0, outcome_dense))
 }
 
@@ -1059,6 +1184,71 @@ mod tests {
                 "trial {trial}: mean_ite={mean_ite} beta={beta} n={n}"
             );
         }
+    }
+
+    /// Outcomes-only retention must change storage, not values: outcome
+    /// columns match the full-retention result bit for bit, storage shrinks
+    /// from `n_nodes` to `n_outcomes` columns, and unretained nodes are explicit
+    /// (NaN via `get`, error via `outcome_column`) rather than garbage.
+    #[test]
+    fn outcomes_only_retention_matches_full_predict_bit_for_bit() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let worlds = [
+            CounterfactualWorld {
+                unit_rows: None,
+                interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+            },
+            CounterfactualWorld {
+                unit_rows: None,
+                interventions: Arc::from([Intervention::set(t, Value::f64(0.0))]),
+            },
+        ];
+        let full = engine.predict(&exo, &worlds, &[y], false, &mut ws, &ctx).unwrap();
+        let slim =
+            engine.predict_retaining_outcomes(&exo, &worlds, &[y], false, &mut ws, &ctx).unwrap();
+        let yd = engine.model.dense_of(y).unwrap();
+        assert_eq!(slim.values.len(), 2 * slim.n_units, "one outcome column per world");
+        assert!(full.values.len() > slim.values.len());
+        for w in 0..2 {
+            let a = full.outcome_column(w, yd).unwrap();
+            let b = slim.outcome_column(w, yd).unwrap();
+            for (x, z) in a.iter().zip(b) {
+                assert!(x.to_bits() == z.to_bits(), "world {w}: {x:?} vs {z:?}");
+            }
+        }
+        let td = engine.model.dense_of(t).unwrap();
+        assert!(slim.get(0, td, 0).is_nan(), "unretained node reads NaN");
+        assert!(slim.outcome_column(0, td).is_err(), "unretained column errors");
+    }
+
+    /// The `_with_exo` entry points must reproduce the data-taking wrappers
+    /// exactly: abduction is deterministic, so sharing one posterior across
+    /// calls is a pure cost change.
+    #[test]
+    fn with_exo_variants_match_data_wrappers_bit_for_bit() {
+        let (engine, data, t, y) = nested_hard_fixture_engine();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let outer = [Intervention::set(t, Value::f64(1.0))];
+        let inner = [Intervention::set(VariableId::from_raw(1), Value::f64(0.3))];
+
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let a = nested_counterfactual(&engine, &data, &outer, &inner, y, &mut ws, &ctx).unwrap();
+        let b = nested_counterfactual_with_exo(&engine, &exo, &outer, &inner, y, &mut ws, &ctx)
+            .unwrap();
+        assert!(a.to_bits() == b.to_bits(), "nested: {a:?} vs {b:?}");
+
+        let c = simultaneous_hard_counterfactual(&engine, &data, &outer, &[], y, &mut ws, &ctx)
+            .unwrap();
+        let d =
+            simultaneous_hard_counterfactual_with_exo(&engine, &exo, &outer, &[], y, &mut ws, &ctx)
+                .unwrap();
+        assert!(c.to_bits() == d.to_bits(), "simultaneous: {c:?} vs {d:?}");
     }
 
     #[test]

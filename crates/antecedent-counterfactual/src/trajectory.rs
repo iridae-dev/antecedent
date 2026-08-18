@@ -105,7 +105,10 @@ pub fn evaluate_trajectories(
                 interventions: Arc::clone(&arm.schedule[t]),
             });
         }
-        let res = engine.predict(exo, &worlds, &[request.outcome], true, ws, ctx)?;
+        // Outcomes-only retention: each step reads a single outcome column, so
+        // retaining all nodes multiplied peak memory by n_nodes per timestep.
+        let res =
+            engine.predict_retaining_outcomes(exo, &worlds, &[request.outcome], true, ws, ctx)?;
         for w in 0..n_worlds {
             let col = res.outcome_column(w, outcome)?;
             let dest = t * n_worlds * n_units + w * n_units;
