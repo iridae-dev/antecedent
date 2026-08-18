@@ -127,9 +127,13 @@ pub fn solve_spd_into(
 
 /// Solve `A x = b` for SPD `A` via Cholesky; writes into `x`.
 ///
+/// Allocating wrapper around [`solve_spd_into`]. Prefer the into-variant on
+/// hot paths that already own factor / `y` buffers.
+///
 /// # Errors
 ///
 /// Cholesky failure.
+#[allow(dead_code)] // allocating wrapper; tests and one-shot callers
 pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), ProbError> {
     let mut factor = vec![0.0; n.saturating_mul(n)];
     let mut y = vec![0.0; n];
