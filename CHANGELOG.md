@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **First enforced support-matrix refusals.** Cells listed in
+  `parity/support_closed.toml` now fail closed with id `refused` at
+  `Study::build` and the Python sidecars: Counterfactual, the derivative
+  family, ResponseCurve on Pag/Cpdag/Admg, and PathSpecific /
+  InterventionalDistribution with accepted or graph-posterior structure.
+  Remaining default-refused cells still run until licensed or closed.
+
 ## [0.5.2] — 2026-08-18
 
 Performance pass plus a localized correctness audit. Workspace and Python

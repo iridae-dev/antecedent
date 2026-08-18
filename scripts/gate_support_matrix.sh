@@ -173,6 +173,29 @@ def rule_matches(rule: dict, cell: dict) -> bool:
 def is_n_a(cell: dict) -> bool:
     return any(rule_matches(rule, cell) for rule in na_rules)
 
+corpus_files = []
+for pat in (
+    "crates/**/*.rs",
+    "python/tests/**/*.py",
+    "python/antecedent/**/*.py",
+    "scripts/*.sh",
+    "scripts/*.py",
+):
+    corpus_files.extend(root.glob(pat))
+corpus = "\n".join(
+    p.read_text(errors="ignore")
+    for p in corpus_files
+    if "target" not in p.parts and ".venv" not in p.parts
+)
+
+def referenced(name: str) -> bool:
+    for m in re.finditer(re.escape(name), corpus):
+        before = corpus[m.start() - 1] if m.start() > 0 else ""
+        after = corpus[m.end()] if m.end() < len(corpus) else ""
+        if not re.match(r"[A-Za-z0-9_]", before) and not re.match(r"[A-Za-z0-9_]", after):
+            return True
+    return False
+
 closed_rules = closed_doc.get("closed") or []
 for i, rule in enumerate(closed_rules, 1):
     if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
@@ -229,14 +252,19 @@ for i, row in enumerate(cells, 1):
     if row.get("staged") is not True:
         fail.append(f"{label}: staged must be true (analyze-only is not a license)")
     kind = row.get("evidence_kind")
-    if kind is not None and kind not in EVIDENCE_KINDS:
-        fail.append(f"{label}: evidence_kind {kind!r} is not a known kind")
+    if not isinstance(kind, str) or kind not in EVIDENCE_KINDS:
+        fail.append(f"{label}: evidence_kind is required and must be a known kind")
     if row.get("status") is not None:
         fail.append(f"{label}: status is illegal on a matrix cell")
     fixture = row.get("known_truth_fixture")
-    if fixture is not None:
-        if not isinstance(fixture, str) or not (root / fixture).exists():
-            fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+    if not isinstance(fixture, str) or not fixture.strip():
+        fail.append(f"{label}: known_truth_fixture is required")
+    elif not (root / fixture).exists():
+        fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+    elif not referenced(Path(fixture).name):
+        fail.append(
+            f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
+        )
     key = (q, g, s, inf, v)
     if key in seen:
         fail.append(f"{label}: duplicate cell {key}")
