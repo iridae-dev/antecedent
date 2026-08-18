@@ -15,9 +15,9 @@ use antecedent_core::{ExecutionContext, Intervention, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
-    CompiledCausalModel, InterventionOverlay, MechanismWorkspace, NoiseInferenceMode, ParentBatch,
-    ValueBatchMut, evaluate_column, infer_noise_column_rng, sample_noise_column, sample_stochastic,
-    soft_to_slot,
+    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace,
+    NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng,
+    sample_noise_column, sample_stochastic, soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -579,36 +579,44 @@ pub fn nested_counterfactual(
     }
 
     if need_unitwise {
-        let mut sum = 0.0;
-        let mut count = 0usize;
-        for u in 0..n_units {
-            let mut unit_freeze = Vec::new();
-            for node in 0..n_nodes {
-                if inner_targets[node] || node == outcome_dense.as_usize() {
-                    continue;
-                }
-                let start = node * n_units;
-                let v = outer_res.values[start + u];
-                let var = engine.model.output_layout.variables[node];
-                unit_freeze.push(Intervention::set(var, antecedent_core::Value::f64(v)));
-            }
-            let mut combined = unit_freeze;
-            combined.extend_from_slice(inner);
-            let world = CounterfactualWorld {
-                unit_rows: Some(Arc::from([u])),
-                interventions: Arc::from(combined),
-            };
-            let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
-            let v = res.get(0, outcome_dense, u);
-            if v.is_finite() {
-                sum += v;
-                count += 1;
-            }
+        // Column-frozen single pass. Per unit, the historical loop hard-set
+        // every frozen node to its outer value and ran a full-table `predict`
+        // to read one row — O(n_units² · nodes). Mechanism evaluation is
+        // row-wise for the non-temporal families, so freezing every unit at
+        // once (frozen nodes keep their outer *columns*; only inner targets
+        // and the outcome are re-evaluated) produces the identical per-row
+        // values in one O(n_units · nodes) pass. Stochastic inner
+        // interventions also match bit-for-bit: each per-unit `predict` call
+        // restarted the same `0xCF_01` stream and sampled full columns in
+        // topological order, exactly as the single pass does.
+        let overlay = InterventionOverlay::from_interventions(&engine.model, inner)?;
+        let row_independent =
+            nested_rows_independent(engine, &overlay, &inner_targets, outcome_dense, n_nodes)?;
+
+        if row_independent {
+            return nested_column_frozen_mean(
+                engine,
+                &exo,
+                &outer_res,
+                &overlay,
+                &inner_targets,
+                outcome_dense,
+                ws,
+                ctx,
+            );
         }
-        if count == 0 {
-            return Err(CounterfactualError::model_msg("nested CF produced no finite outcomes"));
-        }
-        return Ok(sum / count as f64);
+
+        return nested_per_unit_mean(
+            engine,
+            &exo,
+            &outer_res,
+            inner,
+            &inner_targets,
+            outcome,
+            outcome_dense,
+            ws,
+            ctx,
+        );
     }
 
     let mut combined = freeze_ivs;
@@ -616,6 +624,174 @@ pub fn nested_counterfactual(
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
     let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
     Ok(res.streaming_outcome_mean(0, outcome_dense))
+}
+
+/// Whether every mechanism the nested pass would evaluate is row-independent.
+/// Row-coupled (temporal) families make `out[u]` depend on other rows, which
+/// the column-frozen pass cannot reproduce; those fall back to the per-unit
+/// loop. Overlay-driven nodes (hard set / stochastic / soft) never consult the
+/// fitted mechanism, so they are row-independent regardless of family.
+fn nested_rows_independent(
+    engine: &CounterfactualEngine,
+    overlay: &InterventionOverlay,
+    inner_targets: &[bool],
+    outcome_dense: DenseNodeId,
+    n_nodes: usize,
+) -> Result<bool, CounterfactualError> {
+    let evaluated = |idx: usize| inner_targets[idx] || idx == outcome_dense.as_usize();
+    let mut row_independent = true;
+    for node in 0..n_nodes {
+        if !evaluated(node)
+            || overlay.hard_set[node].is_some()
+            || overlay.stochastic[node].is_some()
+            || overlay.soft[node].is_some()
+        {
+            continue;
+        }
+        let slot = engine.model.mechanisms.get(DenseNodeId::from_raw(
+            u32::try_from(node)
+                .map_err(|_| CounterfactualError::model_msg("node index exceeds u32 capacity"))?,
+        ));
+        row_independent &= matches!(
+            slot,
+            MechanismSlot::LinearGaussian { .. }
+                | MechanismSlot::HierarchicalLinear { .. }
+                | MechanismSlot::Constant { .. }
+                | MechanismSlot::Discrete { .. }
+                | MechanismSlot::GaussianProcess { .. }
+        );
+    }
+    Ok(row_independent)
+}
+
+/// Historical per-unit fallback for row-coupled (temporal) mechanisms: freeze
+/// every non-inner, non-outcome node at its outer value for unit `u`, run a
+/// full predict, read row `u`. `O(n_units² · nodes)`; the column-frozen pass is
+/// used whenever mechanisms are row-independent.
+#[allow(clippy::too_many_arguments)]
+fn nested_per_unit_mean(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    outer_res: &CounterfactualResult,
+    inner: &[Intervention],
+    inner_targets: &[bool],
+    outcome: VariableId,
+    outcome_dense: DenseNodeId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    let n_units = exo.n_units;
+    let n_nodes = exo.n_nodes;
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for u in 0..n_units {
+        let mut unit_freeze = Vec::new();
+        for node in 0..n_nodes {
+            if inner_targets[node] || node == outcome_dense.as_usize() {
+                continue;
+            }
+            let start = node * n_units;
+            let v = outer_res.values[start + u];
+            let var = engine.model.output_layout.variables[node];
+            unit_freeze.push(Intervention::set(var, antecedent_core::Value::f64(v)));
+        }
+        let mut combined = unit_freeze;
+        combined.extend_from_slice(inner);
+        let world = CounterfactualWorld {
+            unit_rows: Some(Arc::from([u])),
+            interventions: Arc::from(combined),
+        };
+        let res = engine.predict(exo, &[world], &[outcome], true, ws, ctx)?;
+        let v = res.get(0, outcome_dense, u);
+        if v.is_finite() {
+            sum += v;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(CounterfactualError::model_msg("nested CF produced no finite outcomes"));
+    }
+    Ok(sum / count as f64)
+}
+
+/// One-pass evaluation of the unit-wise nested counterfactual: frozen nodes
+/// keep their outer counterfactual *columns*; inner targets and the outcome
+/// are re-evaluated row-wise with the abduced noise. Bit-identical to the
+/// per-unit freeze-and-predict loop for row-independent mechanisms (see the
+/// caller's derivation and the differential test).
+#[allow(clippy::too_many_arguments)]
+fn nested_column_frozen_mean(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    outer_res: &CounterfactualResult,
+    overlay: &InterventionOverlay,
+    inner_targets: &[bool],
+    outcome_dense: DenseNodeId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    let n_units = exo.n_units;
+    let n_nodes = exo.n_nodes;
+    let evaluated = |idx: usize| inner_targets[idx] || idx == outcome_dense.as_usize();
+    let mut rng = ctx.rng.stream(0xCF_01);
+    let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
+    let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
+    let mut parent_buf: Vec<f64> = Vec::new();
+    for gather in engine.model.parent_gathers.iter() {
+        let idx = gather.child.as_usize();
+        if !evaluated(idx) {
+            continue; // frozen at its outer column
+        }
+        let need = gather.n_parents().max(1).saturating_mul(n_units);
+        if parent_buf.len() < need {
+            parent_buf.resize(need, 0.0);
+        }
+        gather.gather(values.values, n_units, &mut parent_buf);
+        let parents = ParentBatch {
+            n_rows: n_units,
+            n_parents: gather.n_parents(),
+            values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
+        };
+        let out = values.column_mut(idx)?;
+        if let Some(v) = overlay.hard_set[idx] {
+            out.fill(v);
+            continue;
+        }
+        if let Some(policy) = &overlay.stochastic[idx] {
+            sample_stochastic(policy, n_units, &mut rng, out)?;
+            if overlay.shifts[idx] != 0.0 {
+                for x in out.iter_mut() {
+                    *x += overlay.shifts[idx];
+                }
+            }
+            continue;
+        }
+        let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
+        let slot = if let Some(soft) = &overlay.soft[idx] {
+            soft_to_slot(soft, gather.n_parents())?
+        } else {
+            engine.model.mechanisms.get(gather.child).clone()
+        };
+        evaluate_column(&slot, parents, noise_col, out, ws)?;
+        if overlay.shifts[idx] != 0.0 {
+            for x in out.iter_mut() {
+                *x += overlay.shifts[idx];
+            }
+        }
+    }
+    let start = outcome_dense.as_usize() * n_units;
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for &v in &values_buf[start..start + n_units] {
+        if v.is_finite() {
+            sum += v;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(CounterfactualError::model_msg("nested CF produced no finite outcomes"));
+    }
+    Ok(sum / count as f64)
 }
 
 /// Alias for [`nested_counterfactual`] (historical name).
@@ -1037,6 +1213,53 @@ mod tests {
         };
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
         (engine, data, VariableId::from_raw(0), VariableId::from_raw(2))
+    }
+
+    #[test]
+    fn nested_column_frozen_pass_matches_per_unit_reference_bit_for_bit() {
+        // The O(n·nodes) column-frozen pass must reproduce the historical
+        // per-unit loop exactly: freeze every non-inner, non-outcome node at
+        // its outer value for unit u, run a full predict, read row u.
+        let (engine, data, t, y) = nested_hard_fixture_engine();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let outer = [Intervention::set(t, Value::f64(1.0))];
+        let inner = [Intervention::set(VariableId::from_raw(1), Value::f64(0.3))];
+        let fast = nested_counterfactual(&engine, &data, &outer, &inner, y, &mut ws, &ctx).unwrap();
+
+        // Historical reference, via the public predict API.
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let outer_world =
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from(outer.to_vec()) };
+        let outer_res = engine.predict(&exo, &[outer_world], &[], true, &mut ws, &ctx).unwrap();
+        let n_units = exo.n_units;
+        let outcome_dense = engine.model.dense_of(y).unwrap();
+        let mut sum = 0.0;
+        let mut count = 0usize;
+        for u in 0..n_units {
+            let mut combined = Vec::new();
+            for node in 0..exo.n_nodes {
+                if node == 1 || node == outcome_dense.as_usize() {
+                    continue; // inner target M and outcome Y are not frozen
+                }
+                let v = outer_res.values[node * n_units + u];
+                let var = engine.model.output_layout.variables[node];
+                combined.push(Intervention::set(var, Value::f64(v)));
+            }
+            combined.extend_from_slice(&inner);
+            let world = CounterfactualWorld {
+                unit_rows: Some(Arc::from([u])),
+                interventions: Arc::from(combined),
+            };
+            let res = engine.predict(&exo, &[world], &[y], true, &mut ws, &ctx).unwrap();
+            let v = res.get(0, outcome_dense, u);
+            if v.is_finite() {
+                sum += v;
+                count += 1;
+            }
+        }
+        let reference = sum / count as f64;
+        assert!(fast.to_bits() == reference.to_bits(), "fast={fast:?} reference={reference:?}");
     }
 
     #[test]
