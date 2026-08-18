@@ -32,6 +32,12 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+# A debug-profile extension returns bit-identical estimates while running
+# ~50x slower, so nothing downstream would ever notice on its own. The flag
+# is absent from pre-0.5.1 builds; only an explicit `False` proves the
+# module was compiled without optimizations.
+from . import _native as _native_module
+
 # `artifacts` belongs to the "reachable but deliberately outside `__all__`"
 # family described in the comment below; isort's alphabetical import
 # ordering just happens to place it ahead of the `__all__`-exported block
@@ -78,6 +84,18 @@ from ._native import (
     Pag,
     TemporalDag,
 )
+
+if getattr(_native_module, "__build_optimized__", True) is False:
+    import warnings
+
+    warnings.warn(
+        "antecedent._native was compiled in Cargo's debug profile; estimation "
+        "runs ~50x slower than a release build (results are unaffected). "
+        "Reinstall the package (e.g. `uv sync --reinstall-package antecedent` "
+        "or `maturin develop --release`) to rebuild it optimized.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 from .accepted_graph import AcceptedGraph
 from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify

@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 CiArg = str | Callable[..., Any] | None
 
 __version__: str
+__build_optimized__: bool
 
 class CausalError(Exception): ...
 class CausalIdentifyError(CausalError): ...

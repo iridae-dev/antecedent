@@ -55,7 +55,7 @@ def _stub_toplevel_names() -> set[str]:
 
 
 # Dunders that are real API rather than module machinery.
-_PUBLIC_DUNDERS = {"__version__"}
+_PUBLIC_DUNDERS = {"__version__", "__build_optimized__"}
 
 
 def _extension_public_names() -> set[str]:
