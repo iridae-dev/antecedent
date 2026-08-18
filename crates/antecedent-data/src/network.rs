@@ -18,11 +18,19 @@ pub struct NetworkEdge {
 }
 
 /// Tabular unit data paired with a fixed, row-indexed network.
+///
+/// Incoming adjacency is stored CSR-style: one edge array sorted by
+/// `(to, from)` plus an offsets table, so construction is two allocations
+/// (the array-of-`Arc`s layout it replaces made `n + 1`, most of them empty)
+/// and `incoming(unit)` is a contiguous slice.
 #[derive(Clone, Debug)]
 pub struct NetworkData {
     units: TabularData,
     edges: Arc<[NetworkEdge]>,
-    incoming: Arc<[Arc<[NetworkEdge]>]>,
+    /// All edges re-sorted by `(to, from)`; unit `u`'s incoming edges are
+    /// `incoming_edges[incoming_offsets[u]..incoming_offsets[u + 1]]`.
+    incoming_edges: Arc<[NetworkEdge]>,
+    incoming_offsets: Arc<[usize]>,
 }
 
 impl NetworkData {
@@ -62,13 +70,23 @@ impl NetworkData {
             }
         }
         let edges: Arc<[NetworkEdge]> = sorted.into();
-        let mut incoming = vec![Vec::new(); n];
-        for edge in edges.iter().copied() {
-            incoming[edge.to as usize].push(edge);
+        // (to, from) order keeps each unit's incoming edges in ascending-from
+        // order, matching the per-unit push order of the previous layout.
+        let mut by_to = edges.to_vec();
+        by_to.sort_by_key(|edge| (edge.to, edge.from));
+        let mut incoming_offsets = vec![0usize; n + 1];
+        for edge in &by_to {
+            incoming_offsets[edge.to as usize + 1] += 1;
         }
-        let incoming =
-            incoming.into_iter().map(Arc::<[NetworkEdge]>::from).collect::<Vec<_>>().into();
-        Ok(Self { units, edges, incoming })
+        for u in 0..n {
+            incoming_offsets[u + 1] += incoming_offsets[u];
+        }
+        Ok(Self {
+            units,
+            edges,
+            incoming_edges: by_to.into(),
+            incoming_offsets: incoming_offsets.into(),
+        })
     }
 
     /// Borrow unit-level columns.
@@ -89,9 +107,12 @@ impl NetworkData {
     ///
     /// [`DataError::InvalidArgument`] when `unit` is outside the table.
     pub fn incoming(&self, unit: usize) -> Result<&[NetworkEdge], DataError> {
-        self.incoming.get(unit).map(AsRef::as_ref).ok_or(DataError::InvalidArgument {
-            message: "network unit index is out of range".into(),
-        })
+        if unit + 1 >= self.incoming_offsets.len() {
+            return Err(DataError::InvalidArgument {
+                message: "network unit index is out of range".into(),
+            });
+        }
+        Ok(&self.incoming_edges[self.incoming_offsets[unit]..self.incoming_offsets[unit + 1]])
     }
 }
 
