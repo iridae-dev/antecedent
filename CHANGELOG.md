@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The matrix partition is total; unlicensed-and-unlisted now refuses.**
+  Every cell is licensed, n/a, closed, **allowlisted** (running,
+  unlicensed, named in `parity/support_allowlist.toml` with a reason and
+  parent), or fails closed with the stable `refused:` id. All 167
+  formerly silent default-refused cells were probed: 74 run and are
+  allowlisted (PAG / bidirected-ADMG ATE, posterior ATE, Pulse on
+  temporal graphs including non-collapsing accepted temporal
+  CPDAGs/PAGs, frequentist TemporalMediation, validation copies of
+  licensed families); 42 closed with proof — including two cells where
+  a Bayesian label silently ran the frequentist estimator (ConditionalEffect,
+  TemporalMediation: bit-identical output — a mislabeled number is not an
+  honest number); 51 unreachable cells fail closed. ADR 0020 amended.
+- **Fail-shut for the already-dead set.** ConditionalEffect /
+  PathSpecificEffect / InterventionalDistribution / InterventionResponse
+  off a Dag, TemporalMediation on TemporalCpdag/TemporalPag, and every
+  query × graph-posterior × Frequentist now refuse at `Study::build` with
+  stable ids — each proven unable to return a number before closing.
 - **Sixteen licensed cells; two are real promotions.** `ConditionalEffect`
   × `Dag` × accepted (the analyze path was silently dropping the
   `AcceptedGraph` marker for conditional queries — fixed) and
