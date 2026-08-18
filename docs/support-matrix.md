@@ -12,10 +12,10 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 | Status | Count |
 |---|---|
 | Cartesian product | 2394 |
-| Licensed | 5 |
+| Licensed | 6 |
 | n/a | 1218 |
 | Refused (enforced) | 816 |
-| Refused (default, not yet enforced) | 355 |
+| Refused (default, not yet enforced) | 354 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -93,3 +93,4 @@ Other refused cells still run until licensed or closed.
 | `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
 | `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
 | `ResponseCurve` | `Dag` | `explicit` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
+| `ResponseCurve` | `Dag` | `accepted` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |

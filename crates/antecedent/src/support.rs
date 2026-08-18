@@ -322,6 +322,10 @@ mod tests {
             classify(cell("ResponseCurve", "Dag", "explicit", "Frequentist", "none")),
             CellStatus::Licensed
         );
+        assert_eq!(
+            classify(cell("ResponseCurve", "Dag", "accepted", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
     }
 
     #[test]

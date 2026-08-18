@@ -151,6 +151,7 @@ impl PyPreparedAnalysis {
         seed=1,
         threads=1,
         latency=None,
+        accepted=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_response(
@@ -166,6 +167,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
         latency: Option<String>,
+        accepted: bool,
     ) -> PyResult<Self> {
         let batch = columns_to_batch(&names, &columns)?;
         let latency_mode = match latency.as_deref() {
@@ -188,11 +190,14 @@ impl PyPreparedAnalysis {
                 outcome: y_id,
                 treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
             }));
-            let mut builder = Study::tabular(data)
-                .graph(dag)
-                .query(query)
-                .refute(antecedent::RefuteSuite::None)
-                .bootstrap_replicates(0);
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(query)
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }

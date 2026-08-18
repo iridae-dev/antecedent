@@ -18,10 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `MediationEffect` and `SustainedEffect` are now in that closed set.
   `identify_only` graph-posterior / ADMG / non-DAG refusals use the same
   `refused:` id instead of a stringly `Unsupported`.
+- **ResponseCurve on AcceptedGraph is licensed.**
+  `PreparedAnalysis.prepare_response(accepted=True)` records
+  `structure=accepted`. Same two-point Kennedy fixture as the explicit cell.
 - **Stage APIs are not analyze cells.** `TransportQuery` and
   `InterferenceQuery` are n/a on temporal graphs and enforced-refused on
   static graphs. The implemented sID subset remains a stage API returning
   `NotCertified` outside it; it is not a licensed matrix cell.
+- **Inventory docs cannot license a cell.** `scripts/gate_docs_support_matrix.sh`
+  (unconditional in `gate_release.sh`) requires capabilities/comparison to
+  link the matrix and fails unhedged PAG-response / Counterfactual support
+  claims.
 
 ### Performance / quality
 

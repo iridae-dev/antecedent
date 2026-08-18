@@ -34,6 +34,9 @@ bash scripts/gate_hot_path_baselines.sh
 echo "== public support matrix =="
 bash scripts/gate_support_matrix.sh
 
+echo "== docs vs support matrix =="
+bash scripts/gate_docs_support_matrix.sh
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 

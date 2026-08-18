@@ -52,3 +52,13 @@ validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/response/two_point_curve_average_effect"
