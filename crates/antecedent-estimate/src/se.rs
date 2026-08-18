@@ -757,7 +757,7 @@ mod tests {
     #[test]
     fn newey_west_at_times_matches_index_on_unit_grid() {
         let psi = [1.0, -0.5, 0.25, -0.75, 0.5];
-        let times: Vec<i64> = (0..psi.len() as i64).collect();
+        let times = [0i64, 1, 2, 3, 4];
         for lag in [0usize, 1, 2, 10] {
             let a = newey_west_influence_se(&psi, lag);
             let b = newey_west_influence_se_at_times(&psi, &times, lag);

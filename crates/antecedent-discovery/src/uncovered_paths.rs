@@ -52,6 +52,21 @@ fn marks_from_to<G: PagOps>(
     if e.a == from { Some((e.at_a, e.at_b)) } else { Some((e.at_b, e.at_a)) }
 }
 
+const AFTER_CIRCLE_CIRCLE: &[EndpointPattern] = &[
+    EndpointPattern::circle_circle(),
+    EndpointPattern::circle_arrow(),
+    EndpointPattern::directed(),
+];
+const AFTER_DIRECTED: &[EndpointPattern] = &[EndpointPattern::directed()];
+
+fn next_allowed_after(at_from: Endpoint, at_to: Endpoint) -> &'static [EndpointPattern] {
+    if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
+        AFTER_CIRCLE_CIRCLE
+    } else {
+        AFTER_DIRECTED
+    }
+}
+
 fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> bool {
     if let Some(p) = pat.at_from {
         if at_from != p {
@@ -151,18 +166,17 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
             if !allowed.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
                 continue;
             }
-            let next_allowed: &[EndpointPattern] =
-                if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
-                    &[
-                        EndpointPattern::circle_circle(),
-                        EndpointPattern::circle_arrow(),
-                        EndpointPattern::directed(),
-                    ]
-                } else {
-                    &[EndpointPattern::directed()]
-                };
             path.push(next);
-            search(graph, end, path, next_allowed, max_paths, max_len, out, truncated);
+            search(
+                graph,
+                end,
+                path,
+                next_allowed_after(at_from, at_to),
+                max_paths,
+                max_len,
+                out,
+                truncated,
+            );
             path.pop();
         }
     }
@@ -183,18 +197,17 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
         if !initial.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
             continue;
         }
-        let next_allowed: &[EndpointPattern] =
-            if matches!((at_from, at_to), (Endpoint::Circle, Endpoint::Circle)) {
-                &[
-                    EndpointPattern::circle_circle(),
-                    EndpointPattern::circle_arrow(),
-                    EndpointPattern::directed(),
-                ]
-            } else {
-                &[EndpointPattern::directed()]
-            };
         path.push(next);
-        search(graph, end, &mut path, next_allowed, max_paths, max_len, &mut out, &mut truncated);
+        search(
+            graph,
+            end,
+            &mut path,
+            next_allowed_after(at_from, at_to),
+            max_paths,
+            max_len,
+            &mut out,
+            &mut truncated,
+        );
         path.pop();
     }
     (out, truncated)
