@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PAG GAC forbids `Forb(T,Y)`, not all of `De(T)`.** Candidates were
   `An({T,Y}) \ De(T)`, which drops side-effect descendants of `T` that GAC
   allows (`Forb = De(cn)`, `cn = De(T) ∩ An(Y) \ {T}`).
+- **Endpoint ∈ Z is not d/m-separated.** DAG d-sep treated `X ⊥ Y | X` as
+  separated; PAG definite-status activity treated the same query as connected.
+  All three now return not-separated when `Z ∩ {X,Y} ≠ ∅`.
 
 ### Round 4 — backlog completion
 
