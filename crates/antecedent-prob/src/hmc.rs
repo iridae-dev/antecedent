@@ -342,8 +342,7 @@ fn fit_hmc_gaussian(
         let mut log_eps_bar = step_size.ln();
         let mut h_bar = 0.0;
 
-        let mut grad = vec![0.0; dim];
-        let lp_init = target.logp_and_grad(&q, &mut grad)?;
+        let lp_init = target.logp_and_grad(&q, &mut workspace.grad[..dim])?;
         let mut lp_curr = lp_init;
 
         let total_iters = hmc.n_warmup.saturating_add(n_keep);
@@ -356,6 +355,7 @@ fn fit_hmc_gaussian(
                 step_size,
                 hmc.leapfrog_steps,
                 hmc.mass,
+                workspace,
                 &mut rng,
             )?;
             let is_warmup = t < hmc.n_warmup;
@@ -515,29 +515,28 @@ fn hmc_step_target(
     step_size: f64,
     leapfrog_steps: u32,
     mass: f64,
+    workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
     let dim = q0.len();
-    let mut q = q0.to_vec();
-    let mut p = vec![0.0; dim];
+    workspace.q[..dim].copy_from_slice(q0);
     let mut p0_energy = 0.0;
     for i in 0..dim {
-        p[i] = mass.sqrt() * standard_normal(rng);
-        p0_energy += 0.5 * p[i] * p[i] / mass;
+        workspace.p[i] = mass.sqrt() * standard_normal(rng);
+        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
     }
 
-    let mut grad = vec![0.0; dim];
     // ∇U = -∇ log π
-    let _ = target.logp_and_grad(&q, &mut grad)?;
+    let _ = target.logp_and_grad(&workspace.q[..dim], &mut workspace.grad[..dim])?;
     for i in 0..dim {
-        p[i] -= 0.5 * step_size * (-grad[i]);
+        workspace.p[i] -= 0.5 * step_size * (-workspace.grad[i]);
     }
 
     let mut divergent = false;
     for step in 0..leapfrog_steps {
         for i in 0..dim {
-            q[i] += step_size * p[i] / mass;
-            if !q[i].is_finite() {
+            workspace.q[i] += step_size * workspace.p[i] / mass;
+            if !workspace.q[i].is_finite() {
                 divergent = true;
                 break;
             }
@@ -545,7 +544,7 @@ fn hmc_step_target(
         if divergent {
             break;
         }
-        match target.logp_and_grad(&q, &mut grad) {
+        match target.logp_and_grad(&workspace.q[..dim], &mut workspace.grad[..dim]) {
             Ok(_) => {}
             Err(_) => {
                 divergent = true;
@@ -555,8 +554,8 @@ fn hmc_step_target(
         let last = step + 1 == leapfrog_steps;
         let scale = if last { 0.5 } else { 1.0 };
         for i in 0..dim {
-            p[i] -= scale * step_size * (-grad[i]);
-            if !p[i].is_finite() {
+            workspace.p[i] -= scale * step_size * (-workspace.grad[i]);
+            if !workspace.p[i].is_finite() {
                 divergent = true;
             }
         }
@@ -576,10 +575,10 @@ fn hmc_step_target(
         });
     }
 
-    let lp_new = target.logp_and_grad(&q, &mut grad)?;
+    let lp_new = target.logp_and_grad(&workspace.q[..dim], &mut workspace.grad[..dim])?;
     let mut p_new_energy = 0.0;
     for i in 0..dim {
-        p_new_energy += 0.5 * p[i] * p[i] / mass;
+        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
     }
 
     let h_old = -lp_old + p0_energy;
@@ -599,7 +598,7 @@ fn hmc_step_target(
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
         Ok(HmcStepResult {
-            state: q,
+            state: workspace.q[..dim].to_vec(),
             logp: lp_new,
             accepted: true,
             accept_prob,
@@ -633,12 +632,11 @@ fn hmc_step_glm(
 ) -> Result<HmcStepResult, ProbError> {
     let ncols = beta.len();
     let nrows = design.nrows;
-    let mut q = beta.to_vec();
-    let mut p = vec![0.0; ncols];
+    workspace.q[..ncols].copy_from_slice(beta);
     let mut p0_energy = 0.0;
     for i in 0..ncols {
-        p[i] = mass.sqrt() * standard_normal(rng);
-        p0_energy += 0.5 * p[i] * p[i] / mass;
+        workspace.p[i] = mass.sqrt() * standard_normal(rng);
+        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
     }
 
     let reject_divergent = || HmcStepResult {
@@ -650,21 +648,32 @@ fn hmc_step_glm(
         divergent: true,
     };
 
-    let mut grad = vec![0.0; ncols];
-    match neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace) {
+    // `step` holds ∇U so it stays disjoint from `workspace.grad` (log-posterior score).
+    match neg_log_posterior_grad_slices(
+        likelihood,
+        design,
+        coef_prior,
+        prec,
+        &workspace.q[..ncols],
+        &mut workspace.grad[..ncols],
+        &mut workspace.neg_hessian[..ncols * ncols],
+        &mut workspace.eta[..nrows],
+        &mut workspace.work_w[..nrows],
+        &mut workspace.step[..ncols],
+    ) {
         Ok(()) => {}
         Err(ProbError::Numerical { .. }) => return Ok(reject_divergent()),
         Err(e) => return Err(e),
     }
     for i in 0..ncols {
-        p[i] -= 0.5 * step_size * grad[i];
+        workspace.p[i] -= 0.5 * step_size * workspace.step[i];
     }
 
     let mut divergent = false;
-    for step in 0..leapfrog_steps {
+    for lf in 0..leapfrog_steps {
         for i in 0..ncols {
-            q[i] += step_size * p[i] / mass;
-            if !q[i].is_finite() {
+            workspace.q[i] += step_size * workspace.p[i] / mass;
+            if !workspace.q[i].is_finite() {
                 divergent = true;
                 break;
             }
@@ -672,8 +681,18 @@ fn hmc_step_glm(
         if divergent {
             break;
         }
-        match neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)
-        {
+        match neg_log_posterior_grad_slices(
+            likelihood,
+            design,
+            coef_prior,
+            prec,
+            &workspace.q[..ncols],
+            &mut workspace.grad[..ncols],
+            &mut workspace.neg_hessian[..ncols * ncols],
+            &mut workspace.eta[..nrows],
+            &mut workspace.work_w[..nrows],
+            &mut workspace.step[..ncols],
+        ) {
             Ok(()) => {}
             Err(ProbError::Numerical { .. }) => {
                 divergent = true;
@@ -681,11 +700,11 @@ fn hmc_step_glm(
             }
             Err(e) => return Err(e),
         }
-        let last = step + 1 == leapfrog_steps;
+        let last = lf + 1 == leapfrog_steps;
         let scale = if last { 0.5 } else { 1.0 };
         for i in 0..ncols {
-            p[i] -= scale * step_size * grad[i];
-            if !p[i].is_finite() {
+            workspace.p[i] -= scale * step_size * workspace.step[i];
+            if !workspace.p[i].is_finite() {
                 divergent = true;
             }
         }
@@ -701,7 +720,7 @@ fn hmc_step_glm(
     let lp_new = match log_posterior_value(
         likelihood,
         design,
-        &q,
+        &workspace.q[..ncols],
         coef_prior,
         prec,
         &mut workspace.eta[..nrows],
@@ -713,7 +732,7 @@ fn hmc_step_glm(
     };
     let mut p_new_energy = 0.0;
     for i in 0..ncols {
-        p_new_energy += 0.5 * p[i] * p[i] / mass;
+        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
     }
 
     let h_old = -lp_old + p0_energy;
@@ -733,7 +752,7 @@ fn hmc_step_glm(
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
         Ok(HmcStepResult {
-            state: q,
+            state: workspace.q[..ncols].to_vec(),
             logp: lp_new,
             accepted: true,
             accept_prob,
@@ -752,32 +771,23 @@ fn hmc_step_glm(
     }
 }
 
-fn neg_log_posterior_grad(
+fn neg_log_posterior_grad_slices(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
     prec: &[f64],
     beta: &[f64],
+    grad_lp: &mut [f64],
+    neg_hessian: &mut [f64],
+    eta: &mut [f64],
+    work_w: &mut [f64],
     grad_out: &mut [f64],
-    workspace: &mut LaplaceWorkspace,
 ) -> Result<(), ProbError> {
-    let nrows = design.nrows;
-    let ncols = beta.len();
-    accumulate_likelihood(
-        likelihood,
-        design,
-        beta,
-        &mut workspace.grad[..ncols],
-        &mut workspace.neg_hessian[..ncols * ncols],
-        &mut workspace.eta[..nrows],
-        &mut workspace.work_w[..nrows],
-        1.0,
-        false,
-    )?;
-    for i in 0..ncols {
+    accumulate_likelihood(likelihood, design, beta, grad_lp, neg_hessian, eta, work_w, 1.0, false)?;
+    for i in 0..beta.len() {
         let diff = beta[i] - coef_prior.mean[i];
-        workspace.grad[i] -= prec[i] * diff;
-        grad_out[i] = -workspace.grad[i];
+        grad_lp[i] -= prec[i] * diff;
+        grad_out[i] = -grad_lp[i];
     }
     Ok(())
 }

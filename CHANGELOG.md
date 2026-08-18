@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Laplace Newton reuses workspace buffers.** The per-iteration hessian/grad/
   `beta_old` `to_vec`s are gone; `solve_spd` can factor into caller storage
   instead of allocating a Cholesky and `y` on every call.
+- **HMC leapfrog reuses `LaplaceWorkspace` q/p/grad.** Transition kernels no
+  longer allocate position, momentum, and gradient vectors on every draw.
 
 ### Correctness — localized audit
 
