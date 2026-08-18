@@ -210,6 +210,27 @@ pub static LICENSED: &[LicensedCell] = &[
         validation: "none",
     },
     LicensedCell {
+        query: "ConditionalEffect",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "PathSpecificEffect",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "InterventionalDistribution",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
         query: "AverageEffect",
         graph_class: "Dag",
         structure: "accepted",

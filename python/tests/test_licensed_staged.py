@@ -41,6 +41,73 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
 _BAYES = antecedent.Bayesian(backend="conjugate", n_draws=64)
 
 
+# -- ConditionalEffect / PathSpecificEffect / InterventionalDistribution fixtures --------
+#
+# Small deterministic tables mirroring the Rust prepared_analysis.rs fixtures
+# (conditional_effect_fixture / path_specific_fixture / distribution_fixture in
+# crates/antecedent/tests/prepared_analysis.rs): a `t -> y <- w` interaction table, a
+# discrete `t -> m -> y` chain (no direct edge), and a confounded `z -> t -> y <- z` table.
+
+
+def _conditional_table(n: int = 120):
+    t = np.array([0.0 if i % 2 == 0 else 1.0 for i in range(n)])
+    w = np.array([float(i % 5) for i in range(n)])
+    y = 1.0 + 2.0 * t + 0.5 * t * w
+    return {"t": t, "y": y, "w": w}
+
+
+_CONDITIONAL_DATA = _conditional_table()
+_CONDITIONAL_EDGES = [("t", "y"), ("w", "y")]
+_CONDITIONAL_DAG = antecedent.Dag.from_edges(["t", "y", "w"], _CONDITIONAL_EDGES)
+_CONDITIONAL = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
+
+
+def _path_specific_table():
+    t_vals: list[float] = []
+    m_vals: list[float] = []
+    y_vals: list[float] = []
+    for t in (0.0, 1.0):
+        for _ in range(50):
+            t_vals.append(t)
+            m_vals.append(t)
+            y_vals.append(t)
+    return {"t": np.array(t_vals), "m": np.array(m_vals), "y": np.array(y_vals)}
+
+
+_PATH_DATA = _path_specific_table()
+_PATH_EDGES = [("t", "m"), ("m", "y")]
+_PATH_DAG = antecedent.Dag.from_edges(["t", "m", "y"], _PATH_EDGES)
+_PATH_SPECIFIC = antecedent.PathSpecificEffect(treatment="t", outcome="y", path_nodes=["m"])
+
+
+def _distribution_table():
+    combos = [
+        (0.0, 0.0, 0.0, 21),
+        (0.0, 0.0, 1.0, 9),
+        (0.0, 1.0, 0.0, 4),
+        (0.0, 1.0, 1.0, 16),
+        (1.0, 0.0, 0.0, 12),
+        (1.0, 0.0, 1.0, 3),
+        (1.0, 1.0, 0.0, 14),
+        (1.0, 1.0, 1.0, 21),
+    ]
+    t_vals: list[float] = []
+    y_vals: list[float] = []
+    z_vals: list[float] = []
+    for z, t, y, count in combos:
+        for _ in range(count):
+            z_vals.append(z)
+            t_vals.append(t)
+            y_vals.append(y)
+    return {"t": np.array(t_vals), "y": np.array(y_vals), "z": np.array(z_vals)}
+
+
+_DISTRIBUTION_DATA = _distribution_table()
+_DISTRIBUTION_EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
+_DISTRIBUTION_DAG = antecedent.Dag.from_edges(["t", "y", "z"], _DISTRIBUTION_EDGES)
+_DISTRIBUTION = antecedent.InterventionalDistribution(outcome="y", interventions={"t": 1.0})
+
+
 @pytest.mark.parametrize(
     "data, graph, query, refute, inference",
     [
@@ -54,6 +121,9 @@ _BAYES = antecedent.Bayesian(backend="conjugate", n_draws=64)
         (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
         (_CURVE_DATA, _EDGES, _CURVE, False, None),
         (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
+        (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, False, None),
+        (_PATH_DATA, _PATH_DAG, _PATH_SPECIFIC, False, None),
+        (_DISTRIBUTION_DATA, _DISTRIBUTION_DAG, _DISTRIBUTION, False, None),
     ],
     ids=[
         "ate_explicit_none",
@@ -66,6 +136,9 @@ _BAYES = antecedent.Bayesian(backend="conjugate", n_draws=64)
         "ate_accepted_bayesian_none",
         "curve_explicit_none",
         "curve_accepted_none",
+        "conditional_explicit_none",
+        "path_specific_explicit_none",
+        "distribution_explicit_none",
     ],
 )
 def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, inference):

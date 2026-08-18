@@ -4,9 +4,11 @@
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, Study};
+use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, PreparedStudy, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
+    Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseFunctional,
+    ResponseQuery, Value,
 };
 use antecedent_data::{TableView, tabular_from_record_batch};
 use numpy::PyReadonlyArray1;
@@ -212,6 +214,266 @@ impl PyPreparedAnalysis {
                     est.parse::<antecedent::EstimatorId>()
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None })
+        })
+    }
+
+    /// Compile once from tabular columns + DAG edges (static ConditionalEffect).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        treatment,
+        outcome,
+        modifier,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        refute=None,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_conditional(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        edges: Vec<(String, String)>,
+        treatment: String,
+        outcome: String,
+        modifier: String,
+        control_level: f64,
+        active_level: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let batch = columns_to_batch(&names, &columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        drop(columns);
+
+        detach_catch(py, move || {
+            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+            let data = loaded.data;
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
+            let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+                .with_effect_modifiers([w_id]);
+            let cq = ConditionalEffectQuery::try_new(inner)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(CausalQuery::ConditionalEffect(cq))
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None })
+        })
+    }
+
+    /// Compile once from tabular columns + DAG edges (static PathSpecificEffect).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        path_nodes=None,
+        max_paths=64,
+        max_len=16,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_path_specific(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        edges: Vec<(String, String)>,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        path_nodes: Option<Vec<String>>,
+        max_paths: usize,
+        max_len: usize,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let batch = columns_to_batch(&names, &columns)?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        drop(columns);
+
+        detach_catch(py, move || {
+            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+            let data = loaded.data;
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+                .with_max_paths(max_paths)
+                .with_max_len(max_len);
+            query.control = Intervention::set(t_id, Value::f64(control_level));
+            query.active = Intervention::set(t_id, Value::f64(active_level));
+            if let Some(nodes) = path_nodes {
+                let mut ids = Vec::with_capacity(nodes.len());
+                for name in &nodes {
+                    ids.push(data.schema().id_of(name).map_err(py_err)?);
+                }
+                query = query.with_path_nodes(ids);
+            }
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(CausalQuery::PathSpecific(query))
+            .identifier(IdentifierId::PathSpecificNatural)
+            .estimator(EstimatorId::FunctionalEffect)
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None })
+        })
+    }
+
+    /// Compile once from tabular columns + DAG edges (static InterventionalDistribution).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        outcome,
+        interventions,
+        *,
+        conditioning=None,
+        seed=1,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_distribution(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        edges: Vec<(String, String)>,
+        outcome: String,
+        interventions: std::collections::HashMap<String, f64>,
+        conditioning: Option<Vec<String>>,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let batch = columns_to_batch(&names, &columns)?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        drop(columns);
+
+        detach_catch(py, move || {
+            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+            let data = loaded.data;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let mut ivs = Vec::with_capacity(interventions.len());
+            for (name, level) in &interventions {
+                let id = data.schema().id_of(name).map_err(py_err)?;
+                ivs.push(Intervention::set(id, Value::f64(*level)));
+            }
+            let mut query = InterventionalDistributionQuery::new(y_id, ivs);
+            if let Some(cond) = conditioning {
+                let mut z = Vec::with_capacity(cond.len());
+                for name in &cond {
+                    z.push(data.schema().id_of(name).map_err(py_err)?);
+                }
+                query = query.with_conditioning(z);
+            }
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
             }
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
