@@ -596,7 +596,7 @@ pub fn decode_causal_posterior_bytes(
 /// Hydrate a coefficient [`antecedent_prob::PriorSet`] from posterior artifact bytes.
 ///
 /// Uses per-coefficient posterior means and SDs (identical-subspace mapping).
-/// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`] when
+/// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`](crate::inference::hydrate_prior_from_posterior_bytes) when
 /// a heterogeneous mapping is required.
 ///
 /// # Errors

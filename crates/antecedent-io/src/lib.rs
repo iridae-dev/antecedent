@@ -1,4 +1,4 @@
-//! Versioned artifact IO for causal-library.
+//! Versioned artifact IO for Antecedent.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Core types shared across the causal-library workspace.
+//! Core types shared across the Antecedent workspace.
 //!
 //! `antecedent-core` owns identifiers, schemas, assumptions, provenance,
 //! diagnostics, errors, and execution policy. It must not depend on numerical,

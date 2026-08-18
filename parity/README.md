@@ -39,6 +39,41 @@ Each `[[capabilities]]` row uses:
 | `owner` | see below | Owning domain |
 | `notes` | no | Free-form evidence / gate pointers |
 | `python_facade` | no | `full` \| `thin` |
+| `evidence_kind` | on `done` rows | See table below |
+| `external_oracle` | with external kinds | `"<project> <pin>"` |
+| `known_truth_fixture` | no | Strongest exercised fixture path |
+| `limitations` | no | What the evidence does **not** demonstrate |
+
+**`evidence_kind`** states exactly what proposition the row's evidence
+demonstrates, so wording in `notes` cannot outrun it. Required on every `done`
+row except in `release.toml` (infrastructure rows; evidence map lives in
+`gate_release.sh`). Values, weakest to strongest:
+
+| Value | Demonstrated proposition |
+|-------|--------------------------|
+| `implementation_exists` | Code + ordinary unit tests; no numerical truth |
+| `internal_known_truth` | Matches a closed-form / analytic / clean-room fixture |
+| `internal_cross_check` | Agrees with another Antecedent estimator only |
+| `frozen_external_oracle` | Matches a frozen, pinned upstream-package run |
+| `behavioral_parity` | Agrees with an upstream package across a range of inputs |
+| `contract_equivalence` | Theorem-level / method-contract argument |
+
+For the two external kinds, `external_oracle` and `known_truth_fixture` are
+required, and the gate enforces the fixture-authoritative rule: the named
+project must literally appear in the frozen fixture. A clean-room enumeration
+is `internal_known_truth` no matter what the row's prose says — the 2026-08
+audit found fourteen ledger rows that had drifted the other way.
+
+What these fields do **not** mean, stated once so readers do not infer it:
+`evidence_kind` names the *strongest demonstrated* proposition, not the only
+evidence a row has, and says nothing about whether that evidence is
+scientifically sufficient — `frozen_external_oracle` means "matched a pinned
+upstream run on the frozen cases", not "correct", and an upstream package can
+be wrong. `limitations` is a curated list of the caveats a reader most needs,
+not an exhaustive one; its absence is not a claim of none. A scipy/numpy pin
+recording the *computational substrate* of a clean-room harness does not make
+the evidence external — external means an upstream implementation of the
+capability under test produced the compared values.
 
 **`group` / `description` / `owner`** are required in
 [estimate.toml](estimate.toml), [discovery.toml](discovery.toml), and
@@ -86,6 +121,8 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
+bash scripts/gate_metadata_consistency.sh
+bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_calibration.sh
 bash scripts/gate_response_calibration.sh
 bash scripts/gate_release.sh
@@ -105,5 +142,6 @@ Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
 RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path
-baselines, security review (`release.toml`, ADR 0017). Package version remains
-0.1.0.
+baselines, security review (`release.toml`, ADR 0017). Package version is
+whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
+here; a hardcoded copy in this file sat five minor releases behind for months.

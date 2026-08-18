@@ -385,7 +385,7 @@ impl CompiledDesign {
         backend.least_squares(&self.matrix, self.nrows, self.ncols, &self.outcome, workspace)
     }
 
-    /// Index of the treatment column (always 1 for [`linear_adjustment`]).
+    /// Index of the treatment column (always 1 for [`Self::linear_adjustment`]).
     #[must_use]
     pub fn treatment_column(&self) -> Option<usize> {
         self.columns.treatment_column()

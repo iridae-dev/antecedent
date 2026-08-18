@@ -355,7 +355,7 @@ impl TemporalPag {
         p
     }
 
-    /// Convert to a [`TemporalDag`] when every edge is definite-directed (no circles,
+    /// Convert to a [`TemporalDag`](crate::TemporalDag) when every edge is definite-directed (no circles,
     /// undirected, bidirected, or conflict marks).
     ///
     /// # Errors

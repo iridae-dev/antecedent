@@ -109,6 +109,80 @@ without inventing a universal pass threshold. Scalar ATE refuters—placebo
 treatment, dummy outcome, random common cause, and scalar sensitivity—appear as
 an explicit `skipped` check.
 
+## Row-diagnostic export contract
+
+`response_options={"export_row_diagnostics": True}` (Rust:
+`ContinuousResponseOptions::export_row_diagnostics`) adds three channels to
+`support.diagnostics`. Off by default; the estimate is identical either way.
+Once exported, these are scientific objects users will compute on, so their
+contract is stated exactly. Everything below is derived from the
+implementation, not from the cited literature.
+
+**Channels.** For `N` retained rows and a grid of `G` points:
+
+- `response.row_index` — `N` values; the 0-based row position of each retained
+  row (exact integers stored as `f64`).
+- `response.row_pseudo_outcome` — `N` values; the cross-fitted Kennedy
+  pseudo-outcome `phi_i`, in outcome units, aligned with `row_index`.
+- `response.row_influence` — `G * N` values, **grid-major**:
+  `value[g * N + i]` is row `i`'s influence at grid point `g`. `g` follows the
+  same order as the returned curve's grid points; `i` aligns with the other two
+  channels.
+
+**What an influence value is.** At grid point `g` with bandwidth `h`, the curve
+value `m(g)` is the level of a Gaussian-kernel local-quadratic weighted least
+squares fit of the pseudo-outcomes: with `dx_i = a_i - g`,
+`x_i = (1, dx_i, dx_i^2)`, `w_i = exp(-(dx_i/h)^2 / 2)`, and residual
+`r_i = phi_i - x_i' beta(g)`,
+
+```
+psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i
+```
+
+— the WLS influence of row `i` on the fitted level, in outcome units. It is
+**not** the semiparametric efficient influence function of the Kennedy
+estimator: the pseudo-outcomes are treated as fixed data, so nuisance-estimation
+uncertainty is not inside these values, and neither is bandwidth selection.
+
+**Centering and scaling.** At every grid point the influences sum to zero
+exactly (up to float roundoff) — this is the first WLS normal equation, not a
+convention applied afterwards. There is no `1/n` scaling: these are per-row
+contributions, sized so the identities below hold.
+
+**Exact relationship to reported uncertainty.** The reported pointwise standard
+error is `SE(g) = sqrt(sum_i psi[g, i]^2)`, and the pointwise band is
+`m(g) ± z * SE(g)` with `z = Phi^{-1}(0.5 + level/2)`. The simultaneous band's
+critical value is the `level` empirical quantile, over
+`simultaneous_replicates` Rademacher draws (SplitMix64 stream from
+`multiplier_seed`, so deterministic given the seed), of
+`max_g | sum_i eps_i * psi[g, i] | / SE(g)`; the band is `m(g) ± c * SE(g)`.
+Both bands can be reconstructed from this export bit-for-bit; if your
+reconstruction disagrees, that is a bug report, not a tolerance issue.
+
+**Row indices and preprocessing.** Indices are positions in the data exactly as
+the estimator received it — after any preprocessing your pipeline did, before
+the one row filter Antecedent applies: rows with a non-finite outcome,
+treatment, or adjustment value are dropped (at least 20 complete rows must
+remain). Order is preserved. If you filtered or reordered rows before calling
+`analyze`, the indices refer to your filtered frame, not your original one.
+
+**Cross-fitting.** Fold assignment is deterministic: retained-row *position*
+modulo `folds` (default 5) — not the original row index. `phi_i` is computed
+from nuisances fit on the folds excluding row `i`'s. Two consequences for
+downstream use: `phi` values on either side of a fold boundary come from
+different nuisance fits, so finite-sample fold effects are real; and any
+user-side resampling of rows breaks the sample-splitting these values were
+constructed under — a bootstrap over `(phi_i)` is a bootstrap conditional on
+the fitted nuisances, nothing stronger.
+
+**Stability.** The three channel ids, their alignment, and the grid-major
+layout are a documented contract and will not change silently; the values are
+diagnostics conditional on the estimator's internal construction (nuisance
+families, bandwidth rule, fold rule), so they may change when that construction
+changes, without an artifact-format bump. They serialize into response
+artifacts like any other support diagnostic. A non-finite influence is refused
+at export rather than published.
+
 ## Curves, derivatives, and elasticities
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates

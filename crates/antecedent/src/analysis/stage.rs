@@ -50,7 +50,7 @@ pub enum StageEvent {
 }
 
 impl StageEvent {
-    /// Stable stage id matching [`STAGE_IDENTIFY`] / … constants.
+    /// Stable stage id matching the internal `STAGE_IDENTIFY` / … constants.
     #[must_use]
     pub fn stage_id(&self) -> &'static str {
         match self {

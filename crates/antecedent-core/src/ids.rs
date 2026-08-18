@@ -1,4 +1,4 @@
-//! Compact, copyable identifiers used throughout causal-library.
+//! Compact, copyable identifiers used throughout Antecedent.
 //!
 //! User-facing names live in schemas and dictionaries, not in hot graph or
 //! numerical structures.

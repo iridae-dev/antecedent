@@ -2,8 +2,8 @@
 //!
 //! # Modules
 //!
-//! Browse by concern: [`anomaly`], [`distribution_change`], [`structure_change`],
-//! [`unit_change`], [`path`], [`feature_relevance`], [`mechanism_change`], [`robust`],
+//! Browse by concern: [`anomaly`], [`distribution_change`](mod@distribution_change), [`structure_change`](mod@structure_change),
+//! [`unit_change`](mod@unit_change), [`path`], [`feature_relevance`](mod@feature_relevance), [`mechanism_change`], [`robust`],
 //! [`root_cause`], [`shapley`], [`builder`].
 //!
 //! # Example

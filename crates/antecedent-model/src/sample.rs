@@ -175,7 +175,7 @@ fn noise_kind_override(family_id: &str) -> &'static str {
 /// Strategy:
 /// 1. **Rejection sampling** when conditions match within `1e-9` (exact / discrete).
 /// 2. **Likelihood-weighting SIR** when rejection under-accepts: propose from `do(·)`,
-///    weight by `∏_c p(condition_c | parents_c)` via [`log_prob_column`], resample.
+///    weight by `∏_c p(condition_c | parents_c)` via the internal `log_prob_column` evaluation, resample.
 ///
 /// Conditioning nodes must not be hard-intervened.
 ///

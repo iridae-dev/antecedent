@@ -5,7 +5,7 @@
 //! The anomaly score is the information-theoretic (IT) score of Budhathoki, Janzing,
 //! Bloebaum & Ng (ICML 2022): `−log P(τ(Y) ≥ τ(y))`, the negative log of a **tail
 //! probability** under the target's own marginal, with `τ` a two-sided outlierness
-//! measure. See [`OutlierTail`].
+//! measure. See the internal `OutlierTail` accumulator.
 //!
 //! It is deliberately not `−log p(y | parents)`, the negative log **density**, which this
 //! module previously returned. A density is not a probability: it is unbounded, it carries

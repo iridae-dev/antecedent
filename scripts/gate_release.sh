@@ -2,7 +2,9 @@
 # Release gate (also run in CI on every PR via the `gates` job).
 #
 # Inventory honesty, docs, artifacts, security, Criterion smokes, and prior
-# feature gates. CI only runs fmt + clippy + cargo test --workspace (+ DCO).
+# feature gates. CI's `gates` job runs this on every PR; the separate `rust` job
+# runs fmt + clippy + cargo test --workspace (+ DCO). `gate_calibration.sh` is
+# NOT invoked from here — it runs weekly via .github/workflows/calibration.yml.
 # Run this when cutting a release or when a change might break a domain:
 #   bash scripts/gate_release.sh
 #
@@ -20,6 +22,14 @@ bash scripts/gate_parity_schema.sh
 
 echo "== algorithm provenance schema and paths =="
 bash scripts/gate_provenance_schema.sh
+
+# Also unconditional: cross-file metadata drift is exactly the class of failure
+# that survives when a check is skippable.
+echo "== cross-file metadata consistency =="
+bash scripts/gate_metadata_consistency.sh
+
+echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
+bash scripts/gate_evidence_reachability.sh
 
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="

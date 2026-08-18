@@ -1,6 +1,6 @@
 //! Causal variable schemas and role hints.
 //!
-//! Schema construction assigns dense [`VariableId`](crate::ids::VariableId)s and
+//! Schema construction assigns dense [`VariableId`]s and
 //! validates uniqueness once. Algorithmic code receives compact IDs and
 //! immutable schema references. Name lookup is allowed at API boundaries and
 //! diagnostics, not inside traversal or numerical loops.

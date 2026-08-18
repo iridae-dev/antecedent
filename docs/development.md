@@ -6,10 +6,18 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 ## CI vs local gates
 
-GitHub Actions Rust CI (`ci.yml`) runs **fmt**, **clippy**, **`cargo test --workspace`**,
-and **DCO** (plus an optional crates.io publish dry-run when manifests change).
-It does **not** run feature gates, `gate_release.sh`, Criterion smokes, or
-`cargo deny`.
+GitHub Actions CI (`ci.yml`) runs two relevant jobs on every PR:
+
+- **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
+  crates.io publish dry-run when manifests change).
+- **`gates`** — `scripts/gate_release.sh`, which runs the parity-manifest schema
+  check, the provenance schema/path check, and the ten feature gates.
+
+CI does **not** run `gate_calibration.sh` or the Criterion bench smokes per PR.
+The statistical calibration suite runs weekly via
+[`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
+(`schedule` + `workflow_dispatch`); `cargo deny` runs inside `gate_release.sh`
+only when `cargo-deny` is on PATH, which it is not in CI.
 
 ## Gates (local / slow path)
 
@@ -25,6 +33,8 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
+bash scripts/gate_metadata_consistency.sh
+bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
@@ -57,6 +67,18 @@ cd python && uv run ruff check antecedent tests ../examples/python
 uv run ruff format --check antecedent tests ../examples/python
 uv run mypy
 ```
+
+## Native extension builds
+
+All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
+editable rebuild uv performs when the install goes stale — compile with Cargo's
+release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
+Do not remove that pin: the PEP 517/660 default is the debug profile, which
+produces bit-identical estimates at roughly 50× the wall time, so nothing
+downstream notices. A debug-profile extension warns on import (the flag is
+`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
+fails the pytest suite — locally and in CI — if the extension under test is
+unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
 
 ## Tests that matter
 
@@ -106,7 +128,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **0.5.0**).
+Workspace and Python package version are kept in sync (currently **0.5.1**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
