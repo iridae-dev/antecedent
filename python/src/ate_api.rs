@@ -640,6 +640,7 @@ fn analyze_ate(
     latency=None,
     cancel=None,
     on_progress=None,
+    on_stage=None,
     return_posterior_artifact=false,
 ))]
 fn analyze_ate_arrow_c(
@@ -671,6 +672,7 @@ fn analyze_ate_arrow_c(
     latency: Option<String>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<Bound<'_, PyAny>>,
+    on_stage: Option<Bound<'_, PyAny>>,
     return_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let data = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
@@ -684,6 +686,7 @@ fn analyze_ate_arrow_c(
     };
     let cancel_token = cancel.map(|c| c.inner);
     let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
+    let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -736,6 +739,9 @@ fn analyze_ate_arrow_c(
         }
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
+        }
+        if let Some(sink) = stage_sink {
+            builder = builder.stage_sink(sink);
         }
         // Names at the boundary, ids on the hot path: an unknown strategy name is
         // rejected here, at the call the user made, not deep inside compile().
