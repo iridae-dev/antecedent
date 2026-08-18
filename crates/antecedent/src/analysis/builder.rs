@@ -622,9 +622,13 @@ impl StudyBuilder {
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
-        if let Some(cell) =
-            crate::support::support_cell(&query, graph.class(), structure, &inference, refute)
-        {
+        if let Some(cell) = crate::support::support_cell(
+            &query,
+            crate::support::effective_graph_class(&graph, &query),
+            structure,
+            &inference,
+            refute,
+        ) {
             crate::support::refuse_if_not_applicable(cell)?;
         }
 

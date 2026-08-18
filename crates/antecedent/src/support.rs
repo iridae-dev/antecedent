@@ -7,7 +7,7 @@
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
-use antecedent_graph::{Admg, Dag, Pag, TemporalDag};
+use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
 
 use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
@@ -242,6 +242,103 @@ pub fn support_cell(
     })
 }
 
+/// Whether an ADMG carries no bidirected edges — the ADMG cell would then be a
+/// fiction, since the engine has nothing left for the ADMG-specific path to do.
+/// Mirrors `admg_has_bidirected` (`analysis/execute/support.rs`), which the engine
+/// itself consults at `dispatch.rs` (`GraphClass::Admg` arm) and `compile.rs`
+/// (`GraphClass::Admg` arm) to choose between `execute_admg`/the static-DAG
+/// completion. That helper lives in a private module unreachable from here, so this
+/// re-derives the same check directly off `Admg`'s public API rather than reaching
+/// across the module boundary.
+fn admg_is_bidirected_free(admg: &Admg) -> bool {
+    (0..admg.node_count()).all(|i| {
+        let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+        admg.bidirected_neighbors(id).is_empty()
+    })
+}
+
+/// The graph class the engine actually dispatches on, for support-matrix
+/// classification. Collapsing a non-Dag class to `Dag`/`TemporalDag` here is
+/// classification only — it never changes what `Study::compile`/`execute` or
+/// `identify_with` run; those still match on `AcceptedGraph::class()` directly.
+/// This exists so the cell an honest caller sees matches the engine's real
+/// behavior instead of the raw class tag, per each collapse's one-line
+/// justification below. Each collapse is scoped to exactly the query family
+/// `analysis/execute/compile.rs` wires it for — applying it more broadly would
+/// license cells the engine cannot actually run (see the `ResponseCurve` note).
+///
+/// - **ADMG with no bidirected edges, under `AverageEffect`**: `compile.rs`'s
+///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
+///   `GraphClass::Admg` arm both branch on `admg_has_bidirected` and run the
+///   *static DAG* path when it is false — the Dag cell's license is the
+///   honest claim. `compile.rs` wires no other query against
+///   `GraphClass::Admg`: `CausalQuery::Response` on an ADMG (bidirected or
+///   not) hits compile.rs's wildcard `Err("unsupported data/graph/query
+///   combination")` because `dispatch.rs`'s Response arm requires a literal
+///   `self.graph.as_dag()`, which an ADMG-shaped `AcceptedGraph` never
+///   satisfies — so the collapse must not (and does not) fire there.
+/// - **Cpdag, under `AverageEffect`**: `AcceptedGraph::cpdag` /
+///   `CpdagReview::into_accepted` already refuse any Cpdag carrying
+///   undirected or conflict marks at *construction* time (`accepted.rs`), so
+///   every `GraphClass::Cpdag` this function ever sees is already fully
+///   oriented; `compile.rs`'s lone `GraphClass::Cpdag` arm always completes
+///   it via `try_into_dag`. This re-derives that fact structurally (rather
+///   than trusting the invariant) so a future relaxation of the accept gate
+///   cannot silently misclassify a partially-oriented Cpdag as Dag. Scoped to
+///   `AverageEffect` for the same reason as the ADMG case: it is the only
+///   query `compile.rs` wires for `GraphClass::Cpdag` — `CausalQuery::Response`
+///   on a Cpdag hits the same compile-time wildcard refusal as above, which is
+///   exactly why `ResponseCurve` stays closed on Cpdag (`support_closed.toml`)
+///   even though a fully-oriented Cpdag would otherwise look Dag-shaped.
+/// - **`TemporalCpdag` / `TemporalPag`, under `TemporalEffect`**: the identical
+///   accept-time invariant (`accepted.rs`) guarantees these are always
+///   complete; `compile.rs`'s `TemporalEffect × {TemporalCpdag, TemporalPag}`
+///   arms always complete them to a `TemporalDag` via `try_into_temporal_dag`.
+///   Scoped to `TemporalEffect` because that is the only query `compile.rs`
+///   wires for these two temporal classes — e.g. temporal
+///   `CausalQuery::Mediation` only has a `GraphClass::TemporalDag` arm, so a
+///   TemporalCpdag/TemporalPag stays uncollapsed (and thus not misclassified)
+///   for that query.
+///
+/// Not collapsed: a static [`Pag`]'s circle marks are information the
+/// class-aware generalized-adjustment identifier is built to consume, never
+/// incompleteness ([`AcceptedGraph::pag`] is infallible for exactly this
+/// reason), so there is no Dag-equivalent Pag case.
+#[must_use]
+pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) -> GraphClass {
+    match (graph.class(), query) {
+        (GraphClass::Admg, CausalQuery::AverageEffect(_)) => {
+            let admg = graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+            if admg_is_bidirected_free(admg) { GraphClass::Dag } else { GraphClass::Admg }
+        }
+        (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => {
+            let cpdag = graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
+            if cpdag.try_into_dag().is_ok() { GraphClass::Dag } else { GraphClass::Cpdag }
+        }
+        (GraphClass::TemporalCpdag, CausalQuery::TemporalEffect(_)) => {
+            let cpdag = graph
+                .as_temporal_cpdag()
+                .expect("class() == TemporalCpdag implies as_temporal_cpdag() is Some");
+            if cpdag.try_into_temporal_dag().is_ok() {
+                GraphClass::TemporalDag
+            } else {
+                GraphClass::TemporalCpdag
+            }
+        }
+        (GraphClass::TemporalPag, CausalQuery::TemporalEffect(_)) => {
+            let pag = graph
+                .as_temporal_pag()
+                .expect("class() == TemporalPag implies as_temporal_pag() is Some");
+            if pag.try_into_temporal_dag().is_ok() {
+                GraphClass::TemporalDag
+            } else {
+                GraphClass::TemporalPag
+            }
+        }
+        (class, _) => class,
+    }
+}
+
 fn closed_reason(cell: SupportCell) -> Option<&'static str> {
     for rule in CLOSED_RULES {
         if axis_in(rule.queries, cell.query)
@@ -455,5 +552,218 @@ mod tests {
                     .unwrap_err();
             assert!(err.to_string().starts_with("refused:"), "{query}: {err}");
         }
+    }
+
+    // -- `effective_graph_class` --------------------------------------------
+
+    use antecedent_core::{AverageEffectQuery, TemporalEffectQuery, VariableId};
+    use antecedent_graph::{Cpdag, TemporalCpdag, TemporalPag};
+
+    fn ate_query() -> CausalQuery {
+        CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ))
+    }
+
+    fn pulse_query() -> CausalQuery {
+        CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1.0,
+        ))
+    }
+
+    fn distribution_query() -> CausalQuery {
+        use antecedent_core::{Intervention, InterventionalDistributionQuery, Value};
+        CausalQuery::Distribution(InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        ))
+    }
+
+    /// (a) An ADMG with no bidirected edges collapses to Dag under `AverageEffect`,
+    /// and the resulting cell is Licensed — the same Dag/explicit/Frequentist/none
+    /// row every supplied-DAG study licenses.
+    #[test]
+    fn admg_without_bidirected_collapses_to_dag_under_average_effect() {
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::from(admg);
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Dag);
+
+        let sc = support_cell(
+            &ate_query(),
+            effective_graph_class(&graph, &ate_query()),
+            StructureSource::Explicit,
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        )
+        .unwrap();
+        assert_eq!(classify(sc), CellStatus::Licensed);
+    }
+
+    /// (b) An ADMG *with* a bidirected edge does not collapse: the ADMG path is
+    /// still live (dispatch runs `execute_admg`, not the static-DAG completion),
+    /// so the cell stays the Admg cell — default-refused, not licensed.
+    #[test]
+    fn admg_with_bidirected_edge_does_not_collapse() {
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::from(admg);
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Admg);
+
+        let sc = support_cell(
+            &ate_query(),
+            effective_graph_class(&graph, &ate_query()),
+            StructureSource::Explicit,
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        )
+        .unwrap();
+        assert_eq!(classify(sc), CellStatus::Refused);
+    }
+
+    /// The ADMG collapse is scoped to `AverageEffect`: `compile.rs` wires no other
+    /// query against `GraphClass::Admg` (`CausalQuery::Distribution` requires a
+    /// literal `as_dag()` and errors for any ADMG, bidirected or not), so applying
+    /// the collapse there would license a cell the engine cannot run.
+    #[test]
+    fn admg_collapse_does_not_apply_outside_average_effect() {
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::from(admg);
+        assert_eq!(effective_graph_class(&graph, &distribution_query()), GraphClass::Admg);
+    }
+
+    /// (c) A fully-oriented Cpdag collapses to Dag under `AverageEffect`, and the
+    /// resulting cell is Licensed.
+    #[test]
+    fn fully_oriented_cpdag_collapses_to_dag_under_average_effect() {
+        let mut cpdag = Cpdag::with_variables(2);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::cpdag(cpdag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Dag);
+
+        let sc = support_cell(
+            &ate_query(),
+            effective_graph_class(&graph, &ate_query()),
+            StructureSource::Explicit,
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        )
+        .unwrap();
+        assert_eq!(classify(sc), CellStatus::Licensed);
+    }
+
+    /// (c, other half) A partially-oriented Cpdag can never reach
+    /// `effective_graph_class` in the first place: `AcceptedGraph::cpdag` is the
+    /// review gate, and it structurally refuses any Cpdag carrying undirected or
+    /// conflict marks *at construction*, before there is a `GraphClass::Cpdag`
+    /// value to classify. This is the invariant `effective_graph_class`'s Cpdag
+    /// arm documents and re-derives rather than assumes.
+    #[test]
+    fn partially_oriented_cpdag_is_refused_at_the_accept_gate_not_at_classification() {
+        let mut cpdag = Cpdag::with_variables(2);
+        cpdag.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let err = AcceptedGraph::cpdag(cpdag).unwrap_err();
+        assert!(matches!(err, CausalError::ReviewRequired { .. }), "{err}");
+    }
+
+    /// The Cpdag collapse is scoped to `AverageEffect` for the same reason as the
+    /// ADMG collapse: `compile.rs` wires no other query against `GraphClass::Cpdag`.
+    /// This is exactly why `ResponseCurve` stays closed on Cpdag even for a
+    /// fully-oriented one (`support_closed.toml`'s Pag/Cpdag/Admg rule) — the
+    /// collapse must not un-close it.
+    #[test]
+    fn cpdag_collapse_does_not_apply_outside_average_effect() {
+        let mut cpdag = Cpdag::with_variables(2);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::cpdag(cpdag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &distribution_query()), GraphClass::Cpdag);
+    }
+
+    /// (d) A complete `TemporalCpdag` collapses to `TemporalDag` under `TemporalEffect`.
+    #[test]
+    fn complete_temporal_cpdag_collapses_to_temporal_dag_under_temporal_effect() {
+        let mut cpdag = TemporalCpdag::empty();
+        let a =
+            cpdag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
+        let b = cpdag
+            .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+            .unwrap();
+        cpdag.insert_directed(a, b).unwrap();
+        let graph = AcceptedGraph::temporal_cpdag(cpdag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
+    }
+
+    /// An incomplete `TemporalCpdag` is refused at `AcceptedGraph::temporal_cpdag`
+    /// itself, mirroring the static Cpdag invariant.
+    #[test]
+    fn incomplete_temporal_cpdag_is_refused_at_the_accept_gate() {
+        let mut cpdag = TemporalCpdag::empty();
+        let a =
+            cpdag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
+        let b = cpdag
+            .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+            .unwrap();
+        cpdag.insert_undirected(a, b).unwrap();
+        assert!(AcceptedGraph::temporal_cpdag(cpdag).is_err());
+    }
+
+    /// (d) A complete `TemporalPag` (no circle marks) collapses to `TemporalDag` under
+    /// `TemporalEffect`.
+    #[test]
+    fn complete_temporal_pag_collapses_to_temporal_dag_under_temporal_effect() {
+        use antecedent_graph::TemporalPag;
+        let mut pag = TemporalPag::empty();
+        let a = pag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
+        let b =
+            pag.add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        pag.insert_directed(a, b).unwrap();
+        let graph = AcceptedGraph::temporal_pag(pag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
+    }
+
+    /// A `TemporalPag` with an unresolved circle mark is refused at
+    /// `AcceptedGraph::temporal_pag` itself.
+    #[test]
+    fn temporal_pag_with_circle_mark_is_refused_at_the_accept_gate() {
+        let mut pag = TemporalPag::empty();
+        let a = pag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
+        let b =
+            pag.add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        pag.insert_circle_arrow(a, b).unwrap();
+        assert!(AcceptedGraph::temporal_pag(pag).is_err());
+    }
+
+    /// The temporal collapse is scoped to `TemporalEffect`: `compile.rs` wires no
+    /// other query against `GraphClass::TemporalCpdag`/`TemporalPag` (temporal
+    /// `Mediation` only has a `GraphClass::TemporalDag` arm), so it must not fire
+    /// for e.g. a static query landing on a temporal class.
+    #[test]
+    fn temporal_collapse_does_not_apply_outside_temporal_effect() {
+        let mut cpdag = TemporalCpdag::empty();
+        let a =
+            cpdag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
+        let b = cpdag
+            .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+            .unwrap();
+        cpdag.insert_directed(a, b).unwrap();
+        let graph = AcceptedGraph::temporal_cpdag(cpdag).unwrap();
+        // AverageEffect on a temporal class is typed-impossible regardless of
+        // collapse, but the collapse itself must still not fire here.
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::TemporalCpdag);
+    }
+
+    /// A static Pag never collapses: circle marks are information the
+    /// class-aware generalized-adjustment identifier consumes, not incompleteness.
+    #[test]
+    fn pag_never_collapses() {
+        let mut pag = Pag::with_variables(2);
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let graph = AcceptedGraph::pag(pag);
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Pag);
     }
 }
