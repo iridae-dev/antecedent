@@ -225,8 +225,15 @@ impl SensitivityGram {
         estimator: &LinearAdjustmentAte,
         u: &[f64],
     ) -> Result<Option<Self>, ValidationError> {
+        // Data-pass `with_replaced_float` marks T and Y all-valid, so `prepare`
+        // can keep rows that were missing on the original T/Y. Compile against
+        // that same table or the Gram row set silently disagrees.
+        let t0 = float64_full(problem.data, problem.treatment())?;
+        let y0 = float64_full(problem.data, problem.outcome())?;
+        let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t0))?;
+        let data = with_replaced_float(&data, problem.outcome(), Arc::from(y0))?;
         let prep = estimator
-            .prepare(problem.data, problem.estimand, problem.query)
+            .prepare(&data, problem.estimand, problem.query)
             .map_err(ValidationError::from)?;
         let n = prep.design.nrows;
         let p = prep.design.ncols;
