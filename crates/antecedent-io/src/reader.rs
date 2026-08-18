@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
@@ -112,6 +113,7 @@ impl SectionAccess {
 pub struct ArtifactReader<R> {
     manifest: ArtifactManifest,
     index: Vec<SectionIndexEntry>,
+    by_id: HashMap<String, usize>,
     inner: R,
     stats: SectionLoadStats,
 }
@@ -126,7 +128,8 @@ impl<R: Read + Seek> ArtifactReader<R> {
         let (manifest, index, mut stats) = index_seekable(&mut inner)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
-        Ok(Self { manifest, index, inner, stats })
+        let by_id = index_by_id(&index);
+        Ok(Self { manifest, index, by_id, inner, stats })
     }
 
     /// Manifest (always available after open).
@@ -213,10 +216,9 @@ impl<R: Read + Seek> ArtifactReader<R> {
     }
 
     fn lookup(&self, id: &str) -> Result<(&SectionIndexEntry, &SectionDescriptor), IoError> {
-        let pos = self
-            .index
-            .iter()
-            .position(|e| e.id == id)
+        let pos = *self
+            .by_id
+            .get(id)
             .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))?;
         Ok((&self.index[pos], &self.manifest.sections[pos]))
     }
@@ -240,6 +242,7 @@ pub struct MappedArtifactReader {
     mmap: Arc<Mmap>,
     manifest: ArtifactManifest,
     index: Vec<SectionIndexEntry>,
+    by_id: HashMap<String, usize>,
     stats: SectionLoadStats,
     /// Per-section BLAKE3-verification memo: the mapped file is immutable for
     /// the reader's lifetime, so a section verified once is not re-hashed on
@@ -269,8 +272,9 @@ impl MappedArtifactReader {
         let (manifest, index, mut stats) = index_seekable(&mut cursor)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
+        let by_id = index_by_id(&index);
         let verified = vec![false; index.len()];
-        Ok(Self { mmap, manifest, index, stats, verified })
+        Ok(Self { mmap, manifest, index, by_id, stats, verified })
     }
 
     /// Manifest.
@@ -376,11 +380,19 @@ impl MappedArtifactReader {
     }
 
     fn lookup_pos(&self, id: &str) -> Result<usize, IoError> {
-        self.index
-            .iter()
-            .position(|e| e.id == id)
+        self.by_id
+            .get(id)
+            .copied()
             .ok_or_else(|| IoError::Convert(format!("unknown section `{id}`")))
     }
+}
+
+fn index_by_id(index: &[SectionIndexEntry]) -> HashMap<String, usize> {
+    let mut by_id = HashMap::with_capacity(index.len());
+    for (i, entry) in index.iter().enumerate() {
+        by_id.entry(entry.id.clone()).or_insert(i);
+    }
+    by_id
 }
 
 fn index_seekable<R: Read + Seek>(

@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No direct `rayon`.** A workspace-invariant test refuses a direct `rayon`
   dependency so parallelism stays on `ExecutionContext` (transitive lockfile
   entries from faer / criterion are out of scope).
+- **IO section lookup and skip scratch.** Seekable / mmap readers index sections
+  by id instead of scanning; `read_selective` reuses one 64 KiB skip buffer
+  across unread sections.
 
 ### Correctness — localized audit
 
