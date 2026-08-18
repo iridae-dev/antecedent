@@ -38,6 +38,27 @@ struct SubproblemKey {
     x: BitSet,
     v: BitSet,
     assign: Option<(DenseNodeId, Value)>,
+    dist: DistCtx,
+}
+
+/// The distribution the current subproblem identifies against.
+///
+/// Shpitser–Pearl thread this explicitly; leaving it implicit silently
+/// replaced line 7's `Q[S′]` with the marginal `P(S′)`, so factors lost their
+/// conditioning on topological predecessors outside `S′` (front-door ADMGs
+/// were assigned `∑_M P(M|T) P(Y)` instead of
+/// `∑_m P(m|t) ∑_{t′} P(y|t′,m) P(t′)`).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+enum DistCtx {
+    /// Marginal of the original observational law over the current `v`
+    /// (chain rule / Tian factorization over `v` is exact — the pre-fix
+    /// emission machinery is correct for this case and is reused verbatim).
+    Marginal,
+    /// C-factor `∑_{sumset} ∏ P(vi | cond_i)` with each factor's conditioning
+    /// frozen when the factor set was formed at a line-7 entry. By Tian's
+    /// telescope, `cond_i` includes predecessors *outside* the current `v`.
+    /// Factors are kept in topological order.
+    CFactor { sumset: BitSet, factors: Vec<(DenseNodeId, BitSet)> },
 }
 
 /// Outcome of a recursive ID call.
@@ -174,6 +195,7 @@ impl IdIdentifier {
             &y_set,
             &x_set,
             &active,
+            &DistCtx::Marginal,
             &mut arena,
             &mut memo,
             &mut derivation,
@@ -197,6 +219,7 @@ impl IdIdentifier {
             &y_set,
             &x_set,
             &active,
+            &DistCtx::Marginal,
             &mut arena,
             &mut memo,
             &mut derivation,
@@ -271,6 +294,7 @@ impl IdIdentifier {
             y,
             x,
             &active,
+            &DistCtx::Marginal,
             &mut arena,
             &mut memo,
             &mut derivation,
@@ -375,6 +399,7 @@ fn id_recurse(
     y: &BitSet,
     x: &BitSet,
     v: &BitSet,
+    dist: &DistCtx,
     arena: &mut CausalExprArena,
     memo: &mut HashMap<SubproblemKey, IdOutcome>,
     derivation: &mut DerivationTrace,
@@ -383,13 +408,19 @@ fn id_recurse(
     assign: Option<(DenseNodeId, Value)>,
 ) -> Result<IdOutcome, IdentificationError> {
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
-    let key = SubproblemKey { y: y.clone(), x: x.clone(), v: v.clone(), assign: assign.clone() };
+    let key = SubproblemKey {
+        y: y.clone(),
+        x: x.clone(),
+        v: v.clone(),
+        assign: assign.clone(),
+        dist: dist.clone(),
+    };
     if let Some(hit) = memo.get(&key) {
         perf.sets_returned = perf.sets_returned.saturating_add(1);
         return Ok(hit.clone());
     }
 
-    let outcome = id_body(prepared, y, x, v, arena, memo, derivation, perf, ws, assign)?;
+    let outcome = id_body(prepared, y, x, v, dist, arena, memo, derivation, perf, ws, assign)?;
     memo.insert(key, outcome.clone());
     Ok(outcome)
 }
@@ -399,6 +430,7 @@ fn id_body(
     y: &BitSet,
     x: &BitSet,
     v: &BitSet,
+    dist: &DistCtx,
     arena: &mut CausalExprArena,
     memo: &mut HashMap<SubproblemKey, IdOutcome>,
     derivation: &mut DerivationTrace,
@@ -406,22 +438,28 @@ fn id_body(
     ws: &mut GraphWorkspace,
     assign: Option<(DenseNodeId, Value)>,
 ) -> Result<IdOutcome, IdentificationError> {
-    // Line 1: x = ∅ → ∑_{v\y} P(v)
+    // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
     if !x.any() {
-        derivation.push("general.id.line1", "empty intervention; observational marginal");
-        return Ok(IdOutcome::Expr(observational_marginal(prepared, y, v, arena, assign)?));
+        derivation.push("general.id.line1", "empty intervention; marginal of current dist");
+        return Ok(IdOutcome::Expr(dist_marginal(prepared, dist, y, v, arena, assign)?));
     }
 
-    // Line 2: restrict to An(Y)_G
+    // Line 2: restrict to An(Y)_G; the current distribution marginalizes over
+    // the removed set (a Marginal stays a Marginal; a CFactor grows its sumset).
     let an_y = prepared.ancestors_within(y, v, ws);
     if !v.equal_set(&an_y) {
         let mut x2 = x.clone();
         x2.intersect_with(&an_y);
+        let mut removed = v.clone();
+        removed.difference_with(&an_y);
+        let dist2 = dist.marginalize(&removed);
         derivation.push("general.id.line2", "restrict to ancestral set of Y");
-        return id_recurse(prepared, y, &x2, &an_y, arena, memo, derivation, perf, ws, assign);
+        return id_recurse(
+            prepared, y, &x2, &an_y, &dist2, arena, memo, derivation, perf, ws, assign,
+        );
     }
 
-    // Line 3: W = (V\X) \ An(Y)_{G_{\bar X}}
+    // Line 3: W = (V\X) \ An(Y)_{G_{\bar X}} — only X changes; dist unchanged.
     let mut v_minus_x = v.clone();
     v_minus_x.difference_with(x);
     let an_bar = prepared.ancestors_bar_x(y, v, x, ws);
@@ -431,7 +469,7 @@ fn id_body(
         let mut x2 = x.clone();
         x2.union_with(&w);
         derivation.push("general.id.line3", "add superfluous interventions");
-        return id_recurse(prepared, y, &x2, v, arena, memo, derivation, perf, ws, assign);
+        return id_recurse(prepared, y, &x2, v, dist, arena, memo, derivation, perf, ws, assign);
     }
 
     // Line 4 / 5–7: C-components of G[V\X]
@@ -439,7 +477,7 @@ fn id_body(
     if comps.is_empty() {
         // V\X empty → Y ⊆ X; interventional delta / empty product
         derivation.push("general.id.degenerate", "V\\X empty");
-        return Ok(IdOutcome::Expr(observational_marginal(prepared, y, v, arena, assign)?));
+        return Ok(IdOutcome::Expr(dist_marginal(prepared, dist, y, v, arena, assign)?));
     }
 
     if comps.len() > 1 {
@@ -454,6 +492,7 @@ fn id_body(
                 s_i,
                 &x_i,
                 v,
+                dist,
                 arena,
                 memo,
                 derivation,
@@ -493,25 +532,197 @@ fn id_body(
         return Ok(IdOutcome::Fail(hedge));
     }
 
+    id_lines_5_to_7(prepared, y, x, v, s, dist, arena, memo, derivation, perf, ws, assign)
+}
+
+/// Lines 6–7 dispatch for the single-C-component case (line 5 handled above).
+#[allow(clippy::too_many_arguments)]
+fn id_lines_5_to_7(
+    prepared: &mut PreparedAdmg,
+    y: &BitSet,
+    x: &BitSet,
+    v: &BitSet,
+    s: &BitSet,
+    dist: &DistCtx,
+    arena: &mut CausalExprArena,
+    memo: &mut HashMap<SubproblemKey, IdOutcome>,
+    derivation: &mut DerivationTrace,
+    perf: &mut IdentificationPerformanceRecord,
+    ws: &mut GraphWorkspace,
+    assign: Option<(DenseNodeId, Value)>,
+) -> Result<IdOutcome, IdentificationError> {
     // Districts of G (on V)
     let g_comps = prepared.c_components(v);
-    // Line 6: S ∈ C(G)
+    // Line 6: S ∈ C(G) — emit the C-factor of the *current* distribution.
     if g_comps.iter().any(|c| c.equal_set(s)) {
-        derivation.push("general.id.line6", "S is a C-component of G; observational factorization");
-        return Ok(IdOutcome::Expr(c_component_expression(prepared, s, y, v, arena, assign)?));
+        derivation.push("general.id.line6", "S is a C-component of G; factorize current dist");
+        let expr = match dist {
+            DistCtx::Marginal => c_component_expression(prepared, s, y, v, arena, assign)?,
+            DistCtx::CFactor { .. } => {
+                // Conditionals of the carried c-factor: with an empty sumset the
+                // telescope collapses each to its own frozen factor; with a
+                // non-empty sumset they are exact ratios of partial sums.
+                let sub = dist.cfactor_of(prepared, s, v)?;
+                sub.emit(prepared, s, y, arena, assign.as_ref())?
+            }
+        };
+        return Ok(IdOutcome::Expr(expr));
     }
 
-    // Line 7: ∃ S' ⊃ S, S' ∈ C(G)
+    // Line 7: ∃ S' ⊃ S, S' ∈ C(G). Recurse on G_{S'} against Q[S'], the
+    // C-factor of the current distribution — its factors keep conditioning on
+    // topological predecessors *outside* S' (Tian's telescope), which is what
+    // the previous implementation dropped.
     if let Some(s_prime) = g_comps.iter().find(|c| s.is_subset_of(c) && !c.equal_set(s)) {
-        derivation.push("general.id.line7", "recurse into containing C-component S'");
+        derivation.push("general.id.line7", "recurse into containing C-component S' against Q[S']");
         let mut x2 = x.clone();
         x2.intersect_with(s_prime);
-        // Distribution Q[S'] = ∏_{Vi∈S'} P(Vi | …) — encode as the observational
-        // C-component factor and continue ID on G_{S'}.
-        return id_recurse(prepared, y, &x2, s_prime, arena, memo, derivation, perf, ws, assign);
+        let q_s_prime = dist.cfactor_of(prepared, s_prime, v)?;
+        let dist2 = DistCtx::CFactor { sumset: q_s_prime.sumset, factors: q_s_prime.factors };
+        return id_recurse(
+            prepared, y, &x2, s_prime, &dist2, arena, memo, derivation, perf, ws, assign,
+        );
     }
 
     Err(IdentificationError::msg("ID reached inconsistent C-component state"))
+}
+
+/// A materialized c-factor of the current distribution: `∑_{sumset} ∏ factors`.
+struct QFactor {
+    sumset: BitSet,
+    factors: Vec<(DenseNodeId, BitSet)>,
+}
+
+impl DistCtx {
+    /// Marginalize the current distribution over `removed` (line 2).
+    fn marginalize(&self, removed: &BitSet) -> Self {
+        match self {
+            // A marginal of the observational marginal is still a marginal.
+            Self::Marginal => Self::Marginal,
+            Self::CFactor { sumset, factors } => {
+                let mut sumset = sumset.clone();
+                sumset.union_with(removed);
+                Self::CFactor { sumset, factors: factors.clone() }
+            }
+        }
+    }
+
+    /// C-factor `Q_dist[S]` of the current distribution over `v`.
+    ///
+    /// For a marginal, each factor conditions on **all** `v`-predecessors in
+    /// topological order (chain rule of the marginal joint). For a carried
+    /// c-factor with an empty sumset the telescope keeps each node's frozen
+    /// factor. A non-empty sumset means the carried product no longer
+    /// telescopes node-wise; the factors are kept with the sumset so the
+    /// emitter can fall back to exact ratio conditionals.
+    fn cfactor_of(
+        &self,
+        prepared: &PreparedAdmg,
+        s: &BitSet,
+        v: &BitSet,
+    ) -> Result<QFactor, IdentificationError> {
+        match self {
+            Self::Marginal => {
+                let mut factors = Vec::new();
+                let mut preceding = BitSet::with_len(v.bit_len());
+                for &vi in prepared.topo() {
+                    if !v.contains(vi) {
+                        continue;
+                    }
+                    if s.contains(vi) {
+                        factors.push((vi, preceding.clone()));
+                    }
+                    preceding.insert(vi);
+                }
+                Ok(QFactor { sumset: BitSet::with_len(v.bit_len()), factors })
+            }
+            Self::CFactor { sumset, factors } => {
+                if !sumset.any() {
+                    let kept = factors.iter().filter(|(vi, _)| s.contains(*vi)).cloned().collect();
+                    return Ok(QFactor { sumset: sumset.clone(), factors: kept });
+                }
+                // Nested line-7 after a line-2 marginalization: the carried
+                // product has bound variables, so node-wise conditionals are
+                // ratios of partial sums over the *full* factor set. Keep all
+                // factors and record which nodes S selects via the emitter.
+                Err(IdentificationError::msg(
+                    "general ID: nested C-factor of a marginalized Q is not yet supported;                      refusing rather than emitting an unsound functional",
+                ))
+            }
+        }
+    }
+}
+
+impl QFactor {
+    /// Emit `∑_{(s\y) ∪ sumset} ∏ factors` with `do(·)` labels applied only to
+    /// factors whose assigned variable is *free* (not bound by these sums) —
+    /// a bound occurrence is the sum's dummy variable, not the do-value.
+    fn emit(
+        &self,
+        prepared: &PreparedAdmg,
+        s: &BitSet,
+        y: &BitSet,
+        arena: &mut CausalExprArena,
+        assign: Option<&(DenseNodeId, Value)>,
+    ) -> Result<ExprId, IdentificationError> {
+        let mut sum_vars = s.clone();
+        sum_vars.difference_with(y);
+        sum_vars.union_with(&self.sumset);
+        let effective_assign = assign.filter(|(t, _)| !sum_vars.contains(*t)).cloned();
+        let mut exprs = Vec::with_capacity(self.factors.len());
+        for (vi, cond) in &self.factors {
+            let var_i = prepared.dense_to_var(*vi)?;
+            let vars = arena.intern_var_set([var_i]);
+            let cond_vars: Result<Vec<_>, _> =
+                cond.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+            let cond_vars = cond_vars?;
+            let conditioned_on = arena.intern_var_set(cond_vars.clone());
+            let (intervention, domain) = intervention_for_factor(
+                arena,
+                prepared,
+                effective_assign.as_ref(),
+                *vi,
+                &cond_vars,
+            )?;
+            exprs.push(arena.intern(ExprNode::Distribution {
+                variables: vars,
+                conditioned_on,
+                intervention,
+                domain,
+            }));
+        }
+        let product = if exprs.len() == 1 {
+            exprs[0]
+        } else {
+            let list = arena.intern_list(exprs);
+            arena.intern(ExprNode::Product(list))
+        };
+        if sum_vars.any() {
+            let vs = intern_nodes(prepared, &sum_vars, arena)?;
+            Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: product }))
+        } else {
+            Ok(product)
+        }
+    }
+}
+
+/// Marginal `∑_{v\y}` of the current distribution (lines 1 and degenerate).
+fn dist_marginal(
+    prepared: &PreparedAdmg,
+    dist: &DistCtx,
+    y: &BitSet,
+    v: &BitSet,
+    arena: &mut CausalExprArena,
+    assign: Option<(DenseNodeId, Value)>,
+) -> Result<ExprId, IdentificationError> {
+    match dist {
+        DistCtx::Marginal => observational_marginal(prepared, y, v, arena, assign),
+        DistCtx::CFactor { sumset, factors } => {
+            let q = QFactor { sumset: sumset.clone(), factors: factors.clone() };
+            // Sum over everything in v except y, plus the carried sumset.
+            q.emit(prepared, v, y, arena, assign.as_ref())
+        }
+    }
 }
 
 fn intern_nodes(
