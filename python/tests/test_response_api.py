@@ -257,22 +257,15 @@ def test_pag_mean_curve_preserves_unidentified_completion_mass():
     y = 2.0 * a + rng.normal(scale=0.3, size=360)
     pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
 
-    result = antecedent.analyze(
-        {"a": a, "y": y},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=pag,
-    )
-
-    assert result.response is None
-    assert result.envelope is not None
-    assert result.envelope.identified_mass == pytest.approx(0.5)
-    assert result.envelope.unidentified_mass == pytest.approx(0.5)
-    assert result.envelope.completion_count == 2
-    assert not result.envelope.enumeration_capped
-    assert result.envelope.mass_scope == "full_class"
-    assert len(result.envelope) == 3
-    assert result.uncertainty.kind == "identified_set"
-    assert result.identification.status == "GraphDependent"
+    with pytest.raises(
+        CausalUnsupportedError,
+        match="refused: ResponseCurve is licensed only on a Dag.",
+    ):
+        antecedent.analyze(
+            {"a": a, "y": y},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=pag,
+        )
 
 
 def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
@@ -324,29 +317,27 @@ def test_response_analyze_derivative_and_jacobian_shapes():
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
     data = {"x": x, "a": a, "b": b, "y": y}
     graph = [("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")]
+    match = "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
 
-    derivative = antecedent.analyze(
-        data,
-        query=antecedent.PointDerivative("a", "y", at=0.5),
-        graph=graph,
-        estimator_config={"bandwidth": 0.4},
-    )
-    average = antecedent.analyze(
-        data,
-        query=antecedent.AverageDerivative("a", "y"),
-        graph=graph,
-    )
-    jacobian = antecedent.analyze(
-        data,
-        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-        graph=graph,
-    )
-
-    assert isinstance(derivative.estimate, float)
-    assert isinstance(average.estimate, float)
-    assert jacobian.estimate is not None
-    assert len(jacobian.estimate) == 1
-    assert len(jacobian.estimate[0]) == 2
+    with pytest.raises(CausalUnsupportedError, match=match):
+        antecedent.analyze(
+            data,
+            query=antecedent.PointDerivative("a", "y", at=0.5),
+            graph=graph,
+            estimator_config={"bandwidth": 0.4},
+        )
+    with pytest.raises(CausalUnsupportedError, match=match):
+        antecedent.analyze(
+            data,
+            query=antecedent.AverageDerivative("a", "y"),
+            graph=graph,
+        )
+    with pytest.raises(CausalUnsupportedError, match=match):
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+            graph=graph,
+        )
 
 
 def test_response_analyze_refuses_unwired_semantic_options():
@@ -446,7 +437,10 @@ def test_response_refuses_ignored_threads():
 
 def test_response_refuses_admg_with_explicit_error():
     admg = antecedent.Admg.from_edges(["a", "y"], directed=[("a", "y")], bidirected=[])
-    with pytest.raises(TypeError, match="Dag or Pag"):
+    with pytest.raises(
+        CausalUnsupportedError,
+        match="refused: ResponseCurve is licensed only on a Dag.",
+    ):
         antecedent.analyze(
             {"a": np.arange(30.0), "y": np.arange(30.0)},
             query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
@@ -458,7 +452,10 @@ def test_response_refuses_cpdag_with_explicit_error():
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["a", "y"], directed=[], undirected=[("a", "y")]
     )
-    with pytest.raises(TypeError, match="Dag or Pag"):
+    with pytest.raises(
+        CausalUnsupportedError,
+        match="refused: ResponseCurve is licensed only on a Dag.",
+    ):
         antecedent.analyze(
             {"a": np.arange(30.0), "y": np.arange(30.0)},
             query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
@@ -472,22 +469,21 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     y = np.exp(0.5 * np.log(a) + rng.normal(scale=0.15, size=400))
     data = {"a": a, "y": y}
     graph = [("a", "y")]
-    elasticity = antecedent.analyze(
-        data,
-        query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
-        graph=graph,
-        estimator_config={"bandwidth": 0.25},
-    )
-    assert isinstance(elasticity.estimate, float)
-    assert np.isfinite(elasticity.estimate)
-    semi = antecedent.analyze(
-        data,
-        query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
-        graph=graph,
-        estimator_config={"bandwidth": 0.25},
-    )
-    assert isinstance(semi.estimate, float)
-    assert np.isfinite(semi.estimate)
+    match = "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+    with pytest.raises(CausalUnsupportedError, match=match):
+        antecedent.analyze(
+            data,
+            query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
+            graph=graph,
+            estimator_config={"bandwidth": 0.25},
+        )
+    with pytest.raises(CausalUnsupportedError, match=match):
+        antecedent.analyze(
+            data,
+            query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
+            graph=graph,
+            estimator_config={"bandwidth": 0.25},
+        )
 
 
 def test_response_refuses_discovery_and_bayesian():

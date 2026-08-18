@@ -126,6 +126,7 @@ for path in [
     "parity/support_axes.toml",
     "parity/support_licensed.toml",
     "parity/support_n_a.toml",
+    "parity/support_closed.toml",
     "adr/0020-support-matrix-and-prepared-workflow.md",
     "deny.toml",
     "conformance/interchange/graph_dot_json/expected.json",

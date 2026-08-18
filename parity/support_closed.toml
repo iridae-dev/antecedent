@@ -1,0 +1,28 @@
+# Enforced refusals. Default-refused cells still run unless a rule matches.
+# A cell matching every listed constraint is fail-closed with id `refused`.
+# Must not overlap licensed cells or n/a predicates.
+
+[[closed]]
+queries = ["Counterfactual"]
+reason = "Counterfactual is not on the staged handle."
+
+[[closed]]
+queries = [
+  "AverageDerivative",
+  "DirectionalDerivative",
+  "Elasticity",
+  "PointDerivative",
+  "ResponseJacobian",
+  "SemiElasticity",
+]
+reason = "Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+
+[[closed]]
+queries = ["ResponseCurve"]
+graph_classes = ["Pag", "Cpdag", "Admg"]
+reason = "ResponseCurve is licensed only on a Dag."
+
+[[closed]]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+structures = ["graph_posterior", "accepted"]
+reason = "Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet."

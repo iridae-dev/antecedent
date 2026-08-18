@@ -264,12 +264,19 @@ def handle_response(
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         raise TypeError("response queries do not yet support inference=Bayesian(...)")
-    if isinstance(graph, Admg):
-        raise TypeError("response queries require a Dag or Pag; Admg is not supported on this path")
-    if isinstance(graph, Cpdag):
-        raise TypeError(
-            "response queries require a Dag or Pag; Cpdag is not supported on this path"
+    if query.kind in {
+        "average_derivative",
+        "directional_derivative",
+        "elasticity",
+        "point_derivative",
+        "response_jacobian",
+        "semi_elasticity",
+    }:
+        raise CausalUnsupportedError(
+            "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
         )
+    if isinstance(graph, (Admg, Cpdag, Pag)):
+        raise CausalUnsupportedError("refused: ResponseCurve is licensed only on a Dag.")
     if (
         graph is not None
         and not isinstance(graph, (Dag, Pag))
@@ -706,57 +713,8 @@ def handle_counterfactual(
     seed: int,
     threads: int,
 ) -> Any:
-    from ._native import counterfactual_ite
-    from .estimation import (
-        AnalysisResult,
-        EstimateView,
-        IdentificationView,
-        PerformanceView,
-        ValidationView,
-        _static_edges,
-    )
-
-    if discovery is not None:
-        raise ValueError("Counterfactual does not support discovery=")
-    edges = _static_edges(graph)
-    names, columns = as_columns(data)
-    ite = counterfactual_ite(
-        names,
-        columns,
-        edges,
-        query.treatment,
-        query.outcome,
-        query.active_level,
-        query.control_level,
-        seed=seed,
-        threads=threads,
-    )
-    return AnalysisResult(
-        identification=IdentificationView(
-            status="gcm.parametric",
-            method="counterfactual.ite",
-            adjustment_set=[],
-            assumption_count=0,
-            derivation_step_count=0,
-        ),
-        estimate=EstimateView(
-            ate=float(ite.mean_ite),
-            se_analytic=float("nan"),
-            se_bootstrap=None,
-            estimator_id="gcm.ite",
-            method="counterfactual.ite",
-        ),
-        posterior=None,
-        validation=ValidationView(passed=False, ran=False, count=0),
-        performance=PerformanceView(
-            plan_id="counterfactual.ite",
-            modality="static",
-            peak_memory_bytes=0,
-        ),
-        diagnostics=[],
-        provenance={"noise_inference": getattr(ite, "noise_inference", None)},
-        _raw=ite,
-    )
+    del data, query, graph, discovery, seed, threads
+    raise CausalUnsupportedError("refused: Counterfactual is not on the staged handle.")
 
 
 def handle_distribution(
@@ -776,7 +734,10 @@ def handle_distribution(
     )
 
     if discovery is not None:
-        edges = _resolve_static_discovery_edges(data, discovery, accept_discovered, seed, threads)
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells, and those cells are not staged yet."
+        )
     else:
         edges = _static_edges(graph)
     names, columns = as_columns(data)
@@ -811,7 +772,10 @@ def handle_path_specific(
     )
 
     if discovery is not None:
-        edges = _resolve_static_discovery_edges(data, discovery, accept_discovered, seed, threads)
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells, and those cells are not staged yet."
+        )
     else:
         edges = _static_edges(graph)
     names, columns = as_columns(data)
@@ -1785,6 +1749,11 @@ def analyze(
         )
 
     kind = getattr(query, "kind", "")
+    if structure_accepted and kind in {"path_specific", "distribution"}:
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells, and those cells are not staged yet."
+        )
 
     if kind and kind in _KIND_HANDLER_KEYS:
         return _dispatch_kind(
