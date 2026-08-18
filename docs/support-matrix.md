@@ -12,8 +12,8 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 |---|---|
 | Cartesian product | 2394 |
 | Licensed | 5 |
-| n/a | 918 |
-| Refused (default) | 1471 |
+| n/a | 1110 |
+| Refused (default) | 1279 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -66,6 +66,7 @@ licensed.
 
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Temporal contrast queries require a temporal graph class.
 - queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.
+- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, InterventionResponse, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ structures ∈ {graph_posterior} — Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell.
 
 ## Licensed cells
 

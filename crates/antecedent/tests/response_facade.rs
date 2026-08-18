@@ -12,7 +12,7 @@ use antecedent_core::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
     ResponseQuery, ResponseUncertainty, ResponseValue, SupportStatus, Value, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
 
@@ -283,4 +283,86 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
     );
     assert!((curve_contrast - truth).abs() <= truth_tolerance);
     assert!((average_effect - truth).abs() <= truth_tolerance);
+}
+
+fn mean_curve_study() -> (antecedent_data::TabularData, Dag, ResponseQuery) {
+    let n = 240;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> =
+        (0..n).map(|i| z[i] + (i as f64 / 11.0).cos() + (i % 7) as f64 * 0.03).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| 1.0 + 2.0 * treatment[i] + 0.8 * z[i] + (i as f64 / 13.0).sin() * 0.05)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("confounder", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(vec![-0.5, 0.0, 0.5].into()),
+        ),
+    });
+    (data, graph, query)
+}
+
+#[test]
+fn prepared_response_curve_reuses_identification() {
+    let (data, graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(50);
+    let study = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert_eq!(click.estimand.adjustment_set, fresh.estimand.adjustment_set);
+    let click_mean = match &click.response.as_ref().unwrap().estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
+        other => panic!("expected surface, got {other:?}"),
+    };
+    let fresh_mean = match &fresh.response.as_ref().unwrap().estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
+        other => panic!("expected surface, got {other:?}"),
+    };
+    assert_eq!(click_mean.len(), fresh_mean.len());
+    for (a, b) in click_mean.iter().zip(fresh_mean.iter()) {
+        assert!((a - b).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn response_curve_graph_posterior_is_not_applicable_at_build() {
+    let (data, _graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(1);
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let gp = antecedent::discovery::discover_exact_dag_posterior(
+        &data,
+        &vars,
+        &antecedent::discovery::BayesianDiscoverParams::default(),
+        &ctx,
+    )
+    .unwrap();
+    let err = Study::tabular(data)
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.starts_with("not_applicable:"), "{msg}");
+    assert!(msg.contains("contrast-only"), "{msg}");
 }

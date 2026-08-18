@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use antecedent::{LatencyMode, PreparedStudy, RefuteSuite, Study};
+use antecedent::{AcceptedGraph, LatencyMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -133,6 +133,25 @@ fn prepared_reestimate_matches_fresh_analyze() {
         );
     }
     assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+}
+
+#[test]
+fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
+    let (data, dag, query) = confounded_scm(400, 47);
+    let ctx = ExecutionContext::for_tests(1);
+    let analysis = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(dag))
+        .query(query)
+        .latency_mode(LatencyMode::Interactive)
+        .refute(RefuteSuite::Cheap)
+        .build()
+        .unwrap();
+    let fresh = analysis.run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
 }
 
 #[test]

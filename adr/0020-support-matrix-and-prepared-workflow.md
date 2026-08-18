@@ -71,9 +71,9 @@ plan" is not a public name.
 
 Until a scoped mixture that retains unidentified mass as a first-class
 axis can be gated, every response-family query × `structure =
-graph_posterior` is `refused`. ATE × graph posterior stays as today
-(per-graph identify inside `execute()`, no `identify_only`). Priors do
-not upgrade identification.
+graph_posterior` is `n/a` (`SupportRefusal::NotApplicable`, contrast-only).
+ATE × graph posterior stays as today (per-graph identify inside
+`execute()`, no `identify_only`). Priors do not upgrade identification.
 
 ## Consequences
 

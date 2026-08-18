@@ -52,6 +52,23 @@ pub static NA_RULES: &[NaRule] = &[
         validations: None,
         reason: "Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.",
     },
+    NaRule {
+        queries: Some(&[
+            "AverageDerivative",
+            "DirectionalDerivative",
+            "Elasticity",
+            "InterventionResponse",
+            "PointDerivative",
+            "ResponseCurve",
+            "ResponseJacobian",
+            "SemiElasticity",
+        ]),
+        graph_classes: None,
+        structures: Some(&["graph_posterior"]),
+        inferences: None,
+        validations: None,
+        reason: "Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell.",
+    },
 ];
 
 pub static LICENSED: &[LicensedCell] = &[

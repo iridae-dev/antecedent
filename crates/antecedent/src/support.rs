@@ -268,6 +268,15 @@ mod tests {
     }
 
     #[test]
+    fn response_curve_graph_posterior_is_not_applicable() {
+        for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag"] {
+            let status =
+                classify(cell("ResponseCurve", graph, "graph_posterior", "Frequentist", "none"));
+            assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
+        }
+    }
+
+    #[test]
     fn pag_average_effect_is_recorded_refused_not_n_a() {
         assert_eq!(
             classify(cell("AverageEffect", "Pag", "explicit", "Frequentist", "none")),
