@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ComputeBudget.wall_ms` is documented as advisory.** The field was already
   rustdoc'd as not a hard stop; `StudyBuilder::compute_budget` and the
   architecture execution-model notes now say the same.
+- **No direct `rayon`.** A workspace-invariant test refuses a direct `rayon`
+  dependency so parallelism stays on `ExecutionContext` (transitive lockfile
+  entries from faer / criterion are out of scope).
 
 ### Correctness — localized audit
 
