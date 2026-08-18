@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `influence_se_kind` refuses `NeweyWest` when a retained-row map is
   present without `panel_times`; with times, Bartlett products use calendar
   gaps rather than the retained index.
+- **Soft CF refuses cross-family noise reuse.** Sampling already rejected a
+  Discrete Uniform residual used as additive Gaussian U (and the reverse);
+  abduction–prediction applied the soft slot to the abduced noise without
+  that check.
 
 ### Round 4 — backlog completion
 

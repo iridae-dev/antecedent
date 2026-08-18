@@ -17,7 +17,7 @@ use antecedent_graph::DenseNodeId;
 use antecedent_model::{
     CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace,
     NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng,
-    sample_noise_column, sample_stochastic, soft_to_slot,
+    refuse_cross_family_soft, sample_noise_column, sample_stochastic, soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -296,10 +296,12 @@ impl CounterfactualEngine {
                     continue;
                 }
                 let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
+                let existing = self.model.mechanisms.get(node);
                 let slot = if let Some(soft) = &overlay.soft[idx] {
+                    refuse_cross_family_soft(existing, soft)?;
                     soft_to_slot(soft, gather.n_parents())?
                 } else {
-                    self.model.mechanisms.get(node).clone()
+                    existing.clone()
                 };
                 evaluate_column(&slot, parents, noise_col, out, ws)?;
                 if overlay.shifts[idx] != 0.0 {
@@ -767,10 +769,12 @@ fn nested_column_frozen_mean(
             continue;
         }
         let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
+        let existing = engine.model.mechanisms.get(gather.child);
         let slot = if let Some(soft) = &overlay.soft[idx] {
+            refuse_cross_family_soft(existing, soft)?;
             soft_to_slot(soft, gather.n_parents())?
         } else {
-            engine.model.mechanisms.get(gather.child).clone()
+            existing.clone()
         };
         evaluate_column(&slot, parents, noise_col, out, ws)?;
         if overlay.shifts[idx] != 0.0 {
@@ -812,8 +816,9 @@ mod tests {
     use super::*;
     use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
-        CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec, RoleHint,
-        SequencedIntervention, SmallRoleSet, TemporalPolicy, ToleranceClass, Value, ValueType,
+        CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
+        MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
+        ToleranceClass, Value, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
@@ -1119,6 +1124,22 @@ mod tests {
         let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([nested]) };
         let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap_err();
         assert_eq!(err, CounterfactualError::NestedNotAllowed);
+    }
+
+    #[test]
+    fn predict_refuses_cross_family_soft_override() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let y = VariableId::from_raw(1);
+        let world = CounterfactualWorld {
+            unit_rows: None,
+            interventions: Arc::from([Intervention::soft(y, MechanismOverride::constant(1.0))]),
+        };
+        let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("cross-family"), "err={msg}");
     }
 
     #[test]
