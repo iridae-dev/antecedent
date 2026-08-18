@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **0.5.2**.
+explicit stage contracts. Package version **0.6.0**.
 
 | Doc | Contents |
 |-----|----------|
