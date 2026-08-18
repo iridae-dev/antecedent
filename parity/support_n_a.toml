@@ -38,3 +38,8 @@ queries = [
 ]
 structures = ["graph_posterior"]
 reason = "Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell."
+
+[[n_a]]
+queries = ["TransportQuery", "InterferenceQuery"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+reason = "Stage transport and interference queries are not a temporal-graph cell."

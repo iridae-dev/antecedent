@@ -34,3 +34,7 @@ reason = "MediationEffect is not on the staged handle."
 [[closed]]
 queries = ["SustainedEffect"]
 reason = "SustainedEffect is not on the staged handle."
+
+[[closed]]
+queries = ["TransportQuery", "InterferenceQuery"]
+reason = "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified."

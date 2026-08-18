@@ -45,6 +45,14 @@ pub static NA_RULES: &[NaRule] = &[
         inferences: None,
         validations: None,
         reason: "Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell.",
+    },
+    NaRule {
+        queries: Some(&["TransportQuery", "InterferenceQuery"]),
+        graph_classes: Some(&["TemporalDag", "TemporalCpdag", "TemporalPag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "Stage transport and interference queries are not a temporal-graph cell.",
     }
 ];
 
@@ -96,6 +104,14 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: None,
         validations: None,
         reason: "SustainedEffect is not on the staged handle.",
+    },
+    NaRule {
+        queries: Some(&["TransportQuery", "InterferenceQuery"]),
+        graph_classes: None,
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.",
     }
 ];
 

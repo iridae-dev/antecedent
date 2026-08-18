@@ -1,9 +1,9 @@
 //! Criterion smokes for the 0.5 causal-response and interference hot paths.
 //!
-//! Both carry soft-budget gates (asserted on every invocation including the
-//! `--test` smoke) sized with ~10× headroom over the accepted local means, so
-//! superlinear regressions — like the O(n²) pseudo-outcome loop fixed in
-//! 0.5.2 — fail the gate instead of shipping.
+//! Each workload carries a soft-budget gate (asserted on every invocation
+//! including the `--test` smoke) sized with ~5× headroom over the accepted
+//! local means, so superlinear regressions — like the O(n²) pseudo-outcome
+//! loop fixed in 0.5.2 — fail the gate instead of shipping.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,21 +37,42 @@ fn curve_data(n: usize) -> TabularData {
         .unwrap()
 }
 
-fn run_curve(data: &TabularData) {
+fn mean_curve_query() -> ResponseQuery {
     let a = VariableId::from_raw(0);
     let y = VariableId::from_raw(1);
-    let x = VariableId::from_raw(2);
-    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+    ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: y,
         treatment: ContinuousDomain::new(
             a,
             GridSpec::Values(Arc::from([-0.4, -0.2, 0.0, 0.2, 0.4])),
         ),
-    });
+    })
+}
+
+fn run_curve(data: &TabularData) {
+    let x = VariableId::from_raw(2);
     let response = ContinuousResponseEstimator::new([x])
         .estimate_identified(
             data,
-            &query,
+            &mean_curve_query(),
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+        )
+        .unwrap();
+    black_box(response);
+}
+
+fn run_curve_simultaneous(data: &TabularData) {
+    let x = VariableId::from_raw(2);
+    let mut estimator = ContinuousResponseEstimator::new([x]);
+    // Simultaneous bands refuse Silverman-default bandwidth; match the estimator
+    // fixtures (explicit 0.35, 100 wild-multiplier replicates).
+    estimator.options.bandwidth = Some(0.35);
+    estimator.options.simultaneous_replicates = Some(100);
+    let response = estimator
+        .estimate_identified(
+            data,
+            &mean_curve_query(),
             IdentificationStatus::NonparametricallyIdentified,
             AssumptionSet::new(),
         )
@@ -98,6 +119,9 @@ fn bench_response_interference(c: &mut Criterion) {
     c.bench_function("kennedy_curve_n4k_grid5", |b| {
         b.iter(|| run_curve(&curve));
     });
+    c.bench_function("kennedy_curve_n4k_grid5_simultaneous", |b| {
+        b.iter(|| run_curve_simultaneous(&curve));
+    });
 
     let (network, assignment, query) = interference_fixture(10_000);
     c.bench_function("interference_cluster_n10k_2kdraws", |b| {
@@ -106,16 +130,23 @@ fn bench_response_interference(c: &mut Criterion) {
         });
     });
 
-    // Soft-budget gates. Accepted local means (Apple M1 Max, 0.5.2): curve
-    // ~210 ms, interference ~167 ms. Budgets carry ~5× headroom; the pre-0.5.2
-    // quadratic pseudo-outcome loop (~4 s at this size) and the per-draw
-    // cluster scan both fail them.
+    // Soft-budget gates. Accepted local means (Apple M1 Max): curve ~210 ms
+    // (0.5.2), simultaneous band ~216 ms (0.6.0), interference ~167 ms (0.5.2).
+    // Budgets carry ~5× headroom; the pre-0.5.2 quadratic pseudo-outcome loop
+    // (~4 s at this size) and the per-draw cluster scan both fail them.
     let t0 = Instant::now();
     run_curve(&curve);
     let elapsed = t0.elapsed();
     assert!(
         elapsed < Duration::from_secs(1),
         "kennedy_curve_n4k_grid5 exceeded soft budget: {elapsed:?}"
+    );
+    let t0 = Instant::now();
+    run_curve_simultaneous(&curve);
+    let elapsed = t0.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "kennedy_curve_n4k_grid5_simultaneous exceeded soft budget: {elapsed:?}"
     );
     let t0 = Instant::now();
     black_box(estimate_interference(&query, &network, &assignment, 7).unwrap());
