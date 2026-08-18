@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of allocating a Cholesky and `y` on every call.
 - **HMC leapfrog reuses `LaplaceWorkspace` q/p/grad.** Transition kernels no
   longer allocate position, momentum, and gradient vectors on every draw.
+- **Coalition cache dense index + saturation flag.** Exact Shapley with
+  `k ≤ 16` looks up payoffs by mask instead of hashing; a full byte budget
+  sets `CacheStats.saturated` instead of refusing silently.
 
 ### Correctness — localized audit
 
