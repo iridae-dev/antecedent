@@ -62,8 +62,8 @@ pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSam
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm, sample_gaussian_mvn};
 pub use mcmc_stats::{
-    ParameterMcmcDiagnostics, all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess,
-    parameter_mcmc_diagnostics,
+    McmcSummary, ParameterMcmcDiagnostics, all_chains_moved, max_split_rhat, mcmc_summary,
+    min_bulk_ess, min_tail_ess, parameter_mcmc_diagnostics,
 };
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,

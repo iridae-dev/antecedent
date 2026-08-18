@@ -32,7 +32,7 @@ use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{GaussianTarget, PosteriorTarget, gaussian_target_from_model};
 use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
-use crate::mcmc_stats::{all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess};
+use crate::mcmc_stats::{all_chains_moved, mcmc_summary};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
 
@@ -228,16 +228,21 @@ pub fn fit_hmc_glm(
 
         let total_iters = hmc.n_warmup.saturating_add(n_keep);
         let mut kept = 0usize;
+        // Carry the current log-posterior across iterations (the Gaussian path
+        // already does): after an accept it is exactly the step's `logp`, after
+        // a reject it is unchanged, so the per-iteration full-data
+        // `log_posterior_value` sweep was redundant.
+        let mut lp_curr = log_posterior_value(
+            likelihood,
+            design,
+            &beta,
+            &coef_prior,
+            &prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        )?;
         for t in 0..total_iters {
-            let lp_old = log_posterior_value(
-                likelihood,
-                design,
-                &beta,
-                &coef_prior,
-                &prec,
-                &mut workspace.eta[..nrows],
-                1.0,
-            )?;
+            let lp_old = lp_curr;
             let step = hmc_step_glm(
                 likelihood,
                 design,
@@ -255,6 +260,7 @@ pub fn fit_hmc_glm(
             stats.record(&step, is_warmup);
             if step.accepted {
                 beta = step.state;
+                lp_curr = step.logp;
                 if step.logp > best_lp {
                     best_lp = step.logp;
                     map.copy_from_slice(&beta);
@@ -441,9 +447,9 @@ fn pack_and_gate_hmc(
     }
 
     // Diagnostics on unconstrained state (includes λ, not skewed σ²).
-    let ess_bulk = min_bulk_ess(chain_samples, hmc.n_chains, n_keep, state_dim);
-    let ess_tail = min_tail_ess(chain_samples, hmc.n_chains, n_keep, state_dim);
-    let rhat_max = max_split_rhat(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let summary = mcmc_summary(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let (ess_bulk, ess_tail, rhat_max) =
+        (summary.min_bulk_ess, summary.min_tail_ess, summary.max_rhat);
     let moved = all_chains_moved(chain_samples, hmc.n_chains, n_keep, state_dim);
     let mean_accept = stats.mean_accept_prob();
     let max_dh = stats.max_abs_delta_h;
