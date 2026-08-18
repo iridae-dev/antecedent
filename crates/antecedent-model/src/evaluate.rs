@@ -9,12 +9,17 @@
     clippy::needless_range_loop
 )]
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
-use antecedent_stats::ci::{CiWorkspace, PartialCorrelation, SignificanceMethod};
+use antecedent_stats::ci::{
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod,
+    PartialCorrelation, SignificanceMethod,
+};
 
 use crate::batch::{MechanismWorkspace, ParentBatch};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
@@ -214,32 +219,42 @@ fn residual_independence_tests(
     _alpha: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, ModelError> {
-    let mut ps = Vec::new();
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
+    let n_nodes = model.n_nodes();
     let children = child_adjacency(model);
+
+    let mut obs_store: Vec<Cow<'_, [f64]>> = Vec::with_capacity(n_nodes);
+    for i in 0..n_nodes {
+        let var = model.output_layout.variables[i];
+        obs_store.push(data.float64_cow(var).map_err(ModelError::from)?);
+    }
+    let mut cols: Vec<&[f64]> = obs_store.iter().map(std::convert::AsRef::as_ref).collect();
+    let mut resid_col = vec![None; n_nodes];
+    for (i, r) in residuals.iter().enumerate() {
+        if let Some(v) = r {
+            resid_col[i] = Some(cols.len());
+            cols.push(v.as_slice());
+        }
+    }
+
+    let mut queries = Vec::new();
     for (node_i, resid_opt) in residuals.iter().enumerate() {
-        let Some(resid) = resid_opt else { continue };
+        let Some(_) = resid_opt else { continue };
+        let Some(rx) = resid_col[node_i] else { continue };
         let gather = model.gather_for(DenseNodeId::from_raw(node_i as u32)).unwrap();
-        let parent_set: std::collections::HashSet<usize> =
-            gather.parents.iter().map(|p| p.as_usize()).collect();
+        let parent_set: HashSet<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
         let descendants = descendants_of(&children, node_i);
-        for other in 0..model.n_nodes() {
+        for other in 0..n_nodes {
             // ANM residuals are independent of non-descendants (parents already skipped).
             // Dependence on descendants is expected and must not falsify a correct model.
             if other == node_i || parent_set.contains(&other) || descendants.contains(&other) {
                 continue;
             }
-            let ovar = model.output_layout.variables[other];
-            let x = data.float64_cow(ovar).map_err(ModelError::from)?;
-            let cols: [&[f64]; 2] = [resid.as_slice(), &x];
-            let res = test
-                .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, ctx)
-                .map_err(ModelError::from)?;
-            ps.push(res.p_value);
+            queries.push(CiQuery { x: rx, y: other, z_start: 0, z_len: 0 });
         }
     }
-    Ok(ps)
+    ci_pvalues(&test, &cols, &queries, &[], &mut ws, ctx)
 }
 
 fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
@@ -253,8 +268,8 @@ fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
     children
 }
 
-fn descendants_of(children: &[Vec<usize>], node: usize) -> std::collections::HashSet<usize> {
-    let mut out = std::collections::HashSet::new();
+fn descendants_of(children: &[Vec<usize>], node: usize) -> HashSet<usize> {
+    let mut out = HashSet::new();
     let mut stack = children.get(node).cloned().unwrap_or_default();
     while let Some(v) = stack.pop() {
         if out.insert(v) {
@@ -272,33 +287,53 @@ fn local_markov_tests(
 ) -> Result<Vec<f64>, ModelError> {
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
-    let mut ps = Vec::new();
+    let n_nodes = model.n_nodes();
+    let mut storage: Vec<Cow<'_, [f64]>> = Vec::with_capacity(n_nodes);
+    for i in 0..n_nodes {
+        let var = model.output_layout.variables[i];
+        storage.push(data.float64_cow(var).map_err(ModelError::from)?);
+    }
+    let cols: Vec<&[f64]> = storage.iter().map(std::convert::AsRef::as_ref).collect();
+
+    let mut queries = Vec::new();
+    let mut z_flat = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
-        let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_cow(var).map_err(ModelError::from)?;
         let parent_ids: Vec<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
-        for other in local_markov_others(model, node, &parent_ids) {
-            let ovar = model.output_layout.variables[other];
-            let x = data.float64_cow(ovar).map_err(ModelError::from)?;
-            let mut cols: Vec<&[f64]> = vec![&y, &x];
-            let mut cond_storage: Vec<std::borrow::Cow<'_, [f64]>> = Vec::new();
-            for &p in &parent_ids {
-                let pv = model.output_layout.variables[p];
-                cond_storage.push(data.float64_cow(pv).map_err(ModelError::from)?);
-            }
-            for c in &cond_storage {
-                cols.push(c);
-            }
-            let z: Vec<usize> = (2..cols.len()).collect();
-            let res = test
-                .test_one(&cols, &z, SignificanceMethod::Analytic, &mut ws, ctx)
-                .map_err(ModelError::from)?;
-            ps.push(res.p_value);
+        let others = local_markov_others(model, node, &parent_ids);
+        if others.is_empty() {
+            continue;
         }
-        let _ = var;
+        let z_start = z_flat.len();
+        z_flat.extend_from_slice(&parent_ids);
+        let z_len = parent_ids.len();
+        for other in others {
+            queries.push(CiQuery { x: node.as_usize(), y: other, z_start, z_len });
+        }
     }
-    Ok(ps)
+    ci_pvalues(&test, &cols, &queries, &z_flat, &mut ws, ctx)
+}
+
+fn ci_pvalues(
+    test: &PartialCorrelation,
+    columns: &[&[f64]],
+    queries: &[CiQuery],
+    z_flat: &[usize],
+    ws: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, ModelError> {
+    if queries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let req = CiBatchRequest {
+        columns,
+        queries,
+        z_flat,
+        significance: SignificanceMethod::Analytic,
+        confidence: ConfidenceMethod::default(),
+    };
+    let out = test.test_batch_adhoc(&req, ws, ctx)?;
+    Ok(out.results.into_iter().map(|r| r.p_value).collect())
 }
 
 /// Dense ids of the local-Markov comparison set for `node`: nodes strictly
