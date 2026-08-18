@@ -278,12 +278,8 @@ fn local_markov_tests(
         let var = model.output_layout.variables[node.as_usize()];
         let y = data.float64_values(var).map_err(ModelError::from)?;
         let parent_ids: Vec<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
-        let node_pos = model.node_order.iter().position(|d| *d == node).unwrap_or(0);
-        for (oi, _) in model.node_order.iter().enumerate() {
-            if oi >= node_pos || parent_ids.contains(&oi) {
-                continue;
-            }
-            let ovar = model.output_layout.variables[oi];
+        for other in local_markov_others(model, node, &parent_ids) {
+            let ovar = model.output_layout.variables[other];
             let x = data.float64_values(ovar).map_err(ModelError::from)?;
             let mut cols: Vec<&[f64]> = vec![y.as_slice(), x.as_slice()];
             let mut cond_storage: Vec<Vec<f64>> = Vec::new();
@@ -303,6 +299,31 @@ fn local_markov_tests(
         let _ = var;
     }
     Ok(ps)
+}
+
+/// Dense ids of the local-Markov comparison set for `node`: nodes strictly
+/// earlier in topological order that are not parents of `node`.
+///
+/// The historical loop compared topo-order *positions* against dense-id parent
+/// sets and indexed the variable table by position — correct only when the
+/// topological order happens to be the identity permutation of dense ids; on
+/// any other order it tested the wrong variable pairs.
+fn local_markov_others(
+    model: &CompiledCausalModel,
+    node: antecedent_graph::DenseNodeId,
+    parent_ids: &[usize],
+) -> Vec<usize> {
+    let mut out = Vec::new();
+    for &other in model.node_order.iter() {
+        if other == node {
+            break; // strictly earlier in topo order
+        }
+        let od = other.as_usize();
+        if !parent_ids.contains(&od) {
+            out.push(od);
+        }
+    }
+    out
 }
 
 fn permutation_baseline(
@@ -419,6 +440,30 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::Dag;
+
+    #[test]
+    fn local_markov_pairs_use_dense_ids_not_topo_positions() {
+        // Graph 1→0, 0→2: topological order [1, 0, 2] is not the identity
+        // permutation of dense ids. The historical position-indexed loop
+        // paired node 0 with variables[0] — itself — because position 0 in
+        // topo order held node 1, but the variable table is dense-id-indexed.
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        assert_eq!(
+            compiled.node_order.iter().map(|d| d.as_usize()).collect::<Vec<_>>(),
+            vec![1, 0, 2],
+            "fixture requires a non-identity topological order"
+        );
+        // Node 0 (parent {1}): the only earlier topo node is its parent — no
+        // comparison pairs. The buggy loop produced one (a self-pair).
+        assert!(local_markov_others(&compiled, DenseNodeId::from_raw(0), &[1]).is_empty());
+        // Node 2 (parent {0}): earlier topo nodes {1, 0} minus parent → {1}.
+        assert_eq!(local_markov_others(&compiled, DenseNodeId::from_raw(2), &[0]), vec![1]);
+        // Node 1 (root, first in topo order): nothing earlier.
+        assert!(local_markov_others(&compiled, DenseNodeId::from_raw(1), &[]).is_empty());
+    }
 
     #[test]
     fn evaluation_runs_on_linear_scm() {
