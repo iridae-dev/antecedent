@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{AverageEffectQuery, Intervention, TargetPopulation};
+use antecedent_core::{AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 
 use crate::adjustment::intervention_f64;
@@ -43,7 +43,31 @@ pub fn validate_ate_query_with_targets(query: &AverageEffectQuery) -> Result<(),
     Ok(())
 }
 
-/// Validate a Phase-1 ATE query (no effect modifiers, all-observed population).
+/// Intersect a complete-case mask with a [`TargetPopulation::Predicate`] selection.
+///
+/// Other target populations are left unchanged (ATT/ATC are applied at g-computation
+/// time; custom distributions carry weights rather than dropping rows).
+///
+/// # Errors
+///
+/// Named predicates without a registry, or out-of-range row indices.
+pub(crate) fn intersect_predicate_mask(
+    row_mask: &mut [bool],
+    target: &TargetPopulation,
+    n_full: usize,
+    registry: Option<&PopulationRegistry>,
+) -> Result<(), EstimationError> {
+    if !matches!(target, TargetPopulation::Predicate(_)) {
+        return Ok(());
+    }
+    let sel = target
+        .resolve(n_full, None, registry)
+        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    for (i, slot) in row_mask.iter_mut().enumerate() {
+        *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
+    }
+    Ok(())
+}
 ///
 /// # Errors
 ///

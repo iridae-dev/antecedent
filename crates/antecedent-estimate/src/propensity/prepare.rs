@@ -6,9 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AverageEffectQuery, PopulationRegistry, PredicateExpr, TargetPopulation, VariableId,
-};
+use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
@@ -247,14 +245,13 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;
     match &query.target_population {
-        TargetPopulation::Predicate(PredicateExpr::Rows(_) | PredicateExpr::Named(_)) => {
-            let sel = query
-                .target_population
-                .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-            for (i, slot) in row_mask.iter_mut().enumerate() {
-                *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
-            }
+        TargetPopulation::Predicate(_) => {
+            crate::prepare::intersect_predicate_mask(
+                &mut row_mask,
+                &query.target_population,
+                n_full,
+                registry,
+            )?;
         }
         TargetPopulation::CustomDistribution(_) => {
             let sel = query

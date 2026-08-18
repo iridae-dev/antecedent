@@ -15,7 +15,7 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
@@ -244,6 +244,8 @@ pub struct LinearAdjustmentAte {
     pub panel_times: Option<Vec<i64>>,
     /// Linear fit family (default OLS).
     pub fit_kind: LinearFitKind,
+    /// Registry for named [`TargetPopulation::Predicate`] selections.
+    pub population_registry: Option<antecedent_core::PopulationRegistry>,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -265,6 +267,7 @@ impl LinearAdjustmentAte {
             multiway_ids: None,
             panel_times: None,
             fit_kind: LinearFitKind::Ols,
+            population_registry: None,
         }
     }
 
@@ -337,6 +340,16 @@ impl LinearAdjustmentAte {
         self
     }
 
+    /// Registry used to resolve named [`TargetPopulation::Predicate`] selections.
+    #[must_use]
+    pub fn with_population_registry(
+        mut self,
+        registry: antecedent_core::PopulationRegistry,
+    ) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
     /// Prepare design from tabular data, identified estimand, and query levels.
     ///
     /// # Errors
@@ -366,7 +379,13 @@ impl LinearAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        crate::prepare::intersect_predicate_mask(
+            &mut row_mask,
+            &query.target_population,
+            data.row_count(),
+            self.population_registry.as_ref(),
+        )?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
@@ -904,6 +923,27 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-8, "att={}", effect.ate);
+    }
+
+    #[test]
+    fn predicate_restricts_prepared_rows() {
+        use antecedent_core::PredicateExpr;
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let all = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let half = all.clone().with_target_population(TargetPopulation::Predicate(
+            PredicateExpr::rows((0..10).collect::<Vec<_>>()),
+        ));
+        let prep_all = est.prepare(&data, &estimand, &all).unwrap();
+        let prep_half = est.prepare(&data, &estimand, &half).unwrap();
+        assert_eq!(prep_all.design.nrows, 100);
+        assert_eq!(prep_half.design.nrows, 10);
+        let named =
+            all.with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort")));
+        let err = est.prepare(&data, &estimand, &named).unwrap_err();
+        assert!(
+            err.to_string().contains("PopulationRegistry") || err.to_string().contains("named")
+        );
     }
 
     #[test]

@@ -26,7 +26,7 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
@@ -94,6 +94,8 @@ pub struct GlmAdjustmentAte {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC sandwich SE.
     pub panel_times: Option<Vec<i64>>,
+    /// Registry for named [`TargetPopulation::Predicate`] selections.
+    pub population_registry: Option<antecedent_core::PopulationRegistry>,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -116,6 +118,7 @@ impl GlmAdjustmentAte {
             cluster_ids: None,
             multiway_ids: None,
             panel_times: None,
+            population_registry: None,
         }
     }
 
@@ -186,6 +189,16 @@ impl GlmAdjustmentAte {
         self
     }
 
+    /// Registry used to resolve named [`TargetPopulation::Predicate`] selections.
+    #[must_use]
+    pub fn with_population_registry(
+        mut self,
+        registry: antecedent_core::PopulationRegistry,
+    ) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
     /// Prepare design from tabular data, identified estimand, and query levels.
     ///
     /// Accepts `backdoor.adjustment` / `backdoor.efficient` estimands.
@@ -246,7 +259,13 @@ impl GlmAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        crate::prepare::intersect_predicate_mask(
+            &mut row_mask,
+            &query.target_population,
+            data.row_count(),
+            self.population_registry.as_ref(),
+        )?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         match self.family {
@@ -1171,6 +1190,26 @@ mod tests {
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate.is_finite());
+    }
+
+    #[test]
+    fn predicate_restricts_prepared_rows_and_shifts_logit_ate() {
+        use antecedent_core::PredicateExpr;
+        let (data, estimand) = binary_scm(400, 7);
+        let est = GlmAdjustmentAte { bootstrap_replicates: 0, ..GlmAdjustmentAte::new() };
+        let all = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let even = all.clone().with_target_population(TargetPopulation::Predicate(
+            PredicateExpr::rows((0..400).step_by(2).collect::<Vec<_>>()),
+        ));
+        let prep_all = est.prepare(&data, &estimand, &all).unwrap();
+        let prep_even = est.prepare(&data, &estimand, &even).unwrap();
+        assert_eq!(prep_all.design.nrows, 400);
+        assert_eq!(prep_even.design.nrows, 200);
+        let named =
+            all.with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort")));
+        let err = est.prepare(&data, &estimand, &named).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("PopulationRegistry") || msg.contains("named"), "{msg}");
     }
 
     #[test]

@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inserts / `set_marks` did not. A definite or partial arrowhead into an
   earlier lag now returns `GraphError::FutureToPast` (shared helper with
   `TemporalDag`).
+- **Linear/GLM adjustment honor `TargetPopulation::Predicate`.** Prepare now
+  intersects the complete-case mask with the predicate (named predicates
+  need `with_population_registry`), matching the propensity path. The
+  previous code accepted Predicate and estimated the full-sample ATE.
 
 ### Round 4 — backlog completion
 
