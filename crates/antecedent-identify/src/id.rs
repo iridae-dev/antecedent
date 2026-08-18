@@ -37,9 +37,15 @@ struct SubproblemKey {
     y: BitSet,
     x: BitSet,
     v: BitSet,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
     dist: DistCtx,
 }
+
+/// Hard-set values baked into emitted factors, one per intervened node.
+///
+/// The ATE contrast uses a single entry per side; temporal schedules bake
+/// every treatment-time node of the unfolded window at the same level.
+type Assign = Arc<[(DenseNodeId, Value)]>;
 
 /// The distribution the current subproblem identifies against.
 ///
@@ -201,7 +207,7 @@ impl IdIdentifier {
             &mut derivation,
             &mut perf,
             &mut workspace.graph,
-            Some((t, active_level)),
+            Arc::from([(t, active_level)]),
         )? {
             IdOutcome::Expr(e) => e,
             IdOutcome::Fail(hedge) => {
@@ -225,7 +231,7 @@ impl IdIdentifier {
             &mut derivation,
             &mut perf,
             &mut workspace.graph,
-            Some((t, control_level)),
+            Arc::from([(t, control_level)]),
         )? {
             IdOutcome::Expr(e) => e,
             IdOutcome::Fail(hedge) => {
@@ -239,23 +245,7 @@ impl IdIdentifier {
             }
         };
 
-        let left_exp = arena.intern(ExprNode::Expectation {
-            function: OutcomeExprId::identity(query.outcome),
-            distribution: left,
-        });
-        let right_exp = arena.intern(ExprNode::Expectation {
-            function: OutcomeExprId::identity(query.outcome),
-            distribution: right,
-        });
-        let contrast = arena.intern(ExprNode::Contrast {
-            left: left_exp,
-            right: right_exp,
-            op: ContrastOp::Difference,
-        });
-        // A dead sum/integral here means the assembled functional is ill-formed,
-        // which must surface rather than be silently rewritten away.
-        let functional =
-            arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
+        let functional = expectation_contrast(&mut arena, query.outcome, left, right)?;
         let estimand = IdentifiedEstimand::new(
             Arc::from(EstimandMethod::GeneralId.as_str()),
             Arc::from([]),
@@ -266,6 +256,132 @@ impl IdIdentifier {
         );
         Ok(IdentificationResult::identified(
             CausalQuery::AverageEffect(query.clone()),
+            vec![estimand],
+            arena,
+            derivation,
+            prepared.declared_assumptions().clone(),
+            perf,
+        ))
+    }
+
+    /// Identify the two-sided contrast
+    /// `E[Y | do(X = active)] − E[Y | do(X = control)]` for a multi-node
+    /// hard-set schedule (temporal unfoldings intervene on one treatment node
+    /// per scheduled time point, all at the same level per side).
+    ///
+    /// Mirrors the single-treatment ATE path: two ID passes with the level
+    /// baked into emitted factors, combined by an expectation contrast. The
+    /// historical sustained/dynamic path identified only the active side and
+    /// relabeled the one-sided distribution as a temporal effect.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables or empty schedules.
+    pub fn identify_schedule_contrast(
+        &self,
+        prepared: &PreparedAdmg,
+        outcome: VariableId,
+        schedule: &[VariableId],
+        active_level: &Value,
+        control_level: &Value,
+        query: CausalQuery,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        if schedule.is_empty() {
+            return Err(IdentificationError::msg("empty treatment schedule"));
+        }
+        let mut prepared = prepared.clone();
+        let mut arena = CausalExprArena::new();
+        let mut derivation = DerivationTrace::default();
+        derivation.push("general.id", "Shpitser–Pearl ID for schedule contrast");
+        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut perf = IdentificationPerformanceRecord::default();
+        let active_set = full_nodes(prepared.admg().node_count());
+
+        let mut x_set = BitSet::with_len(prepared.admg().node_count());
+        let mut schedule_dense = Vec::with_capacity(schedule.len());
+        for &t in schedule {
+            let d = prepared.var_to_dense(t)?;
+            x_set.insert(d);
+            schedule_dense.push(d);
+        }
+        let mut y_set = BitSet::with_len(prepared.admg().node_count());
+        y_set.insert(prepared.var_to_dense(outcome)?);
+
+        let assign_for = |level: &Value| -> Assign {
+            schedule_dense.iter().map(|&d| (d, level.clone())).collect()
+        };
+        let mut side = |assign: Assign,
+                        prepared: &mut PreparedAdmg,
+                        arena: &mut CausalExprArena,
+                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        derivation: &mut DerivationTrace,
+                        perf: &mut IdentificationPerformanceRecord|
+         -> Result<IdOutcome, IdentificationError> {
+            id_recurse(
+                prepared,
+                &y_set,
+                &x_set,
+                &active_set,
+                &DistCtx::Marginal,
+                arena,
+                memo,
+                derivation,
+                perf,
+                &mut workspace.graph,
+                assign,
+            )
+        };
+        let left = match side(
+            assign_for(active_level),
+            &mut prepared,
+            &mut arena,
+            &mut memo,
+            &mut derivation,
+            &mut perf,
+        )? {
+            IdOutcome::Expr(e) => e,
+            IdOutcome::Fail(hedge) => {
+                return Ok(not_identified_with_hedge(
+                    query,
+                    derivation,
+                    prepared.declared_assumptions().clone(),
+                    perf,
+                    hedge,
+                ));
+            }
+        };
+        let right = match side(
+            assign_for(control_level),
+            &mut prepared,
+            &mut arena,
+            &mut memo,
+            &mut derivation,
+            &mut perf,
+        )? {
+            IdOutcome::Expr(e) => e,
+            IdOutcome::Fail(hedge) => {
+                return Ok(not_identified_with_hedge(
+                    query,
+                    derivation,
+                    prepared.declared_assumptions().clone(),
+                    perf,
+                    hedge,
+                ));
+            }
+        };
+
+        let functional = expectation_contrast(&mut arena, outcome, left, right)?;
+        let estimand = IdentifiedEstimand::new(
+            Arc::from(EstimandMethod::GeneralId.as_str()),
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
+            functional,
+            None,
+        );
+        Ok(IdentificationResult::identified(
+            query,
             vec![estimand],
             arena,
             derivation,
@@ -300,7 +416,7 @@ impl IdIdentifier {
             &mut derivation,
             &mut perf,
             &mut workspace.graph,
-            None,
+            Arc::from([]),
         )? {
             IdOutcome::Expr(functional) => {
                 let estimand = IdentifiedEstimand::new(
@@ -329,6 +445,32 @@ impl IdIdentifier {
             )),
         }
     }
+}
+
+/// Assemble `E[outcome | left] − E[outcome | right]` and simplify.
+///
+/// A dead sum/integral here means the assembled functional is ill-formed,
+/// which must surface rather than be silently rewritten away.
+fn expectation_contrast(
+    arena: &mut CausalExprArena,
+    outcome: VariableId,
+    left: ExprId,
+    right: ExprId,
+) -> Result<ExprId, IdentificationError> {
+    let left_exp = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: left,
+    });
+    let right_exp = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: right,
+    });
+    let contrast = arena.intern(ExprNode::Contrast {
+        left: left_exp,
+        right: right_exp,
+        op: ContrastOp::Difference,
+    });
+    arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
 }
 
 fn full_nodes(n: usize) -> BitSet {
@@ -405,7 +547,7 @@ fn id_recurse(
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<IdOutcome, IdentificationError> {
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
     let key = SubproblemKey {
@@ -436,7 +578,7 @@ fn id_body(
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<IdOutcome, IdentificationError> {
     // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
     if !x.any() {
@@ -549,7 +691,7 @@ fn id_lines_5_to_7(
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<IdOutcome, IdentificationError> {
     // Districts of G (on V)
     let g_comps = prepared.c_components(v);
@@ -563,7 +705,7 @@ fn id_lines_5_to_7(
                 // telescope collapses each to its own frozen factor; with a
                 // non-empty sumset they are exact ratios of partial sums.
                 let sub = dist.cfactor_of(prepared, s, v)?;
-                sub.emit(prepared, s, y, arena, assign.as_ref())?
+                sub.emit(prepared, s, y, arena, &assign)?
             }
         };
         return Ok(IdOutcome::Expr(expr));
@@ -663,12 +805,15 @@ impl QFactor {
         s: &BitSet,
         y: &BitSet,
         arena: &mut CausalExprArena,
-        assign: Option<&(DenseNodeId, Value)>,
+        assign: &Assign,
     ) -> Result<ExprId, IdentificationError> {
         let mut sum_vars = s.clone();
         sum_vars.difference_with(y);
         sum_vars.union_with(&self.sumset);
-        let effective_assign = assign.filter(|(t, _)| !sum_vars.contains(*t)).cloned();
+        // Drop assignments whose node is bound by these sums: a bound
+        // occurrence is the sum's dummy variable, not the do-value.
+        let effective_assign: Assign =
+            assign.iter().filter(|(t, _)| !sum_vars.contains(*t)).cloned().collect();
         let mut exprs = Vec::with_capacity(self.factors.len());
         for (vi, cond) in &self.factors {
             let var_i = prepared.dense_to_var(*vi)?;
@@ -677,13 +822,8 @@ impl QFactor {
                 cond.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
             let cond_vars = cond_vars?;
             let conditioned_on = arena.intern_var_set(cond_vars.clone());
-            let (intervention, domain) = intervention_for_factor(
-                arena,
-                prepared,
-                effective_assign.as_ref(),
-                *vi,
-                &cond_vars,
-            )?;
+            let (intervention, domain) =
+                intervention_for_factor(arena, prepared, &effective_assign, *vi, &cond_vars)?;
             exprs.push(arena.intern(ExprNode::Distribution {
                 variables: vars,
                 conditioned_on,
@@ -713,14 +853,14 @@ fn dist_marginal(
     y: &BitSet,
     v: &BitSet,
     arena: &mut CausalExprArena,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<ExprId, IdentificationError> {
     match dist {
         DistCtx::Marginal => observational_marginal(prepared, y, v, arena, assign),
         DistCtx::CFactor { sumset, factors } => {
             let q = QFactor { sumset: sumset.clone(), factors: factors.clone() };
             // Sum over everything in v except y, plus the carried sumset.
-            q.emit(prepared, v, y, arena, assign.as_ref())
+            q.emit(prepared, v, y, arena, &assign)
         }
     }
 }
@@ -740,7 +880,7 @@ fn observational_marginal(
     y: &BitSet,
     v: &BitSet,
     arena: &mut CausalExprArena,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<ExprId, IdentificationError> {
     // Tian / Shpitser–Pearl: P(V) = ∏_{S ∈ C(G[V])} Q[S], Q[S] = ∏_{Vi∈S} P(Vi | V^π_<i).
     // On a DAG, C-components are singletons and this reduces to the usual Markov product
@@ -779,7 +919,7 @@ fn c_component_expression(
     y: &BitSet,
     v: &BitSet,
     arena: &mut CausalExprArena,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<ExprId, IdentificationError> {
     // ∑_{s\y} ∏_{Vi∈S} P(vi | v^{π}_{<i})
     let product = q_component_product(prepared, s, v, arena, assign)?;
@@ -798,7 +938,7 @@ fn q_component_product(
     s: &BitSet,
     v: &BitSet,
     arena: &mut CausalExprArena,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<ExprId, IdentificationError> {
     let empty_i = arena.empty_intervention_set();
     let mut factors = Vec::new();
@@ -815,7 +955,7 @@ fn q_component_product(
             let cond_vars = cond_vars?;
             let conditioned_on = arena.intern_var_set(cond_vars.clone());
             let (intervention, domain) =
-                intervention_for_factor(arena, prepared, assign.as_ref(), vi, &cond_vars)?;
+                intervention_for_factor(arena, prepared, &assign, vi, &cond_vars)?;
             factors.push(arena.intern(ExprNode::Distribution {
                 variables: vars,
                 conditioned_on,
@@ -846,7 +986,7 @@ fn markov_product(
     prepared: &PreparedAdmg,
     v: &BitSet,
     arena: &mut CausalExprArena,
-    assign: Option<(DenseNodeId, Value)>,
+    assign: Assign,
 ) -> Result<ExprId, IdentificationError> {
     let empty_i = arena.empty_intervention_set();
     let mut factors = Vec::new();
@@ -867,7 +1007,7 @@ fn markov_product(
         let parents = parents?;
         let conditioned_on = arena.intern_var_set(parents.clone());
         let (intervention, domain) =
-            intervention_for_factor(arena, prepared, assign.as_ref(), vi, &parents)?;
+            intervention_for_factor(arena, prepared, &assign, vi, &parents)?;
         factors.push(arena.intern(ExprNode::Distribution {
             variables: vars,
             conditioned_on,
@@ -895,30 +1035,22 @@ fn markov_product(
 fn intervention_for_factor(
     arena: &mut CausalExprArena,
     prepared: &PreparedAdmg,
-    assign: Option<&(DenseNodeId, Value)>,
+    assign: &Assign,
     vi: DenseNodeId,
     conditioned_on: &[VariableId],
 ) -> Result<(antecedent_expr::InterventionSetId, DomainRef), IdentificationError> {
-    let empty_i = arena.empty_intervention_set();
-    let Some((t, val)) = assign else {
-        return Ok((empty_i, DomainRef::Observational));
-    };
-    let t_var = prepared.dense_to_var(*t)?;
-    if *t == vi {
-        let intervention = arena.intern_intervention_assignments([InterventionAssignment {
-            variable: t_var,
-            value: val.clone(),
-        }]);
-        return Ok((intervention, DomainRef::Interventional));
+    let mut touching = Vec::new();
+    for (t, val) in assign.iter() {
+        let t_var = prepared.dense_to_var(*t)?;
+        if *t == vi || conditioned_on.iter().any(|&v| v == t_var) {
+            touching.push(InterventionAssignment { variable: t_var, value: val.clone() });
+        }
     }
-    if conditioned_on.iter().any(|&v| v == t_var) {
-        let intervention = arena.intern_intervention_assignments([InterventionAssignment {
-            variable: t_var,
-            value: val.clone(),
-        }]);
-        return Ok((intervention, DomainRef::Interventional));
+    if touching.is_empty() {
+        return Ok((arena.empty_intervention_set(), DomainRef::Observational));
     }
-    Ok((empty_i, DomainRef::Observational))
+    let intervention = arena.intern_intervention_assignments(touching);
+    Ok((intervention, DomainRef::Interventional))
 }
 
 #[cfg(test)]

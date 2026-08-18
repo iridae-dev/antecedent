@@ -112,15 +112,7 @@ impl TemporalLinearAdjustment {
         }
         query.validate()?;
 
-        if matches!(
-            &query.policy,
-            antecedent_core::TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1
-        ) {
-            return Err(EstimationError::unsupported(
-                "TemporalPolicy::Dynamic with multiple active steps is not supported by \
-                 temporal linear adjustment (use a single-step schedule or sustained policy)",
-            ));
-        }
+        refuse_multi_step_schedule(&query.policy)?;
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
         }
@@ -301,6 +293,31 @@ impl TemporalLinearAdjustment {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         self.inner.fit(problem, workspace, ctx, assumptions)
+    }
+}
+
+/// Multi-step schedules identify a contrast over *every* treatment-time node;
+/// this estimator regresses a single treatment column and cannot honor that
+/// estimand — refuse rather than estimate a one-node proxy.
+fn refuse_multi_step_schedule(
+    policy: &antecedent_core::TemporalPolicy,
+) -> Result<(), EstimationError> {
+    match policy {
+        antecedent_core::TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
+            Err(EstimationError::unsupported(
+                "TemporalPolicy::Dynamic with multiple active steps is not supported by \
+                 temporal linear adjustment (use a single-step schedule)",
+            ))
+        }
+        antecedent_core::TemporalPolicy::Sustained { from, until } if until > from => {
+            Err(EstimationError::unsupported(
+                "TemporalPolicy::Sustained spanning multiple steps is not supported by \
+                 temporal linear adjustment: the identified estimand contrasts every \
+                 treatment-time node, and a single-column regression would silently \
+                 estimate a one-node proxy. Use a single-step window (from == until).",
+            ))
+        }
+        _ => Ok(()),
     }
 }
 
