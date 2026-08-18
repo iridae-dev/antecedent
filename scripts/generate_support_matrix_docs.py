@@ -14,6 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
+RELEASE_NOTES = ROOT / "docs" / "release-notes" / "v0.6.0.md"
+RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
+RN_END = "<!-- generated:support-matrix:licensed:end -->"
 
 
 def load(rel: str) -> dict:
@@ -168,9 +171,80 @@ Other refused cells still run until licensed or closed.
 """
     OUT.write_text(text)
     RUST_OUT.write_text(render_rust(na_rules, closed_rules, cells))
+    write_release_notes_block(
+        cells,
+        {
+            "cartesian": cartesian,
+            "licensed": len(cells),
+            "n_a": n_a_count,
+            "closed": closed_count,
+            "refused": cartesian - n_a_count - closed_count - len(cells),
+        },
+        axes,
+    )
     print(f"Wrote {OUT.relative_to(ROOT)}")
     print(f"Wrote {RUST_OUT.relative_to(ROOT)}")
+    print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (licensed block)")
     return 0
+
+
+def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
+    """One bullet per (query, inference), compact when rows form a product."""
+    from itertools import product as iproduct
+
+    order_q = list(axes["queries"]) + list(axes.get("stage_queries") or [])
+    order_s = list(axes["structures"])
+    order_v = list(axes["validations"])
+    order_i = list(axes["inferences"])
+    lines: list[str] = []
+    for q in order_q:
+        for inf in order_i:
+            rows = [
+                c
+                for c in cells
+                if c["query"] == q and c["inference"] == inf
+            ]
+            if not rows:
+                continue
+            graphs = sorted({c["graph_class"] for c in rows})
+            structs = [s for s in order_s if any(c["structure"] == s for c in rows)]
+            vals = [v for v in order_v if any(c["validation"] == v for c in rows)]
+            combos = {(c["structure"], c["validation"]) for c in rows}
+            if combos == set(iproduct(structs, vals)):
+                s_part = " / ".join(f"`{s}`" for s in structs)
+                v_part = " / ".join(f"`{v}`" for v in vals)
+                g_part = " / ".join(f"`{g}`" for g in graphs)
+                lines.append(
+                    f"- `{q}` × {g_part} × {s_part} × `{inf}` × validation {v_part}"
+                )
+            else:
+                for c in rows:
+                    lines.append(
+                        f"- `{q}` × `{c['graph_class']}` × `{c['structure']}` × "
+                        f"`{inf}` × validation `{c['validation']}`"
+                    )
+    return lines
+
+
+def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
+    """Replace the marked licensed block in the release notes; fail loudly
+    if the markers are missing so the ratchet cannot silently no-op."""
+    text = RELEASE_NOTES.read_text()
+    if RN_BEGIN not in text or RN_END not in text:
+        raise SystemExit(
+            f"{RELEASE_NOTES}: missing generated-block markers "
+            f"{RN_BEGIN!r} / {RN_END!r}"
+        )
+    body_lines = [
+        f"{counts['cartesian']} cartesian cells: {counts['licensed']} licensed,",
+        f"{counts['n_a']} n/a, {counts['closed']} enforced refusals,",
+        f"{counts['refused']} default-refused (still run until licensed or closed).",
+        "",
+    ] + render_release_licensed(cells, axes)
+    block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
+    head, rest = text.split(RN_BEGIN, 1)
+    _, tail = rest.split(RN_END, 1)
+    RELEASE_NOTES.write_text(head + block + tail)
 
 
 def rust_list(values: list[str] | None) -> str:

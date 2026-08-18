@@ -79,7 +79,7 @@ Other refused cells still run until licensed or closed.
 - queries ∈ {Counterfactual} — Counterfactual is not on the staged handle.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} — Derivative cells are not licensed; only ResponseCurve on a Dag is staged.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Pag, Cpdag, Admg} — ResponseCurve is licensed only on a Dag.
-- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ structures ∈ {graph_posterior, accepted} — Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet.
+- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ structures ∈ {graph_posterior, accepted} — Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged.
 - queries ∈ {MediationEffect} — MediationEffect is not on the staged handle.
 - queries ∈ {SustainedEffect} — SustainedEffect is not on the staged handle.
 - queries ∈ {TransportQuery, InterferenceQuery} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.

@@ -88,7 +88,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["graph_posterior", "accepted"]),
         inferences: None,
         validations: None,
-        reason: "Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet.",
+        reason: "Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged.",
     },
     NaRule {
         queries: Some(&["MediationEffect"]),
