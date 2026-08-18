@@ -194,15 +194,20 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             // the mean is large relative to the variance.
             let mut phi_m2 = vec![0.0; n];
             let mut completed = 0u64;
+            // Permutation scratch reused across samples (was two fresh Vecs
+            // per permutation).
+            let mut order: Vec<usize> = Vec::with_capacity(n);
+            let mut sample_phi = vec![0.0; n];
             for _ in 0..n_samples {
                 if ctx.cancellation.is_cancelled() {
                     break;
                 }
-                let mut order: Vec<usize> = (0..n).collect();
+                order.clear();
+                order.extend(0..n);
                 shuffle(&mut rng, &mut order);
                 let mut mask = 0u64;
                 let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
-                let mut sample_phi = vec![0.0; n];
+                sample_phi.fill(0.0);
                 for &i in &order {
                     let bit = 1u64 << i;
                     mask |= bit;
