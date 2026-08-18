@@ -48,7 +48,7 @@ impl DiscriminatingPath {
 
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
 ///
-/// Returns `(paths, truncated)` when `max_paths` stopped further enumeration.
+/// Returns `(paths, truncated)` when `max_paths` / `max_len` stopped further enumeration.
 #[must_use]
 pub fn find_discriminating_paths_with_budget<G: PagOps>(
     pag: &G,
@@ -58,7 +58,7 @@ pub fn find_discriminating_paths_with_budget<G: PagOps>(
     let mut out = Vec::new();
     let mut truncated = false;
     if max_paths == 0 || max_len < 4 {
-        return (out, false);
+        return (out, true);
     }
     let n = pag.node_count();
     for i in 0..n {
@@ -90,6 +90,7 @@ pub fn find_discriminating_paths_with_budget<G: PagOps>(
                         full.extend_from_slice(&path_to_c);
                         full.push(b);
                         if full.len() > max_len {
+                            truncated = true;
                             continue;
                         }
                         if is_discriminating_path(pag, &full) {
@@ -100,6 +101,17 @@ pub fn find_discriminating_paths_with_budget<G: PagOps>(
                 // Extend leftward with another intermediate (parent of `b`).
                 // Full path needs +2 for `a` and `b`.
                 if path_to_c.len() + 2 >= max_len {
+                    let head = path_to_c[0];
+                    for (pred, _, _) in pag.neighbors(head) {
+                        if pred == b || path_to_c.contains(&pred) {
+                            continue;
+                        }
+                        if !is_definite_parent(pag, pred, b) {
+                            continue;
+                        }
+                        truncated = true;
+                        break;
+                    }
                     continue;
                 }
                 let head = path_to_c[0];
@@ -252,6 +264,14 @@ mod tests {
     }
 
     #[test]
+    fn zhang_minimal_within_budget_is_not_truncated() {
+        let (g, a, d, c, b) = zhang_minimal();
+        let (paths, truncated) = find_discriminating_paths_with_budget(&g, 16, 4);
+        assert!(paths.iter().any(|p| p.nodes == [a, d, c, b]), "paths={paths:?}");
+        assert!(!truncated);
+    }
+
+    #[test]
     fn finds_zhang_minimal_on_static_pag() {
         let (g, a, d, c, b) = zhang_minimal_static();
         let paths = find_discriminating_paths(&g, 16, 8);
@@ -277,6 +297,22 @@ mod tests {
         g.insert_circle_arrow(a, b).unwrap();
         let paths = find_discriminating_paths(&g, 16, 8);
         assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn max_len_below_four_is_truncated() {
+        let (g, _, _, _, _) = zhang_minimal();
+        let (paths, truncated) = find_discriminating_paths_with_budget(&g, 16, 3);
+        assert!(paths.is_empty());
+        assert!(truncated);
+    }
+
+    #[test]
+    fn zero_path_budget_is_truncated() {
+        let (g, _, _, _, _) = zhang_minimal();
+        let (paths, truncated) = find_discriminating_paths_with_budget(&g, 0, 8);
+        assert!(paths.is_empty());
+        assert!(truncated);
     }
 
     #[test]
