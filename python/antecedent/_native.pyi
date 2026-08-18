@@ -478,6 +478,57 @@ class PreparedAnalysis:
         latency: str | None = None,
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_conditional(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        modifier: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_path_specific(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        path_nodes: list[str] | None = None,
+        max_paths: int = 64,
+        max_len: int = 16,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_distribution(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        interventions: dict[str, float],
+        *,
+        conditioning: list[str] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
     def plan_summary(self) -> dict[str, str]: ...
     def estimate(
         self,

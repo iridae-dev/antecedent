@@ -41,6 +41,49 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
         },
         ["t", "y"],
     ),
+    "ConditionalEffect": (
+        {
+            "conditional_effect": {
+                "inner": {
+                    "average_effect": {
+                        "treatment": 0,
+                        "outcome": 1,
+                        "effect_modifiers": [2],
+                        "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                        "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                        "target_population": "all_observed",
+                    }
+                }
+            }
+        },
+        ["t", "y", "w"],
+    ),
+    "PathSpecificEffect": (
+        {
+            "path_specific": {
+                "treatment": 0,
+                "outcome": 1,
+                "path_nodes": [2],
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "target_population": "all_observed",
+                "max_paths": 64,
+                "max_len": 16,
+            }
+        },
+        ["t", "y", "m"],
+    ),
+    "InterventionalDistribution": (
+        {
+            "distribution": {
+                "outcomes": [1],
+                "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}],
+                "conditioning": [],
+                "target_population": "all_observed",
+            }
+        },
+        ["t", "y"],
+    ),
 }
 
 

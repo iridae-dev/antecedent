@@ -58,6 +58,9 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
+    ConditionalEffect,
+    InterventionalDistribution,
+    PathSpecificEffect,
     ResponseCurve,
 )
 from .results import (
@@ -790,7 +793,8 @@ class PreparedAnalysis:
     **Estimate click:** same-schema data; seeds / threads. Does not re-identify
     or recompile the logical plan.
 
-    **Refute click:** AverageEffect only. ResponseCurve has no licensed
+    **Refute click:** AverageEffect only. ResponseCurve, ConditionalEffect,
+    PathSpecificEffect, and InterventionalDistribution have no licensed
     validation cell; :meth:`refute` raises ``refused``.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
@@ -806,7 +810,12 @@ class PreparedAnalysis:
         native: Any,
         *,
         kind: Literal["average", "response_curve"] = "average",
-        query: AverageEffect | ResponseCurve | None = None,
+        query: AverageEffect
+        | ResponseCurve
+        | ConditionalEffect
+        | PathSpecificEffect
+        | InterventionalDistribution
+        | None = None,
     ) -> None:
         self._native = native
         self._kind = kind
@@ -817,7 +826,11 @@ class PreparedAnalysis:
         cls,
         data: Mapping[str, Any] | Any,
         *,
-        query: AverageEffect | ResponseCurve,
+        query: AverageEffect
+        | ResponseCurve
+        | ConditionalEffect
+        | PathSpecificEffect
+        | InterventionalDistribution,
         graph: Dag | Sequence[tuple[str, str]] | Any,
         inference: Frequentist | Bayesian | None = None,
         identifier: str | Identifier | None = None,
@@ -828,7 +841,13 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
     ) -> PreparedAnalysis:
-        """Compile a durable plan for a licensed DAG AverageEffect or ResponseCurve."""
+        """Compile a durable plan for a licensed DAG cell.
+
+        Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
+        ``PathSpecificEffect``, and ``InterventionalDistribution`` queries on
+        an explicit ``Dag`` (or other supplied static graph, for
+        ``AverageEffect``).
+        """
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
@@ -842,6 +861,81 @@ class PreparedAnalysis:
         if structure_accepted:
             graph = graph.graph
         edges = _static_edges(graph)
+        if isinstance(query, ConditionalEffect):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis ConditionalEffect supports Frequentist only"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            native = _NativePreparedAnalysis.prepare_conditional(
+                names,
+                columns,
+                edges,
+                query.treatment,
+                query.outcome,
+                query.modifier,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, PathSpecificEffect):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis PathSpecificEffect supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis PathSpecificEffect has no licensed validation cell"
+                )
+            resolved_bootstrap, _ = _resolve_latency_budget(latency, bootstrap, False)
+            native = _NativePreparedAnalysis.prepare_path_specific(
+                names,
+                columns,
+                edges,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
+                max_paths=query.max_paths,
+                max_len=query.max_len,
+                seed=seed,
+                bootstrap=resolved_bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, InterventionalDistribution):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionalDistribution supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionalDistribution has no licensed "
+                    "validation cell"
+                )
+            native = _NativePreparedAnalysis.prepare_distribution(
+                names,
+                columns,
+                edges,
+                query.outcome,
+                dict(query.interventions),
+                conditioning=list(query.conditioning) or None,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
         if isinstance(query, ResponseCurve):
             if inference is not None and not isinstance(inference, Frequentist):
                 raise CausalTypeError("PreparedAnalysis ResponseCurve supports Frequentist only")
@@ -865,7 +959,10 @@ class PreparedAnalysis:
             )
             return cls(native, kind="response_curve", query=query)
         if not isinstance(query, AverageEffect):
-            raise CausalTypeError("PreparedAnalysis supports AverageEffect or ResponseCurve")
+            raise CausalTypeError(
+                "PreparedAnalysis supports AverageEffect, ResponseCurve, ConditionalEffect, "
+                "PathSpecificEffect, or InterventionalDistribution"
+            )
         inference = inference or Frequentist()
         # Default is `False`, not the historical `True` sentinel `analyze()`
         # guards against — `coerce_refute` accepts it unchanged (only literal
