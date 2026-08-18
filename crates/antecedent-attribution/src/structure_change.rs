@@ -18,7 +18,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, SelectionPolicy, sample_observational, sample_observational_into,
+    MechanismWorkspace, SelectionPolicy, sample_observational_into,
 };
 use antecedent_stats::mean_var;
 
@@ -452,6 +452,7 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::DenseNodeId;
+    use antecedent_model::sample_observational;
     use serde::Deserialize;
 
     /// Baseline X→Y vs comparison Z→Y; Y intercept/slope differ across periods.

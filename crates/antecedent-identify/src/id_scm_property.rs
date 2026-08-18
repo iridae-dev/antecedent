@@ -232,7 +232,7 @@ fn id_scm_nonbinary_levels_still_identify() {
 /// observational tables below are the U-marginalized laws of that SCM, and
 /// the front-door formula on them reproduces the interventional truth.
 ///
-/// Cross-checked against the frozen `DoWhy` 0.14 `identify()` oracle
+/// Cross-checked against the frozen general-ID front-door oracle
 /// (`conformance/identify/general_id_frontdoor`), which identifies this graph
 /// via its front-door estimand.
 #[test]

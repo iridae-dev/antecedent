@@ -755,6 +755,7 @@ fn panel_slice_template_slices_appended_column() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn panel_refit_effect_round_trip_matches_copy_all() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: lagged_xy_series(32, 0.1) },

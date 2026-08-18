@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss)]
+#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 

@@ -10,7 +10,7 @@ use crate::error::AttributionError;
 use crate::result::CacheStats;
 
 /// Exact-mode dense mask index is enabled at `k ≤` this (2^16 slots).
-/// Larger exact games stay on the HashMap; 2^22 as a cutoff would be gigabytes.
+/// Larger exact games stay on the `HashMap`; 2^22 as a cutoff would be gigabytes.
 pub(crate) const DENSE_MASK_MAX_PLAYERS: usize = 16;
 
 /// Full coalition bitmask for up to 64 players.
@@ -75,7 +75,7 @@ impl CoalitionCache {
     /// Enable a mask-indexed table for exact enumeration (`k ≤ 16`, `tag == 0`).
     ///
     /// Callers with a larger player count, or Monte Carlo that only visits a
-    /// sparse subset of masks, leave this unset and stay on the HashMap.
+    /// sparse subset of masks, leave this unset and stay on the `HashMap`.
     pub fn enable_dense_index(&mut self, n_players: usize) {
         if !self.enabled || n_players == 0 || n_players > DENSE_MASK_MAX_PLAYERS {
             return;
@@ -162,7 +162,7 @@ impl CoalitionCache {
     #[must_use]
     pub fn stats(&self) -> CacheStats {
         let dense_entries =
-            self.dense.as_ref().map(|d| d.iter().filter(|e| e.is_some()).count()).unwrap_or(0);
+            self.dense.as_ref().map_or(0, |d| d.iter().filter(|e| e.is_some()).count());
         CacheStats {
             hits: self.hits,
             misses: self.misses,
