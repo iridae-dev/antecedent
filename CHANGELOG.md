@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes into a caller slice; distribution-change and structure-change
   Shapley loops keep one buffer across masks instead of freezing a fresh
   `Arc` per coalition.
+- **HMC / MCMC / GCM / CF benches.** `fit_hmc_glm` and `mcmc_summary` have
+  Criterion smokes (workspace reuse; HMC `--test` is not a publication gate).
+  Linear-Gaussian counterfactual predict now exercises `unit_rows`. GCM
+  interventional sampling has a baseline doc.
 
 ### Correctness — localized audit
 

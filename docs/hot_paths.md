@@ -32,6 +32,10 @@ allocation/memory contracts, and owning crates.
 | Shapley attribution | `antecedent-attribution` | `shapley` | [shapley.md](../benches/baselines/shapley.md) | Coalition cache; exact size gates |
 | Design ranking / state append | `antecedent-design` / `antecedent-state` | `design_rank`, `state_append` | [design_state.md](../benches/baselines/design_state.md) | MonteCarloBudget; CacheBudget refuse |
 | Laplace GLM fit | `antecedent-prob` | `laplace_glm` | [laplace_glm.md](../benches/baselines/laplace_glm.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench) |
+| HMC GLM fit | `antecedent-prob` | `hmc` | [hmc.md](../benches/baselines/hmc.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench); `--test` smoke is not a publication gate |
+| MCMC diagnostics | `antecedent-prob` | `mcmc_stats` | [mcmc_stats.md](../benches/baselines/mcmc_stats.md) | Per-statistic Geyer / rank-normalized R̂ (no FFT) |
+| GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](../benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
+| Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](../benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
 | Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row` |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
@@ -52,6 +56,11 @@ cargo bench -p antecedent-attribution --bench shapley -- --test
 cargo bench -p antecedent-design --bench design_rank -- --test
 cargo bench -p antecedent-state --bench state_append -- --test
 cargo bench -p antecedent-estimate --bench response_interference -- --test
+cargo bench -p antecedent-prob --bench laplace_glm -- --test
+cargo bench -p antecedent-prob --bench hmc -- --test
+cargo bench -p antecedent-prob --bench mcmc_stats -- --test
+cargo bench -p antecedent-model --bench sample_overlay -- --test
+cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
 ```
 
 Absolute timings in baseline files are machine-class references (Apple M1).

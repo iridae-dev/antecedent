@@ -85,6 +85,24 @@ fn bench_cf(c: &mut Criterion) {
             res
         });
     });
+    c.bench_function("counterfactual_predict_n100_unit_rows", |b| {
+        b.iter(|| {
+            let mut ws = MechanismWorkspace::default();
+            let rows: Arc<[usize]> = (0..10).collect();
+            let worlds = [CounterfactualWorld {
+                unit_rows: Some(rows),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(1.0),
+                )]),
+            }];
+            let res = eng
+                .predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
+                .unwrap();
+            assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
+            res
+        });
+    });
 }
 
 criterion_group!(benches, bench_cf);

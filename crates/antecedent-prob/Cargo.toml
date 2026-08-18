@@ -35,3 +35,11 @@ serde_json = { workspace = true }
 [[bench]]
 name = "laplace_glm"
 harness = false
+
+[[bench]]
+name = "hmc"
+harness = false
+
+[[bench]]
+name = "mcmc_stats"
+harness = false
