@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 2 — expanded coverage (model, counterfactual, prob, attribution, expr, io, CI nulls)
+
+All bit-identical or exact-identity rewrites; no statistical semantics change.
+
+- **CI permutation nulls stop redoing loop-invariant work per replicate.**
+  GPDC: the X-side centered distance matrix (n²) was recomputed, with two
+  fresh n² buffers, for each of the 49 replicates — now prepared once per
+  query with reused side buffers (`dcor_from_sides`, bit-pinned against the
+  monolithic form). kNN: the null rebuilt a full `MatchingIndex` (plus
+  feature/donor copies) per replicate while the workspace's cached index sat
+  unused — now rewrites the Y column of a per-query feature buffer and
+  computes k-th self-distances index-free (`MatchingIndex::kth_self_distances`,
+  bit-pinned against the index path). G²: X codes and Z strata are invariant
+  under a Y-only permutation and are now hoisted; strata are summed in
+  sorted-key order, fixing a genuine determinism defect (the observed G²'s
+  last bits depended on `HashMap` iteration order, which varies per process).
+- **GCM model selection no longer fits the winning family twice**:
+  `score_family` returned only a score and the winner was refit from scratch
+  with identical inputs; the scoring fit is now retained — ~2× on every
+  `assign_and_fit` (the deterministic refit was bit-identical by construction).
+- **Ancestral sampling / abduction / counterfactual predict no longer copy the
+  gathered parent matrix per node**: five `ws.parents…to_vec()` sites (a
+  borrow-checker workaround) replaced with a grow-only gather buffer hoisted
+  out of each node loop.
+- **HMC leapfrog gradients no longer compute the full observed Hessian**:
+  `accumulate_likelihood` unconditionally accumulated O(n·p²) curvature that
+  the HMC path never reads — roughly (p+1)/2× of every gradient evaluation,
+  ×(L+1) per draw per chain. Gated behind `want_hessian` (Laplace keeps it);
+  gradients, and therefore draws, are bit-identical.
+- Attribution: `unit_change` re-copied every parent column per row
+  (O(rows·parents·n) memcpy for per-row scalars) — columns read once;
+  `score_anomalies` hardcoded a test execution context that silently disabled
+  the coalition cache (2^k·(1+k/2) instead of 2^k payoff evaluations per row
+  at exact k=12 — a 7× penalty; the cache is numerically neutral for the
+  deterministic payoff); the Shapley MC loop allocated two vectors per
+  permutation (hoisted).
+- Expr: interning built the `Arc` key before the cache lookup, so every hit
+  paid two allocations — borrow-based lookup allocates only on miss.
+- IO: the seek reader's uncompressed-section path made a full extra copy
+  inside a function documented "decode without copying" — the owned buffer is
+  now moved into the `Arc` (`decode_on_wire_arc_owned`).
+- The `sample_overlay` bench constructed its `MechanismWorkspace` inside
+  `b.iter()` — the bench guarding workspace reuse measured the cold case —
+  and asserted nothing; the workspace is hoisted and a `grow_count` reuse
+  gate now runs on every invocation.
+
+### Round 1
+
 Performance pass over the documented hot-path contracts (ADR 0011) and the
 0.5.0 causal-response / interference surface. No statistical semantics change:
 every rewritten loop is either bit-identical (differential-tested) or an exact
