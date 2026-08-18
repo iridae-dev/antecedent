@@ -761,6 +761,7 @@ def analyze_ate_arrow_c(
     latency: str | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
+    on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze(

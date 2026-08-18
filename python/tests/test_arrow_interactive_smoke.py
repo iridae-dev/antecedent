@@ -76,6 +76,35 @@ def test_arrow_interactive_zero_copy_and_estimate():
     assert abs(arrow_result.ate - dict_result.ate) < 1e-9
 
 
+def test_arrow_interactive_on_stage_streams_payloads():
+    # Regression: the Arrow C entry point silently lacked `on_stage`, so the
+    # interactive click path (Arrow table + progressive stages) raised
+    # TypeError while the dict path worked.
+    data, edges = _confounded_scm(n=400, seed=5)
+    table = pa.table(
+        {
+            "t": pa.array(data["t"], type=pa.float64()),
+            "y": pa.array(data["y"], type=pa.float64()),
+            "z": pa.array(data["z"], type=pa.float64()),
+        }
+    )
+    stages: list[str] = []
+
+    def on_stage(stage: str, payload: dict) -> None:
+        stages.append(stage)
+
+    result = antecedent.analyze(
+        table,
+        graph=edges,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        latency="interactive",
+        refute=False,
+        on_stage=on_stage,
+    )
+    assert math.isfinite(result.ate)
+    assert stages, "on_stage must fire on the Arrow path"
+
+
 def test_arrow_interactive_cancel_and_progress():
     data, edges = _confounded_scm(n=400, seed=11)
     table = pa.table(
