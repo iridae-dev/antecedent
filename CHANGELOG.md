@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optionally compares local Criterion means; CI does not enforce M1 numbers.
 - **Gather allocation count.** An integration-test `#[global_allocator]`
   asserts `gather` into a pre-sized buffer allocates nothing after setup.
+- **Arrow CDI `bytes_borrowed` on analysis results.** The Arrow analyze path
+  keeps the ingest borrow count on `ExecutionPerformanceRecord` /
+  `PerformanceView`. PyArrow tables still use CDI whenever the C exporter
+  works; `latency=interactive` is not a gate on that ingest path.
 
 ### Correctness — localized audit
 

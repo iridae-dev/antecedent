@@ -1688,6 +1688,7 @@ fn analysis_result_from_run(
             .iter()
             .map(|(s, ns)| (s.to_string(), *ns))
             .collect(),
+        bytes_borrowed: result.performance.bytes_borrowed,
     };
 
     Ok(AnalysisResult {

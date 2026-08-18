@@ -64,6 +64,8 @@ def test_arrow_interactive_zero_copy_and_estimate():
     assert arrow_result.identification.status
     assert arrow_result.performance.latency_mode == "interactive"
     assert arrow_result.performance.bootstrap_replicates_requested == 0
+    assert arrow_result.performance.bytes_borrowed is not None
+    assert arrow_result.performance.bytes_borrowed >= n_rows * n_cols * 8
 
     # Pandas / dict twin remains correct; CDI must not diverge silently.
     dict_result = antecedent.analyze(

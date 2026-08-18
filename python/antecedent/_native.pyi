@@ -304,6 +304,7 @@ class PerformanceSection:
     cancelled: bool
     early_stopped: bool
     stage_timings: list[tuple[str, int]]
+    bytes_borrowed: int | None
 
 class PosteriorArtifact:
     n_draws: int

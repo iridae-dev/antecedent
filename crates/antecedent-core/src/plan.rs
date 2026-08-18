@@ -132,4 +132,6 @@ pub struct ExecutionPerformanceRecord {
     pub cancelled: bool,
     /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
     pub early_stopped: bool,
+    /// Bytes borrowed zero-copy from Arrow C Data Interface ingest, if known.
+    pub bytes_borrowed: Option<u64>,
 }

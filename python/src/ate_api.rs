@@ -60,6 +60,7 @@ fn run_static_ate_from_builder(
     cancel: Option<antecedent_core::CancellationToken>,
     progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
     include_posterior_artifact: bool,
+    bytes_borrowed: Option<u64>,
 ) -> PyResult<AteAnalysisResult> {
     if let Some(mode) = inference {
         let mut cfg = match mode.to_ascii_lowercase().as_str() {
@@ -82,7 +83,10 @@ fn run_static_ate_from_builder(
                     progress.clone(),
                     Some(PY_DEFAULT_CACHE_MAX_BYTES),
                 );
-                let result = analysis.run(&ctx).map_err(py_err)?;
+                let mut result = analysis.run(&ctx).map_err(py_err)?;
+                if let Some(n) = bytes_borrowed {
+                    result.performance.bytes_borrowed = Some(n);
+                }
                 return ate_result_from_analysis(names, result, include_posterior_artifact);
             }
             other => {
@@ -101,7 +105,10 @@ fn run_static_ate_from_builder(
     let analysis = builder.build().map_err(py_err)?;
     let ctx =
         py_execution_context_ext(seed, threads, cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
-    let result = analysis.run(&ctx).map_err(py_err)?;
+    let mut result = analysis.run(&ctx).map_err(py_err)?;
+    if let Some(n) = bytes_borrowed {
+        result.performance.bytes_borrowed = Some(n);
+    }
     ate_result_from_analysis(names, result, include_posterior_artifact)
 }
 
@@ -605,6 +612,7 @@ fn analyze_ate(
             cancel_token,
             progress,
             return_posterior_artifact,
+            None,
         )
     })
 }
@@ -675,7 +683,7 @@ fn analyze_ate_arrow_c(
     on_stage: Option<Bound<'_, PyAny>>,
     return_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
-    let data = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
+    let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
@@ -777,6 +785,7 @@ fn analyze_ate_arrow_c(
             cancel_token,
             progress,
             return_posterior_artifact,
+            Some(bytes_borrowed),
         )
     })
 }
@@ -1056,6 +1065,7 @@ fn run_ate_with_graph_input(
         None,
         None,
         false,
+        None,
     )
 }
 
@@ -1622,6 +1632,7 @@ fn analyze_ate_discover(
             None,
             None,
             false,
+            None,
         )
     })
 }
@@ -1854,6 +1865,7 @@ pub(crate) fn ate_result_from_analysis(
         cancelled,
         early_stopped: result.performance.early_stopped,
         stage_timings: stage_timings.clone(),
+        bytes_borrowed: result.performance.bytes_borrowed,
     };
 
     Ok(AteAnalysisResult {

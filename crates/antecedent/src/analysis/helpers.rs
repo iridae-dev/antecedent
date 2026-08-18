@@ -105,6 +105,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
             n_draws: args.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
+            bytes_borrowed: None,
         },
         treatment: args.treatment,
         outcome: args.outcome,
