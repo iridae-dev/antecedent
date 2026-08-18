@@ -10,10 +10,10 @@ Criterion benches (run with `--test` in `gate_context.sh`):
 
 | Case | Soft latency budget |
 |------|---------------------|
-| rpcmci_sparse_120 | < 500 ms / iter typical |
-| rpcmci_stress_240 | < 2 s / iter typical |
-| mediation_sparse_200 | < 5 ms / iter typical |
-| mediation_stress_800 | < 20 ms / iter typical |
+| rpcmci_sparse_120 | < 500 ms / iter (asserted in bench) |
+| rpcmci_stress_240 | < 2 s / iter (asserted in bench) |
+| mediation_sparse_200 | ~5 ms / iter typical; asserted gate **10 ms** (2× headroom for `--test` noise) |
+| mediation_stress_800 | ~20 ms / iter typical; asserted gate **40 ms** (2× headroom for `--test` noise) |
 
 Memory: multi-env sample plans must not clone sibling environment series
 (see `antecedent-data` `MultiEnvSamplePlan` unit test; J-PCMCI+ emits
