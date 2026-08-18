@@ -461,6 +461,21 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
     ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_response(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        grid: list[float],
+        *,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+    ) -> PreparedAnalysis: ...
     def plan_summary(self) -> dict[str, str]: ...
     def estimate(
         self,
@@ -470,6 +485,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def estimate_response(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
     def refresh(
         self,
         names: list[str],
@@ -478,6 +501,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def refresh_response(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
     @property
     def names(self) -> list[str]: ...
 

@@ -139,7 +139,7 @@ pub fn identify_with(
     if let Some(cell) = crate::support::support_cell(
         query,
         structure.class(),
-        crate::support::StructureSource::Explicit,
+        crate::support::StructureSource::Accepted,
         &crate::inference::InferenceMode::Frequentist,
         crate::analysis::RefuteSuite::None,
     ) {

@@ -8,7 +8,9 @@
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
-use crate::accepted::GraphClass;
+use antecedent_graph::{Admg, Dag, Pag, TemporalDag};
+
+use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -51,6 +53,36 @@ pub enum StructureSource {
     /// Caller passed a graph posterior (mixture over structures).
     GraphPosterior,
 }
+
+/// Convert a caller-supplied structure into a graph plus its matrix axis.
+///
+/// [`AcceptedGraph`] is `accepted`. Bare graph types (`Dag`, `Admg`, …) are
+/// `explicit`. Graph posteriors use [`StudyBuilder::graph_posterior`](crate::StudyBuilder::graph_posterior),
+/// not this trait.
+pub trait IntoGraphInput {
+    /// Graph object and the structure-source axis value it represents.
+    fn into_graph_input(self) -> (AcceptedGraph, StructureSource);
+}
+
+impl IntoGraphInput for AcceptedGraph {
+    fn into_graph_input(self) -> (AcceptedGraph, StructureSource) {
+        (self, StructureSource::Accepted)
+    }
+}
+
+macro_rules! explicit_graph_input {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl IntoGraphInput for $ty {
+                fn into_graph_input(self) -> (AcceptedGraph, StructureSource) {
+                    (AcceptedGraph::from(self), StructureSource::Explicit)
+                }
+            }
+        )+
+    };
+}
+
+explicit_graph_input!(Dag, Admg, Pag, TemporalDag);
 
 impl StructureSource {
     /// Matrix axis value.
@@ -255,6 +287,10 @@ mod tests {
     fn dag_average_effect_frequentist_none_is_licensed() {
         assert_eq!(
             classify(cell("AverageEffect", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("AverageEffect", "Dag", "accepted", "Frequentist", "none")),
             CellStatus::Licensed
         );
     }

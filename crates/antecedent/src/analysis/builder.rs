@@ -204,6 +204,8 @@ pub struct StudyBuilder {
     /// Alternative to [`Self::graph`]: a posterior over structures rather than one
     /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
     graph_posterior: Option<GraphPosterior>,
+    /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
+    structure_source: Option<crate::support::StructureSource>,
     query: Option<CausalQuery>,
     refute: RefuteSuite,
     /// Whether [`Self::refute`] was set explicitly (wins over latency mode).
@@ -244,6 +246,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("graph_posterior", &self.graph_posterior)
+            .field("structure_source", &self.structure_source)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
             .field("refute_explicit", &self.refute_explicit)
@@ -273,6 +276,7 @@ impl StudyBuilder {
             data,
             graph: None,
             graph_posterior: None,
+            structure_source: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
             refute_explicit: false,
@@ -295,16 +299,22 @@ impl StudyBuilder {
         }
     }
 
-    /// Supply the causal structure. Accepts an [`AcceptedGraph`] directly, or any type
-    /// with `impl Into<AcceptedGraph>` — [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
-    /// [`antecedent_graph::Pag`], [`antecedent_graph::TemporalDag`], and
-    /// [`antecedent_graph::TemporalPag`] all convert infallibly. A [`antecedent_graph::Cpdag`]
-    /// or [`antecedent_graph::TemporalCpdag`] is not `Into<AcceptedGraph>` (they can carry
-    /// unresolved marks) — build one via the fallible [`AcceptedGraph::cpdag`] /
-    /// [`AcceptedGraph::temporal_cpdag`] first.
+    /// Supply the causal structure.
+    ///
+    /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare
+    /// [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
+    /// [`antecedent_graph::Pag`], or [`antecedent_graph::TemporalDag`] is
+    /// `explicit`. A [`antecedent_graph::Cpdag`] or
+    /// [`antecedent_graph::TemporalCpdag`] is not [`crate::IntoGraphInput`]
+    /// (they can carry unresolved marks) — build one via the fallible
+    /// [`AcceptedGraph::cpdag`] / [`AcceptedGraph::temporal_cpdag`] first.
+    /// [`antecedent_graph::TemporalPag`] is the same: use
+    /// [`AcceptedGraph::temporal_pag`].
     #[must_use]
-    pub fn graph(mut self, structure: impl Into<AcceptedGraph>) -> Self {
-        self.graph = Some(structure.into());
+    pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
+        let (graph, source) = structure.into_graph_input();
+        self.graph = Some(graph);
+        self.structure_source = Some(source);
         self
     }
 
@@ -610,7 +620,7 @@ impl StudyBuilder {
         let structure = if graph_posterior.is_some() {
             crate::support::StructureSource::GraphPosterior
         } else {
-            crate::support::StructureSource::Explicit
+            self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
         if let Some(cell) =
             crate::support::support_cell(&query, graph.class(), structure, &inference, refute)
@@ -622,6 +632,7 @@ impl StudyBuilder {
             data,
             graph,
             graph_posterior,
+            structure_source: structure,
             query,
             refute,
             bootstrap_replicates,
@@ -643,6 +654,12 @@ impl StudyBuilder {
 }
 
 impl Study {
+    /// Matrix structure-source axis recorded at [`StudyBuilder::build`].
+    #[must_use]
+    pub const fn structure_source(&self) -> crate::support::StructureSource {
+        self.structure_source
+    }
+
     /// Start a builder over tabular data.
     #[must_use]
     pub fn tabular(data: TabularData) -> StudyBuilder {

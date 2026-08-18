@@ -152,6 +152,14 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
+    assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
+}
+
+#[test]
+fn supplied_dag_is_explicit_structure_source() {
+    let (data, dag, query) = confounded_scm(80, 11);
+    let analysis = build_analysis(data, dag, query);
+    assert_eq!(analysis.structure_source(), antecedent::StructureSource::Explicit);
 }
 
 #[test]

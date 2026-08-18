@@ -366,3 +366,22 @@ fn response_curve_graph_posterior_is_not_applicable_at_build() {
     assert!(msg.starts_with("not_applicable:"), "{msg}");
     assert!(msg.contains("contrast-only"), "{msg}");
 }
+
+#[test]
+fn prepared_response_refute_is_refused() {
+    let (data, graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(50);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let prior = prepared.estimate(&data, &ctx).unwrap();
+    let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.starts_with("refused:"), "{msg}");
+}

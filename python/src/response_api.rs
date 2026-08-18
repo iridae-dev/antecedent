@@ -554,7 +554,7 @@ fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
     }
 }
 
-fn response_result(
+pub(crate) fn response_result(
     response: antecedent_core::CausalResponse,
     treatments: Vec<String>,
     outcomes: Vec<String>,
