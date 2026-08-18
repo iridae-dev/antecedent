@@ -402,7 +402,8 @@ impl JpcmciPlus {
 
         let logical_exog =
             logical_exogenous_ids(&context, &logical_space_dummies, &logical_time_dummies);
-        let mut cpdag = cpdag_from_jpcmci_links(&scored, &system, &logical_exog, max_lag)?;
+        let mut cpdag =
+            cpdag_from_jpcmci_links(&scored, &system, &logical_exog, max_lag, &constraints)?;
         let node_ids = lagged_node_index(cpdag.nodes());
         let mut state = orientation_state_from_sepsets(&node_ids, &sepsets);
 
@@ -581,10 +582,20 @@ fn orient_exogenous_links(
             let sr = constraints.multi_dataset.role_of(s.link.source);
             let tr = constraints.multi_dataset.role_of(s.link.target);
             if tr.is_exogenous() && sr == JpcmciNodeRole::System {
-                // Flip to exogenous → system.
+                // Flip to exogenous → system. Lags travel with their
+                // variables: the historical code zeroed both, which misplaced
+                // the *system* endpoint's time index (a system@τ link became
+                // system@0).
                 std::mem::swap(&mut s.link.source, &mut s.link.target);
+                std::mem::swap(&mut s.link.source_lag, &mut s.link.target_lag);
+            }
+            // Time-invariant exogenous roles (space contexts / dummies) are
+            // constant columns, so a lag on that endpoint carries no
+            // information — canonicalize it to 0. Time contexts are genuine
+            // series and keep their lag.
+            let sr = constraints.multi_dataset.role_of(s.link.source);
+            if sr.is_exogenous() && !sr.allows_lagged_as_source() {
                 s.link.source_lag = Lag::CONTEMPORANEOUS;
-                s.link.target_lag = Lag::CONTEMPORANEOUS;
             }
             s
         })
@@ -596,6 +607,7 @@ fn cpdag_from_jpcmci_links(
     system: &[VariableId],
     exogenous: &[VariableId],
     max_lag: u32,
+    constraints: &DiscoveryConstraints,
 ) -> Result<TemporalCpdag, DiscoveryError> {
     let mut cpdag = TemporalCpdag::empty();
     let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
@@ -609,13 +621,34 @@ fn cpdag_from_jpcmci_links(
         let id = cpdag.add_context(v, None).map_err(DiscoveryError::from)?;
         node_ids.insert((v.raw(), 0), id);
     }
+    // Resolve a link endpoint. Lagged slices of *time* contexts are genuine
+    // series nodes and are materialized on demand; any other miss is an
+    // internal inconsistency and fails closed — the historical `continue`
+    // silently dropped the edge, so `evidence.links` could list a lagged
+    // exogenous edge that `evidence.graph` did not contain.
+    let resolve = |cpdag: &mut TemporalCpdag,
+                   node_ids: &mut HashMap<(u32, u32), DenseNodeId>,
+                   v: VariableId,
+                   lag: Lag|
+     -> Result<DenseNodeId, DiscoveryError> {
+        if let Some(&id) = node_ids.get(&(v.raw(), lag.raw())) {
+            return Ok(id);
+        }
+        let role = constraints.multi_dataset.role_of(v);
+        if role == JpcmciNodeRole::TimeContext && lag.raw() > 0 {
+            let id = cpdag.add_lagged(v, lag).map_err(DiscoveryError::from)?;
+            node_ids.insert((v.raw(), lag.raw()), id);
+            return Ok(id);
+        }
+        Err(DiscoveryError::stats_msg(format!(
+            "J-PCMCI+ produced a link endpoint with no graph node ({v}@lag {}, role {role:?}); \
+             refusing to drop the edge silently",
+            lag.raw()
+        )))
+    };
     for link in links {
-        let Some(&src) = node_ids.get(&(link.link.source.raw(), link.link.source_lag.raw())) else {
-            continue;
-        };
-        let Some(&tgt) = node_ids.get(&(link.link.target.raw(), link.link.target_lag.raw())) else {
-            continue;
-        };
+        let src = resolve(&mut cpdag, &mut node_ids, link.link.source, link.link.source_lag)?;
+        let tgt = resolve(&mut cpdag, &mut node_ids, link.link.target, link.link.target_lag)?;
         if cpdag.has_edge(src, tgt) {
             continue;
         }
@@ -773,6 +806,102 @@ mod tests {
             result.diagnostics.iter().any(|d| d.code.as_ref() == "jpcmci_plus.pooled_frame"),
             "expected pooled_frame diagnostic"
         );
+    }
+
+    /// P1 regression: lagged time-context edges were silently dropped from the
+    /// CPDAG (`evidence.links` listed them; `evidence.graph` did not), and the
+    /// exogenous flip zeroed the *system* endpoint's lag.
+    #[test]
+    fn lagged_time_context_edges_survive_into_the_graph() {
+        let sys = VariableId::from_raw(0);
+        let tctx = VariableId::from_raw(1);
+        let constraints = DiscoveryConstraints {
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from([tctx]),
+                context_kinds: Arc::from([(tctx, ContextKind::Time)]),
+                ..MultiDatasetConstraints::default()
+            },
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(2),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
+        };
+
+        // A lagged time-context → system link, as the MCI phase emits it.
+        let lagged_ctx_link = ScoredLink {
+            link: LaggedLink {
+                source: tctx,
+                source_lag: Lag::from_raw(2),
+                target: sys,
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.9,
+            p_value: 1e-6,
+            adjusted_p_value: None,
+        };
+        let cpdag =
+            cpdag_from_jpcmci_links(&[lagged_ctx_link], &[sys], &[tctx], 2, &constraints).unwrap();
+        // The lagged context slice must exist and carry the edge — the
+        // historical lookup keyed context nodes at lag 0 only and `continue`d.
+        let node_ids = crate::pipeline::lagged_node_index(cpdag.nodes());
+        let src = node_ids.get(&(tctx.raw(), 2)).copied().expect("lagged time-context node");
+        let tgt = node_ids.get(&(sys.raw(), 0)).copied().expect("system node");
+        assert!(cpdag.has_edge(src, tgt), "lagged exogenous edge must survive into the graph");
+
+        // The exogenous flip must keep the system endpoint's lag: a
+        // system@1 → time-context@0 link flips to time-context@0 → system@1.
+        let flipped = orient_exogenous_links(
+            vec![ScoredLink {
+                link: LaggedLink {
+                    source: sys,
+                    source_lag: Lag::from_raw(1),
+                    target: tctx,
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+                statistic: 0.5,
+                p_value: 1e-4,
+                adjusted_p_value: None,
+            }],
+            &constraints,
+        );
+        assert_eq!(flipped[0].link.source, tctx);
+        assert_eq!(flipped[0].link.target, sys);
+        assert_eq!(
+            flipped[0].link.target_lag,
+            Lag::from_raw(1),
+            "system endpoint's lag must survive the exogenous flip (was zeroed)"
+        );
+
+        // A space-context endpoint at a positive lag is canonicalized to 0
+        // by the orient step; reaching the graph builder un-canonicalized is
+        // an internal inconsistency and must fail closed, not drop the edge.
+        let space = VariableId::from_raw(2);
+        let space_constraints = DiscoveryConstraints {
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from([space]),
+                context_kinds: Arc::from([(space, ContextKind::Space)]),
+                ..MultiDatasetConstraints::default()
+            },
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(2),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let bad = ScoredLink {
+            link: LaggedLink {
+                source: space,
+                source_lag: Lag::from_raw(1),
+                target: sys,
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.5,
+            p_value: 1e-4,
+            adjusted_p_value: None,
+        };
+        let err = cpdag_from_jpcmci_links(&[bad], &[sys], &[space], 2, &space_constraints);
+        assert!(err.is_err(), "unrepresentable endpoint must fail closed, not drop the edge");
     }
 
     #[test]
