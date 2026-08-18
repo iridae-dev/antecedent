@@ -606,11 +606,23 @@ impl StudyBuilder {
             }
         }
 
+        let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        let structure = if graph_posterior.is_some() {
+            crate::support::StructureSource::GraphPosterior
+        } else {
+            crate::support::StructureSource::Explicit
+        };
+        if let Some(cell) =
+            crate::support::support_cell(&query, graph.class(), structure, &inference, refute)
+        {
+            crate::support::refuse_if_not_applicable(cell)?;
+        }
+
         Ok(Study {
             data,
             graph,
             graph_posterior,
-            query: self.query.ok_or(CausalError::Missing { field: "query" })?,
+            query,
             refute,
             bootstrap_replicates,
             split: self.split,

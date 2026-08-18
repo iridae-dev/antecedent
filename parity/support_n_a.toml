@@ -16,7 +16,6 @@ queries = [
   "Elasticity",
   "InterventionalDistribution",
   "InterventionResponse",
-  "MediationEffect",
   "PathSpecificEffect",
   "PointDerivative",
   "ResponseCurve",

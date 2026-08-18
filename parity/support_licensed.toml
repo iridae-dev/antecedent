@@ -1,14 +1,54 @@
-# Licensed cells only. Default is refused. Do not add a row until the
-# combination runs identify → prepare → estimate (staged = true) and the
-# evidence_kind matches the claim.
-#
-# [[cell]]
-# query = "AverageEffect"
-# graph_class = "Dag"
-# structure = "explicit"
-# inference = "Frequentist"
-# validation = "cheap"
-# staged = true
-# evidence_kind = "internal_known_truth"
-# known_truth_fixture = "conformance/…"
-# limitations = ""
+# Licensed cells only. Default is refused. Every row must run identify →
+# prepare → estimate (`staged = true`) with evidence that matches the claim.
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the ATE point."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/response/two_point_curve_average_effect"
