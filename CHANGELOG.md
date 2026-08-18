@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `panel_times` were already restricted to retained rows; `multiway_ids` stayed
   full-sample length, so a Multiway SE after trim either errored or paired
   the wrong units.
+- **Front-door stacked SE refuses Homoskedastic.** Homoskedastic previously
+  reused HC0 meat. The constructor default is already HC0; asking for
+  classical Homoskedastic now errors instead of silently aliasing.
 - **Discriminating-path search flags length/budget truncation.** `max_len < 4`
   or `max_paths == 0` previously returned `truncated = false`, and longer
   candidates skipped by the length cap were dropped silently, so R4 could
