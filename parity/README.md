@@ -16,6 +16,12 @@ and [docs/development.md](../docs/development.md).
 - [release.toml](release.toml) — Release-prep / parity-closure
 - [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
 
+**Support matrix** (license, not an inventory; see ADR 0020):
+
+- [support_axes.toml](support_axes.toml)
+- [support_n_a.toml](support_n_a.toml)
+- [support_licensed.toml](support_licensed.toml)
+
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
 **Baseline pins** (oracle metadata only — not inventories):

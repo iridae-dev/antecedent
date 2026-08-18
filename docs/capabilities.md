@@ -3,7 +3,9 @@
 The full inventory of what Antecedent implements, area by area. The
 [README](https://github.com/iridae-dev/antecedent#readme) carries the
 highlights; this page is the reference list. For what is deliberately *not*
-implemented, see [Comparison](comparison.md).
+implemented, see [Comparison](comparison.md). The public **license** — which
+query × graph class × inference cells run, and which refuse — is the
+[support matrix](support-matrix.md), not this inventory.
 
 ## Graphs
 

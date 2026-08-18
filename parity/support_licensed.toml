@@ -1,0 +1,14 @@
+# Licensed cells only. Default is refused. Do not add a row until the
+# combination runs identify → prepare → estimate (staged = true) and the
+# evidence_kind matches the claim.
+#
+# [[cell]]
+# query = "AverageEffect"
+# graph_class = "Dag"
+# structure = "explicit"
+# inference = "Frequentist"
+# validation = "cheap"
+# staged = true
+# evidence_kind = "internal_known_truth"
+# known_truth_fixture = "conformance/…"
+# limitations = ""

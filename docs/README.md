@@ -9,6 +9,7 @@ explicit stage contracts. Package version **0.5.2**.
 | [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
 | [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |
 | [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
+| [Support matrix](support-matrix.md) | Licensed / n/a / refused cells (generated) |
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |

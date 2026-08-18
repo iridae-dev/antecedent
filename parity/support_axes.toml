@@ -1,0 +1,56 @@
+# Public support-matrix axes. The gate diffs these against the live surface.
+# Cartesian product minus support_n_a.toml is refused unless listed in
+# support_licensed.toml. See adr/0020-support-matrix-and-prepared-workflow.md.
+
+queries = [
+  "AverageDerivative",
+  "AverageEffect",
+  "ConditionalEffect",
+  "Counterfactual",
+  "DirectionalDerivative",
+  "Elasticity",
+  "InterventionalDistribution",
+  "InterventionResponse",
+  "MediationEffect",
+  "PathSpecificEffect",
+  "PointDerivative",
+  "PulseEffect",
+  "ResponseCurve",
+  "ResponseJacobian",
+  "SemiElasticity",
+  "SustainedEffect",
+  "TemporalMediationEffect",
+]
+
+# Stage APIs: still cells, still not folded into analyze.
+stage_queries = [
+  "TransportQuery",
+  "InterferenceQuery",
+]
+
+graph_classes = [
+  "Dag",
+  "Admg",
+  "Cpdag",
+  "Pag",
+  "TemporalDag",
+  "TemporalCpdag",
+  "TemporalPag",
+]
+
+structures = [
+  "explicit",
+  "accepted",
+  "graph_posterior",
+]
+
+inferences = [
+  "Frequentist",
+  "Bayesian",
+]
+
+validations = [
+  "none",
+  "cheap",
+  "full",
+]
