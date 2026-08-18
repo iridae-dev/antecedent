@@ -364,6 +364,11 @@ impl McmcDoSampler {
         let degenerate =
             pilot_bw < 1e-6 || pilot_col.iter().all(|&v| (v - pilot_col[0]).abs() < 1e-12);
 
+        // `current` changes only on accept, so its density is carried across
+        // iterations instead of re-summing the O(pilot) KDE twice per step —
+        // an exact 2× on the dominant cost of the chain.
+        let mut p_cur =
+            if degenerate { f64::NAN } else { KdeDoSampler::density(&kde, current).max(1e-300) };
         for i in 0..iters {
             if degenerate {
                 let idx = (rng.next_f64() * pilot_col.len() as f64).floor() as usize
@@ -374,12 +379,12 @@ impl McmcDoSampler {
             } else {
                 let z = standard_normal(rng);
                 let prop = current + self.proposal_sd * z;
-                let p_cur = KdeDoSampler::density(&kde, current).max(1e-300);
                 let p_prop = KdeDoSampler::density(&kde, prop).max(1e-300);
                 let accept = (p_prop / p_cur).min(1.0);
                 total += 1;
                 if rng.next_f64() < accept {
                     current = prop;
+                    p_cur = p_prop;
                     accepted += 1;
                 }
             }
