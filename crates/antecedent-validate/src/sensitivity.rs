@@ -61,8 +61,10 @@ fn run_grid(
     // misstated. Scale by the residual SD so `scale = √(r/(1−r))` targets the partial R² the
     // docs and the Cinelli–Hazlett convention promise. `NonparametricSensitivity` already
     // residualizes; this brings the linear paths in line.
-    let sd_t = residual_sd_on_adjustment(problem, problem.treatment(), &mask)?.max(1e-12);
-    let sd_y = residual_sd_on_adjustment(problem, problem.outcome(), &mask)?.max(1e-12);
+    let (sd_t, sd_y) =
+        residual_sd_pair_on_adjustment(problem, problem.treatment(), problem.outcome(), &mask)?;
+    let sd_t = sd_t.max(1e-12);
+    let sd_y = sd_y.max(1e-12);
     let mut u = vec![0.0; n];
     if nonparametric {
         fill_bounded(&mut u, ctx, noise_stream);
@@ -304,39 +306,77 @@ fn nw_loo_predict_pair(
     (out1, out2)
 }
 
-/// SD of `target` after linearly regressing it on the adjustment set, i.e. `SD(target | Z)`.
+/// SD of each target after linearly regressing it on the adjustment set, i.e.
+/// `(SD(first | Z), SD(second | Z))`.
 ///
 /// Falls back to the marginal SD when there is nothing to adjust for (empty `Z`, or a
 /// degenerate design the backend refuses) — with no covariates the partial and marginal
 /// quantities coincide, so that fallback is exact rather than approximate.
-pub(crate) fn residual_sd_on_adjustment(
+///
+/// Both targets regress on the identical `n × (|Z|+1)` design, so build it (and the
+/// least-squares workspace) once and solve twice — one `least_squares` call per RHS keeps
+/// each target's numeric path, and therefore its result, bit-identical to the historical
+/// one-design-per-target form.
+pub(crate) fn residual_sd_pair_on_adjustment(
     problem: &RefutationProblem<'_>,
-    target: VariableId,
+    first: VariableId,
+    second: VariableId,
     mask: &[bool],
-) -> Result<f64, ValidationError> {
+) -> Result<(f64, f64), ValidationError> {
     let z_ids = problem.estimand.adjustment_set.to_vec();
-    let y = problem.data.float64_masked(target, mask).map_err(ValidationError::from)?;
-    if z_ids.is_empty() || y.len() < z_ids.len() + 2 {
-        return Ok(sample_sd(&y));
+    let ya = problem.data.float64_masked(first, mask).map_err(ValidationError::from)?;
+    let yb = problem.data.float64_masked(second, mask).map_err(ValidationError::from)?;
+    // Both fallback conditions depend on the mask and `Z` only, never on the target, so the
+    // shared checks reproduce the per-target checks exactly (`ya.len() == yb.len()` by mask).
+    if z_ids.is_empty() || ya.len() < z_ids.len() + 2 {
+        return Ok((sample_sd(&ya), sample_sd(&yb)));
     }
-    let n = y.len();
+    let n = ya.len();
+    let Some(design) = adjustment_design(problem, mask, n, &z_ids)? else {
+        return Ok((sample_sd(&ya), sample_sd(&yb)));
+    };
+    let mut ws = LeastSquaresWorkspace::default();
     let ncols = z_ids.len() + 1;
-    // Column-major design: intercept, then each adjustment covariate.
+    let sd_a = residual_sd_given_design(&design, n, ncols, &ya, &mut ws);
+    let sd_b = residual_sd_given_design(&design, n, ncols, &yb, &mut ws);
+    Ok((sd_a, sd_b))
+}
+
+/// Column-major `[intercept | Z…]` design over the masked rows, or `None` when a covariate
+/// extraction disagrees with `n` (callers fall back to the marginal SD, as before).
+fn adjustment_design(
+    problem: &RefutationProblem<'_>,
+    mask: &[bool],
+    n: usize,
+    z_ids: &[VariableId],
+) -> Result<Option<Vec<f64>>, ValidationError> {
+    let ncols = z_ids.len() + 1;
     let mut design = Vec::with_capacity(n * ncols);
     design.extend(std::iter::repeat_n(1.0, n));
-    for &z in &z_ids {
+    for &z in z_ids {
         let col = problem.data.float64_masked(z, mask).map_err(ValidationError::from)?;
         if col.len() != n {
-            return Ok(sample_sd(&y));
+            return Ok(None);
         }
         design.extend_from_slice(&col);
     }
-    let mut ws = LeastSquaresWorkspace::default();
-    let Ok(fit) = FaerBackend.least_squares(&design, n, ncols, &y, &mut ws) else {
-        return Ok(sample_sd(&y));
+    Ok(Some(design))
+}
+
+/// Residual SD of `y` on a prebuilt design; falls back to the marginal SD on solver refusal,
+/// non-finite coefficients, or a non-finite residual SD (matching the historical guards).
+fn residual_sd_given_design(
+    design: &[f64],
+    n: usize,
+    ncols: usize,
+    y: &[f64],
+    ws: &mut LeastSquaresWorkspace,
+) -> f64 {
+    let Ok(fit) = FaerBackend.least_squares(design, n, ncols, y, ws) else {
+        return sample_sd(y);
     };
     if fit.coefficients.iter().any(|c| !c.is_finite()) {
-        return Ok(sample_sd(&y));
+        return sample_sd(y);
     }
     let residuals: Vec<f64> = (0..n)
         .map(|r| {
@@ -348,17 +388,16 @@ pub(crate) fn residual_sd_on_adjustment(
         })
         .collect();
     let sd = sample_sd(&residuals);
-    if sd.is_finite() { Ok(sd) } else { Ok(sample_sd(&y)) }
+    if sd.is_finite() { sd } else { sample_sd(y) }
 }
 
+/// Row-major covariate matrix over the complete-case rows of `mask` (adjustment ∪ {T, Y};
+/// the caller computes that mask once and shares it with the residualization step).
 fn covariate_matrix(
     problem: &RefutationProblem<'_>,
+    mask: &[bool],
 ) -> Result<(Vec<f64>, usize, usize), ValidationError> {
     let ids = problem.estimand.adjustment_set.to_vec();
-    let mut all = ids.clone();
-    all.push(problem.treatment());
-    all.push(problem.outcome());
-    let mask = problem.data.complete_case_mask(&all).map_err(ValidationError::from)?;
     let n = mask.iter().filter(|&&k| k).count();
     if ids.is_empty() {
         return Ok((vec![1.0; n], n, 1));
@@ -366,7 +405,7 @@ fn covariate_matrix(
     let dim = ids.len();
     let mut cov = vec![0.0; n * dim];
     for (c, &z) in ids.iter().enumerate() {
-        let col = problem.data.float64_masked(z, &mask).map_err(ValidationError::from)?;
+        let col = problem.data.float64_masked(z, mask).map_err(ValidationError::from)?;
         for (r, &v) in col.iter().enumerate() {
             cov[r * dim + c] = v;
         }
@@ -430,11 +469,13 @@ impl NonparametricSensitivity {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        let (cov, n, dim) = covariate_matrix(problem)?;
+        // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
+        // the residualization pulls below — the two call sites used the identical id list.
         let mut ids = problem.estimand.adjustment_set.to_vec();
         ids.push(problem.treatment());
         ids.push(problem.outcome());
         let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
+        let (cov, n, dim) = covariate_matrix(problem, &mask)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &mask)
