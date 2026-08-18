@@ -24,3 +24,17 @@ queries = [
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 reason = "Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect."
+
+[[n_a]]
+queries = [
+  "AverageDerivative",
+  "DirectionalDerivative",
+  "Elasticity",
+  "InterventionResponse",
+  "PointDerivative",
+  "ResponseCurve",
+  "ResponseJacobian",
+  "SemiElasticity",
+]
+structures = ["graph_posterior"]
+reason = "Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell."

@@ -256,6 +256,11 @@ def handle_response(
     from .results.response import SupportStatus, UncertaintyKind
 
     if discovery is not None:
+        if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
+            raise CausalUnsupportedError(
+                "not_applicable: Structural uncertainty around curves is contrast-only; "
+                "graph-posterior mixtures do not license a response cell."
+            )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         raise TypeError("response queries do not yet support inference=Bayesian(...)")

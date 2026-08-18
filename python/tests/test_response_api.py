@@ -159,6 +159,23 @@ def test_intervention_response_runs_through_public_analyze_api(spec):
     assert result.provenance["operation_id"] == "estimate.response.intervention_gcomp"
 
 
+def test_response_curve_graph_posterior_is_not_applicable():
+    n = 80
+    z = np.linspace(0.0, 1.0, n, dtype=np.float64)
+    t = z + 0.1
+    y = 1.0 + 2.0 * t + z
+    with pytest.raises(CausalUnsupportedError, match="not_applicable"):
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+            inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+
+
 def test_intervention_response_checks_strategy_and_fails_closed():
     data = {"a": np.arange(40, dtype=float), "y": np.arange(40, dtype=float)}
     query = antecedent.InterventionResponse("y", intervention=intervention.Set("a", 1.0))
