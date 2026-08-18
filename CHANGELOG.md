@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `MediationEffect` and `SustainedEffect` are now in that closed set.
   `identify_only` graph-posterior / ADMG / non-DAG refusals use the same
   `refused:` id instead of a stringly `Unsupported`.
+- **Stage APIs are not analyze cells.** `TransportQuery` and
+  `InterferenceQuery` are n/a on temporal graphs and enforced-refused on
+  static graphs. The implemented sID subset remains a stage API returning
+  `NotCertified` outside it; it is not a licensed matrix cell.
+
+### Performance / quality
+
+- **Simultaneous-band hot path.** Licensed `ResponseCurve` now has a Criterion
+  workload (`kennedy_curve_n4k_grid5_simultaneous`: n = 4000, 5-point grid,
+  explicit bandwidth, 100 wild-multiplier replicates) next to the Kennedy
+  curve bench, with a 1 s/iter `--test` soft budget.
 
 ## [0.5.2] — 2026-08-18
 

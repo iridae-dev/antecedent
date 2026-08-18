@@ -414,5 +414,16 @@ mod tests {
         ))
         .unwrap_err();
         assert!(err.to_string().starts_with("refused:"), "{err}");
+        for query in ["TransportQuery", "InterferenceQuery"] {
+            let err = refuse_if_not_applicable(cell(
+                query,
+                "Dag",
+                "explicit",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(err.to_string().starts_with("refused:"), "{query}: {err}");
+        }
     }
 }

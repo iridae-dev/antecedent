@@ -13,9 +13,9 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 |---|---|
 | Cartesian product | 2394 |
 | Licensed | 5 |
-| n/a | 1110 |
-| Refused (enforced) | 672 |
-| Refused (default, not yet enforced) | 607 |
+| n/a | 1218 |
+| Refused (enforced) | 816 |
+| Refused (default, not yet enforced) | 355 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -69,6 +69,7 @@ licensed.
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Temporal contrast queries require a temporal graph class.
 - queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, InterventionResponse, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ structures ∈ {graph_posterior} — Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell.
+- queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Stage transport and interference queries are not a temporal-graph cell.
 
 ## Enforced refusals
 
@@ -81,6 +82,7 @@ Other refused cells still run until licensed or closed.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ structures ∈ {graph_posterior, accepted} — Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet.
 - queries ∈ {MediationEffect} — MediationEffect is not on the staged handle.
 - queries ∈ {SustainedEffect} — SustainedEffect is not on the staged handle.
+- queries ∈ {TransportQuery, InterferenceQuery} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.
 
 ## Licensed cells
 

@@ -37,7 +37,7 @@ allocation/memory contracts, and owning crates.
 | GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](../benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
 | Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](../benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
-| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row` |
+| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
 ## Smoke commands
