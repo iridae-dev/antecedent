@@ -42,6 +42,7 @@ def load(rel: str) -> dict:
 
 axes = load("parity/support_axes.toml")
 na_doc = load("parity/support_n_a.toml")
+closed_doc = load("parity/support_closed.toml")
 lic_doc = load("parity/support_licensed.toml")
 
 queries = list(axes.get("queries") or [])
@@ -172,6 +173,26 @@ def rule_matches(rule: dict, cell: dict) -> bool:
 def is_n_a(cell: dict) -> bool:
     return any(rule_matches(rule, cell) for rule in na_rules)
 
+closed_rules = closed_doc.get("closed") or []
+for i, rule in enumerate(closed_rules, 1):
+    if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
+        fail.append(f"parity/support_closed.toml rule #{i}: missing reason")
+    for key, legal in AXIS_KEYS.items():
+        vals = rule.get(key)
+        if vals is None:
+            continue
+        if not isinstance(vals, list) or not vals:
+            fail.append(f"parity/support_closed.toml rule #{i}: {key} must be a non-empty list")
+            continue
+        for v in vals:
+            if v not in legal:
+                fail.append(
+                    f"parity/support_closed.toml rule #{i}: {key} value {v!r} is not an axis value"
+                )
+
+def is_closed(cell: dict) -> bool:
+    return (not is_n_a(cell)) and any(rule_matches(rule, cell) for rule in closed_rules)
+
 # --- licensed cells ----------------------------------------------------------
 cells = lic_doc.get("cell") or []
 seen: set[tuple[str, ...]] = set()
@@ -229,30 +250,36 @@ for i, row in enumerate(cells, 1):
     }
     if all(cell.values()) and is_n_a(cell):
         fail.append(f"{label}: cell is n/a under support_n_a.toml; cannot license it")
+    if all(cell.values()) and is_closed(cell):
+        fail.append(f"{label}: cell is closed under support_closed.toml; cannot license it")
 
 # --- counts ------------------------------------------------------------------
 if all_queries and graph_classes and structures and inferences and validations:
     cartesian = 0
     n_a_count = 0
+    closed_count = 0
     for q, g, s, inf, v in product(
         all_queries, graph_classes, structures, inferences, validations
     ):
         cartesian += 1
-        if is_n_a(
-            {
-                "query": q,
-                "graph_class": g,
-                "structure": s,
-                "inference": inf,
-                "validation": v,
-            }
-        ):
+        cell = {
+            "query": q,
+            "graph_class": g,
+            "structure": s,
+            "inference": inf,
+            "validation": v,
+        }
+        if is_n_a(cell):
             n_a_count += 1
+        elif is_closed(cell):
+            closed_count += 1
     refused = cartesian - n_a_count - len(cells)
     if refused < 0:
         fail.append("licensed + n/a exceeds the cartesian product")
+    if closed_count > refused:
+        fail.append("closed refusals exceed remaining refused cells")
 else:
-    cartesian = n_a_count = refused = 0
+    cartesian = n_a_count = closed_count = refused = 0
     fail.append("axes are incomplete; cannot form a cartesian product")
 
 if fail:
@@ -263,6 +290,6 @@ if fail:
 
 print(
     f"Support matrix OK ({cartesian} cells; {len(cells)} licensed; "
-    f"{n_a_count} n/a; {refused} refused)"
+    f"{n_a_count} n/a; {closed_count} closed; {refused - closed_count} default-refused)"
 )
 PY

@@ -35,9 +35,10 @@ A cell is exactly one of:
 - **`refused`** — the default. No `pending` status. Unspecified is a
   gate failure.
 
-Dispatch will consult this matrix (follow-on). `licensed` runs the staged
-path. `refused` / `n/a` raise a **stable error id**, not a unique prose
-string. `analyze` / `Study::run` is sugar over identify → prepare →
+Dispatch consults this matrix. `licensed` runs the staged path. `n/a`
+and cells listed in `parity/support_closed.toml` raise a **stable error
+id**. Remaining default-`refused` cells still run until licensed or
+closed. `analyze` / `Study::run` is sugar over identify → prepare →
 estimate → optional refute. A combination that only works inside
 `analyze` cannot be licensed.
 

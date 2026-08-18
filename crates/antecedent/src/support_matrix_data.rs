@@ -71,6 +71,48 @@ pub static NA_RULES: &[NaRule] = &[
     },
 ];
 
+pub static CLOSED_RULES: &[NaRule] = &[
+    NaRule {
+        queries: Some(&["Counterfactual"]),
+        graph_classes: None,
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "Counterfactual is not on the staged handle.",
+    },
+    NaRule {
+        queries: Some(&[
+            "AverageDerivative",
+            "DirectionalDerivative",
+            "Elasticity",
+            "PointDerivative",
+            "ResponseJacobian",
+            "SemiElasticity",
+        ]),
+        graph_classes: None,
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "Derivative cells are not licensed; only ResponseCurve on a Dag is staged.",
+    },
+    NaRule {
+        queries: Some(&["ResponseCurve"]),
+        graph_classes: Some(&["Pag", "Cpdag", "Admg"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "ResponseCurve is licensed only on a Dag.",
+    },
+    NaRule {
+        queries: Some(&["PathSpecificEffect", "InterventionalDistribution"]),
+        graph_classes: None,
+        structures: Some(&["graph_posterior", "accepted"]),
+        inferences: None,
+        validations: None,
+        reason: "Path and distribution queries are licensed only as explicit Dag cells, and those cells are not staged yet.",
+    },
+];
+
 pub static LICENSED: &[LicensedCell] = &[
     LicensedCell {
         query: "AverageEffect",

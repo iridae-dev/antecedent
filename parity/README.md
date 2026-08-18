@@ -20,6 +20,7 @@ and [docs/development.md](../docs/development.md).
 
 - [support_axes.toml](support_axes.toml)
 - [support_n_a.toml](support_n_a.toml)
+- [support_closed.toml](support_closed.toml)
 - [support_licensed.toml](support_licensed.toml)
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).

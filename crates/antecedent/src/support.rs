@@ -2,9 +2,8 @@
 //!
 //! Axes, n/a predicates, and licensed cells are generated from
 //! `parity/support_*.toml`. Dispatch refuses [`CellStatus::NotApplicable`]
-//! now. Default [`CellStatus::Refused`] is recorded but not yet enforced, so
-//! existing `analyze` paths keep running until those holes are licensed or
-//! closed.
+//! now. Cells in `parity/support_closed.toml` raise [`SupportRefusal::Refused`].
+//! Remaining default-refused cells still run until licensed or closed.
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
@@ -14,7 +13,7 @@ use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::support_matrix_data::{LICENSED, NA_RULES};
+use crate::support_matrix_data::{CLOSED_RULES, LICENSED, NA_RULES};
 
 /// Stable support-matrix refusal id.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -230,17 +229,39 @@ pub fn support_cell(
     })
 }
 
-/// Refuse n/a cells. Licensed and (for now) default-refused cells pass.
+fn closed_reason(cell: SupportCell) -> Option<&'static str> {
+    for rule in CLOSED_RULES {
+        if axis_in(rule.queries, cell.query)
+            && axis_in(rule.graph_classes, cell.graph_class)
+            && axis_in(rule.structures, cell.structure)
+            && axis_in(rule.inferences, cell.inference)
+            && axis_in(rule.validations, cell.validation)
+        {
+            return Some(rule.reason);
+        }
+    }
+    None
+}
+
+/// Refuse n/a cells and enforced closed holes. Licensed and remaining
+/// default-refused cells pass.
 ///
 /// # Errors
 ///
-/// [`CausalError::Support`] when the cell is [`CellStatus::NotApplicable`].
+/// [`CausalError::Support`] when the cell is n/a or matches
+/// `parity/support_closed.toml`.
 pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
-        status => Ok(status),
+        CellStatus::Refused => match closed_reason(cell) {
+            Some(reason) => {
+                Err(CausalError::Support { id: SupportRefusal::Refused, message: reason })
+            }
+            None => Ok(CellStatus::Refused),
+        },
+        CellStatus::Licensed => Ok(CellStatus::Licensed),
     }
 }
 
@@ -318,5 +339,58 @@ mod tests {
             classify(cell("AverageEffect", "Pag", "explicit", "Frequentist", "none")),
             CellStatus::Refused
         );
+        assert!(
+            refuse_if_not_applicable(cell(
+                "AverageEffect",
+                "Pag",
+                "explicit",
+                "Frequentist",
+                "none"
+            ))
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn closed_derivative_and_counterfactual_are_enforced() {
+        let err =
+            refuse_if_not_applicable(cell("Elasticity", "Dag", "explicit", "Frequentist", "none"))
+                .unwrap_err();
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+        let err = refuse_if_not_applicable(cell(
+            "Counterfactual",
+            "Dag",
+            "explicit",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+        let err = refuse_if_not_applicable(cell(
+            "ResponseCurve",
+            "Pag",
+            "explicit",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+    }
+
+    #[test]
+    fn closed_path_and_distribution_on_accepted_are_enforced() {
+        for query in ["PathSpecificEffect", "InterventionalDistribution"] {
+            let status = classify(cell(query, "Dag", "accepted", "Frequentist", "none"));
+            assert_eq!(status, CellStatus::Refused, "{query}");
+            let err =
+                refuse_if_not_applicable(cell(query, "Dag", "accepted", "Frequentist", "none"))
+                    .unwrap_err();
+            assert!(
+                err.to_string().starts_with(
+                    "refused: Path and distribution queries are licensed only as explicit"
+                ),
+                "{query}: {err}"
+            );
+        }
     }
 }
