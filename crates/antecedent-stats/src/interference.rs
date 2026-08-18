@@ -65,13 +65,25 @@ pub fn exposures(
     incoming: &[Vec<(usize, f64)>],
     mapping: &ExposureMapping,
 ) -> Result<Vec<ExposureLevel>, StatsError> {
-    if assignment.len() != incoming.len() {
+    validate_exposure_inputs(assignment.len(), incoming, mapping)?;
+    let mut out = Vec::with_capacity(assignment.len());
+    exposures_into(assignment, incoming, mapping, &mut out);
+    Ok(out)
+}
+
+/// One-time validation for [`exposures`]; hoisted so per-draw loops skip it.
+fn validate_exposure_inputs(
+    n: usize,
+    incoming: &[Vec<(usize, f64)>],
+    mapping: &ExposureMapping,
+) -> Result<(), StatsError> {
+    if n != incoming.len() {
         return Err(StatsError::Backend("assignment/network length mismatch".into()));
     }
     if incoming
         .iter()
         .flatten()
-        .any(|&(source, weight)| source >= assignment.len() || !weight.is_finite() || weight < 0.0)
+        .any(|&(source, weight)| source >= n || !weight.is_finite() || weight < 0.0)
     {
         return Err(StatsError::Backend("invalid incoming network edge".into()));
     }
@@ -80,7 +92,17 @@ pub fn exposures(
             "custom exposure mappings require a caller registry".into(),
         ));
     }
-    let mut out = Vec::with_capacity(assignment.len());
+    Ok(())
+}
+
+/// Exposure computation into a reused buffer; inputs must be pre-validated.
+fn exposures_into(
+    assignment: &[bool],
+    incoming: &[Vec<(usize, f64)>],
+    mapping: &ExposureMapping,
+    out: &mut Vec<ExposureLevel>,
+) {
+    out.clear();
     for (unit, edges) in incoming.iter().enumerate() {
         let own = f64::from(assignment[unit]);
         let neighbors = match mapping {
@@ -118,7 +140,6 @@ pub fn exposures(
         };
         out.push(ExposureLevel { own, neighbors });
     }
-    Ok(out)
 }
 
 /// Compute exposure probabilities exactly when the support is small enough, otherwise by Monte
@@ -184,11 +205,16 @@ pub fn exposure_probabilities(
     if monte_carlo_draws == 0 {
         return Err(StatsError::Backend("Monte Carlo exposure draws must be positive".into()));
     }
+    validate_exposure_inputs(n, incoming, mapping)?;
     let mut rng = CausalRng::from_seed(seed);
     let mut counts = vec![0_u32; n];
+    let mut sampler = AssignmentSampler::new(design, n);
+    let mut assignment = vec![false; n];
+    let mut levels = Vec::with_capacity(n);
     for _ in 0..monte_carlo_draws {
-        let assignment = sample_assignment(design, n, &mut rng)?;
-        for (i, actual) in exposures(&assignment, incoming, mapping)?.iter().enumerate() {
+        sampler.sample_into(design, &mut assignment, &mut rng);
+        exposures_into(&assignment, incoming, mapping, &mut levels);
+        for (i, actual) in levels.iter().enumerate() {
             if same_exposure(*actual, level) {
                 counts[i] = counts[i].saturating_add(1);
             }
@@ -363,33 +389,85 @@ fn enumerate_assignments(
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps)]
-fn sample_assignment(
-    design: &AssignmentDesign,
-    n: usize,
-    rng: &mut CausalRng,
-) -> Result<Vec<bool>, StatsError> {
-    match design {
-        AssignmentDesign::Bernoulli { probabilities } => Ok((0..n)
-            .map(|i| rng.next_f64() < probabilities[if probabilities.len() == 1 { 0 } else { i }])
-            .collect()),
-        AssignmentDesign::CompleteRandomization { treated } => {
-            let mut keys = (0..n).map(|i| (rng.next_u64(), i)).collect::<Vec<_>>();
-            keys.sort_unstable();
-            let mut assignment = vec![false; n];
-            for &(_, i) in keys.iter().take(*treated) {
-                assignment[i] = true;
+/// Reusable per-design scratch for repeated assignment draws.
+///
+/// Hoists the work that is invariant across Monte Carlo draws — the sorted
+/// cluster-id table and each unit's cluster position — and reuses the key and
+/// membership buffers, so a draw is O(n) (plus O(k) selection) with no
+/// per-draw heap allocation. Draws consume the RNG stream in exactly the same
+/// order as the historical one-shot sampler, so results are bit-identical.
+struct AssignmentSampler {
+    /// Sorted, deduplicated cluster ids (cluster designs only).
+    cluster_ids: Vec<u32>,
+    /// Each unit's position in `cluster_ids` (cluster designs only).
+    unit_cluster_pos: Vec<usize>,
+    /// Selection keys, reused across draws.
+    keys: Vec<(u64, usize)>,
+    /// Chosen-cluster membership by `cluster_ids` position, reused across draws.
+    chosen: Vec<bool>,
+}
+
+impl AssignmentSampler {
+    fn new(design: &AssignmentDesign, n: usize) -> Self {
+        let (cluster_ids, unit_cluster_pos) = match design {
+            AssignmentDesign::ClusterRandomization { clusters, .. } => {
+                let mut ids = clusters.to_vec();
+                ids.sort_unstable();
+                ids.dedup();
+                let pos = clusters
+                    .iter()
+                    .map(|id| ids.binary_search(id).expect("cluster id present"))
+                    .collect();
+                (ids, pos)
             }
-            Ok(assignment)
-        }
-        AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
-            let mut ids = clusters.to_vec();
-            ids.sort_unstable();
-            ids.dedup();
-            let mut keys = ids.iter().map(|&id| (rng.next_u64(), id)).collect::<Vec<_>>();
-            keys.sort_unstable();
-            let chosen = keys.iter().take(*treated_clusters).map(|x| x.1).collect::<Vec<_>>();
-            Ok(clusters.iter().map(|id| chosen.contains(id)).collect())
+            _ => (Vec::new(), Vec::new()),
+        };
+        let key_capacity = match design {
+            AssignmentDesign::CompleteRandomization { .. } => n,
+            AssignmentDesign::ClusterRandomization { .. } => cluster_ids.len(),
+            AssignmentDesign::Bernoulli { .. } => 0,
+        };
+        let chosen = vec![false; cluster_ids.len()];
+        Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen }
+    }
+
+    fn sample_into(&mut self, design: &AssignmentDesign, out: &mut [bool], rng: &mut CausalRng) {
+        let n = out.len();
+        match design {
+            AssignmentDesign::Bernoulli { probabilities } => {
+                for (i, slot) in out.iter_mut().enumerate() {
+                    let p = probabilities[if probabilities.len() == 1 { 0 } else { i }];
+                    *slot = rng.next_f64() < p;
+                }
+            }
+            AssignmentDesign::CompleteRandomization { treated } => {
+                self.keys.clear();
+                self.keys.extend((0..n).map(|i| (rng.next_u64(), i)));
+                if *treated > 0 && *treated < n {
+                    // Partial selection: the treated set is the `treated` smallest
+                    // keys, identical to a full sort's prefix.
+                    self.keys.select_nth_unstable(*treated - 1);
+                }
+                out.fill(false);
+                for &(_, i) in self.keys.iter().take(*treated) {
+                    out[i] = true;
+                }
+            }
+            AssignmentDesign::ClusterRandomization { treated_clusters, .. } => {
+                let k = self.cluster_ids.len();
+                self.keys.clear();
+                self.keys.extend((0..k).map(|pos| (rng.next_u64(), pos)));
+                if *treated_clusters > 0 && *treated_clusters < k {
+                    self.keys.select_nth_unstable(*treated_clusters - 1);
+                }
+                self.chosen.fill(false);
+                for &(_, pos) in self.keys.iter().take(*treated_clusters) {
+                    self.chosen[pos] = true;
+                }
+                for (slot, &pos) in out.iter_mut().zip(&self.unit_cluster_pos) {
+                    *slot = self.chosen[pos];
+                }
+            }
         }
     }
 }
@@ -473,6 +551,61 @@ mod tests {
         )
         .unwrap();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn monte_carlo_sampler_reuse_is_bit_identical_to_one_shot_reference() {
+        // The buffer-reusing `AssignmentSampler` must replay the historical
+        // one-shot sampler exactly: same RNG consumption order, same chosen
+        // sets, same assignment vectors — so published MC probabilities do not
+        // move. The reference below is the pre-0.5.2 per-draw implementation.
+        fn reference_draw(design: &AssignmentDesign, n: usize, rng: &mut CausalRng) -> Vec<bool> {
+            match design {
+                AssignmentDesign::Bernoulli { probabilities } => (0..n)
+                    .map(|i| {
+                        rng.next_f64() < probabilities[if probabilities.len() == 1 { 0 } else { i }]
+                    })
+                    .collect(),
+                AssignmentDesign::CompleteRandomization { treated } => {
+                    let mut keys = (0..n).map(|i| (rng.next_u64(), i)).collect::<Vec<_>>();
+                    keys.sort_unstable();
+                    let mut assignment = vec![false; n];
+                    for &(_, i) in keys.iter().take(*treated) {
+                        assignment[i] = true;
+                    }
+                    assignment
+                }
+                AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
+                    let mut ids = clusters.to_vec();
+                    ids.sort_unstable();
+                    ids.dedup();
+                    let mut keys = ids.iter().map(|&id| (rng.next_u64(), id)).collect::<Vec<_>>();
+                    keys.sort_unstable();
+                    let chosen =
+                        keys.iter().take(*treated_clusters).map(|x| x.1).collect::<Vec<_>>();
+                    clusters.iter().map(|id| chosen.contains(id)).collect()
+                }
+            }
+        }
+
+        let n = 60usize;
+        let clusters: Arc<[u32]> = (0..n).map(|i| u32::try_from(i % 30).unwrap()).collect();
+        let designs = [
+            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.3]) },
+            AssignmentDesign::CompleteRandomization { treated: 25 },
+            AssignmentDesign::ClusterRandomization { clusters, treated_clusters: 11 },
+        ];
+        for design in &designs {
+            let mut rng_new = CausalRng::from_seed(4242);
+            let mut rng_ref = CausalRng::from_seed(4242);
+            let mut sampler = AssignmentSampler::new(design, n);
+            let mut assignment = vec![false; n];
+            for draw in 0..50 {
+                sampler.sample_into(design, &mut assignment, &mut rng_new);
+                let expected = reference_draw(design, n, &mut rng_ref);
+                assert_eq!(assignment, expected, "design {design:?} draw {draw}");
+            }
+        }
     }
 
     #[test]
