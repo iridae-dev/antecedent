@@ -54,6 +54,7 @@ impl PyPreparedAnalysis {
         bootstrap=50,
         threads=1,
         latency=None,
+        accepted=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare(
@@ -75,6 +76,7 @@ impl PyPreparedAnalysis {
         bootstrap: u32,
         threads: u32,
         latency: Option<String>,
+        accepted: bool,
     ) -> PyResult<Self> {
         let batch = columns_to_batch(&names, &columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
@@ -95,11 +97,14 @@ impl PyPreparedAnalysis {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            let mut builder = Study::tabular(data)
-                .graph(dag)
-                .query(query)
-                .refute(suite)
-                .bootstrap_replicates(bootstrap);
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            }
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -416,6 +421,7 @@ impl PyPreparedAnalysis {
         let rec = &self.inner.plan().record;
         let mut out = std::collections::HashMap::new();
         out.insert("plan_id".into(), rec.plan_id.to_string());
+        out.insert("structure_source".into(), self.inner.structure_source().as_str().to_string());
         if let Some(b) = rec.estimated_peak_memory_bytes {
             out.insert("estimated_peak_memory_bytes".into(), b.to_string());
         }

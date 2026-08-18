@@ -460,6 +460,7 @@ class PreparedAnalysis:
         bootstrap: int | None = 50,
         threads: int = 1,
         latency: str | None = None,
+        accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_response(
@@ -763,6 +764,7 @@ def analyze_ate(
     on_progress: Callable[[float, str], Any] | None = None,
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze_ate_arrow_c(
     names: list[str],
@@ -795,6 +797,7 @@ def analyze_ate_arrow_c(
     on_progress: Callable[[float, str], Any] | None = None,
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze(
     names: list[str],
