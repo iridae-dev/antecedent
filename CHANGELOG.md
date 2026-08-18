@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Ten licensed cells.** `AverageEffect` × `Dag` × {explicit, accepted} ×
+- **Thirteen licensed cells.** `ConditionalEffect`, `PathSpecificEffect`,
+  and `InterventionalDistribution` × `Dag` × explicit × Frequentist × none
+  are licensed on the staged handle: prepare caches their identification,
+  clicks reuse it (`exec.identify.cached`), and the Python
+  `PreparedAnalysis.prepare` accepts the three query types. Evidence:
+  the conditional-effect, path-specific-natural, and ID/IDC hedge
+  known-truth fixtures. `AverageEffect` × `Dag` × {explicit, accepted} ×
   Frequentist × full joins the matrix on the placebo + random-common-cause
   refuter fixture (`conformance/validate/refuters`), and × Bayesian × none
   joins on the shared-functional cross-check
