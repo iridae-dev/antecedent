@@ -114,14 +114,7 @@ impl TemporalDag {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
-            if l1 < l2 {
-                return Err(GraphError::FutureToPast {
-                    from: from.raw(),
-                    to: to.raw(),
-                    from_lag: l1,
-                    to_lag: l2,
-                });
-            }
+            crate::types::reject_future_to_past(&self.nodes, from, to)?;
         }
         if self.children[from.as_usize()].contains(&to) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
