@@ -86,7 +86,7 @@ pub use observation::{
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
-    predict_propensity,
+    fit_propensity_in_place, predict_propensity,
 };
 pub use regularized::{
     LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
