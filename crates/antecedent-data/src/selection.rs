@@ -21,8 +21,26 @@ impl TabularData {
     ///
     /// Unknown variables, or no remaining complete cases.
     pub fn complete_case_mask(&self, ids: &[VariableId]) -> Result<Vec<bool>, DataError> {
+        let mut keep = Vec::new();
+        self.complete_case_mask_into(ids, &mut keep)?;
+        Ok(keep)
+    }
+
+    /// [`Self::complete_case_mask`] into a caller-owned buffer (cleared and refilled), so
+    /// repeated refute-path calls can reuse one allocation.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables, or no remaining complete cases.
+    pub fn complete_case_mask_into(
+        &self,
+        ids: &[VariableId],
+        out: &mut Vec<bool>,
+    ) -> Result<(), DataError> {
         let n = self.row_count();
-        let mut keep = vec![true; n];
+        out.clear();
+        out.resize(n, true);
+        let keep = out;
         if let Some(mask) = self.storage().analysis_mask() {
             for (i, slot) in keep.iter_mut().enumerate() {
                 *slot = mask.is_valid(i);
@@ -41,7 +59,7 @@ impl TabularData {
                 context: "complete-case mask after validity/analysis filtering",
             });
         }
-        Ok(keep)
+        Ok(())
     }
 
     /// Extract float64 values for rows where `keep[i]` is true.
@@ -81,25 +99,50 @@ impl TabularData {
         id: VariableId,
         values: Arc<[f64]>,
     ) -> Result<Self, DataError> {
+        self.with_replaced_floats(&[(id, values)])
+    }
+
+    /// Replace several float64 columns in **one** storage rebuild; preserve other columns,
+    /// analysis mask, and weights (each copied once, not once per replaced column — this is
+    /// the bulk form bootstrap resampling should use instead of chaining
+    /// [`Self::with_replaced_float`]).
+    ///
+    /// Replacements apply in order against the same column set (ids are expected to be
+    /// distinct; a repeated id keeps the last entry). Each replacement column is marked
+    /// all-valid (callers supply complete vectors).
+    ///
+    /// # Errors
+    ///
+    /// Unknown id, length mismatch, or non-float target.
+    pub fn with_replaced_floats(
+        &self,
+        replacements: &[(VariableId, Arc<[f64]>)],
+    ) -> Result<Self, DataError> {
         let n = self.row_count();
-        if values.len() != n {
-            return Err(DataError::LengthMismatch {
-                expected: n,
-                actual: values.len(),
-                context: "replacement float column",
-            });
-        }
         let storage = self.storage();
         let mut cols: Vec<OwnedColumn> = storage.columns().to_vec();
-        let idx = id.as_usize();
-        if idx >= cols.len() {
-            return Err(DataError::UnknownVariable { id });
+        for (id, values) in replacements {
+            let id = *id;
+            if values.len() != n {
+                return Err(DataError::LengthMismatch {
+                    expected: n,
+                    actual: values.len(),
+                    context: "replacement float column",
+                });
+            }
+            let idx = id.as_usize();
+            if idx >= cols.len() {
+                return Err(DataError::UnknownVariable { id });
+            }
+            if !matches!(cols[idx], OwnedColumn::Float64(_)) {
+                return Err(DataError::TypeMismatch { id, expected: "float64" });
+            }
+            cols[idx] = OwnedColumn::Float64(Float64Column::new(
+                id,
+                Arc::clone(values),
+                ValidityBitmap::all_valid(n),
+            )?);
         }
-        if !matches!(cols[idx], OwnedColumn::Float64(_)) {
-            return Err(DataError::TypeMismatch { id, expected: "float64" });
-        }
-        cols[idx] =
-            OwnedColumn::Float64(Float64Column::new(id, values, ValidityBitmap::all_valid(n))?);
         let storage = OwnedColumnarStorage::try_new(
             storage.schema().clone(),
             cols,

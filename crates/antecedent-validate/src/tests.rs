@@ -613,9 +613,13 @@ fn sensitivity_scales_by_residual_not_marginal_sd() {
     let expected = crate::common::sample_sd(&resid);
     let marginal = crate::common::sample_sd(&t);
 
-    let got =
-        crate::sensitivity::residual_sd_on_adjustment(&problem, VariableId::from_raw(0), &mask)
-            .unwrap();
+    let (got, _sd_y) = crate::sensitivity::residual_sd_pair_on_adjustment(
+        &problem,
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        &mask,
+    )
+    .unwrap();
 
     assert!(
         (got - expected).abs() < 1e-9,

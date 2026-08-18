@@ -9,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_data::{
-    DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
+    ColumnView, DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_estimate::{
@@ -468,17 +468,8 @@ pub(crate) fn fit_diagnostic_propensity(
     Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })
 }
 
-/// Build an [`OverlapReport`] from a diagnostic propensity fit.
-pub(crate) fn diagnostic_overlap_report(
-    problem: &RefutationProblem<'_>,
-    glm_options: &GlmOptions,
-    policy: OverlapPolicy,
-) -> Result<OverlapReport, ValidationError> {
-    let mut ws = PropensityWorkspace::default();
-    diagnostic_overlap_report_with(problem, glm_options, policy, &mut ws)
-}
-
-/// Like [`diagnostic_overlap_report`], reusing a warmed propensity workspace.
+/// Build an [`OverlapReport`] from a diagnostic propensity fit, reusing a warmed
+/// propensity workspace (callers without one pass a local `PropensityWorkspace::default()`).
 pub(crate) fn diagnostic_overlap_report_with(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
@@ -666,12 +657,24 @@ pub(crate) fn with_resampled_rows(
     row_idx: &[usize],
     keep: &[bool],
 ) -> Result<TabularData, ValidationError> {
-    let mut out = data.clone();
+    // One storage rebuild for all k resampled columns (weights/mask copied once), not one
+    // per column: at 200 bootstrap replicates the per-column rebuild dominated the loop.
+    // `resample_ids` are distinct by construction (treatment, outcome, then covariates), so
+    // gathering every column from the source table matches the old sequential replacement.
+    let mut replacements: Vec<(VariableId, Arc<[f64]>)> = Vec::with_capacity(resample_ids.len());
     for &id in resample_ids {
-        let full = float64_full(&out, id)?;
-        let resampled: Vec<f64> = row_idx.iter().map(|&i| full[i]).collect();
-        out = with_replaced_float(&out, id, Arc::from(resampled))?;
+        // Gather straight from the borrowed float64 view when the column is natively float;
+        // the coercing owned-copy fallback keeps non-float ids surfacing the same
+        // `TypeMismatch` from the replace step as before.
+        let resampled: Vec<f64> = if let Ok(ColumnView::Float64(c)) = data.column(id) {
+            row_idx.iter().map(|&i| c.values[i]).collect()
+        } else {
+            let full = float64_full(data, id)?;
+            row_idx.iter().map(|&i| full[i]).collect()
+        };
+        replacements.push((id, Arc::from(resampled)));
     }
+    let out = data.with_replaced_floats(&replacements).map_err(ValidationError::from)?;
     if keep.iter().all(|&k| k) {
         return Ok(out);
     }
