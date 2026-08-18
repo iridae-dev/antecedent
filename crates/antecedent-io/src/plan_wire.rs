@@ -93,6 +93,9 @@ pub struct ExecutionPerformanceWire {
     /// Adaptive early-stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub early_stopped: bool,
+    /// Arrow CDI bytes borrowed (zero-copy ingest).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_borrowed: Option<u64>,
 }
 
 /// Encode logical plan.
@@ -261,6 +264,7 @@ pub fn performance_to_wire(p: &ExecutionPerformanceRecord) -> ExecutionPerforman
         n_draws: p.n_draws,
         cancelled: p.cancelled,
         early_stopped: p.early_stopped,
+        bytes_borrowed: p.bytes_borrowed,
     }
 }
 
@@ -283,5 +287,6 @@ pub fn performance_from_wire(w: &ExecutionPerformanceWire) -> ExecutionPerforman
         n_draws: w.n_draws,
         cancelled: w.cancelled,
         early_stopped: w.early_stopped,
+        bytes_borrowed: w.bytes_borrowed,
     }
 }
