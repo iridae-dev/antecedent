@@ -380,7 +380,7 @@ class AcceptedGraph:
             )
         kwargs.pop("discovery", None)
         kwargs.setdefault("latency", "interactive")
-        kwargs["graph"] = self._graph
+        kwargs["graph"] = self
         return analyze(data, query=query, **kwargs)
 
     def prepare(self, data: Any, *, query: Any, **kwargs: Any) -> Any:
@@ -393,7 +393,7 @@ class AcceptedGraph:
                 "complete CPDAG/PAG review first, then AcceptedGraph.from_graph(...)"
             )
         kwargs.setdefault("latency", "interactive")
-        return PreparedAnalysis.prepare(data, query=query, graph=self._graph, **kwargs)  # type: ignore[arg-type]
+        return PreparedAnalysis.prepare(data, query=query, graph=self, **kwargs)  # type: ignore[arg-type]
 
     def to_json(self) -> str:
         """Serialize for durable hold (JSON interchange, not CBOR wire)."""

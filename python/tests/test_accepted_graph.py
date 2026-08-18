@@ -103,6 +103,21 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
     assert math.isfinite(a.ate) and math.isfinite(b.ate)
 
 
+def test_accepted_graph_prepare_records_accepted_structure():
+    data = _confounded_scm(n=200, seed=31)
+    dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+    accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
+    prepared = accepted.prepare(data, query=q, refute=False, seed=1)
+    assert prepared.structure_source == "accepted"
+    click = prepared.estimate(data, seed=1)
+    assert math.isfinite(click.ate)
+    edges_prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=q, graph=[("z", "t"), ("z", "y"), ("t", "y")], refute=False, seed=1
+    )
+    assert edges_prepared.structure_source == "explicit"
+
+
 def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     data = _confounded_scm(seed=29)
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])

@@ -78,6 +78,12 @@ impl PreparedStudy {
         &self.schema
     }
 
+    /// Matrix structure-source axis frozen at prepare.
+    #[must_use]
+    pub const fn structure_source(&self) -> crate::support::StructureSource {
+        self.analysis.structure_source()
+    }
+
     /// Borrow the ready physical plan retained from prepare.
     #[must_use]
     pub fn plan(&self) -> &PhysicalExecutionPlan {

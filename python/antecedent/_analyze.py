@@ -927,6 +927,7 @@ def handle_static_ate(
     on_progress: Any | None,
     on_stage: Any | None,
     return_posterior_artifact: bool,
+    structure_accepted: bool = False,
 ) -> Any:
     from .estimation import (
         _bayesian_inference_kwargs,
@@ -1011,7 +1012,7 @@ def handle_static_ate(
         return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
     edges = _static_edges(graph)
     arrow = try_as_arrow_c_columns(data)
-    ate_kwargs = dict(edges=edges, **common, **pop_kw)
+    ate_kwargs = dict(edges=edges, accepted=structure_accepted, **common, **pop_kw)
     use_arrow = arrow is not None and not pop_kw
     if use_arrow:
         assert arrow is not None
@@ -1738,12 +1739,14 @@ def analyze(
     # re-entering discovery.
     from .accepted_graph import AcceptedGraph
 
+    structure_accepted = False
     if isinstance(graph, AcceptedGraph):
         if discovery is not None:
             raise CausalUnsupportedError(
                 "analyze(graph=AcceptedGraph(...)) rejects discovery=; the structure "
                 "artifact is already accepted (call rediscover() explicitly to replace it)"
             )
+        structure_accepted = True
         graph = graph.graph
     # Explicit no-op spellings are important to staged APIs, whose historical
     # defaults are ``refute=False`` and ``bootstrap=0``. They must not turn a
@@ -1861,6 +1864,7 @@ def analyze(
             on_progress=on_progress,
             on_stage=on_stage,
             return_posterior_artifact=return_posterior_artifact,
+            structure_accepted=structure_accepted,
         )
 
     if isinstance(query, (PulseEffect, SustainedEffect)):

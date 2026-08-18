@@ -818,7 +818,7 @@ class PreparedAnalysis:
         data: Mapping[str, Any] | Any,
         *,
         query: AverageEffect | ResponseCurve,
-        graph: Dag | Sequence[tuple[str, str]],
+        graph: Dag | Sequence[tuple[str, str]] | Any,
         inference: Frequentist | Bayesian | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | None = None,
@@ -836,6 +836,11 @@ class PreparedAnalysis:
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
         names, columns = as_columns(data)
+        from .accepted_graph import AcceptedGraph as _AcceptedGraph
+
+        structure_accepted = isinstance(graph, _AcceptedGraph)
+        if structure_accepted:
+            graph = graph.graph
         edges = _static_edges(graph)
         if isinstance(query, ResponseCurve):
             if inference is not None and not isinstance(inference, Frequentist):
@@ -890,8 +895,14 @@ class PreparedAnalysis:
             bootstrap=bootstrap,
             threads=threads,
             latency=latency,
+            accepted=structure_accepted,
         )
         return cls(native, kind="average", query=query)
+
+    @property
+    def structure_source(self) -> str:
+        """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
+        return str(self._native.plan_summary().get("structure_source", "explicit"))
 
     @property
     def plan(self) -> PhysicalPlanView:
