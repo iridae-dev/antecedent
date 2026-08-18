@@ -248,7 +248,7 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static_query,
+            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
             identify_static_query_with_rd, select_estimand,
         };
         let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
@@ -318,6 +318,71 @@ impl Study {
                 })?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
+            CausalQuery::ConditionalEffect(query) => {
+                // Mirrors `execute_conditional`: identifier is builder-selected or
+                // defaults to backdoor adjustment; the estimator is always
+                // `ConditionalLinearAdjustment` regardless of any configured
+                // estimator (there is no alternative conditional-effect estimator).
+                use crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER;
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let identification = identify_static(identifier_id, &graph, &query.inner)?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::PathSpecific(query) => {
+                // Mirrors `execute_path_specific`'s identify+select-estimand step exactly.
+                use crate::strategy_table::{DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_IDENTIFIER};
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier =
+                    plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
+                let estimator =
+                    plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_PATH_ESTIMATOR);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let estimator_id: EstimatorId = estimator.parse()?;
+                let cq = CausalQuery::PathSpecific(query.clone());
+                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::Distribution(query) => {
+                // Mirrors `execute_distribution`'s identify+select-estimand step exactly.
+                use crate::strategy_table::{
+                    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_IDENTIFIER,
+                };
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let estimator_id: EstimatorId = estimator.parse()?;
+                let cq = CausalQuery::Distribution(query.clone());
+                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
             _ => Ok(None),
         }
     }
@@ -357,9 +422,31 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
+        CausalQuery::ConditionalEffect(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports ConditionalEffect only on a supplied Dag",
+                });
+            }
+        }
+        CausalQuery::PathSpecific(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports PathSpecific only on a supplied Dag",
+                });
+            }
+        }
+        CausalQuery::Distribution(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports Distribution only on a supplied Dag",
+                });
+            }
+        }
         _ => {
             return Err(CausalError::Unsupported {
-                message: "PreparedStudy currently supports AverageEffect or ResponseCurve",
+                message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
+                    ConditionalEffect, PathSpecific, or Distribution",
             });
         }
     }

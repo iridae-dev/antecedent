@@ -8,16 +8,18 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use antecedent::{
-    AcceptedGraph, BayesianConfig, InferenceMode, LatencyMode, PreparedStudy, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, LatencyMode,
+    PreparedStudy, RefuteSuite, Study,
 };
 use antecedent_core::{
-    AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-    RoleHint, SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalQuery, CausalRng, CausalSchemaBuilder, ConditionalEffectQuery,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, MeasurementSpec,
+    PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Admg, Dag, DenseNodeId};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -425,4 +427,360 @@ fn refresh_updates_retained_data() {
     assert!(a.is_finite() && b.is_finite());
     assert!((a - 2.0).abs() < 0.6);
     assert!((b - 2.0).abs() < 0.6);
+}
+
+// -- ConditionalEffect / PathSpecific / InterventionalDistribution staging -----------------
+
+/// Deterministic 3-column continuous fixture (no RNG): `t -> y <- w` interaction table.
+fn conditional_effect_fixture() -> (TabularData, Dag, ConditionalEffectQuery) {
+    let n = 120usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "y", "w"] {
+        b.add_variable(
+            name,
+            antecedent_core::ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    let w: Vec<f64> = (0..n).map(|i| (i % 5) as f64).collect();
+    let y: Vec<f64> =
+        t.iter().zip(w.iter()).map(|(&ti, &wi)| 1.0 + 2.0 * ti + 0.5 * ti * wi).collect();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(w), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut g = Dag::with_variables(3);
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    let inner = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_effect_modifiers([VariableId::from_raw(2)]);
+    let query = ConditionalEffectQuery::try_new(inner).unwrap();
+    (data, g, query)
+}
+
+/// Deterministic discrete chain `t -> m -> y` (no direct edge): all-path natural effect.
+fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            antecedent_core::ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut t_vals = Vec::new();
+    let mut m_vals = Vec::new();
+    let mut y_vals = Vec::new();
+    for t in [0.0, 1.0] {
+        for _ in 0..50 {
+            t_vals.push(t);
+            m_vals.push(t);
+            y_vals.push(t);
+        }
+    }
+    let n = t_vals.len();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(t_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(1),
+                Arc::from(m_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(2),
+                Arc::from(y_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut g = Dag::with_variables(3);
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let query = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+        .with_path_nodes([VariableId::from_raw(1)]);
+    (data, g, query)
+}
+
+/// Deterministic confounded `z -> t -> y <- z` count table (8 cells): interventional
+/// distribution `P(y | do(t=1))`.
+fn distribution_fixture() -> (TabularData, Dag, InterventionalDistributionQuery) {
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "y", "z"] {
+        b.add_variable(
+            name,
+            antecedent_core::ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let combos = [
+        (0.0, 0.0, 0.0, 21),
+        (0.0, 0.0, 1.0, 9),
+        (0.0, 1.0, 0.0, 4),
+        (0.0, 1.0, 1.0, 16),
+        (1.0, 0.0, 0.0, 12),
+        (1.0, 0.0, 1.0, 3),
+        (1.0, 1.0, 0.0, 14),
+        (1.0, 1.0, 1.0, 21),
+    ];
+    let mut t_vals = Vec::new();
+    let mut y_vals = Vec::new();
+    let mut z_vals = Vec::new();
+    for (z, t, y, count) in combos {
+        for _ in 0..count {
+            z_vals.push(z);
+            t_vals.push(t);
+            y_vals.push(y);
+        }
+    }
+    let n = t_vals.len();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(t_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(1),
+                Arc::from(y_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(2),
+                Arc::from(z_vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut g = Dag::with_variables(3);
+    g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = InterventionalDistributionQuery::new(
+        VariableId::from_raw(1),
+        [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+    );
+    (data, g, query)
+}
+
+fn assert_cached_only_on_prepared(
+    fresh: &antecedent::StudyResult,
+    prepared_clicks: &[&antecedent::StudyResult],
+) {
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    for click in prepared_clicks {
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "prepared click missing exec.identify.cached diagnostic"
+        );
+    }
+}
+
+#[test]
+fn prepared_conditional_effect_reestimate_matches_fresh() {
+    let (data, dag, query) = conditional_effect_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let build = |data: TabularData, dag: Dag, query: ConditionalEffectQuery| {
+        Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::ConditionalEffect(query))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    };
+    let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
+    let prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+
+    assert!(first.estimate.ate.is_finite());
+    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
+    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+}
+
+#[test]
+fn prepared_path_specific_reestimate_matches_fresh() {
+    let (data, dag, query) = path_specific_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let build = |data: TabularData, dag: Dag, query: PathSpecificEffectQuery| {
+        Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::PathSpecific(query))
+            .identifier(IdentifierId::PathSpecificNatural)
+            .estimator(EstimatorId::FunctionalEffect)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    };
+    let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
+    let prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+
+    assert!(first.estimate.ate.is_finite());
+    assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+}
+
+#[test]
+fn prepared_distribution_reestimate_matches_fresh() {
+    let (data, dag, query) = distribution_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let build = |data: TabularData, dag: Dag, query: InterventionalDistributionQuery| {
+        Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    };
+    let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
+    let prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+
+    assert!(first.estimate.ate.is_finite());
+    let first_dist = first.distribution.as_ref().expect("prepared distribution payload");
+    let fresh_dist = fresh.distribution.as_ref().expect("fresh distribution payload");
+    assert_eq!(first_dist.mean.to_bits(), fresh_dist.mean.to_bits());
+    let second_dist = second.distribution.as_ref().expect("second distribution payload");
+    assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
+    assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+}
+
+/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) builds fine (the
+/// support matrix does not close this cell at `.build()`), but `.prepare()` must still
+/// refuse it: these three query kinds are staged Dag-only.
+#[test]
+fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
+    let ctx = ExecutionContext::for_tests(1);
+
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+
+    let (data, _dag, cq) = conditional_effect_fixture();
+    let err = Study::tabular(data)
+        .graph(admg.clone())
+        .query(CausalQuery::ConditionalEffect(cq))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap_err();
+    assert!(err.to_string().contains("Dag"), "{err}");
+
+    let mut admg2 = Admg::with_variables(3);
+    admg2.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg2.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let (data, _dag, pq) = path_specific_fixture();
+    let err = Study::tabular(data)
+        .graph(admg2)
+        .query(CausalQuery::PathSpecific(pq))
+        .identifier(IdentifierId::PathSpecificNatural)
+        .estimator(EstimatorId::FunctionalEffect)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap_err();
+    assert!(err.to_string().contains("Dag"), "{err}");
+
+    let mut admg3 = Admg::with_variables(3);
+    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    admg3.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, _dag, distq) = distribution_fixture();
+    let err = Study::tabular(data)
+        .graph(admg3)
+        .query(CausalQuery::Distribution(distq))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap_err();
+    assert!(err.to_string().contains("Dag"), "{err}");
+    let _ = admg;
+}
+
+/// `PreparedStudy::refute` is licensed for `AverageEffect` only; a prepared
+/// `ConditionalEffect` handle must refuse cleanly (stable `Support` id), not panic.
+#[test]
+fn refute_on_prepared_conditional_effect_refuses_cleanly() {
+    let (data, dag, query) = conditional_effect_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::ConditionalEffect(query))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let err = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
+    match err {
+        antecedent::CausalError::Support { id, message } => {
+            assert_eq!(id, antecedent::SupportRefusal::Refused);
+            assert!(message.contains("AverageEffect"), "{message}");
+        }
+        other => panic!("expected Support::Refused, got {other:?}"),
+    }
 }
