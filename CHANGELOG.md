@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cap on a path that had not reached the target (or a zero path budget)
   used to return `truncated = false`, so FCI/LPCMCI R9/R10 treated an
   incomplete search as done.
+- **IV Wald reports parametric identification.** Graph relevance and exclusion
+  checks were already sound; the status claimed nonparametric ATE. Wald
+  identifies ATE under linearity (or LATE under monotonicity). AutoIdentifier
+  still collects those Wald estimands; the envelope stays nonparametric when a
+  backdoor/ID estimand is also present.
 - **Discriminating-path search flags length/budget truncation.** `max_len < 4`
   or `max_paths == 0` previously returned `truncated = false`, and longer
   candidates skipped by the length cap were dropped silently, so R4 could

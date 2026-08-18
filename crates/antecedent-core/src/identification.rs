@@ -13,7 +13,8 @@
 /// prior" — priors alone must not flip [`Self::NotIdentified`] to an identified status.
 /// [`Self::IdentifiedUnderParametricRestrictions`] is emitted by the GCM / parametric-SCM
 /// path (`parametric_scm_identification` in the `antecedent` crate, covering counterfactual,
-/// anomaly-attribution, change-attribution, mechanism-change, and unit-change queries).
+/// anomaly-attribution, change-attribution, mechanism-change, and unit-change queries)
+/// and by IV Wald identification (linearity, or LATE under monotonicity).
 /// [`Self::IdentifiedUnderPriorRestrictions`] is reserved and is **not** accepted by
 /// estimation gates or prior-bank hydration until an in-tree identifier emits it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
