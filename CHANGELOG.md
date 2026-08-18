@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Ten licensed cells.** `AverageEffect` × `Dag` × {explicit, accepted} ×
+  Frequentist × full joins the matrix on the placebo + random-common-cause
+  refuter fixture (`conformance/validate/refuters`), and × Bayesian × none
+  joins on the shared-functional cross-check
+  (`conformance/bayesian/shared_functional_ate`) now that the prepared
+  handle caches Bayesian identification. Licensed rows carry `limitations`
+  notes: the estimator is not a matrix axis (IPW / IV / front-door /
+  rd.sharp ride the ATE cells on their own parity fixtures) and
+  observation-mechanism curves ride the ResponseCurve cells.
+- **Prepared Bayesian clicks no longer re-identify.** `execute_bayesian`
+  identification is pure over (identifier, graph, query) and rd-blind, so
+  `Study::prepare` caches it and clicks reuse it (`exec.identify.cached`),
+  matching the ADR 0020 freeze contract. Prepared-vs-fresh bit equality is
+  pinned in tests.
+- **`graph_posterior` is refused on the prepared handle.** The placeholder
+  graph shape previously slipped past `ensure_prepared_supported`, so a
+  posterior-backed prepare "succeeded" and every click re-identified
+  per-graph. Now a stable `refused:` error until such a cell is licensed.
+- **`TemporalPolicy::Dynamic` classifies by schedule shape.** It previously
+  bypassed the support matrix entirely (no axis name): one active step
+  rides the `PulseEffect` cell, longer schedules hit the `SustainedEffect`
+  closure — mirroring the estimator's multi-step refusal.
 - **First enforced support-matrix refusals.** Cells listed in
   `parity/support_closed.toml` now fail closed with id `refused` at
   `Study::build` and the Python sidecars: Counterfactual, the derivative
