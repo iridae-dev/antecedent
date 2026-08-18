@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
+RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
 
 
 def load(rel: str) -> dict:
@@ -145,8 +146,82 @@ licensed.
 {licensed_md}
 """
     OUT.write_text(text)
+    RUST_OUT.write_text(render_rust(na_rules, cells))
     print(f"Wrote {OUT.relative_to(ROOT)}")
+    print(f"Wrote {RUST_OUT.relative_to(ROOT)}")
     return 0
+
+
+def rust_list(values: list[str] | None) -> str:
+    if values is None:
+        return "None"
+    if not values:
+        return "Some(&[])"
+    inner = ", ".join(f'"{v}"' for v in values)
+    return f"Some(&[{inner}])"
+
+
+def rust_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def render_rust(na_rules: list[dict], cells: list[dict]) -> str:
+    na_items = []
+    for rule in na_rules:
+        na_items.append(
+            "    NaRule {\n"
+            f"        queries: {rust_list(rule.get('queries'))},\n"
+            f"        graph_classes: {rust_list(rule.get('graph_classes'))},\n"
+            f"        structures: {rust_list(rule.get('structures'))},\n"
+            f"        inferences: {rust_list(rule.get('inferences'))},\n"
+            f"        validations: {rust_list(rule.get('validations'))},\n"
+            f"        reason: \"{rust_escape(rule['reason'])}\",\n"
+            "    }"
+        )
+    na_block = ",\n".join(na_items) if na_items else ""
+    lic_items = []
+    for row in cells:
+        lic_items.append(
+            "    LicensedCell {\n"
+            f"        query: \"{rust_escape(row['query'])}\",\n"
+            f"        graph_class: \"{rust_escape(row['graph_class'])}\",\n"
+            f"        structure: \"{rust_escape(row['structure'])}\",\n"
+            f"        inference: \"{rust_escape(row['inference'])}\",\n"
+            f"        validation: \"{rust_escape(row['validation'])}\",\n"
+            "    }"
+        )
+    lic_block = ",\n".join(lic_items) if lic_items else ""
+    return f"""//! Generated from `parity/support_*.toml`. Do not edit.
+
+#![allow(missing_docs)]
+
+#[derive(Clone, Copy, Debug)]
+pub struct NaRule {{
+    pub queries: Option<&'static [&'static str]>,
+    pub graph_classes: Option<&'static [&'static str]>,
+    pub structures: Option<&'static [&'static str]>,
+    pub inferences: Option<&'static [&'static str]>,
+    pub validations: Option<&'static [&'static str]>,
+    pub reason: &'static str,
+}}
+
+#[derive(Clone, Copy, Debug)]
+pub struct LicensedCell {{
+    pub query: &'static str,
+    pub graph_class: &'static str,
+    pub structure: &'static str,
+    pub inference: &'static str,
+    pub validation: &'static str,
+}}
+
+pub static NA_RULES: &[NaRule] = &[
+{na_block}
+];
+
+pub static LICENSED: &[LicensedCell] = &[
+{lic_block}
+];
+"""
 
 
 if __name__ == "__main__":

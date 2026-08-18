@@ -45,6 +45,22 @@ pub struct CachedStaticIdentification {
 ///
 /// Created via [`Study::prepare`]. Discovery / review-required graphs are refused —
 /// prepare is for the interactive estimate click path on an already-accepted artifact.
+///
+/// **Frozen at prepare:** schema (names, types, order); graph / `AcceptedGraph`;
+/// query identity; identifier; observation / transport / interference
+/// assumptions; target-population bindings.
+///
+/// **Estimate click:** same-schema data; estimator numeric knobs, latency,
+/// seeds, bootstrap; `ExecutionContext` budget / cancellation. Does not
+/// re-identify or recompile the logical plan.
+///
+/// **Refute click:** same frozen identification and estimand; schema-gated
+/// data and suite. Currently [`CausalQuery::AverageEffect`] only.
+///
+/// **Re-prepare required:** any frozen field change, including schema
+/// mismatch. Changing a frozen field on [`Self::refresh`] is an error, not a
+/// silent recompile. `analyze` / [`Study::run`] is sugar over identify →
+/// prepare → estimate.
 #[derive(Clone, Debug)]
 pub struct PreparedStudy {
     /// Frozen analysis config (data slot replaced on each estimate).

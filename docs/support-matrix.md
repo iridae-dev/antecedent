@@ -11,9 +11,9 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 | Status | Count |
 |---|---|
 | Cartesian product | 2394 |
-| Licensed | 0 |
-| n/a | 972 |
-| Refused (default) | 1422 |
+| Licensed | 5 |
+| n/a | 918 |
+| Refused (default) | 1471 |
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
@@ -65,8 +65,14 @@ licensed.
 ## n/a
 
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Temporal contrast queries require a temporal graph class.
-- queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.
+- queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.
 
 ## Licensed cells
 
-No licensed cells yet. Every remaining combination is **refused** until it runs on the staged path (`identify` → prepare → estimate) with recorded evidence.
+| query | graph | structure | inference | validation | evidence |
+|---|---|---|---|---|---|
+| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
+| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
+| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
+| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
+| `ResponseCurve` | `Dag` | `explicit` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |

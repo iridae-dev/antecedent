@@ -1,0 +1,277 @@
+//! Public support-matrix lookup.
+//!
+//! Axes, n/a predicates, and licensed cells are generated from
+//! `parity/support_*.toml`. Dispatch refuses [`CellStatus::NotApplicable`]
+//! now. Default [`CellStatus::Refused`] is recorded but not yet enforced, so
+//! existing `analyze` paths keep running until those holes are licensed or
+//! closed.
+
+use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
+
+use crate::accepted::GraphClass;
+use crate::analysis::RefuteSuite;
+use crate::error::CausalError;
+use crate::inference::InferenceMode;
+use crate::support_matrix_data::{LICENSED, NA_RULES};
+
+/// Stable support-matrix refusal id.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum SupportRefusal {
+    /// Cell is typed-impossible (`parity/support_n_a.toml`).
+    NotApplicable,
+    /// Cell is in the cartesian product and is not licensed (default).
+    Refused,
+}
+
+impl SupportRefusal {
+    /// Wire id (`not_applicable`, `refused`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotApplicable => "not_applicable",
+            Self::Refused => "refused",
+        }
+    }
+}
+
+impl std::fmt::Display for SupportRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// How the caller supplied causal structure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum StructureSource {
+    /// Caller passed a graph of the given [`GraphClass`].
+    Explicit,
+    /// Caller passed an [`crate::AcceptedGraph`] produced by discovery review.
+    Accepted,
+    /// Caller passed a graph posterior (mixture over structures).
+    GraphPosterior,
+}
+
+impl StructureSource {
+    /// Matrix axis value.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Explicit => "explicit",
+            Self::Accepted => "accepted",
+            Self::GraphPosterior => "graph_posterior",
+        }
+    }
+}
+
+/// One support-matrix coordinate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct SupportCell {
+    /// Public query name.
+    pub query: &'static str,
+    /// [`GraphClass::as_str`].
+    pub graph_class: &'static str,
+    /// [`StructureSource::as_str`].
+    pub structure: &'static str,
+    /// `Frequentist` or `Bayesian`.
+    pub inference: &'static str,
+    /// `none`, `cheap`, or `full`.
+    pub validation: &'static str,
+}
+
+/// Classification of a [`SupportCell`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CellStatus {
+    /// Listed in `support_licensed.toml`.
+    Licensed,
+    /// Matches an n/a predicate. `reason` is the rule text.
+    NotApplicable {
+        /// Why the cell is typed-impossible.
+        reason: &'static str,
+    },
+    /// Default: in the product, not licensed, not n/a.
+    Refused,
+}
+
+fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
+    allowed.is_none_or(|xs| xs.contains(&value))
+}
+
+/// Classify `cell` against the generated n/a rules and licensed set.
+#[must_use]
+pub fn classify(cell: SupportCell) -> CellStatus {
+    for rule in NA_RULES {
+        if axis_in(rule.queries, cell.query)
+            && axis_in(rule.graph_classes, cell.graph_class)
+            && axis_in(rule.structures, cell.structure)
+            && axis_in(rule.inferences, cell.inference)
+            && axis_in(rule.validations, cell.validation)
+        {
+            return CellStatus::NotApplicable { reason: rule.reason };
+        }
+    }
+    if LICENSED.iter().any(|row| {
+        row.query == cell.query
+            && row.graph_class == cell.graph_class
+            && row.structure == cell.structure
+            && row.inference == cell.inference
+            && row.validation == cell.validation
+    }) {
+        return CellStatus::Licensed;
+    }
+    CellStatus::Refused
+}
+
+/// Matrix query name for `query` on `graph_class`, if the query is on the public axis.
+#[must_use]
+pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&'static str> {
+    match query {
+        CausalQuery::AverageEffect(_) => Some("AverageEffect"),
+        CausalQuery::ConditionalEffect(_) => Some("ConditionalEffect"),
+        CausalQuery::Counterfactual(_) => Some("Counterfactual"),
+        CausalQuery::Distribution(_) => Some("InterventionalDistribution"),
+        CausalQuery::PathSpecific(_) => Some("PathSpecificEffect"),
+        CausalQuery::Mediation(_) => match graph_class {
+            GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
+                Some("TemporalMediationEffect")
+            }
+            GraphClass::Dag | GraphClass::Admg | GraphClass::Cpdag | GraphClass::Pag => {
+                Some("MediationEffect")
+            }
+        },
+        CausalQuery::TemporalEffect(q) => match q.policy {
+            TemporalPolicy::Pulse { .. } => Some("PulseEffect"),
+            TemporalPolicy::Sustained { .. } => Some("SustainedEffect"),
+            _ => None,
+        },
+        CausalQuery::Response(q) => match &q.functional {
+            ResponseFunctional::MeanCurve { .. } => Some("ResponseCurve"),
+            ResponseFunctional::AverageDerivative { .. } => Some("AverageDerivative"),
+            ResponseFunctional::PointDerivative { scale, .. } => match scale {
+                DerivativeScale::Identity => Some("PointDerivative"),
+                DerivativeScale::LogTreatment | DerivativeScale::LogOutcome => {
+                    Some("SemiElasticity")
+                }
+                DerivativeScale::LogLog => Some("Elasticity"),
+            },
+            ResponseFunctional::DirectionalDerivative { .. } => Some("DirectionalDerivative"),
+            ResponseFunctional::Jacobian { .. } => Some("ResponseJacobian"),
+            ResponseFunctional::InterventionResponse { .. } => Some("InterventionResponse"),
+        },
+        CausalQuery::Transport(_) => Some("TransportQuery"),
+        CausalQuery::Interference(_) => Some("InterferenceQuery"),
+        // Attribution queries and any later `CausalQuery` variant stay off the axis.
+        _ => None,
+    }
+}
+
+fn inference_axis(mode: &InferenceMode) -> &'static str {
+    match mode {
+        InferenceMode::Frequentist => "Frequentist",
+        InferenceMode::Bayesian(_) => "Bayesian",
+    }
+}
+
+fn validation_axis(suite: RefuteSuite) -> &'static str {
+    match suite {
+        RefuteSuite::None => "none",
+        RefuteSuite::Cheap => "cheap",
+        RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => "full",
+    }
+}
+
+/// Build a [`SupportCell`] when `query` is on the public axis.
+#[must_use]
+pub fn support_cell(
+    query: &CausalQuery,
+    graph_class: GraphClass,
+    structure: StructureSource,
+    inference: &InferenceMode,
+    refute: RefuteSuite,
+) -> Option<SupportCell> {
+    Some(SupportCell {
+        query: query_axis_name(query, graph_class)?,
+        graph_class: graph_class.as_str(),
+        structure: structure.as_str(),
+        inference: inference_axis(inference),
+        validation: validation_axis(refute),
+    })
+}
+
+/// Refuse n/a cells. Licensed and (for now) default-refused cells pass.
+///
+/// # Errors
+///
+/// [`CausalError::Support`] when the cell is [`CellStatus::NotApplicable`].
+pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
+    match classify(cell) {
+        CellStatus::NotApplicable { reason } => {
+            Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
+        }
+        status => Ok(status),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cell(
+        query: &'static str,
+        graph: &'static str,
+        structure: &'static str,
+        inference: &'static str,
+        validation: &'static str,
+    ) -> SupportCell {
+        SupportCell { query, graph_class: graph, structure, inference, validation }
+    }
+
+    #[test]
+    fn pulse_on_static_dag_is_not_applicable() {
+        let status = classify(cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn average_effect_on_temporal_dag_is_not_applicable() {
+        let status =
+            classify(cell("AverageEffect", "TemporalDag", "explicit", "Frequentist", "none"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn temporal_mediation_on_temporal_dag_is_not_n_a() {
+        let status = classify(cell(
+            "TemporalMediationEffect",
+            "TemporalDag",
+            "explicit",
+            "Frequentist",
+            "none",
+        ));
+        assert!(!matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn dag_average_effect_frequentist_none_is_licensed() {
+        assert_eq!(
+            classify(cell("AverageEffect", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+    }
+
+    #[test]
+    fn dag_response_curve_frequentist_none_is_licensed() {
+        assert_eq!(
+            classify(cell("ResponseCurve", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+    }
+
+    #[test]
+    fn pag_average_effect_is_recorded_refused_not_n_a() {
+        assert_eq!(
+            classify(cell("AverageEffect", "Pag", "explicit", "Frequentist", "none")),
+            CellStatus::Refused
+        );
+    }
+}

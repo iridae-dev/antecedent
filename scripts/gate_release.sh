@@ -241,9 +241,10 @@ fi
 
 echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
-if ! git diff --exit-code -- docs/support-matrix.md >/dev/null; then
-  echo "docs/support-matrix.md is stale; commit regenerated output"
-  git diff --stat -- docs/support-matrix.md
+if ! git diff --exit-code -- docs/support-matrix.md \
+    crates/antecedent/src/support_matrix_data.rs >/dev/null; then
+  echo "support-matrix generated files are stale; commit regenerated output"
+  git diff --stat -- docs/support-matrix.md crates/antecedent/src/support_matrix_data.rs
   exit 1
 fi
 
