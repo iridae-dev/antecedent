@@ -236,11 +236,15 @@ pub fn sample_conditional_interventional(
     let mut accepted = vec![0.0; n_rows * n_nodes];
     let mut got = 0usize;
     let max_attempts = n_rows.saturating_mul(100).max(100);
+    // Overlay built once; the attempt loop previously rebuilt it (five
+    // per-node vectors plus a linear id scan per intervention) per candidate.
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    let view = ModelView::with_overlay(model, overlay);
     for _ in 0..max_attempts {
         if got >= n_rows {
             break;
         }
-        let batch = sample_interventional(model, interventions, 1, rng, ws, ctx)?;
+        let batch = sample_with_overlay(&view, 1, rng, ws)?;
         let mut ok = true;
         for (i, &node) in condition_nodes.iter().enumerate() {
             let v = batch.column(node.as_usize())?[0];
