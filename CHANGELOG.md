@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Correctness — localized audit
 
+- **Nested CF refuses row-coupled mechanisms.** The per-unit fallback froze
+  every node to unit `u`'s value across the full column; a state-space
+  outcome then mixed other units' noise. That path now errors. Trajectory
+  evaluation is unaffected (`unit_rows: None` over the real series).
 - **Temporal CPDAG/PAG reject future→past arrowheads.** `TemporalDag` already
   refused source lag nearer the present than the target. `TemporalCpdag`
   `insert_directed` / `orient_undirected` and `TemporalPag` Circle→Arrow

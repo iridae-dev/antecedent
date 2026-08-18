@@ -608,17 +608,20 @@ pub fn nested_counterfactual(
             );
         }
 
-        return nested_per_unit_mean(
-            engine,
-            &exo,
-            &outer_res,
-            inner,
-            &inner_targets,
-            outcome,
-            outcome_dense,
-            ws,
-            ctx,
-        );
+        // Row-coupled (temporal) mechanisms cannot be evaluated per unit by
+        // freezing: the historical fallback hard-set every frozen node to
+        // unit u's outer value across *all* rows and ran a full-column
+        // evaluation — a state-space mechanism then rolls its recursion over
+        // that constant-filled column with every unit's abduced noise, so
+        // "unit u's counterfactual" mixed other units' noise and a fabricated
+        // constant history. Refuse rather than return a contaminated number;
+        // a true single-series slice evaluation is the post-0.5.2 follow-up.
+        return Err(CounterfactualError::model_msg(
+            "nested counterfactual over row-coupled (temporal) mechanisms with \
+             unit-varying outer values is not supported: per-unit freezing \
+             contaminates state-space evaluation across rows. Refusing rather \
+             than returning a silently mixed result.",
+        ));
     }
 
     let mut combined = freeze_ivs;
@@ -664,56 +667,6 @@ fn nested_rows_independent(
         );
     }
     Ok(row_independent)
-}
-
-/// Historical per-unit fallback for row-coupled (temporal) mechanisms: freeze
-/// every non-inner, non-outcome node at its outer value for unit `u`, run a
-/// full predict, read row `u`. `O(n_units² · nodes)`; the column-frozen pass is
-/// used whenever mechanisms are row-independent.
-#[allow(clippy::too_many_arguments)]
-fn nested_per_unit_mean(
-    engine: &CounterfactualEngine,
-    exo: &ExogenousPosterior,
-    outer_res: &CounterfactualResult,
-    inner: &[Intervention],
-    inner_targets: &[bool],
-    outcome: VariableId,
-    outcome_dense: DenseNodeId,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    let n_units = exo.n_units;
-    let n_nodes = exo.n_nodes;
-    let mut sum = 0.0;
-    let mut count = 0usize;
-    for u in 0..n_units {
-        let mut unit_freeze = Vec::new();
-        for node in 0..n_nodes {
-            if inner_targets[node] || node == outcome_dense.as_usize() {
-                continue;
-            }
-            let start = node * n_units;
-            let v = outer_res.values[start + u];
-            let var = engine.model.output_layout.variables[node];
-            unit_freeze.push(Intervention::set(var, antecedent_core::Value::f64(v)));
-        }
-        let mut combined = unit_freeze;
-        combined.extend_from_slice(inner);
-        let world = CounterfactualWorld {
-            unit_rows: Some(Arc::from([u])),
-            interventions: Arc::from(combined),
-        };
-        let res = engine.predict(exo, &[world], &[outcome], true, ws, ctx)?;
-        let v = res.get(0, outcome_dense, u);
-        if v.is_finite() {
-            sum += v;
-            count += 1;
-        }
-    }
-    if count == 0 {
-        return Err(CounterfactualError::model_msg("nested CF produced no finite outcomes"));
-    }
-    Ok(sum / count as f64)
 }
 
 /// One-pass evaluation of the unit-wise nested counterfactual: frozen nodes
@@ -1281,6 +1234,46 @@ mod tests {
         }
         let reference = sum / count as f64;
         assert!(fast.to_bits() == reference.to_bits(), "fast={fast:?} reference={reference:?}");
+    }
+
+    /// P1 regression: the historical per-unit fallback froze every non-inner
+    /// node to unit u's value across *all* rows and evaluated full columns, so
+    /// a state-space outcome rolled its recursion over a fabricated constant
+    /// history with every unit's noise. That path must refuse, not return a
+    /// silently contaminated mean.
+    #[test]
+    fn nested_cf_refuses_row_coupled_outcome_with_unit_varying_freeze() {
+        let (engine_linear, data, _t, y) = nested_hard_fixture_engine();
+        // Same graph/data, but the outcome mechanism is a state-space family.
+        let mut slots = engine_linear.model.mechanisms.slots.to_vec();
+        slots[2] = MechanismSlot::LinearGaussianStateSpace {
+            a: 0.6,
+            process_std: 0.1,
+            obs_std: 0.1,
+            initial_mean: 0.0,
+        };
+        let compiled = (*engine_linear.model)
+            .clone()
+            .with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
+        let engine = CounterfactualEngine::new(compiled);
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        // Empty outer world: frozen nodes keep their *factual* (unit-varying)
+        // values, which is exactly the case the per-unit fallback served.
+        let outer: [Intervention; 0] = [];
+        let inner = [Intervention::set(VariableId::from_raw(1), Value::f64(0.3))];
+        let err = nested_counterfactual(&engine, &data, &outer, &inner, y, &mut ws, &ctx)
+            .expect_err("row-coupled nested CF with unit-varying freeze must refuse");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("row-coupled"),
+            "refusal must name the row-coupled contamination; got {msg}"
+        );
+
+        // The row-independent fixture keeps working through the column-frozen pass.
+        let ok =
+            nested_counterfactual(&engine_linear, &data, &outer, &inner, y, &mut ws, &ctx).unwrap();
+        assert!(ok.is_finite());
     }
 
     #[test]
