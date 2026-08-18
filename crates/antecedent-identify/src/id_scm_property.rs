@@ -14,10 +14,11 @@ use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, Va
 use antecedent_expr::{
     Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec, InterventionAssignment,
 };
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Admg, Dag, DenseNodeId};
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::frontdoor::FrontDoorIdentifier;
+use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::IdentificationStatus;
 
@@ -213,4 +214,120 @@ fn id_scm_nonbinary_levels_still_identify() {
     let res = id.identify(&prep, &q, &mut ws).unwrap();
     assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
     assert!(res.estimands.iter().any(|e| e.adjustment_set.as_ref() == [v(2)]));
+}
+
+/// P0 regression (Shpitser–Pearl line 7): the front-door **ADMG** functional.
+///
+/// `t → m → y` with `t ↔ y` routes through general ID line 7: the recursion
+/// must carry `Q[{T,Y}]`, whose Y-factor conditions on the topological
+/// predecessors *outside* `S′` (here `M`). Dropping that context — the
+/// pre-fix behavior — emits `∑_m P(m|do(t)) P(y)`, whose ATE contrast
+/// telescopes to exactly 0 on any provider. The correct functional is
+/// `∑_m P(m|do(t)) ∑_{t′} P(t′) P(y | t′, m)`.
+///
+/// Ground truth from a fully specified binary SCM with latent confounder U:
+/// P(U=1)=0.6; P(T=1|U=0)=0.3, P(T=1|U=1)=0.8; P(M=1|T=1)=0.9, P(M=1|T=0)=0.2;
+/// P(Y=1|M,U) = {M1U1: 0.9, M1U0: 0.6, M0U1: 0.5, M0U0: 0.1}.
+/// E[Y|do(T=1)] = 0.736, E[Y|do(T=0)] = 0.428 → ATE = 0.308. The
+/// observational tables below are the U-marginalized laws of that SCM, and
+/// the front-door formula on them reproduces the interventional truth.
+///
+/// Cross-checked against the frozen `DoWhy` 0.14 `identify()` oracle
+/// (`conformance/identify/general_id_frontdoor`), which identifies this graph
+/// via its front-door estimand.
+#[test]
+fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/identify/general_id_frontdoor/expected.json"
+    ))
+    .unwrap();
+    assert_eq!(fixture["expected_status_family"], "identified");
+    assert!(
+        fixture["reference"]["outputs"]["estimand"]
+            .as_str()
+            .unwrap()
+            .contains("Estimand name: frontdoor"),
+        "oracle must certify the front-door estimand for this graph"
+    );
+
+    let mut g = Admg::with_variables(3);
+    let t = DenseNodeId::from_raw(0);
+    let m = DenseNodeId::from_raw(1);
+    let y = DenseNodeId::from_raw(2);
+    g.insert_directed(t, m).unwrap();
+    g.insert_directed(m, y).unwrap();
+    g.insert_bidirected(t, y).unwrap();
+    let id = IdIdentifier::new();
+    let prep = id.prepare(&g).unwrap();
+    let q = AverageEffectQuery::with_levels(v(0), v(2), 0.0, 1.0);
+    let mut ws = IdentificationWorkspace::default();
+    let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
+    assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+
+    let mut p = EmpiricalTableProvider::new();
+    for var in [v(0), v(1), v(2)] {
+        p.set_domain(var, [f(0.0), f(1.0)]);
+    }
+    // P(T): U-marginal treatment law.
+    for (tval, prob) in [(1.0, 0.60), (0.0, 0.40)] {
+        let spec = FactorSpec {
+            variables: &[v(0)],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        p.insert_probability(&spec, &Assignment::from_pairs([(v(0), f(tval))]), prob).unwrap();
+    }
+    // P(M | do(T)) = P(M | T): the mechanism is unconfounded.
+    for (tlev, p_m1) in [(1.0, 0.9), (0.0, 0.2)] {
+        let interv = [InterventionAssignment { variable: v(0), value: f(tlev) }];
+        for (mval, prob) in [(1.0, p_m1), (0.0, 1.0 - p_m1)] {
+            let spec = FactorSpec {
+                variables: &[v(1)],
+                conditioned_on: &[v(0)],
+                intervention: &interv,
+                domain: DomainRef::Interventional,
+            };
+            let assign = Assignment::from_pairs([(v(1), f(mval)), (v(0), f(tlev))]);
+            p.insert_probability(&spec, &assign, prob).unwrap();
+        }
+    }
+    // P(Y | T, M): observational, U marginalized through P(u|t).
+    let p_y1 = |tlev: f64, mlev: f64| -> f64 {
+        match (tlev.to_bits(), mlev.to_bits()) {
+            (tb, mb) if tb == 1.0f64.to_bits() && mb == 1.0f64.to_bits() => 0.84,
+            (tb, mb) if tb == 1.0f64.to_bits() && mb == 0.0f64.to_bits() => 0.42,
+            (tb, mb) if tb == 0.0f64.to_bits() && mb == 1.0f64.to_bits() => 0.69,
+            (tb, mb) if tb == 0.0f64.to_bits() && mb == 0.0f64.to_bits() => 0.22,
+            _ => panic!("bad levels"),
+        }
+    };
+    for tlev in [0.0, 1.0] {
+        for mlev in [0.0, 1.0] {
+            let p1 = p_y1(tlev, mlev);
+            for (yval, prob) in [(1.0, p1), (0.0, 1.0 - p1)] {
+                let spec = FactorSpec {
+                    variables: &[v(2)],
+                    conditioned_on: &[v(0), v(1)],
+                    intervention: &[],
+                    domain: DomainRef::Observational,
+                };
+                let assign =
+                    Assignment::from_pairs([(v(2), f(yval)), (v(0), f(tlev)), (v(1), f(mlev))]);
+                p.insert_probability(&spec, &assign, prob).unwrap();
+            }
+        }
+    }
+
+    let est = res.estimands.first().expect("general ID estimand");
+    let ate = res
+        .arena
+        .compile(est.functional)
+        .unwrap()
+        .evaluate(&res.arena, &p, &EvalContext::default())
+        .unwrap();
+    assert!(
+        ToleranceClass::StableFloat.close(ate, 0.308),
+        "front-door ADMG functional ate={ate}, expected 0.308 (pre-fix line 7 gives 0.0)"
+    );
 }
