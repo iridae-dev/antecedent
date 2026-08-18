@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (via `gate_release.sh`) checks every `hot_paths.md` Baseline link exists
   and records a wall-time or an explicit waiver. `GATE_CRITERION_MEANS=1`
   optionally compares local Criterion means; CI does not enforce M1 numbers.
+- **Gather allocation count.** An integration-test `#[global_allocator]`
+  asserts `gather` into a pre-sized buffer allocates nothing after setup.
 
 ### Correctness — localized audit
 
