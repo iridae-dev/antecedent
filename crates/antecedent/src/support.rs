@@ -248,21 +248,6 @@ pub fn support_cell(
     })
 }
 
-/// Whether an ADMG carries no bidirected edges — the ADMG cell would then be a
-/// fiction, since the engine has nothing left for the ADMG-specific path to do.
-/// Mirrors `admg_has_bidirected` (`analysis/execute/support.rs`), which the engine
-/// itself consults at `dispatch.rs` (`GraphClass::Admg` arm) and `compile.rs`
-/// (`GraphClass::Admg` arm) to choose between `execute_admg`/the static-DAG
-/// completion. That helper lives in a private module unreachable from here, so this
-/// re-derives the same check directly off `Admg`'s public API rather than reaching
-/// across the module boundary.
-fn admg_is_bidirected_free(admg: &Admg) -> bool {
-    (0..admg.node_count()).all(|i| {
-        let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        admg.bidirected_neighbors(id).is_empty()
-    })
-}
-
 /// The graph class the engine actually dispatches on, for support-matrix
 /// classification. Collapsing a non-Dag class to `Dag`/`TemporalDag` here is
 /// classification only — it never changes what `Study::compile`/`execute` or
@@ -275,7 +260,7 @@ fn admg_is_bidirected_free(admg: &Admg) -> bool {
 ///
 /// - **ADMG with no bidirected edges, under `AverageEffect`**: `compile.rs`'s
 ///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
-///   `GraphClass::Admg` arm both branch on `admg_has_bidirected` and run the
+///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`] and run the
 ///   *static DAG* path when it is false — the Dag cell's license is the
 ///   honest claim. `compile.rs` wires no other query against
 ///   `GraphClass::Admg`: `CausalQuery::Response` on an ADMG (bidirected or
@@ -315,7 +300,7 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
     match (graph.class(), query) {
         (GraphClass::Admg, CausalQuery::AverageEffect(_)) => {
             let admg = graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-            if admg_is_bidirected_free(admg) { GraphClass::Dag } else { GraphClass::Admg }
+            if admg.has_bidirected() { GraphClass::Admg } else { GraphClass::Dag }
         }
         (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => {
             let cpdag = graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
