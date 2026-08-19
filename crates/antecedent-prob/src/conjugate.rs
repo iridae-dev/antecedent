@@ -69,6 +69,8 @@ pub fn fit_conjugate_gaussian(
 
     workspace.prepare(nrows, ncols, options.n_draws);
 
+    let (yty, n_eff) = ensure_conjugate_gram(design, workspace);
+
     let coef_prior = match prior.gaussian_coefficients() {
         Some(p) => p.clone(),
         None => GaussianCoefficientPrior::isotropic(ncols, 10.0),
@@ -78,33 +80,8 @@ pub fn fit_conjugate_gaussian(
     }
     coef_prior.validate()?;
 
-    // Form XtWX and XtWy (weights default to 1; offsets subtracted from y).
-    let xtx = &mut workspace.neg_hessian[..ncols * ncols];
-    xtx.fill(0.0);
-    let xty = &mut workspace.grad[..ncols];
-    xty.fill(0.0);
-
-    for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            for r in 0..nrows {
-                let w = design.weights.map_or(1.0, |ww| ww[r]);
-                let x1 = design.x_colmajor[c1 * nrows + r];
-                let x2 = design.x_colmajor[c2 * nrows + r];
-                acc += w * x1 * x2;
-            }
-            xtx[c1 * ncols + c2] = acc;
-            xtx[c2 * ncols + c1] = acc;
-        }
-        let mut acc = 0.0;
-        for r in 0..nrows {
-            let w = design.weights.map_or(1.0, |ww| ww[r]);
-            let offset = design.offsets.map_or(0.0, |oo| oo[r]);
-            let x = design.x_colmajor[c1 * nrows + r];
-            acc += w * x * (design.y[r] - offset);
-        }
-        xty[c1] = acc;
-    }
+    let xtx = &workspace.neg_hessian[..ncols * ncols];
+    let xty = &workspace.grad[..ncols];
 
     let known_sigma2 = prior.known_residual_variance();
     let ig = prior.residual_inv_gamma().unwrap_or_else(InvGammaPrior::weakly_informative);
@@ -116,7 +93,7 @@ pub fn fit_conjugate_gaussian(
         (mean, draws, false)
     } else {
         let (mean, scale_chol, alpha_n, beta_n) =
-            posterior_nig(ncols, nrows, &coef_prior, xtx, xty, ig, design)?;
+            posterior_nig(ncols, &coef_prior, xtx, xty, ig, yty, n_eff)?;
         let draws = draw_nig(
             &mean,
             &scale_chol,
@@ -146,6 +123,63 @@ pub fn fit_conjugate_gaussian(
         diagnostics: InferenceDiagnostics::analytic("conjugate_gaussian"),
         cov: None,
     })
+}
+
+fn ensure_conjugate_gram(design: BayesDesignRef<'_>, workspace: &mut LaplaceWorkspace) -> (f64, f64) {
+    let key = crate::backend::ConjugateGramKey::from_design(&design);
+    let n2 = design.ncols.saturating_mul(design.ncols);
+    if workspace.conjugate_key == Some(key)
+        && workspace.conjugate_xtx.len() == n2
+        && workspace.conjugate_xty.len() == design.ncols
+    {
+        workspace.neg_hessian[..n2].copy_from_slice(&workspace.conjugate_xtx);
+        workspace.grad[..design.ncols].copy_from_slice(&workspace.conjugate_xty);
+        return (workspace.conjugate_yty, workspace.conjugate_n_eff);
+    }
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    let xtx = &mut workspace.neg_hessian[..n2];
+    xtx.fill(0.0);
+    let xty = &mut workspace.grad[..ncols];
+    xty.fill(0.0);
+    let mut yty = 0.0;
+    let mut n_eff = 0.0;
+    for r in 0..nrows {
+        let w = design.weights.map_or(1.0, |ww| ww[r]);
+        n_eff += w;
+        let offset = design.offsets.map_or(0.0, |oo| oo[r]);
+        let yr = design.y[r] - offset;
+        yty += w * yr * yr;
+    }
+    for c1 in 0..ncols {
+        for c2 in c1..ncols {
+            let mut acc = 0.0;
+            for r in 0..nrows {
+                let w = design.weights.map_or(1.0, |ww| ww[r]);
+                let x1 = design.x_colmajor[c1 * nrows + r];
+                let x2 = design.x_colmajor[c2 * nrows + r];
+                acc += w * x1 * x2;
+            }
+            xtx[c1 * ncols + c2] = acc;
+            xtx[c2 * ncols + c1] = acc;
+        }
+        let mut acc = 0.0;
+        for r in 0..nrows {
+            let w = design.weights.map_or(1.0, |ww| ww[r]);
+            let offset = design.offsets.map_or(0.0, |oo| oo[r]);
+            let x = design.x_colmajor[c1 * nrows + r];
+            acc += w * x * (design.y[r] - offset);
+        }
+        xty[c1] = acc;
+    }
+    workspace.conjugate_xtx.clear();
+    workspace.conjugate_xtx.extend_from_slice(xtx);
+    workspace.conjugate_xty.clear();
+    workspace.conjugate_xty.extend_from_slice(xty);
+    workspace.conjugate_yty = yty;
+    workspace.conjugate_n_eff = n_eff;
+    workspace.conjugate_key = Some(key);
+    (yty, n_eff)
 }
 
 fn posterior_known_sigma2(
@@ -184,12 +218,12 @@ fn posterior_known_sigma2(
 
 fn posterior_nig(
     ncols: usize,
-    nrows: usize,
     prior: &GaussianCoefficientPrior,
     xtx: &[f64],
     xty: &[f64],
     ig: InvGammaPrior,
-    design: BayesDesignRef<'_>,
+    yty: f64,
+    n_eff: f64,
 ) -> Result<(Vec<f64>, Vec<f64>, f64, f64), ProbError> {
     // Use prior precision on coefficients as if σ²=1 scaling in the NIG location update:
     // Vn^{-1} = V0^{-1} + X'X ; mn = Vn (V0^{-1} m0 + X'y)
@@ -216,15 +250,6 @@ fn posterior_nig(
         mean[i] = acc;
     }
 
-    let mut yty = 0.0;
-    let mut n_eff = 0.0;
-    for r in 0..nrows {
-        let w = design.weights.map_or(1.0, |ww| ww[r]);
-        n_eff += w;
-        let offset = design.offsets.map_or(0.0, |oo| oo[r]);
-        let yr = design.y[r] - offset;
-        yty += w * yr * yr;
-    }
     let mut m0_term = 0.0;
     for i in 0..ncols {
         m0_term += prec[i] * prior.mean[i] * prior.mean[i];
@@ -424,6 +449,28 @@ mod tests {
         assert_eq!(fit.draws.n_quantities(), 3);
         let sig = fit.draws.column(2).unwrap();
         assert!(sig.iter().all(|&s| s > 0.0));
+    }
+
+    #[test]
+    fn conjugate_gram_cache_is_bit_identical_on_refit() {
+        let (x, y) = simple_design();
+        let n = y.len();
+        let prior = PriorSet::weakly_informative(2);
+        let mut ws = LaplaceWorkspace::default();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let opts = BayesFitOptions { n_draws: 64, seed: 3, ..BayesFitOptions::default() };
+        let first = fit_conjugate_gaussian(design, &prior, &opts, &mut ws).unwrap();
+        assert!(ws.conjugate_key.is_some());
+        let second = fit_conjugate_gaussian(design, &prior, &opts, &mut ws).unwrap();
+        assert_eq!(first.map, second.map);
+        assert_eq!(first.draws.values, second.draws.values);
     }
 
     #[test]
