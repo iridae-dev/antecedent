@@ -35,17 +35,7 @@ impl super::Study {
 
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let mut bayes = BayesianTemporalGcomp {
-                    inner: BayesianGComputationAte {
-                        backend: cfg.backend,
-                        likelihood: cfg.likelihood,
-                        n_draws: cfg.n_draws,
-                        seed: ctx.rng.master_seed(),
-                        overlap: OverlapPolicy::ExplicitOverride,
-                        prior_scale: cfg.prior_scale,
-                        prior: None,
-                    },
-                };
+                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let (resolved_prior, conflict_summary) =
                     resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
@@ -166,17 +156,7 @@ impl super::Study {
                         InferenceMode::Bayesian(c) => c.clone(),
                         InferenceMode::Frequentist => unreachable!(),
                     };
-                    let mut est = BayesianTemporalGcomp {
-                        inner: BayesianGComputationAte {
-                            backend: cfg.backend,
-                            likelihood: cfg.likelihood,
-                            n_draws: cfg.n_draws,
-                            seed: ctx.rng.master_seed(),
-                            overlap: OverlapPolicy::ExplicitOverride,
-                            prior_scale: cfg.prior_scale,
-                            prior: None,
-                        },
-                    };
+                    let mut est = bayesian_temporal_gcomp(&cfg, ctx);
                     let mut ws = BayesianGCompWorkspace::default();
                     if let Some(ext) = cfg.external_compose.as_ref() {
                         est.inner.prior = Some(ext.composed.prior.clone());
@@ -260,51 +240,35 @@ impl super::Study {
         est.allow_natural_controlled_alias = true;
         let mediation = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
         let estimate = mediation.effect.clone();
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        let provenance = provenance_pair(
-            (
-                "identify.temporal_mediation",
-                "identify.temporal_mediation",
-                &[],
-                &identification.required_assumptions,
-            ),
-            (
-                "estimate.temporal_mediation",
-                "estimate.temporal_mediation",
-                &["identify.temporal_mediation"],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: Some(mediation),
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::Frontdoor,
+            estimator_id: EstimatorId::TemporalMediation,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some((
+                    "identify.temporal_mediation",
+                    "identify.temporal_mediation",
+                )),
+                estimate_provenance: Some((
+                    "estimate.temporal_mediation",
+                    "estimate.temporal_mediation",
+                )),
+                ..Default::default()
+            },
         }))
     }
 }

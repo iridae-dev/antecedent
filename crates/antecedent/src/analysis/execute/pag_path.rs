@@ -84,6 +84,7 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
