@@ -721,7 +721,6 @@ def handle_distribution(
     threads: int,
 ) -> Any:
     from .estimation import (
-        _resolve_static_discovery_edges,
         _static_edges,
         _wrap_ate,
     )
@@ -759,7 +758,6 @@ def handle_path_specific(
     threads: int,
 ) -> Any:
     from .estimation import (
-        _resolve_static_discovery_edges,
         _static_edges,
         _wrap_ate,
     )

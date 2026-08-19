@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ._coerce import coerce_latency, coerce_refute
 from ._data import as_columns
@@ -727,7 +727,9 @@ def identify(
     return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
 
 
-def _wrap_prepared_response(raw: Any, query: ResponseCurve | None = None) -> CausalResponseView:
+def _wrap_prepared_response(
+    raw: Any, query: ResponseCurve | InterventionResponse | None = None
+) -> CausalResponseView:
     """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
     from typing import cast
 
@@ -860,9 +862,13 @@ class PreparedAnalysis:
         names, columns = as_columns(data)
         from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
-        structure_accepted = isinstance(graph, _AcceptedGraph)
-        if structure_accepted:
-            graph = graph.graph
+        if isinstance(graph, _AcceptedGraph):
+            structure_accepted = True
+            # The accepted inner graph may be any class; `_static_edges`
+            # validates and refuses non-static structures at runtime.
+            graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
+        else:
+            structure_accepted = False
         edges = _static_edges(graph)
         if isinstance(query, ConditionalEffect):
             if inference is not None and not isinstance(inference, Frequentist):
@@ -923,8 +929,7 @@ class PreparedAnalysis:
                 )
             if refute not in (False, "none", Refute.NONE):
                 raise CausalTypeError(
-                    "PreparedAnalysis InterventionalDistribution has no licensed "
-                    "validation cell"
+                    "PreparedAnalysis InterventionalDistribution has no licensed validation cell"
                 )
             native = _NativePreparedAnalysis.prepare_distribution(
                 names,

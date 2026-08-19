@@ -393,7 +393,7 @@ class AcceptedGraph:
                 "complete CPDAG/PAG review first, then AcceptedGraph.from_graph(...)"
             )
         kwargs.setdefault("latency", "interactive")
-        return PreparedAnalysis.prepare(data, query=query, graph=self, **kwargs)  # type: ignore[arg-type]
+        return PreparedAnalysis.prepare(data, query=query, graph=self, **kwargs)
 
     def to_json(self) -> str:
         """Serialize for durable hold (JSON interchange, not CBOR wire)."""
