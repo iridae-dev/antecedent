@@ -207,62 +207,60 @@ impl PcmciEngine {
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
-            for pi in 0..parents.len() {
-                if ctx.cancellation.is_cancelled() {
-                    break;
-                }
-                let (src, slag) = parents[pi];
-                // Single strongest-q conditioning set: candidates are kept sorted by
-                // descending min |stat|, so the top q others are the strongest.
-                let mut combo = std::mem::take(&mut workspace.combo);
-                combo.clear();
-                combo.extend(
-                    parents
-                        .iter()
-                        .enumerate()
-                        .filter(|(j, _)| *j != pi)
-                        .map(|(_, x)| *x)
-                        .take(cond_size),
-                );
-                let result = self.ci_statistic(
+            if frame.is_fully_valid() {
+                ci_tests += self.pc_parent_level_batch(
                     frame,
-                    src,
-                    slag,
                     target,
-                    Lag::CONTEMPORANEOUS,
-                    &combo,
+                    &parents,
+                    &mut min_stat,
+                    cond_size,
+                    compiled,
                     workspace,
                     ctx,
-                );
-                let outcome = match result {
-                    Ok(pair) => pair,
-                    Err(e) => {
-                        workspace.combo = combo;
-                        return Err(e);
+                )?;
+            } else {
+                for pi in 0..parents.len() {
+                    if ctx.cancellation.is_cancelled() {
+                        break;
                     }
-                };
-                ci_tests += 1;
-                let (stat, p) = outcome;
-                // Always record |stat| so required edges that fail independence still rank by
-                // observed association (not as +∞ / strongest).
-                min_stat[pi] = min_stat[pi].min(stat.abs());
-                // pinned baseline retains links with p <= alpha (independence when p > alpha).
-                if p > self.constraints.alpha {
-                    let link = LaggedLink {
-                        source: src,
-                        source_lag: slag,
+                    let (src, slag) = parents[pi];
+                    // Single strongest-q conditioning set: candidates are kept sorted by
+                    // descending min |stat|, so the top q others are the strongest.
+                    let mut combo = std::mem::take(&mut workspace.combo);
+                    combo.clear();
+                    combo.extend(pc_parent_combo(&parents, pi, cond_size));
+                    let result = self.ci_statistic(
+                        frame,
+                        src,
+                        slag,
                         target,
-                        target_lag: Lag::CONTEMPORANEOUS,
+                        Lag::CONTEMPORANEOUS,
+                        &combo,
+                        workspace,
+                        ctx,
+                    );
+                    let outcome = match result {
+                        Ok(pair) => pair,
+                        Err(e) => {
+                            workspace.combo = combo;
+                            return Err(e);
+                        }
                     };
-                    if !compiled.requires(link) {
-                        workspace.removed.push((src, slag));
-                        workspace.sepsets.insert(
-                            (src, slag, target, Lag::CONTEMPORANEOUS),
-                            Arc::from(combo.clone().into_boxed_slice()),
-                        );
-                    }
+                    ci_tests += 1;
+                    record_pc_parent_outcome(
+                        pi,
+                        src,
+                        slag,
+                        target,
+                        outcome,
+                        &combo,
+                        compiled,
+                        self.constraints.alpha,
+                        &mut min_stat,
+                        workspace,
+                    );
+                    workspace.combo = combo;
                 }
-                workspace.combo = combo;
             }
             if !workspace.removed.is_empty() {
                 let removed = std::mem::take(&mut workspace.removed);
@@ -281,6 +279,90 @@ impl PcmciEngine {
             sort_by_strength(&mut parents, &mut min_stat);
         }
         Ok((parents, ci_tests))
+    }
+
+    /// One PC1 conditioning level: batch every remaining candidate on a fully-valid frame.
+    #[allow(clippy::too_many_arguments)]
+    fn pc_parent_level_batch(
+        &self,
+        frame: &LaggedFrame,
+        target: VariableId,
+        parents: &[(VariableId, Lag)],
+        min_stat: &mut [f64],
+        cond_size: usize,
+        compiled: &CompiledConstraints,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<u64, DiscoveryError> {
+        if ctx.cancellation.is_cancelled() {
+            return Ok(0);
+        }
+        let mut queries = Vec::with_capacity(parents.len());
+        let mut z_flat = Vec::new();
+        let mut combos = Vec::with_capacity(parents.len());
+        for pi in 0..parents.len() {
+            let (src, slag) = parents[pi];
+            let combo: Vec<(VariableId, Lag)> = pc_parent_combo(parents, pi, cond_size);
+            if 2 + combo.len() > MAX_CI_COLS {
+                return Err(DiscoveryError::Unsupported {
+                    message: "conditioning set exceeds MAX_CI_COLS",
+                });
+            }
+            let xi = frame.column_index(src, slag).ok_or_else(|| {
+                DiscoveryError::data_msg(format!("missing lagged column for {src:?} lag {slag:?}"))
+            })?;
+            let yi = frame.column_index(target, Lag::CONTEMPORANEOUS).ok_or_else(|| {
+                DiscoveryError::data_msg(format!("missing lagged column for {target:?}"))
+            })?;
+            let z_start = z_flat.len();
+            for &(v, l) in &combo {
+                let zi = frame.column_index(v, l).ok_or_else(|| {
+                    DiscoveryError::data_msg(format!("missing lagged column for {v:?} lag {l:?}"))
+                })?;
+                z_flat.push(zi);
+            }
+            queries.push(CiQuery { x: xi, y: yi, z_start, z_len: combo.len() });
+            combos.push(combo);
+        }
+        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        self.ensure_prepared_ci(frame, workspace, ctx)?;
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: self.constraints.significance,
+            confidence: ConfidenceMethod::default(),
+        };
+        let prepared = workspace
+            .prepared_ci
+            .as_ref()
+            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
+        let out = self
+            .ci
+            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+            .map_err(DiscoveryError::from)?;
+        if out.results.len() != parents.len() {
+            return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
+        }
+        for (pi, (result, combo)) in out.results.into_iter().zip(combos).enumerate() {
+            if !result.statistic.is_finite() || !result.p_value.is_finite() {
+                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
+            }
+            let (src, slag) = parents[pi];
+            record_pc_parent_outcome(
+                pi,
+                src,
+                slag,
+                target,
+                (result.statistic, result.p_value),
+                &combo,
+                compiled,
+                self.constraints.alpha,
+                min_stat,
+                workspace,
+            );
+        }
+        Ok(parents.len() as u64)
     }
 
     /// MCI test for a candidate link given parent sets.
@@ -925,6 +1007,54 @@ impl PcmciEngine {
             return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
         }
         Ok((result.statistic, result.p_value))
+    }
+}
+
+fn pc_parent_combo(
+    parents: &[(VariableId, Lag)],
+    pi: usize,
+    cond_size: usize,
+) -> Vec<(VariableId, Lag)> {
+    parents
+        .iter()
+        .enumerate()
+        .filter(|(j, _)| *j != pi)
+        .map(|(_, x)| *x)
+        .take(cond_size)
+        .collect()
+}
+
+fn record_pc_parent_outcome(
+    pi: usize,
+    src: VariableId,
+    slag: Lag,
+    target: VariableId,
+    outcome: (f64, f64),
+    combo: &[(VariableId, Lag)],
+    compiled: &CompiledConstraints,
+    alpha: f64,
+    min_stat: &mut [f64],
+    workspace: &mut DiscoveryWorkspace,
+) {
+    let (stat, p) = outcome;
+    // Always record |stat| so required edges that fail independence still rank by
+    // observed association (not as +∞ / strongest).
+    min_stat[pi] = min_stat[pi].min(stat.abs());
+    // pinned baseline retains links with p <= alpha (independence when p > alpha).
+    if p > alpha {
+        let link = LaggedLink {
+            source: src,
+            source_lag: slag,
+            target,
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        if !compiled.requires(link) {
+            workspace.removed.push((src, slag));
+            workspace.sepsets.insert(
+                (src, slag, target, Lag::CONTEMPORANEOUS),
+                Arc::from(combo.to_vec().into_boxed_slice()),
+            );
+        }
     }
 }
 
