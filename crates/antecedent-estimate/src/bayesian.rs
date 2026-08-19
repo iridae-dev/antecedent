@@ -1172,52 +1172,51 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
                 workspace.row[c] = coef_cols[c][d];
             }
             let beta = &workspace.row[..self.ncols];
-            let mut sum = 0.0;
-            for r in 0..self.nrows {
-                let mu_a = predict_row(
-                    self.family,
-                    &self.matrix,
-                    self.nrows,
-                    self.ncols,
-                    self.treatment_col,
-                    beta,
-                    r,
-                    self.active,
-                );
-                let mu_c = predict_row(
-                    self.family,
-                    &self.matrix,
-                    self.nrows,
-                    self.ncols,
-                    self.treatment_col,
-                    beta,
-                    r,
-                    self.control,
-                );
-                sum += mu_a - mu_c;
-            }
-            output.values[d] = sum / self.nrows as f64;
+            output.values[d] = gcomp_mean_contrast(
+                self.family,
+                &self.matrix,
+                self.nrows,
+                self.ncols,
+                self.treatment_col,
+                beta,
+                self.active,
+                self.control,
+            );
         }
         Ok(())
     }
 }
 
-fn predict_row(
+fn gcomp_mean_contrast(
     family: GlmFamily,
     matrix: &[f64],
     nrows: usize,
     ncols: usize,
     t_col: usize,
     beta: &[f64],
-    row: usize,
-    t_value: f64,
+    active: f64,
+    control: f64,
 ) -> f64 {
-    let mut eta = 0.0;
-    for c in 0..ncols {
-        let x = if c == t_col { t_value } else { matrix[c * nrows + row] };
-        eta += x * beta[c];
+    // Identity link: only the treatment column differs, so the row average is
+    // exactly (active − control) β_T. Nonlinear links still need a data pass;
+    // they share one residualized η (covariates only) instead of two full Xβ.
+    if matches!(family, GlmFamily::GaussianIdentity) {
+        return (active - control) * beta[t_col];
     }
-    family.mean_from_eta(eta)
+    let beta_t = beta[t_col];
+    let mut sum = 0.0;
+    for r in 0..nrows {
+        let mut eta = 0.0;
+        for c in 0..ncols {
+            if c == t_col {
+                continue;
+            }
+            eta += matrix[c * nrows + r] * beta[c];
+        }
+        sum += family.mean_from_eta(eta + beta_t * active)
+            - family.mean_from_eta(eta + beta_t * control);
+    }
+    sum / nrows as f64
 }
 
 fn likelihood_to_glm_family(l: BayesLikelihood) -> GlmFamily {
@@ -1390,6 +1389,27 @@ mod tests {
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
     use antecedent_expr::{ExprId, IdentifiedEstimand};
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn gaussian_gcomp_contrast_is_treatment_coef_times_level_gap() {
+        let beta = [1.0_f64, 2.5, -0.5];
+        let matrix = [
+            1.0, 1.0, 1.0, // intercept
+            0.0, 1.0, 0.0, // treatment (overwritten by do())
+            0.2, 0.4, 0.6, // covariate
+        ];
+        let ate = gcomp_mean_contrast(
+            GlmFamily::GaussianIdentity,
+            &matrix,
+            3,
+            3,
+            1,
+            &beta,
+            1.0,
+            0.0,
+        );
+        assert_eq!(ate, 2.5);
+    }
 
     fn linear_scm_table(n: usize) -> (TabularData, VariableId, VariableId, VariableId) {
         let mut b = CausalSchemaBuilder::new();
