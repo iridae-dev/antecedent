@@ -161,17 +161,15 @@ impl TemporalLinearAdjustment {
             (0, n)
         };
         let nrows = row_end - row_start;
-        let t: Vec<f64> = prep.column(0)[row_start..row_end].to_vec();
-        let y: Vec<f64> = prep.column(1)[row_start..row_end].to_vec();
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for (i, &vid) in adj_keys.iter().enumerate() {
-            let col = prep.column(2 + i)[row_start..row_end].to_vec();
-            covs.push((vid, col));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
+        let t = &prep.column(0)[row_start..row_end];
+        let y = &prep.column(1)[row_start..row_end];
+        let cov_refs: Vec<(VariableId, &[f64])> = adj_keys
+            .iter()
+            .enumerate()
+            .map(|(i, &vid)| (vid, &prep.column(2 + i)[row_start..row_end]))
+            .collect();
         let selected: Vec<usize> = (0..nrows).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected)
+        let design = CompiledDesign::linear_adjustment(t, &cov_refs, y, &selected)
             .map_err(EstimationError::from)?;
 
         let active = intervention_f64(&query.active)?;
