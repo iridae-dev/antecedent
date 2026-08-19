@@ -25,6 +25,78 @@ pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
     }
 }
 
+/// Named execute cell. Compile still has extra graph-completion arms.
+pub(super) enum AnalysisRoute {
+    Response,
+    StaticAte,
+    Distribution,
+    PathSpecific,
+    Conditional,
+    TemporalMediation,
+    StaticMediation,
+    Counterfactual,
+    Anomaly,
+    ChangeAttribution,
+    MechanismChange,
+    UnitChange,
+    TemporalEffect,
+    PanelTemporalEffect,
+}
+
+pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> Option<AnalysisRoute> {
+    Some(match (data, query) {
+        (DataInput::Tabular(_), CausalQuery::Response(_)) => AnalysisRoute::Response,
+        (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => AnalysisRoute::StaticAte,
+        (DataInput::Tabular(_), CausalQuery::Distribution(_)) => AnalysisRoute::Distribution,
+        (DataInput::Tabular(_), CausalQuery::PathSpecific(_)) => AnalysisRoute::PathSpecific,
+        (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => AnalysisRoute::Conditional,
+        (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+            AnalysisRoute::TemporalMediation
+        }
+        (DataInput::Tabular(_), CausalQuery::Mediation(_)) => AnalysisRoute::StaticMediation,
+        (DataInput::Tabular(_), CausalQuery::Counterfactual(_)) => AnalysisRoute::Counterfactual,
+        (DataInput::Tabular(_), CausalQuery::AnomalyAttribution(_)) => AnalysisRoute::Anomaly,
+        (DataInput::Tabular(_), CausalQuery::ChangeAttribution(_)) => {
+            AnalysisRoute::ChangeAttribution
+        }
+        (DataInput::Tabular(_), CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
+        (DataInput::Tabular(_), CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
+        (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
+            AnalysisRoute::TemporalEffect
+        }
+        (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
+        _ => return None,
+    })
+}
+
+pub(super) fn identify_cached_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        "exec.identify.cached",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "identification reused from the prepare-time cache".to_string(),
+    )
+}
+
+pub(super) struct IdentifiedExecuteFinish<'a> {
+    pub physical: &'a PhysicalExecutionPlan,
+    pub identification: IdentificationResult,
+    pub estimand: IdentifiedEstimand,
+    pub estimate: EffectEstimate,
+    pub identifier_id: IdentifierId,
+    pub estimator_id: EstimatorId,
+    pub treatment: VariableId,
+    pub outcome: VariableId,
+    pub identify_cached: bool,
+    pub extra_diagnostics: Vec<Diagnostic>,
+    pub refutations: Vec<antecedent_validate::RefutationReport>,
+    pub distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
+    pub wall_time_ns: u64,
+    pub bootstrap_replicates_ok: Option<u32>,
+    pub cancelled: bool,
+    pub early_stopped: bool,
+}
+
 pub(super) fn identification_from_cache_or(
     cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
@@ -220,4 +292,58 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
         }
     }
     Ok(dag)
+}
+
+impl super::Study {
+    pub(super) fn require_execute_dag(&self, message: &'static str) -> Result<&Dag, CausalError> {
+        self.graph.as_dag().ok_or(CausalError::Unsupported { message })
+    }
+
+    pub(super) fn finish_identified_execute(
+        &self,
+        args: IdentifiedExecuteFinish<'_>,
+    ) -> StudyResult {
+        let mut diagnostics = args.identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(args.estimate.overlap));
+        if args.identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.extend(args.extra_diagnostics);
+        let (id_artifact, id_op) = identify_provenance_step(args.identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(args.estimator_id);
+        let provenance = provenance_pair(
+            (id_artifact, id_op, &[], &args.identification.required_assumptions),
+            (est_artifact, est_op, &[id_artifact], &args.estimate.assumptions),
+        );
+        let physical_record =
+            self.apply_callback_plan_marks(args.physical.record.clone(), &mut diagnostics);
+        assemble_result(AssembleArgs {
+            logical: &args.physical.logical.record,
+            physical: &physical_record,
+            identification: args.identification,
+            estimand: args.estimand,
+            estimate: args.estimate,
+            distribution: args.distribution,
+            posterior: None,
+            mediation: None,
+            counterfactual: None,
+            anomaly: None,
+            change_attribution: None,
+            mechanism_change: None,
+            unit_change: None,
+            refutations: args.refutations,
+            diagnostics,
+            provenance,
+            treatment: args.treatment,
+            outcome: args.outcome,
+            wall_time_ns: args.wall_time_ns,
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: args.bootstrap_replicates_ok,
+            n_draws: None,
+            cancelled: args.cancelled,
+            early_stopped: args.early_stopped,
+        })
+    }
 }
