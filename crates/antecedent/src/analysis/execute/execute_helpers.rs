@@ -25,7 +25,8 @@ pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
     }
 }
 
-/// Named execute cell. Compile still has extra graph-completion arms.
+/// Named execute / compile cell. Graph-completion arms still specialize on class.
+#[derive(Clone, Copy)]
 pub(super) enum AnalysisRoute {
     Response,
     StaticAte,
@@ -41,6 +42,7 @@ pub(super) enum AnalysisRoute {
     UnitChange,
     TemporalEffect,
     PanelTemporalEffect,
+    MultiEnvTemporalEffect,
 }
 
 pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> Option<AnalysisRoute> {
@@ -65,8 +67,22 @@ pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> 
             AnalysisRoute::TemporalEffect
         }
         (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
+        (DataInput::MultiEnv(_), CausalQuery::TemporalEffect(_)) => {
+            AnalysisRoute::MultiEnvTemporalEffect
+        }
         _ => return None,
     })
+}
+
+pub(super) fn is_gcm_route(route: AnalysisRoute) -> bool {
+    matches!(
+        route,
+        AnalysisRoute::Counterfactual
+            | AnalysisRoute::Anomaly
+            | AnalysisRoute::ChangeAttribution
+            | AnalysisRoute::MechanismChange
+            | AnalysisRoute::UnitChange
+    )
 }
 
 pub(super) fn identify_cached_diagnostic() -> Diagnostic {

@@ -340,7 +340,7 @@ impl super::Study {
                 })?;
                 self.execute_panel(panel, graph, q, physical, ctx)
             }
-            None => Err(CausalError::Unsupported {
+            Some(AnalysisRoute::MultiEnvTemporalEffect) | None => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),
         }
