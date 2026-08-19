@@ -36,43 +36,45 @@ pub(super) fn nan_effect() -> EffectEstimate {
 
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
 /// identified mass is flipped to Unidentified (never silent renormalize to 1).
-pub(super) fn maybe_interactive_envelope_subsample(
+///
+/// Call this **before** per-graph estimation so dropped atoms never pay a fit.
+pub(super) fn maybe_interactive_subsample_graphs(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
-    per_graph: Vec<GraphEffectDraws>,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>), CausalError> {
+) -> Result<WeightedGraphSamples, CausalError> {
     if latency_mode != Some(LatencyMode::Interactive) {
-        return Ok((graphs, per_graph));
+        return Ok(graphs);
     }
     let mut rng = ctx.rng.stream(0xE11E_u64);
     let sub = graphs
         .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    if !sub.approximate {
-        return Ok((sub.graphs, per_graph));
+    if sub.approximate {
+        diagnostics.push(Diagnostic::new(
+            "estimate.envelope.interactive_subsample",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "approximate=true leftover_identified_mass={} max_identified={}",
+                sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
+            ),
+        ));
     }
-    let keep_keys: std::collections::HashSet<u64> = sub
-        .graphs
+    Ok(sub.graphs)
+}
+
+pub(super) fn identified_envelope_keys(
+    graphs: &WeightedGraphSamples,
+) -> std::collections::HashSet<u64> {
+    graphs
         .graph_keys
         .iter()
-        .zip(sub.graphs.identified.iter())
-        .filter(|(_, f)| **f == GraphIdentFlag::Identified)
-        .map(|(k, _)| *k)
-        .collect();
-    let filtered: Vec<GraphEffectDraws> =
-        per_graph.into_iter().filter(|g| keep_keys.contains(&g.graph_key)).collect();
-    diagnostics.push(Diagnostic::new(
-        "estimate.envelope.interactive_subsample",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "approximate=true leftover_identified_mass={} max_identified={}",
-            sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
-        ),
-    ));
-    Ok((sub.graphs, filtered))
+        .zip(graphs.identified.iter())
+        .filter(|(_, flag)| **flag == GraphIdentFlag::Identified)
+        .map(|(key, _)| *key)
+        .collect()
 }
 
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
@@ -103,10 +105,8 @@ pub(super) fn parametric_scm_identification(
         intervention: do_t,
         domain: DomainRef::Interventional,
     });
-    let functional = arena.intern(ExprNode::Expectation {
-        function: OutcomeExprId::identity(outcome),
-        distribution,
-    });
+    let functional = arena
+        .intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution });
     arena.set_derivation(
         functional,
         DerivationMeta {
@@ -194,10 +194,7 @@ pub(super) fn envelope_to_identification_result(
 }
 
 pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
-    (0..admg.node_count()).any(|i| {
-        let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        !admg.bidirected_neighbors(id).is_empty()
-    })
+    admg.has_bidirected()
 }
 
 pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {

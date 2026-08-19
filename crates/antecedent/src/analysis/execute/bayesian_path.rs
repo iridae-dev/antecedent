@@ -248,7 +248,7 @@ impl super::Study {
         let mut weights = Vec::new();
         let mut flags = Vec::new();
         let mut keys = Vec::new();
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
@@ -267,26 +267,7 @@ impl super::Study {
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand.clone());
                 }
-                let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-                if envelope_prior.is_none() {
-                    let (resolved, conflict) =
-                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                    envelope_prior = resolved;
-                    envelope_conflict = conflict;
-                }
-                est.prior.clone_from(&envelope_prior);
-                let mut ws = BayesianGCompWorkspace::default();
-                let posterior =
-                    est.fit(&prep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
-                let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
-                    message: "Bayesian posterior missing effect column".into(),
-                })?;
-                let draws = posterior
-                    .draws
-                    .column(col)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                    .to_vec();
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+                fit_atoms.push((key, estimand, case.result.status));
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
@@ -294,13 +275,30 @@ impl super::Study {
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
             graphs,
-            per_graph,
             ctx,
             &mut subsample_notes,
         )?;
+        let keep = identified_envelope_keys(&graphs);
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut per_graph = Vec::new();
+        for (key, estimand, status) in fit_atoms {
+            if !keep.contains(&key) {
+                continue;
+            }
+            let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+            if envelope_prior.is_none() {
+                let (resolved, conflict) =
+                    resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+            est.prior.clone_from(&envelope_prior);
+            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+        }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -523,7 +521,11 @@ impl super::Study {
         let mut weights = Vec::with_capacity(gp.n_graphs);
         let mut flags = Vec::with_capacity(gp.n_graphs);
         let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
+        let mut ident_cache: std::collections::HashMap<
+            u64,
+            Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
+        > = std::collections::HashMap::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
@@ -540,50 +542,44 @@ impl super::Study {
             }
             if let Some(p) = &ctx.progress {
                 #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
             }
             let mask = gp.adjacency[i];
             let key = gp.graph_keys[i];
             keys.push(key);
             weights.push(gp.weights[i]);
-            let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
+            let cached = if let Some(hit) = ident_cache.get(&mask) {
+                hit.clone()
+            } else {
+                let resolved = (|| -> Result<
+                    Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
+                    CausalError,
+                > {
+                    let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
+                        return Ok(None);
+                    };
+                    let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query)
+                    else {
+                        return Ok(None);
+                    };
+                    if !identification_status_ok_for_case(identification.status)
+                        || identification.estimands.is_empty()
+                    {
+                        return Ok(None);
+                    }
+                    let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                    Ok(Some((estimand, identification.status, identification)))
+                })()?;
+                ident_cache.insert(mask, resolved.clone());
+                resolved
             };
-            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            };
-            if identification_status_ok_for_case(identification.status)
-                && !identification.estimands.is_empty()
-            {
+            if let Some((estimand, status, identification)) = cached {
                 flags.push(GraphIdentFlag::Identified);
-                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand.clone());
-                    primary_identification = Some(identification.clone());
+                    primary_identification = Some(identification);
                 }
-                let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-                if envelope_prior.is_none() {
-                    let (resolved, conflict) =
-                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                    envelope_prior = resolved;
-                    envelope_conflict = conflict;
-                }
-                est.prior.clone_from(&envelope_prior);
-                let mut ws = BayesianGCompWorkspace::default();
-                let posterior = est
-                    .fit(&prep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
-                    message: "Bayesian posterior missing effect column".into(),
-                })?;
-                let draws = posterior
-                    .draws
-                    .column(col)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                    .to_vec();
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+                fit_atoms.push((key, estimand, status));
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
@@ -592,13 +588,30 @@ impl super::Study {
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
             graphs,
-            per_graph,
             ctx,
             &mut subsample_notes,
         )?;
+        let keep = identified_envelope_keys(&graphs);
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut per_graph = Vec::new();
+        for (key, estimand, status) in fit_atoms {
+            if !keep.contains(&key) {
+                continue;
+            }
+            let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+            if envelope_prior.is_none() {
+                let (resolved, conflict) =
+                    resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+            est.prior.clone_from(&envelope_prior);
+            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+        }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -742,7 +755,7 @@ impl super::Study {
         let mut weights = Vec::with_capacity(gp.n_graphs);
         let mut flags = Vec::with_capacity(gp.n_graphs);
         let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
@@ -759,7 +772,7 @@ impl super::Study {
             }
             if let Some(p) = &ctx.progress {
                 #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
             }
             let cmask = gp.adjacency[i];
             let lmask = lag_masks[i];
@@ -794,20 +807,37 @@ impl super::Study {
                 primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
+            fit_atoms.push((key, estimand, identification, id_res.indexer));
+        }
+
+        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let graphs = maybe_interactive_subsample_graphs(
+            self.latency_mode,
+            graphs,
+            ctx,
+            &mut subsample_notes,
+        )?;
+        let keep = identified_envelope_keys(&graphs);
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut per_graph = Vec::new();
+        let mut fit_failed: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        for (key, estimand, identification, indexer) in fit_atoms {
+            if !keep.contains(&key) {
+                continue;
+            }
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
             let Ok(prep) = temporal_est.prepare(
                 data,
                 &estimand,
                 query,
-                &id_res.indexer,
+                &indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
             ) else {
-                // Already pushed Identified — fix by continuing without draws.
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
-                }
+                fit_failed.insert(key);
                 continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
@@ -818,39 +848,32 @@ impl super::Study {
                 envelope_conflict = conflict;
             }
             bayes.inner.prior.clone_from(&envelope_prior);
-            let mut ws = BayesianGCompWorkspace::default();
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
-                }
+                fit_failed.insert(key);
                 continue;
             };
-            let Some(col) = posterior.effect_column() else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
+            match envelope_draws_from_posterior(key, &posterior) {
+                Ok(draws) => per_graph.push(draws),
+                Err(_) => {
+                    fit_failed.insert(key);
                 }
-                continue;
-            };
-            let Ok(d) = posterior.draws.column(col) else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
-                }
-                continue;
-            };
-            let draws = d.to_vec();
-            per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+            }
         }
-
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
-            self.latency_mode,
-            graphs,
-            per_graph,
-            ctx,
-            &mut subsample_notes,
-        )?;
+        let graphs = if fit_failed.is_empty() {
+            graphs
+        } else {
+            let flags: Vec<GraphIdentFlag> =
+                graphs
+                    .graph_keys
+                    .iter()
+                    .zip(graphs.identified.iter())
+                    .map(|(key, flag)| {
+                        if fit_failed.contains(key) { GraphIdentFlag::Unidentified } else { *flag }
+                    })
+                    .collect();
+            WeightedGraphSamples::new(graphs.weights.to_vec(), flags, graphs.graph_keys.to_vec())
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+        };
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -922,4 +945,16 @@ impl super::Study {
             early_stopped: false,
         }))
     }
+}
+
+fn envelope_draws_from_posterior(
+    key: u64,
+    posterior: &CausalPosterior,
+) -> Result<GraphEffectDraws, CausalError> {
+    let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "Bayesian posterior missing effect column".into(),
+    })?;
+    let draws =
+        posterior.draws.column(col).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
 }
