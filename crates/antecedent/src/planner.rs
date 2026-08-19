@@ -409,23 +409,7 @@ pub fn compile_logical_static_response(
 }
 
 fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>, Vec<VariableId>) {
-    match functional {
-        ResponseFunctional::MeanCurve { outcome, treatment } => {
-            (vec![treatment.variable], vec![*outcome])
-        }
-        ResponseFunctional::AverageDerivative { outcome, treatment, .. }
-        | ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
-            (vec![*treatment], vec![*outcome])
-        }
-        ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
-        | ResponseFunctional::Jacobian { outcomes, treatments, .. } => {
-            (treatments.to_vec(), outcomes.to_vec())
-        }
-        ResponseFunctional::InterventionResponse { outcome, interventions } => (
-            interventions.iter().filter_map(Intervention::primary_variable).collect(),
-            vec![*outcome],
-        ),
-    }
+    (functional.treatment_ids(), functional.outcome_ids())
 }
 
 /// Inputs for PAG ATE compile (class-aware identification).

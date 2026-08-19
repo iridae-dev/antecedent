@@ -172,26 +172,7 @@ fn response_scalar_summary(response: &antecedent_core::CausalResponse) -> (f64, 
 fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    match functional {
-        ResponseFunctional::MeanCurve { outcome, treatment } => Ok((treatment.variable, *outcome)),
-        ResponseFunctional::AverageDerivative { outcome, treatment, .. }
-        | ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
-            Ok((*treatment, *outcome))
-        }
-        ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
-        | ResponseFunctional::Jacobian { outcomes, treatments, .. } => {
-            treatments.first().zip(outcomes.first()).map(|(t, y)| (*t, *y)).ok_or_else(|| {
-                CausalError::Compile {
-                    message: "response query has no treatment/outcome pair".into(),
-                }
-            })
-        }
-        ResponseFunctional::InterventionResponse { outcome, interventions } => interventions
-            .iter()
-            .find_map(antecedent_core::Intervention::primary_variable)
-            .map(|treatment| (treatment, *outcome))
-            .ok_or_else(|| CausalError::Compile {
-                message: "intervention response has no primary treatment variable".into(),
-            }),
-    }
+    functional.primary_pair().ok_or_else(|| CausalError::Compile {
+        message: "response query has no treatment/outcome pair".into(),
+    })
 }
