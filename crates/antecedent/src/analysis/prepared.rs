@@ -101,9 +101,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
-        let mut analysis = self.analysis.clone();
-        analysis.data = DataInput::Tabular(data.clone());
-        analysis.execute(&self.plan, ctx)
+        self.analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
