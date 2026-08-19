@@ -185,12 +185,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         if identify_cached {
-            diagnostics.push(Diagnostic::new(
-                "exec.identify.cached",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "identification reused from the prepare-time cache".to_string(),
-            ));
+            diagnostics.push(identify_cached_diagnostic());
         }
         if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
             diagnostics.push(d);
@@ -347,21 +342,10 @@ impl super::Study {
         let outcome = *query.outcomes.first().ok_or_else(|| CausalError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
-        let early_stopped = estimate.bootstrap_early_stopped;
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let cancelled = estimate.bootstrap_cancelled;
-
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if identify_cached {
-            diagnostics.push(Diagnostic::new(
-                "exec.identify.cached",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "identification reused from the prepare-time cache".to_string(),
-            ));
-        }
-
+        let early_stopped = estimate.bootstrap_early_stopped;
+        let mut extra_diagnostics = Vec::new();
         let mut refute_ws = EstimationWorkspace::default();
         let ate_q = AverageEffectQuery::binary_ate(treatment, outcome);
         let refutations = if estimate.ate.is_finite() {
@@ -379,7 +363,7 @@ impl super::Study {
                 None,
             )?
         } else {
-            diagnostics.push(Diagnostic::new(
+            extra_diagnostics.push(Diagnostic::new(
                 "refute.distribution.skipped",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
@@ -388,40 +372,21 @@ impl super::Study {
             Vec::new()
         };
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: Some(dist),
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id,
             treatment,
             outcome,
+            identify_cached,
+            extra_diagnostics,
+            refutations,
+            distribution: Some(dist),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
-            n_draws: None,
             cancelled,
             early_stopped,
         }))
@@ -480,17 +445,6 @@ impl super::Study {
         let mut ws = FunctionalDistributionWorkspace::default();
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if identify_cached {
-            diagnostics.push(Diagnostic::new(
-                "exec.identify.cached",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "identification reused from the prepare-time cache".to_string(),
-            ));
-        }
-
         let mut refute_ws = EstimationWorkspace::default();
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let refutations = run_refuters(
@@ -507,40 +461,21 @@ impl super::Study {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
         }))
@@ -653,16 +588,6 @@ impl super::Study {
             })?;
         let est = ConditionalLinearAdjustment::new();
         let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if identify_cached {
-            diagnostics.push(Diagnostic::new(
-                "exec.identify.cached",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "identification reused from the prepare-time cache".to_string(),
-            ));
-        }
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = run_refuters(
             data,
@@ -677,43 +602,21 @@ impl super::Study {
             &self.custom_validators,
             None,
         )?;
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (
-                "estimate.conditional_linear",
-                "estimate.conditional_linear_adjustment",
-                &[id_artifact],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id: EstimatorId::ConditionalLinearAdjustment,
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
         }))

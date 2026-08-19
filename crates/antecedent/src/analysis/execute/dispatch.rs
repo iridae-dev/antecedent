@@ -210,126 +210,137 @@ impl super::Study {
                 }),
             };
         }
-        match (data, &self.query) {
-            (DataInput::Tabular(data), CausalQuery::Response(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "Response execute requires a supplied static DAG",
-                })?;
+        match classify_analysis_route(data, &self.query) {
+            Some(AnalysisRoute::Response) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("Response execute requires a supplied static DAG")?;
                 self.execute_response(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => match self.graph.class() {
-                GraphClass::Dag => {
-                    let graph =
-                        self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                    self.execute_static(data, graph, q, physical, ctx)
-                }
-                GraphClass::Cpdag => {
-                    let graph = physical.static_graph().ok_or(CausalError::Compile {
-                        message: "Ready CPDAG plan missing resolved static DAG".into(),
-                    })?;
-                    self.execute_static(data, graph, q, physical, ctx)
-                }
-                GraphClass::Admg => {
-                    let admg =
-                        self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-                    if admg_has_bidirected(admg) {
-                        self.execute_admg(data, admg, q, physical, ctx)
-                    } else {
+            Some(AnalysisRoute::StaticAte) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
+                match self.graph.class() {
+                    GraphClass::Dag => {
+                        let graph =
+                            self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+                        self.execute_static(data, graph, q, physical, ctx)
+                    }
+                    GraphClass::Cpdag => {
                         let graph = physical.static_graph().ok_or(CausalError::Compile {
-                            message: "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
-                                .into(),
+                            message: "Ready CPDAG plan missing resolved static DAG".into(),
                         })?;
                         self.execute_static(data, graph, q, physical, ctx)
                     }
-                }
-                GraphClass::Pag => {
-                    let pag = physical.static_pag().ok_or(CausalError::Compile {
-                        message: "Ready PAG plan missing resolved static PAG".into(),
-                    })?;
-                    self.execute_pag(data, pag, q, physical, ctx)
-                }
-                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
-                    Err(CausalError::Unsupported {
+                    GraphClass::Admg => {
+                        let admg =
+                            self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+                        if admg_has_bidirected(admg) {
+                            self.execute_admg(data, admg, q, physical, ctx)
+                        } else {
+                            let graph = physical.static_graph().ok_or(CausalError::Compile {
+                                message: "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
+                                    .into(),
+                            })?;
+                            self.execute_static(data, graph, q, physical, ctx)
+                        }
+                    }
+                    GraphClass::Pag => {
+                        let pag = physical.static_pag().ok_or(CausalError::Compile {
+                            message: "Ready PAG plan missing resolved static PAG".into(),
+                        })?;
+                        self.execute_pag(data, pag, q, physical, ctx)
+                    }
+                    GraphClass::TemporalDag
+                    | GraphClass::TemporalCpdag
+                    | GraphClass::TemporalPag => Err(CausalError::Unsupported {
                         message: "static ATE execute requires a static graph class",
-                    })
+                    }),
                 }
-            },
-            (DataInput::Tabular(data), CausalQuery::Distribution(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "Distribution execute requires a supplied static DAG",
-                })?;
+            }
+            Some(AnalysisRoute::Distribution) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("Distribution execute requires a supplied static DAG")?;
                 self.execute_distribution(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::PathSpecific(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "PathSpecific execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::PathSpecific) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("PathSpecific execute requires a supplied static DAG")?;
                 self.execute_path_specific(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "ConditionalEffect execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::Conditional) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("ConditionalEffect execute requires a supplied static DAG")?;
                 self.execute_conditional(data, graph, q, physical, ctx)
             }
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
+            Some(AnalysisRoute::TemporalMediation) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal mediation plan missing resolved graph".into(),
                 })?;
                 self.execute_temporal_mediation(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::Mediation(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "static Mediation execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::StaticMediation) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("static Mediation execute requires a supplied static DAG")?;
                 self.execute_static_mediation_total(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::Counterfactual(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "Counterfactual execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::Counterfactual) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::Counterfactual(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::AnomalyAttribution(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "AnomalyAttribution execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::Anomaly) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::AnomalyAttribution(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("AnomalyAttribution execute requires a supplied static DAG")?;
                 self.execute_anomaly(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::ChangeAttribution(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "ChangeAttribution execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::ChangeAttribution) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::ChangeAttribution(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("ChangeAttribution execute requires a supplied static DAG")?;
                 self.execute_change_attribution(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::MechanismChange(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "MechanismChange execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::MechanismChange) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::MechanismChange(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("MechanismChange execute requires a supplied static DAG")?;
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
-            (DataInput::Tabular(data), CausalQuery::UnitChange(q)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "UnitChange execute requires a supplied static DAG",
-                })?;
+            Some(AnalysisRoute::UnitChange) => {
+                let DataInput::Tabular(data) = data else { unreachable!() };
+                let CausalQuery::UnitChange(q) = &self.query else { unreachable!() };
+                let graph = self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::TemporalEffect(q),
-            ) => {
+            Some(AnalysisRoute::TemporalEffect) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal plan missing resolved graph".into(),
                 })?;
                 self.execute_temporal(data, graph, q, physical, ctx)
             }
-            (DataInput::Panel(panel), CausalQuery::TemporalEffect(q)) => {
+            Some(AnalysisRoute::PanelTemporalEffect) => {
+                let DataInput::Panel(panel) = data else { unreachable!() };
+                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready panel plan missing resolved graph".into(),
                 })?;
                 self.execute_panel(panel, graph, q, physical, ctx)
             }
-            _ => Err(CausalError::Unsupported {
+            None => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),
         }
