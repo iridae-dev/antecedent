@@ -385,6 +385,7 @@ impl super::Study {
             extra_diagnostics,
             refutations,
             distribution: Some(dist),
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
             bootstrap_replicates_ok: bootstrap_ok,
             cancelled,
@@ -474,6 +475,7 @@ impl super::Study {
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
             bootstrap_replicates_ok: None,
             cancelled: false,
@@ -615,6 +617,7 @@ impl super::Study {
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
             bootstrap_replicates_ok: None,
             cancelled: false,
@@ -665,8 +668,6 @@ impl super::Study {
             direct: None,
             mediated: None,
         };
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
         let refutations = run_refuters(
             data,
             &estimand,
@@ -680,42 +681,22 @@ impl super::Study {
             &self.custom_validators,
             None,
         )?;
-        let provenance = provenance_pair(
-            ("identify.frontdoor", "identify.frontdoor", &[], &identification.required_assumptions),
-            (
-                "estimate.frontdoor",
-                "estimate.frontdoor_two_stage",
-                &["identify.frontdoor"],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: Some(mediation),
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::Frontdoor,
+            estimator_id: EstimatorId::FrontDoorTwoStage,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
         }))
