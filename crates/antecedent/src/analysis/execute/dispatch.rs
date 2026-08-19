@@ -185,8 +185,18 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_on(&self.data, physical, ctx)
+    }
+
+    /// Execute against an explicit data slot (prepare/estimate must not clone `Study`).
+    pub(crate) fn execute_on(
+        &self,
+        data: &DataInput,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
-            return match (&self.data, &self.query) {
+            return match (data, &self.query) {
                 (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
                     self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
                 }
@@ -200,7 +210,7 @@ impl super::Study {
                 }),
             };
         }
-        match (&self.data, &self.query) {
+        match (data, &self.query) {
             (DataInput::Tabular(data), CausalQuery::Response(q)) => {
                 let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
                     message: "Response execute requires a supplied static DAG",
