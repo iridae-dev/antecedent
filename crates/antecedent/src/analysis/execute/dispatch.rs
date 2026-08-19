@@ -4,12 +4,7 @@ use super::*;
 
 impl super::Study {
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
-        match self.refute {
-            RefuteSuite::None => None,
-            RefuteSuite::Cheap => Some(Arc::from("overlap+evalue")),
-            RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
-            RefuteSuite::Full => Some(Arc::from("validation.full")),
-        }
+        self.refute.validation_suite_id().map(Arc::from)
     }
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
@@ -155,18 +150,10 @@ impl super::Study {
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
-        let default_estimator = match &query.functional {
-            ResponseFunctional::MeanCurve { .. } | ResponseFunctional::PointDerivative { .. } => {
-                EstimatorId::ResponseKennedyDr
-            }
-            ResponseFunctional::AverageDerivative { .. } => EstimatorId::ResponseRieszAde,
-            ResponseFunctional::DirectionalDerivative { .. }
-            | ResponseFunctional::Jacobian { .. } => EstimatorId::ResponseGamDerivative,
-            ResponseFunctional::InterventionResponse { .. } => {
-                EstimatorId::ResponseInterventionGcomp
-            }
-        };
-        self.resolve_id_est_pair(DEFAULT_RESPONSE_IDENTIFIER_ID, default_estimator)
+        self.resolve_id_est_pair(
+            DEFAULT_RESPONSE_IDENTIFIER_ID,
+            EstimatorId::default_for_response(&query.functional),
+        )
     }
 
     /// Resolve identifier/estimator for PathSpecific queries.
