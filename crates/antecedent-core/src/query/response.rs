@@ -271,6 +271,47 @@ pub enum ResponseFunctional {
     },
 }
 
+impl ResponseFunctional {
+    /// Treatment variable ids in query order.
+    #[must_use]
+    pub fn treatment_ids(&self) -> Vec<VariableId> {
+        match self {
+            Self::MeanCurve { treatment, .. } => vec![treatment.variable],
+            Self::AverageDerivative { treatment, .. } | Self::PointDerivative { treatment, .. } => {
+                vec![*treatment]
+            }
+            Self::DirectionalDerivative { treatments, .. } | Self::Jacobian { treatments, .. } => {
+                treatments.to_vec()
+            }
+            Self::InterventionResponse { interventions, .. } => {
+                interventions.iter().filter_map(Intervention::primary_variable).collect()
+            }
+        }
+    }
+
+    /// Outcome variable ids in query order.
+    #[must_use]
+    pub fn outcome_ids(&self) -> Vec<VariableId> {
+        match self {
+            Self::MeanCurve { outcome, .. }
+            | Self::AverageDerivative { outcome, .. }
+            | Self::PointDerivative { outcome, .. }
+            | Self::InterventionResponse { outcome, .. } => vec![*outcome],
+            Self::DirectionalDerivative { outcomes, .. } | Self::Jacobian { outcomes, .. } => {
+                outcomes.to_vec()
+            }
+        }
+    }
+
+    /// First treatment/outcome pair, when the functional names at least one of each.
+    #[must_use]
+    pub fn primary_pair(&self) -> Option<(VariableId, VariableId)> {
+        let treatment = self.treatment_ids().into_iter().next()?;
+        let outcome = self.outcome_ids().into_iter().next()?;
+        Some((treatment, outcome))
+    }
+}
+
 /// Complete continuous-response query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResponseQuery {
@@ -448,6 +489,20 @@ mod tests {
         let err = grid.validate().unwrap_err();
         assert!(matches!(err, QueryError::InvalidResponse(_)));
         assert!(grid.values().is_err());
+    }
+
+    #[test]
+    fn response_functional_primary_pair_matches_treatment_and_outcome_ids() {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let functional = ResponseFunctional::AverageDerivative {
+            outcome,
+            treatment,
+            weighting: DerivativeWeighting::Observed,
+        };
+        assert_eq!(functional.treatment_ids(), vec![treatment]);
+        assert_eq!(functional.outcome_ids(), vec![outcome]);
+        assert_eq!(functional.primary_pair(), Some((treatment, outcome)));
     }
 
     #[test]
