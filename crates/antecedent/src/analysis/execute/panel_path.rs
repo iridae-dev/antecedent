@@ -36,17 +36,7 @@ impl super::Study {
 
         let (estimate, mut posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let mut bayes = BayesianTemporalGcomp {
-                    inner: BayesianGComputationAte {
-                        backend: cfg.backend,
-                        likelihood: cfg.likelihood,
-                        n_draws: cfg.n_draws,
-                        seed: ctx.rng.master_seed(),
-                        overlap: OverlapPolicy::ExplicitOverride,
-                        prior_scale: cfg.prior_scale,
-                        prior: None,
-                    },
-                };
+                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let (resolved_prior, conflict_summary) =
                     resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
@@ -132,17 +122,7 @@ impl super::Study {
         if matches!(self.refute, RefuteSuite::Full) {
             if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-                let mut est = BayesianTemporalGcomp {
-                    inner: BayesianGComputationAte {
-                        backend: cfg.backend,
-                        likelihood: cfg.likelihood,
-                        n_draws: cfg.n_draws,
-                        seed: ctx.rng.master_seed(),
-                        overlap: OverlapPolicy::ExplicitOverride,
-                        prior_scale: cfg.prior_scale,
-                        prior: None,
-                    },
-                };
+                let mut est = bayesian_temporal_gcomp(cfg, ctx);
                 let mut ws = BayesianGCompWorkspace::default();
                 if let Some(ext) = cfg.external_compose.as_ref() {
                     est.inner.prior = Some(ext.composed.prior.clone());
