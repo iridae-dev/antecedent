@@ -1,0 +1,141 @@
+# Enforced refusals. Default-refused cells still run unless a rule matches.
+# A cell matching every listed constraint is fail-closed with id `refused`.
+# Must not overlap licensed cells or n/a predicates.
+
+[[closed]]
+queries = ["Counterfactual"]
+reason = "Counterfactual is not on the staged handle."
+
+[[closed]]
+queries = [
+  "AverageDerivative",
+  "DirectionalDerivative",
+  "Elasticity",
+  "PointDerivative",
+  "ResponseJacobian",
+  "SemiElasticity",
+]
+reason = "Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+
+[[closed]]
+queries = ["ResponseCurve"]
+graph_classes = ["Pag", "Cpdag", "Admg"]
+reason = "ResponseCurve is licensed only on a Dag."
+
+[[closed]]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+structures = ["graph_posterior", "accepted"]
+reason = "Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged."
+
+[[closed]]
+queries = ["MediationEffect"]
+reason = "MediationEffect is not on the staged handle."
+
+[[closed]]
+queries = ["SustainedEffect"]
+reason = "SustainedEffect is not on the staged handle."
+
+[[closed]]
+queries = ["TransportQuery", "InterferenceQuery"]
+reason = "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Cpdag", "Admg", "Pag"]
+reason = "ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm."
+
+[[closed]]
+queries = ["PathSpecificEffect"]
+graph_classes = ["Admg", "Pag"]
+structures = ["explicit"]
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Admg", "Pag"]
+structures = ["explicit"]
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Cpdag", "Admg", "Pag"]
+reason = "InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag."
+
+[[closed]]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+reason = "Graph-posterior compilation requires Bayesian inference: a graph posterior is a mixture over structures, and only Bayesian inference can combine per-graph effect draws into an envelope."
+
+# -- 2026-08-19: allowlist introduction. The following rules close cells that were
+# probed end-to-end (Study::build/run) and confirmed to either refuse at compile
+# (an identifier/estimator pair the strategy table rejects) or to silently ignore
+# the claimed inference mode. Their siblings that genuinely run land in
+# parity/support_allowlist.toml instead. See adr/0020, 2026-08-19 amendment.
+
+[[closed]]
+queries = ["AverageEffect"]
+graph_classes = ["Admg"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "General ID (identifier general.id, the only identifier compile.rs wires for a bidirected ADMG) is not compatible with estimator bayesian.gcomp; forcing Bayesian inference on a bidirected ADMG refuses at compile before any estimate is produced, confirmed on an identifiable front-door-shaped ADMG fixture (Study::build/run)."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "execute_conditional (analysis/execute/static_path.rs) hardcodes EstimatorId::ConditionalLinearAdjustment regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical ate and estimand.method), so this cell cannot return an honest Bayesian number."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "compile_graph_posterior (analysis/execute/bayesian_path.rs) wires only AverageEffect and TemporalEffect queries against a graph posterior; ConditionalEffect hits its wildcard Unsupported arm, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Bayesian"]
+reason = "Distribution requires identifier general.id (or auto) paired with estimator functional.distribution; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["PathSpecificEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Bayesian"]
+reason = "PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["ResponseCurve"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "execute_temporal_mediation (analysis/execute/temporal_path.rs) hardcodes EstimatorId::TemporalMediation regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical mediation estimate and estimand.method), so this cell cannot return an honest Bayesian number."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run."

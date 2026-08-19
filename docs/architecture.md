@@ -15,6 +15,10 @@ attribution, and validation. Rust owns computation; Python is a thin binding lay
 8. **Results are reproducible.** Schema, preprocessing, graph version, assumptions, config, seeds, backend versions, and warnings attach to artifacts.
 9. **Parity is capability parity**, not Python API cloning.
 10. **Performance is part of the feature.** Hot paths need benches, allocation profiles, and explicit memory/layout contracts before merge.
+11. **The support matrix is the license.** A public query × graph class ×
+    inference cell is licensed, n/a, or refused. Capabilities pages inventory
+    implementations; they do not license a cell. `analyze` is sugar over the
+    staged path.
 
 ## Crates
 

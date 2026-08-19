@@ -35,6 +35,7 @@ bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
+bash scripts/gate_support_matrix.sh   # public license cells; default refused
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
@@ -128,7 +129,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **0.5.2**).
+Workspace and Python package version are kept in sync (currently **0.6.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -153,15 +154,15 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 0.4.1
+bash scripts/set_version.sh 0.6.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml CHANGELOG.md
-git commit -m "chore: bump version to 0.4.1"
+git commit -m "chore: bump version to 0.6.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.4.1
-git push origin v0.4.1
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.6.0
+git push origin v0.6.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
@@ -209,4 +210,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v0.4.1` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v0.6.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

@@ -38,10 +38,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          git fetch --deepen=50 origin "${{ github.base_ref }}" || true
           # pull_request checkout is the ephemeral merge commit into the base;
           # that merge has no Signed-off-by. Check only non-merge commits on
-          # the branch side of the two-dot range.
+          # the branch side of the two-dot range. Unshallow (not --deepen):
+          # a fixed deepen along the base ref can leave the checked-out merge
+          # commit grafted parentless, and a parentless graft is not a merge
+          # to --no-merges, so the ephemeral merge itself got DCO-checked.
+          git fetch --unshallow origin "${{ github.base_ref }}" 2>/dev/null \
+            || git fetch origin "${{ github.base_ref }}"
           RANGE="origin/${{ github.base_ref }}..HEAD"
           while IFS= read -r commit; do
             if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then

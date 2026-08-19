@@ -1,0 +1,44 @@
+{
+  "fixture_id": "antecedent.intervention_response.linear_gaussian_gcomp",
+  "claim": "estimate.response.intervention_gcomp known-truth conformance for a hard do() intervention under a deterministic linear structural mean",
+  "contract": {
+    "graph": [
+      [
+        "z",
+        "t"
+      ],
+      [
+        "z",
+        "y"
+      ],
+      [
+        "t",
+        "y"
+      ]
+    ],
+    "adjustment_set": [
+      "z"
+    ],
+    "structural_mean": "E[Y|T=t,Z=z] = 1 + 2*t + 0.8*z",
+    "intervention": {
+      "kind": "set",
+      "variable": "t",
+      "value": 0.25
+    },
+    "true_response": 1.553878239227273
+  },
+  "estimator_contract": {
+    "estimator": "response.intervention_gcomp: additive-GAM outcome-nuisance fit on the adjustment set, then exact discrete g-computation of the mean outcome under the do(T=0.25) intervention (no Monte Carlo needed for a Set intervention)",
+    "claim": "point identification under backdoor adjustment on Z; the fixture pins the true intervention response computed analytically from the same deterministic Z sequence the Rust test generates, not an external oracle",
+    "not_claimed": "this is not a bitwise-identity claim against the additive-GAM basis; nuisance_lambda regularization can bias a penalized fit away from an exact linear recovery even with zero outcome noise, hence a statistical tolerance"
+  },
+  "tolerance": {
+    "truth_absolute": 0.05,
+    "note": "Regularized additive-GAM outcome nuisance biases the zero-noise linear recovery by ~0.016 at n=240; 0.05 is 3x observed error for platform headroom."
+  },
+  "generation": {
+    "n": 240,
+    "deterministic": true,
+    "note": "z_i = sin(i/17), t_i = z_i + cos(i/11) (i=0..n), y_i = 1 + 2*t_i + 0.8*z_i exactly (zero outcome noise). true_response = 1 + 2*0.25 + 0.8*mean(z) computed from the exact same closed-form z sequence; no RNG or external implementation is involved."
+  }
+}

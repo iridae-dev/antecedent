@@ -197,6 +197,22 @@ pub enum GraphClass {
     TemporalPag,
 }
 
+impl GraphClass {
+    /// Wire name used by the support matrix (`parity/support_axes.toml`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Dag => "Dag",
+            Self::Admg => "Admg",
+            Self::Cpdag => "Cpdag",
+            Self::Pag => "Pag",
+            Self::TemporalDag => "TemporalDag",
+            Self::TemporalCpdag => "TemporalCpdag",
+            Self::TemporalPag => "TemporalPag",
+        }
+    }
+}
+
 /// Internal storage: one owned graph per supported class.
 ///
 /// Private — callers only ever observe this through [`AcceptedGraph::class`] and the

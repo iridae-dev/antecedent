@@ -27,7 +27,7 @@ use super::execute::Study;
 use super::helpers::{project_for_ate_estimate, run_refuters};
 use super::stage::{STAGE_VALIDATE, StageClock};
 
-/// Prepare-time identification products for the static ATE path.
+/// Prepare-time identification products for the static ATE / response path.
 ///
 /// Everything identification reads — identifier, graph, query, RD config — is
 /// frozen when the handle is built, and identification is deterministic, so an
@@ -45,6 +45,22 @@ pub struct CachedStaticIdentification {
 ///
 /// Created via [`Study::prepare`]. Discovery / review-required graphs are refused —
 /// prepare is for the interactive estimate click path on an already-accepted artifact.
+///
+/// **Frozen at prepare:** schema (names, types, order); graph / `AcceptedGraph`;
+/// query identity; identifier; observation / transport / interference
+/// assumptions; target-population bindings.
+///
+/// **Estimate click:** same-schema data; estimator numeric knobs, latency,
+/// seeds, bootstrap; `ExecutionContext` budget / cancellation. Does not
+/// re-identify or recompile the logical plan.
+///
+/// **Refute click:** same frozen identification and estimand; schema-gated
+/// data and suite. Currently [`CausalQuery::AverageEffect`] only.
+///
+/// **Re-prepare required:** any frozen field change, including schema
+/// mismatch. Changing a frozen field on [`Self::refresh`] is an error, not a
+/// silent recompile. `analyze` / [`Study::run`] is sugar over identify →
+/// prepare → estimate.
 #[derive(Clone, Debug)]
 pub struct PreparedStudy {
     /// Frozen analysis config (data slot replaced on each estimate).
@@ -60,6 +76,12 @@ impl PreparedStudy {
     #[must_use]
     pub fn schema(&self) -> &CausalSchema {
         &self.schema
+    }
+
+    /// Matrix structure-source axis frozen at prepare.
+    #[must_use]
+    pub const fn structure_source(&self) -> crate::support::StructureSource {
+        self.analysis.structure_source()
     }
 
     /// Borrow the ready physical plan retained from prepare.
@@ -117,8 +139,9 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let CausalQuery::AverageEffect(query) = &self.analysis.query else {
-            return Err(CausalError::Unsupported {
-                message: "PreparedStudy::refute requires AverageEffect",
+            return Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "PreparedStudy::refute is licensed for AverageEffect only",
             });
         };
         if prior.treatment != query.treatment || prior.outcome != query.outcome {
@@ -191,9 +214,9 @@ impl PreparedStudy {
 impl Study {
     /// Compile once into a durable [`PreparedStudy`] for re-estimate-many.
     ///
-    /// Requires tabular data, an average-effect query, and a **supplied** static graph
-    /// (`Dag` / `Cpdag` / `Pag` / `Admg`). Discovery inputs and review-required compiles
-    /// are refused.
+    /// Requires tabular data, [`CausalQuery::AverageEffect`] on a supplied static graph
+    /// (`Dag` / `Cpdag` / `Pag` / `Admg`), or [`CausalQuery::Response`] on a supplied
+    /// [`GraphClass::Dag`]. Discovery inputs and review-required compiles are refused.
     ///
     /// # Errors
     ///
@@ -216,57 +239,152 @@ impl Study {
 
     /// Compute the static-path identification once at prepare time.
     ///
-    /// Mirrors `execute_static`'s stage-1 inputs exactly. Configurations that
-    /// dispatch elsewhere (sharp RD, Bayesian g-comp, bidirected ADMGs, PAG
-    /// envelopes) return `None` and keep their identify-per-run behavior.
+    /// Mirrors `execute_static`'s (and, for `bayesian.gcomp`, `execute_bayesian`'s)
+    /// stage-1 inputs exactly. Configurations that dispatch elsewhere (sharp RD,
+    /// bidirected ADMGs, PAG envelopes, graph posteriors) return `None` and keep
+    /// their identify-per-run behavior.
     fn prepare_static_identification(
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static_query_with_rd,
-            select_estimand,
+            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
+            identify_static_query_with_rd, select_estimand,
         };
         let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
-        if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianGcomp) {
+        if matches!(estimator_id, EstimatorId::RdSharp) {
             return Ok(None);
         }
-        let CausalQuery::AverageEffect(query) = &self.query else {
-            return Ok(None);
-        };
-        // A posterior-backed study holds only a placeholder `graph` shape;
-        // identification against it would be meaningless.
         if self.graph_posterior.is_some() {
             return Ok(None);
         }
-        // Resolve the same static DAG `execute` would hand to `execute_static`.
-        let graph = match self.graph.class() {
-            GraphClass::Dag => self.graph.as_dag().cloned(),
-            GraphClass::Cpdag | GraphClass::Admg => plan.static_graph().cloned(),
-            _ => None,
-        };
-        let Some(graph) = graph else {
-            return Ok(None);
-        };
-        if self.graph.class() == GraphClass::Admg
-            && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
-        {
-            return Ok(None);
+        match &self.query {
+            CausalQuery::AverageEffect(query) => {
+                let graph = match self.graph.class() {
+                    GraphClass::Dag => self.graph.as_dag().cloned(),
+                    GraphClass::Cpdag | GraphClass::Admg => plan.static_graph().cloned(),
+                    _ => None,
+                };
+                let Some(graph) = graph else {
+                    return Ok(None);
+                };
+                if self.graph.class() == GraphClass::Admg
+                    && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
+                {
+                    return Ok(None);
+                }
+                // `execute_bayesian` never consults `self.rd` (it calls
+                // `identify_static`, which is `identify_static_query_with_rd`
+                // with `rd: None`); mirror that exactly so the cached
+                // identification matches what an uncached Bayesian run would
+                // compute, even if a caller set `.rd_config(..)` alongside
+                // `bayesian.gcomp`.
+                let rd = if matches!(estimator_id, EstimatorId::BayesianGcomp) {
+                    None
+                } else {
+                    self.rd.map(|c| {
+                        antecedent_identify::SharpRdConfig::new(
+                            c.running_variable,
+                            c.cutoff,
+                            c.bandwidth,
+                        )
+                    })
+                };
+                let identification = identify_static_query_with_rd(
+                    identifier_id,
+                    &graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                    rd,
+                )?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::Response(query) => {
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identification = identify_static_query(
+                    identifier_id,
+                    &graph,
+                    &CausalQuery::Response(query.clone()),
+                )?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "response identifier returned no estimand".into(),
+                    }
+                })?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::ConditionalEffect(query) => {
+                // Mirrors `execute_conditional`: identifier is builder-selected or
+                // defaults to backdoor adjustment; the estimator is always
+                // `ConditionalLinearAdjustment` regardless of any configured
+                // estimator (there is no alternative conditional-effect estimator).
+                use crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER;
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let identification = identify_static(identifier_id, &graph, &query.inner)?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::PathSpecific(query) => {
+                // Mirrors `execute_path_specific`'s identify+select-estimand step exactly.
+                use crate::strategy_table::{DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_IDENTIFIER};
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier =
+                    plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
+                let estimator =
+                    plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_PATH_ESTIMATOR);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let estimator_id: EstimatorId = estimator.parse()?;
+                let cq = CausalQuery::PathSpecific(query.clone());
+                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::Distribution(query) => {
+                // Mirrors `execute_distribution`'s identify+select-estimand step exactly.
+                use crate::strategy_table::{
+                    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_IDENTIFIER,
+                };
+                let Some(graph) = self.graph.as_dag().cloned() else {
+                    return Ok(None);
+                };
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
+                let identifier_id: IdentifierId = identifier.parse()?;
+                let estimator_id: EstimatorId = estimator.parse()?;
+                let cq = CausalQuery::Distribution(query.clone());
+                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            _ => Ok(None),
         }
-        let rd = self.rd.map(|c| {
-            antecedent_identify::SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth)
-        });
-        let identification = identify_static_query_with_rd(
-            identifier_id,
-            &graph,
-            &CausalQuery::AverageEffect(query.clone()),
-            rd,
-        )?;
-        let estimand = select_estimand(&identification, estimator_id)?;
-        Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 }
 
@@ -276,16 +394,61 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             message: "PreparedStudy requires tabular data and AverageEffect",
         });
     };
-    if !matches!(analysis.query, CausalQuery::AverageEffect(_)) {
-        return Err(CausalError::Unsupported {
-            message: "PreparedStudy currently supports AverageEffect only",
+    // A posterior-backed study carries only a placeholder graph shape, so the
+    // class checks below would see `Dag` and admit it — but every estimate
+    // click would then re-identify per posterior graph inside `execute()`,
+    // violating the prepared freeze contract (ADR 0020). Refuse with the
+    // matrix id until a graph-posterior cell is licensed on the staged handle.
+    if analysis.graph_posterior.is_some() {
+        return Err(CausalError::Support {
+            id: crate::support::SupportRefusal::Refused,
+            message: "graph_posterior is not on the prepared handle; identification runs \
+                per-graph inside execute. Use analyze, or accept a single graph.",
         });
     }
-    if !is_supplied_static_graph(analysis.graph.class()) {
-        return Err(CausalError::Unsupported {
-            message: "PreparedStudy requires a static Dag/Cpdag/Pag/Admg structure \
+    match &analysis.query {
+        CausalQuery::AverageEffect(_) => {
+            if !is_supplied_static_graph(analysis.graph.class()) {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy requires a static Dag/Cpdag/Pag/Admg structure \
                 (temporal classes are not session-refreshable here)",
-        });
+                });
+            }
+        }
+        CausalQuery::Response(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports ResponseCurve only on a supplied Dag",
+                });
+            }
+        }
+        CausalQuery::ConditionalEffect(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports ConditionalEffect only on a supplied Dag",
+                });
+            }
+        }
+        CausalQuery::PathSpecific(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports PathSpecific only on a supplied Dag",
+                });
+            }
+        }
+        CausalQuery::Distribution(_) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports Distribution only on a supplied Dag",
+                });
+            }
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
+                    ConditionalEffect, PathSpecific, or Distribution",
+            });
+        }
     }
     Ok(())
 }

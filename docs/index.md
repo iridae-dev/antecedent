@@ -48,7 +48,7 @@ observation-aware pricing. The Rust entry point is
 `Study::tabular()` (or `::series` / `::series_multi` / `::panel` / `::events`) in the
 [`antecedent` crate](https://docs.rs/antecedent).
 
-Package version is **0.5.2**; see
+Package version is **0.6.0**; see
 [ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md) and
 the [0.5.2 notes](release-notes/v0.5.2.md).
 
@@ -59,6 +59,7 @@ the [0.5.2 notes](release-notes/v0.5.2.md).
 | [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
 | [Transport and interference](transport-interference.md) | Structural transport, trial generalization, randomized network exposure |
 | [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
+| [Support matrix](support-matrix.md) | Licensed / n/a / refused cells |
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |

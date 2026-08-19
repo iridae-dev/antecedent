@@ -469,6 +469,9 @@ impl IntoCausalPyErr for RustCausalError {
                 hint,
             ),
             Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
+            Self::Support { id, message } => {
+                CausalUnsupportedError::new_err(format!("{id}: {message}"))
+            }
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
             }

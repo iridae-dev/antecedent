@@ -68,9 +68,20 @@ else:
 
 # A hardcoded version in prose is the drift that started this gate. parity/README.md
 # carried "Package version remains 0.1.0" for five minor releases.
-for doc in ["parity/README.md", "docs/development.md"]:
+for doc in [
+    "parity/README.md",
+    "docs/development.md",
+    "README.md",
+    "docs/README.md",
+    "docs/index.md",
+    "docs/security_review.md",
+]:
     text = Path(doc).read_text()
-    for stale in re.findall(r"[Pp]ackage version (?:remains|is) (\d+\.\d+\.\d+)", text):
+    # Loose gap absorbs "is", "remains", "are kept in sync (currently", and
+    # markdown bold around the number — all real phrasings that drifted once.
+    for stale in re.findall(
+        r"[Pp]ackage version[^0-9\n]{0,40}?(\d+\.\d+\.\d+)", text
+    ):
         if stale != version:
             fail.append(f"{doc} states package version {stale!r}; canonical is {version!r}")
 

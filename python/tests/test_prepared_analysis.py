@@ -89,3 +89,23 @@ def test_prepared_second_shot_not_slower_than_prepare_plus_first():
     _ = prepared.estimate(data, seed=1)
     second = time.perf_counter() - t1
     assert second <= prepare_plus_first * 2.0 + 0.05
+
+
+def test_prepared_response_curve_matches_analyze():
+    rng = np.random.default_rng(19)
+    z = rng.normal(size=400)
+    t = 0.7 * z + rng.normal(size=400)
+    y = 2.0 * t + z + rng.normal(scale=0.2, size=400)
+    data = {"t": t, "y": y, "z": z}
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
+    fresh = antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data, graph=edges, query=query, latency="interactive", seed=1
+    )
+    click = prepared.estimate(data, seed=1)
+    assert click.response is not None
+    assert fresh.response is not None
+    assert click.response.values == fresh.response.values
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="refused"):
+        prepared.refute(data, suite="cheap")

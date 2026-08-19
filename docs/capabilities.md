@@ -3,7 +3,9 @@
 The full inventory of what Antecedent implements, area by area. The
 [README](https://github.com/iridae-dev/antecedent#readme) carries the
 highlights; this page is the reference list. For what is deliberately *not*
-implemented, see [Comparison](comparison.md).
+implemented, see [Comparison](comparison.md). The public **license** — which
+query × graph class × inference cells run, and which refuse — is the
+[support matrix](support-matrix.md), not this inventory.
 
 ## Graphs
 
@@ -114,7 +116,10 @@ Implemented identification strategies:
 estimator.
 
 For PAGs, Antecedent uses identification envelopes or explicit graph
-completions. Full PAG-native ID and IDC are outside the supported scope.
+completions. That is an identification primitive, not a licensed
+`ResponseCurve` cell: `analyze` refuses response curves on PAG, CPDAG, and
+ADMG. The public license is the [support matrix](support-matrix.md). Full
+PAG-native ID and IDC are outside the supported scope.
 General multi-node sID recursion and definitive non-transportability
 certificates are outside the 0.5 transport contract.
 
@@ -154,6 +159,9 @@ aliases. Observation-adjusted curves omit joint observation/curve uncertainty
 bands rather than reusing invalid complete-data intervals. Interval censoring
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 Bayesian inference and one-shot `discovery=` on response queries fail closed.
+The list above is inventory: `analyze` refuses derivative cells, and
+intervention-response cells are not licensed. Only `ResponseCurve` on a DAG
+is staged. The public license is the [support matrix](support-matrix.md).
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -237,12 +245,15 @@ Supported interventions:
 
 Do-sampling methods include weighting, KDE, and MCMC.
 
-Counterfactual support:
+Counterfactual primitives exist:
 
 * abduction–action–prediction;
 * nested counterfactuals;
 * temporal trajectories;
 * unit-level counterfactual analysis.
+
+`analyze` refuses `Counterfactual`; it is not a licensed staged cell. The
+public license is the [support matrix](support-matrix.md).
 
 ## Attribution and diagnostics
 

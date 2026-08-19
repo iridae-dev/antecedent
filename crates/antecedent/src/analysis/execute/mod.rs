@@ -102,6 +102,8 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
+    /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
+    pub(crate) structure_source: crate::support::StructureSource,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
     pub(crate) bootstrap_replicates: u32,
@@ -131,6 +133,7 @@ impl std::fmt::Debug for Study {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("graph_posterior", &self.graph_posterior)
+            .field("structure_source", &self.structure_source)
             .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
@@ -195,5 +198,143 @@ mod support_tests {
         // The adjustment set stays deliberately empty (GCM doesn't identify via backdoor
         // covariates); this is unchanged behavior, asserted here as a scope guard.
         assert!(estimand.adjustment_set.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod identify_only_tests {
+    use antecedent_core::{
+        AverageEffectQuery, CausalQuery, Intervention, InterventionalDistributionQuery, Value,
+        VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_graph::{Admg, DenseNodeId, Pag};
+    use antecedent_prob::InferenceDiagnostics;
+
+    use super::*;
+    use crate::support::SupportRefusal;
+
+    fn toy_data() -> TabularData {
+        TabularData::from_f64_columns([("t", &[0.0_f64, 1.0][..]), ("y", &[0.0_f64, 1.0][..])])
+            .unwrap()
+    }
+
+    fn ate() -> AverageEffectQuery {
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+    }
+
+    fn assert_identify_only_refused(err: &CausalError, message: &'static str) {
+        assert!(
+            matches!(
+                err,
+                CausalError::Support { id: SupportRefusal::Refused, message: m } if *m == message
+            ),
+            "{err:?}"
+        );
+        assert_eq!(err.to_string(), format!("refused: {message}"));
+    }
+
+    #[test]
+    fn identify_only_refuses_graph_posterior() {
+        // graph_posterior x Frequentist is now closed at `build()`, so reach
+        // identify_only's own guard through the still-open Bayesian cell.
+        let gp = GraphPosterior::new(
+            2,
+            vec![1.0],
+            vec![0u64],
+            vec![0.0; 4],
+            vec![0.0; 4],
+            1.0,
+            InferenceDiagnostics::analytic("test"),
+            0,
+        )
+        .unwrap();
+        let err = Study::tabular(toy_data())
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+            .build()
+            .unwrap()
+            .identify_only()
+            .unwrap_err();
+        assert_identify_only_refused(
+            &err,
+            "identify_only is not a graph-posterior cell; identification \
+                          runs per-graph inside execute.",
+        );
+    }
+
+    #[test]
+    fn prepare_refuses_graph_posterior_with_matrix_id() {
+        let gp = GraphPosterior::new(
+            2,
+            vec![1.0],
+            vec![0u64],
+            vec![0.0; 4],
+            vec![0.0; 4],
+            1.0,
+            InferenceDiagnostics::analytic("test"),
+            0,
+        )
+        .unwrap();
+        let err = Study::tabular(toy_data())
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+            .build()
+            .unwrap()
+            .prepare(&ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert_identify_only_refused(
+            &err,
+            "graph_posterior is not on the prepared handle; identification runs \
+                per-graph inside execute. Use analyze, or accept a single graph.",
+        );
+    }
+
+    #[test]
+    fn bidirected_admg_non_ate_refuses_at_build_with_matrix_id() {
+        // Every non-AverageEffect query on an ADMG is now a closed cell, so
+        // the refusal fires at `build()` with the stable matrix reason.
+        // identify_only's own ADMG guard stays as defense in depth but is no
+        // longer reachable through the public builder.
+        let mut admg = Admg::with_variables(2);
+        admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let err = Study::tabular(toy_data())
+            .graph(admg)
+            .query(CausalQuery::Distribution(query))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap_err();
+        assert!(
+            matches!(&err, CausalError::Support { id: SupportRefusal::Refused, .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().starts_with("refused:"), "{err}");
+    }
+
+    #[test]
+    fn identify_only_refuses_non_dag_admg_graph() {
+        let mut pag = Pag::with_variables(2);
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let err = Study::tabular(toy_data())
+            .graph(pag)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .identify_only()
+            .unwrap_err();
+        assert_identify_only_refused(
+            &err,
+            "identify_only supports static DAG and ADMG graphs only.",
+        );
     }
 }
