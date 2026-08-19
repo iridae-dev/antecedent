@@ -401,10 +401,12 @@ impl ContinuousResponseEstimator {
         let estimate = if interventions.iter().any(intervention_needs_monte_carlo) {
             let draws = 256;
             let mut total = 0.0;
+            let mut factual = vec![0.0; sample.raw_cols];
+            let mut row = vec![0.0; sample.raw_cols];
             for row_index in 0..sample.len() {
-                let factual = sample.raw_row(row_index);
+                sample.write_raw_row(row_index, &mut factual);
                 for draw in 0..draws {
-                    let mut row = factual.clone();
+                    row.copy_from_slice(&factual);
                     for (column, intervention) in interventions.iter().enumerate() {
                         row[column] =
                             intervention_level(intervention, factual[column], draw, column)?;
@@ -907,12 +909,19 @@ impl CompleteSample {
     }
 
     fn raw_row(&self, row: usize) -> Vec<f64> {
-        let mut out = Vec::with_capacity(self.raw_cols);
-        for col in 0..self.treatment_cols {
-            out.push(self.treatment_matrix[col * self.len() + row]);
-        }
-        out.extend(self.adjustment_row(row));
+        let mut out = vec![0.0; self.raw_cols];
+        self.write_raw_row(row, &mut out);
         out
+    }
+
+    fn write_raw_row(&self, row: usize, out: &mut [f64]) {
+        debug_assert_eq!(out.len(), self.raw_cols);
+        for col in 0..self.treatment_cols {
+            out[col] = self.treatment_matrix[col * self.len() + row];
+        }
+        for col in 0..self.adjustment_cols {
+            out[self.treatment_cols + col] = self.adjustment[col * self.len() + row];
+        }
     }
 
     fn adjustment_row(&self, row: usize) -> Vec<f64> {
@@ -1147,9 +1156,10 @@ fn exact_discrete_intervention_mean(
         ));
     }
     let mut total = 0.0;
+    let mut row = vec![0.0; sample.raw_cols];
     for row_index in 0..sample.len() {
-        let factual = sample.raw_row(row_index);
-        total += mixture_expectation(fit, &factual, &supports, 0, 1.0)?;
+        sample.write_raw_row(row_index, &mut row);
+        total += mixture_expectation(fit, &mut row, &supports, 0, 1.0)?;
     }
     Ok(total / sample.len() as f64)
 }
@@ -1206,7 +1216,7 @@ fn discrete_intervention_support(
 
 fn mixture_expectation(
     fit: &antecedent_stats::GamFit,
-    factual: &[f64],
+    row: &mut [f64],
     supports: &[Vec<DiscreteAtom>],
     column: usize,
     weight: f64,
@@ -1217,22 +1227,24 @@ fn mixture_expectation(
         ));
     }
     if column == supports.len() {
-        return Ok(weight * predict_one(fit, factual)?);
+        return Ok(weight * predict_one(fit, row)?);
     }
     let mut sum = 0.0;
+    let factual = row[column];
     for atom in &supports[column] {
-        let mut row = factual.to_vec();
+        let saved = row[column];
         let branch = match *atom {
             DiscreteAtom::Level { value, weight: atom_weight } => {
                 row[column] = value;
                 atom_weight
             }
             DiscreteAtom::Shift { delta } => {
-                row[column] = factual[column] + delta;
+                row[column] = factual + delta;
                 1.0
             }
         };
-        sum += mixture_expectation(fit, &row, supports, column + 1, weight * branch)?;
+        sum += mixture_expectation(fit, row, supports, column + 1, weight * branch)?;
+        row[column] = saved;
     }
     Ok(sum)
 }
