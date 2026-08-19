@@ -258,76 +258,24 @@ impl super::Study {
         }
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, self.graph.class()) {
-            (DataInput::Tabular(data), CausalQuery::Response(q), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                let (identifier, estimator) = self.resolve_response_pair(q);
-                let logical = compile_logical_static_response(StaticResponseCompileInput {
-                    data,
-                    graph,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.compile_physical(ctx)
-            }
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                let (identifier, estimator) = self.resolve_static_pair();
-                self.ensure_rd_config_present(&estimator)?;
-                let logical = compile_logical_static_ate(StaticAteCompileInput {
-                    data,
-                    graph,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.compile_physical(ctx)
-            }
-            (DataInput::Tabular(data), CausalQuery::Distribution(q), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                let (identifier, estimator) = self.resolve_distribution_pair();
-                let logical = compile_logical_distribution(StaticDistributionCompileInput {
-                    data,
-                    graph,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.compile_physical(ctx)
-            }
-            (DataInput::Tabular(data), CausalQuery::PathSpecific(q), GraphClass::Dag) => {
-                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                let (identifier, estimator) = self.resolve_path_pair();
-                let logical = compile_logical_path_specific(StaticPathSpecificCompileInput {
-                    data,
-                    graph,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.compile_physical(ctx)
-            }
             (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::TemporalEffect(q),
+                DataInput::Tabular(_),
+                CausalQuery::Response(_)
+                | CausalQuery::AverageEffect(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::PathSpecific(_),
+                GraphClass::Dag,
+            ) => self.compile_logical()?.compile_physical(ctx),
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::TemporalEffect(_),
                 GraphClass::TemporalDag,
             ) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                let class = match &self.data {
-                    DataInput::Event(_) => DataClassification::Event,
-                    _ => DataClassification::Temporal,
-                };
-                let logical = compile_logical_temporal_effect_classified(
-                    data, graph, q, self.split, false, class,
-                )?;
-                logical.compile_physical_with_graph(ctx, Some(graph.clone()))
+                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -391,59 +339,24 @@ impl super::Study {
                 logical.compile_physical_with_graph(ctx, Some(dag))
             }
             (
-                DataInput::MultiEnv(multi),
-                CausalQuery::TemporalEffect(q),
+                DataInput::MultiEnv(_) | DataInput::Panel(_),
+                CausalQuery::TemporalEffect(_),
                 GraphClass::TemporalDag,
             ) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                let data = multi
-                    .environment(0)
-                    .map_err(|e| CausalError::Compile { message: format!("multi-env: {e}") })?;
-                let logical = compile_logical_temporal_effect_classified(
-                    data,
-                    graph,
-                    q,
-                    self.split,
-                    false,
-                    DataClassification::MultiEnvironment,
-                )?;
-                logical.compile_physical_with_graph(ctx, Some(graph.clone()))
+                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
-            (DataInput::Panel(panel), CausalQuery::TemporalEffect(q), GraphClass::TemporalDag) => {
-                let graph = self
-                    .graph
-                    .as_temporal_dag()
-                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                let data = &panel
-                    .unit(0)
-                    .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
-                    .series;
-                let logical = compile_logical_temporal_effect_classified(
-                    data,
-                    graph,
-                    q,
-                    self.split,
-                    false,
-                    DataClassification::Panel,
-                )?;
-                logical.compile_physical_with_graph(ctx, Some(graph.clone()))
-            }
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphClass::Pag) => {
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_), GraphClass::Pag) => {
                 let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
-                let (identifier, estimator) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
-                let logical = compile_logical_static_pag_ate(StaticPagAteCompileInput {
-                    data,
-                    pag,
-                    query: q,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.compile_physical_with_all_graphs(ctx, None, None, Some(pag.clone()))
+                self.compile_logical()?.compile_physical_with_all_graphs(
+                    ctx,
+                    None,
+                    None,
+                    Some(pag.clone()),
+                )
             }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphClass::Cpdag) => {
                 let cpdag =
@@ -506,67 +419,24 @@ impl super::Study {
                     logical.compile_physical_with_graphs(ctx, None, Some(dag))
                 }
             }
-            (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q), GraphClass::Dag) => {
+            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                let (identifier, estimator) = self.resolve_conditional_pair();
-                let mut logical = compile_logical_static_ate(StaticAteCompileInput {
-                    data,
-                    graph,
-                    query: &q.inner,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
-                logical.record.plan_id = Arc::from("static_conditional");
-                logical.query = CausalQuery::ConditionalEffect(q.clone());
-                logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
             }
             (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::Mediation(q),
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::Mediation(_),
                 GraphClass::TemporalDag,
             ) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                let mut logical = compile_logical_temporal_effect(
-                    data,
-                    graph,
-                    &TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0),
-                    self.split,
-                    false,
-                )?;
-                logical.record.plan_id = Arc::from("temporal_mediation");
-                logical.record.identifier = Some(Arc::from("temporal.mediation"));
-                logical.record.estimator = Some(Arc::from("temporal.mediation"));
-                logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
-                logical.query = CausalQuery::Mediation(q.clone());
-                logical.compile_physical_with_graph(ctx, Some(graph.clone()))
+                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
-            (DataInput::Tabular(data), CausalQuery::Mediation(q), GraphClass::Dag) => {
+            (DataInput::Tabular(_), CausalQuery::Mediation(_), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                if !matches!(q.contrast, MediationContrast::Total) {
-                    return Err(CausalError::Unsupported {
-                        message: "static Mediation natural/direct/mediated contrasts require \
-                             temporal data + TemporalDag; only MediationContrast::Total \
-                             (front-door) is supported on a static DAG",
-                    });
-                }
-                let ate = AverageEffectQuery::binary_ate(q.treatment, q.outcome);
-                let mut logical = compile_logical_static_ate(StaticAteCompileInput {
-                    data,
-                    graph,
-                    query: &ate,
-                    validation_suite: self.validation_suite_id(),
-                    identifier: Arc::from("frontdoor"),
-                    estimator: Arc::from("frontdoor.two_stage"),
-                })?;
-                logical.record.plan_id = Arc::from("static_mediation_total");
-                logical.query = CausalQuery::Mediation(q.clone());
-                logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
             }
             (
                 DataInput::Tabular(data),
