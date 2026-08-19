@@ -25,6 +25,17 @@ pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
     }
 }
 
+pub(super) fn identification_from_cache_or(
+    cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
+    live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
+) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
+    if let Some(cache) = cache {
+        return Ok((cache.identification.clone(), cache.estimand.clone(), true));
+    }
+    let (identification, estimand) = live()?;
+    Ok((identification, estimand, false))
+}
+
 pub(super) fn nan_effect() -> EffectEstimate {
     EffectEstimate::new(
         f64::NAN,
