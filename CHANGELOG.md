@@ -5,7 +5,100 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] — 2026-08-19
+
+### Changed
+
+- **The matrix partition is total; unlicensed-and-unlisted now refuses.**
+  Every cell is licensed, n/a, closed, **allowlisted** (running,
+  unlicensed, named in `parity/support_allowlist.toml` with a reason and
+  parent), or fails closed with the stable `refused:` id. All 167
+  formerly silent default-refused cells were probed: 74 run and are
+  allowlisted (PAG / bidirected-ADMG ATE, posterior ATE, Pulse on
+  temporal graphs including non-collapsing accepted temporal
+  CPDAGs/PAGs, frequentist TemporalMediation, validation copies of
+  licensed families); 42 closed with proof — including two cells where
+  a Bayesian label silently ran the frequentist estimator (ConditionalEffect,
+  TemporalMediation: bit-identical output — a mislabeled number is not an
+  honest number); 51 unreachable cells fail closed. ADR 0020 amended.
+- **Fail-shut for the already-dead set.** ConditionalEffect /
+  PathSpecificEffect / InterventionalDistribution / InterventionResponse
+  off a Dag, TemporalMediation on TemporalCpdag/TemporalPag, and every
+  query × graph-posterior × Frequentist now refuse at `Study::build` with
+  stable ids — each proven unable to return a number before closing.
+- **Sixteen licensed cells; two are real promotions.** `ConditionalEffect`
+  × `Dag` × accepted (the analyze path was silently dropping the
+  `AcceptedGraph` marker for conditional queries — fixed) and
+  `InterventionResponse` × `Dag` × {explicit, accepted} on a new
+  known-truth fixture (`conformance/response/intervention_response`,
+  analytic `E[Y|do(T)]` under a zero-noise linear SCM, tolerance pinned
+  at 3× the measured GAM regularization bias) with a
+  `prepare_intervention_response` staged surface.
+- **Honest graph-class collapses.** Cell classification collapses an ADMG
+  with no bidirected edges and a (structurally always fully-oriented)
+  CPDAG to the `Dag` cell under `AverageEffect`, and complete
+  `TemporalCpdag`/`TemporalPag` to `TemporalDag` under temporal-effect
+  queries — query-scoped to exactly where compile coerces to those paths.
+  Static PAGs never collapse: circle marks are information.
+- **Release notes cannot drift from the matrix.** The licensed-cell block
+  in `docs/release-notes/v0.6.0.md` is generated between markers and
+  enrolled in the release gate's regenerate-and-diff step; the prose
+  package-version gate now scans README and the docs landing pages.
+- **Thirteen licensed cells.** `ConditionalEffect`, `PathSpecificEffect`,
+  and `InterventionalDistribution` × `Dag` × explicit × Frequentist × none
+  are licensed on the staged handle: prepare caches their identification,
+  clicks reuse it (`exec.identify.cached`), and the Python
+  `PreparedAnalysis.prepare` accepts the three query types. Evidence:
+  the conditional-effect, path-specific-natural, and ID/IDC hedge
+  known-truth fixtures. `AverageEffect` × `Dag` × {explicit, accepted} ×
+  Frequentist × full joins the matrix on the placebo + random-common-cause
+  refuter fixture (`conformance/validate/refuters`), and × Bayesian × none
+  joins on the shared-functional cross-check
+  (`conformance/bayesian/shared_functional_ate`) now that the prepared
+  handle caches Bayesian identification. Licensed rows carry `limitations`
+  notes: the estimator is not a matrix axis (IPW / IV / front-door /
+  rd.sharp ride the ATE cells on their own parity fixtures) and
+  observation-mechanism curves ride the ResponseCurve cells.
+- **Prepared Bayesian clicks no longer re-identify.** `execute_bayesian`
+  identification is pure over (identifier, graph, query) and rd-blind, so
+  `Study::prepare` caches it and clicks reuse it (`exec.identify.cached`),
+  matching the ADR 0020 freeze contract. Prepared-vs-fresh bit equality is
+  pinned in tests.
+- **`graph_posterior` is refused on the prepared handle.** The placeholder
+  graph shape previously slipped past `ensure_prepared_supported`, so a
+  posterior-backed prepare "succeeded" and every click re-identified
+  per-graph. Now a stable `refused:` error until such a cell is licensed.
+- **`TemporalPolicy::Dynamic` classifies by schedule shape.** It previously
+  bypassed the support matrix entirely (no axis name): one active step
+  rides the `PulseEffect` cell, longer schedules hit the `SustainedEffect`
+  closure — mirroring the estimator's multi-step refusal.
+- **First enforced support-matrix refusals.** Cells listed in
+  `parity/support_closed.toml` now fail closed with id `refused` at
+  `Study::build` and the Python sidecars: Counterfactual, the derivative
+  family, ResponseCurve on Pag/Cpdag/Admg, and PathSpecific /
+  InterventionalDistribution with accepted or graph-posterior structure.
+  Remaining default-refused cells still run until licensed or closed.
+  `MediationEffect` and `SustainedEffect` are now in that closed set.
+  `identify_only` graph-posterior / ADMG / non-DAG refusals use the same
+  `refused:` id instead of a stringly `Unsupported`.
+- **ResponseCurve on AcceptedGraph is licensed.**
+  `PreparedAnalysis.prepare_response(accepted=True)` records
+  `structure=accepted`. Same two-point Kennedy fixture as the explicit cell.
+- **Stage APIs are not analyze cells.** `TransportQuery` and
+  `InterferenceQuery` are n/a on temporal graphs and enforced-refused on
+  static graphs. The implemented sID subset remains a stage API returning
+  `NotCertified` outside it; it is not a licensed matrix cell.
+- **Inventory docs cannot license a cell.** `scripts/gate_docs_support_matrix.sh`
+  (unconditional in `gate_release.sh`) requires capabilities/comparison to
+  link the matrix and fails unhedged PAG-response / Counterfactual support
+  claims.
+
+### Performance / quality
+
+- **Simultaneous-band hot path.** Licensed `ResponseCurve` now has a Criterion
+  workload (`kennedy_curve_n4k_grid5_simultaneous`: n = 4000, 5-point grid,
+  explicit bandwidth, 100 wild-multiplier replicates) next to the Kennedy
+  curve bench, with a 1 s/iter `--test` soft budget.
 
 ## [0.5.2] — 2026-08-18
 

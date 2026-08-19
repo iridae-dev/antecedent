@@ -45,9 +45,6 @@ from ._native import (
 from ._native import (
     analyze_events as _analyze_events,
 )
-from ._native import (
-    analyze_mediation as _analyze_mediation,
-)
 from ._native import analyze_observation_response as _analyze_observation_response
 from ._native import (
     analyze_panel as _analyze_panel,
@@ -160,6 +157,7 @@ def handle_conditional(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    structure_accepted: bool = False,
 ) -> Any:
     from .estimation import _static_edges, _wrap_ate
 
@@ -183,6 +181,7 @@ def handle_conditional(
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
+        accepted=structure_accepted,
     )
     return _wrap_ate(raw)
 
@@ -239,6 +238,7 @@ def handle_response(
     bootstrap_requested: bool,
     seed: int,
     threads: int,
+    structure_accepted: bool = False,
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
     from .estimation import _static_edges
@@ -256,15 +256,38 @@ def handle_response(
     from .results.response import SupportStatus, UncertaintyKind
 
     if discovery is not None:
+        if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
+            raise CausalUnsupportedError(
+                "not_applicable: Structural uncertainty around curves is contrast-only; "
+                "graph-posterior mixtures do not license a response cell."
+            )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         raise TypeError("response queries do not yet support inference=Bayesian(...)")
-    if isinstance(graph, Admg):
-        raise TypeError("response queries require a Dag or Pag; Admg is not supported on this path")
-    if isinstance(graph, Cpdag):
-        raise TypeError(
-            "response queries require a Dag or Pag; Cpdag is not supported on this path"
-        )
+    # Derivative cells (AverageDerivative/DirectionalDerivative/Elasticity/PointDerivative/
+    # ResponseJacobian/SemiElasticity) used to be refused right here with a hand-typed
+    # literal duplicating parity/support_closed.toml. That duplication was a drift risk:
+    # the native `analyze_response` (python/src/response_api.rs) now consults the
+    # generated support matrix itself (via `antecedent::support::refuse_if_not_applicable`)
+    # before running, and raises the identical "refused: ..." text straight from the TOML,
+    # so the hand-rolled check here was redundant and has been removed.
+    #
+    # The Pag/Admg/Cpdag check below must stay: unlike the derivative check, it is not
+    # just a refusal message, it is the routing gate that decides whether this call
+    # reaches `_analyze_response` at all versus `_analyze_response_pag` a few lines down.
+    # Both literals are asserted against parity/support_closed.toml in
+    # test_response_support_matrix.py so neither can silently drift. `InterventionResponse`
+    # gets its own closed-rule text (parity/support_closed.toml's InterventionResponse ×
+    # [Cpdag, Admg, Pag] rule) rather than reusing the ResponseCurve one below it, since the
+    # ResponseCurve wording would misdescribe an InterventionResponse refusal.
+    if isinstance(graph, (Admg, Cpdag, Pag)):
+        if isinstance(query, InterventionResponse):
+            raise CausalUnsupportedError(
+                "refused: InterventionResponse executes only on a supplied static Dag, the "
+                "same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no "
+                "Response compile arm."
+            )
+        raise CausalUnsupportedError("refused: ResponseCurve is licensed only on a Dag.")
     if (
         graph is not None
         and not isinstance(graph, (Dag, Pag))
@@ -493,6 +516,7 @@ def handle_response(
             confidence_level=cast(float, response_options.get("confidence_level", 0.95)),
             multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
             export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
+            accepted=structure_accepted,
         )
     response = (
         ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
@@ -593,6 +617,7 @@ def handle_response(
                         grid=list(query.grid),
                         scale=scale,
                         weighting=weighting,
+                        accepted=structure_accepted,
                     )
                     subset_curves.append(subset_raw.values)
             baseline_rows = (
@@ -668,28 +693,8 @@ def handle_mediation(
     bootstrap: int | None,
     threads: int,
 ) -> Any:
-    from .estimation import _static_edges, _wrap_ate
-
-    if discovery is not None:
-        raise ValueError("MediationEffect does not support discovery=")
-    edges = _static_edges(graph)
-    names, columns = as_columns(data)
-    raw = _analyze_mediation(
-        names,
-        columns,
-        edges,
-        query.treatment,
-        query.outcome,
-        list(query.mediators),
-        contrast=query.contrast,
-        control_level=query.control_level,
-        active_level=query.active_level,
-        refute=refute,
-        seed=seed,
-        bootstrap=bootstrap,
-        threads=threads,
-    )
-    return _wrap_ate(raw)
+    del data, query, graph, discovery, refute, seed, bootstrap, threads
+    raise CausalUnsupportedError("refused: MediationEffect is not on the staged handle.")
 
 
 def handle_counterfactual(
@@ -701,57 +706,8 @@ def handle_counterfactual(
     seed: int,
     threads: int,
 ) -> Any:
-    from ._native import counterfactual_ite
-    from .estimation import (
-        AnalysisResult,
-        EstimateView,
-        IdentificationView,
-        PerformanceView,
-        ValidationView,
-        _static_edges,
-    )
-
-    if discovery is not None:
-        raise ValueError("Counterfactual does not support discovery=")
-    edges = _static_edges(graph)
-    names, columns = as_columns(data)
-    ite = counterfactual_ite(
-        names,
-        columns,
-        edges,
-        query.treatment,
-        query.outcome,
-        query.active_level,
-        query.control_level,
-        seed=seed,
-        threads=threads,
-    )
-    return AnalysisResult(
-        identification=IdentificationView(
-            status="gcm.parametric",
-            method="counterfactual.ite",
-            adjustment_set=[],
-            assumption_count=0,
-            derivation_step_count=0,
-        ),
-        estimate=EstimateView(
-            ate=float(ite.mean_ite),
-            se_analytic=float("nan"),
-            se_bootstrap=None,
-            estimator_id="gcm.ite",
-            method="counterfactual.ite",
-        ),
-        posterior=None,
-        validation=ValidationView(passed=False, ran=False, count=0),
-        performance=PerformanceView(
-            plan_id="counterfactual.ite",
-            modality="static",
-            peak_memory_bytes=0,
-        ),
-        diagnostics=[],
-        provenance={"noise_inference": getattr(ite, "noise_inference", None)},
-        _raw=ite,
-    )
+    del data, query, graph, discovery, seed, threads
+    raise CausalUnsupportedError("refused: Counterfactual is not on the staged handle.")
 
 
 def handle_distribution(
@@ -765,13 +721,15 @@ def handle_distribution(
     threads: int,
 ) -> Any:
     from .estimation import (
-        _resolve_static_discovery_edges,
         _static_edges,
         _wrap_ate,
     )
 
     if discovery is not None:
-        edges = _resolve_static_discovery_edges(data, discovery, accept_discovered, seed, threads)
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells; accepted and graph-posterior structures are not staged."
+        )
     else:
         edges = _static_edges(graph)
     names, columns = as_columns(data)
@@ -800,13 +758,15 @@ def handle_path_specific(
     threads: int,
 ) -> Any:
     from .estimation import (
-        _resolve_static_discovery_edges,
         _static_edges,
         _wrap_ate,
     )
 
     if discovery is not None:
-        edges = _resolve_static_discovery_edges(data, discovery, accept_discovered, seed, threads)
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells; accepted and graph-posterior structures are not staged."
+        )
     else:
         edges = _static_edges(graph)
     names, columns = as_columns(data)
@@ -922,6 +882,7 @@ def handle_static_ate(
     on_progress: Any | None,
     on_stage: Any | None,
     return_posterior_artifact: bool,
+    structure_accepted: bool = False,
 ) -> Any:
     from .estimation import (
         _bayesian_inference_kwargs,
@@ -1006,7 +967,7 @@ def handle_static_ate(
         return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
     edges = _static_edges(graph)
     arrow = try_as_arrow_c_columns(data)
-    ate_kwargs = dict(edges=edges, **common, **pop_kw)
+    ate_kwargs = dict(edges=edges, accepted=structure_accepted, **common, **pop_kw)
     use_arrow = arrow is not None and not pop_kw
     if use_arrow:
         assert arrow is not None
@@ -1084,6 +1045,8 @@ def handle_temporal_pulse(
     threads: int,
     regimes: Sequence[int] | None,
 ) -> Any:
+    if isinstance(query, SustainedEffect):
+        raise CausalUnsupportedError("refused: SustainedEffect is not on the staged handle.")
     from .estimation import (
         _discovery_algorithm,
         _lagged_edges,
@@ -1554,6 +1517,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
                 "bootstrap_requested",
                 "seed",
                 "threads",
+                "structure_accepted",
             ),
         )
         for kind in (
@@ -1578,6 +1542,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
             "seed",
             "bootstrap",
             "threads",
+            "structure_accepted",
         ),
     ),
     "temporal_mediation": (
@@ -1733,12 +1698,14 @@ def analyze(
     # re-entering discovery.
     from .accepted_graph import AcceptedGraph
 
+    structure_accepted = False
     if isinstance(graph, AcceptedGraph):
         if discovery is not None:
             raise CausalUnsupportedError(
                 "analyze(graph=AcceptedGraph(...)) rejects discovery=; the structure "
                 "artifact is already accepted (call rediscover() explicitly to replace it)"
             )
+        structure_accepted = True
         graph = graph.graph
     # Explicit no-op spellings are important to staged APIs, whose historical
     # defaults are ``refute=False`` and ``bootstrap=0``. They must not turn a
@@ -1777,6 +1744,11 @@ def analyze(
         )
 
     kind = getattr(query, "kind", "")
+    if structure_accepted and kind in {"path_specific", "distribution"}:
+        raise CausalUnsupportedError(
+            "refused: Path and distribution queries are licensed only as explicit "
+            "Dag cells; accepted and graph-posterior structures are not staged."
+        )
 
     if kind and kind in _KIND_HANDLER_KEYS:
         return _dispatch_kind(
@@ -1798,6 +1770,7 @@ def analyze(
                 "seed": seed,
                 "bootstrap": bootstrap,
                 "threads": threads,
+                "structure_accepted": structure_accepted,
             },
         )
 
@@ -1856,6 +1829,7 @@ def analyze(
             on_progress=on_progress,
             on_stage=on_stage,
             return_posterior_artifact=return_posterior_artifact,
+            structure_accepted=structure_accepted,
         )
 
     if isinstance(query, (PulseEffect, SustainedEffect)):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ._coerce import coerce_latency, coerce_refute
 from ._data import as_columns
@@ -58,9 +58,15 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
+    ConditionalEffect,
+    InterventionalDistribution,
+    InterventionResponse,
+    PathSpecificEffect,
+    ResponseCurve,
 )
 from .results import (
     AnalysisResult,
+    CausalResponseView,
     ConflictSummaryView,
     EffectEnvelope,
     EstimateView,
@@ -73,8 +79,13 @@ from .results import (
     PredictiveCheckReport,
     PriorSensitivityReport,
     RefutationReport,
+    ResponseUncertainty,
+    ResponseView,
+    SupportDiagnostic,
+    SupportReport,
     ValidationView,
 )
+from .results.response import SupportStatus, UncertaintyKind
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -716,25 +727,116 @@ def identify(
     return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
 
 
-class PreparedAnalysis:
-    """Compile-once / re-estimate-many handle for static AverageEffect on a DAG.
+def _wrap_prepared_response(
+    raw: Any, query: ResponseCurve | InterventionResponse | None = None
+) -> CausalResponseView:
+    """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
+    from typing import cast
 
-    Use for interactive sessions: prepare with a fixed graph/query/estimator,
-    then call :meth:`estimate` or :meth:`refresh` when the table changes
-    (same schema). Prefer this over fresh :func:`analyze` on every click.
-    For streaming append + incremental OLS, use :class:`antecedent.CausalState`.
+    response = (
+        ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
+        if raw.points and raw.values
+        else None
+    )
+    return CausalResponseView(
+        estimand=query,
+        response=response,
+        estimate=raw.scalar if raw.scalar is not None else raw.matrix,
+        uncertainty=ResponseUncertainty(
+            cast(UncertaintyKind, raw.uncertainty_kind),
+            lower=raw.lower,
+            upper=raw.upper,
+            level=raw.level,
+            standard_error=raw.standard_error,
+            replicates=raw.replicates,
+            artifact_id=raw.artifact_id,
+        ),
+        support=SupportReport(
+            cast(SupportStatus, raw.support_status),
+            {
+                name: (lower, upper)
+                for name, lower, upper in zip(
+                    raw.treatments, raw.support_minima, raw.support_maxima, strict=True
+                )
+            },
+            [
+                SupportDiagnostic(identifier, values, detail)
+                for identifier, values, detail in zip(
+                    raw.diagnostic_ids,
+                    raw.diagnostic_values,
+                    raw.diagnostic_details,
+                    strict=True,
+                )
+            ],
+            raw.warnings,
+        ),
+        identification=IdentificationView(
+            status=raw.identification,
+            method="response.backdoor",
+            adjustment_set=list(getattr(raw, "adjustment_set", ())),
+            assumption_count=len(raw.assumptions),
+            derivation_step_count=0,
+        ),
+        assumptions=raw.assumptions,
+        provenance={
+            "operation_id": raw.provenance_id,
+            "operation_ids": ["identify.response", raw.provenance_id],
+        },
+        envelope=None,
+        validation=None,
+    )
+
+
+class PreparedAnalysis:
+    """Compile-once / re-estimate-many handle for licensed static DAG cells.
+
+    **Frozen at prepare:** schema (names, types, order); graph; query identity;
+    identifier; observation / transport / interference assumptions.
+
+    **Estimate click:** same-schema data; seeds / threads. Does not re-identify
+    or recompile the logical plan.
+
+    **Refute click:** AverageEffect only. ResponseCurve, ConditionalEffect,
+    PathSpecificEffect, InterventionalDistribution, and InterventionResponse
+    have no licensed validation cell; :meth:`refute` raises ``refused``.
+
+    **Re-prepare required:** any frozen field change, including schema mismatch.
+
+    Use for interactive sessions: prepare once, then :meth:`estimate` /
+    :meth:`refresh` when the table changes. ``analyze`` is sugar over this
+    path. For streaming append + incremental OLS, use
+    :class:`antecedent.CausalState`.
     """
 
-    def __init__(self, native: Any) -> None:
+    def __init__(
+        self,
+        native: Any,
+        *,
+        kind: Literal["average", "response_curve", "intervention_response"] = "average",
+        query: AverageEffect
+        | ResponseCurve
+        | ConditionalEffect
+        | PathSpecificEffect
+        | InterventionalDistribution
+        | InterventionResponse
+        | None = None,
+    ) -> None:
         self._native = native
+        self._kind = kind
+        self._query = query
 
     @classmethod
     def prepare(
         cls,
         data: Mapping[str, Any] | Any,
         *,
-        query: AverageEffect,
-        graph: Dag | Sequence[tuple[str, str]],
+        query: AverageEffect
+        | ResponseCurve
+        | ConditionalEffect
+        | PathSpecificEffect
+        | InterventionalDistribution
+        | InterventionResponse,
+        graph: Dag | Sequence[tuple[str, str]] | Any,
         inference: Frequentist | Bayesian | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | None = None,
@@ -744,23 +846,197 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
     ) -> PreparedAnalysis:
-        """Compile a durable plan for static ATE on a supplied DAG."""
-        if not isinstance(query, AverageEffect):
-            raise CausalTypeError("PreparedAnalysis supports AverageEffect only")
-        inference = inference or Frequentist()
+        """Compile a durable plan for a licensed DAG cell.
+
+        Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
+        ``PathSpecificEffect``, ``InterventionalDistribution``, and
+        ``InterventionResponse`` queries on an explicit ``Dag`` (or other
+        supplied static graph, for ``AverageEffect``).
+        """
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
             estimator = str(estimator)
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
+        names, columns = as_columns(data)
+        from .accepted_graph import AcceptedGraph as _AcceptedGraph
+
+        if isinstance(graph, _AcceptedGraph):
+            structure_accepted = True
+            # The accepted inner graph may be any class; `_static_edges`
+            # validates and refuses non-static structures at runtime.
+            graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
+        else:
+            structure_accepted = False
+        edges = _static_edges(graph)
+        if isinstance(query, ConditionalEffect):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis ConditionalEffect supports Frequentist only"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            native = _NativePreparedAnalysis.prepare_conditional(
+                names,
+                columns,
+                edges,
+                query.treatment,
+                query.outcome,
+                query.modifier,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, PathSpecificEffect):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis PathSpecificEffect supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis PathSpecificEffect has no licensed validation cell"
+                )
+            resolved_bootstrap, _ = _resolve_latency_budget(latency, bootstrap, False)
+            native = _NativePreparedAnalysis.prepare_path_specific(
+                names,
+                columns,
+                edges,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
+                max_paths=query.max_paths,
+                max_len=query.max_len,
+                seed=seed,
+                bootstrap=resolved_bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, InterventionalDistribution):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionalDistribution supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionalDistribution has no licensed validation cell"
+                )
+            native = _NativePreparedAnalysis.prepare_distribution(
+                names,
+                columns,
+                edges,
+                query.outcome,
+                dict(query.interventions),
+                conditioning=list(query.conditioning) or None,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, ResponseCurve):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError("PreparedAnalysis ResponseCurve supports Frequentist only")
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis ResponseCurve has no licensed validation cell"
+                )
+            native = _NativePreparedAnalysis.prepare_response(
+                names,
+                columns,
+                edges,
+                query.treatment,
+                query.outcome,
+                list(query.grid),
+                identifier=identifier,
+                estimator=estimator,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="response_curve", query=query)
+        if isinstance(query, InterventionResponse):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionResponse supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalTypeError(
+                    "PreparedAnalysis InterventionResponse has no licensed validation cell"
+                )
+            from . import intervention as intervention_specs
+
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            if not interventions:
+                raise CausalValueError("InterventionResponse requires at least one intervention")
+            treatments: list[str] = []
+            intervention_kinds: list[str] = []
+            intervention_parameters: list[list[float]] = []
+            for spec in interventions:
+                if isinstance(spec, intervention_specs.Set):
+                    kind, parameters = "set", [spec.value]
+                elif isinstance(spec, intervention_specs.Shift):
+                    kind, parameters = "shift", [spec.delta]
+                elif isinstance(spec, intervention_specs.Bernoulli):
+                    kind, parameters = "bernoulli", [spec.p]
+                elif isinstance(spec, intervention_specs.Gaussian):
+                    kind, parameters = "gaussian", [spec.mean, spec.variance]
+                elif isinstance(spec, intervention_specs.Categorical):
+                    kind, parameters = "categorical", list(spec.probabilities)
+                elif isinstance(spec, (intervention_specs.Soft, intervention_specs.Sequence)):
+                    raise CausalUnsupportedError(
+                        f"{type(spec).__name__} interventions require a structural/temporal "
+                        "model and are not estimable by response.intervention_gcomp"
+                    )
+                else:
+                    raise TypeError(
+                        "InterventionResponse.intervention must be an antecedent.intervention "
+                        "specification or a sequence of specifications"
+                    )
+                treatments.append(spec.variable)
+                intervention_kinds.append(kind)
+                intervention_parameters.append(parameters)
+            native = _NativePreparedAnalysis.prepare_intervention_response(
+                names,
+                columns,
+                edges,
+                query.outcome,
+                treatments,
+                intervention_kinds,
+                intervention_parameters,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="intervention_response", query=query)
+        if not isinstance(query, AverageEffect):
+            raise CausalTypeError(
+                "PreparedAnalysis supports AverageEffect, ResponseCurve, ConditionalEffect, "
+                "PathSpecificEffect, InterventionalDistribution, or InterventionResponse"
+            )
+        inference = inference or Frequentist()
         # Default is `False`, not the historical `True` sentinel `analyze()`
         # guards against — `coerce_refute` accepts it unchanged (only literal
         # `True` is rejected), so no `None`-sentinel dance is needed here.
         refute = coerce_refute(refute)  # type: ignore[assignment]
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
-        names, columns = as_columns(data)
-        edges = _static_edges(graph)
         bayes_kw: dict[str, Any] = {}
         if isinstance(inference, Bayesian):
             bayes_kw = _bayesian_inference_kwargs(inference)
@@ -785,8 +1061,14 @@ class PreparedAnalysis:
             bootstrap=bootstrap,
             threads=threads,
             latency=latency,
+            accepted=structure_accepted,
         )
-        return cls(native)
+        return cls(native, kind="average", query=query)
+
+    @property
+    def structure_source(self) -> str:
+        """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
+        return str(self._native.plan_summary().get("structure_source", "explicit"))
 
     @property
     def plan(self) -> PhysicalPlanView:
@@ -814,9 +1096,17 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int = 1,
-    ) -> AnalysisResult:
+    ) -> AnalysisResult | CausalResponseView:
         """Re-estimate without recompiling (same schema as prepare)."""
         names, columns = as_columns(data)
+        if self._kind in ("response_curve", "intervention_response"):
+            raw = self._native.estimate_response(names, columns, seed=seed, threads=threads)
+            return _wrap_prepared_response(
+                raw,
+                query=self._query
+                if isinstance(self._query, (ResponseCurve, InterventionResponse))
+                else None,
+            )
         raw = self._native.estimate(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
@@ -826,9 +1116,17 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int = 1,
-    ) -> AnalysisResult:
+    ) -> AnalysisResult | CausalResponseView:
         """Replace retained data and re-estimate."""
         names, columns = as_columns(data)
+        if self._kind in ("response_curve", "intervention_response"):
+            raw = self._native.refresh_response(names, columns, seed=seed, threads=threads)
+            return _wrap_prepared_response(
+                raw,
+                query=self._query
+                if isinstance(self._query, (ResponseCurve, InterventionResponse))
+                else None,
+            )
         raw = self._native.refresh(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 

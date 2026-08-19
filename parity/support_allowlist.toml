@@ -1,0 +1,116 @@
+# Named allowlist: cells that are neither licensed nor closed but do genuinely
+# run end-to-end today. Each row is proof-carrying — `reason` states why it runs
+# and why it is not licensed instead (no staged handle / re-identifies per click /
+# no cell-shaped evidence fixture), and `parent` names the licensed or
+# keep-running family it rides. An allowed rule must not match any licensed, n/a,
+# or closed cell (parity/gate_support_matrix.sh enforces the partition).
+#
+# Every row here was probed end-to-end (Study::build().run()) against a real
+# fixture before being added. See adr/0020, 2026-08-19 amendment.
+
+[[allowed]]
+queries = ["AverageEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+validations = ["cheap", "full"]
+reason = "Same BayesianGComputationAte path as the licensed Dag/Bayesian/none cell; cheap and full only add refuter suites on top of the same estimate. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis; validation = cheap/full ride the licensed cell's own fixture rather than a separate known-truth pin."
+parent = "AverageEffect Dag explicit/accepted Bayesian none (licensed)"
+
+[[allowed]]
+queries = ["AverageEffect"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run."
+parent = "AverageEffect Dag explicit/accepted Bayesian none (licensed)"
+
+[[allowed]]
+queries = ["AverageEffect"]
+graph_classes = ["Admg"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+reason = "execute_admg runs general ID + FunctionalEffect whenever the ADMG carries a bidirected edge (compile.rs's Admg arm, dispatch.rs's execute() Admg arm); confirmed end-to-end on an identifiable front-door-shaped ADMG fixture. NotIdentified on a non-identifiable ADMG is a normal per-graph identification outcome, not a wiring failure. Not licensed because there is no known-truth fixture pinning general-ID ADMG estimates the way the Dag/Pag families are pinned."
+parent = "AverageEffect Dag explicit/accepted Frequentist none (licensed); mirrors the AverageEffect Pag family below"
+
+[[allowed]]
+queries = ["AverageEffect"]
+graph_classes = ["Pag"]
+structures = ["explicit", "accepted"]
+reason = "Generalized adjustment on a PAG (execute_pag) is fully wired for both Frequentist and Bayesian inference and every validation suite; confirmed end-to-end. Not licensed because PAG ATE re-identifies per click against the supplied PAG (no staged handle, no cell-shaped known-truth fixture the way the Dag family is pinned)."
+parent = "AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed)"
+
+[[allowed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Same ConditionalLinearAdjustment path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites on top of the same estimate; confirmed end-to-end. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis."
+parent = "ConditionalEffect Dag explicit/accepted Frequentist none (licensed)"
+
+[[allowed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Same general.id + functional.distribution path as the licensed Dag/explicit/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end on a discrete fixture (functional.distribution discretizes every column and caps unique levels). Not licensed because the matrix pins identification, not the refuter suite, on this axis."
+parent = "InterventionalDistribution Dag explicit Frequentist none (licensed)"
+
+[[allowed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Same response.intervention_gcomp path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis."
+parent = "InterventionResponse Dag explicit/accepted Frequentist none (licensed)"
+
+[[allowed]]
+queries = ["PathSpecificEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Same PathSpecificNatural + FunctionalEffect path as the licensed Dag/explicit/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end on a discrete fixture (this path also discretizes columns). Not licensed because the matrix pins identification, not the refuter suite, on this axis."
+parent = "PathSpecificEffect Dag explicit Frequentist none (licensed)"
+
+[[allowed]]
+queries = ["PulseEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+reason = "Temporal backdoor (compile_logical_temporal_effect_classified / execute_temporal) is fully wired for both Frequentist and Bayesian inference and every validation suite; confirmed end-to-end for Frequentist and Bayesian under none/cheap validation (full needs a longer complete series than the probe fixture supplied, same mechanism otherwise). Not licensed because there is no staged handle for the temporal path and no cell-shaped known-truth fixture pinning it the way the static AverageEffect family is pinned."
+parent = "AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed); temporal analogue"
+
+[[allowed]]
+queries = ["PulseEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run."
+parent = "PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above)"
+
+[[allowed]]
+queries = ["PulseEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["accepted"]
+reason = "A discovery-accepted TemporalCpdag/TemporalPag with no undirected/circle marks left pending does not always complete to a TemporalDag (try_into_temporal_dag can still fail -- e.g. a resolved-but-bidirected mark a CPDAG/PAG completion review does not reduce to a lagged direction); compile.rs's TemporalCpdag/TemporalPag arms run that same completion attempt and, on success, execute the temporal backdoor exactly like the TemporalDag family. On failure they surface CausalError::Compile (Python's CausalCompileError), never a silent or mislabeled number. J-PCMCI+/LPCMCI discovery in python/src/temporal_api.rs (accept_temporal_cpdag_review / accept_temporal_pag_review) reaches this cell directly and today; python/tests/test_analyze_discovery.py::test_analyze_discovery_jpcmci_plus_two_env and test_panel_discover_ci_callback.py::test_panel_discover_jpcmci_plus_ci_callback_invoked already tolerate the CausalCompileError outcome as legitimate, alongside a clean estimate. Not licensed because completion success is per-discovered-graph and not staged."
+parent = "PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above) -- same temporal backdoor, reached via a graph that does not always finish collapsing"
+
+[[allowed]]
+queries = ["ResponseCurve"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Same response.backdoor + Kennedy-DR path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites on top of the same curve; confirmed end-to-end. Not licensed because the matrix pins the curve, not the refuter suite, on this axis."
+parent = "ResponseCurve Dag explicit/accepted Frequentist none (licensed)"
+
+[[allowed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+reason = "execute_temporal_mediation runs TemporalMediationIdentifier + TemporalMediationEstimator end-to-end for every validation suite under Frequentist inference; confirmed end-to-end. Bayesian inference on this cell is deliberately excluded (closed instead, parity/support_closed.toml): execute_temporal_mediation hardcodes EstimatorId::TemporalMediation and never consults inference mode, so a Bayesian-labeled run would silently return the identical Frequentist number. Not licensed because there is no staged handle or known-truth fixture pinning temporal mediation the way the static AverageEffect family is pinned."
+parent = "TemporalMediationEffect TemporalDag explicit/accepted Frequentist (this row is the running family; Bayesian is closed, not allowed)"

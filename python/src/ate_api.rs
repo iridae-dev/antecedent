@@ -7,10 +7,16 @@
 )]
 
 use crate::*;
+use antecedent::{AcceptedGraph, StudyBuilder};
+use antecedent_graph::Dag;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
+
+fn bind_dag(builder: StudyBuilder, dag: Dag, accepted: bool) -> StudyBuilder {
+    if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) }
+}
 
 fn parse_rd_config<F>(
     estimator: Option<&str>,
@@ -454,6 +460,7 @@ fn parse_population_registry(
     on_progress=None,
     on_stage=None,
     return_posterior_artifact=false,
+    accepted=false,
 ))]
 fn analyze_ate(
     py: Python<'_>,
@@ -489,6 +496,7 @@ fn analyze_ate(
     on_progress: Option<Bound<'_, PyAny>>,
     on_stage: Option<Bound<'_, PyAny>>,
     return_posterior_artifact: bool,
+    accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let pop_spec = parse_target_population(target_population.as_ref())?;
     let registry = parse_population_registry(
@@ -558,8 +566,7 @@ fn analyze_ate(
             merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = Study::tabular(data)
-            .graph(dag)
+        let mut builder = bind_dag(Study::tabular(data), dag, accepted)
             .query(query)
             .refute(suite)
             .custom_validators(custom_validators);
@@ -650,6 +657,7 @@ fn analyze_ate(
     on_progress=None,
     on_stage=None,
     return_posterior_artifact=false,
+    accepted=false,
 ))]
 fn analyze_ate_arrow_c(
     py: Python<'_>,
@@ -682,6 +690,7 @@ fn analyze_ate_arrow_c(
     on_progress: Option<Bound<'_, PyAny>>,
     on_stage: Option<Bound<'_, PyAny>>,
     return_posterior_artifact: bool,
+    accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
@@ -737,8 +746,7 @@ fn analyze_ate_arrow_c(
             merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = Study::tabular(data)
-            .graph(dag)
+        let mut builder = bind_dag(Study::tabular(data), dag, accepted)
             .query(query)
             .refute(suite)
             .custom_validators(custom_validators);
@@ -1983,7 +1991,7 @@ pub(crate) struct GraphEdge {
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, modifier, *,
     control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=50, threads=1
+    refute=None, validators=None, seed=1, bootstrap=50, threads=1, accepted=false
 ))]
 fn analyze_conditional(
     py: Python<'_>,
@@ -2000,6 +2008,7 @@ fn analyze_conditional(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
@@ -2017,8 +2026,7 @@ fn analyze_conditional(
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::tabular(data)
-            .graph(dag)
+        let analysis = bind_dag(Study::tabular(data), dag, accepted)
             .query(CausalQuery::ConditionalEffect(cq))
             .refute(suite)
             .custom_validators(custom_validators)

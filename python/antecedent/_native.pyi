@@ -460,6 +460,89 @@ class PreparedAnalysis:
         bootstrap: int | None = 50,
         threads: int = 1,
         latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_response(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        grid: list[float],
+        *,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_conditional(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        modifier: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_path_specific(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        path_nodes: list[str] | None = None,
+        max_paths: int = 64,
+        max_len: int = 16,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_intervention_response(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        treatments: list[str],
+        intervention_kinds: list[str],
+        intervention_parameters: list[list[float]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_distribution(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        interventions: dict[str, float],
+        *,
+        conditioning: list[str] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
     ) -> PreparedAnalysis: ...
     def plan_summary(self) -> dict[str, str]: ...
     def estimate(
@@ -470,6 +553,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def estimate_response(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
     def refresh(
         self,
         names: list[str],
@@ -478,6 +569,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def refresh_response(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
     @property
     def names(self) -> list[str]: ...
 
@@ -732,6 +831,7 @@ def analyze_ate(
     on_progress: Callable[[float, str], Any] | None = None,
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze_ate_arrow_c(
     names: list[str],
@@ -764,6 +864,7 @@ def analyze_ate_arrow_c(
     on_progress: Callable[[float, str], Any] | None = None,
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze(
     names: list[str],
@@ -930,6 +1031,7 @@ def analyze_response(
     confidence_level: float = 0.95,
     multiplier_seed: int = 0xA17E_CEDE_0500,
     export_row_diagnostics: bool = False,
+    accepted: bool = False,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
@@ -1088,6 +1190,7 @@ def analyze_conditional(
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
+    accepted: bool = False,
 ) -> AteAnalysisResult: ...
 def analyze_mediation(
     names: list[str],

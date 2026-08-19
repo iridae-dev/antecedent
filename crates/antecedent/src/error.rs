@@ -188,6 +188,14 @@ pub enum CausalError {
         /// Message.
         message: &'static str,
     },
+    /// Support-matrix refusal (stable id).
+    #[error("{id}: {message}")]
+    Support {
+        /// Stable matrix id (`not_applicable` or `refused`).
+        id: crate::support::SupportRefusal,
+        /// Human-readable reason (n/a rule text, or a refused-cell explanation).
+        message: &'static str,
+    },
     /// Missing required builder input.
     #[error("missing required field: {field}")]
     Missing {

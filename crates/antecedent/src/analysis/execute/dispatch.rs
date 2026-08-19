@@ -371,9 +371,10 @@ impl super::Study {
         if self.graph_posterior.is_some() {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
             // identification runs per-graph, against the real posterior atoms, inside `execute()`.
-            return Err(CausalError::Unsupported {
-                message: "identify_only is not supported for graph-posterior analysis; \
-                          identification runs per-graph inside execute()",
+            return Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "identify_only is not a graph-posterior cell; identification \
+                          runs per-graph inside execute.",
             });
         }
         let default_id = if matches!(&self.query, CausalQuery::Response(_)) {
@@ -386,8 +387,9 @@ impl super::Study {
         if let Some(admg) = self.graph.as_admg() {
             if admg_has_bidirected(admg) {
                 let CausalQuery::AverageEffect(query) = &self.query else {
-                    return Err(CausalError::Unsupported {
-                        message: "identify_only on an ADMG supports average-effect queries only",
+                    return Err(CausalError::Support {
+                        id: crate::support::SupportRefusal::Refused,
+                        message: "identify_only on an ADMG supports AverageEffect only.",
                     });
                 };
                 // Only general ID handles bidirected structure; the default
@@ -403,8 +405,9 @@ impl super::Study {
             return identify_static_query(id, &coerced, &self.query);
         }
 
-        let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-            message: "identify_only currently supports static DAG and ADMG graphs only",
+        let graph = self.graph.as_dag().ok_or(CausalError::Support {
+            id: crate::support::SupportRefusal::Refused,
+            message: "identify_only supports static DAG and ADMG graphs only.",
         })?;
         identify_static_query(id, graph, &self.query)
     }

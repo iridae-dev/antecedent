@@ -12,7 +12,7 @@ use antecedent_core::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
     ResponseQuery, ResponseUncertainty, ResponseValue, SupportStatus, Value, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
 
@@ -212,6 +212,71 @@ fn intervention_response_runs_through_public_study_facade_with_its_own_strategy(
     assert!((value - 1.5).abs() < 0.25, "value={value}");
 }
 
+/// Known-truth pin for `response.intervention_gcomp`: see
+/// `conformance/response/intervention_response/expected.json`. Same deterministic
+/// generator as `intervention_response_runs_through_public_study_facade_with_its_own_strategy`
+/// above (zero outcome noise), but checked against the fixture's analytically pinned
+/// `true_response` rather than a hand-typed literal in the test body.
+#[test]
+fn intervention_response_conforms_to_known_truth_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/intervention_response/expected.json"
+    ))
+    .unwrap();
+    let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * treatment[i] + 0.8 * z[i]).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", treatment.as_slice()),
+        ("y", outcome.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let set_value = fixture["contract"]["intervention"]["value"].as_f64().unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(
+            VariableId::from_raw(0),
+            Value::f64(set_value),
+        )]),
+    });
+
+    // Exercise both the direct `Study::run` path and the prepared handle (which is
+    // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
+    // and pin both against the same fixture truth.
+    let study = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::Response(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
+    let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
+    let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
+
+    let truth = fixture["contract"]["true_response"].as_f64().unwrap();
+    let tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
+    for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
+        let response = result.response.as_ref().unwrap();
+        assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        else {
+            panic!("{label}: expected scalar intervention response");
+        };
+        assert!(
+            (value - truth).abs() <= tolerance,
+            "{label}: value={value} truth={truth} tolerance={tolerance}"
+        );
+    }
+}
+
 #[test]
 fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -283,4 +348,105 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
     );
     assert!((curve_contrast - truth).abs() <= truth_tolerance);
     assert!((average_effect - truth).abs() <= truth_tolerance);
+}
+
+fn mean_curve_study() -> (antecedent_data::TabularData, Dag, ResponseQuery) {
+    let n = 240;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> =
+        (0..n).map(|i| z[i] + (i as f64 / 11.0).cos() + (i % 7) as f64 * 0.03).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| 1.0 + 2.0 * treatment[i] + 0.8 * z[i] + (i as f64 / 13.0).sin() * 0.05)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("confounder", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(vec![-0.5, 0.0, 0.5].into()),
+        ),
+    });
+    (data, graph, query)
+}
+
+#[test]
+fn prepared_response_curve_reuses_identification() {
+    let (data, graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(50);
+    let study = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert_eq!(click.estimand.adjustment_set, fresh.estimand.adjustment_set);
+    let click_mean = match &click.response.as_ref().unwrap().estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
+        other => panic!("expected surface, got {other:?}"),
+    };
+    let fresh_mean = match &fresh.response.as_ref().unwrap().estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
+        other => panic!("expected surface, got {other:?}"),
+    };
+    assert_eq!(click_mean.len(), fresh_mean.len());
+    for (a, b) in click_mean.iter().zip(fresh_mean.iter()) {
+        assert!((a - b).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn response_curve_graph_posterior_is_not_applicable_at_build() {
+    let (data, _graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(1);
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let gp = antecedent::discovery::discover_exact_dag_posterior(
+        &data,
+        &vars,
+        &antecedent::discovery::BayesianDiscoverParams::default(),
+        &ctx,
+    )
+    .unwrap();
+    let err = Study::tabular(data)
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.starts_with("not_applicable:"), "{msg}");
+    assert!(msg.contains("contrast-only"), "{msg}");
+}
+
+#[test]
+fn prepared_response_refute_is_refused() {
+    let (data, graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(50);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let prior = prepared.estimate(&data, &ctx).unwrap();
+    let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.starts_with("refused:"), "{msg}");
 }

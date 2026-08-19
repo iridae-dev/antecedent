@@ -18,7 +18,7 @@ allocation/memory contracts, and owning crates.
 | Cancel mid-bootstrap | `antecedent-estimate` / `causal` | (conformance) `latency_tiers::cancel_mid_bootstrap_yields_partial_not_silent_full` | — | Soft partial SE; `cancelled` flag; no silent full result |
 | Adaptive bootstrap | `antecedent-estimate` / `causal` | (conformance) `latency_tiers::adaptive_bootstrap_pin_stable_count_and_se` | — | SE relative early-stop; `early_stopped` + actual `bootstrap_replicates_ok` |
 | Adaptive Bayesian draws | `antecedent-estimate` / `causal` | (conformance) `latency_tiers::adaptive_draws_preserve_exact_nig_count_and_width` | — | Quantile-width early-stop; `early_stopped` + actual `n_draws` |
-| Prepared re-estimate | `causal` | (conformance) `prepared_analysis` | — | Compile-once Ready plan; identify-once cache (`exec.identify.cached`); schema-gated refresh; 2nd shot skips compile and identification |
+| Prepared re-estimate | `causal` | (conformance) `prepared_analysis` | — | Compile-once `PreparedStudy`; identify-once cache (`exec.identify.cached`); schema-gated refresh; 2nd shot skips compile and identification |
 | Discover-once / estimate-many | `causal` / Python | (conformance) `latency_tiers::discovered_graph_builds_under_every_latency_tier`, `test_accepted_graph`, `test_discovery_interactive_guard` | — | Python `analyze` refuses inline `discovery=` under `latency="interactive"` (the Rust builder cannot express the combination); `AcceptedGraph` version stable across estimate clicks |
 | Shared estimate→refute workspace | `causal` | (conformance) `shared_workspace` | — | `StaticEstimateWorkspaces` for linear / propensity / AIPW across estimate→refute |
 | Interactive graph×effect subsample | `antecedent-estimate` / `causal` | (unit) `envelope::interactive_subsample_mass_accounting_honest` | — | Leftover identified mass → `unidentified_mass`; approximate diagnostic |
@@ -37,7 +37,7 @@ allocation/memory contracts, and owning crates.
 | GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](../benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
 | Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](../benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
-| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row` |
+| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
 ## Smoke commands

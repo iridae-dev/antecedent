@@ -5,9 +5,12 @@
 
 [[capabilities]]
 id = "identify.response"
-status = "pending"
+status = "done"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/response/two_point_curve_average_effect"
+limitations = "Single well-specified linear DGP; identification is exercised only as the staged ResponseCurve path that shares this fixture with estimate.response.kennedy_dr. Conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. Does not demonstrate DoWhy adjustment-set/formula parity or ehkennedy identification parity."
 python_facade = "thin"
-notes = "Candidate oracle: the baseline pinned in parity/baselines/dowhy.toml for back-door adjustment-set/formula cases. Response-estimand preservation still needs a dedicated frozen fixture."
+notes = "Staged ResponseCurve identification, same frozen fixture as estimate.response.kennedy_dr: conformance/response/two_point_curve_average_effect compares the two-point ResponseCurve contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. DoWhy (parity/baselines/dowhy.toml) remains an unclaimed candidate; no external identification oracle is pinned."
 
 [[capabilities]]
 id = "estimate.response.kennedy_dr"
@@ -17,24 +20,6 @@ known_truth_fixture = "conformance/response/two_point_curve_average_effect"
 limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested)."
 python_facade = "full"
 notes = "Claimed shared-linear-contract conformance: frozen fixture conformance/response/two_point_curve_average_effect compares ResponseCurve(kennedy_dr) two-point contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. External ehkennedy/npcausal::ctseff remains an unclaimed candidate (nuisance/bandwidth contract not pinned)."
-
-[[capabilities]]
-id = "estimate.response.riesz_ade"
-status = "pending"
-python_facade = "thin"
-notes = "Candidate oracle: the paper-author alse repository. No immutable commit or frozen output is recorded yet."
-
-[[capabilities]]
-id = "estimate.response.gam_derivative"
-status = "pending"
-python_facade = "thin"
-notes = "Candidates: mgcv and pyGAM on a fixed additive surface. Basis, penalty, and finite-difference contracts must be aligned before selecting and pinning an oracle."
-
-[[capabilities]]
-id = "stats.response.local_polynomial"
-status = "pending"
-python_facade = "thin"
-notes = "Candidate oracle: an independently configured R local-polynomial implementation. Kernel, polynomial order, bandwidth, and plug-in uncertainty semantics require an exact contract first."
 
 [[capabilities]]
 id = "identify.binary_iv_bounds"
@@ -57,27 +42,38 @@ notes = "Claimed black-box parity against causaleffect 1.3.15 on the supported s
 
 [[capabilities]]
 id = "estimate.trial_to_target"
-status = "pending"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/trial_transport"
+limitations = "Known-nuisance paper-equation case only. Does not demonstrate generalize/GRF or any other external-package parity."
 python_facade = "thin"
-notes = "Paper-equation IPW/AIPW and overlap fixture is frozen and consumed. External candidates generalize/GRF still lack an immutable exact-contract pin, so external parity remains pending."
+notes = "Frozen fixture conformance/response/trial_transport is consumed by antecedent-estimate::transport (matches_frozen_trial_transport_equation_fixture) and records independent inverse-odds IPW/AIPW plus overlap ESS. generalize/GRF remain unclaimed candidates; no external oracle is pinned."
 
 [[capabilities]]
 id = "estimate.transport_response_grid"
-status = "pending"
+status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Rust-only algebraic evaluator; not a published joint estimator. Unit tests check the composition on hand-chosen inputs. No frozen fixture, no double-robustness/efficiency/curve-inference claim, and no external oracle."
 python_facade = "none"
-notes = "Rust-only primitive (antecedent_estimate::transport_augmented_response_grid): evaluates a caller-supplied augmented transported response equation on a grid. The composition of Dahabreh DR1 with a grid-local source correction is not a published estimator, so no external oracle exists to claim parity against; the two component equations are cited in provenance/estimate.transport_response_grid.toml."
+notes = "Public Rust primitive antecedent_estimate::transport_augmented_response_grid: evaluates a caller-supplied augmented transported response on a grid. Component equations are cited in provenance/estimate.transport_response_grid.toml; the composition itself is not a published estimator, so no external parity is claimed."
 
 [[capabilities]]
 id = "estimate.observation_km_ipcw"
-status = "pending"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/observation_primitives"
+limitations = "Paper-equation product-limit/IPCW weights only (with and without delayed entry). Does not demonstrate equivalence to riskRegression prediction-time IPCW or any other external package."
 python_facade = "thin"
-notes = "Marginal KM IPCW with delayed-entry paper-equation fixture is frozen and consumed. riskRegression 2026.03.11 exposes prediction-time IPCW semantics whose subject-time, delayed-entry, and normalization contract is not established as equivalent; external parity remains pending."
+notes = "Frozen fixture conformance/response/observation_primitives is consumed by antecedent-stats::observation (observation_primitives_match_frozen_paper_equation_fixture) for marginal KM IPCW with and without delayed entry. riskRegression remains an unclaimed candidate; no external oracle is pinned."
 
 [[capabilities]]
 id = "estimate.observation_selected"
-status = "pending"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/observation_primitives"
+limitations = "Known-nuisance paper-equation AIPW pseudo-outcomes only. Does not demonstrate fitted observation-model clipping calibration or any external-package parity."
 python_facade = "thin"
-notes = "Independent IPW/AIPW paper-equation pseudo-outcome fixture is frozen and consumed. No external black-box oracle is claimed; fitted observation-model clipping calibration remains pending."
+notes = "Frozen fixture conformance/response/observation_primitives is consumed by antecedent-stats::observation (observation_primitives_match_frozen_paper_equation_fixture) for independent IPW/AIPW selected-outcome pseudo-values. No external black-box oracle is pinned."
 
 [[capabilities]]
 id = "stats.gaussian_observation_likelihood"
@@ -89,6 +85,9 @@ notes = "Independent closed-form exact/left/right/interval/truncated Gaussian li
 
 [[capabilities]]
 id = "stats.randomized_interference"
-status = "pending"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/randomized_interference"
+limitations = "Exact two-unit Bernoulli enumeration only. Young-bound conservative_variance is a repository contract, not Aronow–Samii Section 5 joint-exposure variance. No external author implementation is pinned."
 python_facade = "thin"
-notes = "Exact two-unit assignment-enumeration plus HT/Hajek paper-equation fixture is frozen and consumed. No immutable compatible external author implementation is pinned; Antecedent's Young-bound variance is explicitly not claimed as exact Aronow-Samii variance parity."
+notes = "Frozen fixture conformance/response/randomized_interference is consumed by antecedent-estimate::interference (matches_frozen_exact_design_calibration_fixture): exact two-unit assignment enumeration plus HT/Hájek paper equations and Antecedent's documented Young bound. No external oracle is claimed."

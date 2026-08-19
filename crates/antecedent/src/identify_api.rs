@@ -136,6 +136,15 @@ pub fn identify_with(
     strategy: IdentifierId,
 ) -> Result<Identification, CausalError> {
     let structure_version = structure.version();
+    if let Some(cell) = crate::support::support_cell(
+        query,
+        crate::support::effective_graph_class(structure, query),
+        crate::support::StructureSource::Accepted,
+        &crate::inference::InferenceMode::Frequentist,
+        crate::analysis::RefuteSuite::None,
+    ) {
+        crate::support::refuse_if_not_applicable(cell)?;
+    }
     match structure.class() {
         GraphClass::Dag => {
             let dag = structure.as_dag().expect("class() == Dag implies as_dag() is Some");
@@ -230,5 +239,23 @@ mod tests {
         assert!(identification.is_identified());
         assert_eq!(identification.structure_version(), 1);
         assert_eq!(identification.strategy(), DEFAULT_IDENTIFIER_ID);
+    }
+
+    #[test]
+    fn identify_refuses_pulse_on_static_dag() {
+        let structure = AcceptedGraph::from(toy_dag());
+        let query = CausalQuery::TemporalEffect(antecedent_core::TemporalEffectQuery::pulse(
+            antecedent_core::VariableId::from_raw(0),
+            antecedent_core::VariableId::from_raw(1),
+            1.0,
+        ));
+        let err = identify(&structure, &query).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CausalError::Support { id: crate::support::SupportRefusal::NotApplicable, .. }
+            ),
+            "{err}"
+        );
     }
 }

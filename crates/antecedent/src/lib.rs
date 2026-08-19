@@ -65,6 +65,8 @@ pub mod result;
 pub mod review;
 pub mod state;
 pub mod strategy_table;
+pub mod support;
+mod support_matrix_data;
 
 pub mod estimate;
 pub mod graph;
@@ -89,6 +91,9 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::StudyResult;
+pub use support::{
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
+};
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,
 // `antecedent::gcm`, `antecedent::io`, `antecedent::design`, `antecedent::state`, `antecedent::graph`,
@@ -343,14 +348,17 @@ mod tests {
             &ctx,
         )
         .unwrap();
+        // Structure/inference support-matrix closure (parity/support_closed.toml:
+        // structures=["graph_posterior"], inferences=["Frequentist"]) now refuses this
+        // combination at `build()` itself, before it would otherwise reach `compile`'s
+        // own free-form `graph-posterior discovery requires inference=Bayesian` error —
+        // same outcome (still refused), earlier and with a stable id.
         let err = Study::tabular(data)
             .graph_posterior(gp)
             .query(query)
             .inference(InferenceMode::Frequentist)
             .refute(RefuteSuite::None)
             .build()
-            .unwrap()
-            .compile(&ctx)
             .unwrap_err();
         let msg = err.to_string();
         assert!(

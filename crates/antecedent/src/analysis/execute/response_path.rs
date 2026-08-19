@@ -20,11 +20,17 @@ impl super::Study {
         let identifier_id: IdentifierId = identifier.parse()?;
         let _: EstimatorId = estimator.parse()?;
 
-        let identification =
-            identify_static_query(identifier_id, graph, &CausalQuery::Response(query.clone()))?;
-        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-            CausalError::Compile { message: "response identifier returned no estimand".into() }
-        })?;
+        let identify_cached = self.identification_cache.is_some();
+        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
+            (cache.identification.clone(), cache.estimand.clone())
+        } else {
+            let identification =
+                identify_static_query(identifier_id, graph, &CausalQuery::Response(query.clone()))?;
+            let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                CausalError::Compile { message: "response identifier returned no estimand".into() }
+            })?;
+            (identification, estimand)
+        };
         if identification
             .estimands
             .iter()
@@ -67,6 +73,14 @@ impl super::Study {
         );
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let mut diagnostics = identification.diagnostics.clone();
+        if identify_cached {
+            diagnostics.push(Diagnostic::new(
+                "exec.identify.cached",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "identification reused from the prepare-time cache".to_string(),
+            ));
+        }
         diagnostics.push(Diagnostic::new(
             "refute.response.skipped",
             DiagnosticKind::Scientific,
