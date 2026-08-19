@@ -200,6 +200,12 @@ impl Admg {
         &self.bidirected[id.as_usize()]
     }
 
+    /// Whether any bidirected edge is present.
+    #[must_use]
+    pub fn has_bidirected(&self) -> bool {
+        self.bidirected.iter().any(|neighbors| !neighbors.is_empty())
+    }
+
     /// Whether `from` reaches `to` via directed edges.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
@@ -283,6 +289,9 @@ mod tests {
         assert_eq!(d[1], d[2]);
         assert_ne!(d[0], d[1]);
         assert_ne!(d[3], d[1]);
+        assert!(g.has_bidirected());
+        let dag_shaped = Admg::with_variables(2);
+        assert!(!dag_shaped.has_bidirected());
     }
 
     #[test]
