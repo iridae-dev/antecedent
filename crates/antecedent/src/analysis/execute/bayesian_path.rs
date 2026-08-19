@@ -20,14 +20,12 @@ impl super::Study {
         // only (identifier, graph, query) — rd is never consulted on this path —
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let identification = identify_static(identifier_id, graph, query)?;
-            let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = identify_static(identifier_id, graph, query)?;
+                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                Ok((identification, estimand))
+            })?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),

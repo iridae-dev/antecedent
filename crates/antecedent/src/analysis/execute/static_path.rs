@@ -32,20 +32,19 @@ impl super::Study {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query, rd), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let rd = self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
-            let identification = identify_static_query_with_rd(
-                identifier_id,
-                graph,
-                &CausalQuery::AverageEffect(query.clone()),
-                rd,
-            )?;
-            let estimand = select_estimand(&identification, estimator_id)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let rd =
+                    self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
+                let identification = identify_static_query_with_rd(
+                    identifier_id,
+                    graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                    rd,
+                )?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
         let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
@@ -301,15 +300,13 @@ impl super::Study {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let cq = CausalQuery::Distribution(query.clone());
-            let identification = identify_static_query(identifier_id, graph, &cq)?;
-            let estimand = select_estimand(&identification, estimator_id)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let cq = CausalQuery::Distribution(query.clone());
+                let identification = identify_static_query(identifier_id, graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
 
         let est = FunctionalDistribution {
             bootstrap_replicates: self.bootstrap_replicates,
@@ -457,15 +454,13 @@ impl super::Study {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let cq = CausalQuery::PathSpecific(query.clone());
-            let identification = identify_static_query(identifier_id, graph, &cq)?;
-            let estimand = select_estimand(&identification, estimator_id)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let cq = CausalQuery::PathSpecific(query.clone());
+                let identification = identify_static_query(identifier_id, graph, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
 
         let mut extra = vec![query.treatment, query.outcome];
         extra.extend(query.path_nodes.iter().copied());
@@ -649,15 +644,13 @@ impl super::Study {
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query.inner), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let identification = identify_static(identifier_id, graph, &query.inner)?;
-            let estimand =
-                select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = identify_static(identifier_id, graph, &query.inner)?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
+                Ok((identification, estimand))
+            })?;
         let est = ConditionalLinearAdjustment::new();
         let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
         let mut diagnostics = identification.diagnostics.clone();

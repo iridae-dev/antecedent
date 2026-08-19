@@ -20,17 +20,20 @@ impl super::Study {
         let identifier_id: IdentifierId = identifier.parse()?;
         let _: EstimatorId = estimator.parse()?;
 
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let identification =
-                identify_static_query(identifier_id, graph, &CausalQuery::Response(query.clone()))?;
-            let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                CausalError::Compile { message: "response identifier returned no estimand".into() }
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = identify_static_query(
+                    identifier_id,
+                    graph,
+                    &CausalQuery::Response(query.clone()),
+                )?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "response identifier returned no estimand".into(),
+                    }
+                })?;
+                Ok((identification, estimand))
             })?;
-            (identification, estimand)
-        };
         if identification
             .estimands
             .iter()
