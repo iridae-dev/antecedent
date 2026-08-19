@@ -285,6 +285,23 @@ pub enum EstimatorId {
     ResponseInterventionGcomp,
 }
 
+impl EstimatorId {
+    /// Default response estimator for `functional` when the caller did not override it.
+    #[must_use]
+    pub const fn default_for_response(functional: &antecedent_core::ResponseFunctional) -> Self {
+        use antecedent_core::ResponseFunctional;
+        match functional {
+            ResponseFunctional::MeanCurve { .. } | ResponseFunctional::PointDerivative { .. } => {
+                Self::ResponseKennedyDr
+            }
+            ResponseFunctional::AverageDerivative { .. } => Self::ResponseRieszAde,
+            ResponseFunctional::DirectionalDerivative { .. }
+            | ResponseFunctional::Jacobian { .. } => Self::ResponseGamDerivative,
+            ResponseFunctional::InterventionResponse { .. } => Self::ResponseInterventionGcomp,
+        }
+    }
+}
+
 /// Per-estimator data-only facts backing [`EstimatorId::as_str`],
 /// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
 /// [`estimate_provenance_step`].
