@@ -177,8 +177,7 @@ def test_path_distribution_literals_match_support_closed_toml():
     matches = [
         rule
         for rule in rules
-        if set(rule.get("queries", []))
-        == {"PathSpecificEffect", "InterventionalDistribution"}
+        if set(rule.get("queries", [])) == {"PathSpecificEffect", "InterventionalDistribution"}
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
@@ -190,4 +189,3 @@ def test_path_distribution_literals_match_support_closed_toml():
         f"expected the TOML reason to appear at the three hand-rolled sites; "
         f"found {count}: {reason!r}"
     )
-

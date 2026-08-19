@@ -207,9 +207,7 @@ def test_allowlisted_pulse_effect_temporal_dag_still_runs():
     result = antecedent.analyze(
         data,
         graph=graph,
-        query=antecedent.PulseEffect(
-            treatment="t", outcome="y", treatment_lag=1, horizon_steps=1
-        ),
+        query=antecedent.PulseEffect(treatment="t", outcome="y", treatment_lag=1, horizon_steps=1),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -229,8 +227,8 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
     n = 300
     u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
     t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
-    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u)])
-    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u, strict=True)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u, strict=True)])
     data = {"t": t, "m": m, "y": y}
     admg = antecedent.Admg.from_edges(
         ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]

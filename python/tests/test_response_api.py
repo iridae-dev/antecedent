@@ -480,7 +480,9 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     with pytest.raises(CausalUnsupportedError, match=match):
         antecedent.analyze(
             data,
-            query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
+            query=antecedent.SemiElasticity(
+                "a", "y", at=float(np.median(a)), log_scale="treatment"
+            ),
             graph=graph,
             estimator_config={"bandwidth": 0.25},
         )
