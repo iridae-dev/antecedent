@@ -514,7 +514,6 @@ impl super::Study {
             .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
             .map_err(CausalError::from)?;
 
-        let mut diagnostics = vec![overlap_diagnostic(estimate.overlap)];
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = run_refuters(
             data,
@@ -530,38 +529,22 @@ impl super::Study {
             None,
         )?;
 
-        let provenance = provenance_pair(
-            ("identify.rd_design", "identify.rd_sharp", &[], &identification.required_assumptions),
-            ("estimate.rd", "estimate.rd_sharp", &["identify.rd_design"], &estimate.assumptions),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::RdSharp,
+            estimator_id: EstimatorId::RdSharp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
         }))
