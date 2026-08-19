@@ -182,15 +182,6 @@ impl super::Study {
 
         let cancelled = estimate.bootstrap_cancelled || clock.cancelled();
 
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
-            diagnostics.push(d);
-        }
-
         let refutations = if cancelled {
             Vec::new()
         } else {
@@ -223,44 +214,32 @@ impl super::Study {
             reports
         };
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let extra_diagnostics = if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+            vec![d]
+        } else {
+            Vec::new()
+        };
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics,
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: clock.wall_time_ns(),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: clock.timings(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
-            n_draws: None,
             cancelled: clock.cancelled(),
             early_stopped,
+            extras: IdentifiedExecuteExtras { stage_timings_ns: clock.timings(), ..Default::default() },
         }))
     }
 
@@ -390,6 +369,7 @@ impl super::Study {
             bootstrap_replicates_ok: bootstrap_ok,
             cancelled,
             early_stopped,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
@@ -480,6 +460,7 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
@@ -547,6 +528,7 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
@@ -605,6 +587,7 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
@@ -682,6 +665,7 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 }

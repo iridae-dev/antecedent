@@ -112,6 +112,24 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
     pub bootstrap_replicates_ok: Option<u32>,
     pub cancelled: bool,
     pub early_stopped: bool,
+    pub extras: IdentifiedExecuteExtras,
+}
+
+/// Optional finish slots that most identified paths leave at default.
+pub(super) struct IdentifiedExecuteExtras {
+    pub stage_timings_ns: Vec<(Arc<str>, u64)>,
+    pub identify_provenance: Option<(&'static str, &'static str)>,
+    pub estimate_provenance: Option<(&'static str, &'static str)>,
+}
+
+impl Default for IdentifiedExecuteExtras {
+    fn default() -> Self {
+        Self {
+            stage_timings_ns: Vec::new(),
+            identify_provenance: None,
+            estimate_provenance: None,
+        }
+    }
 }
 
 pub(super) fn identification_from_cache_or(
@@ -311,6 +329,23 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
     Ok(dag)
 }
 
+pub(super) fn bayesian_temporal_gcomp(
+    cfg: &BayesianConfig,
+    ctx: &ExecutionContext,
+) -> BayesianTemporalGcomp {
+    BayesianTemporalGcomp {
+        inner: BayesianGComputationAte {
+            backend: cfg.backend,
+            likelihood: cfg.likelihood,
+            n_draws: cfg.n_draws,
+            seed: ctx.rng.master_seed(),
+            overlap: OverlapPolicy::ExplicitOverride,
+            prior_scale: cfg.prior_scale,
+            prior: None,
+        },
+    }
+}
+
 impl super::Study {
     pub(super) fn require_execute_dag(&self, message: &'static str) -> Result<&Dag, CausalError> {
         self.graph.as_dag().ok_or(CausalError::Unsupported { message })
@@ -326,8 +361,14 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         diagnostics.extend(args.extra_diagnostics);
-        let (id_artifact, id_op) = identify_provenance_step(args.identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(args.estimator_id);
+        let (id_artifact, id_op) = args
+            .extras
+            .identify_provenance
+            .unwrap_or_else(|| identify_provenance_step(args.identifier_id));
+        let (est_artifact, est_op) = args
+            .extras
+            .estimate_provenance
+            .unwrap_or_else(|| estimate_provenance_step(args.estimator_id));
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &args.identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &args.estimate.assumptions),
@@ -355,7 +396,7 @@ impl super::Study {
             outcome: args.outcome,
             wall_time_ns: args.wall_time_ns,
             latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
+            stage_timings_ns: args.extras.stage_timings_ns,
             bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: args.bootstrap_replicates_ok,
             n_draws: None,
