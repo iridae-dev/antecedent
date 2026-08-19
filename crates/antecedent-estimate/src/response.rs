@@ -27,8 +27,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    FaerBackend, GamOptions, GamWorkspace, SmoothSpec, fit_gam, gaussian_density,
-    gaussian_local_quadratic, gaussian_local_quadratic_influence, normal_ppf, silverman_bandwidth,
+    FaerBackend, GamOptions, GamWorkspace, LocalQuadraticWorkspace, SmoothSpec, StatsError,
+    fit_gam, gaussian_density, gaussian_local_quadratic,
+    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -281,9 +282,21 @@ impl ContinuousResponseEstimator {
         let mut influences = Vec::with_capacity(grid.len());
         let mut robust_se = Vec::with_capacity(grid.len());
         let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
+        if sample.treatments.iter().chain(&pseudo).any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape {
+                message: "local quadratic inputs must be finite",
+            }
+            .into());
+        }
+        let mut local = LocalQuadraticWorkspace::default();
         for &at in grid {
-            let fit =
-                gaussian_local_quadratic_influence(&sample.treatments, &pseudo, at, bandwidth)?;
+            let fit = gaussian_local_quadratic_influence_prechecked(
+                &mut local,
+                &sample.treatments,
+                &pseudo,
+                at,
+                bandwidth,
+            )?;
             let point = fit.point;
             mean.push(point.value);
             // The pointwise band uses the same influence-based standard error the
