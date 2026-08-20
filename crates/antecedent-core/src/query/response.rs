@@ -22,7 +22,8 @@ pub struct TemporalResponseSpec {
     /// Outcome evaluation horizons in time steps after the policy origin (each ≥ 1).
     /// Strictly increasing; at least one entry.
     pub horizons: Arc<[u32]>,
-    /// Temporal intervention policy (pulse / sustained / dynamic schedule).
+    /// Temporal intervention policy. Licensed 0.7 cells are Pulse and
+    /// single-step Sustained; Dynamic is refused here (use `TemporalEffectQuery`).
     pub policy: TemporalPolicy,
     /// Optional max history lag (steps) when unfolding; `None` = planner default.
     pub max_history_lag: Option<u32>,
@@ -75,6 +76,16 @@ impl TemporalResponseSpec {
             }
             other => QueryError::InvalidIntervention(other.to_string()),
         })?;
+        match &self.policy {
+            TemporalPolicy::Pulse { .. } | TemporalPolicy::Sustained { .. } => {}
+            TemporalPolicy::Dynamic { .. } => {
+                return Err(QueryError::InvalidResponse(
+                    "temporal response policy must be pulse or sustained; \
+                     Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
+                        .into(),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -601,6 +612,18 @@ fn response_sets_are_distinct(outcomes: &[VariableId], treatments: &[VariableId]
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temporal_response_spec_refuses_dynamic_policy() {
+        let err = TemporalResponseSpec::new(
+            vec![1u32],
+            TemporalPolicy::dynamic(crate::DynamicRuleId::from_raw(0), [0]),
+            None,
+        )
+        .unwrap_err();
+        assert!(matches!(err, QueryError::InvalidResponse(_)));
+        assert!(err.to_string().contains("pulse or sustained"));
+    }
 
     #[test]
     fn linspace_within_cap_validates_and_materializes() {
