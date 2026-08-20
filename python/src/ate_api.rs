@@ -1297,17 +1297,17 @@ macro_rules! typed_ate_arrow_c {
     ($fn_name:ident, $graph_ty:ty, $variant:ident, $field:ident) => {
         #[pyfunction]
         #[pyo3(signature = (
-                    names, columns, graph, treatment, outcome, *,
-                    control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-                    inference=None, n_draws=1000, prior_scale=10.0,
-                    prior_artifact=None, refute=None, validators=None,
-                    running_variable=None,
-                    cutoff=None,
-                    bandwidth=None,
-                    estimator_config=None,
-                    latency=None,
-                    seed=1, bootstrap=50, threads=1
-                ))]
+                            names, columns, graph, treatment, outcome, *,
+                            control_level=0.0, active_level=1.0, identifier=None, estimator=None,
+                            inference=None, n_draws=1000, prior_scale=10.0,
+                            prior_artifact=None, refute=None, validators=None,
+                            running_variable=None,
+                            cutoff=None,
+                            bandwidth=None,
+                            estimator_config=None,
+                            latency=None,
+                            seed=1, bootstrap=50, threads=1
+                        ))]
         #[allow(clippy::too_many_arguments)]
         fn $fn_name(
             py: Python<'_>,

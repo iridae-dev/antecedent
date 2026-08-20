@@ -1104,6 +1104,7 @@ impl PosteriorArtifact {
     /// `dtype` and `copy` match the NumPy 2 calling convention.
     /// Default / ``copy=False`` wraps the live `draws` buffer (no extra `Vec` clone).
     /// ``copy=True`` copies into a fresh NumPy-owned array.
+    /// ``copy=None`` (default) copies only when a dtype cast requires it.
     #[pyo3(signature = (dtype=None, copy=None))]
     fn __array__<'py>(
         slf: &Bound<'py, Self>,
@@ -1111,13 +1112,14 @@ impl PosteriorArtifact {
         dtype: Option<Bound<'py, PyAny>>,
         copy: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let force_copy = match copy {
-            Some(c) => c.is_truthy()?,
-            None => false,
+        // Tri-state: None = copy-if-needed, Some(false) = never, Some(true) = always.
+        let force_copy = match &copy {
+            Some(c) => Some(c.is_truthy()?),
+            None => None,
         };
         let np = py.import("numpy")?;
         let float64 = np.getattr("float64")?;
-        let arr = if force_copy {
+        let arr = if force_copy == Some(true) {
             let draws = &slf.borrow().draws;
             PyArray1::from_slice(py, draws).into_any()
         } else {
@@ -1126,7 +1128,36 @@ impl PosteriorArtifact {
         };
         match dtype {
             None => Ok(arr),
-            Some(dt) => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
+            Some(dt) => match force_copy {
+                // copy=None → NumPy default (copy only if the cast requires it).
+                None => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
+                Some(force) => {
+                    // NumPy 2: forward explicit copy= so False cannot silently allocate.
+                    // NumPy 1.x lacks copy=; fall back to an explicit same-dtype check.
+                    let kwargs = PyDict::new(py);
+                    kwargs.set_item("copy", force)?;
+                    match np.getattr("asarray")?.call((&arr, &dt), Some(&kwargs)) {
+                        Ok(out) => Ok(out),
+                        Err(err) if !force => {
+                            let msg = err.to_string();
+                            if msg.contains("unexpected keyword argument") || msg.contains("copy") {
+                                let cur = arr.getattr("dtype")?;
+                                if cur.eq(dt)? {
+                                    Ok(arr)
+                                } else {
+                                    Err(PyValueError::new_err(
+                                        "Unable to avoid a copy while casting PosteriorArtifact \
+                                         dtype; pass copy=True to allow a conversion",
+                                    ))
+                                }
+                            } else {
+                                Err(err)
+                            }
+                        }
+                        Err(err) => Err(err),
+                    }
+                }
+            },
         }
     }
 
@@ -1367,7 +1398,8 @@ pub(crate) fn tabular_from_py_columns(
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
     if names.len() != columns.len() {
-        return Err(CausalDataError::new_err("names and columns length mismatch"));
+        // Preserve the pre-unification ValueError for NumPy callers that catch it.
+        return Err(PyValueError::new_err("names and columns must have the same length"));
     }
     let use_arrow = !columns.is_empty()
         && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
