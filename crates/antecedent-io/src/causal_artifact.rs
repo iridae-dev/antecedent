@@ -550,7 +550,7 @@ fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
         ));
     }
     validate_uncertainty(&wire.uncertainty, value_len)?;
-    validate_support(&wire.support, support_dimension(&wire.estimand))?;
+    validate_support(&wire.support, support_dimension(&wire.estimand), value_len)?;
     if wire.provenance_id.trim().is_empty() {
         return Err(IoError::Convert("response provenance id must be non-blank".into()));
     }
@@ -719,6 +719,7 @@ fn validate_uncertainty(
 fn validate_support(
     support: &crate::SupportReportWire,
     expected_dimension: usize,
+    value_len: Option<usize>,
 ) -> Result<(), IoError> {
     let minima = &support.query_region.minima;
     let maxima = &support.query_region.maxima;
@@ -738,6 +739,21 @@ fn validate_support(
             ));
         }
         require_finite(diagnostic.values.iter().copied(), "response support diagnostic")?;
+    }
+    if let Some(cells) = &support.point_status {
+        match value_len {
+            Some(len) if cells.len() == len => {}
+            Some(_) => {
+                return Err(IoError::Convert(
+                    "response support point_status length must match the response value".into(),
+                ));
+            }
+            None => {
+                return Err(IoError::Convert(
+                    "response support point_status requires a determinate response value".into(),
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -890,6 +906,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         })
     }
 
@@ -939,6 +956,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let mut artifact =
@@ -989,6 +1007,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
@@ -1011,6 +1030,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
@@ -1055,9 +1075,11 @@ mod tests {
                 query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
+                point_status: None,
             },
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
+            horizon_identification: None,
         };
         let payload = CausalPayloadWire::ResponseResult(Box::new(response));
         let artifact = encode_causal_payload_artifact(
@@ -1084,9 +1106,11 @@ mod tests {
                 query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
+                point_status: None,
             },
             assumptions: Vec::new(),
             provenance_id: "identify.binary_iv_bounds".into(),
+            horizon_identification: None,
         }
     }
 
@@ -1209,9 +1233,11 @@ mod tests {
                 query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
+                point_status: None,
             },
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
+            horizon_identification: None,
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::ResponseResult(Box::new(response)),

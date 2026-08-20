@@ -157,6 +157,7 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
+    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
 }
 
 #[test]
@@ -164,6 +165,7 @@ fn supplied_dag_is_explicit_structure_source() {
     let (data, dag, query) = confounded_scm(80, 11);
     let analysis = build_analysis(data, dag, query);
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Explicit);
+    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
 }
 
 #[test]
@@ -328,23 +330,7 @@ fn prepared_bayesian_two_clicks_agree_exactly() {
 }
 
 #[test]
-fn prepare_refuses_temporal_graph() {
-    // MIGRATION NOTE: this test used to be `prepare_refuses_discovery_graph`, asserting
-    // that `.prepare()` refused a graph tagged internally as coming from inline builder
-    // discovery (`.discover_pc(..)`, an old `GraphInput::Discover*` variant), with an
-    // error message containing "supplied static". That distinction is retired, not
-    // relocated: `.discover_pc(..)` and the old `GraphInput` enum are deleted, and a
-    // graph produced by standalone discovery + `AcceptedGraph::accept(..)` is, once
-    // accepted, an ordinary `AcceptedGraph` of some `GraphClass` — indistinguishable
-    // from one supplied directly (`AcceptedGraph::algorithm_id()` is set by discovery
-    // but has no reader in `ensure_prepared_supported`,
-    // `crates/antecedent/src/analysis/prepared.rs:199-217`). The only structural
-    // refusal `PreparedStudy::prepare` still performs is on graph *class*
-    // (`is_supplied_static_graph`): temporal classes are refused as "not
-    // session-refreshable here" — a different condition, with different wording, than
-    // the one this test used to assert. No reachable call path reproduces the original
-    // "supplied static" message substring. Rewritten to cover the refusal that actually
-    // still exists; see the migration report for the retired behavior.
+fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
     use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
     use antecedent_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
     use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -400,18 +386,21 @@ fn prepare_refuses_temporal_graph() {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
 
-    let err = Study::series(series)
+    let study = Study::series(series.clone())
         .graph(g)
         .temporal_query(q)
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .prepare(&ExecutionContext::for_tests(1))
-        .unwrap_err();
-    // `prepare` is a tabular + AverageEffect session handle; a temporal study is
-    // refused at that gate, before graph class is ever considered.
-    let msg = err.to_string();
-    assert!(msg.contains("tabular") && msg.contains("AverageEffect"), "unexpected: {err}");
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert!(
+        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "prepared TemporalEffect estimate_series must reuse identification"
+    );
+    assert!(click.estimate.ate.is_finite());
 }
 
 #[test]

@@ -1954,6 +1954,9 @@ pub(crate) fn ate_result_from_analysis(
         bytes_borrowed: result.performance.bytes_borrowed,
     };
 
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        crate::evidence_status_parts(result.support_status);
+
     Ok(AteAnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
@@ -2042,6 +2045,9 @@ pub(crate) fn ate_result_from_analysis(
         posterior,
         validation,
         performance,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
     })
 }
 

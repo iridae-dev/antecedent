@@ -129,7 +129,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **0.6.1**).
+Workspace and Python package version are kept in sync (currently **0.7.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -143,8 +143,11 @@ bash scripts/set_version.sh X.Y.Z
 
 `set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
 the Python fallback `__version__`, and the local package entry in
-`python/uv.lock`. Refresh `Cargo.lock` with `cargo update -p antecedent` (or a
-workspace check) before committing.
+`python/uv.lock`, and freezes the previous cut's licensed-cell block in
+`docs/release-notes/` so a later matrix regen cannot overwrite it. Refresh
+`Cargo.lock` with `cargo update -p antecedent` (or a workspace check) before
+committing. The generator rewrites live licensed-cell markers only in
+`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases
 
@@ -154,16 +157,16 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 0.6.1
+bash scripts/set_version.sh 0.7.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
-  CHANGELOG.md CITATION.cff
-git commit -m "chore: bump version to 0.6.1"
+  CHANGELOG.md CITATION.cff docs/release-notes/
+git commit -m "chore: bump version to 0.7.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.6.1
-git push origin v0.6.1
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.7.0
+git push origin v0.7.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
@@ -211,4 +214,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v0.6.1` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v0.7.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

@@ -15,15 +15,13 @@ queries = [
   "DirectionalDerivative",
   "Elasticity",
   "InterventionalDistribution",
-  "InterventionResponse",
   "PathSpecificEffect",
   "PointDerivative",
-  "ResponseCurve",
   "ResponseJacobian",
   "SemiElasticity",
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-reason = "Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect."
+reason = "Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment."
 
 [[n_a]]
 queries = [
@@ -38,6 +36,11 @@ queries = [
 ]
 structures = ["graph_posterior"]
 reason = "Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell."
+
+[[n_a]]
+queries = ["ResponseCurve", "InterventionResponse"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "Temporal response is licensed only on TemporalDag; CPDAG/PAG temporal response has no class-aware identifier."
 
 [[n_a]]
 queries = ["TransportQuery", "InterferenceQuery"]

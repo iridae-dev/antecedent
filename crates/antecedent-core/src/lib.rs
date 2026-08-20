@@ -82,15 +82,17 @@ pub use query::{
     ContinuousDomain, CounterfactualQuery, DerivativeScale, DerivativeWeighting,
     EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM,
-    MechanismChangeQuery, MediationContrast, MediationQuery, ObservationAssumption,
-    ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery, PopulationRegistry,
-    PopulationSelection, PopulationSelector, PredicateExpr, QueryError, ResponseFunctional,
-    ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery,
-    TransportQuery, UnitChangeQuery,
+    MAX_TEMPORAL_RESPONSE_HORIZONS, MechanismChangeQuery, MediationContrast, MediationQuery,
+    ObservationAssumption, ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery,
+    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
+    ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation,
+    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TransportQuery,
+    UnitChangeQuery,
 };
 pub use response::{
-    CausalResponse, IdentifiedSet, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
-    ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+    CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

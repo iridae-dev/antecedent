@@ -10,19 +10,31 @@ This page is the public **license**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not license a cell.
 See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 
-| Status | Count |
-|---|---|
-| Cartesian product | 2394 |
-| Licensed | 16 |
-| n/a | 1218 |
-| Refused (enforced) | 1035 |
-| Allowlisted (running, unlicensed) | 74 |
-| Refused (enforced, no allowlist match) | 51 |
+The Cartesian product (query × graph class × structure source × inference ×
+validation) is **2394** cells. That denominator is not a feature count.
+Most of it is typed impossibility, not missing work.
+
+| Status | Count | How to read it |
+|---|---|---|
+| Cartesian product | 2394 | Axis product, not a coverage score |
+| n/a | 1194 | Semantic impossibilities (temporal query on a static graph, static query on a temporal graph, curve over a graph-posterior mixture, and similar). These are not holes. |
+| Meaningful remainder | 1200 | Combinations that could in principle be a claim |
+| Licensed | 24 | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | 82 | Executes end-to-end; a successful number is **not** a licensed claim |
+| Refused (enforced closed rules) | 1002 | Fail shut, including mislabeled-inference laundering |
+| Refused (no allowlist match) | 92 | Fail shut by default |
+
+Do not read "24 / 2394" as coverage. Read: **24 cells
+carry the evidence contract**; 82 more run without that contract;
+the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
 licensed. A cell is exactly one of licensed / n/a / closed / allowlisted; any
-refused cell not matched by the allowlist fails closed.
+refused cell not matched by the allowlist fails closed. Successful studies
+record `licensed` vs `allowed_unlicensed` on the result (`evidence_status` in
+Python, `StudyResult.support_status` in Rust) so the distinction survives
+dispatch.
 
 ## Axes
 
@@ -70,8 +82,9 @@ refused cell not matched by the allowlist fails closed.
 ## n/a
 
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Temporal contrast queries require a temporal graph class.
-- queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect or SustainedEffect.
+- queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, PathSpecificEffect, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, InterventionResponse, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity} ∧ structures ∈ {graph_posterior} — Structural uncertainty around curves is contrast-only; graph-posterior mixtures do not license a response cell.
+- queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} — Temporal response is licensed only on TemporalDag; CPDAG/PAG temporal response has no class-aware identifier.
 - queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Stage transport and interference queries are not a temporal-graph cell.
 
 ## Enforced refusals
@@ -79,11 +92,10 @@ refused cell not matched by the allowlist fails closed.
 These default-refused cells fail closed with id `refused`.
 
 - queries ∈ {Counterfactual} — Counterfactual is not on the staged handle.
-- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} — Derivative cells are not licensed; only ResponseCurve on a Dag is staged.
-- queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Pag, Cpdag, Admg} — ResponseCurve is licensed only on a Dag.
+- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} — Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged.
+- queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Pag, Cpdag, Admg} — ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ structures ∈ {graph_posterior, accepted} — Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged.
 - queries ∈ {MediationEffect} — MediationEffect is not on the staged handle.
-- queries ∈ {SustainedEffect} — SustainedEffect is not on the staged handle.
 - queries ∈ {TransportQuery, InterferenceQuery} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.
 - queries ∈ {ConditionalEffect} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).
@@ -98,6 +110,7 @@ These default-refused cells fail closed with id `refused`.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Bayesian} — PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
+- queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Bayesian temporal response is not licensed in 0.7.0; execute_temporal_response refuses Bayesian inference before estimation.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — execute_temporal_mediation (analysis/execute/temporal_path.rs) hardcodes EstimatorId::TemporalMediation regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical mediation estimate and estimand.method), so this cell cannot return an honest Bayesian number.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run.
 
@@ -115,9 +128,12 @@ Every other refused cell fails closed.
 - queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same general.id + functional.distribution path as the licensed Dag/explicit/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end on a discrete fixture (functional.distribution discretizes every column and caps unique levels). Not licensed because the matrix pins identification, not the refuter suite, on this axis. (parent: InterventionalDistribution Dag explicit Frequentist none (licensed))
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same response.intervention_gcomp path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis. (parent: InterventionResponse Dag explicit/accepted Frequentist none (licensed))
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same PathSpecificNatural + FunctionalEffect path as the licensed Dag/explicit/Frequentist/none cell; cheap and full only add refuter suites; confirmed end-to-end on a discrete fixture (this path also discretizes columns). Not licensed because the matrix pins identification, not the refuter suite, on this axis. (parent: PathSpecificEffect Dag explicit Frequentist none (licensed))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} — Temporal backdoor (compile_logical_temporal_effect_classified / execute_temporal) is fully wired for both Frequentist and Bayesian inference and every validation suite; confirmed end-to-end for Frequentist and Bayesian under none/cheap validation (full needs a longer complete series than the probe fixture supplied, same mechanism otherwise). Not licensed because there is no staged handle for the temporal path and no cell-shaped known-truth fixture pinning it the way the static AverageEffect family is pinned. (parent: AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed); temporal analogue)
+- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same temporal backdoor + TemporalLinearAdjustment path as the licensed TemporalDag/Frequentist/none Pulse cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite, on this axis. (parent: PulseEffect TemporalDag explicit/accepted Frequentist none (licensed))
+- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Temporal backdoor Bayesian g-comp is wired end-to-end under none/cheap (full needs a longer complete series than the probe fixture). Not licensed because Bayesian temporal Pulse has no cell-shaped known-truth fixture. (parent: PulseEffect TemporalDag explicit/accepted Frequentist none (licensed); Bayesian remains allowlisted)
+- queries ∈ {SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same single-step Sustained path as the licensed TemporalDag/Frequentist/none cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite. (parent: SustainedEffect TemporalDag explicit/accepted Frequentist none (licensed))
 - queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run. (parent: PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {accepted} — A discovery-accepted TemporalCpdag/TemporalPag with no undirected/circle marks left pending does not always complete to a TemporalDag (try_into_temporal_dag can still fail -- e.g. a resolved-but-bidirected mark a CPDAG/PAG completion review does not reduce to a lagged direction); compile.rs's TemporalCpdag/TemporalPag arms run that same completion attempt and, on success, execute the temporal backdoor exactly like the TemporalDag family. On failure they surface CausalError::Compile (Python's CausalCompileError), never a silent or mislabeled number. J-PCMCI+/LPCMCI discovery in python/src/temporal_api.rs (accept_temporal_cpdag_review / accept_temporal_pag_review) reaches this cell directly and today; python/tests/test_analyze_discovery.py::test_analyze_discovery_jpcmci_plus_two_env and test_panel_discover_ci_callback.py::test_panel_discover_jpcmci_plus_ci_callback_invoked already tolerate the CausalCompileError outcome as legitimate, alongside a clean estimate. Not licensed because completion success is per-discovered-graph and not staged. (parent: PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above) -- same temporal backdoor, reached via a graph that does not always finish collapsing)
+- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {accepted} — A discovery-accepted TemporalCpdag/TemporalPag with no undirected/circle marks left pending does not always complete to a TemporalDag (try_into_temporal_dag can still fail -- a TemporalPag bidirected mark passes the circle-only accept gate but has no parent_child() reduction, and a TemporalCpdag conflict mark reaches AcceptedGraph::accept because TemporalCpdagReview::from_cpdag lists it as neither pending-directed nor pending-undirected; both are exercised in crates/antecedent/tests/temporal_incomplete_structure_parity.rs); compile.rs's TemporalCpdag/TemporalPag arms run that same completion attempt and, on success, execute the temporal backdoor exactly like the TemporalDag family. On failure they surface CausalError::Compile (Python's CausalCompileError), never a silent or mislabeled number. J-PCMCI+/LPCMCI discovery in python/src/temporal_api.rs (accept_temporal_cpdag_review / accept_temporal_pag_review) reaches this cell directly and today; python/tests/test_analyze_discovery.py::test_analyze_discovery_jpcmci_plus_two_env and test_panel_discover_ci_callback.py::test_panel_discover_jpcmci_plus_ci_callback_invoked already tolerate the CausalCompileError outcome as legitimate, alongside a clean estimate. Not licensed because completion success is per-discovered-graph and not staged. (parent: PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above) -- same temporal backdoor, reached via a graph that does not always finish collapsing)
+- queries ∈ {SustainedEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {accepted} ∧ inferences ∈ {Frequentist} — The `(AnalysisRoute::TemporalEffect, GraphClass::TemporalCpdag/TemporalPag)` arms in compile.rs are generic over TemporalPolicy -- they match `CausalQuery::TemporalEffect(q)` and hand `q` straight to compile_logical_temporal_effect_classified -- so single-step Sustained rides the exact arm the PulseEffect row above rides, and this cell existed only as an accident of the Pulse row having been written first. effective_graph_class collapses an accepted temporal CPDAG/PAG to TemporalDag whenever try_into_temporal_dag succeeds, so this coordinate is reached exactly when completion fails, and the row's job is to route that to the specific CausalError::Compile (Python's CausalCompileError) naming the failure instead of the generic unlicensed-and-not-allowed support refusal; either way no number is produced. Probed end-to-end in crates/antecedent/tests/temporal_incomplete_structure_parity.rs across every validation suite, on both reachable constructions: a TemporalPag carrying a bidirected mark (the circle-only accept gate admits it, parent_child() cannot reduce it) and a TemporalCpdag carrying a conflict mark reached through AcceptedGraph::accept(TemporalCpdagReview) (from_cpdag lists neither pending-directed nor pending-undirected for a conflict, so the review reports complete while try_into_temporal_dag still refuses). Frequentist-only, matching the parent family: Bayesian Sustained has no licensed or allowlisted cell on any graph class, and the same probe pins that it stays refused here. Multi-step Sustained remains estimator-refused inside the cell, exactly as on the licensed TemporalDag rows. Not licensed because completion success is per-discovered-graph and not staged. (parent: SustainedEffect TemporalDag explicit/accepted Frequentist (licensed none; cheap/full allowed above) -- same single-step Sustained path, reached via a graph that does not always finish collapsing; mirrors the PulseEffect TemporalCpdag/TemporalPag row above)
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same response.backdoor + Kennedy-DR path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites on top of the same curve; confirmed end-to-end. Not licensed because the matrix pins the curve, not the refuter suite, on this axis. (parent: ResponseCurve Dag explicit/accepted Frequentist none (licensed))
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} — execute_temporal_mediation runs TemporalMediationIdentifier + TemporalMediationEstimator end-to-end for every validation suite under Frequentist inference; confirmed end-to-end. Bayesian inference on this cell is deliberately excluded (closed instead, parity/support_closed.toml): execute_temporal_mediation hardcodes EstimatorId::TemporalMediation and never consults inference mode, so a Bayesian-labeled run would silently return the identical Frequentist number. Not licensed because there is no staged handle or known-truth fixture pinning temporal mediation the way the static AverageEffect family is pinned. (parent: TemporalMediationEffect TemporalDag explicit/accepted Frequentist (this row is the running family; Bayesian is closed, not allowed))
 
@@ -133,11 +149,19 @@ Every other refused cell fails closed.
 | `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/validate/refuters`) |
 | `ResponseCurve` | `Dag` | `explicit` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
 | `ResponseCurve` | `Dag` | `accepted` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
+| `ResponseCurve` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `ResponseCurve` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
 | `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
 | `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
 | `PathSpecificEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/path_specific_natural`) |
 | `InterventionResponse` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
 | `InterventionResponse` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
+| `InterventionResponse` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `InterventionResponse` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/id_hedge`) |
 | `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |

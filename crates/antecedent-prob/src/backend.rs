@@ -121,30 +121,26 @@ pub struct LaplaceWorkspace {
     pub draw_scratch: Vec<f64>,
     /// Times [`Self::prepare`] grew any buffer.
     pub grow_count: u32,
-    /// Cached unweighted/weighted XᵀX for conjugate refits on the same design.
+    /// Cached unweighted/weighted XᵀX for conjugate refits on the same design matrix.
     pub(crate) conjugate_xtx: Vec<f64>,
-    /// Cached Xᵀy (offsets already subtracted).
-    pub(crate) conjugate_xty: Vec<f64>,
-    /// Cached weighted residual sum of squares of `y − offset`.
-    pub(crate) conjugate_yty: f64,
-    /// Cached effective sample size (sum of weights).
+    /// Cached effective sample size (sum of weights) paired with [`Self::conjugate_xtx`].
     pub(crate) conjugate_n_eff: f64,
-    /// Design identity last used to fill the conjugate Gram cache.
+    /// Design-matrix identity last used to fill the conjugate XᵀX cache.
     pub(crate) conjugate_key: Option<ConjugateGramKey>,
 }
 
-/// Address/shape key for [`LaplaceWorkspace`]'s conjugate Gram cache.
+/// Address/shape key for [`LaplaceWorkspace`]'s conjugate **XᵀX** cache.
 ///
-/// Design slices must not be mutated in place across refits that share this
-/// workspace: the key is pointer + shape identity, not content. Reuse the same
-/// buffers only when `X`/`y`/weights/offsets are unchanged, or allocate new
-/// slices (new pointers) after an in-place edit.
+/// Only `X`, weights, and shape participate. `y` and offsets are intentionally
+/// excluded: SBC and other shared-workspace refits often allocate a fresh
+/// outcome buffer of the same length that the allocator recycles to the same
+/// address, so pointer identity is not content identity for `y`. Callers must
+/// still not mutate `X`/weights in place across refits that share this
+/// workspace without allocating new slices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ConjugateGramKey {
     x: usize,
-    y: usize,
     weights: usize,
-    offsets: usize,
     nrows: usize,
     ncols: usize,
 }
@@ -153,9 +149,7 @@ impl ConjugateGramKey {
     pub(crate) fn from_design(design: &BayesDesignRef<'_>) -> Self {
         Self {
             x: design.x_colmajor.as_ptr() as usize,
-            y: design.y.as_ptr() as usize,
             weights: design.weights.map_or(0, |w| w.as_ptr() as usize),
-            offsets: design.offsets.map_or(0, |o| o.as_ptr() as usize),
             nrows: design.nrows,
             ncols: design.ncols,
         }

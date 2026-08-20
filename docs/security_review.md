@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review 
 
 Date: 2026-07-21 
-Scope: workspace crates + `python` extension (package version **0.6.1**) 
+Scope: workspace crates + `python` extension (package version **0.7.0**) 
 ADR: [0017](../adr/0017-release-prep.md)
 
 ## Unsafe code policy
@@ -43,10 +43,13 @@ Optional `blas` features (if added later) are non-default.
 
 ## CodeQL
 
-- Local gate only (requires `codeql` on `PATH`): `bash scripts/gate_codeql.sh` —
-  fails unless rust / python / actions SARIF reports have **0** findings.
-  Config: `.github/codeql/codeql-config.yml` (`security-and-quality` suites).
-- Not run in GitHub Actions; run before release or when touching security-sensitive surfaces.
+- **CI:** `.github/workflows/codeql.yml` runs on every push to `main`, every pull
+  request, and weekly (Mon 04:00 UTC). Uses the same
+  `.github/codeql/codeql-config.yml` and `security-and-quality` suites as below.
+- **Local strict gate** (requires `codeql` on `PATH`): `bash scripts/gate_codeql.sh`
+  — not wired into Actions; fails unless rust / python / actions SARIF reports have
+  **0** findings (same config and query filters as CI). Run before release or when
+  touching security-sensitive surfaces.
 - Third-party Actions in workflows are pinned to commit SHAs; workflows set explicit `permissions`.
 
 ## Published surface
@@ -65,6 +68,6 @@ bash scripts/gate_release.sh
 # License / advisory / source policy (optional local)
 cargo deny check
 
-# CodeQL (0 findings)
+# CodeQL (strict local gate — 0 findings; CI uses .github/workflows/codeql.yml)
 bash scripts/gate_codeql.sh
 ```

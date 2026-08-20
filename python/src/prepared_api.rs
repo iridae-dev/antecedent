@@ -8,7 +8,7 @@ use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, Prepa
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
     Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseFunctional,
-    ResponseQuery, Value,
+    ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
@@ -16,11 +16,11 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule};
 
-use crate::response_api::{ResponseAnalysisResult, response_result};
+use crate::response_api::{ResponseAnalysisResult, build_functional, response_result};
 use crate::{
     AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, py_err,
-    py_execution_context_ext, suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy,
-    tabular_from_py_columns,
+    py_execution_context_ext, series_from_tabular, suite_from_refute, tabular_from_arrow_c_objs,
+    tabular_from_numpy, tabular_from_py_columns, temporal_dag_from_schema_edges,
 };
 
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
@@ -41,6 +41,8 @@ pub struct PyPreparedAnalysis {
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
     last: Option<antecedent::StudyResult>,
+    /// When true, estimate/refresh clicks use series data (`estimate_series`).
+    series: bool,
 }
 
 impl PyPreparedAnalysis {
@@ -78,6 +80,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
+        let series = self.series;
         let (mapped, result) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
@@ -86,7 +89,12 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.estimate(&data, &ctx).map_err(py_err)?;
+            let result = if series {
+                let series_data = series_from_tabular(data)?;
+                inner.estimate_series(&series_data, &ctx).map_err(py_err)?
+            } else {
+                inner.estimate(&data, &ctx).map_err(py_err)?
+            };
             let mapped = response_from_study(&out_names, &result)?;
             Ok((mapped, result))
         })?;
@@ -129,6 +137,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         let mut inner = (*self.inner).clone();
         let out_names = self.names.clone();
+        let series = self.series;
         let (updated, mapped, result) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
@@ -137,7 +146,12 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.refresh(data, &ctx).map_err(py_err)?;
+            let result = if series {
+                let series_data = series_from_tabular(data)?;
+                inner.refresh_series(series_data, &ctx).map_err(py_err)?
+            } else {
+                inner.refresh(data, &ctx).map_err(py_err)?
+            };
             let mapped = response_from_study(&out_names, &result)?;
             Ok((inner, mapped, result))
         })?;
@@ -278,7 +292,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
 
@@ -365,7 +379,103 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for a temporal ResponseCurve / InterventionResponse (series data).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        kind,
+        treatments,
+        outcomes,
+        *,
+        grid=None,
+        intervention_kinds=None,
+        intervention_parameters=None,
+        horizons,
+        policy=crate::temporal_license::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
+        max_history_lag=None,
+        seed=1,
+        threads=1,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_temporal_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, u32, String, u32)>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        grid: Option<Vec<f64>>,
+        intervention_kinds: Option<Vec<String>>,
+        intervention_parameters: Option<Vec<Vec<f64>>>,
+        horizons: Vec<u32>,
+        policy: &str,
+        treatment_lag: u32,
+        max_history_lag: Option<u32>,
+        seed: u64,
+        threads: u32,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let policy = policy.to_ascii_lowercase();
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
+            let treatment_ids: Vec<_> = treatments
+                .iter()
+                .map(|n| series.schema().id_of(n).map_err(py_err))
+                .collect::<PyResult<_>>()?;
+            let outcome_ids: Vec<_> = outcomes
+                .iter()
+                .map(|n| series.schema().id_of(n).map_err(py_err))
+                .collect::<PyResult<_>>()?;
+            let functional = build_functional(
+                &kind,
+                &treatment_ids,
+                &outcome_ids,
+                grid,
+                None,
+                None,
+                intervention_kinds,
+                intervention_parameters,
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
+            )?;
+            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let query =
+                CausalQuery::Response(ResponseQuery::new(functional).with_temporal(temporal));
+            let mut builder = Study::series(series);
+            builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                builder.graph(dag)
+            };
+            let analysis = builder
+                .query(query)
+                .refute(antecedent::RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
         })
     }
 
@@ -456,7 +566,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
 
@@ -537,7 +647,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
 
@@ -628,7 +738,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
 
@@ -694,7 +804,8 @@ impl PyPreparedAnalysis {
             }
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
-            .estimator(EstimatorId::FunctionalDistribution);
+            .estimator(EstimatorId::FunctionalDistribution)
+            .refute(antecedent::RefuteSuite::None);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -707,7 +818,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None })
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
 
@@ -876,6 +987,15 @@ impl PyPreparedAnalysis {
         let mut out = std::collections::HashMap::new();
         out.insert("plan_id".into(), rec.plan_id.to_string());
         out.insert("structure_source".into(), self.inner.structure_source().as_str().to_string());
+        if let Some(status) = self.inner.support_status() {
+            out.insert("evidence_status".into(), status.as_str().to_string());
+            if let Some(reason) = status.allowlist_reason() {
+                out.insert("allowlist_reason".into(), reason.to_string());
+            }
+            if let Some(parent) = status.allowlist_parent() {
+                out.insert("allowlist_parent".into(), parent.to_string());
+            }
+        }
         if let Some(b) = rec.estimated_peak_memory_bytes {
             out.insert("estimated_peak_memory_bytes".into(), b.to_string());
         }
@@ -908,7 +1028,7 @@ fn response_from_study(
     let treatments = vec![name_of(result.treatment)];
     let outcomes = vec![name_of(result.outcome)];
     let adjustment_set = result.estimand.adjustment_set.iter().copied().map(name_of).collect();
-    response_result(response, treatments, outcomes, adjustment_set)
+    response_result(response, treatments, outcomes, adjustment_set, names, result.support_status)
 }
 
 fn apply_inference(

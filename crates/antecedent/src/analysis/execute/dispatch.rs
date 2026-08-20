@@ -10,11 +10,21 @@ impl super::Study {
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
         match (&self.data, &self.query, class) {
-            (_, CausalQuery::Response(_), class)
-                if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) =>
+            (_, CausalQuery::Response(q), class)
+                if !((!q.is_temporal()
+                    && matches!(
+                        (&self.data, class),
+                        (DataInput::Tabular(_), GraphClass::Dag)
+                    ))
+                    || (q.is_temporal()
+                        && matches!(
+                            (&self.data, class),
+                            (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
+                        ))) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "CausalQuery::Response requires tabular data and a static DAG",
+                    message: "static CausalQuery::Response requires tabular data and a Dag; \
+                              temporal response requires series/event data and a TemporalDag",
                 });
             }
             (_, CausalQuery::Distribution(_), class)
@@ -235,6 +245,16 @@ impl super::Study {
                 })?;
                 self.execute_temporal(data, graph, q, physical, ctx)
             }
+            Some(AnalysisRoute::TemporalResponse) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready temporal-response plan missing resolved graph".into(),
+                })?;
+                self.execute_temporal_response(data, graph, q, physical, ctx)
+            }
             Some(AnalysisRoute::PanelTemporalEffect) => {
                 let DataInput::Panel(panel) = data else { unreachable!() };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
@@ -392,6 +412,7 @@ impl super::Study {
             }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
+            | AnalysisRoute::TemporalResponse
             | AnalysisRoute::PanelTemporalEffect
             | AnalysisRoute::MultiEnvTemporalEffect => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",

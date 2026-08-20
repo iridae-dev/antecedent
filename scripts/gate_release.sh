@@ -254,6 +254,12 @@ if ! git diff --exit-code -- docs/support-matrix.md \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi
+if ! git diff --exit-code -- docs/release-notes/ \
+    ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
+  echo "generator rewrote historical release notes; freeze those licensed blocks"
+  git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
+  exit 1
+fi
 
 echo "== cargo test release surfaces =="
 cargo test -p antecedent-io --lib
@@ -271,6 +277,7 @@ cargo bench -p antecedent-discovery --bench pcmci -- --test
 cargo bench -p antecedent-design --bench design_rank -- --test
 cargo bench -p antecedent-state --bench state_append -- --test
 cargo bench -p antecedent-estimate --bench response_interference -- --test
+cargo bench -p antecedent-estimate --bench temporal_response -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

@@ -13,6 +13,9 @@ CiArg = str | Callable[..., Any] | None
 __version__: str
 __build_optimized__: bool
 
+def temporal_response_spec() -> dict[str, Any]:
+    """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
+
 class CausalError(Exception): ...
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...
@@ -133,6 +136,9 @@ class AteAnalysisResult:
     posterior: PosteriorSection
     validation: ValidationSection
     performance: PerformanceSection
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 class ResponseAnalysisResult:
     treatments: list[str]
@@ -151,12 +157,14 @@ class ResponseAnalysisResult:
     support_status: str
     support_minima: list[float]
     support_maxima: list[float]
+    support_point_status: list[str]
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
     warnings: list[str]
     identification: str
     adjustment_set: list[str]
+    horizon_adjustment_sets: list[list[str]]
     assumptions: list[str]
     provenance_id: str
     identified_mass: float | None
@@ -165,6 +173,9 @@ class ResponseAnalysisResult:
     truncated_completions: int | None
     enumeration_capped: bool | None
     mass_scope: str | None
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 class TransportIdentificationResult:
     transportable: bool
@@ -222,6 +233,7 @@ class ObservationResponseResult:
     support_status: str
     support_minima: list[float]
     support_maxima: list[float]
+    support_point_status: list[str]
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
@@ -441,6 +453,9 @@ class AnalysisResult:
     posterior: PosteriorSection
     validation: ValidationSection
     performance: PerformanceSection
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -481,6 +496,26 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
         latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_response(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, int, str, int]],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        grid: list[float] | None = None,
+        intervention_kinds: list[str] | None = None,
+        intervention_parameters: list[list[float]] | None = None,
+        horizons: list[int],
+        policy: str = "pulse",
+        treatment_lag: int = 1,
+        max_history_lag: int | None = None,
+        seed: int = 1,
+        threads: int = 1,
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1088,6 +1123,25 @@ def analyze_response(
     confidence_level: float = 0.95,
     multiplier_seed: int = 0xA17E_CEDE_0500,
     export_row_diagnostics: bool = False,
+    accepted: bool = False,
+) -> ResponseAnalysisResult: ...
+def analyze_temporal_response(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, int, str, int]],
+    kind: str,
+    treatments: list[str],
+    outcomes: list[str],
+    *,
+    grid: list[float] | None = None,
+    intervention_kinds: list[str] | None = None,
+    intervention_parameters: list[list[float]] | None = None,
+    horizons: list[int],
+    policy: str = "pulse",
+    treatment_lag: int = 1,
+    max_history_lag: int | None = None,
+    seed: int = 1,
+    threads: int = 1,
     accepted: bool = False,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
@@ -2132,6 +2186,17 @@ class CausalState:
     def constraints(self) -> list[tuple[str, int]]: ...
     def update_assumption(self, kind: str) -> int: ...
     def register_average_effect(self, treatment: int, outcome: int) -> tuple[int, int]: ...
+    def register_response_curve(
+        self,
+        treatment: int,
+        outcome: int,
+        *,
+        grid: list[float],
+        horizons: list[int] | None = None,
+        policy: str = "pulse",
+        treatment_lag: int = 1,
+        max_history_lag: int | None = None,
+    ) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
     def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
     def ols_ensure(self, key: str, ncols: int) -> None: ...

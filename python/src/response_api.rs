@@ -3,11 +3,12 @@
 use std::sync::Arc;
 
 use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
-use antecedent::{GraphClass, InferenceMode, RefuteSuite};
+use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StochasticPolicy, SupportStatus, Value, VariableId,
+    IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
+    SupportStatus, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -17,7 +18,10 @@ use antecedent_identify::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err};
+use crate::{
+    CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err, py_execution_context,
+    series_from_tabular, temporal_dag_from_schema_edges,
+};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
@@ -54,6 +58,8 @@ pub(crate) struct ResponseAnalysisResult {
     #[pyo3(get)]
     support_maxima: Vec<f64>,
     #[pyo3(get)]
+    support_point_status: Vec<String>,
+    #[pyo3(get)]
     diagnostic_ids: Vec<String>,
     #[pyo3(get)]
     diagnostic_values: Vec<Vec<f64>>,
@@ -65,6 +71,8 @@ pub(crate) struct ResponseAnalysisResult {
     identification: String,
     #[pyo3(get)]
     adjustment_set: Vec<String>,
+    #[pyo3(get)]
+    horizon_adjustment_sets: Vec<Vec<String>>,
     #[pyo3(get)]
     assumptions: Vec<String>,
     #[pyo3(get)]
@@ -81,6 +89,14 @@ pub(crate) struct ResponseAnalysisResult {
     enumeration_capped: Option<bool>,
     #[pyo3(get)]
     mass_scope: Option<String>,
+    /// Matrix evidence contract (`licensed` / `allowed_unlicensed`). Distinct from
+    /// empirical dose-range [`Self::support_status`].
+    #[pyo3(get)]
+    evidence_status: Option<String>,
+    #[pyo3(get)]
+    allowlist_reason: Option<String>,
+    #[pyo3(get)]
+    allowlist_parent: Option<String>,
 }
 
 #[pyfunction]
@@ -150,15 +166,17 @@ fn analyze_response(
         let structure =
             if accepted { StructureSource::Accepted } else { StructureSource::Explicit };
         let causal_query = CausalQuery::Response(query.clone());
-        if let Some(cell) = support_cell(
+        let evidence = if let Some(cell) = support_cell(
             &causal_query,
             GraphClass::Dag,
             structure,
             &InferenceMode::Frequentist,
             RefuteSuite::None,
         ) {
-            refuse_if_not_applicable(cell).map_err(py_err)?;
-        }
+            Some(refuse_if_not_applicable(cell).map_err(py_err)?)
+        } else {
+            None
+        };
         let identifier = ResponseIdentifier::new();
         let prepared = identifier
             .prepare_with_assumptions(&dag, AssumptionSet::new())
@@ -205,7 +223,7 @@ fn analyze_response(
                 identification.required_assumptions,
             )
             .map_err(py_err)?;
-        response_result(response, treatments, outcomes, adjustment_set)
+        response_result(response, treatments, outcomes, adjustment_set, &names, evidence)
     })
 }
 
@@ -364,12 +382,14 @@ fn analyze_response_pag(
             support_status,
             support_minima: first.support.query_region.minima.to_vec(),
             support_maxima: first.support.query_region.maxima.to_vec(),
+            support_point_status: Vec::new(),
             diagnostic_ids,
             diagnostic_values,
             diagnostic_details,
             warnings,
             identification: format!("{:?}", envelope.status),
             adjustment_set: Vec::new(),
+            horizon_adjustment_sets: Vec::new(),
             assumptions: vec![
                 "generalized adjustment within each identified MAG completion".into(),
             ],
@@ -386,6 +406,9 @@ fn analyze_response_pag(
             } else {
                 "full_class".into()
             }),
+            evidence_status: None,
+            allowlist_reason: None,
+            allowlist_parent: None,
         })
     })
 }
@@ -543,6 +566,14 @@ fn intervention_from_parts(
                 StochasticPolicy::categorical(Arc::from(parameters)),
             ))
         }
+        "soft_constant" => {
+            exactly(1)?;
+            Ok(Intervention::soft(variable, MechanismOverride::constant(parameters[0])))
+        }
+        "soft_additive_shift" => {
+            exactly(1)?;
+            Ok(Intervention::soft(variable, MechanismOverride::additive_shift(parameters[0])))
+        }
         "soft" | "sequence" => Err(PyValueError::new_err(format!(
             "{kind} interventions require a structural/temporal model and are not estimable by response.intervention_gcomp"
         ))),
@@ -571,8 +602,14 @@ pub(crate) fn response_result(
     response: antecedent_core::CausalResponse,
     treatments: Vec<String>,
     outcomes: Vec<String>,
-    adjustment_set: Vec<String>,
+    mut adjustment_set: Vec<String>,
+    names: &[String],
+    evidence: Option<antecedent::CellStatus>,
 ) -> PyResult<ResponseAnalysisResult> {
+    let horizon_adjustment_sets = named_horizon_adjustments(&response, names);
+    if let Some(first) = first_horizon_template_names(&response, names) {
+        adjustment_set = first;
+    }
     let (points, values, scalar, matrix) = match response.estimate {
         ResponseIdentification::PointIdentified(value) => value_parts(value)?,
         _ => {
@@ -584,6 +621,8 @@ pub(crate) fn response_result(
     let (uncertainty_kind, lower, upper, level, standard_error, replicates, artifact_id) =
         uncertainty_parts(response.uncertainty);
     let support_status = support_status_name(response.support.status).to_owned();
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        crate::evidence_status_parts(evidence);
     Ok(ResponseAnalysisResult {
         treatments,
         outcomes,
@@ -601,6 +640,12 @@ pub(crate) fn response_result(
         support_status,
         support_minima: response.support.query_region.minima.to_vec(),
         support_maxima: response.support.query_region.maxima.to_vec(),
+        support_point_status: response
+            .support
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().map(|status| status.as_str().to_owned()).collect())
+            .unwrap_or_default(),
         diagnostic_ids: response
             .support
             .diagnostics
@@ -627,6 +672,7 @@ pub(crate) fn response_result(
             .collect(),
         identification: format!("{:?}", response.identification_status),
         adjustment_set,
+        horizon_adjustment_sets,
         assumptions: response
             .assumptions
             .entries
@@ -640,16 +686,58 @@ pub(crate) fn response_result(
         truncated_completions: None,
         enumeration_capped: None,
         mass_scope: None,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
     })
 }
 
-fn support_status_name(status: SupportStatus) -> &'static str {
-    match status {
-        SupportStatus::Supported => "supported",
-        SupportStatus::WeakOverlap => "weak_overlap",
-        SupportStatus::Extrapolative => "extrapolative",
-        SupportStatus::OutsideEmpiricalSupport => "outside_empirical_support",
+fn named_horizon_adjustments(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> Vec<Vec<String>> {
+    match &response.horizon_identification {
+        Some(horizons) => horizons
+            .iter()
+            .map(|horizon| {
+                horizon
+                    .adjustment
+                    .iter()
+                    .map(|key| {
+                        let name = names
+                            .get(key.variable.as_usize())
+                            .cloned()
+                            .unwrap_or_else(|| format!("var{}", key.variable.raw()));
+                        format!("{name}@{}", key.offset)
+                    })
+                    .collect()
+            })
+            .collect(),
+        None => Vec::new(),
     }
+}
+
+fn first_horizon_template_names(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> Option<Vec<String>> {
+    let first = response.horizon_identification.as_ref()?.first()?;
+    Some(
+        first
+            .adjustment
+            .iter()
+            .map(|key| {
+                names
+                    .get(key.variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", key.variable.raw()))
+            })
+            .collect(),
+    )
+}
+
+fn support_status_name(status: SupportStatus) -> &'static str {
+    status.as_str()
 }
 
 const fn support_rank(status: SupportStatus) -> u8 {
@@ -747,9 +835,104 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     }
 }
 
+/// Temporal dose × horizon / intervention-path response (ADR 0021).
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, kind, treatments, outcomes, *,
+    grid=None, intervention_kinds=None, intervention_parameters=None,
+    horizons, policy=crate::temporal_license::DEFAULT_POLICY,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
+    seed=1, threads=1, accepted=false
+))]
+#[allow(clippy::too_many_arguments)]
+fn analyze_temporal_response(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    edges: Vec<(String, u32, String, u32)>,
+    kind: String,
+    treatments: Vec<String>,
+    outcomes: Vec<String>,
+    grid: Option<Vec<f64>>,
+    intervention_kinds: Option<Vec<String>>,
+    intervention_parameters: Option<Vec<Vec<f64>>>,
+    horizons: Vec<u32>,
+    policy: &str,
+    treatment_lag: u32,
+    max_history_lag: Option<u32>,
+    seed: u64,
+    threads: u32,
+    accepted: bool,
+) -> PyResult<ResponseAnalysisResult> {
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let policy = policy.to_ascii_lowercase();
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
+        let treatment_ids = resolve_names(series.schema(), &treatments)?;
+        let outcome_ids = resolve_names(series.schema(), &outcomes)?;
+        let functional = build_functional(
+            &kind,
+            &treatment_ids,
+            &outcome_ids,
+            grid,
+            None,
+            None,
+            intervention_kinds,
+            intervention_parameters,
+            1,
+            DerivativeScale::Identity,
+            DerivativeWeighting::Observed,
+        )?;
+        // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
+        // `-treatment_lag`. Licensed sustained is the single-step window.
+        let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+        let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let query = ResponseQuery::new(functional).with_temporal(temporal);
+        let causal_query = CausalQuery::Response(query.clone());
+        if let Some(cell) = support_cell(
+            &causal_query,
+            GraphClass::TemporalDag,
+            if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        ) {
+            refuse_if_not_applicable(cell).map_err(py_err)?;
+        }
+        let mut builder = Study::series(series);
+        builder =
+            if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
+        let analysis =
+            builder.query(causal_query).refute(RefuteSuite::None).build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        let response = result.response.ok_or_else(|| {
+            PyValueError::new_err("temporal response run did not produce a response payload")
+        })?;
+        let adjustment_set = result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
+            .collect();
+        response_result(
+            response,
+            treatments,
+            outcomes,
+            adjustment_set,
+            &names,
+            result.support_status,
+        )
+    })
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ResponseAnalysisResult>()?;
     m.add_function(wrap_pyfunction!(analyze_response, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_response_pag, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_response, m)?)?;
     Ok(())
 }

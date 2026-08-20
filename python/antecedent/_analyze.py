@@ -75,6 +75,7 @@ from ._native import (
 from ._native import (
     analyze_temporal_pag as _analyze_temporal_pag,
 )
+from ._native import analyze_temporal_response as _analyze_temporal_response
 from .data import EventFrame, MultiEnvFrame, PanelFrame
 from .discovery import (
     FCI,
@@ -231,6 +232,45 @@ def handle_temporal_mediation(
     return _wrap_temporal(raw)
 
 
+def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
+    """Map a temporal InterventionResponse step to native (variable, kind, params).
+
+    Licensed single-step :class:`~antecedent.intervention.Sequence` unwraps to its
+    inner Set/Shift/Soft. Multi-step and nested Sequence refuse closed.
+    """
+    from . import intervention as intervention_specs
+
+    if isinstance(spec, intervention_specs.Sequence):
+        if len(spec.steps) != 1:
+            raise CausalUnsupportedError(
+                "refused: multi-step Sequence intervention policies are not licensed "
+                "for temporal InterventionResponse; use a single-step Sequence or a "
+                "bare Set/Shift/Soft"
+            )
+        inner = spec.steps[0]
+        if isinstance(inner, intervention_specs.Sequence):
+            raise CausalUnsupportedError(
+                "refused: nested Sequence interventions are not licensed for temporal "
+                "InterventionResponse"
+            )
+        return _encode_temporal_intervention(inner)
+    if isinstance(spec, intervention_specs.Set):
+        return spec.variable, "set", [spec.value]
+    if isinstance(spec, intervention_specs.Shift):
+        return spec.variable, "shift", [spec.delta]
+    if isinstance(spec, intervention_specs.Soft):
+        if spec.mechanism == "constant":
+            return spec.variable, "soft_constant", list(spec.parameters)
+        if spec.mechanism == "additive_shift":
+            return spec.variable, "soft_additive_shift", list(spec.parameters)
+        raise CausalUnsupportedError(
+            f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
+        )
+    raise TypeError(
+        "temporal InterventionResponse supports Set/Shift/Soft and a single-step Sequence"
+    )
+
+
 def handle_response(
     data: Any,
     query: Any,
@@ -250,7 +290,7 @@ def handle_response(
     structure_accepted: bool = False,
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
-    from .estimation import _static_edges
+    from .estimation import _response_support_bounds, _static_edges, _support_point_status
     from .results import (
         CausalResponseView,
         IdentificationView,
@@ -289,14 +329,88 @@ def handle_response(
     # gets its own closed-rule text (parity/support_closed.toml's InterventionResponse ×
     # [Cpdag, Admg, Pag] rule) rather than reusing the ResponseCurve one below it, since the
     # ResponseCurve wording would misdescribe an InterventionResponse refusal.
-    if isinstance(graph, (Admg, Cpdag, Pag)):
+    if isinstance(graph, (Admg, Cpdag, Pag)) and not getattr(query, "is_temporal", False):
         if isinstance(query, InterventionResponse):
             raise CausalUnsupportedError(
                 "refused: InterventionResponse executes only on a supplied static Dag, the "
                 "same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no "
                 "Response compile arm."
             )
-        raise CausalUnsupportedError("refused: ResponseCurve is licensed only on a Dag.")
+        raise CausalUnsupportedError(
+            "refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
+        )
+    if getattr(query, "is_temporal", False):
+        from .estimation import _lagged_edges, _wrap_prepared_response
+
+        if discovery is not None:
+            raise ValueError("temporal response queries do not yet support discovery=")
+        if isinstance(inference, Bayesian):
+            raise TypeError("temporal response queries do not support inference=Bayesian(...)")
+        if not isinstance(graph, (TemporalDag, list, tuple)):
+            raise TypeError(
+                "temporal response requires a TemporalDag or lagged edge list; "
+                f"got {type(graph).__name__}"
+            )
+        if identifier not in (None, "temporal.backdoor.unfolded"):
+            raise ValueError(
+                f"temporal response requires identifier='temporal.backdoor.unfolded'; "
+                f"got {identifier!r}"
+            )
+        if estimator not in (None, "temporal.response.gcomp"):
+            raise ValueError(
+                f"temporal response requires estimator='temporal.response.gcomp'; got {estimator!r}"
+            )
+        names, columns = ingest_columns(data)
+        lagged = _lagged_edges(graph)
+        temporal_treatments: list[str]
+        temporal_outcomes: list[str]
+        temporal_intervention_kinds: list[str] | None = None
+        temporal_intervention_parameters: list[list[float]] | None = None
+        temporal_grid: list[float] | None
+        if isinstance(query, InterventionResponse):
+            from . import intervention as intervention_specs
+
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            temporal_treatments = []
+            temporal_outcomes = [query.outcome]
+            kinds: list[str] = []
+            parameters_list: list[list[float]] = []
+            for spec in interventions:
+                variable, kind, parameters = _encode_temporal_intervention(spec)
+                temporal_treatments.append(variable)
+                kinds.append(kind)
+                parameters_list.append(parameters)
+            temporal_intervention_kinds = kinds
+            temporal_intervention_parameters = parameters_list
+            temporal_grid = None
+        else:
+            temporal_treatments = [query.treatment]
+            temporal_outcomes = [query.outcome]
+            temporal_grid = list(query.grid)
+        temporal_raw = _analyze_temporal_response(
+            names,
+            columns,
+            lagged,
+            query.kind,
+            temporal_treatments,
+            temporal_outcomes,
+            grid=temporal_grid,
+            intervention_kinds=temporal_intervention_kinds,
+            intervention_parameters=temporal_intervention_parameters,
+            horizons=list(query.horizons or ()),
+            policy=query.policy,
+            treatment_lag=query.treatment_lag,
+            max_history_lag=query.max_history_lag,
+            seed=seed,
+            threads=threads,
+            accepted=structure_accepted,
+        )
+        return _wrap_prepared_response(temporal_raw, query)
     if (
         graph is not None
         and not isinstance(graph, (Dag, Pag))
@@ -419,10 +533,26 @@ def handle_response(
                 kind, parameters = "gaussian", [spec.mean, spec.variance]
             elif isinstance(spec, intervention_specs.Categorical):
                 kind, parameters = "categorical", list(spec.probabilities)
-            elif isinstance(spec, (intervention_specs.Soft, intervention_specs.Sequence)):
+            elif isinstance(spec, intervention_specs.Soft):
+                if not getattr(query, "is_temporal", False):
+                    raise CausalUnsupportedError(
+                        "Soft interventions require a temporal response cell "
+                        "(set horizons=...) and are not estimable by response.intervention_gcomp"
+                    )
+                if spec.mechanism == "constant":
+                    kind, parameters = "soft_constant", list(spec.parameters)
+                elif spec.mechanism == "additive_shift":
+                    kind, parameters = "soft_additive_shift", list(spec.parameters)
+                else:
+                    raise CausalUnsupportedError(
+                        f"Soft mechanism {spec.mechanism!r} is not licensed for temporal "
+                        "InterventionResponse; use constant or additive_shift"
+                    )
+            elif isinstance(spec, intervention_specs.Sequence):
                 raise CausalUnsupportedError(
-                    f"{type(spec).__name__} interventions require a structural/temporal "
-                    "model and are not estimable by response.intervention_gcomp"
+                    "Sequence interventions are not licensed on static InterventionResponse; "
+                    "use a temporal cell (horizons=...) with a single-step Sequence, or pass "
+                    "a bare Set/Shift/Soft"
                 )
             else:
                 raise TypeError(
@@ -550,12 +680,7 @@ def handle_response(
             strict=True,
         )
     ]
-    region = {
-        name: (lower, upper)
-        for name, lower, upper in zip(
-            raw.treatments, raw.support_minima, raw.support_maxima, strict=True
-        )
-    }
+    region = _response_support_bounds(raw)
     envelope = None
     if getattr(raw, "identified_mass", None) is not None:
         if raw.lower is None or raw.upper is None:
@@ -675,7 +800,11 @@ def handle_response(
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
         uncertainty=uncertainty,
         support=SupportReport(
-            cast(SupportStatus, raw.support_status), region, diagnostics, raw.warnings
+            cast(SupportStatus, raw.support_status),
+            region,
+            diagnostics,
+            raw.warnings,
+            _support_point_status(raw),
         ),
         identification=IdentificationView(
             status=raw.identification,
@@ -688,6 +817,9 @@ def handle_response(
         provenance=provenance,
         envelope=envelope,
         validation=validation,
+        evidence_status=getattr(raw, "evidence_status", None),
+        allowlist_reason=getattr(raw, "allowlist_reason", None),
+        allowlist_parent=getattr(raw, "allowlist_parent", None),
     )
 
 
@@ -1072,8 +1204,6 @@ def handle_temporal_pulse(
     threads: int,
     regimes: Sequence[int] | None,
 ) -> Any:
-    if isinstance(query, SustainedEffect):
-        raise CausalUnsupportedError("refused: SustainedEffect is not on the staged handle.")
     from .estimation import (
         _discovery_algorithm,
         _lagged_edges,

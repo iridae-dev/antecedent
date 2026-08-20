@@ -36,6 +36,7 @@ mod response_api;
 mod stability;
 mod state_api;
 mod temporal_api;
+mod temporal_license;
 mod transport_interference_api;
 
 pub(crate) use ate_api::{
@@ -564,6 +565,18 @@ struct ArrowLoadInfo {
     column_names: Vec<String>,
 }
 
+pub(crate) fn evidence_status_parts(
+    status: Option<antecedent::CellStatus>,
+) -> (Option<String>, Option<String>, Option<String>) {
+    match status {
+        Some(antecedent::CellStatus::Licensed) => (Some("licensed".into()), None, None),
+        Some(antecedent::CellStatus::Allowlisted { reason, parent }) => {
+            (Some("allowed_unlicensed".into()), Some(reason.to_string()), Some(parent.to_string()))
+        }
+        _ => (None, None, None),
+    }
+}
+
 /// Coarse-grained ATE analysis result (single boundary crossing).
 #[pyclass]
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
@@ -731,6 +744,15 @@ pub(crate) struct AteAnalysisResult {
     /// Nested performance section.
     #[pyo3(get)]
     performance: PerformanceSection,
+    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    #[pyo3(get)]
+    evidence_status: Option<String>,
+    /// Allowlist reason when `evidence_status` is `allowed_unlicensed`.
+    #[pyo3(get)]
+    allowlist_reason: Option<String>,
+    /// Allowlist parent family when `evidence_status` is `allowed_unlicensed`.
+    #[pyo3(get)]
+    allowlist_parent: Option<String>,
 }
 
 /// One refuter's record: which check ran, its comparison statistic, and pass/fail.
@@ -1473,6 +1495,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     stability::register(m)?;
     prior_bank::register(m)?;
     response_api::register(m)?;
+    temporal_license::register(m)?;
     transport_interference_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;

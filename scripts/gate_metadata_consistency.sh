@@ -85,6 +85,22 @@ for doc in [
         if stale != version:
             fail.append(f"{doc} states package version {stale!r}; canonical is {version!r}")
 
+# Live generated licensed-cell markers belong only on the current cut.
+# Historical notes use frozen markers so a regen cannot overwrite a shipped
+# snapshot (v0.6.1 was rewritten that way while the workspace was still 0.6.1).
+rn_begin = "<!-- generated:support-matrix:licensed:begin -->"
+rn_end = "<!-- generated:support-matrix:licensed:end -->"
+current_notes = Path("docs/release-notes") / f"v{version}.md"
+for path in sorted(Path("docs/release-notes").glob("v*.md")):
+    if path.resolve() == current_notes.resolve():
+        continue
+    text = path.read_text()
+    if rn_begin in text or rn_end in text:
+        fail.append(
+            f"{path} still has live generated licensed-block markers; "
+            f"only {current_notes} may. Freeze the shipped snapshot."
+        )
+
 # ------------------------------------------------------- 2. artifact format
 # Canonical: STABLE_FORMAT in crates/antecedent-io/src/migrate.rs.
 migrate = Path("crates/antecedent-io/src/migrate.rs").read_text()
@@ -108,6 +124,24 @@ else:
                 fail.append(
                     f"{path} claims artifact format {found} frozen/stable; "
                     f"STABLE_FORMAT is {fmt}"
+                )
+    # Present-tense format claims in the live README / artifacts page.
+    # Historical "migrates from 0.1" / ADR 0019 / old changelog entries are not
+    # this pattern. The previous gate only matched "frozen|stable" and missed
+    # "response artifact format 0.3" in the root README.
+    current_fmt = re.compile(r"response artifact format (\d+\.\d+)")
+    for path in [
+        Path("README.md"),
+        Path("python/README.md"),
+        Path("crates/antecedent/README.md"),
+        Path("docs/artifacts.md"),
+    ]:
+        if not path.is_file():
+            continue
+        for found in current_fmt.findall(path.read_text()):
+            if found != fmt:
+                fail.append(
+                    f"{path} claims response artifact format {found}; STABLE_FORMAT is {fmt}"
                 )
 
 # -------------------------------------------------- 3. stale library naming

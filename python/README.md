@@ -40,8 +40,9 @@ print(result.estimate)         # ate=1.48, analytic and bootstrap standard error
 print(result.validation)       # refuters ran and passed
 ```
 
-The same `analyze()` call scales from this to temporal pulse effects,
-Bayesian graph-posterior mixtures that report unidentified structure mass,
+The same `analyze()` call scales from this to temporal dose × horizon
+``ResponseCurve`` surfaces, pulse and sustained contrasts, Bayesian
+graph-posterior mixtures that report unidentified structure mass,
 mediation, counterfactuals, and root-cause attribution — see the
 [project README](https://github.com/iridae-dev/antecedent#readme) for worked
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
@@ -101,8 +102,9 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 49 names through 0.6; everything else is reached through a
-stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
+The root namespace is frozen at 49 names through 0.6; 0.7 adds temporal
+response attachments on existing query types without new root exports.
+Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
 
@@ -114,18 +116,24 @@ Also exposed:
   `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
   `TemporalMediationEffect`, `InterventionResponse`, plus the response family
   (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
-  `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`)
+  `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`). Temporal
+  dose × horizon uses the same `ResponseCurve` / `InterventionResponse` types
+  with keyword-only `horizons`, `policy`, and `treatment_lag` (see
+  `examples/python/temporal_response_curve.py`).
 - `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors
 - `antecedent.validation.validate_pcmci_*` — discovery stability (block bootstrap, FPR, grids, …)
 - `antecedent.model` / `antecedent.counterfactual` — `FittedGcm`, `sample_do`, `counterfactual_ite`
 - `antecedent.population` — `PopulationRegistry` / `target_*` for named predicates and custom-distribution IPW
 - `antecedent.gcm` — `fit_gcm_discovered` / `attribute_*_discovered` discover-then-attribute composition
 - `antecedent.state.CausalState` — incremental state with retained batches, events, suff-stats, particle filter
-- `refute=True|"full"|"placebo"|False` on static and temporal `analyze`
+- `refute=True|"full"|"placebo"|False` on static `analyze`. Temporal
+  `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and
+  record that skip on `CausalResponseView.validation`.
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
 - Graph interchange on the classes: `Dag.from_dot` / `.to_dot` and the JSON / GML / NetworkX peers
 - Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),
-  [`examples/python/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/causal_state_workflow.py)
+  [`examples/python/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/causal_state_workflow.py),
+  [`examples/python/temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/temporal_response_curve.py)
   (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.

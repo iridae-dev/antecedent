@@ -25,3 +25,4 @@ compatibility analysis where applicable. See [docs/architecture.md](../docs/arch
 | [0018](0018-release-version-history.md) | Release version history and artifact format correction |
 | [0019](0019-response-artifact-format.md) | Causal-response wire types and artifact format 0.3 |
 | [0020](0020-support-matrix-and-prepared-workflow.md) | Support matrix and prepared-workflow contract |
+| [0021](0021-temporal-response.md) | Temporal response (dose × horizon; format 0.4) |

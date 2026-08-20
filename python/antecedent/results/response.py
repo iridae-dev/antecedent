@@ -35,7 +35,14 @@ class ResponseView:
         if len(self.points) != len(self.values):
             raise CausalValueError("points and values must have the same number of rows")
         for point in self.points:
-            if len(point) != len(self.treatments):
+            # Static curves use one coordinate per treatment. Temporal dose ×
+            # horizon surfaces use a multi-axis grid (dose, horizon, …) with a
+            # single treatment name; allow len(point) >= len(treatments).
+            if len(point) < len(self.treatments):
+                raise CausalValueError(
+                    "each response point must have at least one value per treatment"
+                )
+            if len(self.treatments) > 1 and len(point) != len(self.treatments):
                 raise CausalValueError("each response point must have one value per treatment")
             if not all(isfinite(value) for value in point):
                 raise CausalValueError("response points must be finite")
@@ -141,12 +148,19 @@ class SupportDiagnostic:
 
 @dataclass(frozen=True, slots=True)
 class SupportReport:
-    """Estimand-aware empirical support, separate from identification status."""
+    """Estimand-aware empirical support, separate from identification status.
+
+    ``status`` on a static curve is the worst label over requested points. On a
+    temporal dose × horizon surface it summarizes ``point_status``: fully
+    supported, partially extrapolative, or outside empirical support. Cell
+    labels share the mean-surface layout (dose-major).
+    """
 
     status: SupportStatus
     query_region: Mapping[str, tuple[float, float]]
     diagnostics: Sequence[SupportDiagnostic] = ()
     warnings: Sequence[str] = ()
+    point_status: Sequence[SupportStatus] | None = None
 
     def __post_init__(self) -> None:
         allowed = {
@@ -157,6 +171,10 @@ class SupportReport:
         }
         if self.status not in allowed:
             raise CausalValueError(f"unknown support status {self.status!r}")
+        if self.point_status is not None:
+            for status in self.point_status:
+                if status not in allowed:
+                    raise CausalValueError(f"unknown support status {status!r}")
         for variable, bounds in self.query_region.items():
             if (
                 not variable.strip()
@@ -170,9 +188,10 @@ class SupportReport:
         return self.status == "supported"
 
     def __repr__(self) -> str:
+        cells = "" if self.point_status is None else f" cells={len(self.point_status)}"
         return (
             f"<SupportReport status={self.status!r} "
-            f"diagnostics={len(self.diagnostics)} warnings={len(self.warnings)}>"
+            f"diagnostics={len(self.diagnostics)} warnings={len(self.warnings)}{cells}>"
         )
 
 
@@ -234,6 +253,9 @@ class CausalResponseView:
     provenance: Mapping[str, Any] = field(default_factory=dict)
     envelope: ResponseEnvelopeView | None = None
     validation: ResponseValidationView | None = None
+    evidence_status: str | None = None
+    allowlist_reason: str | None = None
+    allowlist_parent: str | None = None
 
     def __repr__(self) -> str:
         if isinstance(self.estimate, (float, int)):
@@ -242,9 +264,12 @@ class CausalResponseView:
             estimate = f"{len(self.response)} response points"
         else:
             estimate = "structured"
+        extra = ""
+        if self.evidence_status == "allowed_unlicensed":
+            extra = " unlicensed"
         return (
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
-            f"uncertainty={self.uncertainty.kind!r}>"
+            f"uncertainty={self.uncertainty.kind!r}{extra}>"
         )
 
 

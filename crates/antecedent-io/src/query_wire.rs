@@ -182,7 +182,12 @@ pub enum TemporalPolicyWire {
 }
 
 impl TemporalPolicyWire {
-    fn from_domain(p: &TemporalPolicy) -> Result<Self, IoError> {
+    /// Encode a domain temporal policy.
+    ///
+    /// # Errors
+    ///
+    /// Unknown policy variants.
+    pub fn from_domain(p: &TemporalPolicy) -> Result<Self, IoError> {
         Ok(match p {
             TemporalPolicy::Pulse { at } => Self::Pulse { at: *at },
             TemporalPolicy::Sustained { from, until } => {
@@ -197,8 +202,9 @@ impl TemporalPolicyWire {
         })
     }
 
+    /// Decode a domain temporal policy.
     #[must_use]
-    fn to_domain(&self) -> TemporalPolicy {
+    pub fn to_domain(&self) -> TemporalPolicy {
         match self {
             Self::Pulse { at } => TemporalPolicy::Pulse { at: *at },
             Self::Sustained { from, until } => {

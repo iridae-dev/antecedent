@@ -116,8 +116,13 @@ impl TemporalLinearAdjustment {
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
         }
-        let t_lag = offset_to_lag(query.try_treatment_offset()?)?;
-        let y_lag = offset_to_lag(query.outcome_offset())?;
+        // Lagged samples are anchored at the latest queried outcome. Temporal
+        // query offsets are absolute around the policy origin, so horizons > 1
+        // otherwise appear as unsupported positive ("future") lags even though
+        // the same design is representable by shifting every column together.
+        let sample_anchor = query.outcome_offset().max(0);
+        let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
+        let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
 
         let mut cols =
             Vec::with_capacity(2 + estimand.adjustment_set.len() + extra_contemporaneous.len());
@@ -129,7 +134,12 @@ impl TemporalLinearAdjustment {
             let key = indexer
                 .key_of(dense_var.raw())
                 .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-            let lag = offset_to_lag(key.offset)?;
+            let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
+                EstimationError::unsupported(
+                    "adjustment node sits after this horizon's sample anchor and \
+                     cannot be lag-aligned",
+                )
+            })?;
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
         }

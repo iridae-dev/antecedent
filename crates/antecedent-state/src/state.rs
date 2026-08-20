@@ -277,4 +277,64 @@ mod tests {
         assert!((b_inc[0] - b_full[0]).abs() < 1e-10);
         assert!((b_inc[1] - b_full[1]).abs() < 1e-10);
     }
+
+    #[test]
+    fn response_query_invalidates_on_append_without_implicit_refresh() {
+        use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = state.queries.register(CausalQuery::Response(ResponseQuery::new(
+            ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from(vec![0.0_f64, 1.0])),
+                ),
+            },
+        )));
+        state.refresh_results(&[(q, 7, 16)]).expect("cache");
+        assert!(!state.is_stale(q));
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from("b_resp"),
+                nrows: 4,
+                bytes: 32,
+            }))
+            .expect("append");
+        assert!(state.is_stale(q));
+        assert!(state.cached_results.results.is_empty());
+    }
+
+    #[test]
+    fn temporal_response_query_invalidates_on_append_without_implicit_refresh() {
+        use antecedent_core::{
+            ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalPolicy,
+            TemporalResponseSpec,
+        };
+
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let temporal =
+            TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap();
+        let q = state.queries.register(CausalQuery::Response(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from(vec![0.0_f64, 1.0])),
+                ),
+            })
+            .with_temporal(temporal),
+        ));
+        state.refresh_results(&[(q, 9, 32)]).expect("cache");
+        assert!(!state.is_stale(q));
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from("b_temporal_resp"),
+                nrows: 8,
+                bytes: 64,
+            }))
+            .expect("append");
+        assert!(state.is_stale(q));
+        assert!(state.cached_results.results.is_empty());
+    }
 }

@@ -11,10 +11,10 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting,
-    GridSpec, IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
-    PriorAssumption, ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, VariableId,
+    GridSpec, HorizonIdentification, IdentificationStatus, ObservationAssumption, ObservationSpec,
+    ParametricAssumption, PriorAssumption, ResponseEnvelope, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -145,6 +145,21 @@ pub struct ResponseQueryWire {
     /// Explicit observation assumptions.
     #[serde(default)]
     pub observation_assumptions: Vec<ObservationAssumptionWire>,
+    /// Optional temporal attachment (format ≥ 0.4). Absent/None = static response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalResponseSpecWire>,
+}
+
+/// Temporal dose-over-horizon / policy-path attachment on the wire (format 0.4).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct TemporalResponseSpecWire {
+    /// Outcome horizons (steps after policy origin), each ≥ 1, strictly increasing.
+    pub horizons: Vec<u32>,
+    /// Temporal intervention policy.
+    pub policy: crate::query_wire::TemporalPolicyWire,
+    /// Optional unfolding history cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_history_lag: Option<u32>,
 }
 
 /// Encode a response query.
@@ -162,6 +177,14 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
             .iter()
             .map(observation_assumption_to_wire)
             .collect(),
+        temporal: match &q.temporal {
+            None => None,
+            Some(t) => Some(TemporalResponseSpecWire {
+                horizons: t.horizons.to_vec(),
+                policy: crate::query_wire::TemporalPolicyWire::from_domain(&t.policy)?,
+                max_history_lag: t.max_history_lag,
+            }),
+        },
     })
 }
 
@@ -171,7 +194,8 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
 ///
 /// Invalid dimensions, values, interventions, or platform-size overflows.
 pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, IoError> {
-    let q = ResponseQuery {
+    use antecedent_core::TemporalResponseSpec;
+    let mut q = ResponseQuery {
         functional: functional_from_wire(&w.functional)?,
         target_population: w.target_population.to_domain()?,
         observation: observation_from_wire(&w.observation),
@@ -181,7 +205,14 @@ pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, 
             .map(observation_assumption_from_wire)
             .collect::<Vec<_>>()
             .into(),
+        temporal: None,
     };
+    if let Some(t) = &w.temporal {
+        q.temporal = Some(
+            TemporalResponseSpec::new(t.horizons.clone(), t.policy.to_domain(), t.max_history_lag)
+                .map_err(|e| IoError::Convert(e.to_string()))?,
+        );
+    }
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(q)
 }
@@ -519,6 +550,9 @@ pub struct SupportReportWire {
     pub query_region: SupportRegionWire,
     pub diagnostics: Vec<SupportDiagnosticWire>,
     pub warnings: Vec<DiagnosticWire>,
+    /// Per-cell status on a temporal surface; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub point_status: Option<Vec<SupportStatusWire>>,
 }
 
 /// Function-valued identified envelope on the wire.
@@ -575,6 +609,22 @@ pub enum IdentificationStatusWire {
     NotIdentified,
 }
 
+/// Per-horizon identification on a temporal response surface.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct HorizonIdentificationWire {
+    pub horizon: u32,
+    pub identification_status: IdentificationStatusWire,
+    pub method: String,
+    pub adjustment: Vec<HorizonAdjustmentNodeWire>,
+}
+
+/// Template-level adjustment node `(variable, offset)`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HorizonAdjustmentNodeWire {
+    pub variable: u32,
+    pub offset: i32,
+}
+
 /// Complete causal-response artifact payload on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CausalResponseWire {
@@ -585,6 +635,9 @@ pub struct CausalResponseWire {
     pub support: SupportReportWire,
     pub assumptions: Vec<AssumptionRecordWire>,
     pub provenance_id: String,
+    /// Per-horizon identification; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub horizon_identification: Option<Vec<HorizonIdentificationWire>>,
 }
 
 /// Encode a causal response artifact payload.
@@ -601,6 +654,24 @@ pub fn causal_response_to_wire(r: &CausalResponse) -> Result<CausalResponseWire,
         support: support_to_wire(&r.support),
         assumptions: assumptions_to_wire(&r.assumptions),
         provenance_id: r.provenance_id.to_string(),
+        horizon_identification: r.horizon_identification.as_ref().map(|horizons| {
+            horizons
+                .iter()
+                .map(|h| HorizonIdentificationWire {
+                    horizon: h.horizon,
+                    identification_status: status_to_wire(h.status),
+                    method: h.method.to_string(),
+                    adjustment: h
+                        .adjustment
+                        .iter()
+                        .map(|key| HorizonAdjustmentNodeWire {
+                            variable: key.variable.raw(),
+                            offset: key.offset,
+                        })
+                        .collect(),
+                })
+                .collect()
+        }),
     })
 }
 
@@ -618,6 +689,27 @@ pub fn causal_response_from_wire(w: &CausalResponseWire) -> Result<CausalRespons
         support: support_from_wire(&w.support)?,
         assumptions: assumptions_from_wire(&w.assumptions)?,
         provenance_id: Arc::from(w.provenance_id.as_str()),
+        horizon_identification: w.horizon_identification.as_ref().map(|horizons| {
+            Arc::from(
+                horizons
+                    .iter()
+                    .map(|h| HorizonIdentification {
+                        horizon: h.horizon,
+                        status: status_from_wire(h.identification_status),
+                        method: Arc::from(h.method.as_str()),
+                        adjustment: Arc::from(
+                            h.adjustment
+                                .iter()
+                                .map(|node| TemporalNodeKey {
+                                    variable: VariableId::from_raw(node.variable),
+                                    offset: node.offset,
+                                })
+                                .collect::<Vec<_>>(),
+                        ),
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        }),
     })
 }
 
@@ -814,14 +906,27 @@ fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
     }
 }
 
+fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
+    match status {
+        SupportStatus::Supported => SupportStatusWire::Supported,
+        SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
+        SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
+        SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
+    }
+}
+
+fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
+    match status {
+        SupportStatusWire::Supported => SupportStatus::Supported,
+        SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
+        SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
+        SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
+    }
+}
+
 fn support_to_wire(s: &SupportReport) -> SupportReportWire {
     SupportReportWire {
-        status: match s.status {
-            SupportStatus::Supported => SupportStatusWire::Supported,
-            SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
-            SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
-            SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
-        },
+        status: support_status_to_wire(s.status),
         query_region: SupportRegionWire {
             minima: s.query_region.minima.to_vec(),
             maxima: s.query_region.maxima.to_vec(),
@@ -836,16 +941,15 @@ fn support_to_wire(s: &SupportReport) -> SupportReportWire {
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_to_wire).collect(),
+        point_status: s
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().copied().map(support_status_to_wire).collect()),
     }
 }
 fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
     Ok(SupportReport {
-        status: match s.status {
-            SupportStatusWire::Supported => SupportStatus::Supported,
-            SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
-            SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
-            SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
-        },
+        status: support_status_from_wire(s.status),
         query_region: SupportRegion {
             minima: s.query_region.minima.clone().into(),
             maxima: s.query_region.maxima.clone().into(),
@@ -860,6 +964,9 @@ fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
+        point_status: s.point_status.as_ref().map(|cells| {
+            cells.iter().copied().map(support_status_from_wire).collect::<Vec<_>>().into()
+        }),
     })
 }
 
@@ -1086,9 +1193,15 @@ mod tests {
                     DiagnosticSeverity::Warning,
                     "overlap weak at upper endpoint",
                 )],
+                point_status: Some(Arc::from([
+                    SupportStatus::Supported,
+                    SupportStatus::WeakOverlap,
+                    SupportStatus::OutsideEmpiricalSupport,
+                ])),
             },
             assumptions,
             provenance_id: Arc::from("response-fit-17"),
+            horizon_identification: None,
         };
         let wire = causal_response_to_wire(&response).unwrap();
         let bytes = to_cbor(&wire).unwrap();
