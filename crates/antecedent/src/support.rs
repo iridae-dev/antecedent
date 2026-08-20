@@ -13,7 +13,7 @@
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
-use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
+use antecedent_graph::{Admg, Dag, Pag, TemporalDag};
 
 use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
@@ -407,6 +407,7 @@ pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_graph::DenseNodeId;
 
     fn cell(
         query: &'static str,
