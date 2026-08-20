@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any, Literal, cast
 
 from ._coerce import coerce_latency, coerce_refute
-from ._data import as_columns, try_as_arrow_c_columns
+from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import (
     AnalysisResult as TemporalAnalysisResult,
 )
@@ -651,7 +651,7 @@ def analyze_many(
         raise CausalTypeError("analyze_many currently supports AverageEffect queries only")
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     edges = _static_edges(graph)
     specs = [
         (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries

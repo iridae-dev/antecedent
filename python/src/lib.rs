@@ -1360,6 +1360,28 @@ pub(crate) fn tabular_from_arrow_c_objs(
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
+/// NumPy float64 columns or Arrow CDI exporters → owned [`TabularData`].
+pub(crate) fn tabular_from_py_columns(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
+    if names.len() != columns.len() {
+        return Err(CausalDataError::new_err("names and columns length mismatch"));
+    }
+    let use_arrow = !columns.is_empty()
+        && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
+    if use_arrow {
+        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names, columns)?;
+        return Ok((data, Some(bytes_borrowed)));
+    }
+    let mut np = Vec::with_capacity(columns.len());
+    for c in &columns {
+        np.push(c.extract::<PyReadonlyArray1<'_, f64>>().map_err(PyErr::from)?);
+    }
+    Ok((tabular_from_numpy(&names, &np)?, None))
+}
+
 /// Default coalition / semantic cache budget for Python production contexts
 /// (matches attribution bench policy).
 pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;

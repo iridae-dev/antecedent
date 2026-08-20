@@ -9,6 +9,16 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def ingest_columns(
+    data: Mapping[str, Any] | Any,
+) -> tuple[list[str], list[Any]]:
+    """Normalize to ``(names, columns)`` preferring Arrow CDI exporters."""
+    arrow = try_as_arrow_c_columns(data)
+    if arrow is not None:
+        return arrow
+    return as_columns(data)
+
+
 def as_columns(
     data: Mapping[str, Any] | Any,
 ) -> tuple[list[str], list[NDArray[np.float64]]]:

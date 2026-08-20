@@ -26,15 +26,15 @@ use antecedent_core::{
     ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
     PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
 };
-use antecedent_data::{TableView, TabularData, tabular_from_record_batch};
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
 use antecedent_model::{CompiledCausalModel, ValueBatch};
-use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1};
+use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::{
-    GcmIteResult, GcmSampleResult, columns_to_batch, dag_from_named_edges, detach_catch, py_err,
+    GcmIteResult, GcmSampleResult, dag_from_named_edges, detach_catch, py_err,
     py_execution_context, py_msg,
 };
 
@@ -877,16 +877,13 @@ impl PyFittedGcm {
 fn fit_gcm_py(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     threads: u32,
 ) -> PyResult<PyFittedGcm> {
     let _ = threads;
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         Ok(PyFittedGcm { inner: Arc::new(fitted), names: Arc::from(names), data: Arc::new(data) })
@@ -899,7 +896,7 @@ fn fit_gcm_py(
 fn attribute_paths(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     sources: Vec<String>,
     outcome: String,
@@ -908,11 +905,8 @@ fn attribute_paths(
     seed: u64,
     threads: u32,
 ) -> PyResult<ChangeAttributionResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
