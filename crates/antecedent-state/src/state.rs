@@ -277,4 +277,31 @@ mod tests {
         assert!((b_inc[0] - b_full[0]).abs() < 1e-10);
         assert!((b_inc[1] - b_full[1]).abs() < 1e-10);
     }
+
+    #[test]
+    fn response_query_invalidates_on_append_without_implicit_refresh() {
+        use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = state.queries.register(CausalQuery::Response(ResponseQuery::new(
+            ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from(vec![0.0_f64, 1.0])),
+                ),
+            },
+        )));
+        state.refresh_results(&[(q, 7, 16)]).expect("cache");
+        assert!(!state.is_stale(q));
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from("b_resp"),
+                nrows: 4,
+                bytes: 32,
+            }))
+            .expect("append");
+        assert!(state.is_stale(q));
+        assert!(state.cached_results.results.is_empty());
+    }
 }

@@ -468,6 +468,60 @@ pub fn compile_logical_temporal_effect(
     )
 }
 
+/// Temporal dose-over-horizon / policy-path response (ADR 0021).
+///
+/// # Errors
+///
+/// Query validation failures or variables missing from the temporal DAG.
+pub fn compile_logical_temporal_response(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    query: &ResponseQuery,
+    review_required: bool,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "temporal response compile requires ResponseQuery.temporal".into(),
+    })?;
+    let (treatment, outcome) = response_primary_pair(&query.functional)?;
+    validate_query_vars_in_temporal_dag(graph, treatment, outcome)?;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(CausalError::Compile {
+            message: format!(
+                "temporal response only supports TargetPopulation::AllObserved (got {:?})",
+                query.target_population
+            ),
+        });
+    }
+    let _ = temporal;
+    let record = LogicalAnalysisPlanRecord {
+        plan_id: Arc::from("temporal_response"),
+        data_classification: DataClassification::Temporal,
+        discovery_algorithm: None,
+        graph_review_required: review_required,
+        identifier: Some(Arc::from("temporal.backdoor.unfolded")),
+        estimator: Some(Arc::from("temporal.response.gcomp")),
+        validation_suite: None,
+        query_variables: Arc::from([treatment, outcome]),
+    };
+    let plan = LogicalAnalysisPlan {
+        record,
+        query: CausalQuery::Response(query.clone()),
+        split: None,
+        row_count_hint: data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+fn response_primary_pair(
+    functional: &ResponseFunctional,
+) -> Result<(VariableId, VariableId), CausalError> {
+    functional.primary_pair().ok_or_else(|| CausalError::Compile {
+        message: "response query has no treatment/outcome pair".into(),
+    })
+}
+
 /// Temporal effect plan with an explicit data classification (Event / Panel / Temporal).
 ///
 /// # Errors

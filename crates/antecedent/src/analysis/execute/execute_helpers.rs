@@ -29,6 +29,7 @@ pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
 #[derive(Clone, Copy)]
 pub(super) enum AnalysisRoute {
     Response,
+    TemporalResponse,
     StaticAte,
     Distribution,
     PathSpecific,
@@ -68,7 +69,11 @@ pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> 
 
 pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Option<AnalysisRoute> {
     Some(match (modality, query) {
+        (DataModality::Tabular, CausalQuery::Response(q)) if q.is_temporal() => return None,
         (DataModality::Tabular, CausalQuery::Response(_)) => AnalysisRoute::Response,
+        (DataModality::TemporalOrEvent, CausalQuery::Response(q)) if q.is_temporal() => {
+            AnalysisRoute::TemporalResponse
+        }
         (DataModality::Tabular, CausalQuery::AverageEffect(_)) => AnalysisRoute::StaticAte,
         (DataModality::Tabular, CausalQuery::Distribution(_)) => AnalysisRoute::Distribution,
         (DataModality::Tabular, CausalQuery::PathSpecific(_)) => AnalysisRoute::PathSpecific,

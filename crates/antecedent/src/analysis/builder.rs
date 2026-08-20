@@ -675,6 +675,7 @@ impl StudyBuilder {
             latency_mode,
             stage_sink: self.stage_sink,
             identification_cache: None,
+            temporal_identification_cache: None,
         })
     }
 }

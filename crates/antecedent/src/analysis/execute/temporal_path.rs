@@ -12,12 +12,19 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let id_res = TemporalBackdoorIdentifier::new()
-            .identify_temporal(graph, query)
-            .map_err(CausalError::from)?;
-        let identification = id_res.result;
+        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
+            self.temporal_identification_cache.as_deref()
+        {
+            (cache.identification.clone(), cache.estimand.clone(), cache.indexer.clone(), true)
+        } else {
+            let id_res = TemporalBackdoorIdentifier::new()
+                .identify_temporal(graph, query)
+                .map_err(CausalError::from)?;
+            let estimand =
+                select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
+            (id_res.result, estimand, id_res.indexer, false)
+        };
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)?;
 
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
@@ -27,7 +34,7 @@ impl super::Study {
                 data,
                 &estimand,
                 query,
-                &id_res.indexer,
+                &indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
             )
@@ -70,6 +77,9 @@ impl super::Study {
         };
 
         let mut diagnostics = Vec::new();
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
         if physical
             .logical
             .record
@@ -89,7 +99,7 @@ impl super::Study {
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let mut refute_ws = EstimationWorkspace::default();
         let temporal_ctx = TemporalRefitContext {
-            indexer: &id_res.indexer,
+            indexer: &indexer,
             temporal_query: query,
             split: self.split.as_ref(),
             kernel_policy: &ctx.kernel_policy,
@@ -164,7 +174,7 @@ impl super::Study {
             estimator_id: EstimatorId::TemporalLinearAdjustment,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -239,6 +249,132 @@ impl super::Study {
                     "estimate.temporal_mediation",
                     "estimate.temporal_mediation",
                 )),
+                ..Default::default()
+            },
+        }))
+    }
+
+    pub(super) fn execute_temporal_response(
+        &self,
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let Some(temporal) = query.temporal.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal response route requires TemporalResponseSpec".into(),
+            });
+        };
+        if matches!(&self.inference, InferenceMode::Bayesian(_)) {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian temporal response is not licensed in 0.7.0",
+            });
+        }
+        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
+            self.temporal_identification_cache.as_deref()
+        {
+            (cache.identification.clone(), cache.estimand.clone(), cache.indexer.clone(), true)
+        } else {
+            let max_h =
+                temporal.horizons.iter().copied().max().ok_or_else(|| CausalError::Compile {
+                    message: "temporal response requires at least one horizon".into(),
+                })?;
+            let id_query = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, Value::f64(0.0)),
+                active: Intervention::set(treatment, Value::f64(1.0)),
+                horizon_steps: max_h,
+                max_history_lag: temporal.max_history_lag,
+                target_population: query.target_population.clone(),
+            };
+            let id_res = TemporalBackdoorIdentifier::new()
+                .identify_temporal(graph, &id_query)
+                .map_err(CausalError::from)?;
+            let estimand = select_estimand(&id_res.result, EstimatorId::TemporalResponseGcomp)?;
+            (id_res.result, estimand, id_res.indexer, false)
+        };
+        require_identified(&identification)?;
+
+        let mut estimator = TemporalResponseEstimator::new();
+        estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
+        let response = estimator
+            .estimate(
+                data,
+                &estimand,
+                query,
+                &indexer,
+                identification.status,
+                identification.required_assumptions.clone(),
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+
+        let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut diagnostics = identification.diagnostics.clone();
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.push(Diagnostic::new(
+            "refute.temporal_response.skipped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "scalar ATE refuters are not applicable to a function-valued temporal response",
+        ));
+        if !scalar.is_finite() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.no_scalar_summary",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "this response is function-valued; the scalar effect summary is not applicable \
+                 and the result is carried by the response payload",
+            ));
+        }
+        for warning in &response.support.warnings {
+            diagnostics.push(warning.clone());
+        }
+
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: EstimatorId::TemporalResponseGcomp,
+            treatment,
+            outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids(
+                    "identify.temporal_backdoor",
+                    "identify.temporal.backdoor.unfolded",
+                )),
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&response.provenance_id),
+                    Arc::clone(&response.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             },
         }))
