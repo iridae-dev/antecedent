@@ -26,15 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported / partially extrapolative / outside) instead of the union of
   horizon ranges. Two supporting fixtures add redundancy:
   `conformance/response/temporal_confounded_pulse` (adjustment set
-  `Z@-1`, identified estimand `temporal.backdoor.unfolded`, and the
-  structural estimate under confounding) and
+  `Z@-1` at horizon 1, identified estimand `temporal.backdoor.unfolded`,
+  the structural estimate under confounding, and horizon-dependent
+  `I(h)` on `horizons=[1,2]`) and
   `conformance/response/temporal_horizon_support` (horizon-varying treatment
   support). Scalar ATE refuters skip on function-valued surfaces:
   Python exposes
   `refute.temporal_response.skipped` on `CausalResponseView.validation`, and
   Rust `Study` diagnostics carry the same code. Examples:
-  `examples/python/temporal_response_curve.py`. The package version remains
-  0.6.1.
+  `examples/python/temporal_response_curve.py`. Python query construction
+  reads `TemporalResponseSpec::license()` (horizon cap, allowed policies,
+  default treatment lag) instead of mirroring those values. The package
+  version remains 0.6.1.
 
 ### Fixed
 
@@ -43,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   general ID, which emits an empty adjustment set relabeled as
   `temporal.backdoor.unfolded`. Under confounding that was unadjusted OLS.
   Multi-step schedules still use sequential ID and remain estimator-refused.
+- **Temporal response identifies once per requested horizon.** Identifying
+  only at `max(horizons)` can drop a short-horizon confounder when it does
+  not reach the longer outcome. Prepare caches `I(h)` for every requested
+  horizon; estimate clicks still do not re-identify. A union of those sets
+  is not used as one shared `Z`.
 - **Conjugate Gram cache no longer restores stale `Xᵀy`.** The cache keyed on
   outcome pointer identity; SBC (and other shared-workspace refits) often
   recycle equal-length `y` allocations to the same address, so later

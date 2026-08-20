@@ -20,7 +20,7 @@ The policy is `Pulse { at: -1 }` at horizon 1. Therefore
 E[Y_0 | do(A_{-1}=d)] = 1 + 2d
 ```
 
-This fixture pins three things, not the number alone:
+This fixture pins four things, not the number alone:
 
 1. **Adjustment set.** Temporal backdoor identification returns `{Z@-1}`. Empty
    `Z` with method `temporal.backdoor.unfolded` is the schedule-ID relabel bug
@@ -30,6 +30,10 @@ This fixture pins three things, not the number alone:
    single-step Sustained share that estimand.
 3. **Estimate.** Doses `[0, 1]` give the surface `[1, 3]`. Pulse / single-step
    Sustained recover the two-point contrast `2`.
+4. **Horizon-dependent identification.** On `horizons=[1, 2]`, `I(1)={Z@-1}`
+   and `I(2)={}`. The short cells stay `[1, 3]`. Identifying only at
+   `max(horizons)` would reuse empty `Z` at horizon 1 and recover the
+   confounded association there.
 
 The same estimator on the subgraph that omits `Z` is still
 `temporal.backdoor.unfolded`, but with empty `Z`, and returns `[1, 5.5]`
@@ -37,6 +41,4 @@ The same estimator on the subgraph that omits `Z` is still
 response. That negative control is why an unconfounded DGP cannot be the only
 scientific line of defence.
 
-This fixture does not pin bands, multi-horizon surfaces, or nonlinear response.
-Horizon is 1 only: identify-once at `max(horizons)` can drop `Z` when
-confounding does not reach a longer outcome.
+This fixture does not pin bands or nonlinear response.

@@ -754,6 +754,14 @@ def _response_support_bounds(raw: Any) -> dict[str, tuple[float, float]]:
     }
 
 
+def _horizon_adjustment_sets(raw: Any) -> tuple[tuple[str, ...], ...] | None:
+    sets = tuple(
+        tuple(str(name) for name in group)
+        for group in (getattr(raw, "horizon_adjustment_sets", ()) or ())
+    )
+    return sets or None
+
+
 def _support_point_status(raw: Any) -> tuple[SupportStatus, ...] | None:
     """Native empty vec means a static curve with no per-cell support grid."""
     cells = tuple(getattr(raw, "support_point_status", ()) or ())
@@ -824,6 +832,7 @@ def _wrap_prepared_response(
             adjustment_set=list(getattr(raw, "adjustment_set", ())),
             assumption_count=len(raw.assumptions),
             derivation_step_count=0,
+            horizon_adjustment_sets=_horizon_adjustment_sets(raw),
         ),
         assumptions=raw.assumptions,
         provenance={

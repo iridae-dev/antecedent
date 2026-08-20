@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::{AssumptionSet, Diagnostic, IdentificationStatus, ResponseFunctional};
+use crate::{AssumptionSet, Diagnostic, IdentificationStatus, ResponseFunctional, TemporalNodeKey};
 
 /// Empirical support classification, orthogonal to structural identification.
 ///
@@ -224,6 +224,22 @@ pub enum ResponseIdentification {
     },
 }
 
+/// Identification products for one requested horizon of a temporal response.
+///
+/// Parallel to [`crate::TemporalResponseSpec::horizons`]. A union of these
+/// adjustment sets is not itself a valid adjustment set.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HorizonIdentification {
+    /// Requested horizon (same units as the response spec).
+    pub horizon: u32,
+    /// Structural identification status at this horizon.
+    pub status: IdentificationStatus,
+    /// Identifier method id (typically `temporal.backdoor.unfolded`).
+    pub method: Arc<str>,
+    /// Template-level adjustment nodes `(variable, offset)` for this horizon.
+    pub adjustment: Arc<[TemporalNodeKey]>,
+}
+
 /// Complete causal-response artifact.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CausalResponse {
@@ -241,6 +257,8 @@ pub struct CausalResponse {
     pub assumptions: AssumptionSet,
     /// Stable provenance operation id.
     pub provenance_id: Arc<str>,
+    /// Per-horizon identification on a temporal surface; absent on static curves.
+    pub horizon_identification: Option<Arc<[HorizonIdentification]>>,
 }
 
 #[cfg(test)]

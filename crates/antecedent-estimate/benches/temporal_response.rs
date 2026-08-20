@@ -177,9 +177,8 @@ fn bench_temporal_response(c: &mut Criterion) {
             let r = est
                 .estimate(
                     &data,
-                    &estimand,
+                    &[(&estimand, &indexer); 4],
                     &query,
-                    &indexer,
                     IdentificationStatus::NonparametricallyIdentified,
                     AssumptionSet::new(),
                     &ExecutionContext::for_tests(1),
@@ -194,9 +193,8 @@ fn bench_temporal_response(c: &mut Criterion) {
     let _ = est
         .estimate(
             &data,
-            &estimand,
+            &[(&estimand, &indexer); 4],
             &query,
-            &indexer,
             IdentificationStatus::NonparametricallyIdentified,
             AssumptionSet::new(),
             &ExecutionContext::for_tests(1),
@@ -214,9 +212,8 @@ fn bench_temporal_response(c: &mut Criterion) {
             let r = est
                 .estimate(
                     &data,
-                    &estimand,
+                    &[(&estimand, &indexer); 4],
                     &query,
-                    &indexer,
                     IdentificationStatus::NonparametricallyIdentified,
                     AssumptionSet::new(),
                     &ExecutionContext::for_tests(1),
@@ -231,9 +228,8 @@ fn bench_temporal_response(c: &mut Criterion) {
     let _ = est
         .estimate(
             &data,
-            &estimand,
+            &[(&estimand, &indexer); 4],
             &query,
-            &indexer,
             IdentificationStatus::NonparametricallyIdentified,
             AssumptionSet::new(),
             &ExecutionContext::for_tests(1),

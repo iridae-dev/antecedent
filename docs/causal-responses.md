@@ -33,7 +33,11 @@ treatment and outcome sequences in that order.
 A response result deliberately keeps four judgments separate:
 
 1. `identification` says whether the causal functional follows from the graph
-   and declared structural assumptions.
+   and declared structural assumptions. On a temporal dose × horizon surface
+   that argument can itself depend on horizon: `I(h)` is recorded on
+   `identification.horizon_adjustment_sets` (and on the Rust
+   `CausalResponse.horizon_identification`). `adjustment_set` is the first
+   requested horizon. A union of those sets is not a valid shared `Z`.
 2. `support` describes empirical overlap in the requested treatment region.
    An identified response may still be extrapolative or outside empirical
    support. On a static curve, `support.status` is the worst label over
@@ -60,6 +64,7 @@ Inspect warnings and diagnostics even when a numerical estimate is present:
 
 ```python
 print(result.identification)
+print(result.identification.horizon_adjustment_sets)
 print(result.support.status)
 print(result.support.point_status)
 print(result.support.warnings)

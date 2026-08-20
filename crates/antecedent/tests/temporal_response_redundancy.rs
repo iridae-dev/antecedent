@@ -98,12 +98,22 @@ fn series(
 }
 
 fn mean_curve_query(doses: &[f64], fixture: &serde_json::Value) -> ResponseQuery {
-    let horizons: Vec<u32> = fixture["contract"]["horizons"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| u32::try_from(value.as_u64().unwrap()).unwrap())
-        .collect();
+    mean_curve_query_horizons(doses, fixture, None)
+}
+
+fn mean_curve_query_horizons(
+    doses: &[f64],
+    fixture: &serde_json::Value,
+    horizons: Option<Vec<u32>>,
+) -> ResponseQuery {
+    let horizons = horizons.unwrap_or_else(|| {
+        fixture["contract"]["horizons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| u32::try_from(value.as_u64().unwrap()).unwrap())
+            .collect()
+    });
     let at = i32::try_from(fixture["contract"]["policy"]["at"].as_i64().unwrap()).unwrap();
     ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
@@ -457,6 +467,132 @@ fn confounded_pulse_and_sustained_match_structural_contrast() {
         "unadjusted pulse",
     );
     assert_ate(&unadjusted, unadjusted_expected, atol, "unadjusted pulse");
+}
+
+#[test]
+fn confounded_multi_horizon_identifies_per_horizon_not_at_max() {
+    let fixture = confounded_fixture();
+    let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let names = names(&fixture);
+    let spec = &fixture["contract"]["multi_horizon"];
+    let (t, y, z) = confounded_columns(n);
+    let (data, graph) = series(&names, vec![t, y, z], &[(2, 0, 0, 0), (2, 1, 1, 0), (0, 1, 1, 0)]);
+    let doses = f64s(&fixture["contract"]["dose_grid"]);
+    let horizons: Vec<u32> = spec["horizons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| u32::try_from(value.as_u64().unwrap()).unwrap())
+        .collect();
+    let expected = f64s(&spec["surface"]["mean"]);
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    let h2_atol = spec["horizon_2_atol"].as_f64().unwrap();
+    let query = mean_curve_query_horizons(&doses, &fixture, Some(horizons.clone()));
+    let ctx = ExecutionContext::for_tests(29);
+    let at = i32::try_from(fixture["contract"]["policy"]["at"].as_i64().unwrap()).unwrap();
+    let identifier = TemporalBackdoorIdentifier::new();
+    let mut per_horizon_id = Vec::new();
+    for (index, &horizon) in horizons.iter().enumerate() {
+        let id_query = TemporalEffectQuery::pulse(var_id(&names, "t"), var_id(&names, "y"), 1.0)
+            .with_policy(TemporalPolicy::pulse(at))
+            .with_horizon_steps(horizon);
+        let id = identifier.identify_temporal(&graph, &id_query).unwrap();
+        assert_identified_estimand(
+            &id,
+            &spec["identification"][index],
+            &names,
+            &format!("h={horizon}"),
+        );
+        per_horizon_id.push(id);
+    }
+    assert!(
+        !per_horizon_id[0].result.estimands[0].adjustment_set.is_empty(),
+        "horizon 1 must keep Z"
+    );
+    assert!(
+        per_horizon_id[1].result.estimands[0].adjustment_set.is_empty(),
+        "horizon 2 has no backdoor through Z"
+    );
+
+    let adjusted = Study::series(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::Response(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert_study_used_ident(
+        &adjusted,
+        &per_horizon_id[0],
+        &spec["identification"][0],
+        fixture["contract"]["estimators"]["response"].as_str().unwrap(),
+        "multi-horizon primary I(h=1)",
+    );
+    assert!(
+        adjusted
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "identify.temporal_response.horizon_dependent"),
+        "mixed I(h) must be observable"
+    );
+    let response = adjusted.response.as_ref().expect("temporal response payload");
+    let horizon_id = response.horizon_identification.as_ref().expect("I(h) on the surface");
+    assert_eq!(horizon_id.len(), 2);
+    assert_eq!(horizon_id[0].horizon, 1);
+    assert_eq!(horizon_id[1].horizon, 2);
+    assert_eq!(
+        horizon_id[0].adjustment.as_ref(),
+        &[TemporalNodeKey { variable: var_id(&names, "z"), offset: -1 }]
+    );
+    assert!(horizon_id[1].adjustment.is_empty());
+    let mean = surface_mean(&adjusted);
+    assert_eq!(mean.len(), expected.len());
+    // dose-major: (0,1), (0,2), (1,1), (1,2)
+    assert!((mean[0] - expected[0]).abs() <= atol, "R(0,1)={} expected={}", mean[0], expected[0]);
+    assert!((mean[2] - expected[2]).abs() <= atol, "R(1,1)={} expected={}", mean[2], expected[2]);
+    assert!(
+        (mean[1] - expected[1]).abs() <= h2_atol,
+        "R(0,2)={} expected={}",
+        mean[1],
+        expected[1]
+    );
+    assert!(
+        (mean[3] - expected[3]).abs() <= h2_atol,
+        "R(1,2)={} expected={}",
+        mean[3],
+        expected[3]
+    );
+    assert!(
+        (mean[2] - mean[0] - 2.0).abs() <= atol,
+        "horizon 1 contrast must stay the structural pulse, not the confounded 4.5"
+    );
+
+    let prepared = Study::series(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let click = prepared.estimate_series(&data, &ctx).unwrap();
+    assert!(
+        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "estimate click must not re-identify"
+    );
+    assert!(
+        click
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "identify.temporal_response.horizon_dependent")
+    );
+    let click_mean = surface_mean(&click);
+    for (index, (&actual, &truth)) in click_mean.iter().zip(mean.iter()).enumerate() {
+        assert!((actual - truth).abs() <= atol, "prepared[{index}]={actual} truth={truth}");
+    }
 }
 
 fn parse_status(value: &str) -> SupportStatus {
