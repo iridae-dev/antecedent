@@ -1,10 +1,15 @@
 //! Temporal identification over finite unfolded graphs.
 //!
-//! **Pulse:** a stationary [`TemporalDag`] is unfolded to a static [`Dag`](antecedent_graph::Dag), then
-//! [`BackdoorIdentifier`] runs on the treatment/outcome nodes.
+//! **Pulse / single-step Sustained / single-step Dynamic:** a stationary
+//! [`TemporalDag`] is unfolded to a static [`Dag`](antecedent_graph::Dag), then
+//! [`BackdoorIdentifier`] runs on the treatment/outcome nodes. Single-step
+//! schedules are the same contrast as a pulse at that offset; they must not
+//! take the empty-`Z` general-ID path.
 //!
-//! **Sustained:** the same unfolding covers the sustained window; identification
-//! uses [`IdIdentifier`] (sequential / g-formula) over all treatment-time nodes.
+//! **Multi-step Sustained / Dynamic:** the same unfolding covers every
+//! treatment-time node; identification uses [`IdIdentifier`] (sequential /
+//! g-formula). The 0.7 linear estimator still refuses those multi-step
+//! schedules at estimate time.
 //!
 //! Finiteness and stationarity of the template become declared assumptions on the
 //! result. History depth grows until ancestral closure of `{treatment, outcome}`
@@ -105,7 +110,11 @@ impl TemporalBackdoorIdentifier {
             })?;
         let outcome_at = query.outcome_offset();
         match &query.policy {
-            TemporalPolicy::Sustained { from, until } => {
+            // Multi-step schedules need sequential / g-formula. A one-step
+            // Sustained or Dynamic is the same treatment-time node as a Pulse
+            // and must use backdoor `Z`, not the empty-adjustment General ID
+            // functional `identify_schedule_contrast` emits.
+            TemporalPolicy::Sustained { from, until } if from != until => {
                 return self.identify_active_offsets(
                     template,
                     query,
@@ -113,10 +122,12 @@ impl TemporalBackdoorIdentifier {
                     outcome_at,
                 );
             }
-            TemporalPolicy::Dynamic { active_at, .. } => {
+            TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
                 return self.identify_active_offsets(template, query, active_at, outcome_at);
             }
-            TemporalPolicy::Pulse { .. } => {}
+            TemporalPolicy::Pulse { .. }
+            | TemporalPolicy::Sustained { .. }
+            | TemporalPolicy::Dynamic { .. } => {}
             _ => {
                 return Err(IdentificationError::UnsupportedQuery {
                     message: "unsupported temporal policy for identification",
@@ -581,6 +592,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn single_step_sustained_and_dynamic_reuse_pulse_backdoor_set() {
+        // Same confounded template as above. Licensed single-step Sustained
+        // (and a one-offset Dynamic) must not relabel General ID as
+        // temporal.backdoor.unfolded with Z = ∅.
+        let mut template = TemporalDag::empty();
+        let z = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(z, x).unwrap();
+        template.insert_directed(z, y).unwrap();
+        template.insert_directed(x, y).unwrap();
+
+        let pulse =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+        let sustained = pulse.clone().with_policy(TemporalPolicy::sustained(-1, -1));
+        let dynamic = pulse.clone().with_policy(TemporalPolicy::dynamic(
+            antecedent_core::DynamicRuleId::from_raw(0),
+            [-1],
+        ));
+
+        let identifier = TemporalBackdoorIdentifier::new();
+        let pulse_id = identifier.identify_temporal(&template, &pulse).unwrap();
+        let z_key = TemporalNodeKey { variable: VariableId::from_raw(2), offset: -1 };
+        let z_dense = VariableId::from_raw(pulse_id.indexer.dense_id(z_key).unwrap());
+        assert_eq!(pulse_id.result.estimands[0].adjustment_set.as_ref(), &[z_dense]);
+
+        for query in [&sustained, &dynamic] {
+            let got = identifier.identify_temporal(&template, query).unwrap();
+            assert_eq!(got.result.estimands[0].adjustment_set.as_ref(), &[z_dense]);
+            assert_eq!(got.result.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
+        }
+    }
+
     /// Template with all lag-1 edges `B->A`, `A->T`, `B->C`, `C->Y`: the true
     /// backdoor path `T_0 <- A_{-1} <- B_{-2} -> C_{-1} -> Y_0` needs history
     /// 2, one more than the template's single-edge max lag.
@@ -655,10 +702,13 @@ mod tests {
         let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         template.insert_directed(x, y).unwrap();
+        // Multi-step window: sequential / g-formula path (`temporal.schedule`).
+        // Single-step Sustained is covered by
+        // `single_step_sustained_and_dynamic_reuse_pulse_backdoor_set`.
         let query = TemporalEffectQuery::sustained(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
-            0,
+            1,
             1.0,
         );
         let identifier = TemporalBackdoorIdentifier::new();
