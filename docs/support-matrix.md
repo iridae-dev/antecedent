@@ -10,19 +10,31 @@ This page is the public **license**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not license a cell.
 See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 
-| Status | Count |
-|---|---|
-| Cartesian product | 2394 |
-| Licensed | 24 |
-| n/a | 1194 |
-| Refused (enforced) | 1002 |
-| Allowlisted (running, unlicensed) | 82 |
-| Refused (enforced, no allowlist match) | 92 |
+The Cartesian product (query × graph class × structure source × inference ×
+validation) is **2394** cells. That denominator is not a feature count.
+Most of it is typed impossibility, not missing work.
+
+| Status | Count | How to read it |
+|---|---|---|
+| Cartesian product | 2394 | Axis product, not a coverage score |
+| n/a | 1194 | Semantic impossibilities (temporal query on a static graph, static query on a temporal graph, curve over a graph-posterior mixture, and similar). These are not holes. |
+| Meaningful remainder | 1200 | Combinations that could in principle be a claim |
+| Licensed | 24 | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | 82 | Executes end-to-end; a successful number is **not** a licensed claim |
+| Refused (enforced closed rules) | 1002 | Fail shut, including mislabeled-inference laundering |
+| Refused (no allowlist match) | 92 | Fail shut by default |
+
+Do not read "24 / 2394" as coverage. Read: **24 cells
+carry the evidence contract**; 82 more run without that contract;
+the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
 licensed. A cell is exactly one of licensed / n/a / closed / allowlisted; any
-refused cell not matched by the allowlist fails closed.
+refused cell not matched by the allowlist fails closed. Successful studies
+record `licensed` vs `allowed_unlicensed` on the result (`evidence_status` in
+Python, `StudyResult.support_status` in Rust) so the distinction survives
+dispatch.
 
 ## Axes
 

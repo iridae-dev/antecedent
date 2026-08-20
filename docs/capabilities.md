@@ -159,9 +159,11 @@ aliases. Observation-adjusted curves omit joint observation/curve uncertainty
 bands rather than reusing invalid complete-data intervals. Interval censoring
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 Bayesian inference and one-shot `discovery=` on response queries fail closed.
-The list above is inventory: `analyze` refuses derivative cells, and
-intervention-response cells are not licensed. Only `ResponseCurve` on a DAG
-is staged. The public license is the [support matrix](support-matrix.md).
+The list above is inventory. Derivative cells are refused by `analyze`.
+`ResponseCurve` and `InterventionResponse` are licensed on `Dag` and
+`TemporalDag` under Frequentist inference (see the
+[support matrix](support-matrix.md)); Bayesian response and TemporalCPDAG/PAG
+response remain unlicensed. The public license is that matrix, not this page.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
