@@ -2,14 +2,6 @@
 
 use super::*;
 
-enum GcmSlot {
-    Counterfactual(crate::gcm::IteResult),
-    Anomaly(Vec<antecedent_attribution::AnomalyScores>),
-    Change(antecedent_attribution::ChangeAttributionResult),
-    Mechanism(Vec<antecedent_attribution::MechanismChangeDetection>),
-    Unit(antecedent_attribution::UnitChangeResult),
-}
-
 impl super::Study {
     pub(super) fn execute_counterfactual(
         &self,
@@ -182,46 +174,33 @@ impl super::Study {
         estimate: EffectEstimate,
         started: Instant,
         slot: GcmSlot,
-        mut diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<Diagnostic>,
     ) -> StudyResult {
         let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        let (counterfactual, anomaly, change_attribution, mechanism_change, unit_change) =
-            match slot {
-                GcmSlot::Counterfactual(v) => (Some(v), None, None, None, None),
-                GcmSlot::Anomaly(v) => (None, Some(v), None, None, None),
-                GcmSlot::Change(v) => (None, None, Some(v), None, None),
-                GcmSlot::Mechanism(v) => (None, None, None, Some(v), None),
-                GcmSlot::Unit(v) => (None, None, None, None, Some(v)),
-            };
-        assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual,
-            anomaly,
-            change_attribution,
-            mechanism_change,
-            unit_change,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id: EstimatorId::LinearAdjustmentAte,
             treatment,
             outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                gcm: Some(slot),
+                empty_provenance: true,
+                ..Default::default()
+            },
         })
     }
 }

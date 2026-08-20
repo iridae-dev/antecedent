@@ -45,33 +45,66 @@ pub(super) enum AnalysisRoute {
     MultiEnvTemporalEffect,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum DataModality {
+    Tabular,
+    TemporalOrEvent,
+    Panel,
+    MultiEnv,
+}
+
+pub(super) fn data_modality(data: &DataInput) -> DataModality {
+    match data {
+        DataInput::Tabular(_) => DataModality::Tabular,
+        DataInput::Temporal(_) | DataInput::Event(_) => DataModality::TemporalOrEvent,
+        DataInput::Panel(_) => DataModality::Panel,
+        DataInput::MultiEnv(_) => DataModality::MultiEnv,
+    }
+}
+
 pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> Option<AnalysisRoute> {
-    Some(match (data, query) {
-        (DataInput::Tabular(_), CausalQuery::Response(_)) => AnalysisRoute::Response,
-        (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => AnalysisRoute::StaticAte,
-        (DataInput::Tabular(_), CausalQuery::Distribution(_)) => AnalysisRoute::Distribution,
-        (DataInput::Tabular(_), CausalQuery::PathSpecific(_)) => AnalysisRoute::PathSpecific,
-        (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => AnalysisRoute::Conditional,
-        (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+    classify_route(data_modality(data), query)
+}
+
+pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Option<AnalysisRoute> {
+    Some(match (modality, query) {
+        (DataModality::Tabular, CausalQuery::Response(_)) => AnalysisRoute::Response,
+        (DataModality::Tabular, CausalQuery::AverageEffect(_)) => AnalysisRoute::StaticAte,
+        (DataModality::Tabular, CausalQuery::Distribution(_)) => AnalysisRoute::Distribution,
+        (DataModality::Tabular, CausalQuery::PathSpecific(_)) => AnalysisRoute::PathSpecific,
+        (DataModality::Tabular, CausalQuery::ConditionalEffect(_)) => AnalysisRoute::Conditional,
+        (DataModality::TemporalOrEvent, CausalQuery::Mediation(_)) => {
             AnalysisRoute::TemporalMediation
         }
-        (DataInput::Tabular(_), CausalQuery::Mediation(_)) => AnalysisRoute::StaticMediation,
-        (DataInput::Tabular(_), CausalQuery::Counterfactual(_)) => AnalysisRoute::Counterfactual,
-        (DataInput::Tabular(_), CausalQuery::AnomalyAttribution(_)) => AnalysisRoute::Anomaly,
-        (DataInput::Tabular(_), CausalQuery::ChangeAttribution(_)) => {
+        (DataModality::Tabular, CausalQuery::Mediation(_)) => AnalysisRoute::StaticMediation,
+        (DataModality::Tabular, CausalQuery::Counterfactual(_)) => AnalysisRoute::Counterfactual,
+        (DataModality::Tabular, CausalQuery::AnomalyAttribution(_)) => AnalysisRoute::Anomaly,
+        (DataModality::Tabular, CausalQuery::ChangeAttribution(_)) => {
             AnalysisRoute::ChangeAttribution
         }
-        (DataInput::Tabular(_), CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
-        (DataInput::Tabular(_), CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
-        (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
+        (DataModality::Tabular, CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
+        (DataModality::Tabular, CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
+        (DataModality::TemporalOrEvent, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::TemporalEffect
         }
-        (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
-        (DataInput::MultiEnv(_), CausalQuery::TemporalEffect(_)) => {
+        (DataModality::Panel, CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
+        (DataModality::MultiEnv, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::MultiEnvTemporalEffect
         }
         _ => return None,
     })
+}
+
+pub(super) enum GcmSlot {
+    Counterfactual(crate::gcm::IteResult),
+    Anomaly(Vec<antecedent_attribution::AnomalyScores>),
+    Change(antecedent_attribution::ChangeAttributionResult),
+    Mechanism(Vec<antecedent_attribution::MechanismChangeDetection>),
+    Unit(antecedent_attribution::UnitChangeResult),
+}
+
+pub(super) fn provenance_ids(artifact: impl Into<Arc<str>>, op: impl Into<Arc<str>>) -> (Arc<str>, Arc<str>) {
+    (artifact.into(), op.into())
 }
 
 pub(super) fn is_gcm_route(route: AnalysisRoute) -> bool {
@@ -118,13 +151,18 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
 /// Optional finish slots that most identified paths leave at default.
 pub(super) struct IdentifiedExecuteExtras {
     pub stage_timings_ns: Vec<(Arc<str>, u64)>,
-    pub identify_provenance: Option<(&'static str, &'static str)>,
-    pub estimate_provenance: Option<(&'static str, &'static str)>,
+    pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
+    pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
     pub posterior: Option<antecedent_estimate::CausalPosterior>,
     pub n_draws: Option<u32>,
     pub predictive_checks: Vec<antecedent_validate::PredictiveCheckReport>,
     /// When set, replaces the identification + overlap + cache diagnostic seed.
     pub diagnostics: Option<Vec<Diagnostic>>,
+    pub response: Option<antecedent_core::CausalResponse>,
+    pub gcm: Option<GcmSlot>,
+    pub empty_provenance: bool,
+    /// `None` uses the study bootstrap count; `Some(v)` writes `v` (response writes `None`).
+    pub bootstrap_replicates_requested: Option<Option<u32>>,
 }
 
 impl Default for IdentifiedExecuteExtras {
@@ -137,6 +175,10 @@ impl Default for IdentifiedExecuteExtras {
             n_draws: None,
             predictive_checks: Vec::new(),
             diagnostics: None,
+            response: None,
+            gcm: None,
+            empty_provenance: false,
+            bootstrap_replicates_requested: None,
         }
     }
 }
@@ -410,18 +452,38 @@ impl super::Study {
             diagnostics.extend(args.extra_diagnostics);
             diagnostics
         };
-        let (id_artifact, id_op) = extras
-            .identify_provenance
-            .unwrap_or_else(|| identify_provenance_step(args.identifier_id));
-        let (est_artifact, est_op) = extras
-            .estimate_provenance
-            .unwrap_or_else(|| estimate_provenance_step(args.estimator_id));
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &args.identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &args.estimate.assumptions),
-        );
+        let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
+            let (a, b) = identify_provenance_step(args.identifier_id);
+            provenance_ids(a, b)
+        });
+        let (est_artifact, est_op) = extras.estimate_provenance.unwrap_or_else(|| {
+            let (a, b) = estimate_provenance_step(args.estimator_id);
+            provenance_ids(a, b)
+        });
+        let provenance = if extras.empty_provenance {
+            ProvenanceGraph::new()
+        } else {
+            provenance_pair(
+                (id_artifact.as_ref(), id_op.as_ref(), &[], &args.identification.required_assumptions),
+                (
+                    est_artifact.as_ref(),
+                    est_op.as_ref(),
+                    &[id_artifact.as_ref()],
+                    &args.estimate.assumptions,
+                ),
+            )
+        };
         let physical_record =
             self.apply_callback_plan_marks(args.physical.record.clone(), &mut diagnostics);
+        let (counterfactual, anomaly, change_attribution, mechanism_change, unit_change) =
+            match extras.gcm {
+                Some(GcmSlot::Counterfactual(v)) => (Some(v), None, None, None, None),
+                Some(GcmSlot::Anomaly(v)) => (None, Some(v), None, None, None),
+                Some(GcmSlot::Change(v)) => (None, None, Some(v), None, None),
+                Some(GcmSlot::Mechanism(v)) => (None, None, None, Some(v), None),
+                Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
+                None => (None, None, None, None, None),
+            };
         let mut result = assemble_result(AssembleArgs {
             logical: &args.physical.logical.record,
             physical: &physical_record,
@@ -431,11 +493,11 @@ impl super::Study {
             distribution: args.distribution,
             posterior: extras.posterior,
             mediation: args.mediation,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
+            counterfactual,
+            anomaly,
+            change_attribution,
+            mechanism_change,
+            unit_change,
             refutations: args.refutations,
             diagnostics,
             provenance,
@@ -444,13 +506,16 @@ impl super::Study {
             wall_time_ns: args.wall_time_ns,
             latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
             stage_timings_ns: extras.stage_timings_ns,
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_requested: extras
+                .bootstrap_replicates_requested
+                .unwrap_or(Some(self.bootstrap_replicates)),
             bootstrap_replicates_ok: args.bootstrap_replicates_ok,
             n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
         });
         result.predictive_checks = extras.predictive_checks;
+        result.response = extras.response;
         result
     }
 }

@@ -142,11 +142,11 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
-                identify_provenance: Some((
+                identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
                 )),
-                estimate_provenance: Some((estimate_artifact, estimate_op)),
+                estimate_provenance: Some(provenance_ids(estimate_artifact, estimate_op)),
                 posterior,
                 diagnostics: Some(diagnostics),
                 ..Default::default()

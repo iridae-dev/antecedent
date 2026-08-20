@@ -329,7 +329,7 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
-                estimate_provenance: Some((
+                estimate_provenance: Some(provenance_ids(
                     "estimate.bayesian_gcomp",
                     "estimate.aggregate_effect_envelope",
                 )),
@@ -595,45 +595,34 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let provenance = provenance_pair(
-            ("discover.graph_posterior", algo, &[], &identification.required_assumptions),
-            (
-                "estimate.aggregate_effect_envelope",
-                "estimate.bayesian_gcomp",
-                &["discover.graph_posterior"],
-                &estimate.assumptions,
-            ),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.aggregate_effect_envelope",
+                    "estimate.bayesian_gcomp",
+                )),
+                posterior: Some(posterior),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 
@@ -847,8 +836,11 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
-                identify_provenance: Some(("discover.dbn_posterior", "dbn_posterior")),
-                estimate_provenance: Some((
+                identify_provenance: Some(provenance_ids(
+                    "discover.dbn_posterior",
+                    "dbn_posterior",
+                )),
+                estimate_provenance: Some(provenance_ids(
                     "estimate.aggregate_effect_envelope",
                     "estimate.bayesian.temporal.gcomp",
                 )),
