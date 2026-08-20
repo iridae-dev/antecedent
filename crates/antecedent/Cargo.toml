@@ -17,26 +17,26 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.6.1", path = "../antecedent-core" }
-antecedent-data = { version = "0.6.1", path = "../antecedent-data" }
-antecedent-discovery = { version = "0.6.1", path = "../antecedent-discovery" }
-antecedent-estimate = { version = "0.6.1", path = "../antecedent-estimate" }
-antecedent-expr = { version = "0.6.1", path = "../antecedent-expr" }
-antecedent-graph = { version = "0.6.1", path = "../antecedent-graph" }
-antecedent-identify = { version = "0.6.1", path = "../antecedent-identify" }
-antecedent-io = { version = "0.6.1", path = "../antecedent-io" }
-antecedent-prob = { version = "0.6.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "0.6.1", path = "../antecedent-stats" }
-antecedent-validate = { version = "0.6.1", path = "../antecedent-validate" }
-antecedent-model = { version = "0.6.1", path = "../antecedent-model" }
-antecedent-counterfactual = { version = "0.6.1", path = "../antecedent-counterfactual" }
-antecedent-attribution = { version = "0.6.1", path = "../antecedent-attribution" }
-antecedent-design = { version = "0.6.1", path = "../antecedent-design" }
-antecedent-state = { version = "0.6.1", path = "../antecedent-state" }
+antecedent-core = { version = "0.7.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.7.0", path = "../antecedent-data" }
+antecedent-discovery = { version = "0.7.0", path = "../antecedent-discovery" }
+antecedent-estimate = { version = "0.7.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "0.7.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "0.7.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "0.7.0", path = "../antecedent-identify" }
+antecedent-io = { version = "0.7.0", path = "../antecedent-io" }
+antecedent-prob = { version = "0.7.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.7.0", path = "../antecedent-stats" }
+antecedent-validate = { version = "0.7.0", path = "../antecedent-validate" }
+antecedent-model = { version = "0.7.0", path = "../antecedent-model" }
+antecedent-counterfactual = { version = "0.7.0", path = "../antecedent-counterfactual" }
+antecedent-attribution = { version = "0.7.0", path = "../antecedent-attribution" }
+antecedent-design = { version = "0.7.0", path = "../antecedent-design" }
+antecedent-state = { version = "0.7.0", path = "../antecedent-state" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-antecedent-kernels = { version = "0.6.1", path = "../antecedent-kernels" }
+antecedent-kernels = { version = "0.7.0", path = "../antecedent-kernels" }
 serde_json = { workspace = true }
 
 [[example]]

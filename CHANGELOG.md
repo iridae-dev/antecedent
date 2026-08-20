@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-20
+
+Time as a response, not a contrast: dose × horizon surfaces and temporal
+intervention paths on `TemporalDag`. Artifact format **0.4**. Workspace and
+Python package versions are **0.7.0**.
+
 ### Temporal Response
 
 - Added temporal dose × horizon and intervention-response g-computation on
@@ -36,8 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Rust `Study` diagnostics carry the same code. Examples:
   `examples/python/temporal_response_curve.py`. Python query construction
   reads `TemporalResponseSpec::license()` (horizon cap, allowed policies,
-  default treatment lag) instead of mirroring those values. The package
-  version remains 0.6.1.
+  default treatment lag) instead of mirroring those values.
 
 ### Fixed
 

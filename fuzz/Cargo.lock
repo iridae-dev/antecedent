@@ -27,14 +27,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-data"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
 ]
@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-graph"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -140,14 +140,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-model"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -160,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-prob"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -169,7 +169,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-state"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-stats",
@@ -178,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
