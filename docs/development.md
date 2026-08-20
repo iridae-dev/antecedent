@@ -143,8 +143,11 @@ bash scripts/set_version.sh X.Y.Z
 
 `set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
 the Python fallback `__version__`, and the local package entry in
-`python/uv.lock`. Refresh `Cargo.lock` with `cargo update -p antecedent` (or a
-workspace check) before committing.
+`python/uv.lock`, and freezes the previous cut's licensed-cell block in
+`docs/release-notes/` so a later matrix regen cannot overwrite it. Refresh
+`Cargo.lock` with `cargo update -p antecedent` (or a workspace check) before
+committing. The generator rewrites live licensed-cell markers only in
+`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases
 
@@ -158,7 +161,7 @@ bash scripts/set_version.sh 0.7.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
-  CHANGELOG.md CITATION.cff
+  CHANGELOG.md CITATION.cff docs/release-notes/
 git commit -m "chore: bump version to 0.7.0"
 
 # Tag current (or just-bumped) version and push
