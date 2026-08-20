@@ -1,9 +1,9 @@
 # Artifact format
 
 Library package version is tracked independently from the durable artifact format.
-The durable format is **`FormatVersion { major: 0, minor: 3 }`**
-(`antecedent_io::STABLE_FORMAT`). Format 0.3 adds durable response-query and
-causal-response result payloads.
+The durable format is **`FormatVersion { major: 0, minor: 4 }`**
+(`antecedent_io::STABLE_FORMAT`). Format 0.4 adds temporal response-query
+fields and dose × horizon response surfaces.
 
 ## Container
 
@@ -53,18 +53,37 @@ use `load_section` to decompress into owned bytes.
 | response payload | CBOR `CausalResponseWire`, including estimand, identification payload, uncertainty, empirical support, assumptions, and provenance id |
 | `other("causal_payload")` | `causal_payload.header` (payload kind plus variable names) and `causal_payload.body` (the existing canonical query/result wire type) |
 
+### Format 0.4 temporal response
+
+`ResponseQueryWire.temporal` is optional. Its absence means the existing
+static response query. When present, `TemporalResponseSpecWire` contains:
+
+- `horizons: Vec<u32>` — non-empty, strictly increasing outcome horizons;
+- `policy: TemporalPolicyWire` — pulse, sustained, or dynamic timing;
+- `max_history_lag: Option<u32>` — optional finite-unfolding history cap.
+
+A temporal `MeanCurve` result uses `ResponseValueWire::Surface` with
+`dimension = 2`. Values are dose-major:
+`mean[dose_index * n_horizons + horizon_index]`. The flattened `grid` stores
+`[dose, horizon]` coordinate pairs in that same order. A temporal
+`InterventionResponse` is a horizon path with `dimension = 1`; its grid is the
+horizon vector. Uncertainty and support arrays follow the corresponding mean
+layout.
+
 Python exposes this container through `antecedent.artifacts.dumps` / `loads`.
 The returned mapping is the canonical Rust wire representation; the Python layer
 does not define or maintain a parallel JSON schema. Response, transport, and
 interference query/result artifacts therefore migrate and validate through the
-same format-0.3 reader as Rust artifacts.
+same format-0.4 reader as Rust artifacts.
 
 ## Migration
 
 `antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
-source formats `0.1`, `0.2`, and `0.3`. Formats `0.1` and `0.2` migrate to 0.3;
+source formats `0.1`, `0.2`, `0.3`, and `0.4`. Formats `0.1`–`0.3` migrate to 0.4;
 format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten to full
 `SchemaWire` with Continuous defaults. Format `0.2` sections pass through unchanged.
+Format `0.3` response queries have no temporal field and therefore retain static
+response semantics.
 Unknown format
 versions fail with `IoError::UnsupportedFormat`. Breaking changes require
 migration from at least the previous two stable versions.

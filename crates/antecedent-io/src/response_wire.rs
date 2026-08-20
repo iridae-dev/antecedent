@@ -145,6 +145,21 @@ pub struct ResponseQueryWire {
     /// Explicit observation assumptions.
     #[serde(default)]
     pub observation_assumptions: Vec<ObservationAssumptionWire>,
+    /// Optional temporal attachment (format ≥ 0.4). Absent/None = static response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalResponseSpecWire>,
+}
+
+/// Temporal dose-over-horizon / policy-path attachment on the wire (format 0.4).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct TemporalResponseSpecWire {
+    /// Outcome horizons (steps after policy origin), each ≥ 1, strictly increasing.
+    pub horizons: Vec<u32>,
+    /// Temporal intervention policy.
+    pub policy: crate::query_wire::TemporalPolicyWire,
+    /// Optional unfolding history cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_history_lag: Option<u32>,
 }
 
 /// Encode a response query.
@@ -162,6 +177,14 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
             .iter()
             .map(observation_assumption_to_wire)
             .collect(),
+        temporal: match &q.temporal {
+            None => None,
+            Some(t) => Some(TemporalResponseSpecWire {
+                horizons: t.horizons.to_vec(),
+                policy: crate::query_wire::TemporalPolicyWire::from_domain(&t.policy)?,
+                max_history_lag: t.max_history_lag,
+            }),
+        },
     })
 }
 
@@ -171,7 +194,8 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
 ///
 /// Invalid dimensions, values, interventions, or platform-size overflows.
 pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, IoError> {
-    let q = ResponseQuery {
+    use antecedent_core::TemporalResponseSpec;
+    let mut q = ResponseQuery {
         functional: functional_from_wire(&w.functional)?,
         target_population: w.target_population.to_domain()?,
         observation: observation_from_wire(&w.observation),
@@ -181,7 +205,14 @@ pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, 
             .map(observation_assumption_from_wire)
             .collect::<Vec<_>>()
             .into(),
+        temporal: None,
     };
+    if let Some(t) = &w.temporal {
+        q.temporal = Some(
+            TemporalResponseSpec::new(t.horizons.clone(), t.policy.to_domain(), t.max_history_lag)
+                .map_err(|e| IoError::Convert(e.to_string()))?,
+        );
+    }
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(q)
 }

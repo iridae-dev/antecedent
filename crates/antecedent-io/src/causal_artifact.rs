@@ -890,6 +890,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         })
     }
 
@@ -939,6 +940,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let mut artifact =
@@ -989,6 +991,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
@@ -1011,6 +1014,7 @@ mod tests {
             target_population: crate::TargetPopulationWire::AllObserved,
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
+            temporal: None,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
