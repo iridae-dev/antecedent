@@ -188,9 +188,6 @@ fn ensure_conjugate_gram(
         }
         xty[c1] = acc;
     }
-    workspace.conjugate_xty.clear();
-    workspace.conjugate_xty.extend_from_slice(xty);
-    workspace.conjugate_yty = yty;
     (yty, n_eff)
 }
 
