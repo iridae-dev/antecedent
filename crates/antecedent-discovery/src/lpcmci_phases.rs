@@ -433,7 +433,7 @@ fn ancestral_removal_phase(
         for batch in &batches {
             // Defer removals until the end of the batch so co-tested links remain
             // available as conditioning candidates (`to_remove`).
-            let mut to_remove: Vec<(VariableId, Lag, VariableId, Vec<(VariableId, Lag)>)> =
+            let mut to_remove: Vec<(VariableId, Lag, VariableId)> =
                 Vec::new();
 
             for &(x, x_lag, y) in batch {
@@ -488,8 +488,10 @@ fn ancestral_removal_phase(
                     }
                     let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
                     let mut tests = 0u64;
+                    let mut cond = Vec::new();
                     for combo in combinations(&search, p_pc) {
-                        let mut cond = s_def.clone();
+                        cond.clear();
+                        cond.extend_from_slice(&s_def);
                         for c in &combo {
                             if !cond.contains(c) {
                                 cond.push(*c);
@@ -597,15 +599,17 @@ fn ancestral_removal_phase(
                     ctx,
                 )?;
                 ci_tests += 1;
-                let sep_arc: Arc<[LaggedParent]> = Arc::from(wm.clone().into_boxed_slice());
-                sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), sep_arc);
-                let sep_nodes: Vec<DenseNodeId> =
-                    wm.iter().filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied()).collect();
+                let sep_arc: Arc<[LaggedParent]> = Arc::from(wm);
+                sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_arc));
+                let sep_nodes: Vec<DenseNodeId> = sep_arc
+                    .iter()
+                    .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
+                    .collect();
                 store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
-                to_remove.push((x, x_lag, y, wm));
+                to_remove.push((x, x_lag, y));
             }
 
-            for (x, x_lag, y, _) in to_remove {
+            for (x, x_lag, y) in to_remove {
                 for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
                     let _ = pag.remove_edge(a, b);
                 }
@@ -655,7 +659,7 @@ fn non_ancestral_removal_phase(
     for p_pc in 0..=max_p {
         let mut any_removal = false;
         let phase_pag = pag.clone();
-        let mut to_remove: Vec<(VariableId, Lag, VariableId, Vec<(VariableId, Lag)>)> = Vec::new();
+        let mut to_remove: Vec<(VariableId, Lag, VariableId)> = Vec::new();
         for &y in variables {
             for &x in variables {
                 for tau in 0..=max_lag {
@@ -699,8 +703,10 @@ fn non_ancestral_removal_phase(
                         continue;
                     }
                     let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
+                    let mut candidate_cond = Vec::new();
                     for combo in combinations(&search, p_pc) {
-                        let mut candidate_cond = cond.clone();
+                        candidate_cond.clear();
+                        candidate_cond.extend_from_slice(&cond);
                         candidate_cond.extend_from_slice(&combo);
                         candidate_cond
                             .sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
@@ -716,7 +722,7 @@ fn non_ancestral_removal_phase(
                         )?;
                         ci_tests += 1;
                         if p > alpha {
-                            best = Some((candidate_cond, stat, p));
+                            best = Some((std::mem::take(&mut candidate_cond), stat, p));
                             break;
                         }
                     }
@@ -736,17 +742,18 @@ fn non_ancestral_removal_phase(
                         workspace,
                         ctx,
                     )?;
-                    sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::from(wm.clone()));
-                    let sep_nodes: Vec<DenseNodeId> = wm
+                    let sep_arc: Arc<[LaggedParent]> = Arc::from(wm);
+                    sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_arc));
+                    let sep_nodes: Vec<DenseNodeId> = sep_arc
                         .iter()
                         .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
                         .collect();
                     store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
-                    to_remove.push((x, x_lag, y, wm));
+                    to_remove.push((x, x_lag, y));
                 }
             }
         }
-        for (x, x_lag, y, _) in to_remove {
+        for (x, x_lag, y) in to_remove {
             for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
                 let _ = pag.remove_edge(a, b);
             }
