@@ -230,6 +230,14 @@ impl super::Study {
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        // Anchor prior to the first identified atom in original order before
+        // Interactive subsample can drop that atom (0.6.0 semantics).
+        if let Some((_, estimand, _)) = fit_atoms.first() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+            envelope_prior = resolved;
+            envelope_conflict = conflict;
+        }
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -245,12 +253,6 @@ impl super::Study {
                 continue;
             }
             let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-            if envelope_prior.is_none() {
-                let (resolved, conflict) =
-                    resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                envelope_prior = resolved;
-                envelope_conflict = conflict;
-            }
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
@@ -519,6 +521,14 @@ impl super::Study {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        // Anchor prior to the first identified atom in original order before
+        // Interactive subsample can drop that atom (0.6.0 semantics).
+        if let Some((_, estimand, _)) = fit_atoms.first() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+            envelope_prior = resolved;
+            envelope_conflict = conflict;
+        }
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -534,12 +544,6 @@ impl super::Study {
                 continue;
             }
             let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-            if envelope_prior.is_none() {
-                let (resolved, conflict) =
-                    resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                envelope_prior = resolved;
-                envelope_conflict = conflict;
-            }
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
@@ -724,6 +728,25 @@ impl super::Study {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        // Anchor prior to the first identified atom in original order before
+        // Interactive subsample can drop that atom (0.6.0 semantics).
+        if let Some((_, estimand, _, indexer)) = fit_atoms.first() {
+            let mut temporal_est = TemporalLinearAdjustment::new();
+            temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
+            if let Ok(prep) = temporal_est.prepare(
+                data,
+                estimand,
+                query,
+                indexer,
+                self.split.as_ref(),
+                &ctx.kernel_policy,
+            ) {
+                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+        }
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -753,12 +776,6 @@ impl super::Study {
                 continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-            if envelope_prior.is_none() {
-                let (resolved, conflict) =
-                    resolve_bayesian_prior_with_conflict(&cfg, &bprep, Some(ctx))?;
-                envelope_prior = resolved;
-                envelope_conflict = conflict;
-            }
             bayes.inner.prior.clone_from(&envelope_prior);
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
                 fit_failed.insert(key);
