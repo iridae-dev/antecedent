@@ -1101,21 +1101,105 @@ impl PosteriorArtifact {
     /// NumPy array protocol — ``np.asarray(artifact)`` returns the flat posterior draws
     /// directly, without needing ``np.asarray(artifact.draws)``.
     ///
-    /// `dtype` and `copy` are accepted (and ignored) only to match the NumPy 2 calling
-    /// convention ``__array__(self, dtype=None, *, copy=None)``; this always builds a
-    /// fresh `float64` array from `draws`, so there is no NumPy-owned buffer to alias and
-    /// no in-place dtype cast to perform here — NumPy applies any further cast/copy on its
-    /// side after this returns.
+    /// `dtype` and `copy` match the NumPy 2 calling convention.
+    /// Default / ``copy=False`` wraps the live `draws` buffer (no extra `Vec` clone).
+    /// ``copy=True`` copies into a fresh NumPy-owned array.
     #[pyo3(signature = (dtype=None, copy=None))]
     fn __array__<'py>(
-        &self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
         dtype: Option<Bound<'py, PyAny>>,
         copy: Option<Bound<'py, PyAny>>,
-    ) -> Bound<'py, PyArray1<f64>> {
-        let _ = dtype;
-        let _ = copy;
-        PyArray1::from_vec(py, self.draws.clone())
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let force_copy = match copy {
+            Some(c) => c.is_truthy()?,
+            None => false,
+        };
+        let np = py.import("numpy")?;
+        let float64 = np.getattr("float64")?;
+        let arr = if force_copy {
+            let draws = &slf.borrow().draws;
+            PyArray1::from_slice(py, draws).into_any()
+        } else {
+            let mv = py.import("builtins")?.call_method1("memoryview", (slf,))?;
+            np.getattr("asarray")?.call((mv, &float64), None)?
+        };
+        match dtype {
+            None => Ok(arr),
+            Some(dt) => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
+        }
+    }
+
+    /// Zero-copy float64 view of `draws` for `np.asarray` / `memoryview`.
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        use pyo3::exceptions::PyBufferError;
+        use pyo3::ffi;
+        if view.is_null() {
+            return Err(PyBufferError::new_err("View is null"));
+        }
+        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
+            return Err(PyBufferError::new_err("PosteriorArtifact draws are read-only"));
+        }
+        let borrowed = slf.borrow();
+        let data = borrowed.draws.as_slice();
+        let n = isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
+        let itemsize = isize::try_from(std::mem::size_of::<f64>()).expect("f64 size");
+        let nbytes = n.saturating_mul(itemsize);
+        unsafe {
+            (*view).obj = slf.as_ptr();
+            ffi::Py_INCREF((*view).obj);
+            (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
+            (*view).len = nbytes;
+            (*view).readonly = 1;
+            (*view).itemsize = itemsize;
+            (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
+                std::ffi::CString::new("d")
+                    .expect("format")
+                    .into_raw()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).ndim = 1;
+            (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
+                let shape = Box::new([n]);
+                Box::into_raw(shape).cast()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
+                let strides = Box::new([itemsize]);
+                Box::into_raw(strides).cast()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).suboffsets = std::ptr::null_mut();
+            (*view).internal = std::ptr::null_mut();
+        }
+        Ok(())
+    }
+
+    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
+        if view.is_null() {
+            return;
+        }
+        unsafe {
+            if !(*view).format.is_null() {
+                drop(std::ffi::CString::from_raw((*view).format));
+                (*view).format = std::ptr::null_mut();
+            }
+            if !(*view).shape.is_null() {
+                drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
+                (*view).shape = std::ptr::null_mut();
+            }
+            if !(*view).strides.is_null() {
+                drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
+                (*view).strides = std::ptr::null_mut();
+            }
+        }
     }
 }
 

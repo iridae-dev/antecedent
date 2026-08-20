@@ -161,7 +161,7 @@ class PosteriorView:
         from .._native import decode_posterior_artifact
 
         decoded = decode_posterior_artifact(self.artifact)
-        return np.asarray(decoded.draws, dtype=dtype)
+        return np.asarray(decoded, dtype=dtype)
 
     def interval(self, level: float = 0.95) -> tuple[float, float]:
         """Credible interval at ``level``.
