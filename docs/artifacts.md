@@ -59,7 +59,9 @@ use `load_section` to decompress into owned bytes.
 static response query. When present, `TemporalResponseSpecWire` contains:
 
 - `horizons: Vec<u32>` — non-empty, strictly increasing outcome horizons;
-- `policy: TemporalPolicyWire` — pulse, sustained, or dynamic timing;
+- `policy: TemporalPolicyWire` — pulse or sustained for temporal *response*
+  queries (`Dynamic` remains a `TemporalEffect` spelling and is refused on
+  `TemporalResponseSpec`);
 - `max_history_lag: Option<u32>` — optional finite-unfolding history cap.
 
 A temporal `MeanCurve` result uses `ResponseValueWire::Surface` with

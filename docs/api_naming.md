@@ -81,7 +81,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Structural transport | `TransportQuery` + `SelectionDiagram` | `antecedent.transport.TransportQuery` / `SelectionDiagram` |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` | `antecedent.interference` stage types |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
-| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy="pulse"|"sustained"|"dynamic", treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell |
+| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy="pulse"|"sustained", treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag` defaults to `1` (same origin as `PulseEffect`). Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
@@ -92,7 +92,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.accepted(...)` / `.asserted(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
 | Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
-| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the default suite. Temporal `ResponseCurve` / `InterventionResponse` record `refute.temporal_response.skipped` (scalar refuters do not apply to function-valued surfaces). |
+| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the default suite. Temporal `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and expose that skip on `CausalResponseView.validation` as `refute.temporal_response.skipped` (Rust `Study` diagnostics carry the same code). |
 | Tabular data | `TabularData::from_f64_columns` | `dict[str, array]` / pandas / Arrow |
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
@@ -117,9 +117,10 @@ errors can differ: the surface uses analytic delta-method bands while the
 contrast path uses the `Study` bootstrap configuration.
 
 **Temporal response refuters.** Scalar ATE refuters are not applicable to a
-function-valued temporal surface; licensed runs emit diagnostic
-`refute.temporal_response.skipped` rather than running placebo / random-common-cause
-checks on a single scalar summary.
+function-valued temporal surface; licensed runs skip them. Python surfaces the
+skip on `CausalResponseView.validation` as check id
+`refute.temporal_response.skipped`. Rust `Study` diagnostics carry the same
+code. `PreparedAnalysis.refute` remains AverageEffect-only.
 
 `__init__.py` does `from .identify import Identification, estimate, identify`, which
 rebinds the `identify` attribute on the `antecedent` package to the **function**.
