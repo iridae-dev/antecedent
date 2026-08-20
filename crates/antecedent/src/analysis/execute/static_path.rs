@@ -239,7 +239,10 @@ impl super::Study {
             bootstrap_replicates_ok: bootstrap_ok,
             cancelled: clock.cancelled(),
             early_stopped,
-            extras: IdentifiedExecuteExtras { stage_timings_ns: clock.timings(), ..Default::default() },
+            extras: IdentifiedExecuteExtras {
+                stage_timings_ns: clock.timings(),
+                ..Default::default()
+            },
         }))
     }
 

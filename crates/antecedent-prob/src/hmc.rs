@@ -598,21 +598,9 @@ fn hmc_step_target(
     }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepResult {
-            logp: lp_new,
-            accepted: true,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
     } else {
-        Ok(HmcStepResult {
-            logp: lp_old,
-            accepted: false,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
     }
 }
 
@@ -748,21 +736,9 @@ fn hmc_step_glm(
     }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepResult {
-            logp: lp_new,
-            accepted: true,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
     } else {
-        Ok(HmcStepResult {
-            logp: lp_old,
-            accepted: false,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
     }
 }
 

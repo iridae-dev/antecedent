@@ -25,10 +25,16 @@ from ._native import (
     analyze_ate_admg as _analyze_ate_admg,
 )
 from ._native import (
+    analyze_ate_admg_arrow_c as _analyze_ate_admg_arrow_c,
+)
+from ._native import (
     analyze_ate_arrow_c as _analyze_ate_arrow_c,
 )
 from ._native import (
     analyze_ate_cpdag as _analyze_ate_cpdag,
+)
+from ._native import (
+    analyze_ate_cpdag_arrow_c as _analyze_ate_cpdag_arrow_c,
 )
 from ._native import (
     analyze_ate_discover as _analyze_ate_discover,
@@ -38,12 +44,6 @@ from ._native import (
 )
 from ._native import (
     analyze_ate_pag_arrow_c as _analyze_ate_pag_arrow_c,
-)
-from ._native import (
-    analyze_ate_cpdag_arrow_c as _analyze_ate_cpdag_arrow_c,
-)
-from ._native import (
-    analyze_ate_admg_arrow_c as _analyze_ate_admg_arrow_c,
 )
 from ._native import (
     analyze_conditional as _analyze_conditional,
@@ -981,7 +981,9 @@ def handle_static_ate(
             "(or edge list); PAG/CPDAG/ADMG analyze paths do not accept them yet"
         )
     if isinstance(graph, Pag):
-        return _wrap_ate(_typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common)
+        )
     if isinstance(graph, Cpdag):
         return _wrap_ate(
             _typed_ate(data, graph, _analyze_ate_cpdag, _analyze_ate_cpdag_arrow_c, **common)

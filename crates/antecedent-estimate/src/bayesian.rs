@@ -1398,17 +1398,9 @@ mod tests {
             0.0, 1.0, 0.0, // treatment (overwritten by do())
             0.2, 0.4, 0.6, // covariate
         ];
-        let ate = gcomp_mean_contrast(
-            GlmFamily::GaussianIdentity,
-            &matrix,
-            3,
-            3,
-            1,
-            &beta,
-            1.0,
-            0.0,
-        );
-        assert_eq!(ate, 2.5);
+        let ate =
+            gcomp_mean_contrast(GlmFamily::GaussianIdentity, &matrix, 3, 3, 1, &beta, 1.0, 0.0);
+        assert!((ate - 2.5).abs() < 1e-15);
     }
 
     fn linear_scm_table(n: usize) -> (TabularData, VariableId, VariableId, VariableId) {

@@ -18,9 +18,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, fit_propensity_in_place,
-};
+use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity_in_place};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,

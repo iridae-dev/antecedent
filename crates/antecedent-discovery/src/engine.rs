@@ -1015,15 +1015,10 @@ fn pc_parent_combo(
     pi: usize,
     cond_size: usize,
 ) -> Vec<(VariableId, Lag)> {
-    parents
-        .iter()
-        .enumerate()
-        .filter(|(j, _)| *j != pi)
-        .map(|(_, x)| *x)
-        .take(cond_size)
-        .collect()
+    parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x).take(cond_size).collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn record_pc_parent_outcome(
     pi: usize,
     src: VariableId,
@@ -1042,18 +1037,11 @@ fn record_pc_parent_outcome(
     min_stat[pi] = min_stat[pi].min(stat.abs());
     // pinned baseline retains links with p <= alpha (independence when p > alpha).
     if p > alpha {
-        let link = LaggedLink {
-            source: src,
-            source_lag: slag,
-            target,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
+        let link =
+            LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS };
         if !compiled.requires(link) {
             workspace.removed.push((src, slag));
-            workspace.sepsets.insert(
-                (src, slag, target, Lag::CONTEMPORANEOUS),
-                Arc::from(combo),
-            );
+            workspace.sepsets.insert((src, slag, target, Lag::CONTEMPORANEOUS), Arc::from(combo));
         }
     }
 }
