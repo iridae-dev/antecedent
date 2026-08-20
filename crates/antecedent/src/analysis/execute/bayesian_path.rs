@@ -228,16 +228,19 @@ impl super::Study {
                 flags.push(GraphIdentFlag::Unidentified);
             }
         }
+        // 0.6.0 prepared every identified atom before Interactive subsample.
+        // Re-validate prepare eligibility here so a doomed atom cannot be dropped
+        // silently, and so the prior still anchors on the first original atom.
+        for (i, (_, estimand, _)) in fit_atoms.iter().enumerate() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            if i == 0 {
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+        }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        // Anchor prior to the first identified atom in original order before
-        // Interactive subsample can drop that atom (0.6.0 semantics).
-        if let Some((_, estimand, _)) = fit_atoms.first() {
-            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
-            let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
-            envelope_prior = resolved;
-            envelope_conflict = conflict;
-        }
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -519,16 +522,17 @@ impl super::Study {
             }
         }
 
+        // 0.6.0 prepared every identified atom before Interactive subsample.
+        for (i, (_, estimand, _)) in fit_atoms.iter().enumerate() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            if i == 0 {
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+        }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        // Anchor prior to the first identified atom in original order before
-        // Interactive subsample can drop that atom (0.6.0 semantics).
-        if let Some((_, estimand, _)) = fit_atoms.first() {
-            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
-            let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
-            envelope_prior = resolved;
-            envelope_conflict = conflict;
-        }
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -726,27 +730,38 @@ impl super::Study {
             fit_atoms.push((key, estimand, identification, id_res.indexer));
         }
 
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        // Anchor prior to the first identified atom in original order before
-        // Interactive subsample can drop that atom (0.6.0 semantics).
-        if let Some((_, estimand, _, indexer)) = fit_atoms.first() {
+        // Soft-prepare before Interactive subsample (0.6.0 demoted prepare
+        // failures to Unidentified before stratified selection). Also walk
+        // until the first successful prepare for the shared prior anchor.
+        let mut preparable = Vec::with_capacity(fit_atoms.len());
+        for (key, estimand, identification, indexer) in fit_atoms {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
-            if let Ok(prep) = temporal_est.prepare(
+            let Ok(prep) = temporal_est.prepare(
                 data,
-                estimand,
+                &estimand,
                 query,
-                indexer,
+                &indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
-            ) {
+            ) else {
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                continue;
+            };
+            if envelope_prior.is_none() {
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
+            preparable.push((key, estimand, identification, indexer));
         }
+        let fit_atoms = preparable;
+
+        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,

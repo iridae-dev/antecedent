@@ -224,9 +224,10 @@ pub(super) fn maybe_interactive_subsample_graphs(
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
 ///
-/// Call on the **first identified atom in original envelope order** before
+/// Call while preparing identified atoms in **original envelope order**, before
 /// [`maybe_interactive_subsample_graphs`]. Interactive subsample must not
-/// change which design anchors the prior.
+/// change which design anchors the prior, and prepare eligibility must be
+/// established before stratified selection (0.6.0 semantics).
 pub(super) fn resolve_envelope_prior_anchor(
     cfg: &BayesianConfig,
     prep: &antecedent_estimate::PreparedBayesianProblem,
