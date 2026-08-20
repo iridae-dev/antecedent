@@ -131,41 +131,55 @@ fn ensure_conjugate_gram(
 ) -> (f64, f64) {
     let key = crate::backend::ConjugateGramKey::from_design(&design);
     let n2 = design.ncols.saturating_mul(design.ncols);
-    if workspace.conjugate_key == Some(key)
-        && workspace.conjugate_xtx.len() == n2
-        && workspace.conjugate_xty.len() == design.ncols
-    {
-        workspace.neg_hessian[..n2].copy_from_slice(&workspace.conjugate_xtx);
-        workspace.grad[..design.ncols].copy_from_slice(&workspace.conjugate_xty);
-        return (workspace.conjugate_yty, workspace.conjugate_n_eff);
-    }
     let nrows = design.nrows;
     let ncols = design.ncols;
-    let xtx = &mut workspace.neg_hessian[..n2];
-    xtx.fill(0.0);
+
+    // Cache only XᵀX (+ n_eff from weights). Always recompute Xᵀy / yᵀy: SBC
+    // reallocates equal-length outcome buffers that allocators often recycle to
+    // the same address, so a y-pointer key would restore a stale likelihood.
+    let xtx_hit =
+        workspace.conjugate_key == Some(key) && workspace.conjugate_xtx.len() == n2;
+    let n_eff = if xtx_hit {
+        workspace.neg_hessian[..n2].copy_from_slice(&workspace.conjugate_xtx);
+        workspace.conjugate_n_eff
+    } else {
+        let xtx = &mut workspace.neg_hessian[..n2];
+        xtx.fill(0.0);
+        let mut n_eff = 0.0;
+        for r in 0..nrows {
+            let w = design.weights.map_or(1.0, |ww| ww[r]);
+            n_eff += w;
+        }
+        for c1 in 0..ncols {
+            for c2 in c1..ncols {
+                let mut acc = 0.0;
+                for r in 0..nrows {
+                    let w = design.weights.map_or(1.0, |ww| ww[r]);
+                    let x1 = design.x_colmajor[c1 * nrows + r];
+                    let x2 = design.x_colmajor[c2 * nrows + r];
+                    acc += w * x1 * x2;
+                }
+                xtx[c1 * ncols + c2] = acc;
+                xtx[c2 * ncols + c1] = acc;
+            }
+        }
+        workspace.conjugate_xtx.clear();
+        workspace.conjugate_xtx.extend_from_slice(xtx);
+        workspace.conjugate_n_eff = n_eff;
+        workspace.conjugate_key = Some(key);
+        n_eff
+    };
+
     let xty = &mut workspace.grad[..ncols];
     xty.fill(0.0);
     let mut yty = 0.0;
-    let mut n_eff = 0.0;
     for r in 0..nrows {
         let w = design.weights.map_or(1.0, |ww| ww[r]);
-        n_eff += w;
         let offset = design.offsets.map_or(0.0, |oo| oo[r]);
         let yr = design.y[r] - offset;
         yty += w * yr * yr;
     }
     for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            for r in 0..nrows {
-                let w = design.weights.map_or(1.0, |ww| ww[r]);
-                let x1 = design.x_colmajor[c1 * nrows + r];
-                let x2 = design.x_colmajor[c2 * nrows + r];
-                acc += w * x1 * x2;
-            }
-            xtx[c1 * ncols + c2] = acc;
-            xtx[c2 * ncols + c1] = acc;
-        }
         let mut acc = 0.0;
         for r in 0..nrows {
             let w = design.weights.map_or(1.0, |ww| ww[r]);
@@ -175,13 +189,9 @@ fn ensure_conjugate_gram(
         }
         xty[c1] = acc;
     }
-    workspace.conjugate_xtx.clear();
-    workspace.conjugate_xtx.extend_from_slice(xtx);
     workspace.conjugate_xty.clear();
     workspace.conjugate_xty.extend_from_slice(xty);
     workspace.conjugate_yty = yty;
-    workspace.conjugate_n_eff = n_eff;
-    workspace.conjugate_key = Some(key);
     (yty, n_eff)
 }
 
@@ -474,6 +484,53 @@ mod tests {
         let second = fit_conjugate_gaussian(design, &prior, &opts, &mut ws).unwrap();
         assert_eq!(first.map, second.map);
         assert_eq!(first.draws.values, second.draws.values);
+    }
+
+    #[test]
+    fn conjugate_gram_cache_respects_different_outcomes_on_shared_workspace() {
+        // SBC reallocates equal-length y buffers; allocators often recycle the
+        // address. The XᵀX cache must not restore a stale Xᵀy.
+        let (x, y1) = simple_design();
+        let n = y1.len();
+        let y2: Vec<f64> = y1.iter().map(|&v| v + 3.0).collect();
+        let prior = PriorSet::weakly_informative(2);
+        let mut ws = LaplaceWorkspace::default();
+        let opts = BayesFitOptions { n_draws: 64, seed: 3, ..BayesFitOptions::default() };
+        let first = fit_conjugate_gaussian(
+            BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 2,
+                y: &y1,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut ws,
+        )
+        .unwrap();
+        let second = fit_conjugate_gaussian(
+            BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 2,
+                y: &y2,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut ws,
+        )
+        .unwrap();
+        assert!(
+            (first.map[0] - second.map[0]).abs() > 0.5
+                || (first.map[1] - second.map[1]).abs() > 0.5,
+            "MAP must move when y shifts by a constant under an intercept design; \
+             got {:?} vs {:?}",
+            first.map, second.map
+        );
     }
 
     #[test]
