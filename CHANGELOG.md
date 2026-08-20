@@ -5,6 +5,23 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Temporal Response
+
+- Added temporal dose × horizon and intervention-response g-computation on
+  `TemporalDag`, including prepared identification reuse and format 0.4
+  artifact fields. Licensed `PulseEffect` / single-step `SustainedEffect`,
+  which dispatch through the same `TemporalLinearAdjustment` machinery and
+  agree numerically with that spine on the shared known-truth fixture.
+  `InterventionResponse` licenses Soft(`constant`/`additive_shift`) and a
+  single-step `Sequence`; multi-step and nested `Sequence` policies fail
+  closed with a stable error. Temporal response pointwise bands now use the
+  full homoskedastic OLS coefficient covariance (delta-method SE of the
+  g-computed level), propagating intercept and adjustment-covariate
+  uncertainty instead of scaling the treatment-coefficient SE alone. The
+  package version remains 0.6.1.
+
 ## [0.6.1] — 2026-08-20
 
 Patch on the 0.6.0 contract cut. No public API rename. Licensed cells are
