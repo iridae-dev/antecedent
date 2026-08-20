@@ -194,20 +194,31 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             }
             _ => None,
         },
-        CausalQuery::Response(q) => match &q.functional {
-            ResponseFunctional::MeanCurve { .. } => Some("ResponseCurve"),
-            ResponseFunctional::AverageDerivative { .. } => Some("AverageDerivative"),
-            ResponseFunctional::PointDerivative { scale, .. } => match scale {
-                DerivativeScale::Identity => Some("PointDerivative"),
-                DerivativeScale::LogTreatment | DerivativeScale::LogOutcome => {
-                    Some("SemiElasticity")
-                }
-                DerivativeScale::LogLog => Some("Elasticity"),
-            },
-            ResponseFunctional::DirectionalDerivative { .. } => Some("DirectionalDerivative"),
-            ResponseFunctional::Jacobian { .. } => Some("ResponseJacobian"),
-            ResponseFunctional::InterventionResponse { .. } => Some("InterventionResponse"),
-        },
+        CausalQuery::Response(q) => {
+            let temporal_graph = matches!(
+                graph_class,
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            );
+            // Static response on a temporal graph (and temporal attachment on a
+            // static graph) are typed impossibilities, not matrix cells.
+            if q.is_temporal() != temporal_graph {
+                return None;
+            }
+            match &q.functional {
+                ResponseFunctional::MeanCurve { .. } => Some("ResponseCurve"),
+                ResponseFunctional::AverageDerivative { .. } => Some("AverageDerivative"),
+                ResponseFunctional::PointDerivative { scale, .. } => match scale {
+                    DerivativeScale::Identity => Some("PointDerivative"),
+                    DerivativeScale::LogTreatment | DerivativeScale::LogOutcome => {
+                        Some("SemiElasticity")
+                    }
+                    DerivativeScale::LogLog => Some("Elasticity"),
+                },
+                ResponseFunctional::DirectionalDerivative { .. } => Some("DirectionalDerivative"),
+                ResponseFunctional::Jacobian { .. } => Some("ResponseJacobian"),
+                ResponseFunctional::InterventionResponse { .. } => Some("InterventionResponse"),
+            }
+        }
         CausalQuery::Transport(_) => Some("TransportQuery"),
         CausalQuery::Interference(_) => Some("InterferenceQuery"),
         // Attribution queries and any later `CausalQuery` variant stay off the axis.
@@ -557,19 +568,10 @@ mod tests {
     }
 
     #[test]
-    fn closed_mediation_and_sustained_are_enforced() {
+    fn closed_mediation_is_enforced() {
         let err = refuse_if_not_applicable(cell(
             "MediationEffect",
             "Dag",
-            "explicit",
-            "Frequentist",
-            "none",
-        ))
-        .unwrap_err();
-        assert!(err.to_string().starts_with("refused:"), "{err}");
-        let err = refuse_if_not_applicable(cell(
-            "SustainedEffect",
-            "TemporalDag",
             "explicit",
             "Frequentist",
             "none",
@@ -581,6 +583,19 @@ mod tests {
                 refuse_if_not_applicable(cell(query, "Dag", "explicit", "Frequentist", "none"))
                     .unwrap_err();
             assert!(err.to_string().starts_with("refused:"), "{query}: {err}");
+        }
+    }
+
+    #[test]
+    fn licensed_pulse_and_sustained_temporal_dag_are_open() {
+        for query in ["PulseEffect", "SustainedEffect"] {
+            for structure in ["explicit", "accepted"] {
+                let status =
+                    classify(cell(query, "TemporalDag", structure, "Frequentist", "none"));
+                assert_eq!(status, CellStatus::Licensed, "{query}/{structure}");
+                refuse_if_not_applicable(cell(query, "TemporalDag", structure, "Frequentist", "none"))
+                    .unwrap();
+            }
         }
     }
 

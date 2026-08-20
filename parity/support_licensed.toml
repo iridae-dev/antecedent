@@ -90,6 +90,28 @@ known_truth_fixture = "conformance/response/two_point_curve_average_effect"
 limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
 
 [[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "TemporalResponseSpec is required. Evidence covers one linear pulse-policy SCM with two doses and horizons; no nonlinear, multi-step, Bayesian, graph-posterior, or equivalence-class surface is claimed."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "TemporalResponseSpec is required. The accepted-structure axis runs the same temporal backdoor and g-computation path as explicit TemporalDag; evidence covers one linear pulse-policy SCM."
+
+[[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "explicit"
@@ -154,6 +176,72 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/intervention_response"
 limitations = "response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the ResponseCurve explicit/accepted cells share theirs."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "TemporalResponseSpec is required. Known-truth execution covers a hard Set intervention; arbitrary soft mechanisms, multi-variable sequences, and multi-step policy overlays are not claimed."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator and hard-Set known-truth fixture."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on the shared fixture via shared adjustment machinery. Prepared TemporalEffect identification reuse is required. Point-estimate agreement does not extend to SEs: TemporalResponseEstimator hardcodes zero bootstrap replicates, while this path carries the Study's configured bootstrap_replicates."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares the temporal_dose_horizon fixture."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Licensed form is the single-step window (from == until) at -treatment_lag; multi-step Sustained remains estimator-refused. Projection matches Pulse at the same offset on the shared fixture."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Accepted-structure axis shares the explicit TemporalDag single-step Sustained path and fixture."
 
 [[cell]]
 query = "InterventionalDistribution"
