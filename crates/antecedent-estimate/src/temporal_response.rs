@@ -16,12 +16,13 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
-    Intervention, InterventionSequence, MechanismOverride, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
-    SupportRegion, SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery,
-    TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
+    Intervention, InterventionSequence, MechanismOverride, ParametricAssumption,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
+    TemporalEffectQuery, TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
@@ -54,6 +55,25 @@ impl Default for TemporalResponseEstimator {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -> AssumptionSet {
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("ols.homoskedastic.pointwise"),
+            description: Arc::from(
+                "Pointwise 95% band from the delta-method SE of the g-computed level, using the \
+                 full homoskedastic OLS coefficient covariance. Not a simultaneous band. Serially \
+                 correlated or heteroskedastic innovations can make nominal coverage optimistic.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.temporal_response.gcomp"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    assumptions
 }
 
 impl TemporalResponseEstimator {
@@ -102,6 +122,7 @@ impl TemporalResponseEstimator {
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
         }
+        let assumptions = with_pointwise_homoskedastic_ols_assumption(assumptions);
         match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => self.estimate_mean_curve(
                 data,
@@ -885,6 +906,14 @@ mod tests {
                 &ExecutionContext::for_tests(7),
             )
             .unwrap();
+
+        assert!(
+            result.assumptions.entries.iter().any(|r| matches!(
+                &r.assumption,
+                Assumption::ParametricRestriction(p) if p.id.as_ref() == "ols.homoskedastic.pointwise"
+            )),
+            "temporal response must record the homoskedastic pointwise OLS assumption"
+        );
 
         let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
             &result.estimate
