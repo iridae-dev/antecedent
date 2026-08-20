@@ -222,12 +222,47 @@ pub(super) fn maybe_interactive_subsample_graphs(
     Ok(sub.graphs)
 }
 
+/// Interactive graph×effect subsample: stratified Identified selection; leftover
+/// identified mass flips to Unidentified (never silent renormalize). Filters
+/// `per_graph` draws to keys that remain Identified after selection.
+pub(super) fn maybe_interactive_envelope_subsample(
+    latency_mode: Option<LatencyMode>,
+    graphs: WeightedGraphSamples,
+    per_graph: Vec<GraphEffectDraws>,
+    ctx: &ExecutionContext,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>), CausalError> {
+    if latency_mode != Some(LatencyMode::Interactive) {
+        return Ok((graphs, per_graph));
+    }
+    let mut rng = ctx.rng.stream(0xE11E_u64);
+    let sub = graphs
+        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    if !sub.approximate {
+        return Ok((sub.graphs, per_graph));
+    }
+    let keep_keys = identified_envelope_keys(&sub.graphs);
+    let filtered: Vec<GraphEffectDraws> =
+        per_graph.into_iter().filter(|g| keep_keys.contains(&g.graph_key)).collect();
+    diagnostics.push(Diagnostic::new(
+        "estimate.envelope.interactive_subsample",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "approximate=true leftover_identified_mass={} max_identified={}",
+            sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
+        ),
+    ));
+    Ok((sub.graphs, filtered))
+}
+
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
 ///
 /// Call while preparing identified atoms in **original envelope order**, before
-/// [`maybe_interactive_subsample_graphs`]. Interactive subsample must not
-/// change which design anchors the prior, and prepare eligibility must be
-/// established before stratified selection (0.6.0 semantics).
+/// Interactive stratified selection. Subsample must not change which design
+/// anchors the prior, and prepare eligibility must be established before
+/// selection (0.6.0 semantics).
 pub(super) fn resolve_envelope_prior_anchor(
     cfg: &BayesianConfig,
     prep: &antecedent_estimate::PreparedBayesianProblem,
