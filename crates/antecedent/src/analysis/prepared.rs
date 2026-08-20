@@ -524,7 +524,7 @@ impl Study {
                     treatment,
                     outcome,
                     temporal,
-                    query.target_population.clone(),
+                    &query.target_population,
                     EstimatorId::TemporalResponseGcomp,
                 )?))
             }
@@ -553,7 +553,7 @@ pub(crate) fn identify_temporal_response_horizons(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
     temporal: &TemporalResponseSpec,
-    target_population: TargetPopulation,
+    target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;

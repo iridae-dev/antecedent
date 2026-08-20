@@ -282,7 +282,7 @@ impl super::Study {
                         treatment,
                         outcome,
                         temporal,
-                        query.target_population.clone(),
+                        &query.target_population,
                         EstimatorId::TemporalResponseGcomp,
                     )?),
                     false,

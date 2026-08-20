@@ -44,6 +44,11 @@ const TREATMENT_COL: usize = 1;
 /// Per-horizon lag-aligned observed treatment `(min, max)`.
 type HorizonTreatmentRange = (f64, f64);
 
+/// What [`TemporalResponseEstimator::run_per_horizon`] returns: the caller's
+/// per-horizon payloads alongside the lag-aligned treatment range and the
+/// identification record retained for each requested horizon.
+type PerHorizonRun<T> = (Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>);
+
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
 pub struct TemporalResponseEstimator {
@@ -310,8 +315,7 @@ impl TemporalResponseEstimator {
         identification_status: IdentificationStatus,
         ctx: &ExecutionContext,
         mut per_horizon: impl FnMut(&FittedHorizon) -> T,
-    ) -> Result<(Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>), EstimationError>
-    {
+    ) -> Result<PerHorizonRun<T>, EstimationError> {
         let mut ols_ws = LeastSquaresWorkspace::default();
         let mut results = Vec::with_capacity(temporal.horizons.len());
         let mut horizon_ranges = Vec::with_capacity(temporal.horizons.len());
