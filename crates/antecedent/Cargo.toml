@@ -60,6 +60,10 @@ name = "manufacturing_temporal"
 path = "../../examples/rust/manufacturing_temporal.rs"
 
 [[example]]
+name = "temporal_response_curve"
+path = "../../examples/rust/temporal_response_curve.rs"
+
+[[example]]
 name = "sequential_bayes"
 path = "../../examples/rust/sequential_bayes.rs"
 
