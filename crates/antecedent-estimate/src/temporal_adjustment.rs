@@ -134,7 +134,13 @@ impl TemporalLinearAdjustment {
             let key = indexer
                 .key_of(dense_var.raw())
                 .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-            let lag = offset_to_lag(key.offset - sample_anchor)?;
+            let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
+                EstimationError::unsupported(
+                    "frozen max-horizon adjustment node sits after this horizon's \
+                     sample anchor; 0.7 identifies once at max(horizons) and cannot \
+                     lag-align future covariates for a shorter horizon",
+                )
+            })?;
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
         }
