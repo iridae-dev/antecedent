@@ -541,3 +541,65 @@ fn target_population_other_than_all_observed_refuses_end_to_end() {
 // refusal in `resolve_sequence` is covered directly (with the private helper it lives
 // on) by `sequence_multiple_target_variables_fails_closed` in
 // `crates/antecedent-estimate/src/temporal_response.rs`.
+
+#[test]
+fn temporal_dose_horizon_bands_match_fixture() {
+    use antecedent_core::ResponseUncertainty;
+
+    let fixture = fixture();
+    let (series, graph) = temporal_fixture_series();
+    let doses: Vec<f64> = fixture["contract"]["dose_grid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from(doses)),
+        ),
+    })
+    .with_temporal(temporal_spec(&fixture));
+    let result = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(21))
+        .unwrap();
+    let response = result.response.as_ref().expect("response payload");
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+        panic!("expected pointwise bands");
+    };
+    let expected_lower: Vec<f64> = fixture["contract"]["surface"]["lower"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let expected_upper: Vec<f64> = fixture["contract"]["surface"]["upper"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    for (i, (&lo, &hi)) in lower.iter().zip(upper.iter()).enumerate() {
+        assert!(
+            (lo - expected_lower[i]).abs() <= atol,
+            "lower[{i}]={lo}, expected={}",
+            expected_lower[i]
+        );
+        assert!(
+            (hi - expected_upper[i]).abs() <= atol,
+            "upper[{i}]={hi}, expected={}",
+            expected_upper[i]
+        );
+    }
+    // dose=0 horizon=1: index 0 — band width must be strictly positive (regression guard).
+    assert!(upper[0] - lower[0] > 0.0, "dose=0 band width must be positive");
+}

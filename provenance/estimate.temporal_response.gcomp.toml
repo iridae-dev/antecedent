@@ -17,6 +17,7 @@ implementation_deviations = [
   "uses one additive linear OLS projection per horizon on the unfolded backdoor design, not recursive sequential-regression g-computation over a multi-step treatment history",
   "fits the full aligned sample without cross-fitting and licenses only one treatment-time column; multi-step sustained and dynamic schedules fail closed",
   "pointwise bands use the delta-method/linear-functional variance of the standardized mean: cbar(a)' Sigma cbar(a), where Sigma is the homoskedastic OLS coefficient covariance and cbar(a) is the row-averaged design gradient at dose a, so intercept and adjustment-covariate uncertainty are propagated; bands do not cover heteroskedasticity or autocorrelation (no HAC/robust covariance), do not carry uncertainty from the identification step itself, and rest on the model's linearity assumption",
+  "pinned pointwise 95% band oracle on conformance/response/temporal_dose_horizon (including strictly positive width at dose zero)",
 ]
 
 upstream_implementations_observed = []

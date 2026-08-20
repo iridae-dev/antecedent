@@ -62,7 +62,20 @@
         1.0,
         3.0,
         4.0
-      ]
+      ],
+      "lower": [
+        0.7316185487322169,
+        0.8203303961142705,
+        2.5345045128947628,
+        3.6888031174941442
+      ],
+      "upper": [
+        1.268381451267783,
+        1.1796696038857288,
+        3.465495487105238,
+        4.311196882505859
+      ],
+      "band_note": "Pointwise 95% bands from delta-method SE of the g-computed level (homoskedastic OLS coefficient covariance). Index 0 is dose=0 horizon=1; width is strictly positive (regression guard for the old zero-width-at-dose-0 bug)."
     },
     "intervention_paths": {
       "set_1": [
