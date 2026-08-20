@@ -443,7 +443,7 @@ pub(crate) fn contemp_mci_phase(
                     removed.push((target, src, slag));
                     sepsets.insert(
                         (src, slag, target, Lag::CONTEMPORANEOUS),
-                        Arc::from(workspace.others.clone().into_boxed_slice()),
+                        Arc::from(workspace.others.as_slice()),
                     );
                 }
             }

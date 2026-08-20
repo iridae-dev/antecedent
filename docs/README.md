@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **0.6.0**.
+explicit stage contracts. Package version **0.6.1**.
 
 | Doc | Contents |
 |-----|----------|
@@ -19,7 +19,8 @@ explicit stage contracts. Package version **0.6.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
-| [0.6.0 release notes](release-notes/v0.6.0.md) | Contract cut (draft); matrix is the license |
+| [0.6.1 release notes](release-notes/v0.6.1.md) | Patch: envelope/ingest correctness and hot paths |
+| [0.6.0 release notes](release-notes/v0.6.0.md) | Contract cut; matrix is the license |
 | [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |
 | [0.5.1 release notes](release-notes/v0.5.1.md) | Honesty gates and row diagnostics |
 | [0.5.0 release notes](release-notes/v0.5.0.md) | Causal-response release |

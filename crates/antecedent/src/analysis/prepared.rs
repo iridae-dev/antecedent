@@ -101,9 +101,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
-        let mut analysis = self.analysis.clone();
-        analysis.data = DataInput::Tabular(data.clone());
-        analysis.execute(&self.plan, ctx)
+        self.analysis.execute_tabular(data, &self.plan, ctx)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -183,12 +181,7 @@ impl PreparedStudy {
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
-        let suite_label: Arc<str> = match suite {
-            RefuteSuite::None => Arc::from("none"),
-            RefuteSuite::Cheap => Arc::from("overlap+evalue"),
-            RefuteSuite::PlaceboAndRcc => Arc::from("placebo+rcc"),
-            RefuteSuite::Full => Arc::from("validation.full"),
-        };
+        let suite_label: Arc<str> = Arc::from(suite.diagnostic_label());
         out.diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.refute.second_click",
             antecedent_core::DiagnosticKind::Execution,

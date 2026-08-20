@@ -49,6 +49,28 @@ pub enum RefuteSuite {
     Full,
 }
 
+impl RefuteSuite {
+    /// Wire id recorded on the logical plan (`None` when validation is skipped).
+    #[must_use]
+    pub const fn validation_suite_id(self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Cheap => Some("overlap+evalue"),
+            Self::PlaceboAndRcc => Some("placebo+rcc"),
+            Self::Full => Some("validation.full"),
+        }
+    }
+
+    /// Label for second-click refute diagnostics (`none` when the suite is skipped).
+    #[must_use]
+    pub const fn diagnostic_label(self) -> &'static str {
+        match self.validation_suite_id() {
+            Some(id) => id,
+            None => "none",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum DataInput {
     Tabular(TabularData),

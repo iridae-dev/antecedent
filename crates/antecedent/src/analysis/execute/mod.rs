@@ -29,11 +29,12 @@ pub(super) use antecedent_discovery::{
 };
 pub(super) use antecedent_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate, EnvelopeOptions,
-    EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
-    GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator, OverlapPolicy,
-    RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment, TemporalMediationEstimate,
-    TemporalMediationEstimator, aggregate_effect_envelope, nonidentified_with_prior,
+    CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate,
+    EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
+    FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
+    OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
+    TemporalMediationEstimate, TemporalMediationEstimator, aggregate_effect_envelope,
+    nonidentified_with_prior,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
@@ -163,7 +164,7 @@ mod panel_path;
 mod response_path;
 mod static_path;
 mod temporal_path;
-include!("support.rs");
+include!("execute_helpers.rs");
 
 #[cfg(test)]
 mod support_tests {

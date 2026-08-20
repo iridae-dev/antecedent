@@ -132,6 +132,8 @@ pub struct PropensityEstimationWorkspace {
     matching_index_key: MatchingIndexKey,
     /// Number of times a new [`MatchingIndex`] was constructed (reuse diagnostics / benches).
     pub matching_index_builds: u32,
+    /// Clipped propensity scores for matching bootstrap (raw scores stay on `propensity`).
+    pub clip_scratch: Vec<f64>,
 }
 
 impl PropensityEstimationWorkspace {

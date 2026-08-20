@@ -104,8 +104,9 @@ impl InferenceBackend for HmcGlmBackend {
 }
 
 /// Result of one HMC transition.
+///
+/// Accepted position lives in `LaplaceWorkspace::q`; callers copy it on accept.
 struct HmcStepResult {
-    state: Vec<f64>,
     logp: f64,
     pub(crate) accepted: bool,
     accept_prob: f64,
@@ -259,7 +260,8 @@ pub fn fit_hmc_glm(
             let is_warmup = t < hmc.n_warmup;
             stats.record(&step, is_warmup);
             if step.accepted {
-                beta = step.state;
+                let n = beta.len();
+                beta.copy_from_slice(&workspace.q[..n]);
                 lp_curr = step.logp;
                 if step.logp > best_lp {
                     best_lp = step.logp;
@@ -361,7 +363,8 @@ fn fit_hmc_gaussian(
             let is_warmup = t < hmc.n_warmup;
             stats.record(&step, is_warmup);
             if step.accepted {
-                q = step.state;
+                let n = q.len();
+                q.copy_from_slice(&workspace.q[..n]);
                 lp_curr = step.logp;
                 if lp_curr > best_lp {
                     best_lp = lp_curr;
@@ -566,7 +569,6 @@ fn hmc_step_target(
 
     if divergent {
         return Ok(HmcStepResult {
-            state: q0.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob: 0.0,
@@ -587,7 +589,6 @@ fn hmc_step_target(
     let (divergent, accept_prob) = finalize_energy(delta_h);
     if divergent {
         return Ok(HmcStepResult {
-            state: q0.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob: 0.0,
@@ -597,23 +598,9 @@ fn hmc_step_target(
     }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepResult {
-            state: workspace.q[..dim].to_vec(),
-            logp: lp_new,
-            accepted: true,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
     } else {
-        Ok(HmcStepResult {
-            state: q0.to_vec(),
-            logp: lp_old,
-            accepted: false,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
     }
 }
 
@@ -640,7 +627,6 @@ fn hmc_step_glm(
     }
 
     let reject_divergent = || HmcStepResult {
-        state: beta.to_vec(),
         logp: lp_old,
         accepted: false,
         accept_prob: 0.0,
@@ -741,7 +727,6 @@ fn hmc_step_glm(
     let (divergent, accept_prob) = finalize_energy(delta_h);
     if divergent {
         return Ok(HmcStepResult {
-            state: beta.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob: 0.0,
@@ -751,23 +736,9 @@ fn hmc_step_glm(
     }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepResult {
-            state: workspace.q[..ncols].to_vec(),
-            logp: lp_new,
-            accepted: true,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
     } else {
-        Ok(HmcStepResult {
-            state: beta.to_vec(),
-            logp: lp_old,
-            accepted: false,
-            accept_prob,
-            delta_h,
-            divergent: false,
-        })
+        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
     }
 }
 
@@ -906,7 +877,6 @@ mod tests {
     fn warmup_divergences_do_not_count_as_postwarmup() {
         let mut stats = TransitionStats::default();
         let warm = HmcStepResult {
-            state: vec![0.0],
             logp: 0.0,
             accepted: false,
             accept_prob: 0.0,
@@ -914,7 +884,6 @@ mod tests {
             divergent: true,
         };
         let ok = HmcStepResult {
-            state: vec![0.0],
             logp: 0.0,
             accepted: true,
             accept_prob: 0.7,

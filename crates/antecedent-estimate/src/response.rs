@@ -27,8 +27,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    FaerBackend, GamOptions, GamWorkspace, SmoothSpec, fit_gam, gaussian_density,
-    gaussian_local_quadratic, gaussian_local_quadratic_influence, normal_ppf, silverman_bandwidth,
+    FaerBackend, GamOptions, GamWorkspace, LocalQuadraticWorkspace, SmoothSpec, StatsError,
+    fit_gam, gaussian_density, gaussian_local_quadratic,
+    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -281,9 +282,20 @@ impl ContinuousResponseEstimator {
         let mut influences = Vec::with_capacity(grid.len());
         let mut robust_se = Vec::with_capacity(grid.len());
         let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
+        if sample.treatments.iter().chain(&pseudo).any(|v| !v.is_finite()) {
+            return Err(
+                StatsError::Shape { message: "local quadratic inputs must be finite" }.into()
+            );
+        }
+        let mut local = LocalQuadraticWorkspace::default();
         for &at in grid {
-            let fit =
-                gaussian_local_quadratic_influence(&sample.treatments, &pseudo, at, bandwidth)?;
+            let fit = gaussian_local_quadratic_influence_prechecked(
+                &mut local,
+                &sample.treatments,
+                &pseudo,
+                at,
+                bandwidth,
+            )?;
             let point = fit.point;
             mean.push(point.value);
             // The pointwise band uses the same influence-based standard error the
@@ -394,17 +406,20 @@ impl ContinuousResponseEstimator {
         }
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
         let rows: Vec<usize> = (0..sample.len()).collect();
-        let fit = self.fit_outcome(&sample, &rows)?;
+        let mut gam_ws = GamWorkspace::default();
+        let fit = self.fit_outcome(&sample, &rows, &mut gam_ws)?;
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
         let estimate = if interventions.iter().any(intervention_needs_monte_carlo) {
             let draws = 256;
             let mut total = 0.0;
+            let mut factual = vec![0.0; sample.raw_cols];
+            let mut row = vec![0.0; sample.raw_cols];
             for row_index in 0..sample.len() {
-                let factual = sample.raw_row(row_index);
+                sample.write_raw_row(row_index, &mut factual);
                 for draw in 0..draws {
-                    let mut row = factual.clone();
+                    row.copy_from_slice(&factual);
                     for (column, intervention) in interventions.iter().enumerate() {
                         row[column] =
                             intervention_level(intervention, factual[column], draw, column)?;
@@ -655,20 +670,27 @@ impl ContinuousResponseEstimator {
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut pseudo = vec![0.0; n];
         let mut density_floor_rows = 0usize;
+        let mut gam_ws = GamWorkspace::default();
+        let mut adj_row = vec![0.0; sample.adjustment_cols];
+        let mut raw_row = vec![0.0; sample.raw_cols];
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
-            let outcome_fit = self.fit_outcome(sample, &train)?;
-            let treatment_fit = self.fit_treatment(sample, &train)?;
+            let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
+            let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             // The training-row treatment means do not depend on the validation row;
             // computing them once per fold avoids |valid| x |train| spline expansions.
             let constant_treatment_mean = sample.train_treatment_mean(&train);
             let train_treatment_means: Vec<f64> = match treatment_fit.as_ref() {
-                Some(fit) => train
-                    .iter()
-                    .map(|&j| predict_one(fit, &sample.adjustment_row(j)))
-                    .collect::<Result<_, _>>()?,
+                Some(fit) => {
+                    let mut means = Vec::with_capacity(train.len());
+                    for &j in &train {
+                        sample.write_adjustment_row(j, &mut adj_row);
+                        means.push(predict_one(fit, &adj_row)?);
+                    }
+                    means
+                }
                 None => vec![constant_treatment_mean; train.len()],
             };
             // The outcome nuisance is additive, so a counterfactual prediction
@@ -688,10 +710,13 @@ impl ContinuousResponseEstimator {
             }
             covariate_offset /= train.len() as f64;
             for &i in &valid {
-                let observed_x = sample.raw_row(i);
-                let mu_observed = predict_one(&outcome_fit, &observed_x)?;
+                sample.write_raw_row(i, &mut raw_row);
+                let mu_observed = predict_one(&outcome_fit, &raw_row)?;
                 let treatment_mean = match treatment_fit.as_ref() {
-                    Some(fit) => predict_one(fit, &sample.adjustment_row(i))?,
+                    Some(fit) => {
+                        sample.write_adjustment_row(i, &mut adj_row);
+                        predict_one(fit, &adj_row)?
+                    }
                     None => constant_treatment_mean,
                 };
                 let raw_density =
@@ -723,19 +748,24 @@ impl ContinuousResponseEstimator {
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut scores = vec![0.0; n];
         let mut riesz_weights = vec![0.0; n];
+        let mut gam_ws = GamWorkspace::default();
+        let mut row = vec![0.0; sample.raw_cols];
+        let mut plus = vec![0.0; sample.raw_cols];
+        let mut minus = vec![0.0; sample.raw_cols];
+        let mut adj_row = vec![0.0; sample.adjustment_cols];
         let treatment_range = range(&sample.treatments).1 - range(&sample.treatments).0;
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let outcome_fit = self.fit_outcome(sample, &train)?;
-            let treatment_fit = self.fit_treatment(sample, &train)?;
+            let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
+            let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             let treatment_mean_constant = sample.train_treatment_mean(&train);
             for i in (0..n).filter(|i| i % self.options.folds == fold) {
-                let row = sample.raw_row(i);
+                sample.write_raw_row(i, &mut row);
                 let mu = predict_one(&outcome_fit, &row)?;
                 let step = finite_difference_step(sample.treatments[i], treatment_range);
-                let mut plus = row.clone();
-                let mut minus = row.clone();
+                plus.copy_from_slice(&row);
+                minus.copy_from_slice(&row);
                 plus[0] += step;
                 minus[0] -= step;
                 let gap = plus[0] - minus[0];
@@ -747,7 +777,10 @@ impl ContinuousResponseEstimator {
                 let derivative =
                     (predict_one(&outcome_fit, &plus)? - predict_one(&outcome_fit, &minus)?) / gap;
                 let treatment_mean = match treatment_fit.as_ref() {
-                    Some(fit) => predict_one(fit, &sample.adjustment_row(i))?,
+                    Some(fit) => {
+                        sample.write_adjustment_row(i, &mut adj_row);
+                        predict_one(fit, &adj_row)?
+                    }
                     None => treatment_mean_constant,
                 };
                 let riesz = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
@@ -764,18 +797,22 @@ impl ContinuousResponseEstimator {
         at: &[f64],
     ) -> Result<(f64, Vec<f64>), EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
-        let fit = self.fit_outcome(sample, &rows)?;
+        let mut gam_ws = GamWorkspace::default();
+        let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
         let mut base_sum = 0.0;
         let mut gradient = vec![0.0; at.len()];
+        let mut row = vec![0.0; sample.raw_cols];
+        let mut plus = vec![0.0; sample.raw_cols];
+        let mut minus = vec![0.0; sample.raw_cols];
         for i in 0..sample.len() {
-            let mut row = sample.raw_row(i);
+            sample.write_raw_row(i, &mut row);
             row[..at.len()].copy_from_slice(at);
             base_sum += predict_one(&fit, &row)?;
             for j in 0..at.len() {
                 let range_j = sample.treatment_column_range(j);
                 let step = finite_difference_step(at[j], range_j.1 - range_j.0);
-                let mut plus = row.clone();
-                let mut minus = row.clone();
+                plus.copy_from_slice(&row);
+                minus.copy_from_slice(&row);
                 plus[j] += step;
                 minus[j] -= step;
                 let gap = plus[j] - minus[j];
@@ -795,6 +832,7 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
         rows: &[usize],
+        workspace: &mut GamWorkspace,
     ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let x = sample.raw_subset(rows);
         let y: Vec<f64> = rows.iter().map(|&i| sample.outcome[i]).collect();
@@ -805,6 +843,7 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            workspace,
         )
     }
 
@@ -812,6 +851,7 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
         rows: &[usize],
+        workspace: &mut GamWorkspace,
     ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
         if sample.adjustment_cols == 0 {
             return Ok(None);
@@ -825,6 +865,7 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            workspace,
         )
         .map(Some)
     }
@@ -906,17 +947,39 @@ impl CompleteSample {
         self.outcome.len()
     }
 
+    #[cfg(test)]
     fn raw_row(&self, row: usize) -> Vec<f64> {
-        let mut out = Vec::with_capacity(self.raw_cols);
-        for col in 0..self.treatment_cols {
-            out.push(self.treatment_matrix[col * self.len() + row]);
-        }
-        out.extend(self.adjustment_row(row));
+        let mut out = vec![0.0; self.raw_cols];
+        self.write_raw_row(row, &mut out);
         out
     }
 
+    fn write_raw_row(&self, row: usize, out: &mut [f64]) {
+        debug_assert_eq!(out.len(), self.raw_cols);
+        // Column-major treatment/adjustment layouts: index by col deliberately.
+        #[allow(clippy::needless_range_loop)]
+        for col in 0..self.treatment_cols {
+            out[col] = self.treatment_matrix[col * self.len() + row];
+        }
+        #[allow(clippy::needless_range_loop)]
+        for col in 0..self.adjustment_cols {
+            out[self.treatment_cols + col] = self.adjustment[col * self.len() + row];
+        }
+    }
+
+    fn write_adjustment_row(&self, row: usize, out: &mut [f64]) {
+        debug_assert_eq!(out.len(), self.adjustment_cols);
+        #[allow(clippy::needless_range_loop)]
+        for col in 0..self.adjustment_cols {
+            out[col] = self.adjustment[col * self.len() + row];
+        }
+    }
+
+    #[cfg(test)]
     fn adjustment_row(&self, row: usize) -> Vec<f64> {
-        (0..self.adjustment_cols).map(|col| self.adjustment[col * self.len() + row]).collect()
+        let mut out = vec![0.0; self.adjustment_cols];
+        self.write_adjustment_row(row, &mut out);
+        out
     }
 
     fn raw_subset(&self, rows: &[usize]) -> Vec<f64> {
@@ -954,10 +1017,10 @@ fn fit_additive(
     y: &[f64],
     basis: usize,
     lambda: f64,
+    workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
     let specs: Vec<SmoothSpec> =
         (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
-    let mut workspace = GamWorkspace::default();
     // Response nuisances use a longer backfitting budget than the GAM default: the default
     // 100-iteration / 1e-6 tolerance combination routinely returns converged=false on the
     // cross-fitted Kennedy fixtures while the fit itself is already stable enough to use.
@@ -969,7 +1032,7 @@ fn fit_additive(
         &specs,
         &GamOptions { max_iter: 500, tol: 1e-6 },
         &FaerBackend,
-        &mut workspace,
+        workspace,
     )?;
     // Observation logistics already call `GlmFit::require_ok`. An unfinished backfit after the
     // extended budget is refused rather than published into a Kennedy curve or ADE.
@@ -1147,9 +1210,10 @@ fn exact_discrete_intervention_mean(
         ));
     }
     let mut total = 0.0;
+    let mut row = vec![0.0; sample.raw_cols];
     for row_index in 0..sample.len() {
-        let factual = sample.raw_row(row_index);
-        total += mixture_expectation(fit, &factual, &supports, 0, 1.0)?;
+        sample.write_raw_row(row_index, &mut row);
+        total += mixture_expectation(fit, &mut row, &supports, 0, 1.0)?;
     }
     Ok(total / sample.len() as f64)
 }
@@ -1206,7 +1270,7 @@ fn discrete_intervention_support(
 
 fn mixture_expectation(
     fit: &antecedent_stats::GamFit,
-    factual: &[f64],
+    row: &mut [f64],
     supports: &[Vec<DiscreteAtom>],
     column: usize,
     weight: f64,
@@ -1217,22 +1281,24 @@ fn mixture_expectation(
         ));
     }
     if column == supports.len() {
-        return Ok(weight * predict_one(fit, factual)?);
+        return Ok(weight * predict_one(fit, row)?);
     }
     let mut sum = 0.0;
+    let factual = row[column];
     for atom in &supports[column] {
-        let mut row = factual.to_vec();
+        let saved = row[column];
         let branch = match *atom {
             DiscreteAtom::Level { value, weight: atom_weight } => {
                 row[column] = value;
                 atom_weight
             }
             DiscreteAtom::Shift { delta } => {
-                row[column] = factual[column] + delta;
+                row[column] = factual + delta;
                 1.0
             }
         };
-        sum += mixture_expectation(fit, &row, supports, column + 1, weight * branch)?;
+        sum += mixture_expectation(fit, row, supports, column + 1, weight * branch)?;
+        row[column] = saved;
     }
     Ok(sum)
 }
@@ -1585,8 +1651,9 @@ mod tests {
         for fold in 0..folds {
             let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
             let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
-            let outcome_fit = estimator.fit_outcome(&sample, &train).unwrap();
-            let treatment_fit = estimator.fit_treatment(&sample, &train).unwrap();
+            let mut gam_ws = GamWorkspace::default();
+            let outcome_fit = estimator.fit_outcome(&sample, &train, &mut gam_ws).unwrap();
+            let treatment_fit = estimator.fit_treatment(&sample, &train, &mut gam_ws).unwrap();
             let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
             let constant_mean = sample.train_treatment_mean(&train);
             for &i in &valid {
@@ -1848,8 +1915,9 @@ mod tests {
             raw_cols: 2,
         };
         let train: Vec<usize> = (0..n).collect();
+        let mut gam_ws = GamWorkspace::default();
         let fit = ContinuousResponseEstimator::new([VariableId::from_raw(0)])
-            .fit_treatment(&sample, &train)
+            .fit_treatment(&sample, &train, &mut gam_ws)
             .unwrap()
             .expect("adjustment present");
         assert!(fit.edf_approx > 1.0 + 1e-6, "edf={}", fit.edf_approx);

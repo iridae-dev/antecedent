@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any, Literal, cast
 
 from ._coerce import coerce_latency, coerce_refute
-from ._data import as_columns
+from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import (
     AnalysisResult as TemporalAnalysisResult,
 )
@@ -651,7 +651,7 @@ def analyze_many(
         raise CausalTypeError("analyze_many currently supports AverageEffect queries only")
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     edges = _static_edges(graph)
     specs = [
         (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries
@@ -787,6 +787,15 @@ def _wrap_prepared_response(
     )
 
 
+def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
+    arrow = try_as_arrow_c_columns(data)
+    if arrow is not None:
+        names, columns = arrow
+        return names, columns, True
+    names, columns = as_columns(data)
+    return names, columns, False
+
+
 class PreparedAnalysis:
     """Compile-once / re-estimate-many handle for licensed static DAG cells.
 
@@ -859,7 +868,7 @@ class PreparedAnalysis:
             estimator = str(estimator)
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
-        names, columns = as_columns(data)
+        names, columns = ingest_columns(data)
         from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
         if isinstance(graph, _AcceptedGraph):
@@ -1098,16 +1107,18 @@ class PreparedAnalysis:
         threads: int = 1,
     ) -> AnalysisResult | CausalResponseView:
         """Re-estimate without recompiling (same schema as prepare)."""
-        names, columns = as_columns(data)
+        names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
-            raw = self._native.estimate_response(names, columns, seed=seed, threads=threads)
+            fn = self._native.estimate_response_arrow_c if arrow else self._native.estimate_response
+            raw = fn(names, columns, seed=seed, threads=threads)
             return _wrap_prepared_response(
                 raw,
                 query=self._query
                 if isinstance(self._query, (ResponseCurve, InterventionResponse))
                 else None,
             )
-        raw = self._native.estimate(names, columns, seed=seed, threads=threads)
+        fn = self._native.estimate_arrow_c if arrow else self._native.estimate
+        raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
     def refresh(
@@ -1118,16 +1129,18 @@ class PreparedAnalysis:
         threads: int = 1,
     ) -> AnalysisResult | CausalResponseView:
         """Replace retained data and re-estimate."""
-        names, columns = as_columns(data)
+        names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
-            raw = self._native.refresh_response(names, columns, seed=seed, threads=threads)
+            fn = self._native.refresh_response_arrow_c if arrow else self._native.refresh_response
+            raw = fn(names, columns, seed=seed, threads=threads)
             return _wrap_prepared_response(
                 raw,
                 query=self._query
                 if isinstance(self._query, (ResponseCurve, InterventionResponse))
                 else None,
             )
-        raw = self._native.refresh(names, columns, seed=seed, threads=threads)
+        fn = self._native.refresh_arrow_c if arrow else self._native.refresh
+        raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
     def refute(
@@ -1146,11 +1159,12 @@ class PreparedAnalysis:
         """
         if isinstance(suite, Refute):
             suite = str(suite)
-        names, columns = as_columns(data)
+        names, columns, arrow = _prepared_columns(data)
         kwargs: dict[str, Any] = dict(seed=seed, threads=threads)
         if cancel is not None:
             kwargs["cancel"] = cancel
-        raw = self._native.refute(names, columns, suite, **kwargs)
+        fn = self._native.refute_arrow_c if arrow else self._native.refute
+        raw = fn(names, columns, suite, **kwargs)
         return _wrap_ate(raw, prepared=self)
 
 

@@ -36,17 +36,7 @@ impl super::Study {
 
         let (estimate, mut posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let mut bayes = BayesianTemporalGcomp {
-                    inner: BayesianGComputationAte {
-                        backend: cfg.backend,
-                        likelihood: cfg.likelihood,
-                        n_draws: cfg.n_draws,
-                        seed: ctx.rng.master_seed(),
-                        overlap: OverlapPolicy::ExplicitOverride,
-                        prior_scale: cfg.prior_scale,
-                        prior: None,
-                    },
-                };
+                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let (resolved_prior, conflict_summary) =
                     resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
@@ -83,21 +73,6 @@ impl super::Study {
             }
         };
 
-        let provenance = provenance_pair(
-            (
-                "identify.temporal_backdoor",
-                "identify.temporal.backdoor.unfolded",
-                &[],
-                &identification.required_assumptions,
-            ),
-            (
-                estimate_artifact,
-                estimate_op,
-                &["identify.temporal_backdoor"],
-                &estimate.assumptions,
-            ),
-        );
-
         let mut diagnostics = Vec::new();
         let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
@@ -132,34 +107,15 @@ impl super::Study {
         if matches!(self.refute, RefuteSuite::Full) {
             if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-                let mut est = BayesianTemporalGcomp {
-                    inner: BayesianGComputationAte {
-                        backend: cfg.backend,
-                        likelihood: cfg.likelihood,
-                        n_draws: cfg.n_draws,
-                        seed: ctx.rng.master_seed(),
-                        overlap: OverlapPolicy::ExplicitOverride,
-                        prior_scale: cfg.prior_scale,
-                        prior: None,
-                    },
-                };
-                let mut ws = BayesianGCompWorkspace::default();
-                if let Some(ext) = cfg.external_compose.as_ref() {
-                    est.inner.prior = Some(ext.composed.prior.clone());
-                } else {
-                    est.inner.prior = resolve_bayesian_prior(cfg, &bprep)?;
-                }
-                let (summary, sens) = evaluate_bayesian_prior_sensitivity(
+                posterior = Some(apply_temporal_prior_sensitivity(
                     cfg,
-                    &est.inner,
                     &bprep,
                     identification.status,
                     post,
-                    &mut ws,
+                    estimate.ate,
                     ctx,
-                )?;
-                refutations.push(sens.to_report(&summary, estimate.ate));
-                posterior = Some(with_prior_sensitivity(post.clone(), summary));
+                    &mut refutations,
+                )?);
             }
         }
 
@@ -167,35 +123,34 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: EstimatorId::TemporalLinearAdjustment,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids(
+                    "identify.temporal_backdoor",
+                    "identify.temporal.backdoor.unfolded",
+                )),
+                estimate_provenance: Some(provenance_ids(estimate_artifact, estimate_op)),
+                posterior,
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 }

@@ -20,14 +20,12 @@ impl super::Study {
         // only (identifier, graph, query) — rd is never consulted on this path —
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
-        let identify_cached = self.identification_cache.is_some();
-        let (identification, estimand) = if let Some(cache) = self.identification_cache.as_deref() {
-            (cache.identification.clone(), cache.estimand.clone())
-        } else {
-            let identification = identify_static(identifier_id, graph, query)?;
-            let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
-            (identification, estimand)
-        };
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = identify_static(identifier_id, graph, query)?;
+                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                Ok((identification, estimand))
+            })?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -45,15 +43,7 @@ impl super::Study {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };
-        let mut est = BayesianGComputationAte {
-            backend: cfg.backend,
-            likelihood: cfg.likelihood,
-            n_draws: cfg.n_draws,
-            seed: ctx.rng.master_seed(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            prior_scale: cfg.prior_scale,
-            prior: None,
-        };
+        let mut est = bayesian_gcomp(&cfg, ctx);
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
         let prep = est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
         let (resolved_prior, conflict_summary) =
@@ -78,21 +68,12 @@ impl super::Study {
             &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
 
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if identify_cached {
-            diagnostics.push(Diagnostic::new(
-                "exec.identify.cached",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "identification reused from the prepare-time cache".to_string(),
-            ));
-        }
+        let mut extra_diagnostics = Vec::new();
         if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
-            diagnostics.push(d);
+            extra_diagnostics.push(d);
         }
         if let Some(cs) = posterior.conflict_summary.as_ref() {
-            push_conflict_diagnostics(&mut diagnostics, cs);
+            push_conflict_diagnostics(&mut extra_diagnostics, cs);
         }
 
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
@@ -174,51 +155,34 @@ impl super::Study {
             },
         );
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (
-                "estimate.bayesian_gcomp",
-                "estimate.bayesian_gcomp",
-                &[id_artifact],
-                &estimate.assumptions,
-            ),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         let n_draws = u32::try_from(posterior.draws.n_draws).ok();
         let early_stopped = posterior.early_stopped;
-        let mut result = assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics,
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: clock.wall_time_ns(),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: clock.timings(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws,
             cancelled: clock.cancelled(),
             early_stopped,
-        });
-        result.predictive_checks = predictive_checks;
-        Ok(result)
+            extras: IdentifiedExecuteExtras {
+                stage_timings_ns: clock.timings(),
+                posterior: Some(posterior),
+                n_draws,
+                predictive_checks,
+                ..Default::default()
+            },
+        }))
     }
 
     pub(super) fn execute_pag_bayesian(
@@ -235,20 +199,12 @@ impl super::Study {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };
-        let mut est = BayesianGComputationAte {
-            backend: cfg.backend,
-            likelihood: cfg.likelihood,
-            n_draws: cfg.n_draws,
-            seed: ctx.rng.master_seed(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            prior_scale: cfg.prior_scale,
-            prior: None,
-        };
+        let mut est = bayesian_gcomp(&cfg, ctx);
 
         let mut weights = Vec::new();
         let mut flags = Vec::new();
         let mut keys = Vec::new();
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
@@ -267,40 +223,49 @@ impl super::Study {
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand.clone());
                 }
-                let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-                if envelope_prior.is_none() {
-                    let (resolved, conflict) =
-                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                    envelope_prior = resolved;
-                    envelope_conflict = conflict;
-                }
-                est.prior.clone_from(&envelope_prior);
-                let mut ws = BayesianGCompWorkspace::default();
-                let posterior =
-                    est.fit(&prep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
-                let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
-                    message: "Bayesian posterior missing effect column".into(),
-                })?;
-                let draws = posterior
-                    .draws
-                    .column(col)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                    .to_vec();
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+                fit_atoms.push((key, estimand, case.result.status));
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
         }
+        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // so kept atoms are not prepared a second time. PAG keys are unique
+        // (1..n); still use entry() so the stash is key-safe.
+        let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
+        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            if i == 0 {
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+            prepared.entry(*key).or_insert(prep);
+        }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
             graphs,
-            per_graph,
             ctx,
             &mut subsample_notes,
         )?;
+        let keep = identified_envelope_keys(&graphs);
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut per_graph = Vec::new();
+        for (key, _estimand, status) in fit_atoms {
+            if !keep.contains(&key) {
+                continue;
+            }
+            // Graph-posterior keys may collide (shared adjacency masks). Aggregation
+            // indexes draws by key, so fit each kept key once; later duplicates skip.
+            let Some(prep) = prepared.remove(&key) else {
+                continue;
+            };
+            est.prior.clone_from(&envelope_prior);
+            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+        }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -356,49 +321,33 @@ impl super::Study {
             ));
         }
 
-        let provenance = provenance_pair(
-            (
-                "identify.generalized_adjustment",
-                "identify.generalized_adjustment",
-                &[],
-                &identification.required_assumptions,
-            ),
-            (
-                "estimate.bayesian_gcomp",
-                "estimate.aggregate_effect_envelope",
-                &["identify.generalized_adjustment"],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::GeneralizedAdjustment,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.bayesian_gcomp",
+                    "estimate.aggregate_effect_envelope",
+                )),
+                posterior: Some(posterior),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 
@@ -510,20 +459,16 @@ impl super::Study {
                 });
             }
         };
-        let mut est = BayesianGComputationAte {
-            backend: cfg.backend,
-            likelihood: cfg.likelihood,
-            n_draws: cfg.n_draws,
-            seed: ctx.rng.master_seed(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            prior_scale: cfg.prior_scale,
-            prior: None,
-        };
+        let mut est = bayesian_gcomp(&cfg, ctx);
 
         let mut weights = Vec::with_capacity(gp.n_graphs);
         let mut flags = Vec::with_capacity(gp.n_graphs);
         let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
+        let mut ident_cache: std::collections::HashMap<
+            u64,
+            Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
+        > = std::collections::HashMap::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
@@ -540,65 +485,86 @@ impl super::Study {
             }
             if let Some(p) = &ctx.progress {
                 #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
             }
             let mask = gp.adjacency[i];
             let key = gp.graph_keys[i];
             keys.push(key);
             weights.push(gp.weights[i]);
-            let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
+            let cached = if let Some(hit) = ident_cache.get(&mask) {
+                hit.clone()
+            } else {
+                let resolved = (|| -> Result<
+                    Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
+                    CausalError,
+                > {
+                    let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
+                        return Ok(None);
+                    };
+                    let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query)
+                    else {
+                        return Ok(None);
+                    };
+                    if !identification_status_ok_for_case(identification.status)
+                        || identification.estimands.is_empty()
+                    {
+                        return Ok(None);
+                    }
+                    let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                    Ok(Some((estimand, identification.status, identification)))
+                })()?;
+                ident_cache.insert(mask, resolved.clone());
+                resolved
             };
-            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            };
-            if identification_status_ok_for_case(identification.status)
-                && !identification.estimands.is_empty()
-            {
+            if let Some((estimand, status, identification)) = cached {
                 flags.push(GraphIdentFlag::Identified);
-                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand.clone());
-                    primary_identification = Some(identification.clone());
+                    primary_identification = Some(identification);
                 }
-                let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
-                if envelope_prior.is_none() {
-                    let (resolved, conflict) =
-                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
-                    envelope_prior = resolved;
-                    envelope_conflict = conflict;
-                }
-                est.prior.clone_from(&envelope_prior);
-                let mut ws = BayesianGCompWorkspace::default();
-                let posterior = est
-                    .fit(&prep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
-                    message: "Bayesian posterior missing effect column".into(),
-                })?;
-                let draws = posterior
-                    .draws
-                    .column(col)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?
-                    .to_vec();
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+                fit_atoms.push((key, estimand, status));
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
         }
 
+        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // so kept atoms are not prepared a second time. Keys may collide when
+        // several atoms share an adjacency mask — keep the first prep per key.
+        let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
+        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
+            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            if i == 0 {
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+            prepared.entry(*key).or_insert(prep);
+        }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
             graphs,
-            per_graph,
             ctx,
             &mut subsample_notes,
         )?;
+        let keep = identified_envelope_keys(&graphs);
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut per_graph = Vec::new();
+        for (key, _estimand, status) in fit_atoms {
+            if !keep.contains(&key) {
+                continue;
+            }
+            // Aggregation indexes draws by key; fit each kept key once.
+            let Some(prep) = prepared.remove(&key) else {
+                continue;
+            };
+            est.prior.clone_from(&envelope_prior);
+            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+        }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -650,45 +616,34 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let provenance = provenance_pair(
-            ("discover.graph_posterior", algo, &[], &identification.required_assumptions),
-            (
-                "estimate.aggregate_effect_envelope",
-                "estimate.bayesian_gcomp",
-                &["discover.graph_posterior"],
-                &estimate.assumptions,
-            ),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.aggregate_effect_envelope",
+                    "estimate.bayesian_gcomp",
+                )),
+                posterior: Some(posterior),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 
@@ -728,21 +683,12 @@ impl super::Study {
         })?;
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
-        let est_inner = BayesianGComputationAte {
-            backend: cfg.backend,
-            likelihood: cfg.likelihood,
-            n_draws: cfg.n_draws,
-            seed: ctx.rng.master_seed(),
-            overlap: OverlapPolicy::ExplicitOverride,
-            prior_scale: cfg.prior_scale,
-            prior: None,
-        };
-        let mut bayes = BayesianTemporalGcomp { inner: est_inner };
+        let mut bayes = bayesian_temporal_gcomp(&cfg, ctx);
 
         let mut weights = Vec::with_capacity(gp.n_graphs);
         let mut flags = Vec::with_capacity(gp.n_graphs);
         let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut per_graph = Vec::new();
+        let mut fit_atoms = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
@@ -759,7 +705,7 @@ impl super::Study {
             }
             if let Some(p) = &ctx.progress {
                 #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
             }
             let cmask = gp.adjacency[i];
             let lmask = lag_masks[i];
@@ -794,51 +740,51 @@ impl super::Study {
                 primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
+            fit_atoms.push((key, estimand, identification, id_res.indexer));
+        }
+
+        // Soft prepare+fit before Interactive subsample (0.6.0): demote failures
+        // so stratified selection only chooses among atoms that already produced
+        // draws. Prior anchors on the first successful prepare.
+        let mut per_graph = Vec::new();
+        let mut ws = BayesianGCompWorkspace::default();
+        for (key, estimand, identification, indexer) in fit_atoms {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
             let Ok(prep) = temporal_est.prepare(
                 data,
                 &estimand,
                 query,
-                &id_res.indexer,
+                &indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
             ) else {
-                // Already pushed Identified — fix by continuing without draws.
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
             if envelope_prior.is_none() {
-                let (resolved, conflict) =
-                    resolve_bayesian_prior_with_conflict(&cfg, &bprep, Some(ctx))?;
+                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
             bayes.inner.prior.clone_from(&envelope_prior);
-            let mut ws = BayesianGCompWorkspace::default();
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
                 }
                 continue;
             };
-            let Some(col) = posterior.effect_column() else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
+            match envelope_draws_from_posterior(key, &posterior) {
+                Ok(draws) => per_graph.push(draws),
+                Err(_) => {
+                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
                 }
-                continue;
-            };
-            let Ok(d) = posterior.draws.column(col) else {
-                if let Some(f) = flags.last_mut() {
-                    *f = GraphIdentFlag::Unidentified;
-                }
-                continue;
-            };
-            let draws = d.to_vec();
-            per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+            }
         }
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
@@ -882,44 +828,49 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
-        let provenance = provenance_pair(
-            ("discover.dbn_posterior", "dbn_posterior", &[], &identification.required_assumptions),
-            (
-                "estimate.aggregate_effect_envelope",
-                "estimate.bayesian.temporal.gcomp",
-                &["discover.dbn_posterior"],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids(
+                    "discover.dbn_posterior",
+                    "dbn_posterior",
+                )),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.aggregate_effect_envelope",
+                    "estimate.bayesian.temporal.gcomp",
+                )),
+                posterior: Some(posterior),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
+}
+
+fn envelope_draws_from_posterior(
+    key: u64,
+    posterior: &CausalPosterior,
+) -> Result<GraphEffectDraws, CausalError> {
+    let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "Bayesian posterior missing effect column".into(),
+    })?;
+    let draws =
+        posterior.draws.column(col).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
 }
