@@ -398,7 +398,7 @@ impl PyPreparedAnalysis {
         intervention_parameters=None,
         horizons,
         policy="pulse",
-        treatment_lag=0,
+        treatment_lag=1,
         max_history_lag=None,
         seed=1,
         threads=1,
@@ -463,7 +463,8 @@ impl PyPreparedAnalysis {
             };
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let query = CausalQuery::Response(ResponseQuery::new(functional).with_temporal(temporal));
+            let query =
+                CausalQuery::Response(ResponseQuery::new(functional).with_temporal(temporal));
             let mut builder = Study::series(series);
             builder = if accepted {
                 builder.graph(antecedent::AcceptedGraph::from(dag))

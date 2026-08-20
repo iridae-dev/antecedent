@@ -550,8 +550,9 @@ def handle_response(
                     )
             elif isinstance(spec, intervention_specs.Sequence):
                 raise CausalUnsupportedError(
-                    "Sequence interventions must be flattened into Soft/Set/Shift steps "
-                    "at the Python boundary for temporal InterventionResponse"
+                    "Sequence interventions are not licensed on static InterventionResponse; "
+                    "use a temporal cell (horizons=...) with a single-step Sequence, or pass "
+                    "a bare Set/Shift/Soft"
                 )
             else:
                 raise TypeError(

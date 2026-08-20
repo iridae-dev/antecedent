@@ -497,7 +497,7 @@ class PreparedAnalysis:
         intervention_parameters: list[list[float]] | None = None,
         horizons: list[int],
         policy: str = "pulse",
-        treatment_lag: int = 0,
+        treatment_lag: int = 1,
         max_history_lag: int | None = None,
         seed: int = 1,
         threads: int = 1,
@@ -1123,7 +1123,7 @@ def analyze_temporal_response(
     intervention_parameters: list[list[float]] | None = None,
     horizons: list[int],
     policy: str = "pulse",
-    treatment_lag: int = 0,
+    treatment_lag: int = 1,
     max_history_lag: int | None = None,
     seed: int = 1,
     threads: int = 1,
@@ -2171,6 +2171,17 @@ class CausalState:
     def constraints(self) -> list[tuple[str, int]]: ...
     def update_assumption(self, kind: str) -> int: ...
     def register_average_effect(self, treatment: int, outcome: int) -> tuple[int, int]: ...
+    def register_response_curve(
+        self,
+        treatment: int,
+        outcome: int,
+        *,
+        grid: list[float],
+        horizons: list[int] | None = None,
+        policy: str = "pulse",
+        treatment_lag: int = 1,
+        max_history_lag: int | None = None,
+    ) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
     def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
     def ols_ensure(self, key: str, ncols: int) -> None: ...

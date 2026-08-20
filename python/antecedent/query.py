@@ -62,7 +62,7 @@ def _validate_temporal(
         )
     prev_h: int | None = None
     for h in horizons:
-        if not isinstance(h, int) or h < 1:
+        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
             raise CausalValueError("horizons must be positive integers")
         if prev_h is not None and h <= prev_h:
             raise CausalValueError("horizons must be strictly increasing")
@@ -225,7 +225,8 @@ class ResponseCurve:
 
     Keyword-only ``horizons`` / ``policy`` / ``max_history_lag`` attach a temporal
     dose × horizon surface (ADR 0021). When set, analysis requires series data and
-    a ``TemporalDag``.
+    a ``TemporalDag``. ``treatment_lag`` defaults to ``1`` (policy origin ``-1``),
+    matching :class:`PulseEffect` / :class:`SustainedEffect`.
     """
 
     treatment: str
@@ -237,7 +238,7 @@ class ResponseCurve:
     observation_assumptions: Sequence[object] = ()
     horizons: Sequence[int] | None = None
     policy: str = "pulse"
-    treatment_lag: int = 0
+    treatment_lag: int = 1
     max_history_lag: int | None = None
     kind: Literal["response_curve"] = field(default="response_curve", init=False, repr=False)
 
@@ -401,7 +402,8 @@ class InterventionResponse:
     (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
     Soft(``constant``/``additive_shift``) and a single-step ``Sequence``.
     Multi-step and nested ``Sequence`` policies fail closed with a stable
-    error rather than silently collapsing to one step.
+    error rather than silently collapsing to one step. ``treatment_lag``
+    defaults to ``1``, matching :class:`PulseEffect`.
     """
 
     outcome: str
@@ -412,7 +414,7 @@ class InterventionResponse:
     observation_assumptions: Sequence[object] = ()
     horizons: Sequence[int] | None = None
     policy: str = "pulse"
-    treatment_lag: int = 0
+    treatment_lag: int = 1
     max_history_lag: int | None = None
     kind: Literal["intervention_response"] = field(
         default="intervention_response", init=False, repr=False
