@@ -35,7 +35,14 @@ class ResponseView:
         if len(self.points) != len(self.values):
             raise CausalValueError("points and values must have the same number of rows")
         for point in self.points:
-            if len(point) != len(self.treatments):
+            # Static curves use one coordinate per treatment. Temporal dose ×
+            # horizon surfaces use a multi-axis grid (dose, horizon, …) with a
+            # single treatment name; allow len(point) >= len(treatments).
+            if len(point) < len(self.treatments):
+                raise CausalValueError(
+                    "each response point must have at least one value per treatment"
+                )
+            if len(self.treatments) > 1 and len(point) != len(self.treatments):
                 raise CausalValueError("each response point must have one value per treatment")
             if not all(isfinite(value) for value in point):
                 raise CausalValueError("response points must be finite")
