@@ -15,7 +15,7 @@ notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 [[capabilities]]
 id = "release.artifact_schema"
 status = "done"
-notes = "Format 0.3 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1 and 0.2; migrate registry + golden fixtures"
+notes = "Format 0.4 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, and 0.3; migrate registry + golden fixtures"
 
 [[capabilities]]
 id = "release.wheel_matrix"

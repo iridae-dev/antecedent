@@ -1,0 +1,112 @@
+{
+  "fixture_id": "antecedent.temporal_response.linear_dose_horizon",
+  "claim": "estimate.temporal_response.gcomp internal known-truth conformance for a pulse dose by horizon surface",
+  "contract": {
+    "variables": [
+      "t",
+      "y"
+    ],
+    "temporal_graph": [
+      {
+        "from": "t",
+        "lag": 1,
+        "to": "y",
+        "to_lag": 0
+      },
+      {
+        "from": "t",
+        "lag": 2,
+        "to": "y",
+        "to_lag": 0
+      }
+    ],
+    "structural_equations": {
+      "t": "T_s = U_s",
+      "y": "Y_s = 1 + 2*T_(s-1) + 3*T_(s-2)"
+    },
+    "policy": {
+      "kind": "pulse",
+      "at": -1
+    },
+    "dose_grid": [
+      0.0,
+      1.0
+    ],
+    "horizons": [
+      1,
+      2
+    ],
+    "surface": {
+      "layout": "dose_major",
+      "index_formula": "dose_index * n_horizons + horizon_index",
+      "grid_pairs": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          2.0
+        ],
+        [
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          2.0
+        ]
+      ],
+      "mean": [
+        1.0,
+        1.0,
+        3.0,
+        4.0
+      ]
+    },
+    "intervention_paths": {
+      "set_1": [
+        3.0,
+        4.0
+      ],
+      "soft_constant_1": [
+        3.0,
+        4.0
+      ],
+      "soft_additive_shift_1": [
+        3.0,
+        4.0
+      ]
+    },
+    "pulse_effect_projection": {
+      "control_dose": 0.0,
+      "active_dose": 1.0,
+      "horizon": 1,
+      "contrast": 2.0
+    },
+    "sustained_effect_projection": {
+      "control_dose": 0.0,
+      "active_dose": 1.0,
+      "horizon": 1,
+      "treatment_offset": -1,
+      "contrast": 2.0,
+      "note": "Licensed SustainedEffect is the single-step window (from == until) at treatment_offset; multi-step Sustained remains estimator-refused."
+    }
+  },
+  "estimator_contract": {
+    "estimator": "temporal response linear g-computation over horizon-specific lag-aligned OLS designs",
+    "claim": "the deterministic finite sample makes the omitted treatment lag orthogonal to each fitted treatment column, so the estimator recovers the analytic structural surface",
+    "not_claimed": "no external-package parity, recursive simulation, multi-step sustained policy, or longitudinal sequence equivalence"
+  },
+  "tolerance": {
+    "class": "absolute",
+    "atol": 1e-10
+  },
+  "generation": {
+    "n": 242,
+    "deterministic": true,
+    "treatment_sequence": "t_i = [0, 1, 0, -1][i mod 4]",
+    "outcome_sequence": "y_i = 1 + 2*t_(i-1) + 3*t_(i-2), with pre-sample treatment values equal to 0",
+    "note": "For n=242, both lag-aligned OLS windows have zero-mean adjacent treatment columns and zero adjacent cross-product; intercepts and lag coefficients are exactly (1,2) and (1,3)."
+  }
+}
