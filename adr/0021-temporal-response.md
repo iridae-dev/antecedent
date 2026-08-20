@@ -139,4 +139,4 @@ static responses.
 - Provenance records, frozen conformance fixtures, staged-path tests,
   artifact round trips, and a hot-path bench are merge requirements for
   every newly licensed cell.
-- Package version stays at 0.6.1 until the 0.7.0 cut is accepted.
+- Package version is 0.7.0.

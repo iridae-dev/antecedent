@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **0.6.1**.
+explicit stage contracts. Package version **0.7.0**.
 
 | Doc | Contents |
 |-----|----------|
@@ -13,12 +13,13 @@ explicit stage contracts. Package version **0.6.1**.
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (including response format 0.3) |
+| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (including response format 0.4) |
 | [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
 | [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [0.7.0 release notes](release-notes/v0.7.0.md) | Temporal response; artifact format 0.4 |
 | [0.6.1 release notes](release-notes/v0.6.1.md) | Patch: envelope/ingest correctness and hot paths |
 | [0.6.0 release notes](release-notes/v0.6.0.md) | Contract cut; matrix is the license |
 | [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |

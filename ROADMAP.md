@@ -89,6 +89,9 @@ into claims or deletions.
 
 ## 0.7 — Temporal response
 
+Shipped as **0.7.0**. The bullets below are the 0.7 intent; they are not an
+open checklist.
+
 Invariant 5 is still half-true after 0.5: pulse and sustained effects are
 two-point temporal contrasts. 0.7 makes time a response, not a contrast.
 
