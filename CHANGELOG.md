@@ -19,7 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed with a stable error. Temporal response pointwise bands now use the
   full homoskedastic OLS coefficient covariance (delta-method SE of the
   g-computed level), propagating intercept and adjustment-covariate
-  uncertainty instead of scaling the treatment-coefficient SE alone. The
+  uncertainty instead of scaling the treatment-coefficient SE alone; bands
+  are pinned on `conformance/response/temporal_dose_horizon`. Scalar ATE
+  refuters record `refute.temporal_response.skipped` on function-valued
+  surfaces. Examples: `examples/python/temporal_response_curve.py`. The
   package version remains 0.6.1.
 
 ### Fixed
