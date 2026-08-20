@@ -95,8 +95,7 @@ fn main() -> Result<(), CausalError> {
     g.insert_directed(p1, d0)?;
     g.insert_directed(p2, d0)?;
 
-    let temporal =
-        TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap();
+    let temporal = TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
@@ -125,10 +124,7 @@ fn main() -> Result<(), CausalError> {
     };
     println!("dose × horizon surface (mean, lower, upper):");
     for i in 0..mean.len() {
-        println!(
-            "  cell {i}: mean={:.4}  [{:.4}, {:.4}]",
-            mean[i], lower[i], upper[i]
-        );
+        println!("  cell {i}: mean={:.4}  [{:.4}, {:.4}]", mean[i], lower[i], upper[i]);
     }
     Ok(())
 }
