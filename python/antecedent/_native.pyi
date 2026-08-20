@@ -553,10 +553,26 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def estimate_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
     def estimate_response(
         self,
         names: list[str],
         columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
+    def estimate_response_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int = 1,
@@ -569,6 +585,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def refresh_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
     def refresh_response(
         self,
         names: list[str],
@@ -577,6 +601,34 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> Any: ...
+    def refresh_response_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
+    def refute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        suite: bool | str,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+    ) -> AteAnalysisResult: ...
+    def refute_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        suite: bool | str,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+    ) -> AteAnalysisResult: ...
     @property
     def names(self) -> list[str]: ...
 
@@ -1872,6 +1924,32 @@ class TemporalPag:
     ) -> TemporalPag: ...
     def node_count(self) -> int: ...
 
+def analyze_ate_pag_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Pag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
 def analyze_ate_pag(
     names: list[str],
     columns: Sequence[Any],
@@ -1898,10 +1976,62 @@ def analyze_ate_pag(
     bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
+def analyze_ate_cpdag_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Cpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
     names: list[str],
     columns: Sequence[Any],
     graph: Cpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+def analyze_ate_admg_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Admg,
     treatment: str,
     outcome: str,
     *,
