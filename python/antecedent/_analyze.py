@@ -37,6 +37,15 @@ from ._native import (
     analyze_ate_pag as _analyze_ate_pag,
 )
 from ._native import (
+    analyze_ate_pag_arrow_c as _analyze_ate_pag_arrow_c,
+)
+from ._native import (
+    analyze_ate_cpdag_arrow_c as _analyze_ate_cpdag_arrow_c,
+)
+from ._native import (
+    analyze_ate_admg_arrow_c as _analyze_ate_admg_arrow_c,
+)
+from ._native import (
     analyze_conditional as _analyze_conditional,
 )
 from ._native import (
@@ -859,6 +868,21 @@ def handle_static_ate_discover(
     return _wrap_ate(raw)
 
 
+def _typed_ate(
+    data: Any,
+    graph: Any,
+    numpy_fn: Callable[..., Any],
+    arrow_fn: Callable[..., Any],
+    **common: Any,
+) -> Any:
+    arrow = try_as_arrow_c_columns(data)
+    if arrow is not None:
+        names, columns = arrow
+        return arrow_fn(names, columns, graph, **common)
+    names, columns = as_columns(data)
+    return numpy_fn(names, columns, graph, **common)
+
+
 def handle_static_ate(
     data: Any,
     query: AverageEffect,
@@ -957,14 +981,15 @@ def handle_static_ate(
             "(or edge list); PAG/CPDAG/ADMG analyze paths do not accept them yet"
         )
     if isinstance(graph, Pag):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_pag(names, columns, graph, **common))
+        return _wrap_ate(_typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common))
     if isinstance(graph, Cpdag):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_cpdag(names, columns, graph, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_cpdag, _analyze_ate_cpdag_arrow_c, **common)
+        )
     if isinstance(graph, Admg):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_admg, _analyze_ate_admg_arrow_c, **common)
+        )
     edges = _static_edges(graph)
     arrow = try_as_arrow_c_columns(data)
     ate_kwargs = dict(edges=edges, accepted=structure_accepted, **common, **pop_kw)
