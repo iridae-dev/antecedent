@@ -827,7 +827,7 @@ class FittedGcm:
 
 def fit_gcm(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     *,
     threads: int = 1,
@@ -842,7 +842,7 @@ def load_float64_arrow_c_columns(
 ) -> ArrowLoadInfo: ...
 def analyze_ate_many(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     queries: list[tuple[str, str, float, float]],
     *,
@@ -925,7 +925,7 @@ def analyze_ate_arrow_c(
 ) -> AteAnalysisResult: ...
 def analyze(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, int, str, int]],
     treatment: str,
     outcome: str,
@@ -946,7 +946,7 @@ def analyze(
 ) -> AnalysisResult: ...
 def analyze_temporal_pag(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     graph: TemporalPag,
     treatment: str,
     outcome: str,
@@ -1058,7 +1058,7 @@ def analyze_panel_discover(
 ) -> AnalysisResult: ...
 def analyze_distribution(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     outcome: str,
     interventions: dict[str, float],
@@ -1069,7 +1069,7 @@ def analyze_distribution(
 ) -> AteAnalysisResult: ...
 def analyze_response(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     kind: str,
     treatments: list[str],
@@ -1092,7 +1092,7 @@ def analyze_response(
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     graph: Pag,
     treatment: str,
     outcome: str,
@@ -1218,7 +1218,7 @@ def gaussian_observation_log_likelihood(
 ) -> float: ...
 def analyze_path_specific(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1234,7 +1234,7 @@ def analyze_path_specific(
 ) -> AteAnalysisResult: ...
 def analyze_conditional(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1251,7 +1251,7 @@ def analyze_conditional(
 ) -> AteAnalysisResult: ...
 def analyze_mediation(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1283,7 +1283,7 @@ def identify_ate_admg(
 ) -> tuple[str, str, list[str]]: ...
 def analyze_temporal_mediation(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, int, str, int]],
     treatment: str,
     mediator: str,
@@ -1298,7 +1298,7 @@ def analyze_temporal_mediation(
 ) -> AnalysisResult: ...
 def analyze_ate_discover(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     treatment: str,
     outcome: str,
     *,
