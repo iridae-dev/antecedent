@@ -70,7 +70,10 @@ A temporal `MeanCurve` result uses `ResponseValueWire::Surface` with
 `[dose, horizon]` coordinate pairs in that same order. A temporal
 `InterventionResponse` is a horizon path with `dimension = 1`; its grid is the
 horizon vector. Uncertainty and support arrays follow the corresponding mean
-layout.
+layout. `SupportReportWire.point_status` is optional: present on temporal
+surfaces (dose-major, same index formula as `mean`) and omitted on static
+curves. `status` on a temporal surface is the three-way cell-grid summary,
+not the union of per-horizon treatment ranges.
 
 Python exposes this container through `antecedent.artifacts.dumps` / `loads`.
 The returned mapping is the canonical Rust wire representation; the Python layer

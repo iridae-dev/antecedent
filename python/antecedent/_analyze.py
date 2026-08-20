@@ -290,7 +290,7 @@ def handle_response(
     structure_accepted: bool = False,
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
-    from .estimation import _response_support_bounds, _static_edges
+    from .estimation import _response_support_bounds, _static_edges, _support_point_status
     from .results import (
         CausalResponseView,
         IdentificationView,
@@ -800,7 +800,11 @@ def handle_response(
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
         uncertainty=uncertainty,
         support=SupportReport(
-            cast(SupportStatus, raw.support_status), region, diagnostics, raw.warnings
+            cast(SupportStatus, raw.support_status),
+            region,
+            diagnostics,
+            raw.warnings,
+            _support_point_status(raw),
         ),
         identification=IdentificationView(
             status=raw.identification,

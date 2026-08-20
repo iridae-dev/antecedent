@@ -60,6 +60,8 @@ def test_temporal_response_curve_matches_fixture_and_prepared_reuse():
     )
     direct = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=21)
     np.testing.assert_allclose(_response_means(direct), _MEAN, atol=_ATOL)
+    assert direct.support.status == "supported"
+    assert list(direct.support.point_status) == ["supported"] * 4
 
     prepared = PreparedAnalysis.prepare(
         data, graph=_EDGES, query=query, refute=False, seed=21

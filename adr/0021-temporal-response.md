@@ -67,7 +67,20 @@ sequenced temporal policies that are licensed evaluate through the same
 unfolded design with mechanism overlays; everything else refuses.
 
 Result axes match static response: structural identification, empirical
-support, uncertainty kind, assumptions.
+support, uncertainty kind, assumptions. Empirical support is function-valued
+on the same dose × horizon geometry as the estimate. Each cell is classified
+against that horizon's lag-aligned treatment range. `SupportReport.status`
+summarizes the cell grid (fully supported / partially extrapolative / no
+cell supported) rather than the union of horizon ranges. Per-cell labels
+live in `SupportReport.point_status`. Static curves keep worst-over-points.
+
+Known-truth evidence is not a single DGP. `temporal_dose_horizon` pins the
+unconfounded linear surface, bands, and licensed intervention overlays.
+`temporal_confounded_pulse` pins identification under confounding:
+adjustment set `{Z@-1}`, method `temporal.backdoor.unfolded`, and the
+structural estimate (empty `Z` recovers the confounded association).
+`temporal_horizon_support` pins mixed
+per-horizon empirical support.
 
 ### Support matrix (0.7 licensed subset)
 

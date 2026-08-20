@@ -58,6 +58,8 @@ pub(crate) struct ResponseAnalysisResult {
     #[pyo3(get)]
     support_maxima: Vec<f64>,
     #[pyo3(get)]
+    support_point_status: Vec<String>,
+    #[pyo3(get)]
     diagnostic_ids: Vec<String>,
     #[pyo3(get)]
     diagnostic_values: Vec<Vec<f64>>,
@@ -368,6 +370,7 @@ fn analyze_response_pag(
             support_status,
             support_minima: first.support.query_region.minima.to_vec(),
             support_maxima: first.support.query_region.maxima.to_vec(),
+            support_point_status: Vec::new(),
             diagnostic_ids,
             diagnostic_values,
             diagnostic_details,
@@ -613,6 +616,12 @@ pub(crate) fn response_result(
         support_status,
         support_minima: response.support.query_region.minima.to_vec(),
         support_maxima: response.support.query_region.maxima.to_vec(),
+        support_point_status: response
+            .support
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().map(|status| status.as_str().to_owned()).collect())
+            .unwrap_or_default(),
         diagnostic_ids: response
             .support
             .diagnostics
@@ -656,12 +665,7 @@ pub(crate) fn response_result(
 }
 
 fn support_status_name(status: SupportStatus) -> &'static str {
-    match status {
-        SupportStatus::Supported => "supported",
-        SupportStatus::WeakOverlap => "weak_overlap",
-        SupportStatus::Extrapolative => "extrapolative",
-        SupportStatus::OutsideEmpiricalSupport => "outside_empirical_support",
-    }
+    status.as_str()
 }
 
 const fn support_rank(status: SupportStatus) -> u8 {

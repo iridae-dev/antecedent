@@ -20,8 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   full homoskedastic OLS coefficient covariance (delta-method SE of the
   g-computed level), propagating intercept and adjustment-covariate
   uncertainty instead of scaling the treatment-coefficient SE alone; bands
-  are pinned on `conformance/response/temporal_dose_horizon`. Scalar ATE
-  refuters skip on function-valued surfaces: Python exposes
+  are pinned on `conformance/response/temporal_dose_horizon`. Empirical
+  support is per `(dose, horizon)` cell against that horizon's lag-aligned
+  treatment range; `SupportReport.status` summarizes the cell grid (fully
+  supported / partially extrapolative / outside) instead of the union of
+  horizon ranges. Two supporting fixtures add redundancy:
+  `conformance/response/temporal_confounded_pulse` (adjustment set
+  `Z@-1`, identified estimand `temporal.backdoor.unfolded`, and the
+  structural estimate under confounding) and
+  `conformance/response/temporal_horizon_support` (horizon-varying treatment
+  support). Scalar ATE refuters skip on function-valued surfaces:
+  Python exposes
   `refute.temporal_response.skipped` on `CausalResponseView.validation`, and
   Rust `Study` diagnostics carry the same code. Examples:
   `examples/python/temporal_response_curve.py`. The package version remains

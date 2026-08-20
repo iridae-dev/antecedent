@@ -5,7 +5,7 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, CausalQuery, ContinuousDomain, GridSpec, IdentificationStatus,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SupportStatus, VariableId,
+    ResponseQuery, ResponseUncertainty, ResponseValue, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::{
@@ -63,6 +63,8 @@ pub(crate) struct ObservationResponseResult {
     support_minima: Vec<f64>,
     #[pyo3(get)]
     support_maxima: Vec<f64>,
+    #[pyo3(get)]
+    support_point_status: Vec<String>,
     #[pyo3(get)]
     diagnostic_ids: Vec<String>,
     #[pyo3(get)]
@@ -389,12 +391,7 @@ fn observation_response_result(
             "observation-adjusted response unexpectedly carried unlicensed uncertainty",
         ));
     }
-    let support_status = match response.support.status {
-        SupportStatus::Supported => "supported",
-        SupportStatus::WeakOverlap => "weak_overlap",
-        SupportStatus::Extrapolative => "extrapolative",
-        SupportStatus::OutsideEmpiricalSupport => "outside_empirical_support",
-    };
+    let support_status = response.support.status.as_str();
     Ok(ObservationResponseResult {
         treatments: vec![treatment],
         outcomes: vec![outcome],
@@ -412,6 +409,7 @@ fn observation_response_result(
         support_status: support_status.into(),
         support_minima: response.support.query_region.minima.to_vec(),
         support_maxima: response.support.query_region.maxima.to_vec(),
+        support_point_status: Vec::new(),
         diagnostic_ids: response
             .support
             .diagnostics

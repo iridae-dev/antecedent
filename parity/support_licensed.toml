@@ -98,7 +98,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Evidence covers one linear pulse-policy SCM with two doses and horizons; no nonlinear, multi-step, Bayesian, graph-posterior, or equivalence-class surface is claimed."
+limitations = "TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. No nonlinear, multi-step, Bayesian, graph-posterior, or equivalence-class surface is claimed."
 
 [[cell]]
 query = "ResponseCurve"
@@ -109,7 +109,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. The accepted-structure axis runs the same temporal backdoor and g-computation path as explicit TemporalDag; evidence covers one linear pulse-policy SCM."
+limitations = "TemporalResponseSpec is required. The accepted-structure axis runs the same temporal backdoor and g-computation path as explicit TemporalDag. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support."
 
 [[cell]]
 query = "AverageEffect"
@@ -186,7 +186,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on the shared fixture; multi-step, nested, and multi-variable Sequence policies fail closed. Stochastic soft families and multi-step policy overlays are not claimed beyond the licensed constant/additive_shift pair."
+limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on temporal_dose_horizon; multi-step, nested, and multi-variable Sequence policies fail closed. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support."
 
 [[cell]]
 query = "InterventionResponse"
@@ -197,7 +197,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator and the same Set/Soft/Sequence known-truth paths pinned on temporal_dose_horizon."
+limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support."
 
 [[cell]]
 query = "PulseEffect"
@@ -208,7 +208,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on the shared fixture via shared adjustment machinery. Prepared TemporalEffect identification reuse is required. Point-estimate agreement does not extend to SEs: TemporalResponseEstimator hardcodes zero bootstrap replicates, while this path carries the Study's configured bootstrap_replicates."
+limitations = "Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on temporal_dose_horizon via shared adjustment machinery. Identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast 2 are additionally pinned on temporal_confounded_pulse. Prepared TemporalEffect identification reuse is required. Point-estimate agreement does not extend to SEs: TemporalResponseEstimator hardcodes zero bootstrap replicates, while this path carries the Study's configured bootstrap_replicates."
 
 [[cell]]
 query = "PulseEffect"
@@ -219,7 +219,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares the temporal_dose_horizon fixture."
+limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares temporal_dose_horizon, with identification and the structural estimate additionally pinned on temporal_confounded_pulse."
 
 [[cell]]
 query = "SustainedEffect"
@@ -230,7 +230,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Licensed form is the single-step window (from == until) at -treatment_lag; multi-step Sustained remains estimator-refused. Projection matches Pulse at the same offset on the shared fixture."
+limitations = "Licensed form is the single-step window (from == until) at -treatment_lag; multi-step Sustained remains estimator-refused. Projection matches Pulse at the same offset on temporal_dose_horizon; identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast are additionally pinned on temporal_confounded_pulse."
 
 [[cell]]
 query = "SustainedEffect"
@@ -241,7 +241,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Accepted-structure axis shares the explicit TemporalDag single-step Sustained path and fixture."
+limitations = "Accepted-structure axis shares the explicit TemporalDag single-step Sustained path. Primary pin is temporal_dose_horizon; identification and the structural estimate are additionally pinned on temporal_confounded_pulse."
 
 [[cell]]
 query = "InterventionalDistribution"

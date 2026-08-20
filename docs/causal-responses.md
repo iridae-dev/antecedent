@@ -36,7 +36,12 @@ A response result deliberately keeps four judgments separate:
    and declared structural assumptions.
 2. `support` describes empirical overlap in the requested treatment region.
    An identified response may still be extrapolative or outside empirical
-   support.
+   support. On a static curve, `support.status` is the worst label over
+   requested points. On a temporal dose × horizon surface it summarizes
+   `support.point_status` over the same geometry as the mean: fully
+   supported, partially extrapolative, or outside empirical support. A dose
+   inside the union of lag-aligned treatment ranges can still sit outside a
+   long-horizon window.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
    one grid point at a time. The Rust estimator can instead request a fixed-grid
    simultaneous band with `response_options(...)`; Python uses
@@ -56,6 +61,7 @@ Inspect warnings and diagnostics even when a numerical estimate is present:
 ```python
 print(result.identification)
 print(result.support.status)
+print(result.support.point_status)
 print(result.support.warnings)
 print(result.uncertainty.kind)
 print(result.provenance)

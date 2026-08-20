@@ -7,6 +7,11 @@ use std::sync::Arc;
 use crate::{AssumptionSet, Diagnostic, IdentificationStatus, ResponseFunctional};
 
 /// Empirical support classification, orthogonal to structural identification.
+///
+/// On a static curve, [`SupportReport::status`] is the worst label over requested
+/// points. On a temporal dose × horizon surface it is a three-way summary of
+/// [`SupportReport::point_status`]: every cell supported, mixed (partially
+/// extrapolative), or no cell supported.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SupportStatus {
     /// Requested region is empirically supported under configured diagnostics.
@@ -14,9 +19,29 @@ pub enum SupportStatus {
     /// Support exists but overlap/local effective sample information is weak.
     WeakOverlap,
     /// Result relies on fitted-model extrapolation within the marginal observed range.
+    ///
+    /// On a temporal surface this is also the mixed-cell summary: some requested
+    /// `(dose, horizon)` cells are inside that horizon's lag-aligned treatment
+    /// range and some are not.
     Extrapolative,
     /// At least one requested coordinate is outside marginal empirical support.
+    ///
+    /// On a temporal surface this means no requested cell sits inside its
+    /// horizon's lag-aligned treatment range.
     OutsideEmpiricalSupport,
+}
+
+impl SupportStatus {
+    /// Stable `snake_case` spelling used on the Python and artifact wires.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Supported => "supported",
+            Self::WeakOverlap => "weak_overlap",
+            Self::Extrapolative => "extrapolative",
+            Self::OutsideEmpiricalSupport => "outside_empirical_support",
+        }
+    }
 }
 
 /// Region assessed by support diagnostics.
@@ -42,7 +67,9 @@ pub struct SupportDiagnostic {
 /// Scientific support report retained on every response result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SupportReport {
-    /// Worst status over requested points.
+    /// Surface-level status. Static curves use worst-over-points; temporal
+    /// dose × horizon surfaces use the three-way split documented on
+    /// [`SupportStatus`].
     pub status: SupportStatus,
     /// Assessed query region.
     pub query_region: SupportRegion,
@@ -50,6 +77,10 @@ pub struct SupportReport {
     pub diagnostics: Vec<SupportDiagnostic>,
     /// Non-fatal warnings.
     pub warnings: Vec<Diagnostic>,
+    /// Per-cell status on a temporal surface, dose-major like the mean:
+    /// `point_status[d * n_horizons + h]`. Intervention paths have length
+    /// `n_horizons`. `None` on static curves.
+    pub point_status: Option<Arc<[SupportStatus]>>,
 }
 
 /// Closed lower/upper identified set.

@@ -9,8 +9,8 @@ use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     InterventionSequence, Lag, MeasurementSpec, MechanismOverride, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseValue, RoleHint, SequencedIntervention,
-    SmallRoleSet, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    Value, ValueType, VariableId,
+    SmallRoleSet, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
+    TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -177,6 +177,21 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
     };
     assert_eq!(*dimension, 2);
     assert_eq!(grid.as_ref(), expected_grid.as_slice());
+    let support = &direct.response.as_ref().unwrap().support;
+    assert_eq!(support.status, SupportStatus::Supported);
+    let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| match value.as_str().unwrap() {
+            "supported" => SupportStatus::Supported,
+            "weak_overlap" => SupportStatus::WeakOverlap,
+            "extrapolative" => SupportStatus::Extrapolative,
+            "outside_empirical_support" => SupportStatus::OutsideEmpiricalSupport,
+            other => panic!("unknown fixture support cell {other}"),
+        })
+        .collect();
+    assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected_cells.as_slice()));
     assert!(
         direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
         "fresh execution must identify"
@@ -477,8 +492,8 @@ fn nested_sequence_refuses_end_to_end() {
 #[test]
 fn multi_step_sustained_refuses_end_to_end() {
     let (series, graph) = temporal_fixture_series();
-    let temporal = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::sustained(-1, 0), None)
-        .unwrap();
+    let temporal =
+        TemporalResponseSpec::new(vec![1u32], TemporalPolicy::sustained(-1, 0), None).unwrap();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
@@ -527,10 +542,7 @@ fn target_population_other_than_all_observed_refuses_end_to_end() {
         .run(&ExecutionContext::for_tests(22))
         .unwrap_err();
     let msg = err.to_string();
-    assert!(
-        msg.contains("AllObserved"),
-        "unexpected error content: {msg}"
-    );
+    assert!(msg.contains("AllObserved"), "unexpected error content: {msg}");
 }
 
 // (f) A `Sequence` spanning multiple target variables must refuse. Note: at the
