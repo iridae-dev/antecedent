@@ -101,7 +101,7 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 49 names for 0.5; everything else is reached through a
+The root namespace is frozen at 49 names through 0.6; everything else is reached through a
 stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
@@ -112,7 +112,9 @@ Also exposed:
 - `identify(graph=…, query=AverageEffect(…))` — identify without estimating
 - Queries: `AverageEffect`, `MediationEffect`, `Counterfactual`, `PulseEffect`, `SustainedEffect`,
   `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
-  `TemporalMediationEffect`
+  `TemporalMediationEffect`, `InterventionResponse`, plus the response family
+  (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
+  `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`)
 - `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors
 - `antecedent.validation.validate_pcmci_*` — discovery stability (block bootstrap, FPR, grids, …)
 - `antecedent.model` / `antecedent.counterfactual` — `FittedGcm`, `sample_do`, `counterfactual_ite`

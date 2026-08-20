@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Propensity-weighting (IPW) analyze() example.
 
-Requires a built causal extension (`maturin develop` in python/).
+Requires a built antecedent extension (`maturin develop` in python/).
 
 Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
 `Y = 2T + Z + noise`. True ATE = 2; a naive unadjusted contrast is biased by
