@@ -4,9 +4,101 @@
 
 use std::sync::Arc;
 
+use crate::intervention::TemporalPolicy;
 use crate::{Intervention, TargetPopulation, VariableId};
 
 use super::QueryError;
+
+/// Maximum number of discrete horizons a temporal response may request.
+pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
+
+/// Temporal attachment for a continuous-response query (ADR 0021).
+///
+/// When present, the query is a temporal cell: dose × horizon surfaces for
+/// [`ResponseFunctional::MeanCurve`], or horizon-indexed intervention responses.
+/// Absence means a static response cell.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalResponseSpec {
+    /// Outcome evaluation horizons in time steps after the policy origin (each ≥ 1).
+    /// Strictly increasing; at least one entry.
+    pub horizons: Arc<[u32]>,
+    /// Temporal intervention policy (pulse / sustained / dynamic schedule).
+    pub policy: TemporalPolicy,
+    /// Optional max history lag (steps) when unfolding; `None` = planner default.
+    pub max_history_lag: Option<u32>,
+}
+
+impl TemporalResponseSpec {
+    /// Construct a temporal attachment after validating horizons and policy.
+    ///
+    /// # Errors
+    ///
+    /// Empty/non-increasing/oversized horizons, zero horizon, or invalid policy.
+    pub fn new(
+        horizons: impl Into<Arc<[u32]>>,
+        policy: TemporalPolicy,
+        max_history_lag: Option<u32>,
+    ) -> Result<Self, QueryError> {
+        let horizons = horizons.into();
+        let spec = Self { horizons, policy, max_history_lag };
+        spec.validate()?;
+        Ok(spec)
+    }
+
+    /// Validate horizons and nested policy.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidResponse`] or temporal-policy errors.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.horizons.is_empty() {
+            return Err(QueryError::InvalidResponse(
+                "temporal response requires at least one horizon".into(),
+            ));
+        }
+        if self.horizons.len() > MAX_TEMPORAL_RESPONSE_HORIZONS {
+            return Err(QueryError::InvalidResponse(
+                "temporal response horizon count exceeds the materialization cap".into(),
+            ));
+        }
+        if self.horizons.iter().any(|h| *h == 0) {
+            return Err(QueryError::NonPositiveHorizon);
+        }
+        if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
+            return Err(QueryError::InvalidResponse(
+                "temporal response horizons must be strictly increasing".into(),
+            ));
+        }
+        self.policy.validate().map_err(|e| match e {
+            crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
+                QueryError::InvalidTemporalWindow { from, until }
+            }
+            other => QueryError::InvalidIntervention(other.to_string()),
+        })?;
+        Ok(())
+    }
+
+    /// Largest requested horizon (guaranteed ≥ 1 after validation).
+    #[must_use]
+    pub fn max_horizon(&self) -> u32 {
+        self.horizons.last().copied().unwrap_or(1)
+    }
+
+    /// Treatment-time origin under the attached policy.
+    ///
+    /// # Errors
+    ///
+    /// Empty dynamic schedule.
+    pub fn treatment_offset(&self) -> Result<i32, QueryError> {
+        match &self.policy {
+            TemporalPolicy::Pulse { at } => Ok(*at),
+            TemporalPolicy::Sustained { from, .. } => Ok(*from),
+            TemporalPolicy::Dynamic { active_at, .. } => {
+                active_at.first().copied().ok_or(QueryError::DynamicPolicyHasNoTreatmentOffset)
+            }
+        }
+    }
+}
 
 /// Maximum treatment dimension for an explicitly gridded non-parametric surface.
 pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
@@ -323,6 +415,8 @@ pub struct ResponseQuery {
     pub observation: ObservationSpec,
     /// Caller-declared observation assumptions. Empty means none.
     pub observation_assumptions: Arc<[ObservationAssumption]>,
+    /// Optional temporal attachment (ADR 0021). `None` = static response cell.
+    pub temporal: Option<TemporalResponseSpec>,
 }
 
 impl ResponseQuery {
@@ -334,6 +428,7 @@ impl ResponseQuery {
             target_population: TargetPopulation::AllObserved,
             observation: ObservationSpec::Complete,
             observation_assumptions: Arc::from([]),
+            temporal: None,
         }
     }
 
@@ -349,6 +444,19 @@ impl ResponseQuery {
         self
     }
 
+    /// Attach a temporal dose-over-horizon / policy-path specification.
+    #[must_use]
+    pub fn with_temporal(mut self, temporal: TemporalResponseSpec) -> Self {
+        self.temporal = Some(temporal);
+        self
+    }
+
+    /// Whether this query is a temporal response cell.
+    #[must_use]
+    pub const fn is_temporal(&self) -> bool {
+        self.temporal.is_some()
+    }
+
     /// Set the target population.
     #[must_use]
     pub fn with_target_population(mut self, target: TargetPopulation) -> Self {
@@ -362,6 +470,7 @@ impl ResponseQuery {
     ///
     /// [`QueryError`] when variables, dimensions, values, or observation semantics are invalid.
     pub fn validate(&self) -> Result<(), QueryError> {
+        self.validate_temporal_attachment()?;
         match &self.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
                 if *outcome == treatment.variable {
@@ -457,6 +566,28 @@ impl ResponseQuery {
             }
         }
         self.target_population.validate()?;
+        Ok(())
+    }
+
+    fn validate_temporal_attachment(&self) -> Result<(), QueryError> {
+        if let Some(temporal) = &self.temporal {
+            temporal.validate()?;
+            match &self.functional {
+                ResponseFunctional::MeanCurve { .. }
+                | ResponseFunctional::InterventionResponse { .. } => {}
+                _ => {
+                    return Err(QueryError::InvalidResponse(
+                        "temporal attachment is licensed only for MeanCurve and InterventionResponse"
+                            .into(),
+                    ));
+                }
+            }
+            if self.observation != ObservationSpec::Complete {
+                return Err(QueryError::InvalidResponse(
+                    "temporal response requires complete observation in 0.7".into(),
+                ));
+            }
+        }
         Ok(())
     }
 }
