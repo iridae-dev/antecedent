@@ -120,6 +120,11 @@ pub(super) struct IdentifiedExecuteExtras {
     pub stage_timings_ns: Vec<(Arc<str>, u64)>,
     pub identify_provenance: Option<(&'static str, &'static str)>,
     pub estimate_provenance: Option<(&'static str, &'static str)>,
+    pub posterior: Option<antecedent_estimate::CausalPosterior>,
+    pub n_draws: Option<u32>,
+    pub predictive_checks: Vec<antecedent_validate::PredictiveCheckReport>,
+    /// When set, replaces the identification + overlap + cache diagnostic seed.
+    pub diagnostics: Option<Vec<Diagnostic>>,
 }
 
 impl Default for IdentifiedExecuteExtras {
@@ -128,6 +133,10 @@ impl Default for IdentifiedExecuteExtras {
             stage_timings_ns: Vec::new(),
             identify_provenance: None,
             estimate_provenance: None,
+            posterior: None,
+            n_draws: None,
+            predictive_checks: Vec::new(),
+            diagnostics: None,
         }
     }
 }
@@ -329,6 +338,40 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
     Ok(dag)
 }
 
+pub(super) fn bayesian_gcomp(cfg: &BayesianConfig, ctx: &ExecutionContext) -> BayesianGComputationAte {
+    BayesianGComputationAte {
+        backend: cfg.backend,
+        likelihood: cfg.likelihood,
+        n_draws: cfg.n_draws,
+        seed: ctx.rng.master_seed(),
+        overlap: OverlapPolicy::ExplicitOverride,
+        prior_scale: cfg.prior_scale,
+        prior: None,
+    }
+}
+
+pub(super) fn apply_temporal_prior_sensitivity(
+    cfg: &BayesianConfig,
+    bprep: &antecedent_estimate::PreparedBayesianProblem,
+    status: IdentificationStatus,
+    posterior: &antecedent_estimate::CausalPosterior,
+    ate: f64,
+    ctx: &ExecutionContext,
+    refutations: &mut Vec<antecedent_validate::RefutationReport>,
+) -> Result<antecedent_estimate::CausalPosterior, CausalError> {
+    let mut est = bayesian_temporal_gcomp(cfg, ctx);
+    let mut ws = BayesianGCompWorkspace::default();
+    if let Some(ext) = cfg.external_compose.as_ref() {
+        est.inner.prior = Some(ext.composed.prior.clone());
+    } else {
+        est.inner.prior = resolve_bayesian_prior(cfg, bprep)?;
+    }
+    let (summary, sens) =
+        evaluate_bayesian_prior_sensitivity(cfg, &est.inner, bprep, status, posterior, &mut ws, ctx)?;
+    refutations.push(sens.to_report(&summary, ate));
+    Ok(with_prior_sensitivity(posterior.clone(), summary))
+}
+
 pub(super) fn bayesian_temporal_gcomp(
     cfg: &BayesianConfig,
     ctx: &ExecutionContext,
@@ -355,18 +398,22 @@ impl super::Study {
         &self,
         args: IdentifiedExecuteFinish<'_>,
     ) -> StudyResult {
-        let mut diagnostics = args.identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(args.estimate.overlap));
-        if args.identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        diagnostics.extend(args.extra_diagnostics);
-        let (id_artifact, id_op) = args
-            .extras
+        let extras = args.extras;
+        let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
+            prebuilt
+        } else {
+            let mut diagnostics = args.identification.diagnostics.clone();
+            diagnostics.push(overlap_diagnostic(args.estimate.overlap));
+            if args.identify_cached {
+                diagnostics.push(identify_cached_diagnostic());
+            }
+            diagnostics.extend(args.extra_diagnostics);
+            diagnostics
+        };
+        let (id_artifact, id_op) = extras
             .identify_provenance
             .unwrap_or_else(|| identify_provenance_step(args.identifier_id));
-        let (est_artifact, est_op) = args
-            .extras
+        let (est_artifact, est_op) = extras
             .estimate_provenance
             .unwrap_or_else(|| estimate_provenance_step(args.estimator_id));
         let provenance = provenance_pair(
@@ -375,14 +422,14 @@ impl super::Study {
         );
         let physical_record =
             self.apply_callback_plan_marks(args.physical.record.clone(), &mut diagnostics);
-        assemble_result(AssembleArgs {
+        let mut result = assemble_result(AssembleArgs {
             logical: &args.physical.logical.record,
             physical: &physical_record,
             identification: args.identification,
             estimand: args.estimand,
             estimate: args.estimate,
             distribution: args.distribution,
-            posterior: None,
+            posterior: extras.posterior,
             mediation: args.mediation,
             counterfactual: None,
             anomaly: None,
@@ -396,12 +443,14 @@ impl super::Study {
             outcome: args.outcome,
             wall_time_ns: args.wall_time_ns,
             latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: args.extras.stage_timings_ns,
+            stage_timings_ns: extras.stage_timings_ns,
             bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: args.bootstrap_replicates_ok,
-            n_draws: None,
+            n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
-        })
+        });
+        result.predictive_checks = extras.predictive_checks;
+        result
     }
 }
