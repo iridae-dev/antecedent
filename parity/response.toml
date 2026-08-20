@@ -91,3 +91,21 @@ known_truth_fixture = "conformance/response/randomized_interference"
 limitations = "Exact two-unit Bernoulli enumeration only. Young-bound conservative_variance is a repository contract, not Aronow–Samii Section 5 joint-exposure variance. No external author implementation is pinned."
 python_facade = "thin"
 notes = "Frozen fixture conformance/response/randomized_interference is consumed by antecedent-estimate::interference (matches_frozen_exact_design_calibration_fixture): exact two-unit assignment enumeration plus HT/Hájek paper equations and Antecedent's documented Young bound. No external oracle is claimed."
+
+[[capabilities]]
+id = "estimate.temporal_response.gcomp"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "One deterministic linear two-variable SCM, pulse policy, two doses, and two horizons. No external-package parity, nonlinear response, multi-step policy, Bayesian surface, or temporal equivalence-class claim."
+python_facade = "full"
+notes = "Frozen fixture conformance/response/temporal_dose_horizon is consumed by crates/antecedent/tests/temporal_response_facade.rs. It pins the dose-major Surface values to closed-form lag coefficients and checks that prepared estimate_series reuses maximum-horizon identification."
+
+[[capabilities]]
+id = "estimate.temporal_response.intervention_gcomp"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Known-truth execution covers a hard Set policy only. Soft constant/additive-shift equivalence is analytic for this zero-mean linear fixture but not a claim about arbitrary mechanisms or multi-step sequences."
+python_facade = "full"
+notes = "The temporal facade fixture checks the hard Set(1) horizon path against the same closed-form [3,4] projection as the dose surface. No external oracle is claimed."

@@ -11,5 +11,6 @@ cargo test -p antecedent-estimate --lib matches_frozen_trial_transport_equation_
 cargo test -p antecedent-estimate --lib matches_frozen_exact_design_calibration_fixture
 cargo test -p antecedent --test response_facade \
   two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract
+cargo test -p antecedent --test temporal_response_facade
 
 echo "gate_response_calibration: ok"

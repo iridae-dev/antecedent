@@ -1,0 +1,27 @@
+feature_id = "estimate.temporal_response.gcomp"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Independently written horizon-specific linear g-computation. Temporal
+# backdoor identification supplies the unfolded adjustment set; estimation
+# fits lag-aligned OLS and evaluates the fitted mean on a dose grid.
+papers = [
+  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["Chapter 3: regression and causal effects"] },
+  { title = "Causal Inference: What If", sections = ["Chapter 19: time-varying treatments and the g-formula"] },
+]
+
+implementation_deviations = [
+  "uses one additive linear OLS projection per horizon on the unfolded backdoor design, not recursive sequential-regression g-computation over a multi-step treatment history",
+  "fits the full aligned sample without cross-fitting and licenses only one treatment-time column; multi-step sustained and dynamic schedules fail closed",
+  "pointwise bands use the delta-method/linear-functional variance of the standardized mean: cbar(a)' Sigma cbar(a), where Sigma is the homoskedastic OLS coefficient covariance and cbar(a) is the row-averaged design gradient at dose a, so intercept and adjustment-covariate uncertainty are propagated; bands do not cover heteroskedasticity or autocorrelation (no HAC/robust covariance), do not carry uncertainty from the identification step itself, and rest on the model's linearity assumption",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "conformance/response/temporal_dose_horizon/expected.json",
+  "crates/antecedent/tests/temporal_response_facade.rs",
+]

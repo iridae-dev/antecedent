@@ -38,6 +38,7 @@ allocation/memory contracts, and owning crates.
 | Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](../benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
 | Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
+| Temporal dose × horizon response | `antecedent-estimate` / `causal` | `temporal_response` | [temporal_response.md](../benches/baselines/temporal_response.md) | Prepare-once identification/indexer; multi-horizon estimate reuses fitted lag design across doses |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
 ## Smoke commands
@@ -56,6 +57,7 @@ cargo bench -p antecedent-attribution --bench shapley -- --test
 cargo bench -p antecedent-design --bench design_rank -- --test
 cargo bench -p antecedent-state --bench state_append -- --test
 cargo bench -p antecedent-estimate --bench response_interference -- --test
+cargo bench -p antecedent-estimate --bench temporal_response -- --test
 cargo bench -p antecedent-prob --bench laplace_glm -- --test
 cargo bench -p antecedent-prob --bench hmc -- --test
 cargo bench -p antecedent-prob --bench mcmc_stats -- --test

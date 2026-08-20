@@ -1,0 +1,29 @@
+feature_id = "estimate.temporal_response.intervention_gcomp"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Independently written policy-path projection of the same horizon-specific
+# linear g-computation used by the temporal dose surface. Hard/constant
+# interventions evaluate one level; additive shifts average fitted outcomes at
+# observed treatment plus delta.
+papers = [
+  { title = "Population intervention causal effects based on stochastic interventions", doi = "10.1111/j.1541-0420.2011.01685.x", sections = ["Section 2: intervention parameter and identifying g-computation formula"] },
+  { title = "Causal Inference: What If", sections = ["Chapter 19: time-varying treatments and the g-formula"] },
+]
+
+implementation_deviations = [
+  "uses one additive linear OLS projection per horizon rather than recursive longitudinal g-computation",
+  "supports a hard/constant level or additive shift on one primary variable; stochastic interventions and multi-variable sequences fail closed",
+  "only a single-step Intervention::Sequence is licensed; a multi-step or nested Sequence refuses with a stable error rather than collapsing to a final scalar overlay",
+  "pointwise bands use the delta-method/linear-functional variance of the standardized mean: cbar(a)' Sigma cbar(a), where Sigma is the homoskedastic OLS coefficient covariance and cbar(a) is the row-averaged design gradient at the requested level or shift, so intercept and adjustment-covariate uncertainty are propagated; bands do not cover heteroskedasticity or autocorrelation (no HAC/robust covariance), do not carry uncertainty from the identification step itself, and rest on the model's linearity assumption",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "conformance/response/temporal_dose_horizon/expected.json",
+  "crates/antecedent/tests/temporal_response_facade.rs",
+]
