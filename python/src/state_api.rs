@@ -249,6 +249,46 @@ impl PyCausalState {
         Ok((ver, qid))
     }
 
+    /// Register a mean-curve response query (static or temporal); returns `(version, query_id)`.
+    #[pyo3(signature = (treatment, outcome, *, grid, horizons=None))]
+    fn register_response_curve(
+        &mut self,
+        treatment: u32,
+        outcome: u32,
+        grid: Vec<f64>,
+        horizons: Option<Vec<u32>>,
+    ) -> PyResult<(u64, u64)> {
+        use antecedent_core::{
+            ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalPolicy,
+            TemporalResponseSpec,
+        };
+        let functional = ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(outcome),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(treatment),
+                GridSpec::Values(std::sync::Arc::from(grid)),
+            ),
+        };
+        let mut query = ResponseQuery::new(functional);
+        if let Some(horizons) = horizons {
+            let temporal = TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(0), None)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            query = query.with_temporal(temporal);
+        }
+        let before: Vec<_> = self.inner.queries.queries.keys().copied().collect();
+        let ver = self.apply(StateEvent::RegisterQuery(CausalQuery::Response(query)))?;
+        let qid = self
+            .inner
+            .queries
+            .queries
+            .keys()
+            .copied()
+            .find(|k| !before.contains(k))
+            .map(|k| u64::from(k.raw()))
+            .ok_or_else(|| PyValueError::new_err("register_query did not assign an id"))?;
+        Ok((ver, qid))
+    }
+
     /// Record an opaque intervention; returns new version.
     fn record_intervention(&mut self, intervention_id: String, fingerprint: u64) -> PyResult<u64> {
         self.apply(StateEvent::RecordIntervention(InterventionRecord {

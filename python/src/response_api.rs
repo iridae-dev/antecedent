@@ -3,11 +3,12 @@
 use std::sync::Arc;
 
 use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
-use antecedent::{GraphClass, InferenceMode, RefuteSuite};
+use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StochasticPolicy, SupportStatus, Value, VariableId,
+    IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
+    SupportStatus, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -17,7 +18,10 @@ use antecedent_identify::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err};
+use crate::{
+    CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err, py_execution_context,
+    series_from_tabular, temporal_dag_from_schema_edges,
+};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
@@ -543,6 +547,14 @@ fn intervention_from_parts(
                 StochasticPolicy::categorical(Arc::from(parameters)),
             ))
         }
+        "soft_constant" => {
+            exactly(1)?;
+            Ok(Intervention::soft(variable, MechanismOverride::constant(parameters[0])))
+        }
+        "soft_additive_shift" => {
+            exactly(1)?;
+            Ok(Intervention::soft(variable, MechanismOverride::additive_shift(parameters[0])))
+        }
         "soft" | "sequence" => Err(PyValueError::new_err(format!(
             "{kind} interventions require a structural/temporal model and are not estimable by response.intervention_gcomp"
         ))),
@@ -747,9 +759,106 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     }
 }
 
+/// Temporal dose × horizon / intervention-path response (ADR 0021).
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, kind, treatments, outcomes, *,
+    grid=None, intervention_kinds=None, intervention_parameters=None,
+    horizons, policy="pulse", treatment_lag=0, max_history_lag=None,
+    seed=1, threads=1, accepted=false
+))]
+#[allow(clippy::too_many_arguments)]
+fn analyze_temporal_response(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    edges: Vec<(String, u32, String, u32)>,
+    kind: String,
+    treatments: Vec<String>,
+    outcomes: Vec<String>,
+    grid: Option<Vec<f64>>,
+    intervention_kinds: Option<Vec<String>>,
+    intervention_parameters: Option<Vec<Vec<f64>>>,
+    horizons: Vec<u32>,
+    policy: &str,
+    treatment_lag: u32,
+    max_history_lag: Option<u32>,
+    seed: u64,
+    threads: u32,
+    accepted: bool,
+) -> PyResult<ResponseAnalysisResult> {
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let policy = policy.to_ascii_lowercase();
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
+        let treatment_ids = resolve_names(series.schema(), &treatments)?;
+        let outcome_ids = resolve_names(series.schema(), &outcomes)?;
+        let functional = build_functional(
+            &kind,
+            &treatment_ids,
+            &outcome_ids,
+            grid,
+            None,
+            None,
+            intervention_kinds,
+            intervention_parameters,
+            1,
+            DerivativeScale::Identity,
+            DerivativeWeighting::Observed,
+        )?;
+        // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
+        // `-treatment_lag`. Licensed sustained is the single-step window.
+        let at = -i32::try_from(treatment_lag)
+            .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+        let temporal_policy = match policy.as_str() {
+            "pulse" => TemporalPolicy::pulse(at),
+            "sustained" => TemporalPolicy::sustained(at, at),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown temporal policy {other:?}; use pulse|sustained"
+                )));
+            }
+        };
+        let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let query = ResponseQuery::new(functional).with_temporal(temporal);
+        let causal_query = CausalQuery::Response(query.clone());
+        if let Some(cell) = support_cell(
+            &causal_query,
+            GraphClass::TemporalDag,
+            if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
+            &InferenceMode::Frequentist,
+            RefuteSuite::None,
+        ) {
+            refuse_if_not_applicable(cell).map_err(py_err)?;
+        }
+        let mut builder = Study::series(series);
+        builder =
+            if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
+        let analysis =
+            builder.query(causal_query).refute(RefuteSuite::None).build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        let response = result.response.ok_or_else(|| {
+            PyValueError::new_err("temporal response run did not produce a response payload")
+        })?;
+        let adjustment_set = result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
+            .collect();
+        response_result(response, treatments, outcomes, adjustment_set)
+    })
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ResponseAnalysisResult>()?;
     m.add_function(wrap_pyfunction!(analyze_response, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_response_pag, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_response, m)?)?;
     Ok(())
 }

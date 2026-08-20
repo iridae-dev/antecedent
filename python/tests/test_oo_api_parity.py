@@ -59,27 +59,24 @@ def test_sustained_vs_pulse_policy_accepted():
         bootstrap=0,
         refute=False,
     )
-    # SustainedEffect(treatment_lag=1) denotes the window {-1, 0}: the
-    # identified estimand now contrasts *every* treatment-time node (0.5.2
-    # correctness fix), and temporal linear adjustment cannot honor that with
-    # a single treatment column — the pipeline refuses instead of silently
-    # estimating a one-node proxy, which is what this assertion previously
-    # accepted a finite number from.
-    with pytest.raises(
-        antecedent.errors.CausalUnsupportedError,
-        match="refused: SustainedEffect is not on the staged handle.",
-    ):
-        antecedent.analyze(
-            data,
-            graph=edges,
-            query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            bootstrap=0,
-            refute=False,
-        )
+    # Licensed SustainedEffect is the single-step window at -treatment_lag,
+    # so it matches Pulse at the same lag under temporal linear adjustment.
+    sustained = antecedent.analyze(
+        data,
+        graph=edges,
+        query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        bootstrap=0,
+        refute=False,
+    )
     assert np.isfinite(pulse.ate)
+    assert np.isfinite(sustained.ate)
+    assert sustained.ate == pytest.approx(pulse.ate, abs=1e-10)
     assert pulse.validation.passed is False
     assert pulse.validation.ran is False
     assert pulse.validation.count == 0
+    assert sustained.validation.passed is False
+    assert sustained.validation.ran is False
+    assert sustained.validation.count == 0
 
 
 def test_temporal_refute_runs_by_default():

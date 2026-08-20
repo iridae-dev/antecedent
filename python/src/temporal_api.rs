@@ -875,9 +875,10 @@ fn temporal_query_from_policy(
             .with_policy(TemporalPolicy::pulse(at))
             .with_horizon_steps(horizon_steps)),
         "sustained" => {
-            // Sustained from `-treatment_lag` through step 0; evaluate at `horizon_steps`.
+            // Licensed SustainedEffect is the single-step window at `-treatment_lag`
+            // (from == until). Multi-step Sustained remains estimator-refused.
             Ok(TemporalEffectQuery::sustained(t_id, y_id, 0, active_level)
-                .with_policy(TemporalPolicy::sustained(at, 0))
+                .with_policy(TemporalPolicy::sustained(at, at))
                 .with_horizon_steps(horizon_steps))
         }
         other => Err(PyValueError::new_err(format!(
