@@ -62,6 +62,18 @@ Python package versions are **0.7.0**.
   replicates could rank against another replicate's likelihood. Cache only
   `XᵀX` and always recompute `Xᵀy` / `yᵀy`.
 
+### Evidence status
+
+- Successful studies now carry the matrix contract that produced them.
+  Rust `Study` / `StudyResult` / analysis-trace record `licensed` vs
+  `allowed_unlicensed` (with allowlist `reason`/`parent`). Python uses
+  `evidence_status` on `AnalysisResult` and `CausalResponseView` so it
+  does not collide with empirical curve `support_status`. Allowlisted
+  runs also emit diagnostic `support.allowed_unlicensed`. A successful
+  number is not a licensed claim unless the status says so. Prepared
+  `InterventionalDistribution` pins validation `none` so a latency tier
+  cannot reclassify the licensed cell as allowlisted cheap/full.
+
 ## [0.6.1] — 2026-08-20
 
 Patch on the 0.6.0 contract cut. No public API rename. Licensed cells are

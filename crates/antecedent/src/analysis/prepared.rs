@@ -125,6 +125,12 @@ impl PreparedStudy {
         self.analysis.structure_source()
     }
 
+    /// Evidence contract frozen at prepare. `None` when the query is off-axis.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.analysis.support_status()
+    }
+
     /// Borrow the ready physical plan retained from prepare.
     #[must_use]
     pub fn plan(&self) -> &PhysicalExecutionPlan {

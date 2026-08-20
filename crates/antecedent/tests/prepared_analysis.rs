@@ -157,6 +157,7 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
+    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
 }
 
 #[test]
@@ -164,6 +165,7 @@ fn supplied_dag_is_explicit_structure_source() {
     let (data, dag, query) = confounded_scm(80, 11);
     let analysis = build_analysis(data, dag, query);
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Explicit);
+    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
 }
 
 #[test]

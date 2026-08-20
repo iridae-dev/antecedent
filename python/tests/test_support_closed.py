@@ -170,6 +170,7 @@ def test_licensed_average_effect_on_dag_frequentist():
         seed=1,
     )
     assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
 
 
 def test_default_refused_pag_ate_still_runs():
@@ -182,6 +183,9 @@ def test_default_refused_pag_ate_still_runs():
         seed=1,
     )
     assert np.isfinite(result.ate)
+    assert result.evidence_status == "allowed_unlicensed"
+    assert result.allowlist_parent
+    assert any("support.allowed_unlicensed" in d for d in result.diagnostics)
 
 
 # -- 2026-08-19: allowlist introduction (parity/support_allowlist.toml). PAG ATE

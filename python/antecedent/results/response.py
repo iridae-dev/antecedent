@@ -253,6 +253,9 @@ class CausalResponseView:
     provenance: Mapping[str, Any] = field(default_factory=dict)
     envelope: ResponseEnvelopeView | None = None
     validation: ResponseValidationView | None = None
+    evidence_status: str | None = None
+    allowlist_reason: str | None = None
+    allowlist_parent: str | None = None
 
     def __repr__(self) -> str:
         if isinstance(self.estimate, (float, int)):
@@ -261,9 +264,12 @@ class CausalResponseView:
             estimate = f"{len(self.response)} response points"
         else:
             estimate = "structured"
+        extra = ""
+        if self.evidence_status == "allowed_unlicensed":
+            extra = " unlicensed"
         return (
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
-            f"uncertainty={self.uncertainty.kind!r}>"
+            f"uncertainty={self.uncertainty.kind!r}{extra}>"
         )
 
 

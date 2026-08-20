@@ -89,6 +89,14 @@ pub(crate) struct ResponseAnalysisResult {
     enumeration_capped: Option<bool>,
     #[pyo3(get)]
     mass_scope: Option<String>,
+    /// Matrix evidence contract (`licensed` / `allowed_unlicensed`). Distinct from
+    /// empirical dose-range [`Self::support_status`].
+    #[pyo3(get)]
+    evidence_status: Option<String>,
+    #[pyo3(get)]
+    allowlist_reason: Option<String>,
+    #[pyo3(get)]
+    allowlist_parent: Option<String>,
 }
 
 #[pyfunction]
@@ -158,15 +166,17 @@ fn analyze_response(
         let structure =
             if accepted { StructureSource::Accepted } else { StructureSource::Explicit };
         let causal_query = CausalQuery::Response(query.clone());
-        if let Some(cell) = support_cell(
+        let evidence = if let Some(cell) = support_cell(
             &causal_query,
             GraphClass::Dag,
             structure,
             &InferenceMode::Frequentist,
             RefuteSuite::None,
         ) {
-            refuse_if_not_applicable(cell).map_err(py_err)?;
-        }
+            Some(refuse_if_not_applicable(cell).map_err(py_err)?)
+        } else {
+            None
+        };
         let identifier = ResponseIdentifier::new();
         let prepared = identifier
             .prepare_with_assumptions(&dag, AssumptionSet::new())
@@ -213,7 +223,7 @@ fn analyze_response(
                 identification.required_assumptions,
             )
             .map_err(py_err)?;
-        response_result(response, treatments, outcomes, adjustment_set, &names)
+        response_result(response, treatments, outcomes, adjustment_set, &names, evidence)
     })
 }
 
@@ -396,6 +406,9 @@ fn analyze_response_pag(
             } else {
                 "full_class".into()
             }),
+            evidence_status: None,
+            allowlist_reason: None,
+            allowlist_parent: None,
         })
     })
 }
@@ -591,6 +604,7 @@ pub(crate) fn response_result(
     outcomes: Vec<String>,
     mut adjustment_set: Vec<String>,
     names: &[String],
+    evidence: Option<antecedent::CellStatus>,
 ) -> PyResult<ResponseAnalysisResult> {
     let horizon_adjustment_sets = named_horizon_adjustments(&response, names);
     if let Some(first) = first_horizon_template_names(&response, names) {
@@ -607,6 +621,8 @@ pub(crate) fn response_result(
     let (uncertainty_kind, lower, upper, level, standard_error, replicates, artifact_id) =
         uncertainty_parts(response.uncertainty);
     let support_status = support_status_name(response.support.status).to_owned();
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        crate::evidence_status_parts(evidence);
     Ok(ResponseAnalysisResult {
         treatments,
         outcomes,
@@ -670,6 +686,9 @@ pub(crate) fn response_result(
         truncated_completions: None,
         enumeration_capped: None,
         mass_scope: None,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
     })
 }
 
@@ -899,7 +918,14 @@ fn analyze_temporal_response(
                 names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
             })
             .collect();
-        response_result(response, treatments, outcomes, adjustment_set, &names)
+        response_result(
+            response,
+            treatments,
+            outcomes,
+            adjustment_set,
+            &names,
+            result.support_status,
+        )
     })
 }
 

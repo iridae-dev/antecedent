@@ -213,6 +213,13 @@ pub(crate) struct AnalysisResult {
     /// read from the same `StudyResult.performance` record the static DTO uses.
     #[pyo3(get)]
     pub(crate) performance: PerformanceSection,
+    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    #[pyo3(get)]
+    pub(crate) evidence_status: Option<String>,
+    #[pyo3(get)]
+    pub(crate) allowlist_reason: Option<String>,
+    #[pyo3(get)]
+    pub(crate) allowlist_parent: Option<String>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1681,6 +1688,8 @@ fn analysis_result_from_run(
             .collect(),
         bytes_borrowed: result.performance.bytes_borrowed,
     };
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        evidence_status_parts(result.support_status);
 
     Ok(AnalysisResult {
         ate: result.estimate.ate,
@@ -1743,6 +1752,9 @@ fn analysis_result_from_run(
         posterior: posterior_section,
         validation,
         performance,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
     })
 }
 
