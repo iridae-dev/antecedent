@@ -310,6 +310,14 @@ pub(crate) fn delta_method_se(inv_xtx: &[f64], ncols: usize, g: &[f64], sigma2: 
     var.max(0.0).sqrt()
 }
 
+/// Single-pass `(min, max)` fold.
+///
+/// Shared by the static and temporal response estimators so neither carries its own
+/// min/max pair (two full-slice folds where one suffices).
+pub(crate) fn range(values: &[f64]) -> (f64, f64) {
+    values.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

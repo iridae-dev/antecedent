@@ -33,6 +33,7 @@ use antecedent_stats::{
 };
 
 use crate::EstimationError;
+use crate::util::range;
 
 /// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
 ///
@@ -1564,9 +1565,6 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
     }
 }
 
-fn range(values: &[f64]) -> (f64, f64) {
-    values.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)))
-}
 
 /// Finite-difference step that stays above floating-point ulp at `|at|`.
 ///
