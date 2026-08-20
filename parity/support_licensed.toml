@@ -186,7 +186,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Known-truth execution covers a hard Set intervention; arbitrary soft mechanisms, multi-variable sequences, and multi-step policy overlays are not claimed."
+limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on the shared fixture; multi-step, nested, and multi-variable Sequence policies fail closed. Stochastic soft families and multi-step policy overlays are not claimed beyond the licensed constant/additive_shift pair."
 
 [[cell]]
 query = "InterventionResponse"
@@ -197,7 +197,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator and hard-Set known-truth fixture."
+limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator and the same Set/Soft/Sequence known-truth paths pinned on temporal_dose_horizon."
 
 [[cell]]
 query = "PulseEffect"

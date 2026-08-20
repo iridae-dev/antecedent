@@ -52,6 +52,10 @@ observed numerical agreement via shared adjustment machinery, not a
 derivation of one from the other and not a separate response estimand;
 multi-step Sustained is not evidenced here.
 
+Pointwise 95% bands on the surface are pinned in the fixture (`surface.lower` /
+`surface.upper`); index 0 is dose zero at horizon 1 and has strictly positive
+width (regression guard for the old zero-width-at-dose-0 bug).
+
 ## Expected summary
 
 Top-level keys: `claim, contract, estimator_contract, fixture_id, generation, tolerance` (6 fields).

@@ -156,3 +156,31 @@ def test_pulse_projection_matches_surface_contrast():
     expected = float(_FIXTURE["contract"]["pulse_effect_projection"]["contrast"])
     assert contrast == pytest.approx(expected, abs=_ATOL)
     assert pulse.ate == pytest.approx(expected, abs=_ATOL)
+
+
+def test_temporal_response_bands_match_fixture():
+    data = _fixture_data()
+    result = antecedent.analyze(
+        data,
+        graph=_EDGES,
+        query=antecedent.ResponseCurve(
+            "t",
+            "y",
+            grid=[0.0, 1.0],
+            horizons=[1, 2],
+            policy="pulse",
+            treatment_lag=1,
+        ),
+        refute=False,
+        bootstrap=0,
+        seed=21,
+    )
+    assert result.response is not None
+    assert result.uncertainty.lower is not None and result.uncertainty.upper is not None
+    expected_lower = np.asarray(_FIXTURE["contract"]["surface"]["lower"], dtype=float)
+    expected_upper = np.asarray(_FIXTURE["contract"]["surface"]["upper"], dtype=float)
+    lower = np.asarray([row[0] for row in result.uncertainty.lower], dtype=float)
+    upper = np.asarray([row[0] for row in result.uncertainty.upper], dtype=float)
+    np.testing.assert_allclose(lower, expected_lower, atol=_ATOL)
+    np.testing.assert_allclose(upper, expected_upper, atol=_ATOL)
+    assert upper[0] - lower[0] > 0.0
