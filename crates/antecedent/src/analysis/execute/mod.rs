@@ -19,7 +19,7 @@ pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, ObservationSpec,
     PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
+    ResponseUncertainty, ResponseValue, TemporalEffectQuery, Value, VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
@@ -33,8 +33,8 @@ pub(super) use antecedent_estimate::{
     EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
     FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
     OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
-    TemporalMediationEstimate, TemporalMediationEstimator, aggregate_effect_envelope,
-    nonidentified_with_prior,
+    TemporalMediationEstimate, TemporalMediationEstimator, TemporalResponseEstimator,
+    aggregate_effect_envelope, nonidentified_with_prior,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
@@ -70,7 +70,7 @@ pub(super) use crate::planner::{
     StaticResponseCompileInput, compile_logical_distribution, compile_logical_path_specific,
     compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_static_response,
     compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
-    reject_dag_only_on_pag,
+    compile_logical_temporal_response, reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
@@ -126,6 +126,9 @@ pub struct Study {
     /// per estimate click is exact; `None` (every builder-constructed study)
     /// keeps the identify-per-run behavior.
     pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
+    /// Prepare-time temporal-backdoor identification + indexer for temporal response.
+    pub(crate) temporal_identification_cache:
+        Option<Arc<super::prepared::CachedTemporalIdentification>>,
 }
 
 impl std::fmt::Debug for Study {
@@ -151,6 +154,10 @@ impl std::fmt::Debug for Study {
             .field("latency_mode", &self.latency_mode)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
             .field("identification_cache_is_some", &self.identification_cache.is_some())
+            .field(
+                "temporal_identification_cache_is_some",
+                &self.temporal_identification_cache.is_some(),
+            )
             .finish()
     }
 }

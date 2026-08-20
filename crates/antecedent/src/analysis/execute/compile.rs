@@ -99,6 +99,17 @@ impl super::Study {
                 };
                 compile_logical_temporal_effect_classified(data, graph, q, self.split, false, class)
             }
+            (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let graph = self
+                    .graph
+                    .as_temporal_dag()
+                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+                compile_logical_temporal_response(data, graph, q, false)
+            }
             (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
                 let DataInput::MultiEnv(multi) = &self.data else { unreachable!() };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
@@ -275,6 +286,13 @@ impl super::Study {
                 GraphClass::Dag,
             ) => self.compile_logical()?.compile_physical(ctx),
             (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
+                let graph = self
+                    .graph
+                    .as_temporal_dag()
+                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+                self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
+            }
+            (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()

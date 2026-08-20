@@ -48,6 +48,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "response.riesz_ade",
     "response.gam_derivative",
     "response.intervention_gcomp",
+    "temporal.response.gcomp",
 ];
 
 /// Closed set of identification strategies.
@@ -261,6 +262,8 @@ pub enum EstimatorId {
     ResponseGamDerivative,
     /// Additive-GAM g-computation for static, shifted, or stochastic interventions.
     ResponseInterventionGcomp,
+    /// Temporal dose-over-horizon / policy-path g-computation (ADR 0021).
+    TemporalResponseGcomp,
 }
 
 impl EstimatorId {
@@ -431,6 +434,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.response.intervention_gcomp",
             ),
         },
+        EstimatorId::TemporalResponseGcomp => EstimatorData {
+            name: "temporal.response.gcomp",
+            parallel_task_dimension: "horizon",
+            kernel_label: "ols.faer.temporal.response",
+            provenance: ("estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"),
+        },
     }
 }
 
@@ -458,6 +467,7 @@ impl EstimatorId {
         Self::ResponseRieszAde,
         Self::ResponseGamDerivative,
         Self::ResponseInterventionGcomp,
+        Self::TemporalResponseGcomp,
     ];
 
     /// Canonical wire id.
@@ -510,6 +520,7 @@ impl FromStr for EstimatorId {
             "response.riesz_ade" => Ok(Self::ResponseRieszAde),
             "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
             "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
+            "temporal.response.gcomp" => Ok(Self::TemporalResponseGcomp),
             other => Err(UnknownStrategy {
                 kind: "estimator",
                 got: other.to_string(),
@@ -763,6 +774,12 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
         EstimatorId::TemporalLinearAdjustment => {
             matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
+        }
+        EstimatorId::TemporalResponseGcomp => {
+            matches!(
+                method,
+                EstimandMethod::TemporalBackdoorUnfolded | EstimandMethod::BackdoorAdjustment
+            )
         }
         EstimatorId::TemporalMediation => {
             method.is_temporal_mediation() || matches!(method, EstimandMethod::FrontDoor)
