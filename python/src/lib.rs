@@ -1150,6 +1150,14 @@ pub(crate) fn columns_to_batch(
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
 }
 
+pub(crate) fn tabular_from_numpy(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+) -> PyResult<antecedent_data::TabularData> {
+    let batch = columns_to_batch(names, columns)?;
+    tabular_from_record_batch(&batch).map(|loaded| loaded.data).map_err(py_err)
+}
+
 /// Conversion probe: NumPy → Arrow → library-owned tabular storage.
 ///
 /// Shares the same ingestion path as `analyze*` / `discover_*`. The loaded table is not
@@ -1251,7 +1259,7 @@ fn take_arrow_c_array(
     Ok((array, schema))
 }
 
-fn tabular_from_arrow_c_objs(
+pub(crate) fn tabular_from_arrow_c_objs(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
