@@ -513,4 +513,3 @@ pub fn compile_logical_temporal_effect_classified(
     plan.validate()?;
     Ok(plan)
 }
-

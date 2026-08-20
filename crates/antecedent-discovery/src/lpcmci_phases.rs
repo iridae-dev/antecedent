@@ -433,8 +433,7 @@ fn ancestral_removal_phase(
         for batch in &batches {
             // Defer removals until the end of the batch so co-tested links remain
             // available as conditioning candidates (`to_remove`).
-            let mut to_remove: Vec<(VariableId, Lag, VariableId)> =
-                Vec::new();
+            let mut to_remove: Vec<(VariableId, Lag, VariableId)> = Vec::new();
 
             for &(x, x_lag, y) in batch {
                 let Some(&xid) = idx.get(&(x.raw(), x_lag.raw())) else {

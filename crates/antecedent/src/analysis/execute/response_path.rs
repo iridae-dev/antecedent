@@ -101,10 +101,7 @@ impl super::Study {
         }
 
         let estimate_provenance = if query.observation == ObservationSpec::Complete {
-            provenance_ids(
-                Arc::clone(&response.provenance_id),
-                Arc::clone(&response.provenance_id),
-            )
+            provenance_ids(Arc::clone(&response.provenance_id), Arc::clone(&response.provenance_id))
         } else {
             provenance_ids(
                 "estimate.response.observation_adjusted",

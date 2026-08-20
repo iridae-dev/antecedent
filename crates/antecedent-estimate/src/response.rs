@@ -283,10 +283,9 @@ impl ContinuousResponseEstimator {
         let mut robust_se = Vec::with_capacity(grid.len());
         let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
         if sample.treatments.iter().chain(&pseudo).any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape {
-                message: "local quadratic inputs must be finite",
-            }
-            .into());
+            return Err(
+                StatsError::Shape { message: "local quadratic inputs must be finite" }.into()
+            );
         }
         let mut local = LocalQuadraticWorkspace::default();
         for &at in grid {
@@ -957,9 +956,12 @@ impl CompleteSample {
 
     fn write_raw_row(&self, row: usize, out: &mut [f64]) {
         debug_assert_eq!(out.len(), self.raw_cols);
+        // Column-major treatment/adjustment layouts: index by col deliberately.
+        #[allow(clippy::needless_range_loop)]
         for col in 0..self.treatment_cols {
             out[col] = self.treatment_matrix[col * self.len() + row];
         }
+        #[allow(clippy::needless_range_loop)]
         for col in 0..self.adjustment_cols {
             out[self.treatment_cols + col] = self.adjustment[col * self.len() + row];
         }
@@ -967,6 +969,7 @@ impl CompleteSample {
 
     fn write_adjustment_row(&self, row: usize, out: &mut [f64]) {
         debug_assert_eq!(out.len(), self.adjustment_cols);
+        #[allow(clippy::needless_range_loop)]
         for col in 0..self.adjustment_cols {
             out[col] = self.adjustment[col * self.len() + row];
         }

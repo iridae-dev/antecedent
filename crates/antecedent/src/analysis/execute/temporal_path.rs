@@ -137,9 +137,7 @@ impl super::Study {
                 refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
 
                 if matches!(self.refute, RefuteSuite::Full) {
-                    let InferenceMode::Bayesian(cfg) = &self.inference else {
-                        unreachable!()
-                    };
+                    let InferenceMode::Bayesian(cfg) = &self.inference else { unreachable!() };
                     posterior = Some(apply_temporal_prior_sensitivity(
                         cfg,
                         &bprep,

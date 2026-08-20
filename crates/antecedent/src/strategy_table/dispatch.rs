@@ -27,7 +27,7 @@ use antecedent_identify::{
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
 
-use super::{EstimatorId, IdentifierId, identifier_data, estimator_data, require_identified};
+use super::{EstimatorId, IdentifierId, estimator_data, identifier_data, require_identified};
 
 /// Run the identifier named by `identifier` against `graph`/`query`.
 ///

@@ -134,6 +134,11 @@ pub struct LaplaceWorkspace {
 }
 
 /// Address/shape key for [`LaplaceWorkspace`]'s conjugate Gram cache.
+///
+/// Design slices must not be mutated in place across refits that share this
+/// workspace: the key is pointer + shape identity, not content. Reuse the same
+/// buffers only when `X`/`y`/weights/offsets are unchanged, or allocate new
+/// slices (new pointers) after an in-place edit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ConjugateGramKey {
     x: usize,

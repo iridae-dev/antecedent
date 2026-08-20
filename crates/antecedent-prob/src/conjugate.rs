@@ -125,7 +125,10 @@ pub fn fit_conjugate_gaussian(
     })
 }
 
-fn ensure_conjugate_gram(design: BayesDesignRef<'_>, workspace: &mut LaplaceWorkspace) -> (f64, f64) {
+fn ensure_conjugate_gram(
+    design: BayesDesignRef<'_>,
+    workspace: &mut LaplaceWorkspace,
+) -> (f64, f64) {
     let key = crate::backend::ConjugateGramKey::from_design(&design);
     let n2 = design.ncols.saturating_mul(design.ncols);
     if workspace.conjugate_key == Some(key)
