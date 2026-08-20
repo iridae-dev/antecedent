@@ -20,8 +20,7 @@ impl super::Study {
             let id_res = TemporalBackdoorIdentifier::new()
                 .identify_temporal(graph, query)
                 .map_err(CausalError::from)?;
-            let estimand =
-                select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
+            let estimand = select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
             (id_res.result, estimand, id_res.indexer, false)
         };
         require_identified(&identification)?;
@@ -30,14 +29,7 @@ impl super::Study {
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let prep = estimator
-            .prepare(
-                data,
-                &estimand,
-                query,
-                &indexer,
-                self.split.as_ref(),
-                &ctx.kernel_policy,
-            )
+            .prepare(data, &estimand, query, &indexer, self.split.as_ref(), &ctx.kernel_policy)
             .map_err(CausalError::from)?;
 
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
@@ -301,8 +293,10 @@ impl super::Study {
         };
         require_identified(&identification)?;
 
-        let mut estimator = TemporalResponseEstimator::new();
-        estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
+        // Surface SEs are analytic (`TemporalResponseEstimator::new` zeros
+        // bootstrap). Do not copy Study bootstrap here — it would look like
+        // it affects the curve when FittedHorizon is OLS-only.
+        let estimator = TemporalResponseEstimator::new();
         let response = estimator
             .estimate(
                 data,
