@@ -115,6 +115,7 @@ def test_response_result_views_validate_shape_and_report_orthogonal_axes():
     with pytest.raises(CausalValueError, match="unknown support status"):
         SupportReport("supported", {"a": (0.0, 1.0)}, point_status=("nope",))
     assert "extrapolative" in repr(result)
+    assert "warnings=1" in repr(result)
     assert "95.0%" in repr(uncertainty)
 
     with pytest.raises(CausalValueError, match="same number of rows"):
@@ -141,6 +142,32 @@ def test_response_curve_runs_through_public_analyze_api():
     assert list(result.response.points) == [[-0.5], [0.0], [0.5]]
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr"
     assert result.identification.status == "NonparametricallyIdentified"
+    tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
+    assert tail.values[0] < tail.values[1]
+    assert not any("least-squares Kennedy nuisances" in w for w in result.support.warnings)
+
+
+def test_heavy_tailed_outcome_warns_without_demoting_license():
+    rng = np.random.default_rng(17)
+    n = 400
+    confounder = rng.normal(size=n)
+    treatment = 0.7 * confounder + rng.normal(size=n)
+    outcome = 2.0 * treatment + confounder + rng.normal(scale=0.2, size=n)
+    outcome[:3] = [1_000.0, -1_000.0, 800.0]
+    result = antecedent.analyze(
+        {"x": confounder, "a": treatment, "y": outcome},
+        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    )
+    assert result.evidence_status == "licensed"
+    assert result.support.status == "supported"
+    tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
+    assert tail.values[0] > tail.values[1]
+    assert any("least-squares Kennedy nuisances" in w for w in result.support.warnings)
+    assert "warnings=" in repr(result)
+    by_id = {d.id: d for d in result.support.diagnostics}
+    assert "response.pseudo_outcome_winsor_shift" in by_id
+    assert len(by_id["response.pseudo_outcome_winsor_shift"].values) == 3
 
 
 @pytest.mark.parametrize(
