@@ -1052,7 +1052,7 @@ fn record_pc_parent_outcome(
             workspace.removed.push((src, slag));
             workspace.sepsets.insert(
                 (src, slag, target, Lag::CONTEMPORANEOUS),
-                Arc::from(combo.to_vec().into_boxed_slice()),
+                Arc::from(combo),
             );
         }
     }
