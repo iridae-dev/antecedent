@@ -149,6 +149,7 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
 }
 
 /// Optional finish slots that most identified paths leave at default.
+#[derive(Default)]
 pub(super) struct IdentifiedExecuteExtras {
     pub stage_timings_ns: Vec<(Arc<str>, u64)>,
     pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
@@ -162,25 +163,9 @@ pub(super) struct IdentifiedExecuteExtras {
     pub gcm: Option<GcmSlot>,
     pub empty_provenance: bool,
     /// `None` uses the study bootstrap count; `Some(v)` writes `v` (response writes `None`).
+    /// Nested option is intentional: outer selects override vs study default.
+    #[allow(clippy::option_option)]
     pub bootstrap_replicates_requested: Option<Option<u32>>,
-}
-
-impl Default for IdentifiedExecuteExtras {
-    fn default() -> Self {
-        Self {
-            stage_timings_ns: Vec::new(),
-            identify_provenance: None,
-            estimate_provenance: None,
-            posterior: None,
-            n_draws: None,
-            predictive_checks: Vec::new(),
-            diagnostics: None,
-            response: None,
-            gcm: None,
-            empty_provenance: false,
-            bootstrap_replicates_requested: None,
-        }
-    }
 }
 
 pub(super) fn identification_from_cache_or(
@@ -206,7 +191,10 @@ pub(super) fn nan_effect() -> EffectEstimate {
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
 /// identified mass is flipped to Unidentified (never silent renormalize to 1).
 ///
-/// Call this **before** per-graph estimation so dropped atoms never pay a fit.
+/// Call this **after** resolving the shared envelope prior from the first
+/// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
+/// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
+/// must not move the prior anchor (0.6.0 semantics).
 pub(super) fn maybe_interactive_subsample_graphs(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
@@ -232,6 +220,19 @@ pub(super) fn maybe_interactive_subsample_graphs(
         ));
     }
     Ok(sub.graphs)
+}
+
+/// Resolve the shared envelope prior from a prepared Bayesian problem.
+///
+/// Call on the **first identified atom in original envelope order** before
+/// [`maybe_interactive_subsample_graphs`]. Interactive subsample must not
+/// change which design anchors the prior.
+pub(super) fn resolve_envelope_prior_anchor(
+    cfg: &BayesianConfig,
+    prep: &antecedent_estimate::PreparedBayesianProblem,
+    ctx: &ExecutionContext,
+) -> Result<(Option<PriorSet>, Option<antecedent_prob::ConflictSummary>), CausalError> {
+    resolve_bayesian_prior_with_conflict(cfg, prep, Some(ctx))
 }
 
 pub(super) fn identified_envelope_keys(
