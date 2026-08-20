@@ -161,9 +161,7 @@ _TEMPORAL_RESPONSE_PAYLOADS: dict[str, dict[str, object]] = {
             "functional": {
                 "intervention_response": {
                     "outcome": 1,
-                    "interventions": [
-                        {"set": {"variable": 0, "value": {"float64": 1.0}}}
-                    ],
+                    "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}],
                 }
             },
             "target_population": "all_observed",

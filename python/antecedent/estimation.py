@@ -744,13 +744,10 @@ def _response_support_bounds(raw: Any) -> dict[str, tuple[float, float]]:
             for name, lower, upper in zip(treatments, minima, maxima, strict=True)
         }
     axis_names = (
-        ["dose", "horizon"]
-        if len(minima) == 2
-        else [f"axis_{i}" for i in range(len(minima))]
+        ["dose", "horizon"] if len(minima) == 2 else [f"axis_{i}" for i in range(len(minima))]
     )
     return {
-        name: (lower, upper)
-        for name, lower, upper in zip(axis_names, minima, maxima, strict=True)
+        name: (lower, upper) for name, lower, upper in zip(axis_names, minima, maxima, strict=True)
     }
 
 
