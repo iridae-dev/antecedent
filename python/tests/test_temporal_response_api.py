@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("antecedent")
 import antecedent
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set, Soft
 
@@ -184,3 +184,32 @@ def test_temporal_response_bands_match_fixture():
     np.testing.assert_allclose(lower, expected_lower, atol=_ATOL)
     np.testing.assert_allclose(upper, expected_upper, atol=_ATOL)
     assert upper[0] - lower[0] > 0.0
+    assert result.identification.method == "temporal.backdoor.unfolded"
+    assert "identify.temporal_backdoor" in result.provenance["operation_ids"]
+    assert result.validation is not None
+    assert any(check.id == "refute.temporal_response.skipped" for check in result.validation.checks)
+
+
+def test_temporal_default_lag_matches_pulse():
+    curve = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1])
+    path = antecedent.InterventionResponse("y", intervention=Set("t", 1.0), horizons=[1])
+    assert curve.treatment_lag == 1
+    assert path.treatment_lag == 1
+    assert antecedent.PulseEffect("t", "y").treatment_lag == 1
+
+
+def test_temporal_horizons_reject_bool_and_dynamic_policy():
+    with pytest.raises(CausalValueError, match="positive integers"):
+        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
+    with pytest.raises(CausalValueError, match="pulse"):
+        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")
+
+
+def test_prepared_temporal_rejects_wrong_identifier_and_refute_click():
+    data = _fixture_data()
+    query = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="pulse")
+    with pytest.raises(CausalValueError, match="temporal.backdoor.unfolded"):
+        PreparedAnalysis.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
+    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False)
+    with pytest.raises(CausalUnsupportedError, match="AverageEffect-only"):
+        prepared.refute(data)

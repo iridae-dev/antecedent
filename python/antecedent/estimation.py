@@ -80,6 +80,8 @@ from .results import (
     PriorSensitivityReport,
     RefutationReport,
     ResponseUncertainty,
+    ResponseValidationCheck,
+    ResponseValidationView,
     ResponseView,
     SupportDiagnostic,
     SupportReport,
@@ -763,6 +765,25 @@ def _wrap_prepared_response(
         if raw.points and raw.values
         else None
     )
+    temporal = bool(getattr(query, "is_temporal", False))
+    if temporal:
+        method = "temporal.backdoor.unfolded"
+        identify_op = "identify.temporal_backdoor"
+        validation: ResponseValidationView | None = ResponseValidationView(
+            (
+                ResponseValidationCheck(
+                    "refute.temporal_response.skipped",
+                    "skipped",
+                    None,
+                    None,
+                    "scalar ATE refuters are not applicable to a function-valued temporal response",
+                ),
+            )
+        )
+    else:
+        method = "response.backdoor"
+        identify_op = "identify.response"
+        validation = None
     return CausalResponseView(
         estimand=query,
         response=response,
@@ -792,7 +813,7 @@ def _wrap_prepared_response(
         ),
         identification=IdentificationView(
             status=raw.identification,
-            method="response.backdoor",
+            method=method,
             adjustment_set=list(getattr(raw, "adjustment_set", ())),
             assumption_count=len(raw.assumptions),
             derivation_step_count=0,
@@ -800,10 +821,10 @@ def _wrap_prepared_response(
         assumptions=raw.assumptions,
         provenance={
             "operation_id": raw.provenance_id,
-            "operation_ids": ["identify.response", raw.provenance_id],
+            "operation_ids": [identify_op, raw.provenance_id],
         },
         envelope=None,
-        validation=None,
+        validation=validation,
     )
 
 
@@ -903,6 +924,16 @@ class PreparedAnalysis:
         if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
             query, "is_temporal", False
         ):
+            if identifier not in (None, "temporal.backdoor.unfolded"):
+                raise CausalValueError(
+                    f"temporal response requires identifier='temporal.backdoor.unfolded'; "
+                    f"got {identifier!r}"
+                )
+            if estimator not in (None, "temporal.response.gcomp"):
+                raise CausalValueError(
+                    f"temporal response requires estimator='temporal.response.gcomp'; "
+                    f"got {estimator!r}"
+                )
             return cls._prepare_temporal(
                 names,
                 columns,
@@ -1271,6 +1302,11 @@ class PreparedAnalysis:
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         """
+        if self._kind in ("response_curve", "intervention_response"):
+            raise CausalUnsupportedError(
+                "refused: PreparedAnalysis.refute is AverageEffect-only; "
+                "ResponseCurve / InterventionResponse have no licensed validation cell"
+            )
         if isinstance(suite, Refute):
             suite = str(suite)
         names, columns, arrow = _prepared_columns(data)

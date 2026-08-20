@@ -764,7 +764,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 #[pyo3(signature = (
     names, columns, edges, kind, treatments, outcomes, *,
     grid=None, intervention_kinds=None, intervention_parameters=None,
-    horizons, policy="pulse", treatment_lag=0, max_history_lag=None,
+    horizons, policy="pulse", treatment_lag=1, max_history_lag=None,
     seed=1, threads=1, accepted=false
 ))]
 #[allow(clippy::too_many_arguments)]
