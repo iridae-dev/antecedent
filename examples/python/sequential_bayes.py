@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sequential Bayes: batch A posterior → batch B prior.
 
-Requires a built causal extension (`maturin develop` in python/).
+Requires a built antecedent extension (`maturin develop` in python/).
 
 Fits Bayesian ATE on batch A, encodes the posterior artifact, then re-analyzes
 an independent batch B with ``Bayesian(prior_from=artifact)`` on the same

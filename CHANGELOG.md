@@ -5,6 +5,43 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-08-20
+
+Patch on the 0.6.0 contract cut. No public API rename. Licensed cells are
+unchanged. Workspace and Python package versions are **0.6.1**.
+
+### Fixed
+
+- **Bayesian envelopes keep their prior anchor under Interactive subsample.**
+  Stratified subsample could drop the atom that identification used as the
+  prior anchor. Prepare now runs first; the anchor stays in original order.
+  Temporal DBN posteriors also fit before subsample. Failures on the
+  Interactive path demote rather than silently changing the identified set.
+- **PC `BlockShuffle` parent RNG salt stays 0.** Parent selection under
+  analytic CI had drifted the salt, so discovered parent sets were no longer
+  bit-identical to 0.6.0.
+- **Python ingest is one path.** `PreparedAnalysis.prepare` uses the same
+  Arrow CDI ingest as `analyze`. NumPy and Arrow raise the same errors on
+  the same bad input. `np.asarray` on a posterior artifact has a locked
+  zero-copy / copy contract.
+
+### Performance / quality
+
+- Prepared estimate clicks no longer clone the `Study`.
+- Kennedy mean curves reuse GAM workspace, row scratch, and local-quadratic
+  weights across the grid.
+- Closed-form Gaussian g-comp contrast; AIPW borrows design columns when
+  nothing is trimmed; conjugate Gram stats cache across prior-scale refits;
+  temporal linear adjustment prepares from column slices; intervention-response
+  g-comp reuses scratch rows.
+- PC parent CI tests batch per conditioning level. LPCMCI / PCMCI+ separating
+  sets are `Arc`, not cloned.
+- Python prefers Arrow CDI on prepared clicks and typed-graph ATE, and
+  exposes posterior draws to NumPy without cloning the `Vec`.
+- Execution finish paths share `AnalysisRoute` / identified-execute helpers
+  (static ATE, RD, ADMG, PAG, Bayesian, temporal, front-door). Not a
+  semantics change.
+
 ## [0.6.0] — 2026-08-19
 
 ### Changed

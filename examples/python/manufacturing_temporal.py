@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Manufacturing-style temporal analyze() example.
 
-Requires a built causal extension (`maturin develop` in python/).
+Requires a built antecedent extension (`maturin develop` in python/).
 """
 
 from __future__ import annotations

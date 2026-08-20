@@ -28,8 +28,8 @@ arrow = [
 ]
 
 [dependencies]
-antecedent-core = { version = "0.6.0", path = "../antecedent-core" }
-antecedent-kernels = { version = "0.6.0", path = "../antecedent-kernels" }
+antecedent-core = { version = "0.6.1", path = "../antecedent-core" }
+antecedent-kernels = { version = "0.6.1", path = "../antecedent-kernels" }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
