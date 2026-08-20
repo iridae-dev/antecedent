@@ -114,7 +114,7 @@ As of 0.7.0:
 | | |
 |---|---|
 | Rust tests | 1562 |
-| Python tests | 752 |
+| Python tests | 783 |
 | Coverage floor | 85%, enforced in CI |
 | Conformance fixtures | 137 documented cases |
 | Platforms | CPython 3.11–3.14 on Linux, macOS, Windows; Rust 1.85+ |
