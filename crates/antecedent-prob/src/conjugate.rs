@@ -137,8 +137,7 @@ fn ensure_conjugate_gram(
     // Cache only XᵀX (+ n_eff from weights). Always recompute Xᵀy / yᵀy: SBC
     // reallocates equal-length outcome buffers that allocators often recycle to
     // the same address, so a y-pointer key would restore a stale likelihood.
-    let xtx_hit =
-        workspace.conjugate_key == Some(key) && workspace.conjugate_xtx.len() == n2;
+    let xtx_hit = workspace.conjugate_key == Some(key) && workspace.conjugate_xtx.len() == n2;
     let n_eff = if xtx_hit {
         workspace.neg_hessian[..n2].copy_from_slice(&workspace.conjugate_xtx);
         workspace.conjugate_n_eff
@@ -529,7 +528,8 @@ mod tests {
                 || (first.map[1] - second.map[1]).abs() > 0.5,
             "MAP must move when y shifts by a constant under an intercept design; \
              got {:?} vs {:?}",
-            first.map, second.map
+            first.map,
+            second.map
         );
     }
 
