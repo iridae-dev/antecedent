@@ -228,16 +228,18 @@ impl super::Study {
                 flags.push(GraphIdentFlag::Unidentified);
             }
         }
-        // 0.6.0 prepared every identified atom before Interactive subsample.
-        // Re-validate prepare eligibility here so a doomed atom cannot be dropped
-        // silently, and so the prior still anchors on the first original atom.
-        for (i, (_, estimand, _)) in fit_atoms.iter().enumerate() {
+        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // so kept atoms are not prepared a second time. PAG keys are unique
+        // (1..n); still use entry() so the stash is key-safe.
+        let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
+        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
             let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
             if i == 0 {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
+            prepared.entry(*key).or_insert(prep);
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -251,11 +253,15 @@ impl super::Study {
         let keep = identified_envelope_keys(&graphs);
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
-        for (key, estimand, status) in fit_atoms {
+        for (key, _estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
-            let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+            // Graph-posterior keys may collide (shared adjacency masks). Aggregation
+            // indexes draws by key, so fit each kept key once; later duplicates skip.
+            let Some(prep) = prepared.remove(&key) else {
+                continue;
+            };
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
@@ -522,14 +528,18 @@ impl super::Study {
             }
         }
 
-        // 0.6.0 prepared every identified atom before Interactive subsample.
-        for (i, (_, estimand, _)) in fit_atoms.iter().enumerate() {
+        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // so kept atoms are not prepared a second time. Keys may collide when
+        // several atoms share an adjacency mask — keep the first prep per key.
+        let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
+        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
             let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
             if i == 0 {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
+            prepared.entry(*key).or_insert(prep);
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -543,11 +553,14 @@ impl super::Study {
         let keep = identified_envelope_keys(&graphs);
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
-        for (key, estimand, status) in fit_atoms {
+        for (key, _estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
-            let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+            // Aggregation indexes draws by key; fit each kept key once.
+            let Some(prep) = prepared.remove(&key) else {
+                continue;
+            };
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
@@ -730,10 +743,11 @@ impl super::Study {
             fit_atoms.push((key, estimand, identification, id_res.indexer));
         }
 
-        // Soft-prepare before Interactive subsample (0.6.0 demoted prepare
-        // failures to Unidentified before stratified selection). Also walk
-        // until the first successful prepare for the shared prior anchor.
-        let mut preparable = Vec::with_capacity(fit_atoms.len());
+        // Soft prepare+fit before Interactive subsample (0.6.0): demote failures
+        // so stratified selection only chooses among atoms that already produced
+        // draws. Prior anchors on the first successful prepare.
+        let mut per_graph = Vec::new();
+        let mut ws = BayesianGCompWorkspace::default();
         for (key, estimand, identification, indexer) in fit_atoms {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
@@ -750,74 +764,39 @@ impl super::Study {
                 }
                 continue;
             };
+            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
             if envelope_prior.is_none() {
-                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
-            preparable.push((key, estimand, identification, indexer));
-        }
-        let fit_atoms = preparable;
-
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
-            self.latency_mode,
-            graphs,
-            ctx,
-            &mut subsample_notes,
-        )?;
-        let keep = identified_envelope_keys(&graphs);
-        let mut ws = BayesianGCompWorkspace::default();
-        let mut per_graph = Vec::new();
-        let mut fit_failed: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        for (key, estimand, identification, indexer) in fit_atoms {
-            if !keep.contains(&key) {
-                continue;
-            }
-            let mut temporal_est = TemporalLinearAdjustment::new();
-            temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
-            let Ok(prep) = temporal_est.prepare(
-                data,
-                &estimand,
-                query,
-                &indexer,
-                self.split.as_ref(),
-                &ctx.kernel_policy,
-            ) else {
-                fit_failed.insert(key);
-                continue;
-            };
-            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
             bayes.inner.prior.clone_from(&envelope_prior);
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
-                fit_failed.insert(key);
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
                 continue;
             };
             match envelope_draws_from_posterior(key, &posterior) {
                 Ok(draws) => per_graph.push(draws),
                 Err(_) => {
-                    fit_failed.insert(key);
+                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
                 }
             }
         }
-        let graphs = if fit_failed.is_empty() {
-            graphs
-        } else {
-            let flags: Vec<GraphIdentFlag> =
-                graphs
-                    .graph_keys
-                    .iter()
-                    .zip(graphs.identified.iter())
-                    .map(|(key, flag)| {
-                        if fit_failed.contains(key) { GraphIdentFlag::Unidentified } else { *flag }
-                    })
-                    .collect();
-            WeightedGraphSamples::new(graphs.weights.to_vec(), flags, graphs.graph_keys.to_vec())
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?
-        };
+
+        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+            self.latency_mode,
+            graphs,
+            per_graph,
+            ctx,
+            &mut subsample_notes,
+        )?;
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
