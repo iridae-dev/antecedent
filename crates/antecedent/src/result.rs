@@ -62,6 +62,12 @@ pub struct StudyResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Provenance.
     pub provenance: ProvenanceGraph,
+    /// Support-matrix evidence contract that produced this result.
+    ///
+    /// `licensed` and `allowed_unlicensed` both yield a successful study.
+    /// Downstream consumers must not treat a number as licensed unless this is
+    /// [`CellStatus::Licensed`]. `None` when the query is not on the public axis.
+    pub support_status: Option<crate::support::CellStatus>,
     /// Performance record.
     pub performance: ExecutionPerformanceRecord,
     /// Treatment variable.
@@ -118,6 +124,18 @@ impl StudyResult {
                 .collect(),
             method: self.estimand.method.to_string(),
             adjustment_set: self.estimand.adjustment_set.iter().map(|id| id.raw()).collect(),
+            support_status: self
+                .support_status
+                .map(crate::support::CellStatus::as_str)
+                .map(str::to_string),
+            allowlist_reason: self
+                .support_status
+                .and_then(crate::support::CellStatus::allowlist_reason)
+                .map(str::to_string),
+            allowlist_parent: self
+                .support_status
+                .and_then(crate::support::CellStatus::allowlist_parent)
+                .map(str::to_string),
         }
     }
 }

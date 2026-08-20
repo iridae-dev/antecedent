@@ -136,6 +136,9 @@ class AteAnalysisResult:
     posterior: PosteriorSection
     validation: ValidationSection
     performance: PerformanceSection
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 class ResponseAnalysisResult:
     treatments: list[str]
@@ -170,6 +173,9 @@ class ResponseAnalysisResult:
     truncated_completions: int | None
     enumeration_capped: bool | None
     mass_scope: str | None
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 class TransportIdentificationResult:
     transportable: bool
@@ -447,6 +453,9 @@ class AnalysisResult:
     posterior: PosteriorSection
     validation: ValidationSection
     performance: PerformanceSection
+    evidence_status: str | None
+    allowlist_reason: str | None
+    allowlist_parent: str | None
 
 TemporalAnalysisResult = AnalysisResult
 

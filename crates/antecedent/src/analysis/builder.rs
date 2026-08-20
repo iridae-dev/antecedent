@@ -644,21 +644,24 @@ impl StudyBuilder {
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
-        if let Some(cell) = crate::support::support_cell(
+        let support_status = if let Some(cell) = crate::support::support_cell(
             &query,
             crate::support::effective_graph_class(&graph, &query),
             structure,
             &inference,
             refute,
         ) {
-            crate::support::refuse_if_not_applicable(cell)?;
-        }
+            Some(crate::support::refuse_if_not_applicable(cell)?)
+        } else {
+            None
+        };
 
         Ok(Study {
             data,
             graph,
             graph_posterior,
             structure_source: structure,
+            support_status,
             query,
             refute,
             bootstrap_replicates,
@@ -685,6 +688,14 @@ impl Study {
     #[must_use]
     pub const fn structure_source(&self) -> crate::support::StructureSource {
         self.structure_source
+    }
+
+    /// Evidence contract recorded at [`StudyBuilder::build`]: licensed, or
+    /// allowlisted-and-unlicensed. `None` when the query is not on the public
+    /// matrix axis.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.support_status
     }
 
     /// Start a builder over tabular data.

@@ -126,8 +126,46 @@ pub enum CellStatus {
         /// Why the cell is typed-impossible.
         reason: &'static str,
     },
-    /// Default: in the product, not licensed, not n/a.
+    /// Named running allowlist: the cell executes, but it is not a licensed claim.
+    Allowlisted {
+        /// Why this cell runs without a license.
+        reason: &'static str,
+        /// Licensed or keep-running family this row rides.
+        parent: &'static str,
+    },
+    /// Default: in the product, not licensed, not n/a, not allowlisted.
     Refused,
+}
+
+impl CellStatus {
+    /// Wire / Python id (`licensed`, `allowed_unlicensed`, `not_applicable`, `refused`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Licensed => "licensed",
+            Self::Allowlisted { .. } => "allowed_unlicensed",
+            Self::NotApplicable { .. } => "not_applicable",
+            Self::Refused => "refused",
+        }
+    }
+
+    /// Allowlist `reason`, when this status is [`Self::Allowlisted`].
+    #[must_use]
+    pub const fn allowlist_reason(self) -> Option<&'static str> {
+        match self {
+            Self::Allowlisted { reason, .. } => Some(reason),
+            _ => None,
+        }
+    }
+
+    /// Allowlist `parent`, when this status is [`Self::Allowlisted`].
+    #[must_use]
+    pub const fn allowlist_parent(self) -> Option<&'static str> {
+        match self {
+            Self::Allowlisted { parent, .. } => Some(parent),
+            _ => None,
+        }
+    }
 }
 
 fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
@@ -403,8 +441,8 @@ pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalE
             if let Some(reason) = closed_reason(cell) {
                 return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
             }
-            if allowed_reason(cell).is_some() {
-                return Ok(CellStatus::Refused);
+            if let Some(rule) = allowed_rule(cell) {
+                return Ok(CellStatus::Allowlisted { reason: rule.reason, parent: rule.parent });
             }
             Err(CausalError::Support {
                 id: SupportRefusal::Refused,
@@ -412,6 +450,11 @@ pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalE
             })
         }
         CellStatus::Licensed => Ok(CellStatus::Licensed),
+        CellStatus::Allowlisted { .. } => {
+            unreachable!(
+                "classify never returns Allowlisted; refuse_if_not_applicable constructs it"
+            )
+        }
     }
 }
 
@@ -590,11 +633,16 @@ mod tests {
     fn licensed_pulse_and_sustained_temporal_dag_are_open() {
         for query in ["PulseEffect", "SustainedEffect"] {
             for structure in ["explicit", "accepted"] {
-                let status =
-                    classify(cell(query, "TemporalDag", structure, "Frequentist", "none"));
+                let status = classify(cell(query, "TemporalDag", structure, "Frequentist", "none"));
                 assert_eq!(status, CellStatus::Licensed, "{query}/{structure}");
-                refuse_if_not_applicable(cell(query, "TemporalDag", structure, "Frequentist", "none"))
-                    .unwrap();
+                refuse_if_not_applicable(cell(
+                    query,
+                    "TemporalDag",
+                    structure,
+                    "Frequentist",
+                    "none",
+                ))
+                .unwrap();
             }
         }
     }
@@ -1109,8 +1157,11 @@ mod tests {
             assert_eq!(allowed_reason(cell), Some(rule.reason), "{cell:?}");
             assert_eq!(allowed_parent(cell), Some(rule.parent), "{cell:?}");
             assert!(!rule.parent.is_empty(), "rule parent must be non-empty: {}", rule.reason);
-            // Allowlisted cells still run: refuse_if_not_applicable passes them through.
-            assert_eq!(refuse_if_not_applicable(cell).unwrap(), CellStatus::Refused, "{cell:?}");
+            // Allowlisted cells still run, and the pass-through is not `Refused`.
+            let passed = refuse_if_not_applicable(cell).unwrap();
+            assert_eq!(passed.as_str(), "allowed_unlicensed", "{cell:?}");
+            assert_eq!(passed.allowlist_reason(), Some(rule.reason), "{cell:?}");
+            assert_eq!(passed.allowlist_parent(), Some(rule.parent), "{cell:?}");
         }
     }
 
@@ -1134,6 +1185,12 @@ mod tests {
             .run(&antecedent_core::ExecutionContext::for_tests(1))
             .unwrap();
         assert!(result.estimate.ate.is_finite());
+        assert_eq!(result.support_status.unwrap().as_str(), "allowed_unlicensed");
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "support.allowed_unlicensed"));
+        let trace = result.analysis_trace_wire();
+        assert_eq!(trace.support_status.as_deref(), Some("allowed_unlicensed"));
+        assert!(trace.allowlist_parent.is_some());
+        assert!(trace.allowlist_reason.is_some());
     }
 
     /// End-to-end: a now-enforced refused cell (`AverageEffect` on a bidirected

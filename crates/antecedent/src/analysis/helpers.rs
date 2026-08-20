@@ -93,6 +93,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         predictive_checks: Vec::new(),
         diagnostics: args.diagnostics,
         provenance: args.provenance,
+        support_status: None,
         performance: ExecutionPerformanceRecord {
             wall_time_ns: Some(args.wall_time_ns),
             peak_rss_bytes: None,

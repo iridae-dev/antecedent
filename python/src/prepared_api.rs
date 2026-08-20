@@ -804,7 +804,8 @@ impl PyPreparedAnalysis {
             }
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
-            .estimator(EstimatorId::FunctionalDistribution);
+            .estimator(EstimatorId::FunctionalDistribution)
+            .refute(antecedent::RefuteSuite::None);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -986,6 +987,15 @@ impl PyPreparedAnalysis {
         let mut out = std::collections::HashMap::new();
         out.insert("plan_id".into(), rec.plan_id.to_string());
         out.insert("structure_source".into(), self.inner.structure_source().as_str().to_string());
+        if let Some(status) = self.inner.support_status() {
+            out.insert("evidence_status".into(), status.as_str().to_string());
+            if let Some(reason) = status.allowlist_reason() {
+                out.insert("allowlist_reason".into(), reason.to_string());
+            }
+            if let Some(parent) = status.allowlist_parent() {
+                out.insert("allowlist_parent".into(), parent.to_string());
+            }
+        }
         if let Some(b) = rec.estimated_peak_memory_bytes {
             out.insert("estimated_peak_memory_bytes".into(), b.to_string());
         }
@@ -1018,7 +1028,7 @@ fn response_from_study(
     let treatments = vec![name_of(result.treatment)];
     let outcomes = vec![name_of(result.outcome)];
     let adjustment_set = result.estimand.adjustment_set.iter().copied().map(name_of).collect();
-    response_result(response, treatments, outcomes, adjustment_set, names)
+    response_result(response, treatments, outcomes, adjustment_set, names, result.support_status)
 }
 
 fn apply_inference(

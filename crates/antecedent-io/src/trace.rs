@@ -87,6 +87,15 @@ pub struct AnalysisTraceWire {
     pub method: String,
     /// Adjustment set as dense variable indices.
     pub adjustment_set: Vec<u32>,
+    /// `licensed` or `allowed_unlicensed` when the producing study was classified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_status: Option<String>,
+    /// Allowlist reason when `support_status` is `allowed_unlicensed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowlist_reason: Option<String>,
+    /// Allowlist parent family when `support_status` is `allowed_unlicensed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowlist_parent: Option<String>,
 }
 
 /// Convert an [`AssumptionSet`] to wire records.

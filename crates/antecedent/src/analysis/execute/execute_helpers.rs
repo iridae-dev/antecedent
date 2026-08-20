@@ -63,7 +63,10 @@ pub(super) fn data_modality(data: &DataInput) -> DataModality {
     }
 }
 
-pub(super) fn classify_analysis_route(data: &DataInput, query: &CausalQuery) -> Option<AnalysisRoute> {
+pub(super) fn classify_analysis_route(
+    data: &DataInput,
+    query: &CausalQuery,
+) -> Option<AnalysisRoute> {
     classify_route(data_modality(data), query)
 }
 
@@ -108,7 +111,10 @@ pub(super) enum GcmSlot {
     Unit(antecedent_attribution::UnitChangeResult),
 }
 
-pub(super) fn provenance_ids(artifact: impl Into<Arc<str>>, op: impl Into<Arc<str>>) -> (Arc<str>, Arc<str>) {
+pub(super) fn provenance_ids(
+    artifact: impl Into<Arc<str>>,
+    op: impl Into<Arc<str>>,
+) -> (Arc<str>, Arc<str>) {
     (artifact.into(), op.into())
 }
 
@@ -422,7 +428,10 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
     Ok(dag)
 }
 
-pub(super) fn bayesian_gcomp(cfg: &BayesianConfig, ctx: &ExecutionContext) -> BayesianGComputationAte {
+pub(super) fn bayesian_gcomp(
+    cfg: &BayesianConfig,
+    ctx: &ExecutionContext,
+) -> BayesianGComputationAte {
     BayesianGComputationAte {
         backend: cfg.backend,
         likelihood: cfg.likelihood,
@@ -450,8 +459,9 @@ pub(super) fn apply_temporal_prior_sensitivity(
     } else {
         est.inner.prior = resolve_bayesian_prior(cfg, bprep)?;
     }
-    let (summary, sens) =
-        evaluate_bayesian_prior_sensitivity(cfg, &est.inner, bprep, status, posterior, &mut ws, ctx)?;
+    let (summary, sens) = evaluate_bayesian_prior_sensitivity(
+        cfg, &est.inner, bprep, status, posterior, &mut ws, ctx,
+    )?;
     refutations.push(sens.to_report(&summary, ate));
     Ok(with_prior_sensitivity(posterior.clone(), summary))
 }
@@ -506,7 +516,12 @@ impl super::Study {
             ProvenanceGraph::new()
         } else {
             provenance_pair(
-                (id_artifact.as_ref(), id_op.as_ref(), &[], &args.identification.required_assumptions),
+                (
+                    id_artifact.as_ref(),
+                    id_op.as_ref(),
+                    &[],
+                    &args.identification.required_assumptions,
+                ),
                 (
                     est_artifact.as_ref(),
                     est_op.as_ref(),
@@ -558,6 +573,24 @@ impl super::Study {
         });
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
+        result.support_status = self.support_status;
+        if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) =
+            self.support_status
+        {
+            result.diagnostics.push(Diagnostic {
+                code: Arc::from("support.allowed_unlicensed"),
+                kind: DiagnosticKind::Scientific,
+                severity: DiagnosticSeverity::Warning,
+                message: Arc::from(
+                    "this estimate executed an allowlisted cell; it is not a licensed claim",
+                ),
+                artifact_id: None,
+                fields: Arc::from([
+                    (Arc::from("reason"), Arc::from(reason)),
+                    (Arc::from("parent"), Arc::from(parent)),
+                ]),
+            });
+        }
         result
     }
 }

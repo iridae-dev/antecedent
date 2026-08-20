@@ -817,6 +817,9 @@ def handle_response(
         provenance=provenance,
         envelope=envelope,
         validation=validation,
+        evidence_status=getattr(raw, "evidence_status", None),
+        allowlist_reason=getattr(raw, "allowlist_reason", None),
+        allowlist_parent=getattr(raw, "allowlist_parent", None),
     )
 
 

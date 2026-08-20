@@ -382,6 +382,9 @@ def _wrap_ate(
             "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
         },
         plan=_plan_from_raw(raw),
+        evidence_status=getattr(raw, "evidence_status", None),
+        allowlist_reason=getattr(raw, "allowlist_reason", None),
+        allowlist_parent=getattr(raw, "allowlist_parent", None),
         _raw=raw,
         _prepared=prepared,
     )
@@ -838,6 +841,9 @@ def _wrap_prepared_response(
         },
         envelope=None,
         validation=validation,
+        evidence_status=getattr(raw, "evidence_status", None),
+        allowlist_reason=getattr(raw, "allowlist_reason", None),
+        allowlist_parent=getattr(raw, "allowlist_parent", None),
     )
 
 
@@ -1236,6 +1242,22 @@ class PreparedAnalysis:
     def structure_source(self) -> str:
         """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
         return str(self._native.plan_summary().get("structure_source", "explicit"))
+
+    @property
+    def evidence_status(self) -> str | None:
+        """`licensed` or `allowed_unlicensed`, or ``None`` if the query is off-axis."""
+        raw = self._native.plan_summary().get("evidence_status")
+        return str(raw) if raw is not None else None
+
+    @property
+    def allowlist_reason(self) -> str | None:
+        raw = self._native.plan_summary().get("allowlist_reason")
+        return str(raw) if raw is not None else None
+
+    @property
+    def allowlist_parent(self) -> str | None:
+        raw = self._native.plan_summary().get("allowlist_parent")
+        return str(raw) if raw is not None else None
 
     @property
     def plan(self) -> PhysicalPlanView:

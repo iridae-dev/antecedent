@@ -251,6 +251,9 @@ mod tests {
             }],
             method: "backdoor.adjustment".into(),
             adjustment_set: vec![2],
+            support_status: None,
+            allowlist_reason: None,
+            allowlist_parent: None,
         };
         let bytes = to_cbor(&trace).unwrap();
         let desc = section_descriptor("analysis.trace", "application/cbor", &bytes);

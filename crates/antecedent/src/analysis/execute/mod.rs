@@ -105,6 +105,9 @@ pub struct Study {
     pub(crate) graph_posterior: Option<GraphPosterior>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
+    /// Licensed vs allowlisted evidence status recorded at build. `None` when
+    /// the query is not on the public matrix axis.
+    pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
     pub(crate) bootstrap_replicates: u32,
@@ -138,6 +141,7 @@ impl std::fmt::Debug for Study {
             .field("graph", &self.graph)
             .field("graph_posterior", &self.graph_posterior)
             .field("structure_source", &self.structure_source)
+            .field("support_status", &self.support_status)
             .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
