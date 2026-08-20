@@ -47,6 +47,7 @@ cargo run -p antecedent --example <name>
 | ------- | ----------- | ------ | ---- |
 | Propensity weighting | IPW ATE on confounded data with overlap diagnostics | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
 | Manufacturing temporal | Pulse effect of pressure → defect on a temporal DAG | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
+| Temporal response curve | Dose × horizon ``ResponseCurve`` and intervention path on a temporal DAG | [python](python/temporal_response_curve.py) | [rust](rust/temporal_response_curve.rs) |
 | Discover then estimate | Discover once, accept a DAG, re-estimate many times | [python](python/discover_then_estimate.py) | [rust](rust/discover_then_estimate.rs) |
 | Sequential Bayes | Transfer a posterior artifact from batch A as batch B’s prior | [python](python/sequential_bayes.py) | [rust](rust/sequential_bayes.rs) |
 | Prior bank surveys | Catalog → rank → compose external priors → target analysis | [python](python/prior_bank_surveys.py) | [rust](rust/prior_bank_surveys.rs) |

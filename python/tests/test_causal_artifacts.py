@@ -1,4 +1,4 @@
-"""Cross-language conformance for format-0.3 causal payload artifacts."""
+"""Cross-language conformance for format-0.4 causal payload artifacts."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def test_every_response_functional_crosses_rust_and_python(functional: object) -
         "query", payload, variable_names=["a", "b", "y"], artifact_id="response-query"
     )
     decoded = artifacts.loads(encoded)
-    assert decoded.format_version == (0, 3)
+    assert decoded.format_version == (0, 4)
     assert decoded.payload == payload
     assert (
         artifacts.loads(

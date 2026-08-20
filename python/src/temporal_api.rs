@@ -213,6 +213,13 @@ pub(crate) struct AnalysisResult {
     /// read from the same `StudyResult.performance` record the static DTO uses.
     #[pyo3(get)]
     pub(crate) performance: PerformanceSection,
+    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    #[pyo3(get)]
+    pub(crate) evidence_status: Option<String>,
+    #[pyo3(get)]
+    pub(crate) allowlist_reason: Option<String>,
+    #[pyo3(get)]
+    pub(crate) allowlist_parent: Option<String>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -229,10 +236,10 @@ pub(crate) struct AnalysisResult {
     treatment,
     outcome,
     *,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -317,10 +324,10 @@ fn analyze(
     treatment,
     outcome,
     *,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -404,10 +411,10 @@ fn analyze_temporal_pag(
     treatment,
     outcome,
     *,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -624,10 +631,10 @@ fn analyze_events(
     treatment,
     outcome,
     *,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -728,10 +735,10 @@ fn analyze_panel(
     max_cond_size=2,
     fdr=true,
     accept_discovered=true,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -868,22 +875,19 @@ fn temporal_query_from_policy(
     horizon_steps: u32,
     active_level: f64,
 ) -> PyResult<TemporalEffectQuery> {
-    let at = -i32::try_from(treatment_lag)
-        .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-    match policy {
-        "pulse" => Ok(TemporalEffectQuery::pulse(t_id, y_id, active_level)
-            .with_policy(TemporalPolicy::pulse(at))
-            .with_horizon_steps(horizon_steps)),
-        "sustained" => {
-            // Sustained from `-treatment_lag` through step 0; evaluate at `horizon_steps`.
-            Ok(TemporalEffectQuery::sustained(t_id, y_id, 0, active_level)
-                .with_policy(TemporalPolicy::sustained(at, 0))
-                .with_horizon_steps(horizon_steps))
+    let parsed = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+    let query = match &parsed {
+        TemporalPolicy::Pulse { .. } => TemporalEffectQuery::pulse(t_id, y_id, active_level),
+        TemporalPolicy::Sustained { .. } => {
+            TemporalEffectQuery::sustained(t_id, y_id, 0, active_level)
         }
-        other => Err(PyValueError::new_err(format!(
-            "unknown temporal policy {other:?}; use pulse|sustained"
-        ))),
-    }
+        _ => {
+            return Err(PyValueError::new_err(format!(
+                "unknown temporal policy {policy:?}; use pulse|sustained"
+            )));
+        }
+    };
+    Ok(query.with_policy(parsed).with_horizon_steps(horizon_steps))
 }
 
 /// Result of a GCM counterfactual ITE (single boundary crossing).
@@ -1441,10 +1445,10 @@ fn dispatch_temporal_dbn_posterior(
     max_cond_size=2,
     fdr=true,
     accept_discovered=true,
-    treatment_lag=1,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
     horizon_steps=1,
     active_level=1.0,
-    policy="pulse",
+    policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
@@ -1684,6 +1688,8 @@ fn analysis_result_from_run(
             .collect(),
         bytes_borrowed: result.performance.bytes_borrowed,
     };
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        evidence_status_parts(result.support_status);
 
     Ok(AnalysisResult {
         ate: result.estimate.ate,
@@ -1746,6 +1752,9 @@ fn analysis_result_from_run(
         posterior: posterior_section,
         validation,
         performance,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
     })
 }
 

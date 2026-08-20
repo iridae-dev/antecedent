@@ -73,7 +73,7 @@ Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
   analysis.
 * **Data and artifacts.** NumPy, pandas and Arrow; tabular, time-series, panel and
   multi-environment data; schema-versioned CBOR with memory-mapped access, including
-  response artifact format 0.3 with migrations from 0.1 and 0.2.
+  response artifact format 0.4 with migrations from 0.1, 0.2, and 0.3.
 
 ## Scientific scope
 
@@ -109,12 +109,12 @@ aspirations.
 * **Parity.** Applicable public behaviour stays in parity across the Rust and Python APIs.
   [`parity/`](parity/)
 
-As of 0.6.1:
+As of 0.7.0:
 
 | | |
 |---|---|
 | Rust tests | 1562 |
-| Python tests | 752 |
+| Python tests | 783 |
 | Coverage floor | 85%, enforced in CI |
 | Conformance fixtures | 137 documented cases |
 | Platforms | CPython 3.11–3.14 on Linux, macOS, Windows; Rust 1.85+ |
@@ -131,8 +131,8 @@ endorsement by the referenced projects.
 
 The 0.4.0 correctness audit found and fixed twenty-five defects — see
 [the release notes](docs/release-notes/v0.4.0.md) for what they were and why they mattered.
-The 0.6.1 patch is described in
-[docs/release-notes/v0.6.1.md](docs/release-notes/v0.6.1.md); the 0.6.0
+The 0.7.0 temporal-response cut is described in
+[docs/release-notes/v0.7.0.md](docs/release-notes/v0.7.0.md); the 0.6.0
 contract cut in
 [docs/release-notes/v0.6.0.md](docs/release-notes/v0.6.0.md).
 
@@ -144,7 +144,7 @@ cargo add antecedent          # Rust 1.85+
 ```
 
 Wheels are on PyPI and attached to each GitHub Release. No other language bindings are
-provided. This branch is package version **0.6.1** (crates.io / PyPI publish on tag).
+provided. This branch is package version **0.7.0** (crates.io / PyPI publish on tag).
 
 ## Documentation
 

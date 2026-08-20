@@ -137,7 +137,7 @@ impl super::Study {
     }
 }
 
-fn response_scalar_summary(response: &antecedent_core::CausalResponse) -> (f64, f64) {
+pub(super) fn response_scalar_summary(response: &antecedent_core::CausalResponse) -> (f64, f64) {
     let value = match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => value,
@@ -159,7 +159,7 @@ fn response_scalar_summary(response: &antecedent_core::CausalResponse) -> (f64, 
     (scalar, se)
 }
 
-fn response_primary_pair(
+pub(super) fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
     functional.primary_pair().ok_or_else(|| CausalError::Compile {

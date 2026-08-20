@@ -67,7 +67,9 @@ def test_response_curve_pag_literal_matches_support_closed_toml():
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
-    assert reason == "ResponseCurve is licensed only on a Dag."
+    assert reason == (
+        "ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
+    )
 
     from antecedent._analyze import handle_response
     from antecedent.errors import CausalUnsupportedError

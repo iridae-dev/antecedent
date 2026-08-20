@@ -1,0 +1,70 @@
+{
+  "fixture_id": "antecedent.temporal_response.horizon_support",
+  "claim": "empirical support on a dose × horizon surface is classified per cell against that horizon's lag-aligned treatment range, not the union of ranges",
+  "contract": {
+    "variables": [
+      "t",
+      "y"
+    ],
+    "temporal_graph": [
+      {
+        "from": "t",
+        "lag": 1,
+        "to": "y",
+        "to_lag": 0
+      },
+      {
+        "from": "t",
+        "lag": 2,
+        "to": "y",
+        "to_lag": 0
+      }
+    ],
+    "policy": {
+      "kind": "pulse",
+      "at": -1
+    },
+    "dose_grid": [
+      0.0,
+      5.0
+    ],
+    "horizons": [
+      1,
+      8
+    ],
+    "support": {
+      "status": "extrapolative",
+      "point_status": [
+        "supported",
+        "supported",
+        "supported",
+        "outside_empirical_support"
+      ],
+      "index_formula": "dose_index * n_horizons + horizon_index",
+      "warning_code": "response.temporal.partial_horizon_support",
+      "horizon_treatment_range": [
+        -0.04999951032753518,
+        10.0,
+        -0.04999951032753518,
+        0.04999559300536336
+      ],
+      "note": "Dose 0 sits inside both lag-aligned windows. Dose 5 sits inside horizon 1 (late-series spike of 10) and outside horizon 8. The union of ranges is [-0.05, 10] and would have labelled the whole surface supported."
+    }
+  },
+  "estimator_contract": {
+    "estimator": "temporal response linear g-computation; support classified per (dose, horizon) cell",
+    "claim": "SupportReport.status is the three-way cell-grid summary (here partially extrapolative) and point_status matches the mean-surface layout",
+    "not_claimed": "no structural known-truth for the extrapolated cell's numerical value; no claim about union-of-ranges support"
+  },
+  "tolerance": {
+    "class": "absolute",
+    "atol": 1e-12
+  },
+  "generation": {
+    "n": 80,
+    "deterministic": true,
+    "treatment_sequence": "t_i = 10 if i >= n-7 else 0.05*sin(i)",
+    "outcome_sequence": "y_i = 1 + 2*t_(i-1) + 3*t_(i-2), with pre-sample treatment values equal to 0",
+    "note": "A longer-horizon pulse looks further back, so the late-series spike is inside the h=1 treatment column and absent from h=8."
+  }
+}

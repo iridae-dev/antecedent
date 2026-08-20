@@ -33,6 +33,7 @@ use antecedent_stats::{
 };
 
 use crate::EstimationError;
+use crate::util::range;
 
 /// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
 ///
@@ -206,6 +207,7 @@ impl ContinuousResponseEstimator {
             support,
             assumptions,
             provenance_id: Arc::from(provenance_id),
+            horizon_identification: None,
         })
     }
 
@@ -457,6 +459,7 @@ impl ContinuousResponseEstimator {
                     DiagnosticSeverity::Warning,
                     "intervention response uses additive-GAM g-computation; joint policy support and statistical uncertainty are not certified",
                 )],
+                point_status: None,
             },
         ))
     }
@@ -582,6 +585,7 @@ impl ContinuousResponseEstimator {
             } else {
                 Vec::new()
             },
+            point_status: None,
         };
         Ok((
             ResponseValue::Scalar(estimate),
@@ -1509,6 +1513,7 @@ fn support_report(
             },
         ],
         warnings,
+        point_status: None,
     }
 }
 
@@ -1540,6 +1545,7 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
                 "per-treatment minima followed by maxima; joint support is not established",
             ),
         }],
+        point_status: None,
         warnings: {
             let mut warnings = vec![Diagnostic::new(
                 "response.plugin_jacobian_model_dependent",
@@ -1562,10 +1568,6 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
             warnings
         },
     }
-}
-
-fn range(values: &[f64]) -> (f64, f64) {
-    values.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)))
 }
 
 /// Finite-difference step that stays above floating-point ulp at `|at|`.

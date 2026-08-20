@@ -44,6 +44,7 @@ class IdentificationView:
     adjustment_set: list[str]
     assumption_count: int
     derivation_step_count: int
+    horizon_adjustment_sets: tuple[tuple[str, ...], ...] | None = None
 
     def __bool__(self) -> bool:
         """``True`` when the estimand is identified.
@@ -409,6 +410,9 @@ class AnalysisResult:
     provenance: dict[str, Any]
     mediation: MediationView | None = None
     plan: PlanView | None = None
+    evidence_status: str | None = None
+    allowlist_reason: str | None = None
+    allowlist_parent: str | None = None
     _raw: Any = None
     _prepared: Any = None
 
@@ -441,6 +445,8 @@ class AnalysisResult:
         mass = self.posterior.unidentified_mass if self.posterior is not None else None
         if mass is not None and mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(mass)}")
+        if self.evidence_status == "allowed_unlicensed":
+            parts.append("unlicensed")
         return f"<AnalysisResult {' '.join(parts)}>"
 
     def refresh(

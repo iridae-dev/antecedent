@@ -5,6 +5,75 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.0] — 2026-08-20
+
+Time as a response, not a contrast: dose × horizon surfaces and temporal
+intervention paths on `TemporalDag`. Artifact format **0.4**. Workspace and
+Python package versions are **0.7.0**.
+
+### Temporal Response
+
+- Added temporal dose × horizon and intervention-response g-computation on
+  `TemporalDag`, including prepared identification reuse and format 0.4
+  artifact fields. Licensed `PulseEffect` / single-step `SustainedEffect`,
+  which dispatch through the same `TemporalLinearAdjustment` machinery and
+  agree numerically with that spine on the shared known-truth fixture.
+  `InterventionResponse` licenses Soft(`constant`/`additive_shift`) and a
+  single-step `Sequence`; multi-step and nested `Sequence` policies fail
+  closed with a stable error. Temporal response pointwise bands now use the
+  full homoskedastic OLS coefficient covariance (delta-method SE of the
+  g-computed level), propagating intercept and adjustment-covariate
+  uncertainty instead of scaling the treatment-coefficient SE alone; bands
+  are pinned on `conformance/response/temporal_dose_horizon`. Empirical
+  support is per `(dose, horizon)` cell against that horizon's lag-aligned
+  treatment range; `SupportReport.status` summarizes the cell grid (fully
+  supported / partially extrapolative / outside) instead of the union of
+  horizon ranges. Two supporting fixtures add redundancy:
+  `conformance/response/temporal_confounded_pulse` (adjustment set
+  `Z@-1` at horizon 1, identified estimand `temporal.backdoor.unfolded`,
+  the structural estimate under confounding, and horizon-dependent
+  `I(h)` on `horizons=[1,2]`) and
+  `conformance/response/temporal_horizon_support` (horizon-varying treatment
+  support). Scalar ATE refuters skip on function-valued surfaces:
+  Python exposes
+  `refute.temporal_response.skipped` on `CausalResponseView.validation`, and
+  Rust `Study` diagnostics carry the same code. Examples:
+  `examples/python/temporal_response_curve.py`. Python query construction
+  reads `TemporalResponseSpec::license()` (horizon cap, allowed policies,
+  default treatment lag) instead of mirroring those values.
+
+### Fixed
+
+- **Single-step Sustained / Dynamic temporal identification uses the pulse
+  backdoor set.** Licensed one-offset schedules previously went through
+  general ID, which emits an empty adjustment set relabeled as
+  `temporal.backdoor.unfolded`. Under confounding that was unadjusted OLS.
+  Multi-step schedules still use sequential ID and remain estimator-refused.
+- **Temporal response identifies once per requested horizon.** Identifying
+  only at `max(horizons)` can drop a short-horizon confounder when it does
+  not reach the longer outcome. Prepare caches `I(h)` for every requested
+  horizon; estimate clicks still do not re-identify. A union of those sets
+  is not used as one shared `Z`.
+- **Conjugate Gram cache no longer restores stale `Xᵀy`.** The cache keyed on
+  outcome pointer identity; SBC (and other shared-workspace refits) often
+  recycle equal-length `y` allocations to the same address, so later
+  replicates could rank against another replicate's likelihood. Cache only
+  `XᵀX` and always recompute `Xᵀy` / `yᵀy`.
+
+### Evidence status
+
+- Successful studies now carry the matrix contract that produced them.
+  Rust `Study` / `StudyResult` / analysis-trace record `licensed` vs
+  `allowed_unlicensed` (with allowlist `reason`/`parent`). Python uses
+  `evidence_status` on `AnalysisResult` and `CausalResponseView` so it
+  does not collide with empirical curve `support_status`. Allowlisted
+  runs also emit diagnostic `support.allowed_unlicensed`. A successful
+  number is not a licensed claim unless the status says so. Prepared
+  `InterventionalDistribution` pins validation `none` so a latency tier
+  cannot reclassify the licensed cell as allowlisted cheap/full.
+
 ## [0.6.1] — 2026-08-20
 
 Patch on the 0.6.0 contract cut. No public API rename. Licensed cells are

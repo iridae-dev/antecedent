@@ -136,8 +136,8 @@ pub use response_wire::{
     GridSpecWire, IdentificationStatusWire, ObservationAssumptionWire, ObservationSpecWire,
     ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseQueryWire,
     ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire, SupportRegionWire,
-    SupportReportWire, SupportStatusWire, causal_response_from_wire, causal_response_to_wire,
-    response_query_from_wire, response_query_to_wire,
+    SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
+    causal_response_to_wire, response_query_from_wire, response_query_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
@@ -251,6 +251,9 @@ mod tests {
             }],
             method: "backdoor.adjustment".into(),
             adjustment_set: vec![2],
+            support_status: None,
+            allowlist_reason: None,
+            allowlist_parent: None,
         };
         let bytes = to_cbor(&trace).unwrap();
         let desc = section_descriptor("analysis.trace", "application/cbor", &bytes);

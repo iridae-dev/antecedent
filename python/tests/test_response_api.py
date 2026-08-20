@@ -105,6 +105,15 @@ def test_response_result_views_validate_shape_and_report_orthogonal_axes():
     )
     assert len(response) == 2
     assert not support
+    mixed = SupportReport(
+        "extrapolative",
+        {"a": (0.0, 1.0)},
+        point_status=("supported", "outside_empirical_support"),
+    )
+    assert mixed.point_status == ("supported", "outside_empirical_support")
+    assert "cells=2" in repr(mixed)
+    with pytest.raises(CausalValueError, match="unknown support status"):
+        SupportReport("supported", {"a": (0.0, 1.0)}, point_status=("nope",))
     assert "extrapolative" in repr(result)
     assert "95.0%" in repr(uncertainty)
 
@@ -186,7 +195,7 @@ def test_intervention_response_checks_strategy_and_fails_closed():
             graph=[("a", "y")],
             estimator="response.kennedy_dr",
         )
-    with pytest.raises(CausalUnsupportedError, match="structural/temporal"):
+    with pytest.raises(CausalUnsupportedError, match="temporal response cell"):
         antecedent.analyze(
             data,
             query=antecedent.InterventionResponse(
@@ -259,7 +268,7 @@ def test_pag_mean_curve_preserves_unidentified_completion_mass():
 
     with pytest.raises(
         CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a Dag.",
+        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
     ):
         antecedent.analyze(
             {"a": a, "y": y},
@@ -317,7 +326,10 @@ def test_response_analyze_derivative_and_jacobian_shapes():
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
     data = {"x": x, "a": a, "b": b, "y": y}
     graph = [("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")]
-    match = "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+    match = (
+        r"refused: Derivative cells are not licensed; only ResponseCurve "
+        r"\(static Dag or temporal TemporalDag\) is staged\."
+    )
 
     with pytest.raises(CausalUnsupportedError, match=match):
         antecedent.analyze(
@@ -439,7 +451,7 @@ def test_response_refuses_admg_with_explicit_error():
     admg = antecedent.Admg.from_edges(["a", "y"], directed=[("a", "y")], bidirected=[])
     with pytest.raises(
         CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a Dag.",
+        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
     ):
         antecedent.analyze(
             {"a": np.arange(30.0), "y": np.arange(30.0)},
@@ -454,7 +466,7 @@ def test_response_refuses_cpdag_with_explicit_error():
     )
     with pytest.raises(
         CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a Dag.",
+        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
     ):
         antecedent.analyze(
             {"a": np.arange(30.0), "y": np.arange(30.0)},
@@ -469,7 +481,10 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     y = np.exp(0.5 * np.log(a) + rng.normal(scale=0.15, size=400))
     data = {"a": a, "y": y}
     graph = [("a", "y")]
-    match = "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+    match = (
+        r"refused: Derivative cells are not licensed; only ResponseCurve "
+        r"\(static Dag or temporal TemporalDag\) is staged\."
+    )
     with pytest.raises(CausalUnsupportedError, match=match):
         antecedent.analyze(
             data,

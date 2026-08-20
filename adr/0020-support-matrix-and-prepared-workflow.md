@@ -129,3 +129,19 @@ amendment stopped running: every cell a caller could actually reach and
 that returned an honest number is on the allowlist; the closed additions
 target cells that either never returned a number or returned a
 mislabeled one.
+
+## Amendment (2026-08-20): evidence status survives dispatch
+
+`StudyBuilder::build` used to call `refuse_if_not_applicable` as a guard
+and discard the returned `CellStatus`. Licensed and allowlisted cells
+both produced a successful `Study`, so a downstream caller seeing a
+number could not tell which contract produced it.
+
+Build now records `Study.support_status`. Execute copies it onto
+`StudyResult` and the analysis-trace wire (`licensed` vs
+`allowed_unlicensed`, plus allowlist `reason`/`parent`). Python surfaces
+the same facts as `evidence_status` (the name `support_status` already
+means empirical dose-range support on response views). Allowlisted
+executions also emit diagnostic `support.allowed_unlicensed`.
+
+The distinction is part of the result, not only of dispatch.

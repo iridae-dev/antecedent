@@ -193,7 +193,10 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
     )
     if isinstance(graph, antecedent.AcceptedGraph) and hasattr(prepared, "structure_source"):
         assert prepared.structure_source == "accepted"
+    if hasattr(prepared, "evidence_status"):
+        assert prepared.evidence_status == "licensed"
     click = prepared.estimate(data, seed=1)
+    assert getattr(click, "evidence_status", None) == "licensed"
     if isinstance(query, antecedent.ResponseCurve):
         assert click.response is not None and fresh.response is not None
         assert click.response.values == fresh.response.values

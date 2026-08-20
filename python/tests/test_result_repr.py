@@ -388,6 +388,21 @@ def test_analysis_result_repr_hides_unidentified_mass_when_absent_or_zero():
     assert "unidentified_mass" not in repr(result_zero)
 
 
+def test_analysis_result_repr_marks_allowed_unlicensed():
+    result_unlicensed = AnalysisResult(
+        identification=_identification(),
+        estimate=_estimate(),
+        posterior=None,
+        validation=_validation(),
+        performance=_performance(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+        evidence_status="allowed_unlicensed",
+    )
+    assert "unlicensed" in repr(result_unlicensed)
+    assert "unlicensed" not in repr(_result())
+
+
 def test_analysis_result_repr_no_refutations_ran():
     result = _result(validation=ValidationView(passed=False, ran=False, count=0))
     assert "refute=" not in repr(result)

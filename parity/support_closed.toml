@@ -15,12 +15,12 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
 ]
-reason = "Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+reason = "Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged."
 
 [[closed]]
 queries = ["ResponseCurve"]
 graph_classes = ["Pag", "Cpdag", "Admg"]
-reason = "ResponseCurve is licensed only on a Dag."
+reason = "ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
@@ -30,10 +30,6 @@ reason = "Path and distribution queries are licensed only as explicit Dag cells;
 [[closed]]
 queries = ["MediationEffect"]
 reason = "MediationEffect is not on the staged handle."
-
-[[closed]]
-queries = ["SustainedEffect"]
-reason = "SustainedEffect is not on the staged handle."
 
 [[closed]]
 queries = ["TransportQuery", "InterferenceQuery"]
@@ -125,6 +121,13 @@ graph_classes = ["Dag"]
 structures = ["explicit", "accepted"]
 inferences = ["Bayesian"]
 reason = "Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+
+[[closed]]
+queries = ["ResponseCurve", "InterventionResponse"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "Bayesian temporal response is not licensed in 0.7.0; execute_temporal_response refuses Bayesian inference before estimation."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]

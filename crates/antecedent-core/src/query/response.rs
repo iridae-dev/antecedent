@@ -4,9 +4,173 @@
 
 use std::sync::Arc;
 
+use crate::intervention::TemporalPolicy;
 use crate::{Intervention, TargetPopulation, VariableId};
 
 use super::QueryError;
+
+/// Maximum number of discrete horizons a temporal response may request.
+pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
+
+/// Licensed temporal-response query policy, for language facades.
+///
+/// [`TemporalResponseSpec::validate`] is the semantic authority. Bindings may
+/// duplicate checks for early errors but must read these values rather than
+/// defining them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TemporalResponseLicense {
+    /// Maximum number of discrete horizons a query may request.
+    pub max_horizons: usize,
+    /// Wire tags this spec accepts (`pulse`, `sustained`).
+    pub allowed_policies: &'static [&'static str],
+    /// Default wire tag when the caller omits `policy`.
+    pub default_policy: &'static str,
+    /// Default `treatment_lag` (policy origin `-lag`) for Pulse / `ResponseCurve`.
+    pub default_treatment_lag: u32,
+}
+
+/// Temporal attachment for a continuous-response query (ADR 0021).
+///
+/// When present, the query is a temporal cell: dose × horizon surfaces for
+/// [`ResponseFunctional::MeanCurve`], or horizon-indexed intervention responses.
+/// Absence means a static response cell.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalResponseSpec {
+    /// Outcome evaluation horizons in time steps after the policy origin (each ≥ 1).
+    /// Strictly increasing; at least one entry.
+    pub horizons: Arc<[u32]>,
+    /// Temporal intervention policy. Licensed 0.7 cells are Pulse and
+    /// single-step Sustained; Dynamic is refused here (use `TemporalEffectQuery`).
+    pub policy: TemporalPolicy,
+    /// Optional max history lag (steps) when unfolding; `None` = planner default.
+    pub max_history_lag: Option<u32>,
+}
+
+impl TemporalResponseSpec {
+    /// Horizon-count cap ([`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
+    pub const MAX_HORIZONS: usize = MAX_TEMPORAL_RESPONSE_HORIZONS;
+    /// Wire tag for [`crate::intervention::TemporalPolicy::Pulse`].
+    pub const POLICY_PULSE: &'static str = "pulse";
+    /// Wire tag for [`crate::intervention::TemporalPolicy::Sustained`].
+    pub const POLICY_SUSTAINED: &'static str = "sustained";
+    /// Policies [`Self::validate`] accepts on a response cell.
+    pub const ALLOWED_POLICIES: &'static [&'static str] =
+        &[Self::POLICY_PULSE, Self::POLICY_SUSTAINED];
+    /// Default wire tag when a facade omits `policy`.
+    pub const DEFAULT_POLICY: &'static str = Self::POLICY_PULSE;
+    /// Default `treatment_lag` (policy origin `-lag`).
+    pub const DEFAULT_TREATMENT_LAG: u32 = 1;
+
+    /// Machine-readable license for facades. Python must not hard-code these.
+    #[must_use]
+    pub const fn license() -> TemporalResponseLicense {
+        TemporalResponseLicense {
+            max_horizons: Self::MAX_HORIZONS,
+            allowed_policies: Self::ALLOWED_POLICIES,
+            default_policy: Self::DEFAULT_POLICY,
+            default_treatment_lag: Self::DEFAULT_TREATMENT_LAG,
+        }
+    }
+
+    /// Parse a licensed response-policy wire tag at treatment offset `at`.
+    ///
+    /// Sustained is the licensed single-step window `[at, at]`.
+    ///
+    /// # Errors
+    ///
+    /// Unknown tag (including `dynamic`).
+    pub fn parse_policy(tag: &str, at: i32) -> Result<TemporalPolicy, QueryError> {
+        match tag {
+            Self::POLICY_PULSE => Ok(TemporalPolicy::pulse(at)),
+            Self::POLICY_SUSTAINED => Ok(TemporalPolicy::sustained(at, at)),
+            other => Err(QueryError::InvalidResponse(format!(
+                "temporal response policy must be {} or {}; got {other}",
+                Self::POLICY_PULSE,
+                Self::POLICY_SUSTAINED
+            ))),
+        }
+    }
+
+    /// Construct a temporal attachment after validating horizons and policy.
+    ///
+    /// # Errors
+    ///
+    /// Empty/non-increasing/oversized horizons, zero horizon, or invalid policy.
+    pub fn new(
+        horizons: impl Into<Arc<[u32]>>,
+        policy: TemporalPolicy,
+        max_history_lag: Option<u32>,
+    ) -> Result<Self, QueryError> {
+        let horizons = horizons.into();
+        let spec = Self { horizons, policy, max_history_lag };
+        spec.validate()?;
+        Ok(spec)
+    }
+
+    /// Validate horizons and nested policy.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidResponse`] or temporal-policy errors.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.horizons.is_empty() {
+            return Err(QueryError::InvalidResponse(
+                "temporal response requires at least one horizon".into(),
+            ));
+        }
+        if self.horizons.len() > Self::MAX_HORIZONS {
+            return Err(QueryError::InvalidResponse(
+                "temporal response horizon count exceeds the materialization cap".into(),
+            ));
+        }
+        if self.horizons.iter().any(|h| *h == 0) {
+            return Err(QueryError::NonPositiveHorizon);
+        }
+        if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
+            return Err(QueryError::InvalidResponse(
+                "temporal response horizons must be strictly increasing".into(),
+            ));
+        }
+        self.policy.validate().map_err(|e| match e {
+            crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
+                QueryError::InvalidTemporalWindow { from, until }
+            }
+            other => QueryError::InvalidIntervention(other.to_string()),
+        })?;
+        match &self.policy {
+            TemporalPolicy::Pulse { .. } | TemporalPolicy::Sustained { .. } => {}
+            TemporalPolicy::Dynamic { .. } => {
+                return Err(QueryError::InvalidResponse(
+                    "temporal response policy must be pulse or sustained; \
+                     Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
+                        .into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Largest requested horizon (guaranteed ≥ 1 after validation).
+    #[must_use]
+    pub fn max_horizon(&self) -> u32 {
+        self.horizons.last().copied().unwrap_or(1)
+    }
+
+    /// Treatment-time origin under the attached policy.
+    ///
+    /// # Errors
+    ///
+    /// Empty dynamic schedule.
+    pub fn treatment_offset(&self) -> Result<i32, QueryError> {
+        match &self.policy {
+            TemporalPolicy::Pulse { at } => Ok(*at),
+            TemporalPolicy::Sustained { from, .. } => Ok(*from),
+            TemporalPolicy::Dynamic { active_at, .. } => {
+                active_at.first().copied().ok_or(QueryError::DynamicPolicyHasNoTreatmentOffset)
+            }
+        }
+    }
+}
 
 /// Maximum treatment dimension for an explicitly gridded non-parametric surface.
 pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
@@ -323,6 +487,8 @@ pub struct ResponseQuery {
     pub observation: ObservationSpec,
     /// Caller-declared observation assumptions. Empty means none.
     pub observation_assumptions: Arc<[ObservationAssumption]>,
+    /// Optional temporal attachment (ADR 0021). `None` = static response cell.
+    pub temporal: Option<TemporalResponseSpec>,
 }
 
 impl ResponseQuery {
@@ -334,6 +500,7 @@ impl ResponseQuery {
             target_population: TargetPopulation::AllObserved,
             observation: ObservationSpec::Complete,
             observation_assumptions: Arc::from([]),
+            temporal: None,
         }
     }
 
@@ -349,6 +516,19 @@ impl ResponseQuery {
         self
     }
 
+    /// Attach a temporal dose-over-horizon / policy-path specification.
+    #[must_use]
+    pub fn with_temporal(mut self, temporal: TemporalResponseSpec) -> Self {
+        self.temporal = Some(temporal);
+        self
+    }
+
+    /// Whether this query is a temporal response cell.
+    #[must_use]
+    pub const fn is_temporal(&self) -> bool {
+        self.temporal.is_some()
+    }
+
     /// Set the target population.
     #[must_use]
     pub fn with_target_population(mut self, target: TargetPopulation) -> Self {
@@ -362,6 +542,7 @@ impl ResponseQuery {
     ///
     /// [`QueryError`] when variables, dimensions, values, or observation semantics are invalid.
     pub fn validate(&self) -> Result<(), QueryError> {
+        self.validate_temporal_attachment()?;
         match &self.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
                 if *outcome == treatment.variable {
@@ -459,6 +640,28 @@ impl ResponseQuery {
         self.target_population.validate()?;
         Ok(())
     }
+
+    fn validate_temporal_attachment(&self) -> Result<(), QueryError> {
+        if let Some(temporal) = &self.temporal {
+            temporal.validate()?;
+            match &self.functional {
+                ResponseFunctional::MeanCurve { .. }
+                | ResponseFunctional::InterventionResponse { .. } => {}
+                _ => {
+                    return Err(QueryError::InvalidResponse(
+                        "temporal attachment is licensed only for MeanCurve and InterventionResponse"
+                            .into(),
+                    ));
+                }
+            }
+            if self.observation != ObservationSpec::Complete {
+                return Err(QueryError::InvalidResponse(
+                    "temporal response requires complete observation in 0.7".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 fn response_sets_are_distinct(outcomes: &[VariableId], treatments: &[VariableId]) -> bool {
@@ -470,6 +673,35 @@ fn response_sets_are_distinct(outcomes: &[VariableId], treatments: &[VariableId]
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temporal_response_license_is_the_facade_contract() {
+        let license = TemporalResponseSpec::license();
+        assert_eq!(license.max_horizons, MAX_TEMPORAL_RESPONSE_HORIZONS);
+        assert_eq!(license.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
+        assert_eq!(license.default_policy, TemporalResponseSpec::POLICY_PULSE);
+        assert!(license.allowed_policies.contains(&license.default_policy));
+        assert_eq!(license.default_treatment_lag, TemporalResponseSpec::DEFAULT_TREATMENT_LAG);
+        let at = -i32::try_from(license.default_treatment_lag).unwrap();
+        assert!(TemporalResponseSpec::parse_policy(license.default_policy, at).is_ok());
+        assert!(TemporalResponseSpec::parse_policy("dynamic", at).is_err());
+        let ok: Vec<u32> = (1..=u32::try_from(license.max_horizons).unwrap()).collect();
+        assert!(TemporalResponseSpec::new(ok, TemporalPolicy::pulse(at), None).is_ok());
+        let too_many: Vec<u32> = (1..=u32::try_from(license.max_horizons + 1).unwrap()).collect();
+        assert!(TemporalResponseSpec::new(too_many, TemporalPolicy::pulse(at), None).is_err());
+    }
+
+    #[test]
+    fn temporal_response_spec_refuses_dynamic_policy() {
+        let err = TemporalResponseSpec::new(
+            vec![1u32],
+            TemporalPolicy::dynamic(crate::DynamicRuleId::from_raw(0), [0]),
+            None,
+        )
+        .unwrap_err();
+        assert!(matches!(err, QueryError::InvalidResponse(_)));
+        assert!(err.to_string().contains("pulse or sustained"));
+    }
 
     #[test]
     fn linspace_within_cap_validates_and_materializes() {
