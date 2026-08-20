@@ -88,5 +88,18 @@ if uv.is_file():
     if n == 1:
         uv.write_text(uv_new)
 
+cff = root / "CITATION.cff"
+if cff.is_file():
+    cff_text = cff.read_text()
+    cff_new, n = re.subn(
+        r"(?m)^(version:\s*)\S+",
+        rf"\g<1>{version}",
+        cff_text,
+        count=1,
+    )
+    if n != 1:
+        sys.exit("CITATION.cff: version not updated")
+    cff.write_text(cff_new)
+
 print(f"set version to {version}")
 PY

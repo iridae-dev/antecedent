@@ -6,6 +6,7 @@ Idempotent: re-running with no matrix changes must leave a clean git tree.
 
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from itertools import product
@@ -14,9 +15,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
-RELEASE_NOTES = ROOT / "docs" / "release-notes" / "v0.6.0.md"
 RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
 RN_END = "<!-- generated:support-matrix:licensed:end -->"
+
+
+def workspace_version() -> str:
+    cargo = (ROOT / "Cargo.toml").read_text()
+    m = re.search(
+        r"(?ms)^\[workspace\.package\]\n.*?^version\s*=\s*\"([^\"]+)\"",
+        cargo,
+    )
+    if not m:
+        raise SystemExit("Cargo.toml: [workspace.package] version not found")
+    return m.group(1)
+
+
+RELEASE_NOTES = ROOT / "docs" / "release-notes" / f"v{workspace_version()}.md"
 
 
 def load(rel: str) -> dict:

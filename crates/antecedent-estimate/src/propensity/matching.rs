@@ -18,7 +18,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity};
+use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity_in_place};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
@@ -338,7 +338,7 @@ impl PropensityMatching {
                 ncols,
                 idx,
             );
-            let Ok(fit) = fit_propensity(
+            if fit_propensity_in_place(
                 &x_boot,
                 n,
                 ncols,
@@ -346,19 +346,29 @@ impl PropensityMatching {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            ) else {
+            )
+            .is_err()
+            {
                 return Ok(None);
-            };
-            let raw = fit.scores;
-            let mut scores = raw.clone();
-            if let Some(c) = clip {
-                clamp_scores(&mut scores, c);
             }
-            let Ok(retained) = trim_retained_rows(&raw, trim) else {
+            let raw = &workspace.propensity.scores[..n];
+            if workspace.clip_scratch.len() < n {
+                workspace.clip_scratch.resize(n, 0.0);
+            }
+            workspace.clip_scratch[..n].copy_from_slice(raw);
+            if let Some(c) = clip {
+                clamp_scores(&mut workspace.clip_scratch[..n], c);
+            }
+            let Ok(retained) = trim_retained_rows(raw, trim) else {
                 return Ok(None);
             };
-            let (t_used, y_used, s_used) =
-                restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
+            let (t_used, y_used, s_used) = restrict_to_rows(
+                &t_boot,
+                &y_boot,
+                &workspace.clip_scratch[..n],
+                1,
+                retained.as_deref(),
+            );
             let s_used = apply_caliper_scale(s_used, self.caliper_scale);
             match matching_contrast(
                 &t_used,

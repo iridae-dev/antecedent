@@ -1101,21 +1101,136 @@ impl PosteriorArtifact {
     /// NumPy array protocol — ``np.asarray(artifact)`` returns the flat posterior draws
     /// directly, without needing ``np.asarray(artifact.draws)``.
     ///
-    /// `dtype` and `copy` are accepted (and ignored) only to match the NumPy 2 calling
-    /// convention ``__array__(self, dtype=None, *, copy=None)``; this always builds a
-    /// fresh `float64` array from `draws`, so there is no NumPy-owned buffer to alias and
-    /// no in-place dtype cast to perform here — NumPy applies any further cast/copy on its
-    /// side after this returns.
+    /// `dtype` and `copy` match the NumPy 2 calling convention.
+    /// Default / ``copy=False`` wraps the live `draws` buffer (no extra `Vec` clone).
+    /// ``copy=True`` copies into a fresh NumPy-owned array.
+    /// ``copy=None`` (default) copies only when a dtype cast requires it.
     #[pyo3(signature = (dtype=None, copy=None))]
     fn __array__<'py>(
-        &self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
         dtype: Option<Bound<'py, PyAny>>,
         copy: Option<Bound<'py, PyAny>>,
-    ) -> Bound<'py, PyArray1<f64>> {
-        let _ = dtype;
-        let _ = copy;
-        PyArray1::from_vec(py, self.draws.clone())
+    ) -> PyResult<Bound<'py, PyAny>> {
+        // Tri-state: None = copy-if-needed, Some(false) = never, Some(true) = always.
+        let force_copy = match &copy {
+            Some(c) => Some(c.is_truthy()?),
+            None => None,
+        };
+        let np = py.import("numpy")?;
+        let float64 = np.getattr("float64")?;
+        let arr = if force_copy == Some(true) {
+            let draws = &slf.borrow().draws;
+            PyArray1::from_slice(py, draws).into_any()
+        } else {
+            let mv = py.import("builtins")?.call_method1("memoryview", (slf,))?;
+            np.getattr("asarray")?.call((mv, &float64), None)?
+        };
+        match dtype {
+            None => Ok(arr),
+            Some(dt) => match force_copy {
+                // copy=None → NumPy default (copy only if the cast requires it).
+                None => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
+                Some(force) => {
+                    // NumPy 2: forward explicit copy= so False cannot silently allocate.
+                    // NumPy 1.x lacks copy=; fall back to an explicit same-dtype check.
+                    let kwargs = PyDict::new(py);
+                    kwargs.set_item("copy", force)?;
+                    match np.getattr("asarray")?.call((&arr, &dt), Some(&kwargs)) {
+                        Ok(out) => Ok(out),
+                        Err(err) if !force => {
+                            let msg = err.to_string();
+                            if msg.contains("unexpected keyword argument") || msg.contains("copy") {
+                                let cur = arr.getattr("dtype")?;
+                                if cur.eq(dt)? {
+                                    Ok(arr)
+                                } else {
+                                    Err(PyValueError::new_err(
+                                        "Unable to avoid a copy while casting PosteriorArtifact \
+                                         dtype; pass copy=True to allow a conversion",
+                                    ))
+                                }
+                            } else {
+                                Err(err)
+                            }
+                        }
+                        Err(err) => Err(err),
+                    }
+                }
+            },
+        }
+    }
+
+    /// Zero-copy float64 view of `draws` for `np.asarray` / `memoryview`.
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        use pyo3::exceptions::PyBufferError;
+        use pyo3::ffi;
+        if view.is_null() {
+            return Err(PyBufferError::new_err("View is null"));
+        }
+        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
+            return Err(PyBufferError::new_err("PosteriorArtifact draws are read-only"));
+        }
+        let borrowed = slf.borrow();
+        let data = borrowed.draws.as_slice();
+        let n =
+            isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
+        let itemsize = isize::try_from(std::mem::size_of::<f64>()).expect("f64 size");
+        let nbytes = n.saturating_mul(itemsize);
+        unsafe {
+            (*view).obj = slf.as_ptr();
+            ffi::Py_INCREF((*view).obj);
+            (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
+            (*view).len = nbytes;
+            (*view).readonly = 1;
+            (*view).itemsize = itemsize;
+            (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
+                std::ffi::CString::new("d").expect("format").into_raw()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).ndim = 1;
+            (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
+                let shape = Box::new([n]);
+                Box::into_raw(shape).cast()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
+                let strides = Box::new([itemsize]);
+                Box::into_raw(strides).cast()
+            } else {
+                std::ptr::null_mut()
+            };
+            (*view).suboffsets = std::ptr::null_mut();
+            (*view).internal = std::ptr::null_mut();
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::unused_self)]
+    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
+        if view.is_null() {
+            return;
+        }
+        unsafe {
+            if !(*view).format.is_null() {
+                drop(std::ffi::CString::from_raw((*view).format));
+                (*view).format = std::ptr::null_mut();
+            }
+            if !(*view).shape.is_null() {
+                drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
+                (*view).shape = std::ptr::null_mut();
+            }
+            if !(*view).strides.is_null() {
+                drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
+                (*view).strides = std::ptr::null_mut();
+            }
+        }
     }
 }
 
@@ -1148,6 +1263,14 @@ pub(crate) fn columns_to_batch(
         })
         .collect();
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
+}
+
+pub(crate) fn tabular_from_numpy(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+) -> PyResult<antecedent_data::TabularData> {
+    let batch = columns_to_batch(names, columns)?;
+    tabular_from_record_batch(&batch).map(|loaded| loaded.data).map_err(py_err)
 }
 
 /// Conversion probe: NumPy → Arrow → library-owned tabular storage.
@@ -1251,7 +1374,7 @@ fn take_arrow_c_array(
     Ok((array, schema))
 }
 
-fn tabular_from_arrow_c_objs(
+pub(crate) fn tabular_from_arrow_c_objs(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
@@ -1266,6 +1389,29 @@ fn tabular_from_arrow_c_objs(
     }
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
+}
+
+/// NumPy float64 columns or Arrow CDI exporters → owned [`TabularData`].
+pub(crate) fn tabular_from_py_columns(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
+    if names.len() != columns.len() {
+        // Preserve the pre-unification ValueError for NumPy callers that catch it.
+        return Err(PyValueError::new_err("names and columns must have the same length"));
+    }
+    let use_arrow = !columns.is_empty()
+        && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
+    if use_arrow {
+        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names, columns)?;
+        return Ok((data, Some(bytes_borrowed)));
+    }
+    let mut np = Vec::with_capacity(columns.len());
+    for c in &columns {
+        np.push(c.extract::<PyReadonlyArray1<'_, f64>>().map_err(PyErr::from)?);
+    }
+    Ok((tabular_from_numpy(&names, &np)?, None))
 }
 
 /// Default coalition / semantic cache budget for Python production contexts

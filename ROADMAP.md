@@ -3,7 +3,7 @@
 Intentions from the 0.5 causal-response release through 1.0 and after.
 This is not a working checklist for an in-flight cut.
 
-Last updated: 2026-08-15
+Last updated: 2026-08-20
 
 ## How to read this
 
@@ -57,6 +57,9 @@ a 1.0 deliverable and not a reason to rewrite the engine.
 ---
 
 ## 0.6 — Composition and evidence
+
+Shipped as **0.6.0** (contract cut) and **0.6.1** (correctness and hot-path
+patch). The bullets below are the 0.6 intent; they are not an open checklist.
 
 Make every public 0.5 query live on the existing spine, and turn 0.5 candidates
 into claims or deletions.

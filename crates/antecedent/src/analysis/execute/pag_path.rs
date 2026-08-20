@@ -51,9 +51,6 @@ impl super::Study {
         let mut ws = FunctionalDistributionWorkspace::default();
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = run_refuters(
             data,
@@ -69,42 +66,25 @@ impl super::Study {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
-        );
-
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras::default(),
         }))
     }
 
@@ -252,42 +232,29 @@ impl super::Study {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
-        let provenance = provenance_pair(
-            (id_artifact, id_op, &[], &identification.required_assumptions),
-            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
-        );
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations,
-            diagnostics,
-            provenance,
+            identifier_id,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 
@@ -337,49 +304,33 @@ impl super::Study {
                 posterior.unidentified_mass
             ),
         ));
-        let provenance = provenance_pair(
-            (
-                "identify.generalized_adjustment",
-                "identify.generalized_adjustment",
-                &[],
-                &identification.required_assumptions,
-            ),
-            (
-                "estimate.bayesian_gcomp",
-                "estimate.nonidentified_with_prior",
-                &["identify.generalized_adjustment"],
-                &estimate.assumptions,
-            ),
-        );
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: Some(posterior),
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance,
+            identifier_id: IdentifierId::GeneralizedAdjustment,
+            estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.bayesian_gcomp",
+                    "estimate.nonidentified_with_prior",
+                )),
+                posterior: Some(posterior),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 }

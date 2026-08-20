@@ -25,47 +25,22 @@ impl super::Study {
             antecedent_core::AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
-        let (identification, estimand) = parametric_scm_identification(
-            CausalQuery::Counterfactual(query.clone()),
-            treatment,
-            outcome,
-        );
-        let mut diagnostics = vec![Diagnostic::new(
+        let diagnostics = vec![Diagnostic::new(
             "gcm.counterfactual",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!("noise_inference={:?}", ite.noise_inference),
         )];
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
-            identification,
-            estimand,
-            estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: Some(ite),
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
+        Ok(self.finish_gcm(
+            physical,
+            CausalQuery::Counterfactual(query.clone()),
             treatment,
             outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
-            bootstrap_replicates_ok: None,
-            n_draws: None,
-            cancelled: false,
-            early_stopped: false,
-        }))
+            estimate,
+            started,
+            GcmSlot::Counterfactual(ite),
+            diagnostics,
+        ))
     }
 
     pub(super) fn execute_anomaly(
@@ -87,44 +62,16 @@ impl super::Study {
             query.max_units,
         )?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
-        let treatment = outcome;
-        let estimate = nan_effect();
-        let (identification, estimand) = parametric_scm_identification(
+        Ok(self.finish_gcm(
+            physical,
             CausalQuery::AnomalyAttribution(query.clone()),
-            treatment,
             outcome,
-        );
-        let mut diagnostics = Vec::new();
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
-            identification,
-            estimand,
-            estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: Some(scores),
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
-            treatment,
             outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
-            bootstrap_replicates_ok: None,
-            n_draws: None,
-            cancelled: false,
-            early_stopped: false,
-        }))
+            nan_effect(),
+            started,
+            GcmSlot::Anomaly(scores),
+            Vec::new(),
+        ))
     }
 
     pub(super) fn execute_change_attribution(
@@ -145,50 +92,22 @@ impl super::Study {
             &antecedent_attribution::DistributionChangeOptions::default(),
             ctx,
         )?;
-        let outcome = query.outcome;
-        let treatment = outcome;
         let estimate = EffectEstimate::new(
             result.total_change,
             f64::NAN,
             antecedent_core::AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
-        let (identification, estimand) = parametric_scm_identification(
+        Ok(self.finish_gcm(
+            physical,
             CausalQuery::ChangeAttribution(query.clone()),
-            treatment,
-            outcome,
-        );
-        let mut diagnostics = Vec::new();
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
-            identification,
-            estimand,
+            query.outcome,
+            query.outcome,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: Some(result),
-            mechanism_change: None,
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
-            treatment,
-            outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
-            bootstrap_replicates_ok: None,
-            n_draws: None,
-            cancelled: false,
-            early_stopped: false,
-        }))
+            started,
+            GcmSlot::Change(result),
+            Vec::new(),
+        ))
     }
 
     pub(super) fn execute_mechanism_change(
@@ -210,44 +129,16 @@ impl super::Study {
             ctx,
         )?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
-        let treatment = outcome;
-        let estimate = nan_effect();
-        let (identification, estimand) = parametric_scm_identification(
+        Ok(self.finish_gcm(
+            physical,
             CausalQuery::MechanismChange(query.clone()),
-            treatment,
             outcome,
-        );
-        let mut diagnostics = Vec::new();
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
-            identification,
-            estimand,
-            estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: Some(detections),
-            unit_change: None,
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
-            treatment,
             outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
-            bootstrap_replicates_ok: None,
-            n_draws: None,
-            cancelled: false,
-            early_stopped: false,
-        }))
+            nan_effect(),
+            started,
+            GcmSlot::Mechanism(detections),
+            Vec::new(),
+        ))
     }
 
     pub(super) fn execute_unit_change(
@@ -262,44 +153,54 @@ impl super::Study {
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let result = attribute_unit_change(&fitted.model, data, query, ctx)?;
-        let outcome = query.outcome;
-        let treatment = outcome;
-        let estimate = nan_effect();
-        let (identification, estimand) = parametric_scm_identification(
+        Ok(self.finish_gcm(
+            physical,
             CausalQuery::UnitChange(query.clone()),
-            treatment,
-            outcome,
-        );
-        let mut diagnostics = Vec::new();
-        let physical_record =
-            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
-            logical: &physical.logical.record,
-            physical: &physical_record,
+            query.outcome,
+            query.outcome,
+            nan_effect(),
+            started,
+            GcmSlot::Unit(result),
+            Vec::new(),
+        ))
+    }
+
+    fn finish_gcm(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        query: CausalQuery,
+        treatment: VariableId,
+        outcome: VariableId,
+        estimate: EffectEstimate,
+        started: Instant,
+        slot: GcmSlot,
+        diagnostics: Vec<Diagnostic>,
+    ) -> StudyResult {
+        let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
+        self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
             identification,
             estimand,
             estimate,
-            distribution: None,
-            posterior: None,
-            mediation: None,
-            counterfactual: None,
-            anomaly: None,
-            change_attribution: None,
-            mechanism_change: None,
-            unit_change: Some(result),
-            refutations: Vec::new(),
-            diagnostics,
-            provenance: ProvenanceGraph::new(),
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id: EstimatorId::LinearAdjustmentAte,
             treatment,
             outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
             bootstrap_replicates_ok: None,
-            n_draws: None,
             cancelled: false,
             early_stopped: false,
-        }))
+            extras: IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                gcm: Some(slot),
+                empty_provenance: true,
+                ..Default::default()
+            },
+        })
     }
 }

@@ -30,6 +30,8 @@
     clippy::needless_range_loop
 )]
 
+use std::borrow::Cow;
+
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
@@ -260,17 +262,17 @@ impl AipwAte {
                     &mut design,
                 );
                 (
-                    design,
-                    gather(&problem.treatment, idx),
-                    gather(&problem.outcome, idx),
-                    gather(&model.clipped_scores, idx),
+                    Cow::Owned(design),
+                    Cow::Owned(gather(&problem.treatment, idx)),
+                    Cow::Owned(gather(&problem.outcome, idx)),
+                    Cow::Owned(gather(&model.clipped_scores, idx)),
                 )
             }
             None => (
-                problem.design_matrix.to_vec(),
-                problem.treatment.to_vec(),
-                problem.outcome.to_vec(),
-                model.clipped_scores.clone(),
+                Cow::Borrowed(problem.design_matrix.as_ref()),
+                Cow::Borrowed(problem.treatment.as_ref()),
+                Cow::Borrowed(problem.outcome.as_ref()),
+                Cow::Borrowed(model.clipped_scores.as_slice()),
             ),
         };
         let nrows = t_used.len();

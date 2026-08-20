@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .results import CausalResponseView
 
 from ._coerce import coerce_latency, coerce_query, coerce_refute
-from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
+from ._data import as_columns, as_multi_env_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import CausalUnsupportedError
 from ._native import (
     analyze as _analyze_temporal,
@@ -25,16 +25,25 @@ from ._native import (
     analyze_ate_admg as _analyze_ate_admg,
 )
 from ._native import (
+    analyze_ate_admg_arrow_c as _analyze_ate_admg_arrow_c,
+)
+from ._native import (
     analyze_ate_arrow_c as _analyze_ate_arrow_c,
 )
 from ._native import (
     analyze_ate_cpdag as _analyze_ate_cpdag,
 )
 from ._native import (
+    analyze_ate_cpdag_arrow_c as _analyze_ate_cpdag_arrow_c,
+)
+from ._native import (
     analyze_ate_discover as _analyze_ate_discover,
 )
 from ._native import (
     analyze_ate_pag as _analyze_ate_pag,
+)
+from ._native import (
+    analyze_ate_pag_arrow_c as _analyze_ate_pag_arrow_c,
 )
 from ._native import (
     analyze_conditional as _analyze_conditional,
@@ -165,7 +174,7 @@ def handle_conditional(
         raise TypeError("ConditionalEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     edges = _static_edges(graph)
     raw = _analyze_conditional(
         names,
@@ -203,7 +212,7 @@ def handle_temporal_mediation(
         raise TypeError("TemporalMediationEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("TemporalMediationEffect does not support discovery=")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     lagged = _lagged_edges(graph)
     raw = _analyze_temporal_mediation(
         names,
@@ -374,7 +383,7 @@ def handle_response(
         )
     if getattr(query, "target_population", None) is not None:
         raise ValueError("response queries do not yet support target_population")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     at: list[float] | None
     if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
         treatments = list(query.treatments)
@@ -732,7 +741,7 @@ def handle_distribution(
         )
     else:
         edges = _static_edges(graph)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     raw = _analyze_distribution(
         names,
         columns,
@@ -769,7 +778,7 @@ def handle_path_specific(
         )
     else:
         edges = _static_edges(graph)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     raw = _analyze_path_specific(
         names,
         columns,
@@ -818,7 +827,7 @@ def handle_static_ate_discover(
         )
     if not isinstance(discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY):
         raise TypeError(f"unsupported static discovery: {type(discovery)!r}")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     cfg = _discovery_algorithm(discovery)
     bayes_kw: dict[str, Any] = {}
     if isinstance(inference, Bayesian):
@@ -857,6 +866,21 @@ def handle_static_ate_discover(
         **bayes_kw,
     )
     return _wrap_ate(raw)
+
+
+def _typed_ate(
+    data: Any,
+    graph: Any,
+    numpy_fn: Callable[..., Any],
+    arrow_fn: Callable[..., Any],
+    **common: Any,
+) -> Any:
+    arrow = try_as_arrow_c_columns(data)
+    if arrow is not None:
+        names, columns = arrow
+        return arrow_fn(names, columns, graph, **common)
+    names, columns = as_columns(data)
+    return numpy_fn(names, columns, graph, **common)
 
 
 def handle_static_ate(
@@ -957,14 +981,17 @@ def handle_static_ate(
             "(or edge list); PAG/CPDAG/ADMG analyze paths do not accept them yet"
         )
     if isinstance(graph, Pag):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_pag(names, columns, graph, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common)
+        )
     if isinstance(graph, Cpdag):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_cpdag(names, columns, graph, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_cpdag, _analyze_ate_cpdag_arrow_c, **common)
+        )
     if isinstance(graph, Admg):
-        names, columns = as_columns(data)
-        return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
+        return _wrap_ate(
+            _typed_ate(data, graph, _analyze_ate_admg, _analyze_ate_admg_arrow_c, **common)
+        )
     edges = _static_edges(graph)
     arrow = try_as_arrow_c_columns(data)
     ate_kwargs = dict(edges=edges, accepted=structure_accepted, **common, **pop_kw)
@@ -1122,7 +1149,7 @@ def handle_temporal_pulse(
             regimes=regimes,
             temporal_discovery=_TEMPORAL_DISCOVERY,
         )
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     if isinstance(graph, TemporalPag):
         raw = _analyze_temporal_pag(
             names,

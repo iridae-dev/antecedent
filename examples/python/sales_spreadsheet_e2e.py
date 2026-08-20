@@ -9,7 +9,7 @@ Mirrors the interactive UX spine (ADR 0011 / backlog Docs):
     → unit ITE
   plus a temporal pulse Bayesian block on a held TemporalDag.
 
-Requires a built causal extension (`maturin develop` in python/).
+Requires a built antecedent extension (`maturin develop` in python/).
 """
 
 from __future__ import annotations

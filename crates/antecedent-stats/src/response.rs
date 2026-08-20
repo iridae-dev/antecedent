@@ -45,6 +45,13 @@ pub struct LocalPolynomialInfluence {
     pub robust_standard_error: f64,
 }
 
+/// Scratch for a local-quadratic fit. Reuse across a treatment grid so kernel
+/// rows are not reallocated at every evaluation point.
+#[derive(Clone, Debug, Default)]
+pub struct LocalQuadraticWorkspace {
+    weights: Vec<(f64, [f64; 3], f64)>,
+}
+
 /// Silverman's normal-reference bandwidth, with a range-based lower bound.
 ///
 /// # Errors
@@ -117,22 +124,64 @@ pub fn gaussian_local_quadratic_influence(
     at: f64,
     bandwidth: f64,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
+    gaussian_local_quadratic_influence_with(
+        &mut LocalQuadraticWorkspace::default(),
+        x,
+        y,
+        at,
+        bandwidth,
+    )
+}
+
+/// Same as [`gaussian_local_quadratic_influence`], reusing `workspace` storage.
+///
+/// `x`/`y` are checked for finiteness once here. For a shared grid, call
+/// [`gaussian_local_quadratic_influence_prechecked`] after a single scan.
+pub fn gaussian_local_quadratic_influence_with(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+) -> Result<LocalPolynomialInfluence, StatsError> {
+    fit_local_quadratic(workspace, x, y, at, bandwidth, true)
+}
+
+/// Local quadratic after the caller has already refused non-finite `x`/`y`.
+pub fn gaussian_local_quadratic_influence_prechecked(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+) -> Result<LocalPolynomialInfluence, StatsError> {
+    fit_local_quadratic(workspace, x, y, at, bandwidth, false)
+}
+
+fn fit_local_quadratic(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    check_finite: bool,
+) -> Result<LocalPolynomialInfluence, StatsError> {
     if x.len() != y.len() || x.len() < 3 {
         return Err(StatsError::Shape {
             message: "local quadratic requires aligned x/y with n >= 3",
         });
     }
-    if !at.is_finite()
-        || !bandwidth.is_finite()
-        || bandwidth <= 0.0
-        || x.iter().chain(y).any(|v| !v.is_finite())
-    {
+    if !at.is_finite() || !bandwidth.is_finite() || bandwidth <= 0.0 {
+        return Err(StatsError::Shape { message: "local quadratic inputs must be finite" });
+    }
+    if check_finite && x.iter().chain(y).any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "local quadratic inputs must be finite" });
     }
     let mut gram = [[0.0; 3]; 3];
     let mut squared_gram = [[0.0; 3]; 3];
     let mut rhs = [0.0; 3];
-    let mut weights = Vec::with_capacity(x.len());
+    workspace.weights.clear();
+    workspace.weights.reserve(x.len());
     let mut weight_sum = 0.0;
     let mut weight_sq_sum = 0.0;
     for (&xi, &yi) in x.iter().zip(y) {
@@ -147,7 +196,7 @@ pub fn gaussian_local_quadratic_influence(
                 squared_gram[j][k] += w * w * row[j] * row[k];
             }
         }
-        weights.push((w, row, yi));
+        workspace.weights.push((w, row, yi));
         weight_sum += w;
         weight_sq_sum += w * w;
     }
@@ -161,10 +210,13 @@ pub fn gaussian_local_quadratic_influence(
     let inverse = inverse_3x3(gram)
         .ok_or_else(|| StatsError::Backend("singular local response design".into()))?;
     let beta = matvec(inverse, rhs);
+    let mut influences = Vec::with_capacity(workspace.weights.len());
     let mut weighted_rss = 0.0;
-    for (w, row, yi) in weights {
+    for &(w, row, yi) in &workspace.weights {
         let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
         weighted_rss += w * residual * residual;
+        let hat = inverse[0].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
+        influences.push(w * hat * residual);
     }
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
     let sigma2 = weighted_rss / (weight_sum - 3.0);
@@ -182,35 +234,8 @@ pub fn gaussian_local_quadratic_influence(
         local_ess,
         weight_sum,
     };
-    let influences: Vec<f64> = weights_for_influence(x, y, at, bandwidth, beta, inverse);
     let robust_standard_error = influences.iter().map(|value| value * value).sum::<f64>().sqrt();
     Ok(LocalPolynomialInfluence { point, influences, robust_standard_error })
-}
-
-fn weights_for_influence(
-    x: &[f64],
-    y: &[f64],
-    at: f64,
-    bandwidth: f64,
-    beta: [f64; 3],
-    inverse: [[f64; 3]; 3],
-) -> Vec<f64> {
-    x.iter()
-        .zip(y)
-        .map(|(&xi, &yi)| {
-            let dx = xi - at;
-            let row = [1.0, dx, dx * dx];
-            let weight = (-0.5 * (dx / bandwidth).powi(2)).exp();
-            let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
-            weight
-                * inverse[0]
-                    .iter()
-                    .zip(row)
-                    .map(|(coefficient, value)| coefficient * value)
-                    .sum::<f64>()
-                * residual
-        })
-        .collect()
 }
 
 fn matvec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {

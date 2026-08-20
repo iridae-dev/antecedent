@@ -319,6 +319,11 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    def __array__(
+        self,
+        dtype: Any = None,
+        copy: Any = None,
+    ) -> NDArray[np.float64]: ...
     @staticmethod
     def from_moments(
         n_draws: int,
@@ -443,7 +448,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -465,7 +470,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_response(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -481,7 +486,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_conditional(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -499,7 +504,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_path_specific(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -518,7 +523,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_intervention_response(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         outcome: str,
         treatments: list[str],
@@ -533,7 +538,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_distribution(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         outcome: str,
         interventions: dict[str, float],
@@ -553,10 +558,26 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def estimate_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
     def estimate_response(
         self,
         names: list[str],
         columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
+    def estimate_response_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int = 1,
@@ -569,6 +590,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
+    def refresh_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
     def refresh_response(
         self,
         names: list[str],
@@ -577,6 +606,34 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
     ) -> Any: ...
+    def refresh_response_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> Any: ...
+    def refute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        suite: bool | str,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+    ) -> AteAnalysisResult: ...
+    def refute_arrow_c(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        suite: bool | str,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+    ) -> AteAnalysisResult: ...
     @property
     def names(self) -> list[str]: ...
 
@@ -770,7 +827,7 @@ class FittedGcm:
 
 def fit_gcm(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     *,
     threads: int = 1,
@@ -785,7 +842,7 @@ def load_float64_arrow_c_columns(
 ) -> ArrowLoadInfo: ...
 def analyze_ate_many(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     queries: list[tuple[str, str, float, float]],
     *,
@@ -868,7 +925,7 @@ def analyze_ate_arrow_c(
 ) -> AteAnalysisResult: ...
 def analyze(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, int, str, int]],
     treatment: str,
     outcome: str,
@@ -889,7 +946,7 @@ def analyze(
 ) -> AnalysisResult: ...
 def analyze_temporal_pag(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     graph: TemporalPag,
     treatment: str,
     outcome: str,
@@ -1001,7 +1058,7 @@ def analyze_panel_discover(
 ) -> AnalysisResult: ...
 def analyze_distribution(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     outcome: str,
     interventions: dict[str, float],
@@ -1012,7 +1069,7 @@ def analyze_distribution(
 ) -> AteAnalysisResult: ...
 def analyze_response(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     kind: str,
     treatments: list[str],
@@ -1035,7 +1092,7 @@ def analyze_response(
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     graph: Pag,
     treatment: str,
     outcome: str,
@@ -1161,7 +1218,7 @@ def gaussian_observation_log_likelihood(
 ) -> float: ...
 def analyze_path_specific(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1177,7 +1234,7 @@ def analyze_path_specific(
 ) -> AteAnalysisResult: ...
 def analyze_conditional(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1194,7 +1251,7 @@ def analyze_conditional(
 ) -> AteAnalysisResult: ...
 def analyze_mediation(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
@@ -1226,7 +1283,7 @@ def identify_ate_admg(
 ) -> tuple[str, str, list[str]]: ...
 def analyze_temporal_mediation(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     edges: list[tuple[str, int, str, int]],
     treatment: str,
     mediator: str,
@@ -1241,7 +1298,7 @@ def analyze_temporal_mediation(
 ) -> AnalysisResult: ...
 def analyze_ate_discover(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    columns: Sequence[Any],
     treatment: str,
     outcome: str,
     *,
@@ -1872,6 +1929,32 @@ class TemporalPag:
     ) -> TemporalPag: ...
     def node_count(self) -> int: ...
 
+def analyze_ate_pag_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Pag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
 def analyze_ate_pag(
     names: list[str],
     columns: Sequence[Any],
@@ -1898,10 +1981,62 @@ def analyze_ate_pag(
     bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
+def analyze_ate_cpdag_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Cpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
     names: list[str],
     columns: Sequence[Any],
     graph: Cpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+def analyze_ate_admg_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: Admg,
     treatment: str,
     outcome: str,
     *,

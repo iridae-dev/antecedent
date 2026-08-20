@@ -52,6 +52,167 @@ fn parse_prior_mapping(
     }
 }
 
+struct AteGil {
+    custom_validators: Vec<std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    suite: antecedent::RefuteSuite,
+    threads: u32,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    cancel_token: Option<antecedent_core::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
+    stage_sink: Option<std::sync::Arc<dyn antecedent::StageResultSink>>,
+    latency_mode: Option<antecedent::LatencyMode>,
+    parsed_estimator_config: crate::estimator_config::ParsedEstimatorConfig,
+}
+
+fn parse_ate_gil(
+    estimator: Option<&str>,
+    prior_mapping: Option<&Bound<'_, PyDict>>,
+    composed_prior: Option<&Bound<'_, PyDict>>,
+    refute: Option<&Bound<'_, PyAny>>,
+    validators: Option<&Bound<'_, PyAny>>,
+    estimator_config: Option<&Bound<'_, PyDict>>,
+    bootstrap: u32,
+    threads: u32,
+    latency: Option<&str>,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<&Bound<'_, PyAny>>,
+    on_stage: Option<&Bound<'_, PyAny>>,
+) -> PyResult<AteGil> {
+    let custom_validators = callbacks::parse_validators(validators)?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let latency_mode = match latency {
+        None => None,
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
+    };
+    Ok(AteGil {
+        custom_validators,
+        suite: suite_from_refute(refute)?,
+        threads,
+        prior_mapping: parse_prior_mapping(prior_mapping)?,
+        composed_prior: match composed_prior {
+            Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+            None => None,
+        },
+        cancel_token: cancel.map(|c| c.inner),
+        progress: callbacks::progress_sink_from_py(on_progress)?,
+        stage_sink: callbacks::stage_sink_from_py(on_stage)?,
+        latency_mode,
+        parsed_estimator_config: crate::estimator_config::parse_estimator_config(
+            estimator_config,
+            estimator,
+            bootstrap,
+        )?,
+    })
+}
+
+fn finish_static_ate(
+    names: &[String],
+    data: antecedent_data::TabularData,
+    bytes_borrowed: Option<u64>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    gil: AteGil,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
+    seed: u64,
+    bootstrap: u32,
+    accepted: bool,
+    include_posterior_artifact: bool,
+    pop_spec: Option<antecedent_core::TargetPopulation>,
+    registry: Option<antecedent_core::PopulationRegistry>,
+) -> PyResult<AteAnalysisResult> {
+    let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+    let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+    let dag = dag_from_named_edges(data.schema(), &edges)?;
+    let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+    if let Some(pop) = pop_spec {
+        query = query.with_target_population(pop);
+    }
+    let crate::estimator_config::ParsedEstimatorConfig {
+        spec: configured_spec,
+        rd_running_variable: configured_rv,
+        rd_cutoff: configured_cutoff,
+        rd_bandwidth: configured_bandwidth,
+    } = gil.parsed_estimator_config;
+    let (merged_rv, merged_cutoff, merged_bandwidth) = crate::estimator_config::merge_rd_triple(
+        running_variable,
+        cutoff,
+        bandwidth,
+        configured_rv,
+        configured_cutoff,
+        configured_bandwidth,
+    )?;
+    let rd_ids = parse_rd_config(
+        estimator.as_deref(),
+        merged_rv.as_deref(),
+        merged_cutoff,
+        merged_bandwidth,
+        |rv| data.schema().id_of(rv).map_err(py_err),
+    )?;
+    let mut builder = bind_dag(Study::tabular(data), dag, accepted)
+        .query(query)
+        .refute(gil.suite)
+        .custom_validators(gil.custom_validators);
+    if configured_spec.is_none() {
+        builder = builder.bootstrap_replicates(bootstrap);
+    }
+    if let Some(mode) = gil.latency_mode {
+        builder = builder.latency_mode(mode);
+    }
+    if let Some(sink) = gil.stage_sink {
+        builder = builder.stage_sink(sink);
+    }
+    if let Some(reg) = registry {
+        builder = builder.population_registry(reg);
+    }
+    if let Some(id) = identifier {
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(spec) = configured_spec {
+        builder = builder.estimator(spec);
+    } else if let Some(est) = estimator {
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some((rv_id, cut, bw)) = rd_ids {
+        builder = builder.rd_config(rv_id, cut, bw);
+    }
+    run_static_ate_from_builder(
+        names,
+        builder,
+        inference.as_deref(),
+        n_draws,
+        prior_scale,
+        prior_artifact.as_deref(),
+        gil.prior_mapping,
+        gil.composed_prior,
+        seed,
+        gil.threads,
+        gil.cancel_token,
+        gil.progress,
+        include_posterior_artifact,
+        bytes_borrowed,
+    )
+}
+
 fn run_static_ate_from_builder(
     names: &[String],
     mut builder: antecedent::StudyBuilder,
@@ -503,123 +664,48 @@ fn analyze_ate(
         population_predicates.as_ref(),
         population_distributions.as_ref(),
     )?;
-    let batch = columns_to_batch(&names, &columns)?;
-    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
-    let prior_mapping = parse_prior_mapping(prior_mapping)?;
-    let composed_prior = match composed_prior {
-        Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
-        None => None,
-    };
-    let cancel_token = cancel.map(|c| c.inner);
-    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
-    let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
-    // Parsed with the GIL held (dict access requires it); the result is plain owned data
-    // that crosses into `detach_catch` via `move` like `estimator`/`bootstrap` already do.
-    let latency_mode = match latency.as_deref() {
-        None => None,
-        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
-        })?),
-    };
-    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
-        estimator_config.as_ref(),
+    let gil = parse_ate_gil(
         estimator.as_deref(),
+        prior_mapping,
+        composed_prior,
+        refute.as_ref(),
+        validators.as_ref(),
+        estimator_config.as_ref(),
         bootstrap,
+        threads,
+        latency.as_deref(),
+        cancel,
+        on_progress.as_ref(),
+        on_stage.as_ref(),
     )?;
-    // Drop NumPy borrows before releasing the GIL.
+    let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
-
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-
-        let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-        if let Some(pop) = pop_spec {
-            query = query.with_target_population(pop);
-        }
-
-        let crate::estimator_config::ParsedEstimatorConfig {
-            spec: configured_spec,
-            rd_running_variable: configured_rv,
-            rd_cutoff: configured_cutoff,
-            rd_bandwidth: configured_bandwidth,
-        } = parsed_estimator_config;
-        let (merged_rv, merged_cutoff, merged_bandwidth) =
-            crate::estimator_config::merge_rd_triple(
-                running_variable,
-                cutoff,
-                bandwidth,
-                configured_rv,
-                configured_cutoff,
-                configured_bandwidth,
-            )?;
-        let rd_ids = parse_rd_config(
-            estimator.as_deref(),
-            merged_rv.as_deref(),
-            merged_cutoff,
-            merged_bandwidth,
-            |rv| data.schema().id_of(rv).map_err(py_err),
-        )?;
-        let mut builder = bind_dag(Study::tabular(data), dag, accepted)
-            .query(query)
-            .refute(suite)
-            .custom_validators(custom_validators);
-        // A configured estimator already carries its own (default-or-overridden) bootstrap
-        // count; combining it with an explicit `StudyBuilder::bootstrap_replicates` call is
-        // refused at `build()` time (`CausalError::Conflict`), so skip that call here.
-        if configured_spec.is_none() {
-            builder = builder.bootstrap_replicates(bootstrap);
-        }
-        if let Some(mode) = latency_mode {
-            builder = builder.latency_mode(mode);
-        }
-        if let Some(sink) = stage_sink {
-            builder = builder.stage_sink(sink);
-        }
-        if let Some(reg) = registry {
-            builder = builder.population_registry(reg);
-        }
-        // Names at the boundary, ids on the hot path: an unknown strategy name is
-        // rejected here, at the call the user made, not deep inside compile().
-        if let Some(id) = identifier {
-            builder = builder.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(spec) = configured_spec {
-            builder = builder.estimator(spec);
-        } else if let Some(est) = estimator {
-            builder = builder.estimator(
-                est.parse::<antecedent::EstimatorId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some((rv_id, cut, bw)) = rd_ids {
-            builder = builder.rd_config(rv_id, cut, bw);
-        }
-
-        run_static_ate_from_builder(
+        finish_static_ate(
             &names,
-            builder,
-            inference.as_deref(),
+            data,
+            None,
+            edges,
+            treatment,
+            outcome,
+            control_level,
+            active_level,
+            identifier,
+            estimator,
+            inference,
             n_draws,
             prior_scale,
-            prior_artifact.as_deref(),
-            prior_mapping,
-            composed_prior,
+            prior_artifact,
+            gil,
+            running_variable,
+            cutoff,
+            bandwidth,
             seed,
-            threads,
-            cancel_token,
-            progress,
+            bootstrap,
+            accepted,
             return_posterior_artifact,
-            None,
+            pop_spec,
+            registry,
         )
     })
 }
@@ -693,107 +779,46 @@ fn analyze_ate_arrow_c(
     accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
-    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
-    let prior_mapping = parse_prior_mapping(prior_mapping)?;
-    let composed_prior = match composed_prior {
-        Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
-        None => None,
-    };
-    let cancel_token = cancel.map(|c| c.inner);
-    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
-    let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
-    let latency_mode = match latency.as_deref() {
-        None => None,
-        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
-        })?),
-    };
-    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
-        estimator_config.as_ref(),
+    let gil = parse_ate_gil(
         estimator.as_deref(),
+        prior_mapping,
+        composed_prior,
+        refute.as_ref(),
+        validators.as_ref(),
+        estimator_config.as_ref(),
         bootstrap,
+        threads,
+        latency.as_deref(),
+        cancel,
+        on_progress.as_ref(),
+        on_stage.as_ref(),
     )?;
-
     detach_catch(py, move || {
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-
-        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-
-        let crate::estimator_config::ParsedEstimatorConfig {
-            spec: configured_spec,
-            rd_running_variable: configured_rv,
-            rd_cutoff: configured_cutoff,
-            rd_bandwidth: configured_bandwidth,
-        } = parsed_estimator_config;
-        let (merged_rv, merged_cutoff, merged_bandwidth) =
-            crate::estimator_config::merge_rd_triple(
-                running_variable,
-                cutoff,
-                bandwidth,
-                configured_rv,
-                configured_cutoff,
-                configured_bandwidth,
-            )?;
-        let rd_ids = parse_rd_config(
-            estimator.as_deref(),
-            merged_rv.as_deref(),
-            merged_cutoff,
-            merged_bandwidth,
-            |rv| data.schema().id_of(rv).map_err(py_err),
-        )?;
-        let mut builder = bind_dag(Study::tabular(data), dag, accepted)
-            .query(query)
-            .refute(suite)
-            .custom_validators(custom_validators);
-        if configured_spec.is_none() {
-            builder = builder.bootstrap_replicates(bootstrap);
-        }
-        if let Some(mode) = latency_mode {
-            builder = builder.latency_mode(mode);
-        }
-        if let Some(sink) = stage_sink {
-            builder = builder.stage_sink(sink);
-        }
-        // Names at the boundary, ids on the hot path: an unknown strategy name is
-        // rejected here, at the call the user made, not deep inside compile().
-        if let Some(id) = identifier {
-            builder = builder.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(spec) = configured_spec {
-            builder = builder.estimator(spec);
-        } else if let Some(est) = estimator {
-            builder = builder.estimator(
-                est.parse::<antecedent::EstimatorId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some((rv_id, cut, bw)) = rd_ids {
-            builder = builder.rd_config(rv_id, cut, bw);
-        }
-
-        run_static_ate_from_builder(
+        finish_static_ate(
             &names,
-            builder,
-            inference.as_deref(),
+            data,
+            Some(bytes_borrowed),
+            edges,
+            treatment,
+            outcome,
+            control_level,
+            active_level,
+            identifier,
+            estimator,
+            inference,
             n_draws,
             prior_scale,
-            prior_artifact.as_deref(),
-            prior_mapping,
-            composed_prior,
+            prior_artifact,
+            gil,
+            running_variable,
+            cutoff,
+            bandwidth,
             seed,
-            threads,
-            cancel_token,
-            progress,
+            bootstrap,
+            accepted,
             return_posterior_artifact,
-            Some(bytes_borrowed),
+            None,
+            None,
         )
     })
 }
@@ -817,7 +842,7 @@ fn analyze_ate_arrow_c(
 fn analyze_ate_many(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     queries: Vec<(String, String, f64, f64)>,
     identifier: Option<String>,
@@ -828,7 +853,7 @@ fn analyze_ate_many(
     threads: u32,
     latency: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
@@ -836,10 +861,7 @@ fn analyze_ate_many(
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let mut ate_queries = Vec::with_capacity(queries.len());
         for (treatment, outcome, control, active) in &queries {
@@ -870,25 +892,6 @@ fn analyze_ate_many(
     })
 }
 
-/// Shared NumPy → batch / validators / refute preamble for typed-graph ATE entry points.
-type AteTabularPreamble =
-    (RecordBatch, RefuteSuite, Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>, u32);
-
-fn prepare_ate_tabular_preamble(
-    names: &[String],
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
-    refute: Option<&Bound<'_, PyAny>>,
-    validators: Option<&Bound<'_, PyAny>>,
-    threads: u32,
-) -> PyResult<AteTabularPreamble> {
-    let batch = columns_to_batch(names, &columns)?;
-    let custom_validators = callbacks::parse_validators(validators)?;
-    let suite = suite_from_refute(refute)?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
-    drop(columns);
-    Ok((batch, suite, custom_validators, threads))
-}
-
 /// Static graph input for the shared `analyze_ate_{pag,cpdag,admg}` dispatch helper.
 ///
 /// Local replacement for the old crate-level `GraphInput` enum (removed along with the
@@ -903,7 +906,8 @@ enum StaticGraphInput {
 fn analyze_ate_typed_graph(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    data: antecedent_data::TabularData,
+    bytes_borrowed: Option<u64>,
     graph: StaticGraphInput,
     treatment: String,
     outcome: String,
@@ -926,13 +930,9 @@ fn analyze_ate_typed_graph(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let (batch, suite, custom_validators, threads) = prepare_ate_tabular_preamble(
-        &names,
-        columns,
-        refute.as_ref(),
-        validators.as_ref(),
-        threads,
-    )?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     let latency_mode = match latency.as_deref() {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -947,7 +947,8 @@ fn analyze_ate_typed_graph(
     detach_catch(py, move || {
         run_ate_with_graph_input(
             &names,
-            batch,
+            data,
+            bytes_borrowed,
             graph,
             treatment,
             outcome,
@@ -976,7 +977,8 @@ fn analyze_ate_typed_graph(
 #[allow(clippy::too_many_arguments)]
 fn run_ate_with_graph_input(
     names: &[String],
-    batch: RecordBatch,
+    data: antecedent_data::TabularData,
+    bytes_borrowed: Option<u64>,
     graph: StaticGraphInput,
     treatment: String,
     outcome: String,
@@ -999,8 +1001,6 @@ fn run_ate_with_graph_input(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-    let data = loaded.data;
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
     let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
@@ -1073,7 +1073,7 @@ fn run_ate_with_graph_input(
         None,
         None,
         false,
-        None,
+        bytes_borrowed,
     )
 }
 
@@ -1118,10 +1118,13 @@ fn analyze_ate_pag(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    let data = tabular_from_numpy(&names, &columns)?;
+    drop(columns);
     analyze_ate_typed_graph(
         py,
         names,
-        columns,
+        data,
+        None,
         StaticGraphInput::Pag(graph.pag),
         treatment,
         outcome,
@@ -1187,10 +1190,13 @@ fn analyze_ate_cpdag(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    let data = tabular_from_numpy(&names, &columns)?;
+    drop(columns);
     analyze_ate_typed_graph(
         py,
         names,
-        columns,
+        data,
+        None,
         StaticGraphInput::Cpdag(graph.cpdag),
         treatment,
         outcome,
@@ -1256,10 +1262,13 @@ fn analyze_ate_admg(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    let data = tabular_from_numpy(&names, &columns)?;
+    drop(columns);
     analyze_ate_typed_graph(
         py,
         names,
-        columns,
+        data,
+        None,
         StaticGraphInput::Admg(graph.admg),
         treatment,
         outcome,
@@ -1283,6 +1292,84 @@ fn analyze_ate_admg(
         threads,
     )
 }
+
+macro_rules! typed_ate_arrow_c {
+    ($fn_name:ident, $graph_ty:ty, $variant:ident, $field:ident) => {
+        #[pyfunction]
+        #[pyo3(signature = (
+                            names, columns, graph, treatment, outcome, *,
+                            control_level=0.0, active_level=1.0, identifier=None, estimator=None,
+                            inference=None, n_draws=1000, prior_scale=10.0,
+                            prior_artifact=None, refute=None, validators=None,
+                            running_variable=None,
+                            cutoff=None,
+                            bandwidth=None,
+                            estimator_config=None,
+                            latency=None,
+                            seed=1, bootstrap=50, threads=1
+                        ))]
+        #[allow(clippy::too_many_arguments)]
+        fn $fn_name(
+            py: Python<'_>,
+            names: Vec<String>,
+            columns: Vec<Bound<'_, PyAny>>,
+            graph: $graph_ty,
+            treatment: String,
+            outcome: String,
+            control_level: f64,
+            active_level: f64,
+            identifier: Option<String>,
+            estimator: Option<String>,
+            inference: Option<String>,
+            n_draws: usize,
+            prior_scale: f64,
+            prior_artifact: Option<Vec<u8>>,
+            refute: Option<Bound<'_, PyAny>>,
+            validators: Option<Bound<'_, PyAny>>,
+            running_variable: Option<String>,
+            cutoff: Option<f64>,
+            bandwidth: Option<f64>,
+            estimator_config: Option<Bound<'_, PyDict>>,
+            latency: Option<String>,
+            seed: u64,
+            bootstrap: u32,
+            threads: u32,
+        ) -> PyResult<AteAnalysisResult> {
+            let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
+            analyze_ate_typed_graph(
+                py,
+                names,
+                data,
+                Some(bytes_borrowed),
+                StaticGraphInput::$variant(graph.$field),
+                treatment,
+                outcome,
+                control_level,
+                active_level,
+                identifier,
+                estimator,
+                inference,
+                n_draws,
+                prior_scale,
+                prior_artifact,
+                refute,
+                validators,
+                running_variable,
+                cutoff,
+                bandwidth,
+                estimator_config,
+                latency,
+                seed,
+                bootstrap,
+                threads,
+            )
+        }
+    };
+}
+
+typed_ate_arrow_c!(analyze_ate_pag_arrow_c, graphs::Pag, Pag, pag);
+typed_ate_arrow_c!(analyze_ate_cpdag_arrow_c, graphs::Cpdag, Cpdag, cpdag);
+typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
 
 /// Static ATE via static discovery → DAG (when fully oriented).
 #[pyfunction]
@@ -1329,7 +1416,7 @@ fn analyze_ate_admg(
 fn analyze_ate_discover(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     treatment: String,
     outcome: String,
     algorithm: &str,
@@ -1367,7 +1454,7 @@ fn analyze_ate_discover(
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let algo = algorithm.to_ascii_lowercase();
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -1376,12 +1463,9 @@ fn analyze_ate_discover(
         estimator.as_deref(),
         bootstrap,
     )?;
-    drop(columns);
     let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     let soft_weight = soft_weight.to_string();
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
@@ -1662,7 +1746,7 @@ fn analyze_ate_discover(
 fn analyze_distribution(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     outcome: String,
     interventions: std::collections::HashMap<String, f64>,
@@ -1670,11 +1754,8 @@ fn analyze_distribution(
     seed: u64,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut ivs = Vec::with_capacity(interventions.len());
         for (name, level) in &interventions {
@@ -1724,7 +1805,7 @@ fn analyze_distribution(
 fn analyze_path_specific(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -1737,11 +1818,8 @@ fn analyze_path_specific(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
@@ -1996,7 +2074,7 @@ pub(crate) struct GraphEdge {
 fn analyze_conditional(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -2010,14 +2088,11 @@ fn analyze_conditional(
     threads: u32,
     accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
@@ -2049,7 +2124,7 @@ fn analyze_conditional(
 fn analyze_mediation(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -2062,13 +2137,10 @@ fn analyze_mediation(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
     let contrast = contrast.to_string();
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut med_ids = Vec::with_capacity(mediators.len());
@@ -2210,6 +2282,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_cpdag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_arrow_c, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_pag_arrow_c, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_cpdag_arrow_c, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_admg_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_many, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;

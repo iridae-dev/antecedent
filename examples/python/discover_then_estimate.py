@@ -5,7 +5,7 @@ Contrast with one-shot ``analyze(..., discovery=...)`` (script path). Interactiv
 products should: discover → accept into ``AcceptedGraph`` → estimate clicks with
 ``graph=`` / ``AcceptedGraph.analyze``; rediscover only on explicit refresh.
 
-Requires a built causal extension (`maturin develop` in python/).
+Requires a built antecedent extension (`maturin develop` in python/).
 """
 
 from __future__ import annotations

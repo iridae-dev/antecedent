@@ -92,8 +92,10 @@ pub use regularized::{
     LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
 };
 pub use response::{
-    LocalPolynomialInfluence, LocalPolynomialPoint, gaussian_density, gaussian_local_quadratic,
-    gaussian_local_quadratic_influence, silverman_bandwidth,
+    LocalPolynomialInfluence, LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density,
+    gaussian_local_quadratic, gaussian_local_quadratic_influence,
+    gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
+    silverman_bandwidth,
 };
 pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,

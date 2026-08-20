@@ -10,17 +10,27 @@ use antecedent_core::{
     Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseFunctional,
     ResponseQuery, Value,
 };
-use antecedent_data::{TableView, tabular_from_record_batch};
+use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyAny, PyModule};
 
 use crate::response_api::{ResponseAnalysisResult, response_result};
 use crate::{
-    AteAnalysisResult, ate_result_from_analysis, columns_to_batch, dag_from_named_edges,
-    detach_catch, py_err, py_execution_context_ext, suite_from_refute,
+    AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, py_err,
+    py_execution_context_ext, suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy,
+    tabular_from_py_columns,
 };
+
+fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
+    if names != expected {
+        return Err(PyValueError::new_err(format!(
+            "prepared {op} requires the same column names (order) as prepare"
+        )));
+    }
+    Ok(())
+}
 
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
 #[pyclass(name = "PreparedAnalysis")]
@@ -31,6 +41,143 @@ pub struct PyPreparedAnalysis {
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
     last: Option<antecedent::StudyResult>,
+}
+
+impl PyPreparedAnalysis {
+    fn finish_ate_estimate(
+        &mut self,
+        py: Python<'_>,
+        data: TabularData,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        let inner = Arc::clone(&self.inner);
+        let out_names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.estimate(&data, &ctx).map_err(py_err)?;
+            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            Ok((mapped, result))
+        })?;
+        self.last = Some(result);
+        Ok(mapped)
+    }
+
+    fn finish_response_estimate(
+        &mut self,
+        py: Python<'_>,
+        data: TabularData,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<ResponseAnalysisResult> {
+        let inner = Arc::clone(&self.inner);
+        let out_names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.estimate(&data, &ctx).map_err(py_err)?;
+            let mapped = response_from_study(&out_names, &result)?;
+            Ok((mapped, result))
+        })?;
+        self.last = Some(result);
+        Ok(mapped)
+    }
+
+    fn finish_ate_refresh(
+        &mut self,
+        py: Python<'_>,
+        data: TabularData,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        let mut inner = (*self.inner).clone();
+        let out_names = self.names.clone();
+        let (updated, mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.refresh(data, &ctx).map_err(py_err)?;
+            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            Ok((inner, mapped, result))
+        })?;
+        self.inner = Arc::new(updated);
+        self.last = Some(result);
+        Ok(mapped)
+    }
+
+    fn finish_response_refresh(
+        &mut self,
+        py: Python<'_>,
+        data: TabularData,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<ResponseAnalysisResult> {
+        let mut inner = (*self.inner).clone();
+        let out_names = self.names.clone();
+        let (updated, mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.refresh(data, &ctx).map_err(py_err)?;
+            let mapped = response_from_study(&out_names, &result)?;
+            Ok((inner, mapped, result))
+        })?;
+        self.inner = Arc::new(updated);
+        self.last = Some(result);
+        Ok(mapped)
+    }
+
+    fn finish_ate_refute(
+        &mut self,
+        py: Python<'_>,
+        data: TabularData,
+        suite: Bound<'_, PyAny>,
+        seed: u64,
+        threads: u32,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<AteAnalysisResult> {
+        let prior = self
+            .last
+            .clone()
+            .ok_or_else(|| PyValueError::new_err("call estimate/refresh before refute"))?;
+        let refute_suite = suite_from_refute(Some(&suite))?;
+        let cancel_token = cancel.map(|c| c.inner);
+        let inner = Arc::clone(&self.inner);
+        let out_names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                cancel_token,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.refute(&prior, &data, refute_suite, &ctx).map_err(py_err)?;
+            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            Ok((mapped, result))
+        })?;
+        self.last = Some(result);
+        Ok(mapped)
+    }
 }
 
 #[pymethods]
@@ -62,7 +209,7 @@ impl PyPreparedAnalysis {
     fn prepare(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -80,7 +227,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
@@ -90,11 +237,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -159,7 +303,7 @@ impl PyPreparedAnalysis {
     fn prepare_response(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -171,7 +315,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -180,11 +324,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -256,7 +397,7 @@ impl PyPreparedAnalysis {
     fn prepare_intervention_response(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
         treatments: Vec<String>,
@@ -267,7 +408,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -276,11 +417,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
             let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
             let functional = crate::response_api::build_functional(
@@ -345,7 +483,7 @@ impl PyPreparedAnalysis {
     fn prepare_conditional(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -359,7 +497,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
@@ -369,11 +507,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
@@ -430,7 +565,7 @@ impl PyPreparedAnalysis {
     fn prepare_path_specific(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -445,7 +580,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -454,11 +589,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
@@ -519,7 +651,7 @@ impl PyPreparedAnalysis {
     fn prepare_distribution(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
         interventions: std::collections::HashMap<String, f64>,
@@ -529,7 +661,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let batch = columns_to_batch(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -538,11 +670,8 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let data = loaded.data;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let mut ivs = Vec::with_capacity(interventions.len());
             for (name, level) in &interventions {
@@ -592,30 +721,24 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
-        if names != self.names {
-            return Err(PyValueError::new_err(
-                "prepared estimate requires the same column names (order) as prepare",
-            ));
-        }
-        let batch = columns_to_batch(&names, &columns)?;
+        require_prepared_names(&self.names, &names, "estimate")?;
+        let data = tabular_from_numpy(&names, &columns)?;
         drop(columns);
-        let inner = Arc::clone(&self.inner);
-        let out_names = self.names.clone();
-        let (mapped, result) = detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let result = inner.estimate(&loaded.data, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
-            Ok((mapped, result))
-        })?;
-        self.last = Some(result);
-        Ok(mapped)
+        self.finish_ate_estimate(py, data, seed, threads)
+    }
+
+    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    fn estimate_arrow_c(
+        &mut self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        require_prepared_names(&self.names, &names, "estimate")?;
+        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        self.finish_ate_estimate(py, data, seed, threads)
     }
 
     /// Re-estimate a prepared ResponseCurve (same schema) without recompiling.
@@ -628,30 +751,24 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<ResponseAnalysisResult> {
-        if names != self.names {
-            return Err(PyValueError::new_err(
-                "prepared estimate requires the same column names (order) as prepare",
-            ));
-        }
-        let batch = columns_to_batch(&names, &columns)?;
+        require_prepared_names(&self.names, &names, "estimate")?;
+        let data = tabular_from_numpy(&names, &columns)?;
         drop(columns);
-        let inner = Arc::clone(&self.inner);
-        let out_names = self.names.clone();
-        let (mapped, result) = detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let result = inner.estimate(&loaded.data, &ctx).map_err(py_err)?;
-            let mapped = response_from_study(&out_names, &result)?;
-            Ok((mapped, result))
-        })?;
-        self.last = Some(result);
-        Ok(mapped)
+        self.finish_response_estimate(py, data, seed, threads)
+    }
+
+    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    fn estimate_response_arrow_c(
+        &mut self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<ResponseAnalysisResult> {
+        require_prepared_names(&self.names, &names, "estimate")?;
+        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        self.finish_response_estimate(py, data, seed, threads)
     }
 
     /// Replace retained data and re-estimate (same schema).
@@ -664,31 +781,24 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
-        if names != self.names {
-            return Err(PyValueError::new_err(
-                "prepared refresh requires the same column names (order) as prepare",
-            ));
-        }
-        let batch = columns_to_batch(&names, &columns)?;
+        require_prepared_names(&self.names, &names, "refresh")?;
+        let data = tabular_from_numpy(&names, &columns)?;
         drop(columns);
-        let mut inner = (*self.inner).clone();
-        let out_names = self.names.clone();
-        let (updated, mapped, result) = detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let result = inner.refresh(loaded.data, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
-            Ok((inner, mapped, result))
-        })?;
-        self.inner = Arc::new(updated);
-        self.last = Some(result);
-        Ok(mapped)
+        self.finish_ate_refresh(py, data, seed, threads)
+    }
+
+    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    fn refresh_arrow_c(
+        &mut self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        require_prepared_names(&self.names, &names, "refresh")?;
+        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        self.finish_ate_refresh(py, data, seed, threads)
     }
 
     /// Replace retained data and re-estimate a prepared ResponseCurve.
@@ -701,31 +811,24 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<ResponseAnalysisResult> {
-        if names != self.names {
-            return Err(PyValueError::new_err(
-                "prepared refresh requires the same column names (order) as prepare",
-            ));
-        }
-        let batch = columns_to_batch(&names, &columns)?;
+        require_prepared_names(&self.names, &names, "refresh")?;
+        let data = tabular_from_numpy(&names, &columns)?;
         drop(columns);
-        let mut inner = (*self.inner).clone();
-        let out_names = self.names.clone();
-        let (updated, mapped, result) = detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let result = inner.refresh(loaded.data, &ctx).map_err(py_err)?;
-            let mapped = response_from_study(&out_names, &result)?;
-            Ok((inner, mapped, result))
-        })?;
-        self.inner = Arc::new(updated);
-        self.last = Some(result);
-        Ok(mapped)
+        self.finish_response_refresh(py, data, seed, threads)
+    }
+
+    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    fn refresh_response_arrow_c(
+        &mut self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<ResponseAnalysisResult> {
+        require_prepared_names(&self.names, &names, "refresh")?;
+        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        self.finish_response_refresh(py, data, seed, threads)
     }
 
     /// Second-click refute against the last estimate (same schema data).
@@ -740,36 +843,26 @@ impl PyPreparedAnalysis {
         threads: u32,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
-        if names != self.names {
-            return Err(PyValueError::new_err(
-                "prepared refute requires the same column names (order) as prepare",
-            ));
-        }
-        let prior = self
-            .last
-            .clone()
-            .ok_or_else(|| PyValueError::new_err("call estimate/refresh before refute"))?;
-        let batch = columns_to_batch(&names, &columns)?;
-        let refute_suite = suite_from_refute(Some(&suite))?;
-        let cancel_token = cancel.map(|c| c.inner);
+        require_prepared_names(&self.names, &names, "refute")?;
+        let data = tabular_from_numpy(&names, &columns)?;
         drop(columns);
-        let inner = Arc::clone(&self.inner);
-        let out_names = self.names.clone();
-        let (mapped, result) = detach_catch(py, move || {
-            let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                cancel_token,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let result = inner.refute(&prior, &loaded.data, refute_suite, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
-            Ok((mapped, result))
-        })?;
-        self.last = Some(result);
-        Ok(mapped)
+        self.finish_ate_refute(py, data, suite, seed, threads, cancel)
+    }
+
+    #[pyo3(signature = (names, columns, suite, *, seed=1, threads=1, cancel=None))]
+    fn refute_arrow_c(
+        &mut self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        suite: Bound<'_, PyAny>,
+        seed: u64,
+        threads: u32,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<AteAnalysisResult> {
+        require_prepared_names(&self.names, &names, "refute")?;
+        let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
+        self.finish_ate_refute(py, data, suite, seed, threads, cancel)
     }
 
     #[getter]
