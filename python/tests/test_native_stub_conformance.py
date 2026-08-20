@@ -121,6 +121,14 @@ _SIGNATURE_UNAVAILABLE: dict[str, str] = {}
 # default genuinely cannot be expressed as a literal (e.g. a named Rust constant that
 # PyO3's auto `__text_signature__` renders as `...`/`Ellipsis` rather than the constant's
 # value), never to quiet a real stub/extension drift.
+_LICENSE_DEFAULT_REASON = (
+    "the Rust default is the named constant `temporal_license::DEFAULT_TREATMENT_LAG` "
+    "or `DEFAULT_POLICY` (`python/src/temporal_license.rs`), sourced from "
+    "`TemporalResponseSpec::license()`, not a literal in `#[pyo3(signature = ...)]`, "
+    "so PyO3's auto text_signature reports `...` (`Ellipsis`). The stub keeps the "
+    "licensed literal (`1` / `'pulse'`) as documentation."
+)
+
 _PARAM_DEFAULT_EXEMPT: dict[tuple[str, str], str] = {
     ("antecedent_state_append", "cache_bytes"): (
         "the Rust default is the named constant `DEFAULT_CACHE_BYTES` "
@@ -132,6 +140,17 @@ _PARAM_DEFAULT_EXEMPT: dict[tuple[str, str], str] = {
         "class method, not a top-level function."
     ),
 }
+for _fn in (
+    "analyze",
+    "analyze_events",
+    "analyze_panel",
+    "analyze_panel_discover",
+    "analyze_temporal_discover",
+    "analyze_temporal_pag",
+    "analyze_temporal_response",
+):
+    _PARAM_DEFAULT_EXEMPT[(_fn, "treatment_lag")] = _LICENSE_DEFAULT_REASON
+    _PARAM_DEFAULT_EXEMPT[(_fn, "policy")] = _LICENSE_DEFAULT_REASON
 
 # The functions Defect C fixed. The signature sweep below must actually compare these —
 # if introspection ever silently stopped covering them (e.g. by falling into
