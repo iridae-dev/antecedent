@@ -1146,7 +1146,8 @@ impl PosteriorArtifact {
         }
         let borrowed = slf.borrow();
         let data = borrowed.draws.as_slice();
-        let n = isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
+        let n =
+            isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
         let itemsize = isize::try_from(std::mem::size_of::<f64>()).expect("f64 size");
         let nbytes = n.saturating_mul(itemsize);
         unsafe {
@@ -1157,9 +1158,7 @@ impl PosteriorArtifact {
             (*view).readonly = 1;
             (*view).itemsize = itemsize;
             (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
-                std::ffi::CString::new("d")
-                    .expect("format")
-                    .into_raw()
+                std::ffi::CString::new("d").expect("format").into_raw()
             } else {
                 std::ptr::null_mut()
             };
@@ -1182,6 +1181,7 @@ impl PosteriorArtifact {
         Ok(())
     }
 
+    #[allow(clippy::unused_self)]
     unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
         if view.is_null() {
             return;
