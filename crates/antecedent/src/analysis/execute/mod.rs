@@ -19,7 +19,7 @@ pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, ObservationSpec,
     PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TemporalEffectQuery, Value, VariableId,
+    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,

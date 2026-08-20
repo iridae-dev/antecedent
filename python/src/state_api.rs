@@ -255,8 +255,9 @@ impl PyCausalState {
     /// non-negative `treatment_lag` → policy origin `-treatment_lag`. Defaults
     /// match `PulseEffect` (`treatment_lag=1` → `pulse(-1)`).
     #[pyo3(signature = (
-        treatment, outcome, *, grid, horizons=None, policy="pulse",
-        treatment_lag=1, max_history_lag=None
+        treatment, outcome, *, grid, horizons=None,
+        policy=crate::temporal_license::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None
     ))]
     fn register_response_curve(
         &mut self,
@@ -269,8 +270,7 @@ impl PyCausalState {
         max_history_lag: Option<u32>,
     ) -> PyResult<(u64, u64)> {
         use antecedent_core::{
-            ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalPolicy,
-            TemporalResponseSpec,
+            ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
         };
         let functional = ResponseFunctional::MeanCurve {
             outcome: VariableId::from_raw(outcome),
@@ -281,17 +281,7 @@ impl PyCausalState {
         };
         let mut query = ResponseQuery::new(functional);
         if let Some(horizons) = horizons {
-            let at = -i32::try_from(treatment_lag)
-                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
-            let temporal_policy = match policy.to_ascii_lowercase().as_str() {
-                "pulse" => TemporalPolicy::pulse(at),
-                "sustained" => TemporalPolicy::sustained(at, at),
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "unknown temporal policy {other:?}; use pulse|sustained"
-                    )));
-                }
-            };
+            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             query = query.with_temporal(temporal);

@@ -13,6 +13,9 @@ CiArg = str | Callable[..., Any] | None
 __version__: str
 __build_optimized__: bool
 
+def temporal_response_spec() -> dict[str, Any]:
+    """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
+
 class CausalError(Exception): ...
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...
@@ -158,6 +161,7 @@ class ResponseAnalysisResult:
     warnings: list[str]
     identification: str
     adjustment_set: list[str]
+    horizon_adjustment_sets: list[list[str]]
     assumptions: list[str]
     provenance_id: str
     identified_mass: float | None

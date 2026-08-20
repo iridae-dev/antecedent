@@ -36,6 +36,7 @@ mod response_api;
 mod stability;
 mod state_api;
 mod temporal_api;
+mod temporal_license;
 mod transport_interference_api;
 
 pub(crate) use ate_api::{
@@ -1473,6 +1474,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     stability::register(m)?;
     prior_bank::register(m)?;
     response_api::register(m)?;
+    temporal_license::register(m)?;
     transport_interference_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;

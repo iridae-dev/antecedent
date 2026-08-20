@@ -10,7 +10,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use antecedent_core::{
-    CausalQuery, CausalSchema, ExecutionContext, Intervention, TemporalEffectQuery, Value,
+    CausalQuery, CausalSchema, ExecutionContext, Intervention, TargetPopulation,
+    TemporalEffectQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_estimate::EstimationWorkspace;
@@ -22,6 +23,7 @@ use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_graph::TemporalDag;
 use antecedent_identify::{IdentificationResult, TemporalBackdoorIdentifier};
 
 use super::builder::{DataInput, RefuteSuite};
@@ -43,21 +45,39 @@ pub struct CachedStaticIdentification {
     pub estimand: IdentifiedEstimand,
 }
 
-/// Prepare-time temporal-backdoor identification (ADR 0021).
-///
-/// For temporal [`CausalQuery::Response`], identification + lag indexer are
-/// frozen for the maximum requested horizon. For scalar
-/// [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained), they are
-/// frozen for that query's horizon. Estimate clicks reuse both and must not
-/// re-identify.
+/// Prepare-time identification products for one temporal horizon.
 #[derive(Clone, Debug)]
-pub struct CachedTemporalIdentification {
-    /// Unfolded backdoor identification at the frozen horizon.
+pub struct CachedTemporalHorizonIdentification {
+    /// Requested horizon these products were identified for.
+    pub horizon: u32,
+    /// Unfolded backdoor identification at [`Self::horizon`].
     pub identification: IdentificationResult,
-    /// Estimand selected for the prepared temporal estimator.
+    /// Estimand selected for this horizon.
     pub estimand: IdentifiedEstimand,
     /// Finite-unfolding indexer paired with [`Self::identification`].
     pub indexer: TemporalIndexer,
+}
+
+/// Prepare-time temporal-backdoor identification (ADR 0021).
+///
+/// For temporal [`CausalQuery::Response`], identification + lag indexer are
+/// frozen once per unique requested horizon. For scalar
+/// [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained), they are
+/// frozen for that query's horizon. Estimate clicks reuse the cache and must
+/// not re-identify. A union of per-horizon adjustment sets is not treated as
+/// one shared `Z`.
+#[derive(Clone, Debug)]
+pub struct CachedTemporalIdentification {
+    /// One entry per unique requested horizon, in query order.
+    pub by_horizon: Arc<[CachedTemporalHorizonIdentification]>,
+}
+
+impl CachedTemporalIdentification {
+    /// Identification products for `horizon`, if prepared.
+    #[must_use]
+    pub fn get(&self, horizon: u32) -> Option<&CachedTemporalHorizonIdentification> {
+        self.by_horizon.iter().find(|entry| entry.horizon == horizon)
+    }
 }
 
 /// Durable handle: fixed schema, graph, query, and estimator; swap data and re-estimate.
@@ -473,7 +493,7 @@ impl Study {
         }
     }
 
-    /// Identify once at prepare for temporal response or TemporalEffect.
+    /// Identify once per requested horizon at prepare for temporal response or TemporalEffect.
     fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
@@ -489,36 +509,18 @@ impl Study {
                 let Some(temporal) = query.temporal.as_ref() else {
                     return Ok(None);
                 };
-                let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
-                    CausalError::Compile {
+                let (treatment, outcome) =
+                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                         message: "response query has no treatment/outcome pair".into(),
-                    }
-                })?;
-                let max_h = temporal.horizons.iter().copied().max().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "temporal response requires at least one horizon".into(),
-                    }
-                })?;
-                let id_query = TemporalEffectQuery {
+                    })?;
+                Ok(Some(identify_temporal_response_horizons(
+                    graph,
                     treatment,
                     outcome,
-                    policy: temporal.policy.clone(),
-                    control: Intervention::set(treatment, Value::f64(0.0)),
-                    active: Intervention::set(treatment, Value::f64(1.0)),
-                    horizon_steps: max_h,
-                    max_history_lag: temporal.max_history_lag,
-                    target_population: query.target_population.clone(),
-                };
-                let id_res = TemporalBackdoorIdentifier::new()
-                    .identify_temporal(graph, &id_query)
-                    .map_err(CausalError::from)?;
-                let estimand =
-                    select_estimand(&id_res.result, EstimatorId::TemporalResponseGcomp)?;
-                Ok(Some(CachedTemporalIdentification {
-                    identification: id_res.result,
-                    estimand,
-                    indexer: id_res.indexer,
-                }))
+                    temporal,
+                    query.target_population.clone(),
+                    EstimatorId::TemporalResponseGcomp,
+                )?))
             }
             CausalQuery::TemporalEffect(query) => {
                 let id_res = TemporalBackdoorIdentifier::new()
@@ -527,14 +529,57 @@ impl Study {
                 let estimand =
                     select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
                 Ok(Some(CachedTemporalIdentification {
-                    identification: id_res.result,
-                    estimand,
-                    indexer: id_res.indexer,
+                    by_horizon: Arc::from([CachedTemporalHorizonIdentification {
+                        horizon: query.horizon_steps,
+                        identification: id_res.result,
+                        estimand,
+                        indexer: id_res.indexer,
+                    }]),
                 }))
             }
             _ => Ok(None),
         }
     }
+}
+
+pub(crate) fn identify_temporal_response_horizons(
+    graph: &TemporalDag,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+    temporal: &TemporalResponseSpec,
+    target_population: TargetPopulation,
+    estimator_id: crate::strategy_table::EstimatorId,
+) -> Result<CachedTemporalIdentification, CausalError> {
+    use crate::strategy_table::select_estimand;
+    if temporal.horizons.is_empty() {
+        return Err(CausalError::Compile {
+            message: "temporal response requires at least one horizon".into(),
+        });
+    }
+    let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
+    for &horizon in temporal.horizons.iter() {
+        let id_query = TemporalEffectQuery {
+            treatment,
+            outcome,
+            policy: temporal.policy.clone(),
+            control: Intervention::set(treatment, Value::f64(0.0)),
+            active: Intervention::set(treatment, Value::f64(1.0)),
+            horizon_steps: horizon,
+            max_history_lag: temporal.max_history_lag,
+            target_population: target_population.clone(),
+        };
+        let id_res = TemporalBackdoorIdentifier::new()
+            .identify_temporal(graph, &id_query)
+            .map_err(CausalError::from)?;
+        let estimand = select_estimand(&id_res.result, estimator_id)?;
+        by_horizon.push(CachedTemporalHorizonIdentification {
+            horizon,
+            identification: id_res.result,
+            estimand,
+            indexer: id_res.indexer,
+        });
+    }
+    Ok(CachedTemporalIdentification { by_horizon: Arc::from(by_horizon) })
 }
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {

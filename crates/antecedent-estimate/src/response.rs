@@ -207,6 +207,7 @@ impl ContinuousResponseEstimator {
             support,
             assumptions,
             provenance_id: Arc::from(provenance_id),
+            horizon_identification: None,
         })
     }
 

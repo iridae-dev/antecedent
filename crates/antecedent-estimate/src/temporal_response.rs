@@ -17,11 +17,11 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, GridSpec, IdentificationStatus, Intervention,
-    InterventionSequence, MechanismOverride, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalResponseSpec,
-    Value, VariableId,
+    DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
+    Intervention, InterventionSequence, MechanismOverride, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery,
+    TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
@@ -70,15 +70,20 @@ impl TemporalResponseEstimator {
 
     /// Estimate a temporal [`ResponseQuery`] on series data.
     ///
+    /// `identifications` must be aligned with `query.temporal.horizons`: one
+    /// `(estimand, indexer)` pair per requested horizon, already identified.
+    /// Reusing a max-horizon estimand at a shorter target is not valid when
+    /// confounding is horizon-dependent.
+    ///
     /// # Errors
     ///
-    /// Missing temporal attachment, unsupported functional/intervention, or fit failures.
+    /// Missing temporal attachment, unsupported functional/intervention, length
+    /// mismatch, or fit failures.
     pub fn estimate(
         &self,
         data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
         query: &ResponseQuery,
-        indexer: &TemporalIndexer,
         identification_status: IdentificationStatus,
         assumptions: AssumptionSet,
         ctx: &ExecutionContext,
@@ -89,18 +94,22 @@ impl TemporalResponseEstimator {
             )
         })?;
         temporal.validate()?;
+        if identifications.len() != temporal.horizons.len() {
+            return Err(EstimationError::unsupported(
+                "temporal response identification must be supplied once per requested horizon",
+            ));
+        }
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
         }
         match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => self.estimate_mean_curve(
                 data,
-                estimand,
+                identifications,
                 *outcome,
                 treatment.variable,
                 &treatment.grid.values()?,
                 temporal,
-                indexer,
                 identification_status,
                 assumptions,
                 ctx,
@@ -109,13 +118,12 @@ impl TemporalResponseEstimator {
                 let (treatment, level, shift) = resolve_temporal_intervention(interventions)?;
                 self.estimate_intervention_curve(
                     data,
-                    estimand,
+                    identifications,
                     *outcome,
                     treatment,
                     level,
                     shift,
                     temporal,
-                    indexer,
                     identification_status,
                     assumptions,
                     ctx,
@@ -130,12 +138,11 @@ impl TemporalResponseEstimator {
     fn estimate_mean_curve(
         &self,
         data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
         outcome: VariableId,
         treatment: VariableId,
         doses: &[f64],
         temporal: &TemporalResponseSpec,
-        indexer: &TemporalIndexer,
         identification_status: IdentificationStatus,
         assumptions: AssumptionSet,
         ctx: &ExecutionContext,
@@ -149,13 +156,13 @@ impl TemporalResponseEstimator {
         let mut upper = Vec::with_capacity(mean.capacity());
 
         // Layout: value[d * n_horizons + h] — dose major, then horizon.
-        let (per_horizon, horizon_ranges) = self.run_per_horizon(
+        let (per_horizon, horizon_ranges, horizon_identification) = self.run_per_horizon(
             data,
-            estimand,
+            identifications,
             treatment,
             outcome,
             temporal,
-            indexer,
+            identification_status,
             ctx,
             |fitted| doses.iter().map(|&dose| fitted.mean_and_se_at(dose)).collect::<Vec<_>>(),
         )?;
@@ -192,19 +199,19 @@ impl TemporalResponseEstimator {
             support: mean_curve_support(doses, temporal, &horizon_ranges),
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
+            horizon_identification: Some(Arc::from(horizon_identification)),
         })
     }
 
     fn estimate_intervention_curve(
         &self,
         data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
         outcome: VariableId,
         treatment: VariableId,
         level: Option<f64>,
         shift: f64,
         temporal: &TemporalResponseSpec,
-        indexer: &TemporalIndexer,
         identification_status: IdentificationStatus,
         assumptions: AssumptionSet,
         ctx: &ExecutionContext,
@@ -213,13 +220,13 @@ impl TemporalResponseEstimator {
         // mu_hat(d) = beta_t * d + base_mean, with base_mean independent of d. So
         // averaging g-comp at observed A_i + delta over i collapses exactly to a
         // single evaluation at Abar + delta — an O(n) loop is not needed.
-        let (per_horizon, horizon_ranges) = self.run_per_horizon(
+        let (per_horizon, horizon_ranges, horizon_identification) = self.run_per_horizon(
             data,
-            estimand,
+            identifications,
             treatment,
             outcome,
             temporal,
-            indexer,
+            identification_status,
             ctx,
             |fitted| {
                 let eval_at = level.unwrap_or_else(|| fitted.treatment_mean() + shift);
@@ -264,28 +271,33 @@ impl TemporalResponseEstimator {
             support: intervention_support(&eval_levels, temporal, &horizon_ranges),
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
+            horizon_identification: Some(Arc::from(horizon_identification)),
         })
     }
 
-    /// Shared per-horizon scaffold: fit each horizon, retain that horizon's
-    /// lag-aligned treatment range, and let the caller turn each
-    /// [`FittedHorizon`] into whatever per-horizon payload its response shape needs.
+    /// Shared per-horizon scaffold: fit each horizon with that horizon's
+    /// identified estimand, retain that horizon's lag-aligned treatment range,
+    /// and let the caller turn each [`FittedHorizon`] into whatever per-horizon
+    /// payload its response shape needs.
     fn run_per_horizon<T>(
         &self,
         data: &TimeSeriesData,
-        estimand: &IdentifiedEstimand,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
         treatment: VariableId,
         outcome: VariableId,
         temporal: &TemporalResponseSpec,
-        indexer: &TemporalIndexer,
+        identification_status: IdentificationStatus,
         ctx: &ExecutionContext,
         mut per_horizon: impl FnMut(&FittedHorizon) -> T,
-    ) -> Result<(Vec<T>, Vec<HorizonTreatmentRange>), EstimationError> {
+    ) -> Result<(Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>), EstimationError>
+    {
         let mut ols_ws = LeastSquaresWorkspace::default();
         let mut results = Vec::with_capacity(temporal.horizons.len());
         let mut horizon_ranges = Vec::with_capacity(temporal.horizons.len());
+        let mut horizon_identification = Vec::with_capacity(temporal.horizons.len());
 
-        for &horizon in temporal.horizons.iter() {
+        for (i, &horizon) in temporal.horizons.iter().enumerate() {
+            let (estimand, indexer) = identifications[i];
             let fitted = self.fit_horizon(
                 data,
                 estimand,
@@ -298,10 +310,16 @@ impl TemporalResponseEstimator {
                 &mut ols_ws,
             )?;
             horizon_ranges.push(range(&fitted.prepared.treatment));
+            horizon_identification.push(horizon_identification_of(
+                horizon,
+                estimand,
+                indexer,
+                identification_status,
+            )?);
             results.push(per_horizon(&fitted));
         }
 
-        Ok((results, horizon_ranges))
+        Ok((results, horizon_ranges, horizon_identification))
     }
 
     fn fit_horizon(
@@ -421,6 +439,33 @@ fn flatten_dose_horizon_grid(doses: &[f64], horizons: &[u32]) -> Vec<f64> {
         }
     }
     grid
+}
+
+fn named_adjustment(
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+) -> Result<Vec<TemporalNodeKey>, EstimationError> {
+    estimand
+        .adjustment_set
+        .iter()
+        .map(|&dense| {
+            indexer.key_of(dense.raw()).map_err(|e| EstimationError::data_msg(e.to_string()))
+        })
+        .collect()
+}
+
+fn horizon_identification_of(
+    horizon: u32,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    status: IdentificationStatus,
+) -> Result<HorizonIdentification, EstimationError> {
+    Ok(HorizonIdentification {
+        horizon,
+        status,
+        method: Arc::clone(&estimand.method),
+        adjustment: Arc::from(named_adjustment(estimand, indexer)?),
+    })
 }
 
 fn cell_against_range(dose: f64, observed_min: f64, observed_max: f64) -> SupportStatus {
@@ -833,9 +878,8 @@ mod tests {
         let result = est
             .estimate(
                 &data,
-                &estimand,
+                &[(&estimand, &indexer), (&estimand, &indexer), (&estimand, &indexer)],
                 &query,
-                &indexer,
                 IdentificationStatus::NonparametricallyIdentified,
                 AssumptionSet::new(),
                 &ExecutionContext::for_tests(7),
@@ -1034,12 +1078,11 @@ mod tests {
         let err = est
             .estimate_mean_curve(
                 &data,
-                &estimand,
+                &[(&estimand, &indexer)],
                 VariableId::from_raw(1),
                 VariableId::from_raw(0),
                 &[],
                 &temporal,
-                &indexer,
                 IdentificationStatus::NonparametricallyIdentified,
                 AssumptionSet::new(),
                 &ExecutionContext::for_tests(1),
@@ -1225,12 +1268,11 @@ mod tests {
         let result = est
             .estimate_mean_curve(
                 &data,
-                &estimand,
+                &[(&estimand, &indexer), (&estimand, &indexer)],
                 VariableId::from_raw(1),
                 VariableId::from_raw(0),
                 &[0.0, dose],
                 &temporal,
-                &indexer,
                 IdentificationStatus::NonparametricallyIdentified,
                 AssumptionSet::new(),
                 &ctx,

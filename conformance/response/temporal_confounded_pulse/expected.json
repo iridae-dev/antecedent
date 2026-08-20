@@ -102,12 +102,40 @@
       "horizon": 1,
       "treatment_offset": -1,
       "contrast": 2.0
+    },
+    "multi_horizon": {
+      "horizons": [1, 2],
+      "identification": [
+        {
+          "horizon": 1,
+          "status": "NonparametricallyIdentified",
+          "method": "temporal.backdoor.unfolded",
+          "treatment": { "variable": "t", "offset": -1 },
+          "outcome": { "variable": "y", "offset": 0 },
+          "adjustment_set": [{ "variable": "z", "offset": -1 }]
+        },
+        {
+          "horizon": 2,
+          "status": "NonparametricallyIdentified",
+          "method": "temporal.backdoor.unfolded",
+          "treatment": { "variable": "t", "offset": -1 },
+          "outcome": { "variable": "y", "offset": 1 },
+          "adjustment_set": []
+        }
+      ],
+      "surface": {
+        "layout": "dose_major",
+        "index_formula": "dose_index * n_horizons + horizon_index",
+        "mean": [1.0, 0.9704641350210989, 3.0, 0.0],
+        "note": "Cells are (dose=0,h=1), (dose=0,h=2), (dose=1,h=1), (dose=1,h=2). Horizon 1 stays the structural pulse [1, 3]. Horizon 2 has no graph backdoor (I(2)={}); the cells are the unadjusted lag-2 association in this periodic sample, not E[Y]=1. Reusing I(2)={} at h=1 yields the confounded [1, 5.5] at the short cells."
+      },
+      "horizon_2_atol": 1e-8
     }
   },
-  "estimator_contract": {
-    "estimator": "temporal response linear g-computation over a lag-aligned OLS design that includes the temporal-backdoor adjustment set",
-    "claim": "identification is Z@-1 with method temporal.backdoor.unfolded; with that Z, finite-sample OLS recovers the structural intercept and pulse coefficient; PulseEffect / single-step SustainedEffect recover the two-point contrast 2. Empty Z on this graph is not a valid identification.",
-    "not_claimed": "no multi-horizon surface, no outcome noise beyond the treatment equation A=Z+U, no claim that identify-once at a longer horizon would keep Z when confounding does not reach that horizon, no Python offset-level adjustment view (Python pins names; Rust pins (variable, offset))"
+    "estimator_contract": {
+    "estimator": "temporal response linear g-computation over a lag-aligned OLS design that includes the temporal-backdoor adjustment set identified for that horizon",
+    "claim": "identification is Z@-1 with method temporal.backdoor.unfolded at horizon 1; with that Z, finite-sample OLS recovers the structural intercept and pulse coefficient; PulseEffect / single-step SustainedEffect recover the two-point contrast 2. Empty Z on this graph at horizon 1 is not a valid identification. Horizons [1, 2] identify I(1)={Z@-1} and I(2)={} separately; reusing I(2) at horizon 1 recovers the confounded association.",
+    "not_claimed": "no outcome noise beyond the treatment equation A=Z+U, no Python offset-level adjustment view on the scalar IdentificationView.adjustment_set (Python pins names plus horizon_adjustment_sets; Rust pins (variable, offset) on CausalResponse.horizon_identification)"
   },
   "tolerance": {
     "class": "absolute",

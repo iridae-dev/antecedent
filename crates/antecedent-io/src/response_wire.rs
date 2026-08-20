@@ -11,10 +11,10 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting,
-    GridSpec, IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
-    PriorAssumption, ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, VariableId,
+    GridSpec, HorizonIdentification, IdentificationStatus, ObservationAssumption, ObservationSpec,
+    ParametricAssumption, PriorAssumption, ResponseEnvelope, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -609,6 +609,22 @@ pub enum IdentificationStatusWire {
     NotIdentified,
 }
 
+/// Per-horizon identification on a temporal response surface.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct HorizonIdentificationWire {
+    pub horizon: u32,
+    pub identification_status: IdentificationStatusWire,
+    pub method: String,
+    pub adjustment: Vec<HorizonAdjustmentNodeWire>,
+}
+
+/// Template-level adjustment node `(variable, offset)`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HorizonAdjustmentNodeWire {
+    pub variable: u32,
+    pub offset: i32,
+}
+
 /// Complete causal-response artifact payload on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CausalResponseWire {
@@ -619,6 +635,9 @@ pub struct CausalResponseWire {
     pub support: SupportReportWire,
     pub assumptions: Vec<AssumptionRecordWire>,
     pub provenance_id: String,
+    /// Per-horizon identification; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub horizon_identification: Option<Vec<HorizonIdentificationWire>>,
 }
 
 /// Encode a causal response artifact payload.
@@ -635,6 +654,24 @@ pub fn causal_response_to_wire(r: &CausalResponse) -> Result<CausalResponseWire,
         support: support_to_wire(&r.support),
         assumptions: assumptions_to_wire(&r.assumptions),
         provenance_id: r.provenance_id.to_string(),
+        horizon_identification: r.horizon_identification.as_ref().map(|horizons| {
+            horizons
+                .iter()
+                .map(|h| HorizonIdentificationWire {
+                    horizon: h.horizon,
+                    identification_status: status_to_wire(h.status),
+                    method: h.method.to_string(),
+                    adjustment: h
+                        .adjustment
+                        .iter()
+                        .map(|key| HorizonAdjustmentNodeWire {
+                            variable: key.variable.raw(),
+                            offset: key.offset,
+                        })
+                        .collect(),
+                })
+                .collect()
+        }),
     })
 }
 
@@ -652,6 +689,27 @@ pub fn causal_response_from_wire(w: &CausalResponseWire) -> Result<CausalRespons
         support: support_from_wire(&w.support)?,
         assumptions: assumptions_from_wire(&w.assumptions)?,
         provenance_id: Arc::from(w.provenance_id.as_str()),
+        horizon_identification: w.horizon_identification.as_ref().map(|horizons| {
+            Arc::from(
+                horizons
+                    .iter()
+                    .map(|h| HorizonIdentification {
+                        horizon: h.horizon,
+                        status: status_from_wire(h.identification_status),
+                        method: Arc::from(h.method.as_str()),
+                        adjustment: Arc::from(
+                            h.adjustment
+                                .iter()
+                                .map(|node| TemporalNodeKey {
+                                    variable: VariableId::from_raw(node.variable),
+                                    offset: node.offset,
+                                })
+                                .collect::<Vec<_>>(),
+                        ),
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        }),
     })
 }
 
@@ -1143,6 +1201,7 @@ mod tests {
             },
             assumptions,
             provenance_id: Arc::from("response-fit-17"),
+            horizon_identification: None,
         };
         let wire = causal_response_to_wire(&response).unwrap();
         let bytes = to_cbor(&wire).unwrap();

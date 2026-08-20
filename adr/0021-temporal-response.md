@@ -55,8 +55,10 @@ can diverge between the two paths even when point estimates match.
 
 Reuse [`TemporalBackdoorIdentifier`](../crates/antecedent-identify/src/temporal_backdoor.rs)
 over a finite unfolding. No new identification algorithm. Prepare caches
-identification once for the maximum requested horizon; estimate clicks
-must not re-identify.
+identification once per unique requested horizon — `I(h)`, not a single
+`I(max h)`. Estimate clicks must not re-identify. A union of per-horizon
+adjustment sets is not treated as one shared `Z`; each cell is estimated
+under the estimand identified for that horizon.
 
 ### Estimation
 
@@ -77,8 +79,11 @@ live in `SupportReport.point_status`. Static curves keep worst-over-points.
 Known-truth evidence is not a single DGP. `temporal_dose_horizon` pins the
 unconfounded linear surface, bands, and licensed intervention overlays.
 `temporal_confounded_pulse` pins identification under confounding:
-adjustment set `{Z@-1}`, method `temporal.backdoor.unfolded`, and the
-structural estimate (empty `Z` recovers the confounded association).
+adjustment set `{Z@-1}` at horizon 1, method `temporal.backdoor.unfolded`,
+and the structural estimate (empty `Z` recovers the confounded association).
+The same fixture's `multi_horizon` contract pins horizon-dependent
+identification: `I(1)={Z@-1}` and `I(2)={}` on `horizons=[1,2]`. Reusing
+the long-horizon empty set at the short cell is the confounded association.
 `temporal_horizon_support` pins mixed
 per-horizon empirical support.
 
@@ -99,7 +104,10 @@ numerically, as a two-point contrast, with the dose × horizon surface on the
 shared fixture (`conformance/response/temporal_dose_horizon`) — shared
 lower-level adjustment machinery, not derivation from the surface. Multi-step
 Sustained remains estimator-refused. All other nearby allowlist rows stay
-allowlisted.
+refused. Python query construction reads `TemporalResponseSpec::license()`
+(horizon cap, allowed policies, default lag) rather than defining those
+values.
+
 Temporal CPDAG/PAG, graph-posterior response, Bayesian temporal surfaces,
 and validation ≠ `none` remain refused / n/a / allowlisted as today.
 

@@ -8,7 +8,7 @@ use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, Prepa
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
     Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseFunctional,
-    ResponseQuery, TemporalPolicy, TemporalResponseSpec, Value,
+    ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
@@ -397,8 +397,8 @@ impl PyPreparedAnalysis {
         intervention_kinds=None,
         intervention_parameters=None,
         horizons,
-        policy="pulse",
-        treatment_lag=1,
+        policy=crate::temporal_license::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
         seed=1,
         threads=1,
@@ -450,17 +450,7 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeScale::Identity,
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
-            let at = -i32::try_from(treatment_lag)
-                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
-            let temporal_policy = match policy.as_str() {
-                "pulse" => TemporalPolicy::pulse(at),
-                "sustained" => TemporalPolicy::sustained(at, at),
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "unknown temporal policy {other:?}; use pulse|sustained"
-                    )));
-                }
-            };
+            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             let query =
@@ -1028,7 +1018,7 @@ fn response_from_study(
     let treatments = vec![name_of(result.treatment)];
     let outcomes = vec![name_of(result.outcome)];
     let adjustment_set = result.estimand.adjustment_set.iter().copied().map(name_of).collect();
-    response_result(response, treatments, outcomes, adjustment_set)
+    response_result(response, treatments, outcomes, adjustment_set, names)
 }
 
 fn apply_inference(

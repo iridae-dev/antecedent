@@ -110,6 +110,46 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
     _assert_identified(click, _IDENT)
 
 
+def test_confounded_multi_horizon_keeps_z_at_short_horizon():
+    data = _confounded_data()
+    atol = float(_CONFOUNDED["tolerance"]["atol"])
+    spec = _CONFOUNDED["contract"]["multi_horizon"]
+    h2_atol = float(spec["horizon_2_atol"])
+    query = antecedent.ResponseCurve(
+        "t",
+        "y",
+        grid=[0.0, 1.0],
+        horizons=[1, 2],
+        policy="pulse",
+        treatment_lag=1,
+    )
+    result = antecedent.analyze(
+        data, graph=_CONFOUNDED_EDGES, query=query, refute=False, bootstrap=0, seed=29
+    )
+    mean = _means(result)
+    expected = spec["surface"]["mean"]
+    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.horizon_adjustment_sets == (("z@-1",), ())
+    np.testing.assert_allclose(mean[0], expected[0], atol=atol)
+    np.testing.assert_allclose(mean[2], expected[2], atol=atol)
+    np.testing.assert_allclose(mean[1], expected[1], atol=h2_atol)
+    np.testing.assert_allclose(mean[3], expected[3], atol=h2_atol)
+    assert abs(mean[2] - mean[0] - 2.0) <= atol
+
+    click = PreparedAnalysis.prepare(
+        data,
+        graph=antecedent.AcceptedGraph.from_graph(
+            antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES),
+            algorithm_id="hand",
+        ),
+        query=query,
+        refute=False,
+        seed=29,
+    ).estimate(data, seed=29)
+    np.testing.assert_allclose(_means(click), mean, atol=atol)
+    assert click.identification.horizon_adjustment_sets == (("z@-1",), ())
+
+
 def test_confounded_pulse_and_sustained_match_structural_contrast():
     data = _confounded_data()
     atol = float(_CONFOUNDED["tolerance"]["atol"])

@@ -37,7 +37,8 @@ pub use population::{PopulationRegistry, PopulationSelection};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_HORIZONS, ObservationAssumption,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
+    ObservationSpec, ResponseFunctional, ResponseQuery, TemporalResponseLicense,
+    TemporalResponseSpec,
 };
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;

@@ -44,6 +44,7 @@ class IdentificationView:
     adjustment_set: list[str]
     assumption_count: int
     derivation_step_count: int
+    horizon_adjustment_sets: tuple[tuple[str, ...], ...] | None = None
 
     def __bool__(self) -> bool:
         """``True`` when the estimand is identified.

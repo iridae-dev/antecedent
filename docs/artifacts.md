@@ -74,6 +74,9 @@ layout. `SupportReportWire.point_status` is optional: present on temporal
 surfaces (dose-major, same index formula as `mean`) and omitted on static
 curves. `status` on a temporal surface is the three-way cell-grid summary,
 not the union of per-horizon treatment ranges.
+`CausalResponseWire.horizon_identification` is optional: present on temporal
+surfaces as one entry per requested horizon (`I(h)`), omitted on static
+curves. A union of those adjustment sets is not a valid shared `Z`.
 
 Python exposes this container through `antecedent.artifacts.dumps` / `loads`.
 The returned mapping is the canonical Rust wire representation; the Python layer

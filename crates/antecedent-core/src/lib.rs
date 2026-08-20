@@ -86,11 +86,13 @@ pub use query::{
     ObservationAssumption, ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
     ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation,
-    TemporalEffectQuery, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
+    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TransportQuery,
+    UnitChangeQuery,
 };
 pub use response::{
-    CausalResponse, IdentifiedSet, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
-    ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+    CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

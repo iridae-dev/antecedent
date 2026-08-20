@@ -8,7 +8,7 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
     IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportStatus, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
+    SupportStatus, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -71,6 +71,8 @@ pub(crate) struct ResponseAnalysisResult {
     identification: String,
     #[pyo3(get)]
     adjustment_set: Vec<String>,
+    #[pyo3(get)]
+    horizon_adjustment_sets: Vec<Vec<String>>,
     #[pyo3(get)]
     assumptions: Vec<String>,
     #[pyo3(get)]
@@ -211,7 +213,7 @@ fn analyze_response(
                 identification.required_assumptions,
             )
             .map_err(py_err)?;
-        response_result(response, treatments, outcomes, adjustment_set)
+        response_result(response, treatments, outcomes, adjustment_set, &names)
     })
 }
 
@@ -377,6 +379,7 @@ fn analyze_response_pag(
             warnings,
             identification: format!("{:?}", envelope.status),
             adjustment_set: Vec::new(),
+            horizon_adjustment_sets: Vec::new(),
             assumptions: vec![
                 "generalized adjustment within each identified MAG completion".into(),
             ],
@@ -586,8 +589,13 @@ pub(crate) fn response_result(
     response: antecedent_core::CausalResponse,
     treatments: Vec<String>,
     outcomes: Vec<String>,
-    adjustment_set: Vec<String>,
+    mut adjustment_set: Vec<String>,
+    names: &[String],
 ) -> PyResult<ResponseAnalysisResult> {
+    let horizon_adjustment_sets = named_horizon_adjustments(&response, names);
+    if let Some(first) = first_horizon_template_names(&response, names) {
+        adjustment_set = first;
+    }
     let (points, values, scalar, matrix) = match response.estimate {
         ResponseIdentification::PointIdentified(value) => value_parts(value)?,
         _ => {
@@ -648,6 +656,7 @@ pub(crate) fn response_result(
             .collect(),
         identification: format!("{:?}", response.identification_status),
         adjustment_set,
+        horizon_adjustment_sets,
         assumptions: response
             .assumptions
             .entries
@@ -662,6 +671,50 @@ pub(crate) fn response_result(
         enumeration_capped: None,
         mass_scope: None,
     })
+}
+
+fn named_horizon_adjustments(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> Vec<Vec<String>> {
+    match &response.horizon_identification {
+        Some(horizons) => horizons
+            .iter()
+            .map(|horizon| {
+                horizon
+                    .adjustment
+                    .iter()
+                    .map(|key| {
+                        let name = names
+                            .get(key.variable.as_usize())
+                            .cloned()
+                            .unwrap_or_else(|| format!("var{}", key.variable.raw()));
+                        format!("{name}@{}", key.offset)
+                    })
+                    .collect()
+            })
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+fn first_horizon_template_names(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> Option<Vec<String>> {
+    let first = response.horizon_identification.as_ref()?.first()?;
+    Some(
+        first
+            .adjustment
+            .iter()
+            .map(|key| {
+                names
+                    .get(key.variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", key.variable.raw()))
+            })
+            .collect(),
+    )
 }
 
 fn support_status_name(status: SupportStatus) -> &'static str {
@@ -768,7 +821,8 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 #[pyo3(signature = (
     names, columns, edges, kind, treatments, outcomes, *,
     grid=None, intervention_kinds=None, intervention_parameters=None,
-    horizons, policy="pulse", treatment_lag=1, max_history_lag=None,
+    horizons, policy=crate::temporal_license::DEFAULT_POLICY,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
     seed=1, threads=1, accepted=false
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -813,17 +867,7 @@ fn analyze_temporal_response(
         )?;
         // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
         // `-treatment_lag`. Licensed sustained is the single-step window.
-        let at = -i32::try_from(treatment_lag)
-            .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
-        let temporal_policy = match policy.as_str() {
-            "pulse" => TemporalPolicy::pulse(at),
-            "sustained" => TemporalPolicy::sustained(at, at),
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown temporal policy {other:?}; use pulse|sustained"
-                )));
-            }
-        };
+        let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
         let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let query = ResponseQuery::new(functional).with_temporal(temporal);
@@ -855,7 +899,7 @@ fn analyze_temporal_response(
                 names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
             })
             .collect();
-        response_result(response, treatments, outcomes, adjustment_set)
+        response_result(response, treatments, outcomes, adjustment_set, &names)
     })
 }
 

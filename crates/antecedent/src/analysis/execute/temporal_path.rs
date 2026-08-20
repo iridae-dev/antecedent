@@ -15,7 +15,13 @@ impl super::Study {
         let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
             self.temporal_identification_cache.as_deref()
         {
-            (cache.identification.clone(), cache.estimand.clone(), cache.indexer.clone(), true)
+            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                message: format!(
+                    "prepared temporal identification missing horizon {}",
+                    query.horizon_steps
+                ),
+            })?;
+            (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
         } else {
             let id_res = TemporalBackdoorIdentifier::new()
                 .identify_temporal(graph, query)
@@ -266,32 +272,35 @@ impl super::Study {
             });
         }
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
-            self.temporal_identification_cache.as_deref()
-        {
-            (cache.identification.clone(), cache.estimand.clone(), cache.indexer.clone(), true)
-        } else {
-            let max_h =
-                temporal.horizons.iter().copied().max().ok_or_else(|| CausalError::Compile {
-                    message: "temporal response requires at least one horizon".into(),
-                })?;
-            let id_query = TemporalEffectQuery {
-                treatment,
-                outcome,
-                policy: temporal.policy.clone(),
-                control: Intervention::set(treatment, Value::f64(0.0)),
-                active: Intervention::set(treatment, Value::f64(1.0)),
-                horizon_steps: max_h,
-                max_history_lag: temporal.max_history_lag,
-                target_population: query.target_population.clone(),
+        let (cache, identify_cached) =
+            if let Some(cache) = self.temporal_identification_cache.clone() {
+                (cache, true)
+            } else {
+                (
+                    Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
+                        graph,
+                        treatment,
+                        outcome,
+                        temporal,
+                        query.target_population.clone(),
+                        EstimatorId::TemporalResponseGcomp,
+                    )?),
+                    false,
+                )
             };
-            let id_res = TemporalBackdoorIdentifier::new()
-                .identify_temporal(graph, &id_query)
-                .map_err(CausalError::from)?;
-            let estimand = select_estimand(&id_res.result, EstimatorId::TemporalResponseGcomp)?;
-            (id_res.result, estimand, id_res.indexer, false)
-        };
-        require_identified(&identification)?;
+        let mut aligned = Vec::with_capacity(temporal.horizons.len());
+        for &horizon in temporal.horizons.iter() {
+            let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
+                message: format!("temporal identification missing horizon {horizon}"),
+            })?;
+            require_identified(&entry.identification)?;
+            aligned.push(entry);
+        }
+        let first = aligned[0];
+        let identification = first.identification.clone();
+        let estimand = first.estimand.clone();
+        let identifications: Vec<_> =
+            aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
 
         // Surface SEs are analytic (`TemporalResponseEstimator::new` zeros
         // bootstrap). Do not copy Study bootstrap here — it would look like
@@ -300,9 +309,8 @@ impl super::Study {
         let response = estimator
             .estimate(
                 data,
-                &estimand,
+                &identifications,
                 query,
-                &indexer,
                 identification.status,
                 identification.required_assumptions.clone(),
                 ctx,
@@ -316,7 +324,19 @@ impl super::Study {
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let mut diagnostics = identification.diagnostics.clone();
+        let mut diagnostics = Vec::new();
+        for entry in &aligned {
+            diagnostics.extend(entry.identification.diagnostics.iter().cloned());
+        }
+        if horizon_adjustment_sets_differ(&aligned) {
+            diagnostics.push(Diagnostic::new(
+                "identify.temporal_response.horizon_dependent",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "adjustment sets differ across requested horizons; each cell uses I(h) \
+                 identified for that horizon, not a shared max-horizon set",
+            ));
+        }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -373,4 +393,27 @@ impl super::Study {
             },
         }))
     }
+}
+
+fn horizon_adjustment_sets_differ(
+    entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+) -> bool {
+    let Some(first) = entries.first() else {
+        return false;
+    };
+    let first_z = named_adjustment_keys(first);
+    entries.iter().skip(1).any(|entry| named_adjustment_keys(entry) != first_z)
+}
+
+fn named_adjustment_keys(
+    entry: &crate::analysis::prepared::CachedTemporalHorizonIdentification,
+) -> Vec<antecedent_core::TemporalNodeKey> {
+    let mut keys: Vec<_> = entry
+        .estimand
+        .adjustment_set
+        .iter()
+        .filter_map(|&dense| entry.indexer.key_of(dense.raw()).ok())
+        .collect();
+    keys.sort();
+    keys
 }

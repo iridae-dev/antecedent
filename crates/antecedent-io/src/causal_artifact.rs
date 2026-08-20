@@ -1079,6 +1079,7 @@ mod tests {
             },
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
+            horizon_identification: None,
         };
         let payload = CausalPayloadWire::ResponseResult(Box::new(response));
         let artifact = encode_causal_payload_artifact(
@@ -1109,6 +1110,7 @@ mod tests {
             },
             assumptions: Vec::new(),
             provenance_id: "identify.binary_iv_bounds".into(),
+            horizon_identification: None,
         }
     }
 
@@ -1235,6 +1237,7 @@ mod tests {
             },
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
+            horizon_identification: None,
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::ResponseResult(Box::new(response)),
