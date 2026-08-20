@@ -126,7 +126,9 @@ Also exposed:
 - `antecedent.population` — `PopulationRegistry` / `target_*` for named predicates and custom-distribution IPW
 - `antecedent.gcm` — `fit_gcm_discovered` / `attribute_*_discovered` discover-then-attribute composition
 - `antecedent.state.CausalState` — incremental state with retained batches, events, suff-stats, particle filter
-- `refute=True|"full"|"placebo"|False` on static and temporal `analyze`
+- `refute=True|"full"|"placebo"|False` on static `analyze`. Temporal
+  `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and
+  record that skip on `CausalResponseView.validation`.
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
 - Graph interchange on the classes: `Dag.from_dot` / `.to_dot` and the JSON / GML / NetworkX peers
 - Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),

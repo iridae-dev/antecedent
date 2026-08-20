@@ -105,10 +105,10 @@ pub fn read_and_migrate<R: std::io::Read>(r: R) -> Result<EncodedArtifact, IoErr
 /// Seekable migrate: load only sections that need rewrite; copy other on-wire blobs
 /// byte-faithfully (preserves checksums without decompress).
 ///
-/// For format `0.3` already stable, this materializes all sections (same as a full read)
-/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.3`, `schema` is
-/// decoded/rewritten. Format `0.2` payloads pass through unchanged while their manifest
-/// advances to `0.3`.
+/// For format `0.4` already stable, this materializes all sections (same as a full read)
+/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.4`, `schema` is
+/// decoded/rewritten. Format `0.2`/`0.3` payloads pass through unchanged while their
+/// manifest advances to `0.4`.
 ///
 /// # Errors
 ///
@@ -134,8 +134,8 @@ pub fn migrate_from_seek<R: std::io::Read + std::io::Seek>(
     if from == STABLE_FORMAT {
         return reader.into_encoded_artifact();
     }
-    // Older formats are materialized. Only 0.1 needs a section rewrite; 0.2 introduced
-    // no wire representation that needs transformation when advancing to 0.3.
+    // Older formats are materialized. Only 0.1 needs a section rewrite; 0.2/0.3 introduced
+    // no wire representation that needs transformation when advancing to 0.4.
     let mut artifact = reader.into_encoded_artifact()?;
     if from == (FormatVersion { major: 0, minor: 1 }) {
         artifact = migrate_0_1_to_0_2(artifact)?;

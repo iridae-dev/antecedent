@@ -21,12 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   g-computed level), propagating intercept and adjustment-covariate
   uncertainty instead of scaling the treatment-coefficient SE alone; bands
   are pinned on `conformance/response/temporal_dose_horizon`. Scalar ATE
-  refuters record `refute.temporal_response.skipped` on function-valued
-  surfaces. Examples: `examples/python/temporal_response_curve.py`. The
-  package version remains 0.6.1.
+  refuters skip on function-valued surfaces: Python exposes
+  `refute.temporal_response.skipped` on `CausalResponseView.validation`, and
+  Rust `Study` diagnostics carry the same code. Examples:
+  `examples/python/temporal_response_curve.py`. The package version remains
+  0.6.1.
 
 ### Fixed
 
+- **Single-step Sustained / Dynamic temporal identification uses the pulse
+  backdoor set.** Licensed one-offset schedules previously went through
+  general ID, which emits an empty adjustment set relabeled as
+  `temporal.backdoor.unfolded`. Under confounding that was unadjusted OLS.
+  Multi-step schedules still use sequential ID and remain estimator-refused.
 - **Conjugate Gram cache no longer restores stale `Xᵀy`.** The cache keyed on
   outcome pointer identity; SBC (and other shared-workspace refits) often
   recycle equal-length `y` allocations to the same address, so later
