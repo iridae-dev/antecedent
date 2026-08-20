@@ -21,7 +21,7 @@ use antecedent_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
-    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest,
+    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest, SignificanceMethod,
 };
 
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -207,7 +207,16 @@ impl PcmciEngine {
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
-            if frame.is_fully_valid() {
+            // Multi-query CI batches salt permutation RNGs by batch index. Sequential
+            // `ci_statistic` always used a 1-query batch (salt 0). Keep that salt for
+            // BlockShuffle so parent selection stays bit-identical to 0.6.0; Analytic
+            // ignores the salt and benefits from the batched statistic path.
+            let use_batch = frame.is_fully_valid()
+                && !matches!(
+                    self.constraints.significance,
+                    SignificanceMethod::BlockShuffle { .. }
+                );
+            if use_batch {
                 ci_tests += self.pc_parent_level_batch(
                     frame,
                     target,
