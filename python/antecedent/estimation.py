@@ -868,7 +868,7 @@ class PreparedAnalysis:
             estimator = str(estimator)
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
-        names, columns = as_columns(data)
+        names, columns = ingest_columns(data)
         from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
         if isinstance(graph, _AcceptedGraph):
@@ -1109,11 +1109,7 @@ class PreparedAnalysis:
         """Re-estimate without recompiling (same schema as prepare)."""
         names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
-            fn = (
-                self._native.estimate_response_arrow_c
-                if arrow
-                else self._native.estimate_response
-            )
+            fn = self._native.estimate_response_arrow_c if arrow else self._native.estimate_response
             raw = fn(names, columns, seed=seed, threads=threads)
             return _wrap_prepared_response(
                 raw,
@@ -1135,11 +1131,7 @@ class PreparedAnalysis:
         """Replace retained data and re-estimate."""
         names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
-            fn = (
-                self._native.refresh_response_arrow_c
-                if arrow
-                else self._native.refresh_response
-            )
+            fn = self._native.refresh_response_arrow_c if arrow else self._native.refresh_response
             raw = fn(names, columns, seed=seed, threads=threads)
             return _wrap_prepared_response(
                 raw,
