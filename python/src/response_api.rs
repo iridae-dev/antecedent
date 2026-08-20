@@ -14,13 +14,10 @@ use antecedent_estimate::ContinuousResponseEstimator;
 use antecedent_identify::{
     GeneralizedAdjustmentIdentifier, IdentificationWorkspace, ResponseIdentifier,
 };
-use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{
-    CausalIdentifyError, columns_to_batch, dag_from_named_edges, detach_catch, graphs, py_err,
-};
+use crate::{CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
@@ -98,7 +95,7 @@ pub(crate) struct ResponseAnalysisResult {
 fn analyze_response(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     kind: String,
     treatments: Vec<String>,
@@ -118,13 +115,10 @@ fn analyze_response(
     export_row_diagnostics: bool,
     accepted: bool,
 ) -> PyResult<ResponseAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let scale = parse_scale(scale)?;
     let weighting = parse_weighting(weighting)?;
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let treatment_ids = resolve_names(data.schema(), &treatments)?;
         let outcome_ids = resolve_names(data.schema(), &outcomes)?;
@@ -226,18 +220,15 @@ fn analyze_response(
 fn analyze_response_pag(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     graph: graphs::Pag,
     treatment: String,
     outcome: String,
     grid: Vec<f64>,
     max_completions: usize,
 ) -> PyResult<ResponseAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let treatment_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let outcome_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let functional = ResponseFunctional::MeanCurve {

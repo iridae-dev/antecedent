@@ -842,7 +842,7 @@ fn analyze_ate_arrow_c(
 fn analyze_ate_many(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     queries: Vec<(String, String, f64, f64)>,
     identifier: Option<String>,
@@ -853,7 +853,7 @@ fn analyze_ate_many(
     threads: u32,
     latency: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
@@ -861,10 +861,7 @@ fn analyze_ate_many(
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let mut ate_queries = Vec::with_capacity(queries.len());
         for (treatment, outcome, control, active) in &queries {
@@ -1419,7 +1416,7 @@ typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
 fn analyze_ate_discover(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     treatment: String,
     outcome: String,
     algorithm: &str,
@@ -1457,7 +1454,7 @@ fn analyze_ate_discover(
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let algo = algorithm.to_ascii_lowercase();
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -1466,12 +1463,9 @@ fn analyze_ate_discover(
         estimator.as_deref(),
         bootstrap,
     )?;
-    drop(columns);
     let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     let soft_weight = soft_weight.to_string();
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
@@ -1752,7 +1746,7 @@ fn analyze_ate_discover(
 fn analyze_distribution(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     outcome: String,
     interventions: std::collections::HashMap<String, f64>,
@@ -1760,11 +1754,8 @@ fn analyze_distribution(
     seed: u64,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut ivs = Vec::with_capacity(interventions.len());
         for (name, level) in &interventions {
@@ -1814,7 +1805,7 @@ fn analyze_distribution(
 fn analyze_path_specific(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -1827,11 +1818,8 @@ fn analyze_path_specific(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
@@ -2086,7 +2074,7 @@ pub(crate) struct GraphEdge {
 fn analyze_conditional(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -2100,14 +2088,11 @@ fn analyze_conditional(
     threads: u32,
     accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
@@ -2139,7 +2124,7 @@ fn analyze_conditional(
 fn analyze_mediation(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -2152,13 +2137,10 @@ fn analyze_mediation(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
     let contrast = contrast.to_string();
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut med_ids = Vec::with_capacity(mediators.len());

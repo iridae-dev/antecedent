@@ -246,7 +246,7 @@ pub(crate) struct AnalysisResult {
 fn analyze(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, u32, String, u32)>,
     treatment: String,
     outcome: String,
@@ -264,15 +264,12 @@ fn analyze(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let tabular = loaded.data;
         let series = series_from_tabular(tabular)?;
 
         let t_id = schema_var_id(series.schema(), &treatment)?;
@@ -337,7 +334,7 @@ fn analyze(
 fn analyze_temporal_pag(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     graph: graphs::TemporalPag,
     treatment: String,
     outcome: String,
@@ -355,15 +352,12 @@ fn analyze_temporal_pag(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
-    drop(columns);
     detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let tabular = loaded.data;
         let series = series_from_tabular(tabular)?;
 
         let t_id = schema_var_id(series.schema(), &treatment)?;
@@ -1800,7 +1794,7 @@ fn apply_temporal_inference(
 fn analyze_temporal_mediation(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, u32, String, u32)>,
     treatment: String,
     mediator: String,
@@ -1812,11 +1806,10 @@ fn analyze_temporal_mediation(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let contrast = contrast.to_string();
-    drop(columns);
     detach_catch(py, move || {
-        let (series, _) = series_from_batch(&batch)?;
+        let series = series_from_tabular(tabular)?;
         let t_id = schema_var_id(series.schema(), &treatment)?;
         let m_id = schema_var_id(series.schema(), &mediator)?;
         let y_id = schema_var_id(series.schema(), &outcome)?;

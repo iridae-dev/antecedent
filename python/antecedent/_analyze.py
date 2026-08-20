@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .results import CausalResponseView
 
 from ._coerce import coerce_latency, coerce_query, coerce_refute
-from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
+from ._data import as_columns, as_multi_env_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import CausalUnsupportedError
 from ._native import (
     analyze as _analyze_temporal,
@@ -174,7 +174,7 @@ def handle_conditional(
         raise TypeError("ConditionalEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     edges = _static_edges(graph)
     raw = _analyze_conditional(
         names,
@@ -212,7 +212,7 @@ def handle_temporal_mediation(
         raise TypeError("TemporalMediationEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("TemporalMediationEffect does not support discovery=")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     lagged = _lagged_edges(graph)
     raw = _analyze_temporal_mediation(
         names,
@@ -383,7 +383,7 @@ def handle_response(
         )
     if getattr(query, "target_population", None) is not None:
         raise ValueError("response queries do not yet support target_population")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     at: list[float] | None
     if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
         treatments = list(query.treatments)
@@ -741,7 +741,7 @@ def handle_distribution(
         )
     else:
         edges = _static_edges(graph)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     raw = _analyze_distribution(
         names,
         columns,
@@ -778,7 +778,7 @@ def handle_path_specific(
         )
     else:
         edges = _static_edges(graph)
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     raw = _analyze_path_specific(
         names,
         columns,
@@ -827,7 +827,7 @@ def handle_static_ate_discover(
         )
     if not isinstance(discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY):
         raise TypeError(f"unsupported static discovery: {type(discovery)!r}")
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     cfg = _discovery_algorithm(discovery)
     bayes_kw: dict[str, Any] = {}
     if isinstance(inference, Bayesian):
@@ -1147,7 +1147,7 @@ def handle_temporal_pulse(
             regimes=regimes,
             temporal_discovery=_TEMPORAL_DISCOVERY,
         )
-    names, columns = as_columns(data)
+    names, columns = ingest_columns(data)
     if isinstance(graph, TemporalPag):
         raw = _analyze_temporal_pag(
             names,
