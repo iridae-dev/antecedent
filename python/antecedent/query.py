@@ -34,6 +34,47 @@ def _require_finite(field_name: str, value: float) -> None:
         raise CausalValueError(f"{field_name} must be finite, got {value!r}")
 
 
+# Source of truth for the horizon-count cap is the Rust validator
+# `TemporalResponseSpec::validate()` (crates/antecedent-core/src/query/response.rs,
+# `MAX_TEMPORAL_RESPONSE_HORIZONS`). Keep this mirror in sync with that constant so
+# a query that passes Python validation is not later rejected by Rust with a
+# different error.
+_MAX_TEMPORAL_RESPONSE_HORIZONS = 512
+
+
+def _validate_temporal(
+    horizons: Sequence[int] | None,
+    policy: str,
+    treatment_lag: int,
+    max_history_lag: int | None,
+) -> None:
+    """Shared temporal-attachment validation for ``ResponseCurve`` and
+    ``InterventionResponse`` (ADR 0021). No-op when ``horizons`` is ``None``
+    (the query is a static, non-temporal cell).
+    """
+    if horizons is None:
+        return
+    if not horizons:
+        raise CausalValueError("horizons must be non-empty when provided")
+    if len(horizons) > _MAX_TEMPORAL_RESPONSE_HORIZONS:
+        raise CausalValueError(
+            f"horizons must contain at most {_MAX_TEMPORAL_RESPONSE_HORIZONS} entries"
+        )
+    prev_h: int | None = None
+    for h in horizons:
+        if not isinstance(h, int) or h < 1:
+            raise CausalValueError("horizons must be positive integers")
+        if prev_h is not None and h <= prev_h:
+            raise CausalValueError("horizons must be strictly increasing")
+        prev_h = h
+    if policy not in ("pulse", "sustained"):
+        raise CausalValueError("policy must be 'pulse' or 'sustained'")
+    if treatment_lag < 0:
+        raise CausalValueError("treatment_lag must be non-negative")
+    if max_history_lag is not None and max_history_lag < 0:
+        raise CausalValueError("max_history_lag must be non-negative")
+
+
 def _coordinate_values(
     field_name: str,
     coordinates: Sequence[float] | Mapping[str, float],
@@ -80,7 +121,13 @@ class PulseEffect:
 
 @dataclass(frozen=True, slots=True)
 class SustainedEffect:
-    """Temporal sustained intervention effect."""
+    """Temporal sustained intervention effect (single-step licensed form).
+
+    ``treatment_lag`` selects the active offset ``-treatment_lag``. The licensed
+    public mapping is the single-step window at that offset (equivalent to a
+    pulse at the same lag under the linear temporal adjustment estimator).
+    Multi-step sustained schedules remain unsupported.
+    """
 
     treatment: str
     outcome: str
@@ -174,7 +221,12 @@ class TemporalMediationEffect:
 
 @dataclass(frozen=True, slots=True)
 class ResponseCurve:
-    """Mean causal response ``a -> E[Y | do(A=a)]`` on an explicit grid."""
+    """Mean causal response ``a -> E[Y | do(A=a)]`` on an explicit grid.
+
+    Keyword-only ``horizons`` / ``policy`` / ``max_history_lag`` attach a temporal
+    dose × horizon surface (ADR 0021). When set, analysis requires series data and
+    a ``TemporalDag``.
+    """
 
     treatment: str
     outcome: str
@@ -183,6 +235,10 @@ class ResponseCurve:
     target_population: object | None = None
     observation: object | None = None
     observation_assumptions: Sequence[object] = ()
+    horizons: Sequence[int] | None = None
+    policy: str = "pulse"
+    treatment_lag: int = 0
+    max_history_lag: int | None = None
     kind: Literal["response_curve"] = field(default="response_curve", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -196,6 +252,11 @@ class ResponseCurve:
             if previous is not None and value <= previous:
                 raise CausalValueError("grid values must be strictly increasing")
             previous = value
+        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+
+    @property
+    def is_temporal(self) -> bool:
+        return self.horizons is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,7 +395,14 @@ class ResponseJacobian:
 
 @dataclass(frozen=True, slots=True)
 class InterventionResponse:
-    """Mean outcome under an existing static, stochastic, or modified intervention."""
+    """Mean outcome under an existing static, stochastic, or modified intervention.
+
+    Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
+    (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
+    Soft(``constant``/``additive_shift``) and a single-step ``Sequence``.
+    Multi-step and nested ``Sequence`` policies fail closed with a stable
+    error rather than silently collapsing to one step.
+    """
 
     outcome: str
     _: KW_ONLY
@@ -342,6 +410,10 @@ class InterventionResponse:
     target_population: object | None = None
     observation: object | None = None
     observation_assumptions: Sequence[object] = ()
+    horizons: Sequence[int] | None = None
+    policy: str = "pulse"
+    treatment_lag: int = 0
+    max_history_lag: int | None = None
     kind: Literal["intervention_response"] = field(
         default="intervention_response", init=False, repr=False
     )
@@ -350,6 +422,11 @@ class InterventionResponse:
         _require_name("outcome", self.outcome)
         if self.intervention is None:
             raise CausalValueError("intervention must not be None")
+        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+
+    @property
+    def is_temporal(self) -> bool:
+        return self.horizons is not None
 
 
 __all__ = [

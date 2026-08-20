@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence as SequenceValues
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 
 from .errors import CausalValueError
 
@@ -90,20 +90,28 @@ class Categorical:
 
 @dataclass(frozen=True, slots=True)
 class Soft:
-    """Mechanism replacement; represented here but not currently estimable."""
+    """Soft mechanism override (``constant`` / ``additive_shift`` licensed temporally)."""
 
     variable: str
     mechanism: str
+    _: KW_ONLY
+    parameters: SequenceValues[float] = ()
 
     def __post_init__(self) -> None:
         _variable(self.variable)
         if not isinstance(self.mechanism, str) or not self.mechanism:
             raise CausalValueError("mechanism must be a non-empty string")
+        params = tuple(float(v) for v in self.parameters)
+        if any(not math.isfinite(v) for v in params):
+            raise CausalValueError("parameters must be finite")
+        if self.mechanism in ("constant", "additive_shift") and len(params) != 1:
+            raise CausalValueError(f"{self.mechanism} requires exactly one parameter")
+        object.__setattr__(self, "parameters", params)
 
 
 @dataclass(frozen=True, slots=True)
 class Sequence:
-    """Temporal sequence; represented here but not currently estimable."""
+    """Temporal sequence of Set/Shift/Soft steps (licensed on temporal InterventionResponse)."""
 
     steps: SequenceValues[object]
 

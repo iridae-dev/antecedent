@@ -1090,6 +1090,25 @@ def analyze_response(
     export_row_diagnostics: bool = False,
     accepted: bool = False,
 ) -> ResponseAnalysisResult: ...
+def analyze_temporal_response(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, int, str, int]],
+    kind: str,
+    treatments: list[str],
+    outcomes: list[str],
+    *,
+    grid: list[float] | None = None,
+    intervention_kinds: list[str] | None = None,
+    intervention_parameters: list[list[float]] | None = None,
+    horizons: list[int],
+    policy: str = "pulse",
+    treatment_lag: int = 0,
+    max_history_lag: int | None = None,
+    seed: int = 1,
+    threads: int = 1,
+    accepted: bool = False,
+) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
     columns: Sequence[Any],

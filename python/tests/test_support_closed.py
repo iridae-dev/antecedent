@@ -10,16 +10,18 @@ import antecedent
 from antecedent.errors import CausalUnsupportedError
 
 _REASON_DERIVATIVE = (
-    "refused: Derivative cells are not licensed; only ResponseCurve on a Dag is staged."
+    "refused: Derivative cells are not licensed; only ResponseCurve "
+    "(static Dag or temporal TemporalDag) is staged."
 )
-_REASON_RESPONSE_PAG = "refused: ResponseCurve is licensed only on a Dag."
+_REASON_RESPONSE_PAG = (
+    "refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
+)
 _REASON_PATH_DIST = (
     "refused: Path and distribution queries are licensed only as explicit "
     "Dag cells; accepted and graph-posterior structures are not staged."
 )
 _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
-_REASON_SUSTAINED = "refused: SustainedEffect is not on the staged handle."
 _REASON_INTERVENTION_RESPONSE_OFF_DAG = (
     "refused: InterventionResponse executes only on a supplied static Dag, the same "
     "requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response "
@@ -79,12 +81,6 @@ _REFUSED = [
         antecedent.MediationEffect("t", "y", mediators=["m"]),
         {"graph": [("t", "m"), ("m", "y")]},
         _REASON_MEDIATION,
-    ),
-    (
-        "sustained",
-        antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        {"graph": [("t", 1, "y", 0)]},
-        _REASON_SUSTAINED,
     ),
     # Second enforced-refusal wave (parity/support_closed.toml): ConditionalEffect /
     # InterventionResponse / TemporalMediationEffect off a supplied Dag, and any
