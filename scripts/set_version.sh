@@ -18,17 +18,23 @@ fi
 
 python3 - "$VERSION" <<'PY'
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 version = sys.argv[1]
 root = Path(".")
+script = root / "scripts" / "generate_support_matrix_docs.py"
 
 cargo = root / "Cargo.toml"
 text = cargo.read_text()
 m = re.search(r"(?ms)^\[workspace\.package\]\n(.*?)(?=\n\[|\Z)", text)
 if not m:
     sys.exit("Cargo.toml: [workspace.package] not found")
+old_m = re.search(r'(?m)^version\s*=\s*"([^"]+)"', m.group(0))
+if not old_m:
+    sys.exit("Cargo.toml: version missing under [workspace.package]")
+old_version = old_m.group(1)
 block = m.group(0)
 block_new, n = re.subn(
     r'(?m)^(version\s*=\s*")[^"]*(")',
@@ -100,6 +106,11 @@ if cff.is_file():
     if n != 1:
         sys.exit("CITATION.cff: version not updated")
     cff.write_text(cff_new)
+
+if old_version != version:
+    subprocess.check_call(
+        [sys.executable, str(script), "--freeze", old_version]
+    )
 
 print(f"set version to {version}")
 PY

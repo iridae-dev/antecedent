@@ -85,6 +85,22 @@ for doc in [
         if stale != version:
             fail.append(f"{doc} states package version {stale!r}; canonical is {version!r}")
 
+# Live generated licensed-cell markers belong only on the current cut.
+# Historical notes use frozen markers so a regen cannot overwrite a shipped
+# snapshot (v0.6.1 was rewritten that way while the workspace was still 0.6.1).
+rn_begin = "<!-- generated:support-matrix:licensed:begin -->"
+rn_end = "<!-- generated:support-matrix:licensed:end -->"
+current_notes = Path("docs/release-notes") / f"v{version}.md"
+for path in sorted(Path("docs/release-notes").glob("v*.md")):
+    if path.resolve() == current_notes.resolve():
+        continue
+    text = path.read_text()
+    if rn_begin in text or rn_end in text:
+        fail.append(
+            f"{path} still has live generated licensed-block markers; "
+            f"only {current_notes} may. Freeze the shipped snapshot."
+        )
+
 # ------------------------------------------------------- 2. artifact format
 # Canonical: STABLE_FORMAT in crates/antecedent-io/src/migrate.rs.
 migrate = Path("crates/antecedent-io/src/migrate.rs").read_text()

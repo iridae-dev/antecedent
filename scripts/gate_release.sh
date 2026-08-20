@@ -254,6 +254,12 @@ if ! git diff --exit-code -- docs/support-matrix.md \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi
+if ! git diff --exit-code -- docs/release-notes/ \
+    ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
+  echo "generator rewrote historical release notes; freeze those licensed blocks"
+  git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
+  exit 1
+fi
 
 echo "== cargo test release surfaces =="
 cargo test -p antecedent-io --lib

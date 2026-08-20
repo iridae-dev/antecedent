@@ -2,11 +2,17 @@
 """Generate docs/support-matrix.md from parity/support_*.toml.
 
 Idempotent: re-running with no matrix changes must leave a clean git tree.
+
+The licensed-cell block is rewritten only in the current workspace version's
+release notes (`docs/release-notes/vX.Y.Z.md`). Historical notes use frozen
+markers so a later regen cannot overwrite a shipped cut. `set_version.sh`
+freezes the previous notes when the version bumps.
 """
 
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import tomllib
 from itertools import product
@@ -15,8 +21,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
+NOTES_DIR = ROOT / "docs" / "release-notes"
 RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
 RN_END = "<!-- generated:support-matrix:licensed:end -->"
+FROZEN_BEGIN = "<!-- frozen:support-matrix:licensed:begin -->"
+FROZEN_END = "<!-- frozen:support-matrix:licensed:end -->"
 
 
 def workspace_version() -> str:
@@ -30,7 +39,52 @@ def workspace_version() -> str:
     return m.group(1)
 
 
-RELEASE_NOTES = ROOT / "docs" / "release-notes" / f"v{workspace_version()}.md"
+def release_notes_path(version: str) -> Path:
+    return NOTES_DIR / f"v{version}.md"
+
+
+RELEASE_NOTES = release_notes_path(workspace_version())
+
+
+def git_tag_exists(version: str) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", f"refs/tags/v{version}"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def freeze_licensed_block(path: Path) -> bool:
+    """Rewrite live generated markers to frozen. Returns whether the file changed."""
+    text = path.read_text()
+    if RN_BEGIN not in text and RN_END not in text:
+        return False
+    path.write_text(
+        text.replace(RN_BEGIN, FROZEN_BEGIN).replace(RN_END, FROZEN_END)
+    )
+    return True
+
+
+def assert_historical_notes_are_frozen(version: str) -> None:
+    """Only the current cut may keep live generated licensed-block markers."""
+    current = release_notes_path(version).resolve()
+    live: list[Path] = []
+    for path in sorted(NOTES_DIR.glob("v*.md")):
+        if path.resolve() == current:
+            continue
+        text = path.read_text()
+        if RN_BEGIN in text or RN_END in text:
+            live.append(path)
+    if live:
+        names = ", ".join(str(p.relative_to(ROOT)) for p in live)
+        raise SystemExit(
+            f"{names}: still have live generated licensed-block markers. "
+            f"Freeze them (`{FROZEN_BEGIN}` / `{FROZEN_END}`) so a later "
+            f"matrix regen cannot overwrite a shipped cut. Only "
+            f"{current.relative_to(ROOT)} may keep live markers."
+        )
 
 
 def load(rel: str) -> dict:
@@ -289,8 +343,20 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
 
 
 def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
-    """Replace the marked licensed block in the release notes; fail loudly
-    if the markers are missing so the ratchet cannot silently no-op."""
+    """Replace the marked licensed block in the *current* release notes.
+
+    Fails if the live markers are missing, if a historical notes file still
+    has live markers, or if this workspace version is already a git tag —
+    bump the version and put live markers on the new notes file first.
+    """
+    version = workspace_version()
+    assert_historical_notes_are_frozen(version)
+    if git_tag_exists(version):
+        raise SystemExit(
+            f"git tag v{version} already exists; refusing to regenerate "
+            f"{RELEASE_NOTES.relative_to(ROOT)}. Bump the workspace version "
+            "and add live generated markers on the new notes file first."
+        )
     text = RELEASE_NOTES.read_text()
     if RN_BEGIN not in text or RN_END not in text:
         raise SystemExit(
@@ -430,5 +496,22 @@ pub static LICENSED: &[LicensedCell] = &[
 """
 
 
+def _freeze_cli(version: str) -> int:
+    path = release_notes_path(version)
+    if not path.is_file():
+        print(f"no notes to freeze: {path.relative_to(ROOT)}")
+        return 0
+    if freeze_licensed_block(path):
+        print(f"Froze licensed block in {path.relative_to(ROOT)}")
+    else:
+        print(f"{path.relative_to(ROOT)} has no live licensed-block markers")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--freeze":
+        sys.exit(_freeze_cli(sys.argv[2]))
+    if len(sys.argv) > 1:
+        print("usage: generate_support_matrix_docs.py [--freeze X.Y.Z]", file=sys.stderr)
+        sys.exit(2)
     sys.exit(main())
