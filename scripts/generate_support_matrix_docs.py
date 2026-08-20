@@ -162,19 +162,31 @@ This page is the public **license**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not license a cell.
 See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 
-| Status | Count |
-|---|---|
-| Cartesian product | {cartesian} |
-| Licensed | {len(cells)} |
-| n/a | {n_a_count} |
-| Refused (enforced) | {closed_count} |
-| Allowlisted (running, unlicensed) | {allowed_count} |
-| Refused (enforced, no allowlist match) | {default_refused} |
+The Cartesian product (query × graph class × structure source × inference ×
+validation) is **{cartesian}** cells. That denominator is not a feature count.
+Most of it is typed impossibility, not missing work.
+
+| Status | Count | How to read it |
+|---|---|---|
+| Cartesian product | {cartesian} | Axis product, not a coverage score |
+| n/a | {n_a_count} | Semantic impossibilities (temporal query on a static graph, static query on a temporal graph, curve over a graph-posterior mixture, and similar). These are not holes. |
+| Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
+| Licensed | {len(cells)} | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | {allowed_count} | Executes end-to-end; a successful number is **not** a licensed claim |
+| Refused (enforced closed rules) | {closed_count} | Fail shut, including mislabeled-inference laundering |
+| Refused (no allowlist match) | {default_refused} | Fail shut by default |
+
+Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
+carry the evidence contract**; {allowed_count} more run without that contract;
+the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
 licensed. A cell is exactly one of licensed / n/a / closed / allowlisted; any
-refused cell not matched by the allowlist fails closed.
+refused cell not matched by the allowlist fails closed. Successful studies
+record `licensed` vs `allowed_unlicensed` on the result (`evidence_status` in
+Python, `StudyResult.support_status` in Rust) so the distinction survives
+dispatch.
 
 ## Axes
 
@@ -286,10 +298,10 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
             f"{RN_BEGIN!r} / {RN_END!r}"
         )
     body_lines = [
-        f"{counts['cartesian']} cartesian cells: {counts['licensed']} licensed,",
-        f"{counts['n_a']} n/a, {counts['closed']} enforced refusals,",
-        f"{counts['allowed']} allowlisted (running, unlicensed),",
-        f"{counts['refused']} refused (enforced, no allowlist match).",
+        f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
+        f"cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
+        f"{counts['allowed']} allowlisted (running, unlicensed); "
+        f"{counts['closed']} closed; {counts['refused']} refused with no allowlist match.",
         "",
     ] + render_release_licensed(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END

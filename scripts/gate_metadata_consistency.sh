@@ -109,6 +109,24 @@ else:
                     f"{path} claims artifact format {found} frozen/stable; "
                     f"STABLE_FORMAT is {fmt}"
                 )
+    # Present-tense format claims in the live README / artifacts page.
+    # Historical "migrates from 0.1" / ADR 0019 / old changelog entries are not
+    # this pattern. The previous gate only matched "frozen|stable" and missed
+    # "response artifact format 0.3" in the root README.
+    current_fmt = re.compile(r"response artifact format (\d+\.\d+)")
+    for path in [
+        Path("README.md"),
+        Path("python/README.md"),
+        Path("crates/antecedent/README.md"),
+        Path("docs/artifacts.md"),
+    ]:
+        if not path.is_file():
+            continue
+        for found in current_fmt.findall(path.read_text()):
+            if found != fmt:
+                fail.append(
+                    f"{path} claims response artifact format {found}; STABLE_FORMAT is {fmt}"
+                )
 
 # -------------------------------------------------- 3. stale library naming
 # The workspace is `antecedent`. "causal"/"causal-library" as an *identifier* is

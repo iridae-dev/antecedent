@@ -73,7 +73,7 @@ Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
   analysis.
 * **Data and artifacts.** NumPy, pandas and Arrow; tabular, time-series, panel and
   multi-environment data; schema-versioned CBOR with memory-mapped access, including
-  response artifact format 0.3 with migrations from 0.1 and 0.2.
+  response artifact format 0.4 with migrations from 0.1, 0.2, and 0.3.
 
 ## Scientific scope
 
