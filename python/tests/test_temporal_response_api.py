@@ -26,11 +26,7 @@ def _fixture_data() -> dict[str, np.ndarray]:
     t = np.array([0.0 if i % 4 in (0, 2) else (1.0 if i % 4 == 1 else -1.0) for i in range(n)])
     y = np.zeros(n)
     for i in range(n):
-        y[i] = (
-            1.0
-            + 2.0 * (t[i - 1] if i >= 1 else 0.0)
-            + 3.0 * (t[i - 2] if i >= 2 else 0.0)
-        )
+        y[i] = 1.0 + 2.0 * (t[i - 1] if i >= 1 else 0.0) + 3.0 * (t[i - 2] if i >= 2 else 0.0)
     return {"t": t, "y": y}
 
 
@@ -38,9 +34,7 @@ _EDGES = [("t", 1, "y", 0), ("t", 2, "y", 0)]
 _ATOL = float(_FIXTURE["tolerance"]["atol"])
 _MEAN = np.asarray(_FIXTURE["contract"]["surface"]["mean"], dtype=float)
 _SET_PATH = np.asarray(_FIXTURE["contract"]["intervention_paths"]["set_1"], dtype=float)
-_SOFT_CONST = np.asarray(
-    _FIXTURE["contract"]["intervention_paths"]["soft_constant_1"], dtype=float
-)
+_SOFT_CONST = np.asarray(_FIXTURE["contract"]["intervention_paths"]["soft_constant_1"], dtype=float)
 
 
 def _response_means(result: Any) -> np.ndarray:
@@ -63,9 +57,7 @@ def test_temporal_response_curve_matches_fixture_and_prepared_reuse():
     assert direct.support.status == "supported"
     assert list(direct.support.point_status) == ["supported"] * 4
 
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=query, refute=False, seed=21
-    )
+    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=21)
     click = prepared.estimate(data, seed=21)
     np.testing.assert_allclose(_response_means(click), _MEAN, atol=_ATOL)
     assert prepared.structure_source == "explicit"
@@ -107,9 +99,7 @@ def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
     np.testing.assert_allclose(_response_means(seq_result), _SET_PATH, atol=_ATOL)
     np.testing.assert_allclose(_response_means(soft_result), _SOFT_CONST, atol=_ATOL)
 
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=seq_query, refute=False, seed=22
-    )
+    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=seq_query, refute=False, seed=22)
     click = prepared.estimate(data, seed=22)
     np.testing.assert_allclose(_response_means(click), _SET_PATH, atol=_ATOL)
 
