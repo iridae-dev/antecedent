@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   uncertainty instead of scaling the treatment-coefficient SE alone. The
   package version remains 0.6.1.
 
+### Fixed
+
+- **Conjugate Gram cache no longer restores stale `Xᵀy`.** The cache keyed on
+  outcome pointer identity; SBC (and other shared-workspace refits) often
+  recycle equal-length `y` allocations to the same address, so later
+  replicates could rank against another replicate's likelihood. Cache only
+  `XᵀX` and always recompute `Xᵀy` / `yᵀy`.
+
 ## [0.6.1] — 2026-08-20
 
 Patch on the 0.6.0 contract cut. No public API rename. Licensed cells are
