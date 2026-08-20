@@ -323,7 +323,7 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
-                estimate_provenance: Some((
+                estimate_provenance: Some(provenance_ids(
                     "estimate.bayesian_gcomp",
                     "estimate.nonidentified_with_prior",
                 )),

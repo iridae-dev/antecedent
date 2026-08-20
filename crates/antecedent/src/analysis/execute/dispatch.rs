@@ -211,14 +211,84 @@ impl super::Study {
             };
         }
         match classify_analysis_route(data, &self.query) {
-            Some(AnalysisRoute::Response) => {
+            Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
+                self.execute_tabular_route(route, data, physical, ctx)
+            }
+            Some(AnalysisRoute::TemporalMediation) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready temporal mediation plan missing resolved graph".into(),
+                })?;
+                self.execute_temporal_mediation(data, graph, q, physical, ctx)
+            }
+            Some(AnalysisRoute::TemporalEffect) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+                    unreachable!()
+                };
+                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready temporal plan missing resolved graph".into(),
+                })?;
+                self.execute_temporal(data, graph, q, physical, ctx)
+            }
+            Some(AnalysisRoute::PanelTemporalEffect) => {
+                let DataInput::Panel(panel) = data else { unreachable!() };
+                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready panel plan missing resolved graph".into(),
+                })?;
+                self.execute_panel(panel, graph, q, physical, ctx)
+            }
+            Some(AnalysisRoute::MultiEnvTemporalEffect) | None | Some(_) => {
+                Err(CausalError::Unsupported {
+                    message: "execute path unsupported for this configuration",
+                })
+            }
+        }
+    }
+
+    /// Prepared estimate click: tabular data without wrapping a `DataInput`.
+    pub(crate) fn execute_tabular(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if let Some(gp) = &self.graph_posterior {
+            return match &self.query {
+                CausalQuery::AverageEffect(q) => {
+                    self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
+                }
+                _ => Err(CausalError::Unsupported {
+                    message: "graph-posterior analysis supports tabular average-effect or \
+                              temporal-effect queries only",
+                }),
+            };
+        }
+        let route = classify_route(DataModality::Tabular, &self.query).ok_or(
+            CausalError::Unsupported { message: "execute path unsupported for this configuration" },
+        )?;
+        self.execute_tabular_route(route, data, physical, ctx)
+    }
+
+    fn execute_tabular_route(
+        &self,
+        route: AnalysisRoute,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match route {
+            AnalysisRoute::Response => {
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("Response execute requires a supplied static DAG")?;
                 self.execute_response(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::StaticAte) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::StaticAte => {
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
                 match self.graph.class() {
                     GraphClass::Dag => {
@@ -258,89 +328,55 @@ impl super::Study {
                     }),
                 }
             }
-            Some(AnalysisRoute::Distribution) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::Distribution => {
                 let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("Distribution execute requires a supplied static DAG")?;
                 self.execute_distribution(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::PathSpecific) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::PathSpecific => {
                 let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("PathSpecific execute requires a supplied static DAG")?;
                 self.execute_path_specific(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::Conditional) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::Conditional => {
                 let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("ConditionalEffect execute requires a supplied static DAG")?;
                 self.execute_conditional(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::TemporalMediation) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
-                };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
-                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
-                    message: "Ready temporal mediation plan missing resolved graph".into(),
-                })?;
-                self.execute_temporal_mediation(data, graph, q, physical, ctx)
-            }
-            Some(AnalysisRoute::StaticMediation) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::StaticMediation => {
                 let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("static Mediation execute requires a supplied static DAG")?;
                 self.execute_static_mediation_total(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::Counterfactual) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::Counterfactual => {
                 let CausalQuery::Counterfactual(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::Anomaly) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::Anomaly => {
                 let CausalQuery::AnomalyAttribution(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("AnomalyAttribution execute requires a supplied static DAG")?;
                 self.execute_anomaly(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::ChangeAttribution) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::ChangeAttribution => {
                 let CausalQuery::ChangeAttribution(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("ChangeAttribution execute requires a supplied static DAG")?;
                 self.execute_change_attribution(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::MechanismChange) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::MechanismChange => {
                 let CausalQuery::MechanismChange(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("MechanismChange execute requires a supplied static DAG")?;
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::UnitChange) => {
-                let DataInput::Tabular(data) = data else { unreachable!() };
+            AnalysisRoute::UnitChange => {
                 let CausalQuery::UnitChange(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
-            Some(AnalysisRoute::TemporalEffect) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    unreachable!()
-                };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
-                    message: "Ready temporal plan missing resolved graph".into(),
-                })?;
-                self.execute_temporal(data, graph, q, physical, ctx)
-            }
-            Some(AnalysisRoute::PanelTemporalEffect) => {
-                let DataInput::Panel(panel) = data else { unreachable!() };
-                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
-                    message: "Ready panel plan missing resolved graph".into(),
-                })?;
-                self.execute_panel(panel, graph, q, physical, ctx)
-            }
-            Some(AnalysisRoute::MultiEnvTemporalEffect) | None => Err(CausalError::Unsupported {
+            AnalysisRoute::TemporalMediation
+            | AnalysisRoute::TemporalEffect
+            | AnalysisRoute::PanelTemporalEffect
+            | AnalysisRoute::MultiEnvTemporalEffect => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),
         }
