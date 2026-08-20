@@ -20,6 +20,7 @@ use crate::response_api::{ResponseAnalysisResult, response_result};
 use crate::{
     AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, py_err,
     py_execution_context_ext, suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy,
+    tabular_from_py_columns,
 };
 
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
@@ -208,7 +209,7 @@ impl PyPreparedAnalysis {
     fn prepare(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -226,7 +227,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
@@ -236,7 +237,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -303,7 +303,7 @@ impl PyPreparedAnalysis {
     fn prepare_response(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -315,7 +315,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -324,7 +324,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -398,7 +397,7 @@ impl PyPreparedAnalysis {
     fn prepare_intervention_response(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
         treatments: Vec<String>,
@@ -409,7 +408,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -418,7 +417,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
@@ -485,7 +483,7 @@ impl PyPreparedAnalysis {
     fn prepare_conditional(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -499,7 +497,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
@@ -509,7 +507,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -568,7 +565,7 @@ impl PyPreparedAnalysis {
     fn prepare_path_specific(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
@@ -583,7 +580,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -592,7 +589,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -655,7 +651,7 @@ impl PyPreparedAnalysis {
     fn prepare_distribution(
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
         interventions: std::collections::HashMap<String, f64>,
@@ -665,7 +661,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let data = tabular_from_numpy(&names, &columns)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -674,7 +670,6 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        drop(columns);
 
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;

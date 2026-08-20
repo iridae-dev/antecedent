@@ -319,6 +319,11 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    def __array__(
+        self,
+        dtype: Any = None,
+        copy: Any = None,
+    ) -> NDArray[np.float64]: ...
     @staticmethod
     def from_moments(
         n_draws: int,
@@ -443,7 +448,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -465,7 +470,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_response(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -481,7 +486,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_conditional(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -499,7 +504,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_path_specific(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         treatment: str,
         outcome: str,
@@ -518,7 +523,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_intervention_response(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         outcome: str,
         treatments: list[str],
@@ -533,7 +538,7 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_distribution(
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
+        columns: Sequence[Any],
         edges: list[tuple[str, str]],
         outcome: str,
         interventions: dict[str, float],
