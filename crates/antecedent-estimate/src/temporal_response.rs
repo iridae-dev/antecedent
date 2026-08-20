@@ -16,11 +16,12 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalResponse, ContinuousDomain, ExecutionContext, GridSpec,
-    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    TemporalEffectQuery, TemporalResponseSpec, Value, VariableId,
+    AssumptionSet, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, ExecutionContext, GridSpec, IdentificationStatus, Intervention,
+    InterventionSequence, MechanismOverride, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalResponseSpec,
+    Value, VariableId,
 };
 use antecedent_data::{TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
@@ -38,6 +39,9 @@ use crate::util::range;
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
 const TREATMENT_COL: usize = 1;
+
+/// Per-horizon lag-aligned observed treatment `(min, max)`.
+type HorizonTreatmentRange = (f64, f64);
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
@@ -145,7 +149,7 @@ impl TemporalResponseEstimator {
         let mut upper = Vec::with_capacity(mean.capacity());
 
         // Layout: value[d * n_horizons + h] — dose major, then horizon.
-        let (per_horizon, treatment_min, treatment_max) = self.run_per_horizon(
+        let (per_horizon, horizon_ranges) = self.run_per_horizon(
             data,
             estimand,
             treatment,
@@ -185,7 +189,7 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
             },
-            support: support_report(doses, temporal, treatment_min, treatment_max),
+            support: mean_curve_support(doses, temporal, &horizon_ranges),
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
         })
@@ -209,7 +213,7 @@ impl TemporalResponseEstimator {
         // mu_hat(d) = beta_t * d + base_mean, with base_mean independent of d. So
         // averaging g-comp at observed A_i + delta over i collapses exactly to a
         // single evaluation at Abar + delta — an O(n) loop is not needed.
-        let (per_horizon, treatment_min, treatment_max) = self.run_per_horizon(
+        let (per_horizon, horizon_ranges) = self.run_per_horizon(
             data,
             estimand,
             treatment,
@@ -257,15 +261,15 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
             },
-            support: support_report(&eval_levels, temporal, treatment_min, treatment_max),
+            support: intervention_support(&eval_levels, temporal, &horizon_ranges),
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
         })
     }
 
-    /// Shared per-horizon scaffold: fit each horizon, track the observed treatment
-    /// range across horizons, and let the caller turn each [`FittedHorizon`] into
-    /// whatever per-horizon payload its response shape needs.
+    /// Shared per-horizon scaffold: fit each horizon, retain that horizon's
+    /// lag-aligned treatment range, and let the caller turn each
+    /// [`FittedHorizon`] into whatever per-horizon payload its response shape needs.
     fn run_per_horizon<T>(
         &self,
         data: &TimeSeriesData,
@@ -276,11 +280,10 @@ impl TemporalResponseEstimator {
         indexer: &TemporalIndexer,
         ctx: &ExecutionContext,
         mut per_horizon: impl FnMut(&FittedHorizon) -> T,
-    ) -> Result<(Vec<T>, f64, f64), EstimationError> {
-        let mut treatment_min = f64::INFINITY;
-        let mut treatment_max = f64::NEG_INFINITY;
+    ) -> Result<(Vec<T>, Vec<HorizonTreatmentRange>), EstimationError> {
         let mut ols_ws = LeastSquaresWorkspace::default();
         let mut results = Vec::with_capacity(temporal.horizons.len());
+        let mut horizon_ranges = Vec::with_capacity(temporal.horizons.len());
 
         for &horizon in temporal.horizons.iter() {
             let fitted = self.fit_horizon(
@@ -294,13 +297,11 @@ impl TemporalResponseEstimator {
                 ctx,
                 &mut ols_ws,
             )?;
-            let (t_lo, t_hi) = range(&fitted.prepared.treatment);
-            treatment_min = treatment_min.min(t_lo);
-            treatment_max = treatment_max.max(t_hi);
+            horizon_ranges.push(range(&fitted.prepared.treatment));
             results.push(per_horizon(&fitted));
         }
 
-        Ok((results, treatment_min, treatment_max))
+        Ok((results, horizon_ranges))
     }
 
     fn fit_horizon(
@@ -411,7 +412,6 @@ fn design_column_means(design: &CompiledDesign) -> Vec<f64> {
     means
 }
 
-
 fn flatten_dose_horizon_grid(doses: &[f64], horizons: &[u32]) -> Vec<f64> {
     let mut grid = Vec::with_capacity(doses.len().saturating_mul(horizons.len()).saturating_mul(2));
     for &dose in doses {
@@ -423,20 +423,103 @@ fn flatten_dose_horizon_grid(doses: &[f64], horizons: &[u32]) -> Vec<f64> {
     grid
 }
 
-fn support_report(
+fn cell_against_range(dose: f64, observed_min: f64, observed_max: f64) -> SupportStatus {
+    if !observed_min.is_finite() || !observed_max.is_finite() {
+        SupportStatus::Extrapolative
+    } else if dose < observed_min || dose > observed_max {
+        SupportStatus::OutsideEmpiricalSupport
+    } else {
+        SupportStatus::Supported
+    }
+}
+
+/// Surface summary over the same geometry as the estimate.
+///
+/// All cells supported → [`SupportStatus::Supported`]. Mixed supported /
+/// unsupported cells → [`SupportStatus::Extrapolative`] (partially
+/// extrapolative). No cell supported → [`SupportStatus::OutsideEmpiricalSupport`],
+/// unless every cell was unassessable (non-finite range), which stays
+/// extrapolative.
+fn summarize_surface_support(points: &[SupportStatus]) -> SupportStatus {
+    let n = points.len();
+    let n_supported = points.iter().filter(|status| **status == SupportStatus::Supported).count();
+    if n == 0 {
+        return SupportStatus::Extrapolative;
+    }
+    if n_supported == n {
+        return SupportStatus::Supported;
+    }
+    if n_supported > 0 {
+        return SupportStatus::Extrapolative;
+    }
+    if points.iter().any(|status| *status == SupportStatus::OutsideEmpiricalSupport) {
+        SupportStatus::OutsideEmpiricalSupport
+    } else {
+        SupportStatus::Extrapolative
+    }
+}
+
+fn mean_curve_support(
     doses: &[f64],
     temporal: &TemporalResponseSpec,
-    observed_min: f64,
-    observed_max: f64,
+    horizon_ranges: &[HorizonTreatmentRange],
 ) -> SupportReport {
+    let mut point_status = Vec::with_capacity(doses.len().saturating_mul(horizon_ranges.len()));
+    for &dose in doses {
+        for &(lo, hi) in horizon_ranges {
+            point_status.push(cell_against_range(dose, lo, hi));
+        }
+    }
+    assemble_temporal_support(doses, temporal, horizon_ranges, point_status)
+}
+
+fn intervention_support(
+    eval_levels: &[f64],
+    temporal: &TemporalResponseSpec,
+    horizon_ranges: &[HorizonTreatmentRange],
+) -> SupportReport {
+    let point_status: Vec<SupportStatus> = eval_levels
+        .iter()
+        .zip(horizon_ranges.iter())
+        .map(|(&dose, &(lo, hi))| cell_against_range(dose, lo, hi))
+        .collect();
+    assemble_temporal_support(eval_levels, temporal, horizon_ranges, point_status)
+}
+
+fn assemble_temporal_support(
+    doses: &[f64],
+    temporal: &TemporalResponseSpec,
+    horizon_ranges: &[HorizonTreatmentRange],
+    point_status: Vec<SupportStatus>,
+) -> SupportReport {
+    let status = summarize_surface_support(&point_status);
+    let mixed = point_status.iter().any(|s| *s == SupportStatus::Supported)
+        && point_status.iter().any(|s| *s != SupportStatus::Supported);
+    let mut range_values = Vec::with_capacity(horizon_ranges.len().saturating_mul(2));
+    for &(lo, hi) in horizon_ranges {
+        range_values.push(lo);
+        range_values.push(hi);
+    }
+    let mut warnings = Vec::new();
+    if mixed {
+        warnings.push(Diagnostic::new(
+            "response.temporal.partial_horizon_support",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "some requested (dose, horizon) cells sit outside that horizon's lag-aligned \
+             treatment range; inspect support.point_status",
+        ));
+    } else if status == SupportStatus::OutsideEmpiricalSupport {
+        warnings.push(Diagnostic::new(
+            "response.outside_empirical_support",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "no requested (dose, horizon) cell sits inside that horizon's lag-aligned \
+             treatment range",
+        ));
+    }
     SupportReport {
-        status: if !observed_min.is_finite() || !observed_max.is_finite() {
-            SupportStatus::Extrapolative
-        } else if doses.iter().any(|d| *d < observed_min || *d > observed_max) {
-            SupportStatus::OutsideEmpiricalSupport
-        } else {
-            SupportStatus::Supported
-        },
+        status,
         query_region: SupportRegion {
             minima: Arc::from(vec![
                 doses.iter().copied().fold(f64::INFINITY, f64::min),
@@ -447,15 +530,25 @@ fn support_report(
                 f64::from(temporal.horizons.last().copied().unwrap_or(1)),
             ]),
         },
-        diagnostics: vec![SupportDiagnostic {
-            id: Arc::from("response.temporal.dose_horizon_layout"),
-            values: Arc::from(vec![doses.len() as f64, temporal.horizons.len() as f64]),
-            detail: Arc::from(
-                "row-major dose × horizon surface: value[d * n_horizons + h]; \
-                 grid stores [dose_d, horizon_h] pairs",
-            ),
-        }],
-        warnings: Vec::new(),
+        diagnostics: vec![
+            SupportDiagnostic {
+                id: Arc::from("response.temporal.dose_horizon_layout"),
+                values: Arc::from(vec![doses.len() as f64, temporal.horizons.len() as f64]),
+                detail: Arc::from(
+                    "row-major dose × horizon surface: value[d * n_horizons + h]; \
+                     grid stores [dose_d, horizon_h] pairs",
+                ),
+            },
+            SupportDiagnostic {
+                id: Arc::from("response.temporal.horizon_treatment_range"),
+                values: Arc::from(range_values),
+                detail: Arc::from(
+                    "per-horizon lag-aligned treatment range as [min_0, max_0, min_1, max_1, …]",
+                ),
+            },
+        ],
+        warnings,
+        point_status: Some(Arc::from(point_status)),
     }
 }
 
@@ -675,12 +768,20 @@ mod tests {
         }
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -718,8 +819,8 @@ mod tests {
         let (estimand, indexer) = identify(&graph, 4);
         let doses = vec![-1.0, -0.5, 0.0, 0.5, 1.0, 2.0];
         let n_h = 3;
-        let temporal = TemporalResponseSpec::new(vec![1u32, 2, 4], TemporalPolicy::pulse(0), None)
-            .unwrap();
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32, 2, 4], TemporalPolicy::pulse(0), None).unwrap();
         let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
             outcome: VariableId::from_raw(1),
             treatment: ContinuousDomain::new(
@@ -792,7 +893,8 @@ mod tests {
     fn uncertainty_se_matches_independent_quadratic_form_recompute() {
         let (data, graph) = synthetic_series(300);
         let (estimand, indexer) = identify(&graph, 3);
-        let temporal = TemporalResponseSpec::new(vec![3u32], TemporalPolicy::pulse(0), None).unwrap();
+        let temporal =
+            TemporalResponseSpec::new(vec![3u32], TemporalPolicy::pulse(0), None).unwrap();
         let est = TemporalResponseEstimator::new();
         let mut ws = LeastSquaresWorkspace::default();
         let fitted = est
@@ -844,7 +946,8 @@ mod tests {
     fn uncertainty_se_widens_away_from_treatment_mean() {
         let (data, graph) = synthetic_series(400);
         let (estimand, indexer) = identify(&graph, 4);
-        let temporal = TemporalResponseSpec::new(vec![2u32], TemporalPolicy::pulse(0), None).unwrap();
+        let temporal =
+            TemporalResponseSpec::new(vec![2u32], TemporalPolicy::pulse(0), None).unwrap();
         let est = TemporalResponseEstimator::new();
         let mut ws = LeastSquaresWorkspace::default();
         let fitted = est
@@ -872,8 +975,14 @@ mod tests {
         let (_, se_near_neg) = fitted.mean_and_se_at(center - 1.0);
         let (_, se_zero) = fitted.mean_and_se_at(0.0);
 
-        assert!(se_center < se_near, "se should grow moving away from center: {se_center} vs {se_near}");
-        assert!(se_near < se_far, "se should keep growing further from center: {se_near} vs {se_far}");
+        assert!(
+            se_center < se_near,
+            "se should grow moving away from center: {se_center} vs {se_near}"
+        );
+        assert!(
+            se_near < se_far,
+            "se should keep growing further from center: {se_near} vs {se_far}"
+        );
         assert!(
             se_center < se_near_neg,
             "se should grow symmetrically on the other side of the center: {se_center} vs {se_near_neg}"
@@ -919,7 +1028,8 @@ mod tests {
     fn empty_dose_grid_refuses() {
         let (data, graph) = synthetic_series(300);
         let (estimand, indexer) = identify(&graph, 2);
-        let temporal = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(0), None).unwrap();
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(0), None).unwrap();
         let est = TemporalResponseEstimator::new();
         let err = est
             .estimate_mean_curve(
@@ -935,9 +1045,206 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap_err();
-        assert!(
-            err.to_string().contains("dose grid must be non-empty"),
-            "unexpected error: {err}"
+        assert!(err.to_string().contains("dose grid must be non-empty"), "unexpected error: {err}");
+    }
+
+    /// The union of per-horizon treatment ranges would call dose 1.5 supported
+    /// here; the cell grid must not.
+    #[test]
+    fn surface_support_uses_per_horizon_ranges_not_union() {
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32, 2, 8], TemporalPolicy::pulse(0), None).unwrap();
+        let ranges = [(-2.0, 2.0), (-1.0, 1.0), (-0.4, 0.4)];
+        let report = mean_curve_support(&[1.5], &temporal, &ranges);
+        assert_eq!(report.status, SupportStatus::Extrapolative);
+        assert_eq!(
+            report.point_status.as_ref().map(AsRef::as_ref),
+            Some(
+                [
+                    SupportStatus::Supported,
+                    SupportStatus::OutsideEmpiricalSupport,
+                    SupportStatus::OutsideEmpiricalSupport,
+                ]
+                .as_slice()
+            )
         );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.temporal.partial_horizon_support")
+        );
+        let ranges_diag = report
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == "response.temporal.horizon_treatment_range")
+            .expect("horizon treatment range diagnostic");
+        assert_eq!(ranges_diag.values.as_ref(), [-2.0, 2.0, -1.0, 1.0, -0.4, 0.4].as_slice());
+    }
+
+    #[test]
+    fn surface_support_all_outside_and_all_supported() {
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32, 2], TemporalPolicy::pulse(0), None).unwrap();
+        let ranges = [(-1.0, 1.0), (-0.5, 0.5)];
+        let outside = mean_curve_support(&[10.0], &temporal, &ranges);
+        assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
+        assert!(
+            outside
+                .point_status
+                .as_ref()
+                .unwrap()
+                .iter()
+                .all(|s| { *s == SupportStatus::OutsideEmpiricalSupport })
+        );
+        assert!(
+            outside
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.outside_empirical_support")
+        );
+
+        let inside = mean_curve_support(&[0.0], &temporal, &ranges);
+        assert_eq!(inside.status, SupportStatus::Supported);
+        assert!(inside.warnings.is_empty());
+        assert!(
+            inside.point_status.as_ref().unwrap().iter().all(|s| *s == SupportStatus::Supported)
+        );
+    }
+
+    #[test]
+    fn intervention_support_is_one_cell_per_horizon() {
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32, 2, 8], TemporalPolicy::pulse(0), None).unwrap();
+        let ranges = [(-2.0, 2.0), (-1.0, 1.0), (-0.4, 0.4)];
+        let report = intervention_support(&[1.5, 1.5, 1.5], &temporal, &ranges);
+        assert_eq!(report.status, SupportStatus::Extrapolative);
+        assert_eq!(report.point_status.as_ref().unwrap().len(), 3);
+    }
+
+    /// Extreme T only at the end of the series. A longer-horizon pulse looks
+    /// further back, so that spike is inside the h=1 treatment column and
+    /// outside a long-horizon window.
+    fn spike_then_quiet_series(n: usize) -> (TimeSeriesData, TemporalDag) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["t", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for (i, t_i) in t.iter_mut().enumerate() {
+            *t_i = if i >= n.saturating_sub(7) { 10.0 } else { 0.05 * (i as f64).sin() };
+        }
+        for i in 2..n {
+            y[i] = 1.0 + 2.0 * t[i - 1] + 3.0 * t[i - 2];
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        let mut graph = TemporalDag::empty();
+        let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(t1, y0).unwrap();
+        graph.insert_directed(t2, y0).unwrap();
+        (data, graph)
+    }
+
+    #[test]
+    fn late_treatment_spike_is_horizon_specific_support() {
+        let (data, graph) = spike_then_quiet_series(80);
+        let (estimand, indexer) = identify(&graph, 8);
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32, 8], TemporalPolicy::pulse(0), None).unwrap();
+        let est = TemporalResponseEstimator::new();
+        let mut ws = LeastSquaresWorkspace::default();
+        let ctx = ExecutionContext::for_tests(11);
+        let short = est
+            .fit_horizon(
+                &data,
+                &estimand,
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &temporal,
+                1,
+                &indexer,
+                &ctx,
+                &mut ws,
+            )
+            .unwrap();
+        let long = est
+            .fit_horizon(
+                &data,
+                &estimand,
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &temporal,
+                8,
+                &indexer,
+                &ctx,
+                &mut ws,
+            )
+            .unwrap();
+        let short_range = range(&short.prepared.treatment);
+        let long_range = range(&long.prepared.treatment);
+        assert!(
+            short_range.1 > long_range.1 + 1.0,
+            "long horizon should miss the late spike: short={short_range:?} long={long_range:?}"
+        );
+        let dose = long_range.1 + (short_range.1 - long_range.1) * 0.5;
+        let result = est
+            .estimate_mean_curve(
+                &data,
+                &estimand,
+                VariableId::from_raw(1),
+                VariableId::from_raw(0),
+                &[0.0, dose],
+                &temporal,
+                &indexer,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(result.support.status, SupportStatus::Extrapolative);
+        let cells = result.support.point_status.as_ref().expect("temporal point_status");
+        // dose-major: (0, h=1), (0, h=8), (dose, h=1), (dose, h=8)
+        assert_eq!(cells[0], SupportStatus::Supported);
+        assert_eq!(cells[1], SupportStatus::Supported);
+        assert_eq!(cells[2], SupportStatus::Supported);
+        assert_eq!(cells[3], SupportStatus::OutsideEmpiricalSupport);
+        // The union envelope would have classified `dose` as supported.
+        assert!(dose >= short_range.0 && dose <= short_range.1);
+        assert!(dose < long_range.0 || dose > long_range.1);
     }
 }

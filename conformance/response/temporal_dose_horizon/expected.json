@@ -91,6 +91,16 @@
         4.0
       ]
     },
+    "support": {
+      "status": "supported",
+      "point_status": [
+        "supported",
+        "supported",
+        "supported",
+        "supported"
+      ],
+      "note": "Period-4 T in {-1,0,1} so the union of horizon ranges equals the intersection; both requested doses sit inside every lag-aligned window. Mixed-horizon support is pinned on conformance/response/temporal_horizon_support."
+    },
     "pulse_effect_projection": {
       "control_dose": 0.0,
       "active_dose": 1.0,

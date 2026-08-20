@@ -550,6 +550,9 @@ pub struct SupportReportWire {
     pub query_region: SupportRegionWire,
     pub diagnostics: Vec<SupportDiagnosticWire>,
     pub warnings: Vec<DiagnosticWire>,
+    /// Per-cell status on a temporal surface; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub point_status: Option<Vec<SupportStatusWire>>,
 }
 
 /// Function-valued identified envelope on the wire.
@@ -845,14 +848,27 @@ fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
     }
 }
 
+fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
+    match status {
+        SupportStatus::Supported => SupportStatusWire::Supported,
+        SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
+        SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
+        SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
+    }
+}
+
+fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
+    match status {
+        SupportStatusWire::Supported => SupportStatus::Supported,
+        SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
+        SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
+        SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
+    }
+}
+
 fn support_to_wire(s: &SupportReport) -> SupportReportWire {
     SupportReportWire {
-        status: match s.status {
-            SupportStatus::Supported => SupportStatusWire::Supported,
-            SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
-            SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
-            SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
-        },
+        status: support_status_to_wire(s.status),
         query_region: SupportRegionWire {
             minima: s.query_region.minima.to_vec(),
             maxima: s.query_region.maxima.to_vec(),
@@ -867,16 +883,15 @@ fn support_to_wire(s: &SupportReport) -> SupportReportWire {
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_to_wire).collect(),
+        point_status: s
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().copied().map(support_status_to_wire).collect()),
     }
 }
 fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
     Ok(SupportReport {
-        status: match s.status {
-            SupportStatusWire::Supported => SupportStatus::Supported,
-            SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
-            SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
-            SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
-        },
+        status: support_status_from_wire(s.status),
         query_region: SupportRegion {
             minima: s.query_region.minima.clone().into(),
             maxima: s.query_region.maxima.clone().into(),
@@ -891,6 +906,9 @@ fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
+        point_status: s.point_status.as_ref().map(|cells| {
+            cells.iter().copied().map(support_status_from_wire).collect::<Vec<_>>().into()
+        }),
     })
 }
 
@@ -1117,6 +1135,11 @@ mod tests {
                     DiagnosticSeverity::Warning,
                     "overlap weak at upper endpoint",
                 )],
+                point_status: Some(Arc::from([
+                    SupportStatus::Supported,
+                    SupportStatus::WeakOverlap,
+                    SupportStatus::OutsideEmpiricalSupport,
+                ])),
             },
             assumptions,
             provenance_id: Arc::from("response-fit-17"),

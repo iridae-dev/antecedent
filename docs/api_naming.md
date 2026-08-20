@@ -116,6 +116,11 @@ the dose × horizon surface on the shared known-truth fixture, but standard
 errors can differ: the surface uses analytic delta-method bands while the
 contrast path uses the `Study` bootstrap configuration.
 
+**Temporal empirical support.** `support.status` on a dose × horizon surface
+summarizes `support.point_status` (fully supported / partially extrapolative /
+outside), not the union of per-horizon treatment ranges. Static curves keep
+worst-over-points.
+
 **Temporal response refuters.** Scalar ATE refuters are not applicable to a
 function-valued temporal surface; licensed runs skip them. Python surfaces the
 skip on `CausalResponseView.validation` as check id

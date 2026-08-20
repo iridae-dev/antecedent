@@ -15,6 +15,7 @@ upstream_implementations_observed = [
 
 test_sources = [
  "conformance/response/temporal_dose_horizon/expected.json",
+ "conformance/response/temporal_confounded_pulse/expected.json",
  "independently generated synthetic lagged SCMs with known parents",
  "manufacturing-style pressure→defect temporal example",
 ]

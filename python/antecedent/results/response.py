@@ -148,12 +148,19 @@ class SupportDiagnostic:
 
 @dataclass(frozen=True, slots=True)
 class SupportReport:
-    """Estimand-aware empirical support, separate from identification status."""
+    """Estimand-aware empirical support, separate from identification status.
+
+    ``status`` on a static curve is the worst label over requested points. On a
+    temporal dose × horizon surface it summarizes ``point_status``: fully
+    supported, partially extrapolative, or outside empirical support. Cell
+    labels share the mean-surface layout (dose-major).
+    """
 
     status: SupportStatus
     query_region: Mapping[str, tuple[float, float]]
     diagnostics: Sequence[SupportDiagnostic] = ()
     warnings: Sequence[str] = ()
+    point_status: Sequence[SupportStatus] | None = None
 
     def __post_init__(self) -> None:
         allowed = {
@@ -164,6 +171,10 @@ class SupportReport:
         }
         if self.status not in allowed:
             raise CausalValueError(f"unknown support status {self.status!r}")
+        if self.point_status is not None:
+            for status in self.point_status:
+                if status not in allowed:
+                    raise CausalValueError(f"unknown support status {status!r}")
         for variable, bounds in self.query_region.items():
             if (
                 not variable.strip()
@@ -177,9 +188,10 @@ class SupportReport:
         return self.status == "supported"
 
     def __repr__(self) -> str:
+        cells = "" if self.point_status is None else f" cells={len(self.point_status)}"
         return (
             f"<SupportReport status={self.status!r} "
-            f"diagnostics={len(self.diagnostics)} warnings={len(self.warnings)}>"
+            f"diagnostics={len(self.diagnostics)} warnings={len(self.warnings)}{cells}>"
         )
 
 

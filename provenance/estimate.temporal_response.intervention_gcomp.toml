@@ -25,5 +25,7 @@ upstream_implementations_observed = []
 
 test_sources = [
   "conformance/response/temporal_dose_horizon/expected.json",
+  "conformance/response/temporal_horizon_support/expected.json",
   "crates/antecedent/tests/temporal_response_facade.rs",
+  "crates/antecedent/tests/temporal_response_redundancy.rs",
 ]

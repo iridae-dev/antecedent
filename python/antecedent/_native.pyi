@@ -151,6 +151,7 @@ class ResponseAnalysisResult:
     support_status: str
     support_minima: list[float]
     support_maxima: list[float]
+    support_point_status: list[str]
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
@@ -222,6 +223,7 @@ class ObservationResponseResult:
     support_status: str
     support_minima: list[float]
     support_maxima: list[float]
+    support_point_status: list[str]
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]

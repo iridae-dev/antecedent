@@ -754,6 +754,12 @@ def _response_support_bounds(raw: Any) -> dict[str, tuple[float, float]]:
     }
 
 
+def _support_point_status(raw: Any) -> tuple[SupportStatus, ...] | None:
+    """Native empty vec means a static curve with no per-cell support grid."""
+    cells = tuple(getattr(raw, "support_point_status", ()) or ())
+    return tuple(cast(SupportStatus, status) for status in cells) if cells else None
+
+
 def _wrap_prepared_response(
     raw: Any, query: ResponseCurve | InterventionResponse | None = None
 ) -> CausalResponseView:
@@ -810,6 +816,7 @@ def _wrap_prepared_response(
                 )
             ],
             raw.warnings,
+            _support_point_status(raw),
         ),
         identification=IdentificationView(
             status=raw.identification,

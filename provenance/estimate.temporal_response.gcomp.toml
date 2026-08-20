@@ -18,11 +18,16 @@ implementation_deviations = [
   "fits the full aligned sample without cross-fitting and licenses only one treatment-time column; multi-step sustained and dynamic schedules fail closed",
   "pointwise bands use the delta-method/linear-functional variance of the standardized mean: cbar(a)' Sigma cbar(a), where Sigma is the homoskedastic OLS coefficient covariance and cbar(a) is the row-averaged design gradient at dose a, so intercept and adjustment-covariate uncertainty are propagated; bands do not cover heteroskedasticity or autocorrelation (no HAC/robust covariance), do not carry uncertainty from the identification step itself, and rest on the model's linearity assumption",
   "pinned pointwise 95% band oracle on conformance/response/temporal_dose_horizon (including strictly positive width at dose zero)",
+  "adjustment-set correctness on conformance/response/temporal_confounded_pulse (unadjusted slope 4.5 vs structural 2)",
+  "per-horizon empirical support on conformance/response/temporal_horizon_support (union of ranges would mislabel mixed cells)",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
   "conformance/response/temporal_dose_horizon/expected.json",
+  "conformance/response/temporal_confounded_pulse/expected.json",
+  "conformance/response/temporal_horizon_support/expected.json",
   "crates/antecedent/tests/temporal_response_facade.rs",
+  "crates/antecedent/tests/temporal_response_redundancy.rs",
 ]

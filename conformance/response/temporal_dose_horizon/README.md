@@ -53,3 +53,8 @@ multi-step Sustained is not evidenced here.
 Pointwise 95% bands on the surface are pinned in the fixture (`surface.lower` /
 `surface.upper`); index 0 is dose zero at horizon 1 and has strictly positive
 width (regression guard for the old zero-width-at-dose-0 bug).
+
+Empirical support on this fixture is fully `supported` at every cell: the
+period-4 treatment lives in `{-1,0,1}`, so the union of horizon ranges equals
+the intersection. Mixed-horizon support is pinned on
+`conformance/response/temporal_horizon_support`.

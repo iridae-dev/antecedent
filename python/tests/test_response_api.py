@@ -105,6 +105,15 @@ def test_response_result_views_validate_shape_and_report_orthogonal_axes():
     )
     assert len(response) == 2
     assert not support
+    mixed = SupportReport(
+        "extrapolative",
+        {"a": (0.0, 1.0)},
+        point_status=("supported", "outside_empirical_support"),
+    )
+    assert mixed.point_status == ("supported", "outside_empirical_support")
+    assert "cells=2" in repr(mixed)
+    with pytest.raises(CausalValueError, match="unknown support status"):
+        SupportReport("supported", {"a": (0.0, 1.0)}, point_status=("nope",))
     assert "extrapolative" in repr(result)
     assert "95.0%" in repr(uncertainty)
 
