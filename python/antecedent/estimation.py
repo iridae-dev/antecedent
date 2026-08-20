@@ -727,6 +727,31 @@ def identify(
     return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
 
 
+def _response_support_bounds(raw: Any) -> dict[str, tuple[float, float]]:
+    """Map native support minima/maxima onto axis names.
+
+    Static curves align one interval per treatment name. Temporal dose × horizon
+    surfaces report a multi-axis query region wider than the treatment list.
+    """
+    minima = list(getattr(raw, "support_minima", ()) or ())
+    maxima = list(getattr(raw, "support_maxima", ()) or ())
+    treatments = list(getattr(raw, "treatments", ()) or ())
+    if len(minima) == len(treatments):
+        return {
+            name: (lower, upper)
+            for name, lower, upper in zip(treatments, minima, maxima, strict=True)
+        }
+    axis_names = (
+        ["dose", "horizon"]
+        if len(minima) == 2
+        else [f"axis_{i}" for i in range(len(minima))]
+    )
+    return {
+        name: (lower, upper)
+        for name, lower, upper in zip(axis_names, minima, maxima, strict=True)
+    }
+
+
 def _wrap_prepared_response(
     raw: Any, query: ResponseCurve | InterventionResponse | None = None
 ) -> CausalResponseView:
@@ -753,12 +778,7 @@ def _wrap_prepared_response(
         ),
         support=SupportReport(
             cast(SupportStatus, raw.support_status),
-            {
-                name: (lower, upper)
-                for name, lower, upper in zip(
-                    raw.treatments, raw.support_minima, raw.support_maxima, strict=True
-                )
-            },
+            _response_support_bounds(raw),
             [
                 SupportDiagnostic(identifier, values, detail)
                 for identifier, values, detail in zip(
@@ -855,12 +875,14 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
     ) -> PreparedAnalysis:
-        """Compile a durable plan for a licensed DAG cell.
+        """Compile a durable plan for a licensed DAG or temporal-response cell.
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``, and
-        ``InterventionResponse`` queries on an explicit ``Dag`` (or other
-        supplied static graph, for ``AverageEffect``).
+        ``InterventionResponse`` on an explicit ``Dag`` (or other supplied
+        static graph, for ``AverageEffect``). Temporal ``ResponseCurve`` /
+        ``InterventionResponse`` (keyword ``horizons``) prepare on a
+        ``TemporalDag`` or lagged edge list.
         """
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
@@ -878,6 +900,20 @@ class PreparedAnalysis:
             graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
         else:
             structure_accepted = False
+        if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
+            query, "is_temporal", False
+        ):
+            return cls._prepare_temporal(
+                names,
+                columns,
+                graph,
+                query,
+                inference=inference,
+                refute=refute,
+                seed=seed,
+                threads=threads,
+                structure_accepted=structure_accepted,
+            )
         edges = _static_edges(graph)
         if isinstance(query, ConditionalEffect):
             if inference is not None and not isinstance(inference, Frequentist):
@@ -1038,7 +1074,8 @@ class PreparedAnalysis:
         if not isinstance(query, AverageEffect):
             raise CausalTypeError(
                 "PreparedAnalysis supports AverageEffect, ResponseCurve, ConditionalEffect, "
-                "PathSpecificEffect, InterventionalDistribution, or InterventionResponse"
+                "PathSpecificEffect, InterventionalDistribution, InterventionResponse, "
+                "or temporal ResponseCurve / InterventionResponse"
             )
         inference = inference or Frequentist()
         # Default is `False`, not the historical `True` sentinel `analyze()`
@@ -1073,6 +1110,83 @@ class PreparedAnalysis:
             accepted=structure_accepted,
         )
         return cls(native, kind="average", query=query)
+
+    @classmethod
+    def _prepare_temporal(
+        cls,
+        names: list[str],
+        columns: Any,
+        graph: Any,
+        query: ResponseCurve | InterventionResponse,
+        *,
+        inference: Frequentist | Bayesian | None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
+        seed: int,
+        threads: int,
+        structure_accepted: bool,
+    ) -> PreparedAnalysis:
+        if inference is not None and not isinstance(inference, Frequentist):
+            raise CausalTypeError("PreparedAnalysis temporal response supports Frequentist only")
+        if refute not in (False, "none", Refute.NONE):
+            raise CausalTypeError(
+                "PreparedAnalysis temporal response has no licensed validation cell"
+            )
+        lagged = _lagged_edges(graph)
+        from antecedent._analyze import _encode_temporal_intervention
+
+        if isinstance(query, InterventionResponse):
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            treatments: list[str] = []
+            kinds: list[str] = []
+            parameters_list: list[list[float]] = []
+            for spec in interventions:
+                variable, kind, parameters = _encode_temporal_intervention(spec)
+                treatments.append(variable)
+                kinds.append(kind)
+                parameters_list.append(parameters)
+            native = _NativePreparedAnalysis.prepare_temporal_response(
+                names,
+                columns,
+                lagged,
+                query.kind,
+                treatments,
+                [query.outcome],
+                grid=None,
+                intervention_kinds=kinds,
+                intervention_parameters=parameters_list,
+                horizons=list(query.horizons or ()),
+                policy=query.policy,
+                treatment_lag=query.treatment_lag,
+                max_history_lag=query.max_history_lag,
+                seed=seed,
+                threads=threads,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="intervention_response", query=query)
+        native = _NativePreparedAnalysis.prepare_temporal_response(
+            names,
+            columns,
+            lagged,
+            query.kind,
+            [query.treatment],
+            [query.outcome],
+            grid=list(query.grid),
+            intervention_kinds=None,
+            intervention_parameters=None,
+            horizons=list(query.horizons or ()),
+            policy=query.policy,
+            treatment_lag=query.treatment_lag,
+            max_history_lag=query.max_history_lag,
+            seed=seed,
+            threads=threads,
+            accepted=structure_accepted,
+        )
+        return cls(native, kind="response_curve", query=query)
 
     @property
     def structure_source(self) -> str:

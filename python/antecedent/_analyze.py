@@ -232,6 +232,45 @@ def handle_temporal_mediation(
     return _wrap_temporal(raw)
 
 
+def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
+    """Map a temporal InterventionResponse step to native (variable, kind, params).
+
+    Licensed single-step :class:`~antecedent.intervention.Sequence` unwraps to its
+    inner Set/Shift/Soft. Multi-step and nested Sequence refuse closed.
+    """
+    from . import intervention as intervention_specs
+
+    if isinstance(spec, intervention_specs.Sequence):
+        if len(spec.steps) != 1:
+            raise CausalUnsupportedError(
+                "refused: multi-step Sequence intervention policies are not licensed "
+                "for temporal InterventionResponse; use a single-step Sequence or a "
+                "bare Set/Shift/Soft"
+            )
+        inner = spec.steps[0]
+        if isinstance(inner, intervention_specs.Sequence):
+            raise CausalUnsupportedError(
+                "refused: nested Sequence interventions are not licensed for temporal "
+                "InterventionResponse"
+            )
+        return _encode_temporal_intervention(inner)
+    if isinstance(spec, intervention_specs.Set):
+        return spec.variable, "set", [spec.value]
+    if isinstance(spec, intervention_specs.Shift):
+        return spec.variable, "shift", [spec.delta]
+    if isinstance(spec, intervention_specs.Soft):
+        if spec.mechanism == "constant":
+            return spec.variable, "soft_constant", list(spec.parameters)
+        if spec.mechanism == "additive_shift":
+            return spec.variable, "soft_additive_shift", list(spec.parameters)
+        raise CausalUnsupportedError(
+            f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
+        )
+    raise TypeError(
+        "temporal InterventionResponse supports Set/Shift/Soft and a single-step Sequence"
+    )
+
+
 def handle_response(
     data: Any,
     query: Any,
@@ -251,7 +290,7 @@ def handle_response(
     structure_accepted: bool = False,
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
-    from .estimation import _static_edges
+    from .estimation import _response_support_bounds, _static_edges
     from .results import (
         CausalResponseView,
         IdentificationView,
@@ -342,24 +381,8 @@ def handle_response(
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                if isinstance(spec, intervention_specs.Set):
-                    kind, parameters = "set", [spec.value]
-                elif isinstance(spec, intervention_specs.Shift):
-                    kind, parameters = "shift", [spec.delta]
-                elif isinstance(spec, intervention_specs.Soft):
-                    if spec.mechanism == "constant":
-                        kind, parameters = "soft_constant", list(spec.parameters)
-                    elif spec.mechanism == "additive_shift":
-                        kind, parameters = "soft_additive_shift", list(spec.parameters)
-                    else:
-                        raise CausalUnsupportedError(
-                            f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
-                        )
-                else:
-                    raise TypeError(
-                        "temporal InterventionResponse currently supports Set/Shift/Soft"
-                    )
-                temporal_treatments.append(spec.variable)
+                variable, kind, parameters = _encode_temporal_intervention(spec)
+                temporal_treatments.append(variable)
                 kinds.append(kind)
                 parameters_list.append(parameters)
             temporal_intervention_kinds = kinds
@@ -656,12 +679,7 @@ def handle_response(
             strict=True,
         )
     ]
-    region = {
-        name: (lower, upper)
-        for name, lower, upper in zip(
-            raw.treatments, raw.support_minima, raw.support_maxima, strict=True
-        )
-    }
+    region = _response_support_bounds(raw)
     envelope = None
     if getattr(raw, "identified_mass", None) is not None:
         if raw.lower is None or raw.upper is None:

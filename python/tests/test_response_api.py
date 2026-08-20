@@ -317,7 +317,10 @@ def test_response_analyze_derivative_and_jacobian_shapes():
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
     data = {"x": x, "a": a, "b": b, "y": y}
     graph = [("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")]
-    match = "refused: Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged."
+    match = (
+        r"refused: Derivative cells are not licensed; only ResponseCurve "
+        r"\(static Dag or temporal TemporalDag\) is staged\."
+    )
 
     with pytest.raises(CausalUnsupportedError, match=match):
         antecedent.analyze(
@@ -469,7 +472,10 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     y = np.exp(0.5 * np.log(a) + rng.normal(scale=0.15, size=400))
     data = {"a": a, "y": y}
     graph = [("a", "y")]
-    match = "refused: Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged."
+    match = (
+        r"refused: Derivative cells are not licensed; only ResponseCurve "
+        r"\(static Dag or temporal TemporalDag\) is staged\."
+    )
     with pytest.raises(CausalUnsupportedError, match=match):
         antecedent.analyze(
             data,
