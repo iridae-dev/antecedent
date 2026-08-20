@@ -123,10 +123,6 @@ pub struct LaplaceWorkspace {
     pub grow_count: u32,
     /// Cached unweighted/weighted XᵀX for conjugate refits on the same design matrix.
     pub(crate) conjugate_xtx: Vec<f64>,
-    /// Scratch: last computed Xᵀy (not part of the XᵀX cache key; always refreshed).
-    pub(crate) conjugate_xty: Vec<f64>,
-    /// Scratch: last computed weighted residual SS of `y − offset` (always refreshed).
-    pub(crate) conjugate_yty: f64,
     /// Cached effective sample size (sum of weights) paired with [`Self::conjugate_xtx`].
     pub(crate) conjugate_n_eff: f64,
     /// Design-matrix identity last used to fill the conjugate XᵀX cache.
