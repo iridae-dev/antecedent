@@ -1776,6 +1776,7 @@ fn analyze_distribution(
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution)
+            .refute(RefuteSuite::None)
             .build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
@@ -1842,6 +1843,7 @@ fn analyze_path_specific(
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect)
             .bootstrap_replicates(bootstrap)
+            .refute(RefuteSuite::None)
             .build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);

@@ -123,6 +123,28 @@ known_truth_fixture = "conformance/bayesian/shared_functional_ate"
 limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
 
 [[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian ATE mean, not the overlap/E-value numbers."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "Full adds PPC / prior-sensitivity on top of BayesianGComputationAte; the fixture pins the ATE mean, not those checks."
+
+[[cell]]
 query = "ConditionalEffect"
 graph_class = "Dag"
 structure = "explicit"
@@ -143,6 +165,50 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
 limitations = "Prepared handle only; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator). The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the AverageEffect explicit/accepted cells share theirs."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/context/conditional_effect"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the conditional-effect point."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/context/conditional_effect"
+limitations = "Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/context/conditional_effect"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the conditional-effect point."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/context/conditional_effect"
+limitations = "Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -222,6 +288,116 @@ known_truth_fixture = "conformance/response/temporal_dose_horizon"
 limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares temporal_dose_horizon, with identification and the structural estimate additionally pinned on temporal_confounded_pulse."
 
 [[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the pulse projection, not the overlap/E-value numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the pulse projection, not the overlap/E-value numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "BayesianTemporalGcomp on the lag-aligned design; fixture n=400 pins the effect mean."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian pulse mean, not the overlap/E-value numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "Full adds PPC / prior-sensitivity; the fixture pins the Bayesian pulse mean, not those checks."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "Accepted-structure axis shares the explicit TemporalDag Bayesian pulse path; fixture n=400 pins the effect mean."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian pulse mean, not the overlap/E-value numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_pulse"
+limitations = "Full adds PPC / prior-sensitivity; the fixture pins the Bayesian pulse mean, not those checks."
+
+[[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalDag"
 structure = "explicit"
@@ -244,6 +420,50 @@ known_truth_fixture = "conformance/response/temporal_dose_horizon"
 limitations = "Accepted-structure axis shares the explicit TemporalDag single-step Sustained path. Primary pin is temporal_dose_horizon; identification and the structural estimate are additionally pinned on temporal_confounded_pulse."
 
 [[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Cheap suite is overlap + E-value; licensed form remains the single-step window. The fixture pins the projection, not the overlap/E-value numbers."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Cheap suite is overlap + E-value; licensed form remains the single-step window. The fixture pins the projection, not the overlap/E-value numbers."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/temporal_dose_horizon"
+limitations = "Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers."
+
+[[cell]]
 query = "InterventionalDistribution"
 graph_class = "Dag"
 structure = "explicit"
@@ -264,3 +484,25 @@ staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
 limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian ATE mean, not the overlap/E-value numbers."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "Full adds PPC / prior-sensitivity on top of BayesianGComputationAte; the fixture pins the ATE mean, not those checks."

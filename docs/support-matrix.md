@@ -19,13 +19,13 @@ Most of it is typed impossibility, not missing work.
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 24 | Staged path plus executing known-truth evidence — the strongest contract |
-| Allowlisted (running, unlicensed) | 46 | Executes end-to-end; a successful number is **not** a licensed claim |
+| Licensed | 46 | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | 24 | Executes end-to-end; a successful number is **not** a licensed claim |
 | Refused (enforced closed rules) | 1333 | Fail shut, including mislabeled-inference laundering |
 | Refused (no allowlist match) | 3 | Fail shut by default |
 
-Do not read "24 / 2394" as coverage. Read: **24 cells
-carry the evidence contract**; 46 more run without that contract;
+Do not read "46 / 2394" as coverage. Read: **46 cells
+carry the evidence contract**; 24 more run without that contract;
 the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
@@ -131,15 +131,10 @@ These cells are neither licensed nor closed but do genuinely run; each row
 below states why it runs and which licensed/keep-running family it rides.
 Every other refused cell fails closed.
 
-- queries ∈ {AverageEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — Same BayesianGComputationAte path as the licensed Dag/Bayesian/none cell; cheap and full only add refuter suites on top of the same estimate. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis; validation = cheap/full ride the licensed cell's own fixture rather than a separate known-truth pin. (parent: AverageEffect Dag explicit/accepted Bayesian none (licensed))
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run. (parent: AverageEffect Dag explicit/accepted Bayesian none (licensed))
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Admg} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} — execute_admg runs general ID + FunctionalEffect whenever the ADMG carries a bidirected edge (compile.rs's Admg arm, dispatch.rs's execute() Admg arm); confirmed end-to-end on an identifiable front-door-shaped ADMG fixture. NotIdentified on a non-identifiable ADMG is a normal per-graph identification outcome, not a wiring failure. Not licensed because there is no known-truth fixture pinning general-ID ADMG estimates the way the Dag/Pag families are pinned. (parent: AverageEffect Dag explicit/accepted Frequentist none (licensed); mirrors the AverageEffect Pag family below)
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Pag} ∧ structures ∈ {explicit, accepted} — Generalized adjustment on a PAG (execute_pag) is fully wired for both Frequentist and Bayesian inference and every validation suite; Study::prepare() accepts Pag for AverageEffect. Not licensed because prepare_static_identification returns None (identify-per-run on refresh) and there is no cell-shaped known-truth pin yet. (parent: AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed))
-- queries ∈ {ConditionalEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same ConditionalLinearAdjustment path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites on top of the same estimate; confirmed end-to-end. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis. (parent: ConditionalEffect Dag explicit/accepted Frequentist none (licensed))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same temporal backdoor + TemporalLinearAdjustment path as the licensed TemporalDag/Frequentist/none Pulse cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite, on this axis. (parent: PulseEffect TemporalDag explicit/accepted Frequentist none (licensed))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Temporal backdoor Bayesian g-comp is wired end-to-end under none/cheap/full (conformance/bayesian/temporal_pulse pins n=400). Not licensed because Bayesian temporal Pulse has no cell-shaped known-truth fixture yet. (parent: PulseEffect TemporalDag explicit/accepted Frequentist none (licensed); Bayesian remains allowlisted)
-- queries ∈ {SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — Same single-step Sustained path as the licensed TemporalDag/Frequentist/none cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite. (parent: SustainedEffect TemporalDag explicit/accepted Frequentist none (licensed))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {none} — execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run. (parent: PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above))
+- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {none} — execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run. (parent: PulseEffect TemporalDag explicit/accepted Bayesian none (licensed))
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {none} — execute_temporal_mediation runs TemporalMediationIdentifier + TemporalMediationEstimator end-to-end under Frequentist none. cheap/full are refused (empty refutations). Bayesian is closed: the path hardcodes EstimatorId::TemporalMediation. Not licensed because prepare currently refuses and there is no known-truth pin yet. (parent: TemporalMediationEffect TemporalDag explicit/accepted Frequentist none (this row is the running family))
 
 ## Licensed cells
@@ -157,8 +152,14 @@ Every other refused cell fails closed.
 | `ResponseCurve` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `ResponseCurve` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
+| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
+| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
 | `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
 | `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
+| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) |
+| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) |
 | `PathSpecificEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/path_specific_natural`) |
 | `InterventionResponse` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
 | `InterventionResponse` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
@@ -166,7 +167,23 @@ Every other refused cell fails closed.
 | `InterventionResponse` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
 | `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/id_hedge`) |
 | `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
+| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
+| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
