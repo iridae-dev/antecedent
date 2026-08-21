@@ -30,6 +30,7 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     assert 0.0 <= mass <= 1.0
     assert np.isfinite(result.posterior.effect_mean)
     assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
     if mass > 0.0:
         assert result.posterior.envelope is not None
         assert result.posterior.envelope.unidentified_mass == mass
@@ -83,3 +84,4 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     assert 0.0 <= mass <= 1.0
     assert np.isfinite(result.posterior.effect_mean)
     assert abs(result.posterior.effect_mean - 0.9) < 0.35
+    assert result.evidence_status == "licensed"

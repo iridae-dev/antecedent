@@ -185,7 +185,7 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
         &ctx,
     )
     .unwrap();
-    let analysis = Study::series(series)
+    let analysis = Study::series(series.clone())
         .graph_posterior(gp)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
@@ -196,6 +196,9 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
         .build()
         .unwrap();
     let result = analysis.run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     let post = result.posterior.expect("DBN mixture posterior");
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();

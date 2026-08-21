@@ -278,7 +278,8 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn prepare_refuses_graph_posterior_with_matrix_id() {
+    fn prepare_graph_posterior_ate_runs_identify_per_click() {
+        let _pin = include_str!("../../../../../conformance/bayesian/dag_posterior/expected.json");
         let gp = GraphPosterior::new(
             2,
             vec![1.0],
@@ -290,20 +291,21 @@ mod identify_only_tests {
             0,
         )
         .unwrap();
-        let err = Study::tabular(toy_data())
+        let data = toy_data();
+        let ctx = ExecutionContext::for_tests(1);
+        let study = Study::tabular(data.clone())
             .graph_posterior(gp)
             .query(ate())
             .refute(RefuteSuite::None)
-            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
             .build()
-            .unwrap()
-            .prepare(&ExecutionContext::for_tests(1))
-            .unwrap_err();
-        assert_identify_only_refused(
-            &err,
-            "graph_posterior is not on the prepared handle; identification runs \
-                per-graph inside execute. Use analyze, or accept a single graph.",
-        );
+            .unwrap();
+        let fresh = study.clone().run(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let click = prepared.estimate(&data, &ctx).unwrap();
+        assert!(click.estimate.ate.is_finite());
+        assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     }
 
     #[test]

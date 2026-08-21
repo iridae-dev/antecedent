@@ -1154,6 +1154,7 @@ def _analyze_jpcmci_plus_discover(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    refute: bool | str = False,
 ) -> Any:
     """Shared ``_analyze_temporal_discover`` call for J-PCMCI+ multi-environment discovery.
 
@@ -1190,6 +1191,7 @@ def _analyze_jpcmci_plus_discover(
         time_dummy_encoding=cfg["time_dummy_encoding"],
         time_dummy_ci=cfg["time_dummy_ci"],
         ci=cfg.get("ci"),
+        refute=refute,
     )
 
 
@@ -1266,6 +1268,7 @@ def handle_temporal_pulse(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if discovery is not None:
@@ -1282,6 +1285,7 @@ def handle_temporal_pulse(
             threads=threads,
             regimes=regimes,
             temporal_discovery=_TEMPORAL_DISCOVERY,
+            refute=refute,
         )
     names, columns = ingest_columns(data)
     if isinstance(graph, TemporalPag):
@@ -1539,6 +1543,7 @@ def _handle_series_discover(
     threads: int,
     regimes: Sequence[int] | None,
     temporal_discovery: tuple[type, ...],
+    refute: bool | str,
 ) -> Any:
     from .estimation import _discovery_algorithm, _wrap_temporal
 
@@ -1570,6 +1575,7 @@ def _handle_series_discover(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if not isinstance(discovery, temporal_discovery):
@@ -1596,6 +1602,7 @@ def _handle_series_discover(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if algo == "rpcmci":
@@ -1623,6 +1630,7 @@ def _handle_series_discover(
             threads=threads,
             regimes=list(regimes),
             ci=cfg.get("ci"),
+            refute=refute,
         )
         return _wrap_temporal(raw)
     names, columns = as_columns(data)
@@ -1646,6 +1654,7 @@ def _handle_series_discover(
         bootstrap=bootstrap,
         threads=threads,
         ci=cfg.get("ci"),
+        refute=refute,
     )
     return _wrap_temporal(raw)
 
