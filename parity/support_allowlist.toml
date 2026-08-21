@@ -11,15 +11,6 @@
 [[allowed]]
 queries = ["AverageEffect"]
 graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-validations = ["cheap", "full"]
-reason = "Same BayesianGComputationAte path as the licensed Dag/Bayesian/none cell; cheap and full only add refuter suites on top of the same estimate. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis; validation = cheap/full ride the licensed cell's own fixture rather than a separate known-truth pin."
-parent = "AverageEffect Dag explicit/accepted Bayesian none (licensed)"
-
-[[allowed]]
-queries = ["AverageEffect"]
-graph_classes = ["Dag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run."
@@ -41,48 +32,13 @@ reason = "Generalized adjustment on a PAG (execute_pag) is fully wired for both 
 parent = "AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed)"
 
 [[allowed]]
-queries = ["ConditionalEffect"]
-graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-validations = ["cheap", "full"]
-reason = "Same ConditionalLinearAdjustment path as the licensed Dag/Frequentist/none cell; cheap and full only add refuter suites on top of the same estimate; confirmed end-to-end. Not licensed because the matrix pins the estimate, not the refuter suite, on this axis."
-parent = "ConditionalEffect Dag explicit/accepted Frequentist none (licensed)"
-
-[[allowed]]
-queries = ["PulseEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-validations = ["cheap", "full"]
-reason = "Same temporal backdoor + TemporalLinearAdjustment path as the licensed TemporalDag/Frequentist/none Pulse cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite, on this axis."
-parent = "PulseEffect TemporalDag explicit/accepted Frequentist none (licensed)"
-
-[[allowed]]
-queries = ["PulseEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "Temporal backdoor Bayesian g-comp is wired end-to-end under none/cheap/full (conformance/bayesian/temporal_pulse pins n=400). Not licensed because Bayesian temporal Pulse has no cell-shaped known-truth fixture yet."
-parent = "PulseEffect TemporalDag explicit/accepted Frequentist none (licensed); Bayesian remains allowlisted"
-
-[[allowed]]
-queries = ["SustainedEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-validations = ["cheap", "full"]
-reason = "Same single-step Sustained path as the licensed TemporalDag/Frequentist/none cells; cheap and full only add refuter suites. Not licensed because the matrix pins the projection, not the refuter suite."
-parent = "SustainedEffect TemporalDag explicit/accepted Frequentist none (licensed)"
-
-[[allowed]]
 queries = ["PulseEffect"]
 graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 validations = ["none"]
 reason = "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run."
-parent = "PulseEffect TemporalDag explicit/accepted Frequentist/Bayesian (allowed, above)"
+parent = "PulseEffect TemporalDag explicit/accepted Bayesian none (licensed)"
 
 [[allowed]]
 queries = ["TemporalMediationEffect"]
