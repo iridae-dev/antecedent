@@ -13,6 +13,8 @@ copied_tests = false
 # fixed SplitMix64 stream. The contract is conditional on the cross-fitted
 # pseudo-outcome and a caller-supplied bandwidth; it does not reproduce the
 # paper's bandwidth rule, refit nuisances, or claim the paper's coverage theorem.
+# The shared least-squares nuisances require finite outcome moments; see
+# estimate.response.kennedy_dr for the tail-ratio diagnostic.
 papers = [
   { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator and asymptotic inference"] },
   { title = "Simultaneous bootstrap confidence bands in nonparametric regression", doi = "10.1080/10485259808832748", sections = ["Section 2: local-polynomial wild-bootstrap band construction", "Section 3: coverage conditions; cited as motivation, not claimed for Antecedent's conditional fixed-grid multiplier implementation"] },

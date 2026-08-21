@@ -183,6 +183,14 @@ at runtime:
 Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.
 
+`response.kennedy_dr` is also a least-squares construction (additive GAMs plus
+a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+outcome moments. Unlike the three cases above, it reports
+`response.outcome_tail_ratio` at runtime and warns
+`response.heavy_tailed_outcome` when the ratio exceeds 20. That warning does
+not demote `evidence_status` or `support.status`. See
+[causal-responses.md](causal-responses.md#least-squares-kennedy-dr-regularity).
+
 ### Bayesian
 
 * Bayesian g-computation;

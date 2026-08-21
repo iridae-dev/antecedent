@@ -2,9 +2,12 @@
 //!
 //! The scalar curve path uses deterministic cross-fitting, Gaussian additive
 //! nuisance regressions, the Kennedy-style doubly robust pseudo-outcome, and a
-//! Gaussian local-polynomial smoother. Average derivatives use the corresponding
-//! Gaussian treatment-score Riesz representer. Multivariate derivatives are
-//! deliberately low-dimensional, model-dependent plug-in functionals.
+//! Gaussian local-polynomial smoother. Least-squares nuisances require finite
+//! outcome moments; a heavy-tailed outcome is reported on the support diagnostic
+//! axis rather than by demoting overlap or matrix-cell licensing. Average
+//! derivatives use the corresponding Gaussian treatment-score Riesz representer.
+//! Multivariate derivatives are deliberately low-dimensional, model-dependent
+//! plug-in functionals.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,6 +43,26 @@ use crate::util::range;
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
 /// surfaced as a positivity diagnostic rather than absorbed silently.
 const CONDITIONAL_DENSITY_FLOOR: f64 = 1e-8;
+
+/// Gaussian-consistency constant converting MAD to a scale: 1 / Φ^{-1}(3/4).
+const MAD_TO_SIGMA: f64 = 1.4826;
+
+/// `max |Y − median| / (1.4826 MAD)` above which least-squares Kennedy nuisances
+/// are outside their regularity. Gaussian samples stay near sqrt(2 log n)
+/// (about 5 at n = 1e6).
+const OUTCOME_TAIL_RATIO_BOUND: f64 = 20.0;
+
+/// Finite stand-in when MAD is zero but the outcome is not constant. Diagnostic
+/// values must be finite (the Python view rejects infinities).
+const OUTCOME_TAIL_RATIO_UNSCALED: f64 = 1e12;
+
+/// Lower/upper percentile used to winsorize the Kennedy pseudo-outcome when
+/// measuring whether extreme φ rows move the fitted curve.
+const PSEUDO_OUTCOME_WINSOR_P: f64 = 0.01;
+
+/// Relative curve movement after that winsorization that indicates extreme
+/// pseudo-outcome rows are driving the fit.
+const PSEUDO_OUTCOME_WINSOR_SHIFT_BOUND: f64 = 0.25;
 
 /// Largest cartesian-product support the exact discrete intervention mixture will evaluate.
 ///
@@ -322,6 +345,16 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             density_floor_rows,
         );
+        push_outcome_tail_diagnostic(&mut support, &sample.outcome);
+        push_pseudo_outcome_winsor_shift(
+            &mut support,
+            &sample.treatments,
+            &pseudo,
+            grid,
+            &mean,
+            bandwidth,
+            &mut local,
+        );
         if self.options.export_row_diagnostics {
             let n = sample.len();
             let flat_influences: Vec<f64> =
@@ -509,6 +542,7 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             density_floor_rows,
         );
+        push_outcome_tail_diagnostic(&mut support, &sample.outcome);
         if !standard_error.is_finite() {
             // Withholding the interval is deliberate, but a silently absent interval is
             // indistinguishable from one the caller never asked for. Say why.
@@ -562,7 +596,7 @@ impl ContinuousResponseEstimator {
         let effective_n =
             if square_sum > 0.0 { absolute_sum * absolute_sum / square_sum } else { 0.0 };
         let weak = effective_n < self.options.minimum_local_ess;
-        let support = SupportReport {
+        let mut support = SupportReport {
             status: if weak { SupportStatus::WeakOverlap } else { SupportStatus::Supported },
             query_region: SupportRegion {
                 minima: Arc::from([minimum]),
@@ -587,6 +621,7 @@ impl ContinuousResponseEstimator {
             },
             point_status: None,
         };
+        push_outcome_tail_diagnostic(&mut support, &sample.outcome);
         Ok((
             ResponseValue::Scalar(estimate),
             ResponseUncertainty::Scalar {
@@ -1441,6 +1476,162 @@ fn transform_point_derivative(
     })
 }
 
+fn sort_finite(values: &[f64]) -> Vec<f64> {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted
+}
+
+fn median_sorted(sorted: &[f64]) -> f64 {
+    let n = sorted.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let mid = n / 2;
+    if n % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] }
+}
+
+/// Linear interpolation on the sorted sample: `p` in [0, 1] indexes `0 .. n-1`.
+fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let max_idx = sorted.len() - 1;
+    if max_idx == 0 {
+        return sorted[0];
+    }
+    let rank = max_idx as f64 * p.clamp(0.0, 1.0);
+    let lo_rank = rank.floor();
+    let hi_rank = rank.ceil();
+    let lo = (0..=max_idx)
+        .min_by(|&a, &b| {
+            (a as f64 - lo_rank)
+                .abs()
+                .partial_cmp(&(b as f64 - lo_rank).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or(0);
+    let hi = (0..=max_idx)
+        .min_by(|&a, &b| {
+            (a as f64 - hi_rank)
+                .abs()
+                .partial_cmp(&(b as f64 - hi_rank).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or(max_idx);
+    let w = rank - lo_rank;
+    sorted[lo].mul_add(1.0 - w, sorted[hi] * w)
+}
+
+fn mad_scale(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let sorted = sort_finite(values);
+    let center = median_sorted(&sorted);
+    let abs_dev: Vec<f64> = values.iter().map(|v| (v - center).abs()).collect();
+    let mut abs_sorted = abs_dev;
+    abs_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    MAD_TO_SIGMA * median_sorted(&abs_sorted)
+}
+
+fn outcome_tail_ratio(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let sorted = sort_finite(values);
+    let center = median_sorted(&sorted);
+    let max_dev = values.iter().map(|v| (v - center).abs()).fold(0.0, f64::max);
+    let scale = mad_scale(values);
+    if scale <= 0.0 {
+        if max_dev <= 0.0 { 0.0 } else { OUTCOME_TAIL_RATIO_UNSCALED }
+    } else {
+        max_dev / scale
+    }
+}
+
+fn winsorize(values: &[f64], p: f64) -> Vec<f64> {
+    let sorted = sort_finite(values);
+    let lo = quantile_sorted(&sorted, p);
+    let hi = quantile_sorted(&sorted, 1.0 - p);
+    let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+    values.iter().map(|&v| v.clamp(lo, hi)).collect()
+}
+
+/// Outcome tail ratio for least-squares Kennedy / Riesz nuisances.
+///
+/// Does not change [`SupportStatus`]: overlap can be honest while the outcome
+/// is outside the estimator's moment conditions. Matrix-cell licensing is
+/// likewise untouched.
+fn push_outcome_tail_diagnostic(support: &mut SupportReport, outcome: &[f64]) {
+    let ratio = outcome_tail_ratio(outcome);
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from("response.outcome_tail_ratio"),
+        values: Arc::from([ratio, OUTCOME_TAIL_RATIO_BOUND]),
+        detail: Arc::from(
+            "max |Y - median| / (1.4826 MAD) of the retained outcome, then the warning bound",
+        ),
+    });
+    if ratio > OUTCOME_TAIL_RATIO_BOUND {
+        support.warnings.push(Diagnostic::new(
+            "response.heavy_tailed_outcome",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "outcome tail ratio exceeds the bound the least-squares Kennedy nuisances can be trusted on; extreme rows can dominate the estimate",
+        ));
+    }
+}
+
+/// 1%/99% winsorization of φ, then a second local-quadratic pass.
+///
+/// The estimate itself is unchanged. A large shift means extreme pseudo-outcome
+/// rows, not treatment-kernel overlap, are driving the published curve.
+fn push_pseudo_outcome_winsor_shift(
+    support: &mut SupportReport,
+    treatments: &[f64],
+    pseudo: &[f64],
+    grid: &[f64],
+    mean: &[f64],
+    bandwidth: f64,
+    workspace: &mut LocalQuadraticWorkspace,
+) {
+    if grid.len() != mean.len() || treatments.len() != pseudo.len() || grid.is_empty() {
+        return;
+    }
+    let clipped = winsorize(pseudo, PSEUDO_OUTCOME_WINSOR_P);
+    let mut shifts = Vec::with_capacity(grid.len());
+    for (&at, &raw) in grid.iter().zip(mean) {
+        match gaussian_local_quadratic_influence_prechecked(
+            workspace, treatments, &clipped, at, bandwidth,
+        ) {
+            Ok(fit) => shifts.push((raw - fit.point.value).abs()),
+            Err(_) => return,
+        }
+    }
+    if shifts.iter().any(|v| !v.is_finite()) {
+        return;
+    }
+    let max_shift = shifts.iter().copied().fold(0.0, f64::max);
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from("response.pseudo_outcome_winsor_shift"),
+        values: Arc::from(shifts),
+        detail: Arc::from(
+            "absolute shift of the fitted level after 1%/99% pseudo-outcome winsorization; one value per grid point",
+        ),
+    });
+    let fitted_range = mean.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        - mean.iter().copied().fold(f64::INFINITY, f64::min);
+    let scale = fitted_range.abs().max(1e-12);
+    if max_shift / scale > PSEUDO_OUTCOME_WINSOR_SHIFT_BOUND {
+        support.warnings.push(Diagnostic::new(
+            "response.pseudo_outcome_tail_sensitivity",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "winsorizing the cross-fitted pseudo-outcome at the 1st and 99th percentiles moved the fitted curve; extreme pseudo-outcome rows are driving the estimate",
+        ));
+    }
+}
+
 fn support_report(
     points: &[f64],
     observed: &[f64],
@@ -1586,7 +1777,7 @@ mod tests {
         ContinuousDomain, GridSpec, Intervention, ResponseFunctional, ResponseQuery,
         StochasticPolicy, Value,
     };
-    use antecedent_data::TabularData;
+    use antecedent_data::{TableView, TabularData};
 
     use super::*;
 
@@ -1635,6 +1826,136 @@ mod tests {
         assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(response.support.diagnostics[0].values.len(), 3);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
+        let tail = response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == "response.outcome_tail_ratio")
+            .expect("outcome tail ratio");
+        assert_eq!(tail.values.len(), 2);
+        assert!(tail.values[0] < OUTCOME_TAIL_RATIO_BOUND, "ratio={}", tail.values[0]);
+        assert!((tail.values[1] - OUTCOME_TAIL_RATIO_BOUND).abs() < 1e-12);
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .all(|w| w.code.as_ref() != "response.heavy_tailed_outcome")
+        );
+        let winsor = response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == "response.pseudo_outcome_winsor_shift")
+            .expect("winsor shift");
+        assert_eq!(winsor.values.len(), 3);
+    }
+
+    fn overwrite_outcome(data: &TabularData, patches: &[(usize, f64)]) -> TabularData {
+        let mut columns: Vec<Vec<f64>> =
+            (0..3).map(|c| data.float64_values(VariableId::from_raw(c)).unwrap()).collect();
+        for &(i, value) in patches {
+            columns[1][i] = value;
+        }
+        TabularData::from_f64_columns([
+            ("a", columns[0].as_slice()),
+            ("y", columns[1].as_slice()),
+            ("x", columns[2].as_slice()),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn outcome_tail_ratio_is_zero_on_a_constant_and_explodes_on_a_spike() {
+        assert!(outcome_tail_ratio(&[1.0, 1.0, 1.0, 1.0]).abs() < 1e-12);
+        let mut y = vec![0.0; 21];
+        y[0] = 500.0;
+        assert!(outcome_tail_ratio(&y) > OUTCOME_TAIL_RATIO_BOUND);
+    }
+
+    #[test]
+    fn heavy_tailed_outcome_warns_without_demoting_overlap() {
+        let (data, a, y, x) = confounded_curve(240);
+        let data = overwrite_outcome(&data, &[(120, 1_000.0), (121, -1_000.0)]);
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.4, 0.0, 0.4]))),
+        });
+        let response = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert_eq!(response.support.status, SupportStatus::Supported);
+        let tail = response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == "response.outcome_tail_ratio")
+            .expect("outcome tail ratio");
+        assert!(tail.values[0] > OUTCOME_TAIL_RATIO_BOUND, "ratio={}", tail.values[0]);
+        let codes: Vec<&str> = response.support.warnings.iter().map(|w| w.code.as_ref()).collect();
+        assert!(codes.contains(&"response.heavy_tailed_outcome"), "codes={codes:?}");
+        let winsor = response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == "response.pseudo_outcome_winsor_shift")
+            .expect("winsor shift");
+        assert_eq!(winsor.values.len(), 3);
+        assert!(winsor.values.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn pseudo_outcome_winsor_shift_warns_when_a_spike_moves_the_curve() {
+        let n = 80usize;
+        let treatments: Vec<f64> = (0..n).map(|i| i as f64 / (n - 1) as f64).collect();
+        let mut phi: Vec<f64> = treatments.iter().map(|t| 2.0 * t).collect();
+        phi[n / 2] = 400.0;
+        let grid = [0.25, 0.5, 0.75];
+        let mut workspace = LocalQuadraticWorkspace::default();
+        let mean: Vec<f64> = grid
+            .iter()
+            .map(|&at| {
+                gaussian_local_quadratic_influence_prechecked(
+                    &mut workspace,
+                    &treatments,
+                    &phi,
+                    at,
+                    0.15,
+                )
+                .unwrap()
+                .point
+                .value
+            })
+            .collect();
+        let mut support = SupportReport {
+            status: SupportStatus::Supported,
+            query_region: SupportRegion { minima: Arc::from([0.0]), maxima: Arc::from([1.0]) },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            point_status: None,
+        };
+        push_pseudo_outcome_winsor_shift(
+            &mut support,
+            &treatments,
+            &phi,
+            &grid,
+            &mean,
+            0.15,
+            &mut workspace,
+        );
+        assert!(
+            support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.pseudo_outcome_tail_sensitivity"),
+            "codes={:?}",
+            support.warnings.iter().map(|w| w.code.as_ref()).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -2021,6 +2342,13 @@ mod tests {
         };
         assert!((value - 2.0).abs() < 0.2, "ade={value}");
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
+        assert!(
+            response
+                .support
+                .diagnostics
+                .iter()
+                .any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
+        );
     }
 
     #[test]

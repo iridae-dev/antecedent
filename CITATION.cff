@@ -12,9 +12,9 @@ authors:
     given-names: Charles
     orcid: "https://orcid.org/0009-0000-2421-4351"
   - name: Antecedent Contributors
-version: 0.7.0
+version: 0.7.1
 doi: 10.5281/zenodo.21556247
-date-released: "2026-08-20"
+date-released: "2026-08-21"
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
 # CFF 1.2.0 cannot express the SPDX expression "MIT OR Apache-2.0"; the list is
