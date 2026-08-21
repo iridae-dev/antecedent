@@ -186,8 +186,29 @@ def test_licensed_pag_ate_runs():
     assert result.evidence_status == "licensed"
 
 
-# PAG ATE is licensed (generalized adjustment). Remaining allowlist: ADMG
-# Frequentist ATE, graph-posterior Bayesian ATE, Pulse TemporalDag graph_posterior.
+def test_licensed_admg_ate_runs():
+    n = 300
+    u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
+    t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u, strict=True)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u, strict=True)])
+    data = {"t": t, "m": m, "y": y}
+    admg = antecedent.Admg.from_edges(
+        ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+    )
+    result = antecedent.analyze(
+        data,
+        graph=admg,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
+
+
+# Remaining allowlist: graph-posterior Bayesian ATE, Pulse TemporalDag graph_posterior.
 
 
 def test_allowlisted_pulse_effect_temporal_dag_still_runs():

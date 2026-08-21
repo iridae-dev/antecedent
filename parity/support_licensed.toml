@@ -660,3 +660,69 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
 limitations = "Full adds PPC / prior-sensitivity on identified completions; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Fixture pins general-ID identification on a front-door-shaped bidirected ADMG, not the FunctionalEffect number. Study::prepare() accepts Admg; prepare_static_identification returns None when bidirected (identify-per-run). Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Accepted-structure axis shares execute_admg. Fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."

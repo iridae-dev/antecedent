@@ -35,6 +35,22 @@ _PAG = antecedent.Pag.from_marked_edges(
 _PAG_ACCEPTED = antecedent.AcceptedGraph.from_graph(_PAG, algorithm_id="hand")
 
 
+def _frontdoor_table(n: int = 300):
+    u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
+    t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u, strict=True)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u, strict=True)])
+    return {"t": t, "m": m, "y": y}
+
+
+_ADMG_DATA = _frontdoor_table()
+_ADMG = antecedent.Admg.from_edges(
+    ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+)
+_ADMG_ACCEPTED = antecedent.AcceptedGraph.from_graph(_ADMG, algorithm_id="hand")
+_ADMG_ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+
+
 def _curve_table(n: int = 400, seed: int = 19):
     rng = np.random.default_rng(seed)
     z = rng.normal(size=n)
@@ -169,6 +185,12 @@ _IR = antecedent.InterventionResponse(
         (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
         (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
         (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, False, None),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, "cheap", None),
+        (_ADMG_DATA, _ADMG, _ADMG_ATE, "full", None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, False, None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, "cheap", None),
+        (_ADMG_DATA, _ADMG_ACCEPTED, _ADMG_ATE, "full", None),
         (_CURVE_DATA, _EDGES, _CURVE, False, None),
         (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
         (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, False, None),
@@ -207,6 +229,12 @@ _IR = antecedent.InterventionResponse(
         "ate_pag_accepted_bayesian_none",
         "ate_pag_accepted_bayesian_cheap",
         "ate_pag_accepted_bayesian_full",
+        "ate_admg_explicit_none",
+        "ate_admg_explicit_cheap",
+        "ate_admg_explicit_full",
+        "ate_admg_accepted_none",
+        "ate_admg_accepted_cheap",
+        "ate_admg_accepted_full",
         "curve_explicit_none",
         "curve_accepted_none",
         "conditional_explicit_none",
