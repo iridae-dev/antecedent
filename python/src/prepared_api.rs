@@ -18,7 +18,7 @@ use pyo3::types::{PyAny, PyModule};
 
 use crate::response_api::{ResponseAnalysisResult, build_functional, response_result};
 use crate::{
-    AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, py_err,
+    AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs, py_err,
     py_execution_context_ext, series_from_tabular, suite_from_refute, tabular_from_arrow_c_objs,
     tabular_from_numpy, tabular_from_py_columns, temporal_dag_from_schema_edges,
 };
@@ -261,6 +261,111 @@ impl PyPreparedAnalysis {
                 Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
             } else {
                 Study::tabular(data).graph(dag)
+            }
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            if let Some(id) = identifier {
+                builder = builder.identifier(
+                    id.parse::<antecedent::IdentifierId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            if let Some(mode) = inference.as_deref() {
+                builder = apply_inference(builder, mode, n_draws, prior_scale)?;
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for AverageEffect on a supplied PAG (generalized adjustment).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_pag(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Pag,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        if graph.names != names {
+            return Err(PyValueError::new_err(
+                "Pag variable names must match data column names and order",
+            ));
+        }
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        let pag = graph.pag;
+
+        detach_catch(py, move || {
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
+            } else {
+                Study::tabular(data).graph(pag)
             }
             .query(query)
             .refute(suite)

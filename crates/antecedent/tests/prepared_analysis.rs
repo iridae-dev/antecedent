@@ -21,7 +21,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -844,4 +844,27 @@ fn prepared_temporal_mediation_reuses_identification() {
     );
     assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+}
+
+#[test]
+fn prepared_pag_ate_runs_identify_per_click() {
+    let (data, _, query) = confounded_scm(80, 3);
+    let mut pag = Pag::with_variables(3);
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(pag)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
 }

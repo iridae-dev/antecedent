@@ -22,14 +22,7 @@ graph_classes = ["Admg"]
 structures = ["explicit", "accepted"]
 inferences = ["Frequentist"]
 reason = "execute_admg runs general ID + FunctionalEffect whenever the ADMG carries a bidirected edge (compile.rs's Admg arm, dispatch.rs's execute() Admg arm); confirmed end-to-end on an identifiable front-door-shaped ADMG fixture. NotIdentified on a non-identifiable ADMG is a normal per-graph identification outcome, not a wiring failure. Not licensed because there is no known-truth fixture pinning general-ID ADMG estimates the way the Dag/Pag families are pinned."
-parent = "AverageEffect Dag explicit/accepted Frequentist none (licensed); mirrors the AverageEffect Pag family below"
-
-[[allowed]]
-queries = ["AverageEffect"]
-graph_classes = ["Pag"]
-structures = ["explicit", "accepted"]
-reason = "Generalized adjustment on a PAG (execute_pag) is fully wired for both Frequentist and Bayesian inference and every validation suite; Study::prepare() accepts Pag for AverageEffect. Not licensed because prepare_static_identification returns None (identify-per-run on refresh) and there is no cell-shaped known-truth pin yet."
-parent = "AverageEffect Dag explicit/accepted Frequentist/Bayesian none (licensed)"
+parent = "AverageEffect Dag explicit/accepted Frequentist none (licensed)"
 
 [[allowed]]
 queries = ["PulseEffect"]
