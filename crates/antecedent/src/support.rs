@@ -970,7 +970,7 @@ mod tests {
 
     /// (b) An ADMG *with* a bidirected edge does not collapse: the ADMG path is
     /// still live (dispatch runs `execute_admg`, not the static-DAG completion),
-    /// so the cell stays the Admg cell — default-refused, not licensed.
+    ///         so the cell stays the Admg cell — licensed Frequentist ATE, not collapsed to Dag.
     #[test]
     fn admg_with_bidirected_edge_does_not_collapse() {
         let mut admg = Admg::with_variables(2);
@@ -987,7 +987,7 @@ mod tests {
             RefuteSuite::None,
         )
         .unwrap();
-        assert_eq!(classify(sc), CellStatus::Refused);
+        assert_eq!(classify(sc), CellStatus::Licensed);
     }
 
     /// The ADMG collapse is scoped to `AverageEffect`: `compile.rs` wires no other

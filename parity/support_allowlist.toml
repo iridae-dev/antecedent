@@ -17,14 +17,6 @@ reason = "execute_graph_posterior_bayesian identifies and fits every posterior a
 parent = "AverageEffect Dag explicit/accepted Bayesian none (licensed)"
 
 [[allowed]]
-queries = ["AverageEffect"]
-graph_classes = ["Admg"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-reason = "execute_admg runs general ID + FunctionalEffect whenever the ADMG carries a bidirected edge (compile.rs's Admg arm, dispatch.rs's execute() Admg arm); confirmed end-to-end on an identifiable front-door-shaped ADMG fixture. NotIdentified on a non-identifiable ADMG is a normal per-graph identification outcome, not a wiring failure. Not licensed because there is no known-truth fixture pinning general-ID ADMG estimates the way the Dag/Pag families are pinned."
-parent = "AverageEffect Dag explicit/accepted Frequentist none (licensed)"
-
-[[allowed]]
 queries = ["PulseEffect"]
 graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]

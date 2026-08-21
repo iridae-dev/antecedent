@@ -868,3 +868,70 @@ fn prepared_pag_ate_runs_identify_per_click() {
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
 }
+
+#[test]
+fn prepared_admg_ate_runs_identify_per_click() {
+    let _pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+
+    let n = 300usize;
+    let mut t = Vec::with_capacity(n);
+    let mut m = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    for i in 0..n {
+        let ui = if i % 5 < 2 { 1.0 } else { 0.0 };
+        let ti = if i % 3 == 0 { 1.0 } else { 0.0 };
+        let mi = ((ti as u32 + ui as u32) % 2) as f64;
+        let yi = ((mi as u32 + ui as u32) % 2) as f64;
+        t.push(ti);
+        m.push(mi);
+        y.push(yi);
+    }
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(admg)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!(click.estimate.ate.is_finite());
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+}

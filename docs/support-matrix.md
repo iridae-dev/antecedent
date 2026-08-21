@@ -19,13 +19,13 @@ Most of it is typed impossibility, not missing work.
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 60 | Staged path plus executing known-truth evidence — the strongest contract |
-| Allowlisted (running, unlicensed) | 10 | Executes end-to-end; a successful number is **not** a licensed claim |
+| Licensed | 66 | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | 4 | Executes end-to-end; a successful number is **not** a licensed claim |
 | Refused (enforced closed rules) | 1333 | Fail shut, including mislabeled-inference laundering |
 | Refused (no allowlist match) | 3 | Fail shut by default |
 
-Do not read "60 / 2394" as coverage. Read: **60 cells
-carry the evidence contract**; 10 more run without that contract;
+Do not read "66 / 2394" as coverage. Read: **66 cells
+carry the evidence contract**; 4 more run without that contract;
 the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
@@ -132,7 +132,6 @@ below states why it runs and which licensed/keep-running family it rides.
 Every other refused cell fails closed.
 
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run. (parent: AverageEffect Dag explicit/accepted Bayesian none (licensed))
-- queries ∈ {AverageEffect} ∧ graph_classes ∈ {Admg} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} — execute_admg runs general ID + FunctionalEffect whenever the ADMG carries a bidirected edge (compile.rs's Admg arm, dispatch.rs's execute() Admg arm); confirmed end-to-end on an identifiable front-door-shaped ADMG fixture. NotIdentified on a non-identifiable ADMG is a normal per-graph identification outcome, not a wiring failure. Not licensed because there is no known-truth fixture pinning general-ID ADMG estimates the way the Dag/Pag families are pinned. (parent: AverageEffect Dag explicit/accepted Frequentist none (licensed))
 - queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {none} — execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run. (parent: PulseEffect TemporalDag explicit/accepted Bayesian none (licensed))
 
 ## Licensed cells
@@ -199,3 +198,9 @@ Every other refused cell fails closed.
 | `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
 | `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
 | `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
