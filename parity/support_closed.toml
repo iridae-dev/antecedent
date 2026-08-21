@@ -1,9 +1,12 @@
-# Enforced refusals. Default-refused cells still run unless a rule matches.
-# A cell matching every listed constraint is fail-closed with id `refused`.
-# Must not overlap licensed cells or n/a predicates.
+# Reason table for refused cells. Refusal is the default: any cell that is
+# not licensed and not n/a is `SupportRefusal::Refused` whether or not a
+# rule here matches. This file does not cause refusal; it names it.
+# A cell matching every listed constraint reports that rule's `reason`.
+# Must not overlap licensed cells or n/a predicates (the gate fails on overlap).
 
 [[closed]]
 queries = ["Counterfactual"]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 reason = "Counterfactual is not on the staged handle."
 
 [[closed]]
@@ -15,6 +18,7 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
 ]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 reason = "Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged."
 
 [[closed]]
@@ -24,15 +28,18 @@ reason = "ResponseCurve is licensed only on a static Dag or a temporal TemporalD
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior", "accepted"]
 reason = "Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged."
 
 [[closed]]
 queries = ["MediationEffect"]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 reason = "MediationEffect is not on the staged handle."
 
 [[closed]]
 queries = ["TransportQuery", "InterferenceQuery"]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 reason = "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified."
 
 [[closed]]
@@ -63,9 +70,41 @@ graph_classes = ["TemporalCpdag", "TemporalPag"]
 reason = "TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag."
 
 [[closed]]
+queries = [
+  "AverageDerivative",
+  "AverageEffect",
+  "ConditionalEffect",
+  "Counterfactual",
+  "DirectionalDerivative",
+  "Elasticity",
+  "InterventionalDistribution",
+  "InterventionResponse",
+  "MediationEffect",
+  "PathSpecificEffect",
+  "PointDerivative",
+  "ResponseCurve",
+  "ResponseJacobian",
+  "SemiElasticity",
+  "TransportQuery",
+  "InterferenceQuery",
+]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Graph-posterior compilation requires Bayesian inference: a graph posterior is a mixture over structures, and only Bayesian inference can combine per-graph effect draws into an envelope."
+reason = "Graph-posterior compilation requires Bayesian inference: the combiner this library ships (`execute_graph_posterior_bayesian` / `execute_dbn_posterior_bayesian`) mixes per-atom posterior draws into an envelope. Frequentist model-averaging exists in the literature; this library does not implement a Frequentist combiner."
+
+[[closed]]
+queries = [
+  "PulseEffect",
+  "SustainedEffect",
+  "TemporalMediationEffect",
+  "ResponseCurve",
+  "InterventionResponse",
+]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+reason = "Graph-posterior compilation requires Bayesian inference: the combiner this library ships (`execute_graph_posterior_bayesian` / `execute_dbn_posterior_bayesian`) mixes per-atom posterior draws into an envelope. Frequentist model-averaging exists in the literature; this library does not implement a Frequentist combiner."
 
 # -- 2026-08-19: allowlist introduction. The following rules close cells that were
 # probed end-to-end (Study::build/run) and confirmed to either refuse at compile
@@ -142,3 +181,78 @@ graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run."
+
+# -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
+
+[[closed]]
+queries = ["ResponseCurve", "InterventionResponse"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior response is a contract choice, not typed impossibility: the ATE envelope (retained unidentified mass) is the same object a curve arm would use. This cut does not license a response mixture."
+
+[[closed]]
+queries = ["ResponseCurve", "InterventionResponse"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "ResponseCurve/InterventionResponse have no class-aware identifier on TemporalCpdag/TemporalPag; the same gap on static Cpdag/Admg/Pag is already refused."
+
+# -- 0.9.0: named reasons for families that were default-refused without a row.
+
+[[closed]]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+graph_classes = ["Cpdag"]
+structures = ["explicit"]
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Cpdag hits the same static-Dag requirement (Admg/Pag explicit already named above)."
+
+[[closed]]
+queries = ["AverageEffect"]
+graph_classes = ["Cpdag"]
+structures = ["explicit", "accepted"]
+reason = "AverageEffect has no compile arm on a Cpdag; Pag/Admg Frequentist ATE is a different identifier family."
+
+[[closed]]
+queries = ["AverageEffect"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "execute_graph_posterior_bayesian is Dag-shaped; Admg/Cpdag/Pag posterior atoms are not mixed into an ATE envelope."
+
+[[closed]]
+queries = ["SustainedEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+reason = "Bayesian SustainedEffect is not wired; Pulse Bayesian g-comp is the temporal Bayesian sibling."
+
+[[closed]]
+queries = ["PulseEffect", "SustainedEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+reason = "TemporalCpdag/TemporalPag reach a Pulse/Sustained estimate only after try_into_temporal_dag succeeds (then the cell collapses to TemporalDag). Explicit incomplete graphs and accepted graphs that fail completion are not a licensed temporal contrast; failure is completion, not a TemporalDag estimate."
+
+[[closed]]
+queries = ["PulseEffect", "SustainedEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/TemporalPag posterior atoms are not mixed into a temporal envelope."
+
+[[closed]]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+graph_classes = ["Dag", "Cpdag", "Admg", "Pag"]
+validations = ["cheap", "full"]
+reason = "cheap and full synthesize AverageEffectQuery::binary_ate and run the ATE refuter suite; that is not a validation of the path-specific or distribution estimand."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["explicit", "accepted"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite."
+
+[[closed]]
+queries = ["PulseEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+validations = ["cheap", "full"]
+reason = "execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope."

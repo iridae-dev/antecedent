@@ -1124,6 +1124,7 @@ def analyze_response(
     multiplier_seed: int = 0xA17E_CEDE_0500,
     export_row_diagnostics: bool = False,
     accepted: bool = False,
+    refute: bool | str | None = None,
 ) -> ResponseAnalysisResult: ...
 def analyze_temporal_response(
     names: list[str],
@@ -1143,6 +1144,7 @@ def analyze_temporal_response(
     seed: int = 1,
     threads: int = 1,
     accepted: bool = False,
+    refute: bool | str | None = None,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],

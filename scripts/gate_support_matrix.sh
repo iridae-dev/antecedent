@@ -217,6 +217,50 @@ for i, rule in enumerate(closed_rules, 1):
 def is_closed(cell: dict) -> bool:
     return (not is_n_a(cell)) and any(rule_matches(rule, cell) for rule in closed_rules)
 
+# n/a and closed are a partition. A too-broad n/a must not mask a reason row.
+if all_queries and graph_classes and structures and inferences and validations:
+    lic_keys_for_overlap = {
+        (
+            row.get("query"),
+            row.get("graph_class"),
+            row.get("structure"),
+            row.get("inference"),
+            row.get("validation"),
+        )
+        for row in (lic_doc.get("cell") or [])
+    }
+    overlap_n = 0
+    for q, g, s, inf, v in product(
+        all_queries, graph_classes, structures, inferences, validations
+    ):
+        cell = {
+            "query": q,
+            "graph_class": g,
+            "structure": s,
+            "inference": inf,
+            "validation": v,
+        }
+        closed_hit = next(
+            (i for i, rule in enumerate(closed_rules, 1) if rule_matches(rule, cell)),
+            None,
+        )
+        if closed_hit is None:
+            continue
+        if is_n_a(cell):
+            overlap_n += 1
+            if overlap_n <= 25:
+                fail.append(
+                    f"parity/support_closed.toml rule #{closed_hit} overlaps n/a cell "
+                    f"{(q, g, s, inf, v)}"
+                )
+        if (q, g, s, inf, v) in lic_keys_for_overlap:
+            fail.append(
+                f"parity/support_closed.toml rule #{closed_hit} overlaps licensed cell "
+                f"{(q, g, s, inf, v)}"
+            )
+    if overlap_n > 25:
+        fail.append(f"... {overlap_n - 25} more n/a ∩ closed overlaps")
+
 # --- allowlist rules -----------------------------------------------------------
 allowed_rules = allow_doc.get("allowed") or []
 for i, rule in enumerate(allowed_rules, 1):

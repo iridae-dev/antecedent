@@ -195,12 +195,12 @@ def test_intervention_response_runs_through_public_analyze_api(spec):
     assert result.provenance["operation_id"] == "estimate.response.intervention_gcomp"
 
 
-def test_response_curve_graph_posterior_is_not_applicable():
+def test_response_curve_graph_posterior_is_refused():
     n = 80
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
-    with pytest.raises(CausalUnsupportedError, match="not_applicable"):
+    with pytest.raises(CausalUnsupportedError, match="refused: Graph-posterior response"):
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
             discovery=antecedent.discovery.ExactDagPosterior(),
@@ -318,31 +318,18 @@ def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
     assert raw.unidentified_mass == pytest.approx(0.0)
 
 
-def test_curve_validation_runs_support_and_subset_but_skips_scalar_refuters():
+def test_curve_cheap_refute_is_not_applicable():
     rng = np.random.default_rng(172)
     a = rng.normal(size=300)
     y = 1.4 * a + rng.normal(scale=0.2, size=300)
-    result = antecedent.analyze(
-        {"a": a, "y": y},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4]),
-        graph=[("a", "y")],
-        refute="cheap",
-        seed=9,
-    )
-
-    assert result.validation is not None
-    assert [check.id for check in result.validation.checks] == [
-        "overlap.support",
-        "data.subset",
-        "scalar_ate_refuters",
-    ]
-    assert result.validation.checks[1].status == "informative"
-    assert result.validation.checks[1].replicates == 10
-    assert result.validation.skipped[0].id == "scalar_ate_refuters"
-    assert result.provenance["validation_operation_ids"] == [
-        "validate.overlap",
-        "validate.response_data_subset",
-    ]
+    with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
+        antecedent.analyze(
+            {"a": a, "y": y},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4]),
+            graph=[("a", "y")],
+            refute="cheap",
+            seed=9,
+        )
 
 
 def test_response_analyze_derivative_and_jacobian_shapes():

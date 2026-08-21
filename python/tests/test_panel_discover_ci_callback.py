@@ -116,6 +116,7 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
         antecedent.errors.CausalReviewError,
         antecedent.errors.CausalIdentifyError,
         antecedent.errors.CausalCompileError,
+        antecedent.errors.CausalUnsupportedError,
     ) as exc:
         assert str(exc)
         if isinstance(exc, antecedent.errors.CausalReviewError):

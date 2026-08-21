@@ -410,7 +410,7 @@ fn prepared_response_curve_reuses_identification() {
 }
 
 #[test]
-fn response_curve_graph_posterior_is_not_applicable_at_build() {
+fn response_curve_graph_posterior_is_refused_at_build() {
     let (data, _graph, query) = mean_curve_study();
     let ctx = ExecutionContext::for_tests(1);
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -428,8 +428,8 @@ fn response_curve_graph_posterior_is_not_applicable_at_build() {
         .build()
         .unwrap_err();
     let msg = err.to_string();
-    assert!(msg.starts_with("not_applicable:"), "{msg}");
-    assert!(msg.contains("contrast-only"), "{msg}");
+    assert!(msg.starts_with("refused:"), "{msg}");
+    assert!(msg.contains("contract choice") || msg.contains("Bayesian inference"), "{msg}");
 }
 
 #[test]
@@ -449,4 +449,5 @@ fn prepared_response_refute_is_refused() {
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
     assert!(msg.starts_with("refused:"), "{msg}");
+    assert!(msg.contains("AverageEffect only"), "{msg}");
 }
