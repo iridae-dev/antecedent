@@ -334,7 +334,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite.",
     },
     NaRule {
-        queries: Some(&["PulseEffect"]),
+        queries: Some(&["PulseEffect", "SustainedEffect"]),
         graph_classes: Some(&["TemporalDag"]),
         structures: Some(&["graph_posterior"]),
         inferences: Some(&["Bayesian"]),
@@ -833,6 +833,13 @@ pub static LICENSED: &[LicensedCell] = &[
     },
     LicensedCell {
         query: "PulseEffect",
+        graph_class: "TemporalDag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "SustainedEffect",
         graph_class: "TemporalDag",
         structure: "graph_posterior",
         inference: "Bayesian",

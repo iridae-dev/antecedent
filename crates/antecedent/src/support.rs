@@ -1231,30 +1231,17 @@ mod tests {
         );
     }
 
-    /// The published default for the unnamed remainder: Sustained × TemporalDag ×
-    /// graph_posterior × Bayesian (Pulse's DBN envelope is the sibling that runs).
     #[test]
-    fn classify_reports_unnamed_remainder_with_shared_default_reason() {
-        let cell = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", "none");
-        assert_eq!(classify(cell), CellStatus::Refused);
-        assert!(closed_reason(cell).is_none(), "published default, not a named closed rule");
-        assert!(allowed_reason(cell).is_none());
-        let err = refuse_if_not_applicable(cell).unwrap_err();
-        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
-        assert_eq!(err.to_string(), format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"));
-    }
-
-    /// The three remaining unnamed cells all fail closed with the shared default.
-    #[test]
-    fn unnamed_remainder_cells_all_fail_closed() {
-        for v in ["none", "cheap", "full"] {
+    fn sustained_dbn_posterior_none_is_licensed_and_cheap_full_are_named() {
+        assert_eq!(
+            classify(cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", "none")),
+            CellStatus::Licensed
+        );
+        for v in ["cheap", "full"] {
             let c = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
             assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
-            assert!(closed_reason(c).is_none(), "{c:?}");
-            assert!(allowed_reason(c).is_none(), "{c:?}");
-            let err = refuse_if_not_applicable(c).unwrap_err();
-            assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
-            assert_eq!(err.to_string(), format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"), "{c:?}");
+            let reason = closed_reason(c).expect("named closed reason");
+            assert!(reason.contains("empty refutations"), "{c:?}: {reason}");
         }
     }
 }

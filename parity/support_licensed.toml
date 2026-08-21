@@ -770,3 +770,14 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
 limitations = "Fixture pins DBN posterior lag-edge mass (dbn_lag1_fixture). execute_dbn_posterior_bayesian mixes per-atom temporal effects. cheap/full are refused (empty refutations). Per-atom identify on refresh."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. Fixture pins DBN lag-edge mass. cheap/full are refused (empty refutations). Per-atom identify on refresh. Explicit Bayesian Sustained stays closed."

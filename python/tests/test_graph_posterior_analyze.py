@@ -85,3 +85,35 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     assert np.isfinite(result.posterior.effect_mean)
     assert abs(result.posterior.effect_mean - 0.9) < 0.35
     assert result.evidence_status == "licensed"
+
+
+def test_dbn_posterior_bayesian_sustained_mixture():
+    n = 400
+    rng = np.random.default_rng(42)
+    pressure = rng.normal(size=n).astype(np.float64)
+    defect = np.zeros(n, dtype=np.float64)
+    for t in range(1, n):
+        defect[t] = 0.9 * pressure[t - 1]
+
+    result = antecedent.analyze(
+        {"pressure": pressure, "defect": defect},
+        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+        query=antecedent.SustainedEffect(
+            treatment="pressure",
+            outcome="defect",
+            treatment_lag=1,
+            horizon_steps=1,
+            active_level=1.0,
+        ),
+        inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
+        refute=False,
+        bootstrap=0,
+        seed=11,
+    )
+    assert result.posterior is not None
+    mass = result.posterior.unidentified_mass
+    assert mass is not None
+    assert 0.0 <= mass <= 1.0
+    assert np.isfinite(result.posterior.effect_mean)
+    assert abs(result.posterior.effect_mean - 0.9) < 0.35
+    assert result.evidence_status == "licensed"
