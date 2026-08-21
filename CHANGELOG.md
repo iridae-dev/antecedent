@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-08-21
+
+Patch on 0.7.0. No public API rename. Licensed cells are unchanged.
+Workspace and Python package versions are **0.7.1**.
+
+### Fixed
+
+- **Kennedy-DR curves no longer stay silent under heavy-tailed outcomes.**
+  Least-squares `response.kennedy_dr` nuisances need finite residual moments;
+  a Cauchy (or spiked) outcome can inflate the fitted curve by orders of
+  magnitude while `evidence_status` stays `licensed` and `support.status`
+  stays `supported`. Mean curves now always report
+  `response.outcome_tail_ratio` (`max |Y - median| / (1.4826 MAD)`, then the
+  warning bound 20) and, when the ratio exceeds the bound,
+  `response.heavy_tailed_outcome`. A 1%/99% pseudo-outcome winsorization
+  shift is `response.pseudo_outcome_winsor_shift`; a large relative move
+  emits `response.pseudo_outcome_tail_sensitivity`. Point derivatives and
+  the Riesz ADE report the tail ratio. Neither diagnostic demotes
+  `evidence_status` or overlap: those axes are the matrix cell and
+  treatment support. `CausalResponseView` shows a warning count in its
+  repr.
+
 ## [0.7.0] — 2026-08-20
 
 Time as a response, not a contrast: dose × horizon surfaces and temporal

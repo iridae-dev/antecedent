@@ -45,7 +45,10 @@ A response result deliberately keeps four judgments separate:
    `support.point_status` over the same geometry as the mean: fully
    supported, partially extrapolative, or outside empirical support. A dose
    inside the union of lag-aligned treatment ranges can still sit outside a
-   long-horizon window.
+   long-horizon window. Estimator-regime failures (heavy-tailed outcomes,
+   floored conditional densities) are warnings and diagnostics on this
+   object; they do not change `evidence_status`, which is the support-matrix
+   cell.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
    one grid point at a time. The Rust estimator can instead request a fixed-grid
    simultaneous band with `response_options(...)`; Python uses
@@ -70,7 +73,35 @@ print(result.support.point_status)
 print(result.support.warnings)
 print(result.uncertainty.kind)
 print(result.provenance)
+print(result.evidence_status)
 ```
+
+`evidence_status` is the support-matrix cell (`licensed` vs `allowed_unlicensed`).
+A licensed cell can still carry a scientifically untrustworthy number; read
+`support.warnings` before treating the curve as a claim.
+
+## Least-squares Kennedy-DR regularity
+
+`response.kennedy_dr` fits additive cubic GAMs by least squares and smooths a
+doubly robust pseudo-outcome with a local quadratic. That construction needs
+finite residual moments. It does not inherit Kennedy et al.'s rates for
+heavy-tailed outcomes, and the influence sandwich is not a Cauchy-resistant
+interval.
+
+Every mean-curve result reports `response.outcome_tail_ratio`:
+`max |Y - median| / (1.4826 MAD)` of the retained outcome, followed by the
+warning bound (20). Gaussian samples stay near sqrt(2 log n) (about 5 at a
+million rows). Above the bound the result emits
+`response.heavy_tailed_outcome`. A second diagnostic,
+`response.pseudo_outcome_winsor_shift`, is the absolute movement of the
+fitted level after clipping the pseudo-outcome at its 1st and 99th
+percentiles; a large relative shift emits
+`response.pseudo_outcome_tail_sensitivity`.
+
+Neither diagnostic changes `support.status` or `evidence_status`. Overlap can
+be honest while the outcome is outside the estimator's regularity. Transform
+or winsorize before fitting if the warning fires; the library will not do
+that silently.
 
 Grid points are not silently trimmed to the sample range. A point outside the
 observed treatment range remains visible and is labelled unsupported. This
