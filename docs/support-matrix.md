@@ -19,13 +19,13 @@ Most of it is typed impossibility, not missing work.
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 66 | Staged path plus executing known-truth evidence — the strongest contract |
-| Allowlisted (running, unlicensed) | 4 | Executes end-to-end; a successful number is **not** a licensed claim |
+| Licensed | 70 | Staged path plus executing known-truth evidence — the strongest contract |
+| Allowlisted (running, unlicensed) | 0 | Executes end-to-end; a successful number is **not** a licensed claim |
 | Refused (enforced closed rules) | 1333 | Fail shut, including mislabeled-inference laundering |
 | Refused (no allowlist match) | 3 | Fail shut by default |
 
-Do not read "66 / 2394" as coverage. Read: **66 cells
-carry the evidence contract**; 4 more run without that contract;
+Do not read "70 / 2394" as coverage. Read: **70 cells
+carry the evidence contract**; 0 more run without that contract;
 the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
@@ -131,8 +131,7 @@ These cells are neither licensed nor closed but do genuinely run; each row
 below states why it runs and which licensed/keep-running family it rides.
 Every other refused cell fails closed.
 
-- queries ∈ {AverageEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run. (parent: AverageEffect Dag explicit/accepted Bayesian none (licensed))
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {none} — execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run. (parent: PulseEffect TemporalDag explicit/accepted Bayesian none (licensed))
+_None._
 
 ## Licensed cells
 
@@ -204,3 +203,7 @@ Every other refused cell fails closed.
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
+| `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |

@@ -1154,13 +1154,11 @@ mod tests {
         }
     }
 
-    /// Every row in `parity/support_allowlist.toml` fires: `classify` reports
-    /// `Refused` (not licensed, not n/a) and `allowed_reason`/`allowed_parent`
-    /// both return the row's own text for a representative cell.
+    /// Every remaining `parity/support_allowlist.toml` row fires. Empty is
+    /// allowed: 0.9 licensed the last running families.
     #[test]
     fn every_allowlist_rule_fires_on_its_representative_cell() {
         use crate::support_matrix_data::ALLOWED_RULES;
-        assert!(!ALLOWED_RULES.is_empty(), "the allowlist introduced 2026-08-19 must not be empty");
         for rule in ALLOWED_RULES {
             let cell = representative_cell(rule);
             assert_eq!(

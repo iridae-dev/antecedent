@@ -518,6 +518,11 @@ impl Study {
         if self.graph.class() != GraphClass::TemporalDag {
             return Ok(None);
         }
+        // Per-atom identify inside execute_dbn_posterior_bayesian; an empty stub
+        // TemporalDag must not be cached as the identification.
+        if self.graph_posterior.is_some() {
+            return Ok(None);
+        }
         let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
             message: "temporal prepare requires TemporalDag".into(),
         })?;
@@ -628,11 +633,14 @@ pub(crate) fn identify_temporal_response_horizons(
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
-        return Err(CausalError::Support {
-            id: crate::support::SupportRefusal::Refused,
-            message: "graph_posterior is not on the prepared handle; identification runs \
-                per-graph inside execute. Use analyze, or accept a single graph.",
-        });
+        return match &analysis.query {
+            CausalQuery::AverageEffect(_) | CausalQuery::TemporalEffect(_) => Ok(()),
+            _ => Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "graph_posterior on the prepared handle is licensed only for \
+                    AverageEffect and TemporalEffect (Pulse / single-step Sustained)",
+            }),
+        };
     }
     match (&analysis.data, &analysis.query) {
         (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => {

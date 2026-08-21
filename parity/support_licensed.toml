@@ -726,3 +726,47 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
 limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "Fixture pins the graph-posterior mass (skeleton/orientation), not the mixture ATE. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "Cheap suite is overlap + E-value on the mixture; the fixture pins posterior mass, not those numbers. Per-atom identify on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "Full adds PPC / prior-sensitivity on the mixture; the fixture pins posterior mass. Per-atom identify on refresh."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "Fixture pins DBN posterior lag-edge mass (dbn_lag1_fixture). execute_dbn_posterior_bayesian mixes per-atom temporal effects. cheap/full are refused (empty refutations). Per-atom identify on refresh."

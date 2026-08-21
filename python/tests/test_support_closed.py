@@ -208,7 +208,7 @@ def test_licensed_admg_ate_runs():
     assert result.evidence_status == "licensed"
 
 
-# Remaining allowlist: graph-posterior Bayesian ATE, Pulse TemporalDag graph_posterior.
+# Allowlist is empty: graph-posterior Bayesian ATE and Pulse DBN posterior none are licensed.
 
 
 def test_allowlisted_pulse_effect_temporal_dag_still_runs():

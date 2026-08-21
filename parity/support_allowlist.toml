@@ -5,22 +5,6 @@
 # keep-running family it rides. An allowed rule must not match any licensed, n/a,
 # or closed cell (parity/gate_support_matrix.sh enforces the partition).
 #
-# Every row here was probed end-to-end (Study::build().run()) against a real
-# fixture before being added. See adr/0020, 2026-08-19 amendment.
-
-[[allowed]]
-queries = ["AverageEffect"]
-graph_classes = ["Dag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run."
-parent = "AverageEffect Dag explicit/accepted Bayesian none (licensed)"
-
-[[allowed]]
-queries = ["PulseEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-validations = ["none"]
-reason = "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run."
-parent = "PulseEffect TemporalDag explicit/accepted Bayesian none (licensed)"
+# Empty as of 0.9.0: every previously allowlisted running cell is now licensed
+# (Pag/Admg ATE, graph-posterior Bayesian ATE, Pulse DBN posterior none).
+# See adr/0020, 2026-08-19 amendment.

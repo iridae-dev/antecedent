@@ -344,24 +344,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
 ];
 
 pub static ALLOWED_RULES: &[AllowedRule] = &[
-    AllowedRule {
-        queries: Some(&["AverageEffect"]),
-        graph_classes: Some(&["Dag"]),
-        structures: Some(&["graph_posterior"]),
-        inferences: Some(&["Bayesian"]),
-        validations: None,
-        reason: "execute_graph_posterior_bayesian identifies and fits every posterior atom into a Bayesian effect envelope; genuinely runs (crates/antecedent/tests/manufacturing_temporal.rs exercises the sibling TemporalEffect case end-to-end, and analysis/execute/mod.rs's own tests build a graph-posterior study under Bayesian inference). Not licensed because a graph posterior has no single known-truth fixture to pin -- the atoms it mixes vary per discovery run.",
-        parent: "AverageEffect Dag explicit/accepted Bayesian none (licensed)",
-    },
-    AllowedRule {
-        queries: Some(&["PulseEffect"]),
-        graph_classes: Some(&["TemporalDag"]),
-        structures: Some(&["graph_posterior"]),
-        inferences: Some(&["Bayesian"]),
-        validations: Some(&["none"]),
-        reason: "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run.",
-        parent: "PulseEffect TemporalDag explicit/accepted Bayesian none (licensed)",
-    }
+
 ];
 
 pub static LICENSED: &[LicensedCell] = &[
@@ -826,5 +809,33 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "cheap",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "full",
+    },
+    LicensedCell {
+        query: "PulseEffect",
+        graph_class: "TemporalDag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "none",
     }
 ];
