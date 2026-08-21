@@ -115,6 +115,20 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
         },
         ["t", "y"],
     ),
+    "TemporalMediationEffect": (
+        {
+            "mediation": {
+                "treatment": 0,
+                "outcome": 2,
+                "mediators": [1],
+                "contrast": "mediated",
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "target_population": "all_observed",
+            }
+        },
+        ["t", "m", "y"],
+    ),
     "SustainedEffect": (
         {
             "temporal_effect": {

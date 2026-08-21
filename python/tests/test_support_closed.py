@@ -173,7 +173,7 @@ def test_licensed_average_effect_on_dag_frequentist():
     assert result.evidence_status == "licensed"
 
 
-def test_default_refused_pag_ate_still_runs():
+def test_licensed_pag_ate_runs():
     result = antecedent.analyze(
         _DATA,
         graph=_PAG,
@@ -183,13 +183,11 @@ def test_default_refused_pag_ate_still_runs():
         seed=1,
     )
     assert np.isfinite(result.ate)
-    assert result.evidence_status == "allowed_unlicensed"
-    assert result.allowlist_parent
-    assert any("support.allowed_unlicensed" in d for d in result.diagnostics)
+    assert result.evidence_status == "licensed"
 
 
-# -- 2026-08-19: allowlist introduction (parity/support_allowlist.toml). PAG ATE
-# above is one allowlisted family; the temporal PulseEffect family is another.
+# PAG ATE is licensed (generalized adjustment). Remaining allowlist: ADMG
+# Frequentist ATE, graph-posterior Bayesian ATE, Pulse TemporalDag graph_posterior.
 
 
 def test_allowlisted_pulse_effect_temporal_dag_still_runs():

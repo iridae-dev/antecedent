@@ -528,3 +528,135 @@ staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
 limitations = "Full adds PPC / prior-sensitivity on top of BayesianGComputationAte; the fixture pins the ATE mean, not those checks."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Fixture pins generalized-adjustment identification, not the mass-weighted estimate. Study::prepare() accepts Pag; prepare_static_identification returns None (identify-per-run on refresh)."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification, not those numbers. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification, not the refuter numbers. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Accepted-structure axis shares execute_pag. Fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "execute_pag_bayesian mixes identified completions; the fixture pins generalized-adjustment identification, not the posterior mean. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Full adds PPC / prior-sensitivity on identified completions; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Accepted-structure axis shares execute_pag_bayesian. Fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Full adds PPC / prior-sensitivity on identified completions; the fixture pins identification. Identify-per-run on refresh."

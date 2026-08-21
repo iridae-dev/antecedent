@@ -53,7 +53,7 @@ from .errors import (
     PendingEdge,
     build_review_error,
 )
-from .graph import Admg, Cpdag, Dag, TemporalDag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalDag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -964,6 +964,37 @@ class PreparedAnalysis:
                 threads=threads,
                 structure_accepted=structure_accepted,
             )
+        if isinstance(query, AverageEffect) and isinstance(graph, Pag):
+            inference = inference or Frequentist()
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            bayes_kw: dict[str, Any] = {}
+            if isinstance(inference, Bayesian):
+                bayes_kw = _bayesian_inference_kwargs(inference)
+                inference_mode = str(bayes_kw.pop("inference"))
+            else:
+                inference_mode = "frequentist"
+            native = _NativePreparedAnalysis.prepare_pag(
+                names,
+                columns,
+                graph,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                identifier=identifier,
+                estimator=estimator,
+                inference=inference_mode,
+                n_draws=int(bayes_kw.get("n_draws", 1000)),
+                prior_scale=float(bayes_kw.get("prior_scale", 10.0)),
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
         edges = _static_edges(graph)
         if isinstance(query, ConditionalEffect):
             if inference is not None and not isinstance(inference, Frequentist):

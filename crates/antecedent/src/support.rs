@@ -564,12 +564,12 @@ mod tests {
     }
 
     #[test]
-    fn pag_average_effect_is_recorded_refused_not_n_a() {
+    fn pag_average_effect_is_licensed() {
         assert_eq!(
             classify(cell("AverageEffect", "Pag", "explicit", "Frequentist", "none")),
-            CellStatus::Refused
+            CellStatus::Licensed
         );
-        assert!(
+        assert_eq!(
             refuse_if_not_applicable(cell(
                 "AverageEffect",
                 "Pag",
@@ -577,7 +577,8 @@ mod tests {
                 "Frequentist",
                 "none"
             ))
-            .is_ok()
+            .unwrap(),
+            CellStatus::Licensed
         );
     }
 
@@ -1179,10 +1180,10 @@ mod tests {
         }
     }
 
-    /// End-to-end: a PAG ATE study (allowlisted, not licensed) still succeeds
-    /// after the enforcement flip, under both inference modes.
+    /// End-to-end: a PAG ATE study is licensed (identify-per-run; generalized
+    /// adjustment pin), under Frequentist none.
     #[test]
-    fn build_pag_ate_still_runs_after_enforcement_flip() {
+    fn build_pag_ate_is_licensed() {
         let mut pag = Pag::with_variables(2);
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let data = antecedent_data::TabularData::from_f64_columns([
@@ -1199,12 +1200,9 @@ mod tests {
             .run(&antecedent_core::ExecutionContext::for_tests(1))
             .unwrap();
         assert!(result.estimate.ate.is_finite());
-        assert_eq!(result.support_status.unwrap().as_str(), "allowed_unlicensed");
-        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "support.allowed_unlicensed"));
+        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
         let trace = result.analysis_trace_wire();
-        assert_eq!(trace.support_status.as_deref(), Some("allowed_unlicensed"));
-        assert!(trace.allowlist_parent.is_some());
-        assert!(trace.allowlist_reason.is_some());
+        assert_eq!(trace.support_status.as_deref(), Some("licensed"));
     }
 
     /// End-to-end: a now-enforced refused cell (`AverageEffect` on a bidirected

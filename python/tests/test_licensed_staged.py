@@ -24,6 +24,15 @@ _EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 _DAG = antecedent.Dag.from_edges(["z", "t", "y"], _EDGES)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+_PAG = antecedent.Pag.from_marked_edges(
+    ["t", "y", "z"],
+    [
+        ("z", "t", "tail", "arrow"),
+        ("z", "y", "tail", "arrow"),
+        ("t", "y", "tail", "arrow"),
+    ],
+)
+_PAG_ACCEPTED = antecedent.AcceptedGraph.from_graph(_PAG, algorithm_id="hand")
 
 
 def _curve_table(n: int = 400, seed: int = 19):
@@ -148,6 +157,18 @@ _IR = antecedent.InterventionResponse(
         (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "cheap", _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "full", _BAYES),
+        (_ATE_DATA, _PAG, _ATE, False, None),
+        (_ATE_DATA, _PAG, _ATE, "cheap", None),
+        (_ATE_DATA, _PAG, _ATE, "full", None),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, None),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", None),
+        (_ATE_DATA, _PAG, _ATE, False, _BAYES),
+        (_ATE_DATA, _PAG, _ATE, "cheap", _BAYES),
+        (_ATE_DATA, _PAG, _ATE, "full", _BAYES),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
+        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
         (_CURVE_DATA, _EDGES, _CURVE, False, None),
         (_CURVE_DATA, _ACCEPTED, _CURVE, False, None),
         (_CONDITIONAL_DATA, _CONDITIONAL_DAG, _CONDITIONAL, False, None),
@@ -174,6 +195,18 @@ _IR = antecedent.InterventionResponse(
         "ate_accepted_bayesian_none",
         "ate_accepted_bayesian_cheap",
         "ate_accepted_bayesian_full",
+        "ate_pag_explicit_none",
+        "ate_pag_explicit_cheap",
+        "ate_pag_explicit_full",
+        "ate_pag_accepted_none",
+        "ate_pag_accepted_cheap",
+        "ate_pag_accepted_full",
+        "ate_pag_explicit_bayesian_none",
+        "ate_pag_explicit_bayesian_cheap",
+        "ate_pag_explicit_bayesian_full",
+        "ate_pag_accepted_bayesian_none",
+        "ate_pag_accepted_bayesian_cheap",
+        "ate_pag_accepted_bayesian_full",
         "curve_explicit_none",
         "curve_accepted_none",
         "conditional_explicit_none",
