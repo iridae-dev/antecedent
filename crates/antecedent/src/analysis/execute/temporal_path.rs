@@ -208,14 +208,18 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identification = TemporalMediationIdentifier {
-            allow_natural_controlled_alias: true,
-            ..TemporalMediationIdentifier::new()
-        }
-        .identify(graph, query)
-        .map_err(CausalError::from)?;
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = TemporalMediationIdentifier {
+                    allow_natural_controlled_alias: true,
+                    ..TemporalMediationIdentifier::new()
+                }
+                .identify(graph, query)
+                .map_err(CausalError::from)?;
+                let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
+                Ok((identification, estimand))
+            })?;
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
         let mut est = TemporalMediationEstimator::new();
         est.allow_natural_controlled_alias = true;
         let mediation = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
@@ -229,7 +233,7 @@ impl super::Study {
             estimator_id: EstimatorId::TemporalMediation,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
             distribution: None,

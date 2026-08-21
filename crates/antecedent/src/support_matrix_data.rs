@@ -379,15 +379,6 @@ pub static ALLOWED_RULES: &[AllowedRule] = &[
         validations: Some(&["none"]),
         reason: "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run.",
         parent: "PulseEffect TemporalDag explicit/accepted Bayesian none (licensed)",
-    },
-    AllowedRule {
-        queries: Some(&["TemporalMediationEffect"]),
-        graph_classes: Some(&["TemporalDag"]),
-        structures: Some(&["explicit", "accepted"]),
-        inferences: Some(&["Frequentist"]),
-        validations: Some(&["none"]),
-        reason: "execute_temporal_mediation runs TemporalMediationIdentifier + TemporalMediationEstimator end-to-end under Frequentist none. cheap/full are refused (empty refutations). Bayesian is closed: the path hardcodes EstimatorId::TemporalMediation. Not licensed because prepare currently refuses and there is no known-truth pin yet.",
-        parent: "TemporalMediationEffect TemporalDag explicit/accepted Frequentist none (this row is the running family)",
     }
 ];
 
@@ -690,6 +681,20 @@ pub static LICENSED: &[LicensedCell] = &[
         query: "InterventionalDistribution",
         graph_class: "Dag",
         structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "TemporalMediationEffect",
+        graph_class: "TemporalDag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "TemporalMediationEffect",
+        graph_class: "TemporalDag",
+        structure: "accepted",
         inference: "Frequentist",
         validation: "none",
     },

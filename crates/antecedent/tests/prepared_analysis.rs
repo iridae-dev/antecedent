@@ -13,13 +13,15 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalRng, CausalSchemaBuilder, ConditionalEffectQuery,
-    ExecutionContext, Intervention, InterventionalDistributionQuery, MeasurementSpec,
-    PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value, ValueType, VariableId,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value,
+    ValueType, VariableId,
 };
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Admg, Dag, DenseNodeId, TemporalDag, ensure_lagged};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -766,4 +768,80 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
         }
         other => panic!("expected Support::Refused, got {other:?}"),
     }
+}
+
+#[test]
+fn prepared_temporal_mediation_reuses_identification() {
+    let n = 80usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut t = vec![0.0; n];
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 1..n {
+        t[i] = 0.3 * t[i - 1] + 0.1 * (i as f64).sin();
+        m[i] = 0.8 * t[i - 1] + 0.05 * (i as f64).cos();
+        y[i] = 0.5 * m[i] + 0.2 * t[i - 1] + 0.02 * (i as f64).sin();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut g = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut g, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    let q = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    );
+    let ctx = ExecutionContext::for_tests(7);
+    let study = Study::series(data.clone())
+        .graph(g)
+        .query(CausalQuery::Mediation(q))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&data, &ctx).unwrap();
+    assert!(
+        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "prepared temporal mediation missing exec.identify.cached"
+    );
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
 }

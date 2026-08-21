@@ -39,12 +39,3 @@ inferences = ["Bayesian"]
 validations = ["none"]
 reason = "execute_dbn_posterior_bayesian mixes a DBN graph posterior into a Bayesian temporal effect envelope; crates/antecedent/tests/manufacturing_temporal.rs's manufacturing_dbn_posterior_bayesian_envelope test runs this exact cell end-to-end. cheap/full are refused (empty refutations). Not licensed because a DBN posterior has no single known-truth fixture -- the atoms it mixes vary per discovery run."
 parent = "PulseEffect TemporalDag explicit/accepted Bayesian none (licensed)"
-
-[[allowed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-validations = ["none"]
-reason = "execute_temporal_mediation runs TemporalMediationIdentifier + TemporalMediationEstimator end-to-end under Frequentist none. cheap/full are refused (empty refutations). Bayesian is closed: the path hardcodes EstimatorId::TemporalMediation. Not licensed because prepare currently refuses and there is no known-truth pin yet."
-parent = "TemporalMediationEffect TemporalDag explicit/accepted Frequentist none (this row is the running family)"
