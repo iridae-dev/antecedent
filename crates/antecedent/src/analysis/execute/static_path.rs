@@ -327,32 +327,6 @@ impl super::Study {
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let cancelled = estimate.bootstrap_cancelled;
         let early_stopped = estimate.bootstrap_early_stopped;
-        let mut extra_diagnostics = Vec::new();
-        let mut refute_ws = EstimationWorkspace::default();
-        let ate_q = AverageEffectQuery::binary_ate(treatment, outcome);
-        let refutations = if estimate.ate.is_finite() {
-            run_refuters(
-                data,
-                &estimand,
-                &ate_q,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                estimator,
-                &self.custom_validators,
-                None,
-            )?
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "refute.distribution.skipped",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "effect refuters skipped: interventional mean is not a finite scalar",
-            ));
-            Vec::new()
-        };
 
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -364,8 +338,8 @@ impl super::Study {
             treatment,
             outcome,
             identify_cached,
-            extra_diagnostics,
-            refutations,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
             distribution: Some(dist),
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -429,22 +403,6 @@ impl super::Study {
         let mut ws = FunctionalDistributionWorkspace::default();
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
-        let mut refute_ws = EstimationWorkspace::default();
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let refutations = run_refuters(
-            data,
-            &estimand,
-            &ate_q,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator,
-            &self.custom_validators,
-            None,
-        )?;
-
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -456,7 +414,7 @@ impl super::Study {
             outcome: query.outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations,
+            refutations: Vec::new(),
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
