@@ -1,15 +1,14 @@
 //! Public support-matrix lookup.
 //!
 //! Axes, n/a predicates, licensed cells, closed rules, and the allowlist are
-//! generated from `parity/support_*.toml`. A cell is exactly one of: licensed
+//! generated from `parity/support_*.toml`. Runtime states are three: licensed
 //! (`parity/support_licensed.toml`), n/a (`parity/support_n_a.toml`, typed
-//! impossibility, [`SupportRefusal::NotApplicable`]), closed
-//! (`parity/support_closed.toml`, fail-shut, [`SupportRefusal::Refused`]), or
-//! allowlisted (`parity/support_allowlist.toml`, running and unlicensed, named
-//! with a `reason` and a `parent` licensed/keep-running family). Any refused
-//! cell not matched by the allowlist fails closed with
-//! [`SupportRefusal::Refused`] — the fifth, unnamed bucket that existed before
-//! this partition ("default-refused, still runs") no longer exists.
+//! impossibility, [`SupportRefusal::NotApplicable`]), or not licensed
+//! ([`SupportRefusal::Refused`]). `parity/support_closed.toml` is the reason
+//! table for refused cells, not a fourth state. Allowlisted cells
+//! (`parity/support_allowlist.toml`) still run while unlicensed. Any refused
+//! cell without a closed reason uses the shared unlicensed message — the fifth
+//! bucket ("default-refused, still runs") no longer exists.
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
@@ -541,12 +540,27 @@ mod tests {
     }
 
     #[test]
-    fn response_curve_graph_posterior_is_not_applicable() {
+    fn response_curve_graph_posterior_is_refused() {
         for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag"] {
             let status =
                 classify(cell("ResponseCurve", graph, "graph_posterior", "Frequentist", "none"));
-            assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
+            assert_eq!(status, CellStatus::Refused, "{graph}: {status:?}");
+            let err = refuse_if_not_applicable(cell(
+                "ResponseCurve",
+                graph,
+                "graph_posterior",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(err.to_string().starts_with("refused:"), "{graph}: {err}");
         }
+    }
+
+    #[test]
+    fn response_curve_cheap_on_dag_is_not_applicable() {
+        let status = classify(cell("ResponseCurve", "Dag", "explicit", "Frequentist", "cheap"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
     }
 
     #[test]
@@ -1221,108 +1235,30 @@ mod tests {
         );
     }
 
-    /// End-to-end: a reachable, genuinely-unlicensed-and-unallowed cell now fails
-    /// closed with the shared stable message instead of silently running.
-    /// `ConditionalEffect` under Bayesian inference is closed (dishonest — it
-    /// silently ran Frequentist before), so this instead exercises a cell with no
-    /// closed rule at all: `InterventionalDistribution` on an explicit `Cpdag`,
-    /// which the matrix marks refused (not n/a, not closed) yet is structurally
-    /// unreachable by any caller (`Cpdag` has no `IntoGraphInput`/explicit path;
-    /// see `explicit_graph_input!`), so `classify` alone is enough to prove the
-    /// flip — there is no live caller path left to build a `Study` against it.
+    /// The published default for the unnamed remainder: Sustained × TemporalDag ×
+    /// graph_posterior × Bayesian (Pulse's DBN envelope is the sibling that runs).
     #[test]
-    fn classify_reports_unreachable_refused_cell_as_enforced_with_no_allowlist_match() {
-        let cell = cell("InterventionalDistribution", "Cpdag", "explicit", "Frequentist", "none");
+    fn classify_reports_unnamed_remainder_with_shared_default_reason() {
+        let cell = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", "none");
         assert_eq!(classify(cell), CellStatus::Refused);
-        assert!(closed_reason(cell).is_none(), "not covered by an explicit closed rule");
-        assert!(allowed_reason(cell).is_none(), "not on the allowlist (unreachable, not running)");
+        assert!(closed_reason(cell).is_none(), "published default, not a named closed rule");
+        assert!(allowed_reason(cell).is_none());
         let err = refuse_if_not_applicable(cell).unwrap_err();
         assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
         assert_eq!(err.to_string(), format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"));
     }
 
-    /// Deterministic sample of the enforced-refused set: iterate the full
-    /// cartesian product in a fixed order and take every 37th cell (37 is
-    /// coprime with every axis length so the sample sweeps all axes, not just
-    /// one). For every sampled cell that is refused, neither closed nor
-    /// allowlisted: `classify` reports `Refused`, `closed_reason`/`allowed_reason`
-    /// are both `None`, and `refuse_if_not_applicable` errors with the shared
-    /// stable message. Pure `support.rs`-level: no engine execution.
+    /// The three remaining unnamed cells all fail closed with the shared default.
     #[test]
-    fn deterministic_sample_of_enforced_refused_cells_all_fail_closed() {
-        use crate::support_matrix_data::LICENSED;
-
-        let queries = [
-            "AverageDerivative",
-            "AverageEffect",
-            "ConditionalEffect",
-            "Counterfactual",
-            "DirectionalDerivative",
-            "Elasticity",
-            "InterventionalDistribution",
-            "InterventionResponse",
-            "MediationEffect",
-            "PathSpecificEffect",
-            "PointDerivative",
-            "PulseEffect",
-            "ResponseCurve",
-            "ResponseJacobian",
-            "SemiElasticity",
-            "SustainedEffect",
-            "TemporalMediationEffect",
-            "TransportQuery",
-            "InterferenceQuery",
-        ];
-        let graphs = ["Dag", "Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"];
-        let structures = ["explicit", "accepted", "graph_posterior"];
-        let inferences = ["Frequentist", "Bayesian"];
-        let validations = ["none", "cheap", "full"];
-
-        let mut all_cells = Vec::new();
-        for q in queries {
-            for g in graphs {
-                for s in structures {
-                    for inf in inferences {
-                        for v in validations {
-                            all_cells.push(cell(q, g, s, inf, v));
-                        }
-                    }
-                }
-            }
+    fn unnamed_remainder_cells_all_fail_closed() {
+        for v in ["none", "cheap", "full"] {
+            let c = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
+            assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+            assert!(closed_reason(c).is_none(), "{c:?}");
+            assert!(allowed_reason(c).is_none(), "{c:?}");
+            let err = refuse_if_not_applicable(c).unwrap_err();
+            assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
+            assert_eq!(err.to_string(), format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"), "{c:?}");
         }
-        assert_eq!(all_cells.len(), 19 * 7 * 3 * 2 * 3);
-
-        let mut sampled = 0usize;
-        let mut refused_checked = 0usize;
-        let mut i = 0usize;
-        while i < all_cells.len() {
-            let c = all_cells[i];
-            sampled += 1;
-            let is_licensed = LICENSED.iter().any(|row| {
-                row.query == c.query
-                    && row.graph_class == c.graph_class
-                    && row.structure == c.structure
-                    && row.inference == c.inference
-                    && row.validation == c.validation
-            });
-            let na = matches!(classify(c), CellStatus::NotApplicable { .. });
-            if !is_licensed && !na && closed_reason(c).is_none() && allowed_reason(c).is_none() {
-                refused_checked += 1;
-                assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
-                let err = refuse_if_not_applicable(c).unwrap_err();
-                assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
-                assert_eq!(
-                    err.to_string(),
-                    format!("refused: {UNLICENSED_AND_NOT_ALLOWED}"),
-                    "{c:?}"
-                );
-            }
-            i += 37;
-        }
-        assert!(sampled > 0);
-        assert!(
-            refused_checked > 0,
-            "the deterministic sample must hit at least one enforced-refused cell"
-        );
     }
 }

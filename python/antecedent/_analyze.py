@@ -307,8 +307,10 @@ def handle_response(
     if discovery is not None:
         if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
             raise CausalUnsupportedError(
-                "not_applicable: Structural uncertainty around curves is contrast-only; "
-                "graph-posterior mixtures do not license a response cell."
+                "refused: Graph-posterior response is a contract choice, not typed "
+                "impossibility: the ATE envelope (retained unidentified mass) is the "
+                "same object a curve arm would use. This cut does not license a "
+                "response mixture."
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
@@ -409,6 +411,7 @@ def handle_response(
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
+            refute=refute if refute_requested else False,
         )
         return _wrap_prepared_response(temporal_raw, query)
     if (
@@ -656,6 +659,7 @@ def handle_response(
             multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
             export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
             accepted=structure_accepted,
+            refute=refute if refute_requested else False,
         )
     response = (
         ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)

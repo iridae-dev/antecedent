@@ -97,6 +97,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         antecedent.errors.CausalReviewError,
         antecedent.errors.CausalIdentifyError,
         antecedent.errors.CausalCompileError,
+        antecedent.errors.CausalUnsupportedError,
     ) as exc:
         assert str(exc)
         if isinstance(exc, antecedent.errors.CausalReviewError):

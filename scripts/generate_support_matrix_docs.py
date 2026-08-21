@@ -223,7 +223,7 @@ Most of it is typed impossibility, not missing work.
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | {cartesian} | Axis product, not a coverage score |
-| n/a | {n_a_count} | Semantic impossibilities (temporal query on a static graph, static query on a temporal graph, curve over a graph-posterior mixture, and similar). These are not holes. |
+| n/a | {n_a_count} | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
 | Licensed | {len(cells)} | Staged path plus executing known-truth evidence — the strongest contract |
 | Allowlisted (running, unlicensed) | {allowed_count} | Executes end-to-end; a successful number is **not** a licensed claim |

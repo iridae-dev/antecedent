@@ -50,3 +50,6 @@ fuzz/target/
 .coverage
 coverage.xml
 htmlcov/
+
+# Local scratch — iterate here, do not commit
+TODO.md
