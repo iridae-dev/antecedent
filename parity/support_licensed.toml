@@ -475,6 +475,28 @@ known_truth_fixture = "conformance/identify/id_hedge"
 limitations = "The fixture pins identification (ID/IDC certificates), not the estimator; the estimation layer is FunctionalDistribution and is not separately known-truth pinned on this cell. Prepared handle only, on an explicit Dag."
 
 [[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "Prepare caches one TemporalMediationIdentifier result (not per-horizon I(h)). cheap/full are refused (empty refutations). Bayesian is closed."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "Accepted-structure axis shares the explicit TemporalDag mediation path. Prepare caches one identification result. cheap/full are refused; Bayesian is closed."
+
+[[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "accepted"
