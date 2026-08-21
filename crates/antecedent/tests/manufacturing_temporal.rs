@@ -207,6 +207,54 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 }
 
 #[test]
+fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
+    use antecedent::discovery::{
+        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
+    };
+    use antecedent_core::TemporalPolicy;
+
+    let (series, _g, q) = white_noise_pulse_series(400, 42);
+    let q = q.with_policy(TemporalPolicy::sustained(-1, -1));
+    let ctx = ExecutionContext::for_tests(11);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let schedule = GraphMcmcSchedule {
+        n_chains: 2,
+        n_warmup: 40,
+        n_draws: 60,
+        ..GraphMcmcSchedule::default()
+    };
+    let gp = discover_dbn_posterior(
+        &series,
+        &vars,
+        &BayesianDiscoverParams::default(),
+        1,
+        false,
+        &schedule,
+        &ctx,
+    )
+    .unwrap();
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    let post = result.posterior.expect("DBN mixture posterior");
+    assert!((0.0..=1.0).contains(&post.unidentified_mass));
+    let eq = post.effect_column().unwrap();
+    assert!(post.summaries.mean[eq].is_finite());
+    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
+}
+
+#[test]
 fn manufacturing_dbn_envelope_composed_prior_conflict() {
     use antecedent::discovery::{
         BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,

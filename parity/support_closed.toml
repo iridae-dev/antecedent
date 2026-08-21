@@ -250,7 +250,7 @@ validations = ["cheap", "full"]
 reason = "execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite."
 
 [[closed]]
-queries = ["PulseEffect"]
+queries = ["PulseEffect", "SustainedEffect"]
 graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]

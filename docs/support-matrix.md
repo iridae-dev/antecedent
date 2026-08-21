@@ -19,12 +19,12 @@ Most of it is typed impossibility, not missing work.
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 70 | Staged path plus executing known-truth evidence — the strongest contract |
+| Licensed | 71 | Staged path plus executing known-truth evidence — the strongest contract |
 | Allowlisted (running, unlicensed) | 0 | Executes end-to-end; a successful number is **not** a licensed claim |
-| Refused (enforced closed rules) | 1333 | Fail shut, including mislabeled-inference laundering |
-| Refused (no allowlist match) | 3 | Fail shut by default |
+| Refused (enforced closed rules) | 1335 | Fail shut, including mislabeled-inference laundering |
+| Refused (no allowlist match) | 0 | Fail shut by default |
 
-Do not read "70 / 2394" as coverage. Read: **70 cells
+Do not read "71 / 2394" as coverage. Read: **71 cells
 carry the evidence contract**; 0 more run without that contract;
 the rest are n/a or refused.
 
@@ -123,7 +123,7 @@ These default-refused cells fail closed with id `refused`.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/TemporalPag posterior atoms are not mixed into a temporal envelope.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag, Cpdag, Admg, Pag} ∧ validations ∈ {cheap, full} — cheap and full synthesize AverageEffectQuery::binary_ate and run the ATE refuter suite; that is not a validation of the path-specific or distribution estimand.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite.
-- queries ∈ {PulseEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope.
+- queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope.
 
 ## Allowlisted (running, unlicensed)
 
@@ -207,3 +207,4 @@ _None._
 | `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
 | `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
 | `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
+| `SustainedEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
