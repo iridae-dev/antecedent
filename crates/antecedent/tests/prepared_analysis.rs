@@ -662,6 +662,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
@@ -691,6 +692,7 @@ fn prepared_distribution_reestimate_matches_fresh() {
     let second_dist = second.distribution.as_ref().expect("second distribution payload");
     assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
