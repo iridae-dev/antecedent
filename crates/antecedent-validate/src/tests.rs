@@ -141,6 +141,9 @@ fn placebo_near_zero_on_null() {
 
 #[test]
 fn placebo_permute_near_zero_on_null() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -163,7 +166,8 @@ fn placebo_permute_near_zero_on_null() {
     placebo.replicates = 40;
     let report = placebo.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
-    assert!(report.refuted_ate.abs() < 0.35, "mean placebo ate={}", report.refuted_ate);
+    let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
+    assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
