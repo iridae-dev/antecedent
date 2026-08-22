@@ -131,7 +131,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian ATE mean, not the overlap/E-value numbers."
+limitations = "execute_bayesian runs PPC (prior + posterior predictive checks) under any non-None refute suite, so Cheap here is overlap + E-value plus PPC, not overlap + E-value alone; the fixture pins the Bayesian ATE mean, not those refuter/PPC numbers."
 
 [[cell]]
 query = "AverageEffect"
@@ -296,7 +296,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the pulse projection, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number."
 
 [[cell]]
 query = "PulseEffect"
@@ -318,7 +318,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the pulse projection, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number."
 
 [[cell]]
 query = "PulseEffect"
@@ -351,7 +351,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_pulse"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian pulse mean, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian pulse mean, not those numbers."
 
 [[cell]]
 query = "PulseEffect"
@@ -384,7 +384,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_pulse"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian pulse mean, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian pulse mean, not those numbers."
 
 [[cell]]
 query = "PulseEffect"
@@ -428,7 +428,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite is overlap + E-value; licensed form remains the single-step window. The fixture pins the projection, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number."
 
 [[cell]]
 query = "SustainedEffect"
@@ -450,7 +450,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite is overlap + E-value; licensed form remains the single-step window. The fixture pins the projection, not the overlap/E-value numbers."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number."
 
 [[cell]]
 query = "SustainedEffect"
@@ -462,6 +462,72 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
 limitations = "Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Dedicated lag-2 single-step Sustained fixture pins the Bayesian effect mean on the staged path; multi-step windows remain refused."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean, not those checks."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Accepted structure shares the explicit TemporalDag Bayesian path; the dedicated lag-2 single-step Sustained fixture pins the staged effect mean."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated accepted-structure Sustained case pins the Bayesian mean, not those checks."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_sustained"
+limitations = "Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated accepted-structure lag-2 Sustained case pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -516,7 +582,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the Bayesian ATE mean, not the overlap/E-value numbers."
+limitations = "execute_bayesian runs PPC (prior + posterior predictive checks) under any non-None refute suite, so Cheap here is overlap + E-value plus PPC, not overlap + E-value alone; the fixture pins the Bayesian ATE mean, not those refuter/PPC numbers."
 
 [[cell]]
 query = "AverageEffect"
@@ -626,7 +692,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
-limitations = "Full adds PPC / prior-sensitivity on identified completions; the fixture pins identification. Identify-per-run on refresh."
+limitations = "execute_pag_bayesian skips the PPC suite for the multi-graph PAG envelope (diagnostic refute.bayesian.ppc.skipped) and does not run prior-sensitivity; effect refuters run on the mixture mean instead. The fixture pins identification, not the refuter/PPC numbers. Identify-per-run on refresh."
 
 [[cell]]
 query = "AverageEffect"
@@ -659,7 +725,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
-limitations = "Full adds PPC / prior-sensitivity on identified completions; the fixture pins identification. Identify-per-run on refresh."
+limitations = "execute_pag_bayesian skips the PPC suite for the multi-graph PAG envelope (diagnostic refute.bayesian.ppc.skipped) and does not run prior-sensitivity; effect refuters run on the mixture mean instead. The fixture pins identification, not the refuter/PPC numbers. Identify-per-run on refresh."
 
 [[cell]]
 query = "AverageEffect"
@@ -734,9 +800,9 @@ structure = "graph_posterior"
 inference = "Bayesian"
 validation = "none"
 staged = true
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Fixture pins the graph-posterior mass (skeleton/orientation), not the mixture ATE. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom."
+limitations = "conformance/bayesian/dag_posterior pins discovery skeleton/orientation/lag-edge posterior mass on chain/collider/DBN SCMs; no test parses it to check the mixture ATE this cell computes, so this is not a known-truth pin. Evidence is an internal cross-check: prepare_graph_posterior_ate_runs_identify_per_click asserts prepared-then-click ATE equals a fresh run() on the same graph-posterior study. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom."
 
 [[cell]]
 query = "AverageEffect"
@@ -745,9 +811,9 @@ structure = "graph_posterior"
 inference = "Bayesian"
 validation = "cheap"
 staged = true
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Cheap suite is overlap + E-value on the mixture; the fixture pins posterior mass, not those numbers. Per-atom identify on refresh."
+limitations = "conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's overlap/E-value numbers, and no test parses it against this cell. Cheap suite is overlap + E-value on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh."
 
 [[cell]]
 query = "AverageEffect"
@@ -756,9 +822,9 @@ structure = "graph_posterior"
 inference = "Bayesian"
 validation = "full"
 staged = true
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Full adds PPC / prior-sensitivity on the mixture; the fixture pins posterior mass. Per-atom identify on refresh."
+limitations = "conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's refuter/PPC numbers, and no test parses it against this cell. Full adds PPC / prior-sensitivity on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh."
 
 [[cell]]
 query = "PulseEffect"
@@ -767,9 +833,9 @@ structure = "graph_posterior"
 inference = "Bayesian"
 validation = "none"
 staged = true
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Fixture pins DBN posterior lag-edge mass (dbn_lag1_fixture). execute_dbn_posterior_bayesian mixes per-atom temporal effects. cheap/full are refused (empty refutations). Per-atom identify on refresh."
+limitations = "conformance/bayesian/dag_posterior's dbn_lag1_fixture pins DBN lag-edge posterior mass; no test in this corpus parses it and compares against execute_dbn_posterior_bayesian's mixed temporal effect, so this is not a known-truth pin here. execute_dbn_posterior_bayesian mixes per-atom temporal effects; evidence is an internal cross-check (prepared-then-click ATE equals a fresh run()). cheap/full are refused (empty refutations). Per-atom identify on refresh."
 
 [[cell]]
 query = "SustainedEffect"
@@ -778,6 +844,6 @@ structure = "graph_posterior"
 inference = "Bayesian"
 validation = "none"
 staged = true
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. Fixture pins DBN lag-edge mass. cheap/full are refused (empty refutations). Per-atom identify on refresh. Explicit Bayesian Sustained stays closed."
+limitations = "Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. conformance/bayesian/dag_posterior's dbn_lag1_fixture is not parsed against this cell, so evidence is the same internal cross-check (prepared-then-click ATE equals a fresh run()), not a known-truth pin. cheap/full are refused (empty refutations). Per-atom identify on refresh."

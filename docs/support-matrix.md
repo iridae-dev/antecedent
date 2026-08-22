@@ -14,27 +14,38 @@ The Cartesian product (query × graph class × structure source × inference ×
 validation) is **2394** cells. That denominator is not a feature count.
 Most of it is typed impossibility, not missing work.
 
+Every cell is in exactly **one of three runtime states**: **licensed** (a
+result), **n/a** (the coordinate does not denote — a typed impossibility),
+or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
+cell that is not licensed and not n/a is refused, whether or not a rule
+names a reason for it. `support_closed.toml` does not close anything — it
+is the **reason table** for refused cells, not a fourth state. A refused
+cell either has a documented reason on file or it doesn't; both refuse
+identically at runtime. The allowlist below is a separate, bounded
+carve-out inside the refused set: cells that execute end-to-end without
+being licensed.
+
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 71 | Staged path plus executing known-truth evidence — the strongest contract |
+| Licensed | 77 | Staged path plus executing known-truth evidence — the strongest contract |
 | Allowlisted (running, unlicensed) | 0 | Executes end-to-end; a successful number is **not** a licensed claim |
-| Refused (enforced closed rules) | 1335 | Fail shut, including mislabeled-inference laundering |
-| Refused (no allowlist match) | 0 | Fail shut by default |
+| Refused — reason on file | 1329 | Same runtime outcome as any other refused cell; documented in `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — no reason on file yet | 0 | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
-Do not read "71 / 2394" as coverage. Read: **71 cells
+Do not read "77 / 2394" as coverage. Read: **77 cells
 carry the evidence contract**; 0 more run without that contract;
 the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
-licensed. A cell is exactly one of licensed / n/a / closed / allowlisted; any
-refused cell not matched by the allowlist fails closed. Successful studies
-record `licensed` vs `allowed_unlicensed` on the result (`evidence_status` in
-Python, `StudyResult.support_status` in Rust) so the distinction survives
-dispatch.
+licensed. A cell is exactly one of licensed / n/a / refused; the allowlist
+is a bounded carve-out of cells inside the refused set that still execute.
+Successful studies record `licensed` vs `allowed_unlicensed` on the result
+(`evidence_status` in Python, `StudyResult.support_status` in Rust) so the
+distinction survives dispatch.
 
 ## Axes
 
@@ -86,9 +97,13 @@ dispatch.
 - queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — TransportQuery and InterferenceQuery are typed against static graphs; they do not denote on a temporal graph class.
 - queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {Dag, TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; a function-valued estimand has no such state.
 
-## Enforced refusals
+## Refusal reasons
 
-These default-refused cells fail closed with id `refused`.
+These cells are refused (wire id `refused`) — the default runtime state for
+any cell that is not licensed and not n/a — and each row below is the
+documented reason for that refusal. This is a reason table, not a fourth
+state: an undocumented refused cell behaves identically, it just has no
+row here yet.
 
 - queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Counterfactual is not on the staged handle.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged.
@@ -118,10 +133,9 @@ These default-refused cells fail closed with id `refused`.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Cpdag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Cpdag hits the same static-Dag requirement (Admg/Pag explicit already named above).
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Cpdag} ∧ structures ∈ {explicit, accepted} — AverageEffect has no compile arm on a Cpdag; Pag/Admg Frequentist ATE is a different identifier family.
 - queries ∈ {AverageEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_graph_posterior_bayesian is Dag-shaped; Admg/Cpdag/Pag posterior atoms are not mixed into an ATE envelope.
-- queries ∈ {SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Bayesian SustainedEffect is not wired; Pulse Bayesian g-comp is the temporal Bayesian sibling.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} — TemporalCpdag/TemporalPag reach a Pulse/Sustained estimate only after try_into_temporal_dag succeeds (then the cell collapses to TemporalDag). Explicit incomplete graphs and accepted graphs that fail completion are not a licensed temporal contrast; failure is completion, not a TemporalDag estimate.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/TemporalPag posterior atoms are not mixed into a temporal envelope.
-- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag, Cpdag, Admg, Pag} ∧ validations ∈ {cheap, full} — cheap and full synthesize AverageEffectQuery::binary_ate and run the ATE refuter suite; that is not a validation of the path-specific or distribution estimand.
+- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag, Cpdag, Admg, Pag} ∧ validations ∈ {cheap, full} — execute_path_specific and execute_distribution return empty refutations; cheap and full do not run a path-specific or distribution refuter suite.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope.
 
@@ -179,6 +193,12 @@ _None._
 | `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
 | `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
 | `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/id_hedge`) |
 | `TemporalMediationEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) |
 | `TemporalMediationEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) |
@@ -203,8 +223,8 @@ _None._
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
 | `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
-| `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
-| `SustainedEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/dag_posterior`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
+| `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
+| `SustainedEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |

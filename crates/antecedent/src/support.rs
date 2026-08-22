@@ -648,16 +648,18 @@ mod tests {
     fn licensed_pulse_and_sustained_temporal_dag_are_open() {
         for query in ["PulseEffect", "SustainedEffect"] {
             for structure in ["explicit", "accepted"] {
-                let status = classify(cell(query, "TemporalDag", structure, "Frequentist", "none"));
-                assert_eq!(status, CellStatus::Licensed, "{query}/{structure}");
-                refuse_if_not_applicable(cell(
-                    query,
-                    "TemporalDag",
-                    structure,
-                    "Frequentist",
-                    "none",
-                ))
-                .unwrap();
+                for inference in ["Frequentist", "Bayesian"] {
+                    let status = classify(cell(query, "TemporalDag", structure, inference, "none"));
+                    assert_eq!(status, CellStatus::Licensed, "{query}/{structure}/{inference}");
+                    refuse_if_not_applicable(cell(
+                        query,
+                        "TemporalDag",
+                        structure,
+                        inference,
+                        "none",
+                    ))
+                    .unwrap();
+                }
             }
         }
     }

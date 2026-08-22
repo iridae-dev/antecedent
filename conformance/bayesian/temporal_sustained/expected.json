@@ -1,0 +1,19 @@
+{
+  "scm": "defect_t = 0.7 * pressure_{t-2} + eps_t, eps_t ~ N(0, 0.05^2) i.i.d.; pressure_t = sin(0.04 * t)",
+  "derivation": "The SCM is a linear map with a single non-constant regressor (pressure lagged 2 steps) plus i.i.d. Gaussian noise with sd=0.05, drawn from a fixed-seed deterministic PRNG (SplitMix64, see SUSTAINED_NOISE_SEED/SUSTAINED_NOISE_SD in crates/antecedent/tests/bayesian.rs) so the fixture is exactly reproducible run to run despite carrying real noise. pressure is a sampled sinusoid of amplitude 1 with empirical sd ~0.71 over n=400 rows, so the OLS/conjugate-Gaussian standard error on the slope is approximately sigma / (sqrt(n) * sd(pressure)) ~= 0.05 / (20 * 0.71) ~= 0.0035. The noise scale was chosen to satisfy two competing requirements at n=400: (1) large enough that the posterior spread is non-degenerate -- three orders of magnitude above the ~1e-5 floating-point-only spread the previous exact-zero-residual SCM produced, so the data.subset stability refuter is evaluating genuine replicate-to-replicate estimation noise instead of an artifact of zero variance; (2) small enough that the posterior mean recovers the true coefficient 0.7 with a large, deterministic safety margin against the stated tolerance -- the ~0.0035 standard error is about 14x smaller than the 0.05 tolerance, so recovery is not a probabilistic near-miss, it is a comfortable margin on a single fixed (seeded) draw. Under prior_scale=100 (weak relative to the O(1) sin signal), the Bayesian posterior mean tracks the OLS solution closely, so this same margin applies to the posterior mean reported by the conjugate backend.",
+  "true_effect_per_unit": 0.7,
+  "expected_ate": 0.7,
+  "tolerance": 0.05,
+  "n": 400,
+  "treatment": "pressure",
+  "outcome": "defect",
+  "treatment_lag": 2,
+  "policy": "sustained(-2, -2)",
+  "policy_note": "from == until, so this is the single-step Sustained window that is licensed today; a Sustained window with until > from is refused by TemporalLinearAdjustment (see refuse_multi_step_schedule in antecedent-estimate/src/temporal_adjustment.rs) and is not exercised by this fixture. The lag-2 window is chosen specifically so this fixture cannot be satisfied by the Pulse (lag-1) fixture's graph or SCM.",
+  "horizon_steps": 1,
+  "backend": "conjugate_gaussian",
+  "require_finite_p_below_zero": true,
+  "require_artifact_round_trip": true,
+  "require_ppc_present_when_refute_enabled": true,
+  "n_draws": 256
+}

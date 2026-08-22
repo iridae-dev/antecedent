@@ -89,9 +89,16 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
     (`accept_temporal_cpdag_review` in `python/src/lib.rs`); an empty skeleton has
     no undirected marks to block on, so it accepts unconditionally too, but the
     requested x->y pulse can then legitimately be unidentifiable against that
-    empty graph. Either a clean estimate or `CausalIdentifyError` proves the
-    callback reached native discovery; any other exception is a real wiring
-    break, not a "review/ID may fail closed" outcome.
+    empty graph. A clean estimate proves the callback reached native discovery;
+    so does any of the four exceptions caught below, each a legitimate
+    fail-closed outcome rather than a wiring break: `CausalReviewError` (a
+    leftover undirected/circle mark blocked acceptance), `CausalIdentifyError`
+    (the pulse is unidentifiable against the discovered graph),
+    `CausalCompileError` (a compile-stage failure), or `CausalUnsupportedError`
+    (this discovery/query/graph combination is a support-matrix refusal —
+    `SupportRefusal::Refused` / `NotApplicable`, surfaced via `Support{id,
+    message}` in `python/src/lib.rs`). Any other exception is a real wiring
+    break.
     """
     calls: list[int] = []
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])

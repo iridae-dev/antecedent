@@ -36,6 +36,7 @@ from .discovery import (
     PC,
     RFCI,
     CiScreenedPosterior,
+    DbnPosterior,
     ExactDagPosterior,
     LiNGAM,
     OrderMcmc,
@@ -62,7 +63,10 @@ from .query import (
     InterventionalDistribution,
     InterventionResponse,
     PathSpecificEffect,
+    PulseEffect,
     ResponseCurve,
+    SustainedEffect,
+    TemporalMediationEffect,
 )
 from .results import (
     AnalysisResult,
@@ -531,6 +535,20 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     return kw
 
 
+def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
+    """Return prepared-native Bayesian arguments, refusing silently dropped options."""
+    kw = _bayesian_inference_kwargs(inference)
+    inference_mode = str(kw.pop("inference"))
+    unsupported = sorted(set(kw) - {"n_draws", "prior_scale"})
+    if unsupported:
+        options = ", ".join(unsupported)
+        raise CausalUnsupportedError(
+            "PreparedAnalysis does not support Bayesian prior transfer or mapping "
+            f"({options}); use analyze(...) for these options"
+        )
+    return inference_mode, kw
+
+
 def _temporal_inference_kwargs(
     inference: Frequentist | Bayesian | None,
 ) -> dict[str, Any]:
@@ -865,9 +883,14 @@ class PreparedAnalysis:
     **Estimate click:** same-schema data; seeds / threads. Does not re-identify
     or recompile the logical plan.
 
-    **Refute click:** AverageEffect only. ResponseCurve, ConditionalEffect,
-    PathSpecificEffect, InterventionalDistribution, and InterventionResponse
-    have no licensed validation cell; :meth:`refute` raises ``refused``.
+    **Refute click:** AverageEffect only. :meth:`refute` raises
+    ``CausalUnsupportedError``, prefixed with the matrix's own wire id for
+    the cell: ``not_applicable:`` for ResponseCurve / InterventionResponse
+    (cheap/full name the ATE-shaped scalar refuter suite, which a
+    function-valued estimand has no state for), and ``refused:`` for
+    PathSpecificEffect / InterventionalDistribution / TemporalMediationEffect
+    (the suite is licensed elsewhere but these executors return empty
+    refutations). ConditionalEffect's cheap/full refuter suite is licensed.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
@@ -888,6 +911,9 @@ class PreparedAnalysis:
         | PathSpecificEffect
         | InterventionalDistribution
         | InterventionResponse
+        | PulseEffect
+        | SustainedEffect
+        | TemporalMediationEffect
         | None = None,
     ) -> None:
         self._native = native
@@ -904,8 +930,12 @@ class PreparedAnalysis:
         | ConditionalEffect
         | PathSpecificEffect
         | InterventionalDistribution
-        | InterventionResponse,
-        graph: Dag | Sequence[tuple[str, str]] | Any,
+        | InterventionResponse
+        | PulseEffect
+        | SustainedEffect
+        | TemporalMediationEffect,
+        graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
+        discovery: Any | None = None,
         inference: Frequentist | Bayesian | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | None = None,
@@ -918,11 +948,14 @@ class PreparedAnalysis:
         """Compile a durable plan for a licensed DAG or temporal-response cell.
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
-        ``PathSpecificEffect``, ``InterventionalDistribution``, and
-        ``InterventionResponse`` on an explicit ``Dag`` (or other supplied
-        static graph, for ``AverageEffect``). Temporal ``ResponseCurve`` /
-        ``InterventionResponse`` (keyword ``horizons``) prepare on a
-        ``TemporalDag`` or lagged edge list.
+        ``PathSpecificEffect``, ``InterventionalDistribution``,
+        ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``, and
+        ``TemporalMediationEffect`` on an explicit graph (or accepted wrapper).
+        Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
+        prepare on a ``TemporalDag`` or lagged edge list. Pulse / Sustained /
+        TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
+        ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` compiles the
+        licensed graph-posterior cells (Bayesian AverageEffect / Pulse / Sustained).
         """
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
@@ -931,6 +964,31 @@ class PreparedAnalysis:
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
         names, columns = ingest_columns(data)
+        if discovery is not None:
+            if graph is not None:
+                raise CausalValueError(
+                    "PreparedAnalysis.prepare rejects both graph= and discovery="
+                )
+            if identifier is not None or estimator is not None:
+                raise CausalValueError(
+                    "PreparedAnalysis graph-posterior discovery selects its identifier "
+                    "and estimator per posterior atom; custom identifier=/estimator= "
+                    "are not supported"
+                )
+            return cls._prepare_discovery(
+                names,
+                columns,
+                discovery,
+                query,
+                inference=inference,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+            )
+        if graph is None:
+            raise CausalValueError("PreparedAnalysis.prepare requires graph= or discovery=")
         from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
         if isinstance(graph, _AcceptedGraph):
@@ -940,6 +998,74 @@ class PreparedAnalysis:
             graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
         else:
             structure_accepted = False
+        if isinstance(query, (PulseEffect, SustainedEffect)):
+            if identifier is not None or estimator is not None:
+                raise CausalValueError(
+                    "PreparedAnalysis PulseEffect/SustainedEffect use the fixed temporal "
+                    "backdoor estimator; custom identifier=/estimator= are not supported"
+                )
+            inference = inference or Frequentist()
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            temporal_bayes_kw: dict[str, Any] = {}
+            if isinstance(inference, Bayesian):
+                inference_mode, temporal_bayes_kw = _prepared_bayesian_args(inference)
+            else:
+                inference_mode = "frequentist"
+            lagged = _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
+            native = _NativePreparedAnalysis.prepare_temporal_effect(
+                names,
+                columns,
+                lagged,
+                query.treatment,
+                query.outcome,
+                policy=query.kind,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                inference=inference_mode,
+                n_draws=int(temporal_bayes_kw.get("n_draws", 1000)),
+                prior_scale=float(temporal_bayes_kw.get("prior_scale", 10.0)),
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap if bootstrap is not None else 0,
+                threads=threads,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, TemporalMediationEffect):
+            if identifier is not None or estimator is not None:
+                raise CausalValueError(
+                    "PreparedAnalysis TemporalMediationEffect uses the fixed temporal "
+                    "mediation estimator; custom identifier=/estimator= are not supported"
+                )
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalTypeError(
+                    "PreparedAnalysis TemporalMediationEffect supports Frequentist only"
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalUnsupportedError(
+                    "refused: PreparedAnalysis TemporalMediationEffect cheap/full is not "
+                    "licensed; execute_temporal_mediation hardcodes empty refutations, so "
+                    "cheap and full do not run a mediation refuter suite. Use refute='none'."
+                )
+            lagged = _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
+            native = _NativePreparedAnalysis.prepare_temporal_mediation(
+                names,
+                columns,
+                lagged,
+                query.treatment,
+                query.mediator,
+                query.outcome,
+                contrast=query.contrast,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                seed=seed,
+                bootstrap=0 if bootstrap is None else bootstrap,
+                threads=threads,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
         if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
             query, "is_temporal", False
         ):
@@ -968,10 +1094,9 @@ class PreparedAnalysis:
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
-            bayes_kw: dict[str, Any] = {}
+            pag_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                bayes_kw = _bayesian_inference_kwargs(inference)
-                inference_mode = str(bayes_kw.pop("inference"))
+                inference_mode, pag_bayes_kw = _prepared_bayesian_args(inference)
             else:
                 inference_mode = "frequentist"
             native = _NativePreparedAnalysis.prepare_pag(
@@ -985,8 +1110,8 @@ class PreparedAnalysis:
                 identifier=identifier,
                 estimator=estimator,
                 inference=inference_mode,
-                n_draws=int(bayes_kw.get("n_draws", 1000)),
-                prior_scale=float(bayes_kw.get("prior_scale", 10.0)),
+                n_draws=int(pag_bayes_kw.get("n_draws", 1000)),
+                prior_scale=float(pag_bayes_kw.get("prior_scale", 10.0)),
                 refute=refute,
                 seed=seed,
                 bootstrap=bootstrap,
@@ -999,10 +1124,9 @@ class PreparedAnalysis:
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
-            bayes_kw: dict[str, Any] = {}
+            admg_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                bayes_kw = _bayesian_inference_kwargs(inference)
-                inference_mode = str(bayes_kw.pop("inference"))
+                inference_mode, admg_bayes_kw = _prepared_bayesian_args(inference)
             else:
                 inference_mode = "frequentist"
             native = _NativePreparedAnalysis.prepare_admg(
@@ -1016,8 +1140,8 @@ class PreparedAnalysis:
                 identifier=identifier,
                 estimator=estimator,
                 inference=inference_mode,
-                n_draws=int(bayes_kw.get("n_draws", 1000)),
-                prior_scale=float(bayes_kw.get("prior_scale", 10.0)),
+                n_draws=int(admg_bayes_kw.get("n_draws", 1000)),
+                prior_scale=float(admg_bayes_kw.get("prior_scale", 10.0)),
                 refute=refute,
                 seed=seed,
                 bootstrap=bootstrap,
@@ -1057,8 +1181,10 @@ class PreparedAnalysis:
                     "PreparedAnalysis PathSpecificEffect supports Frequentist only"
                 )
             if refute not in (False, "none", Refute.NONE):
-                raise CausalTypeError(
-                    "PreparedAnalysis PathSpecificEffect has no licensed validation cell"
+                raise CausalUnsupportedError(
+                    "refused: PreparedAnalysis PathSpecificEffect cheap/full is not licensed; "
+                    "execute_path_specific returns empty refutations, so cheap and full do not "
+                    "run a path-specific refuter suite. Use refute='none'."
                 )
             resolved_bootstrap, _ = _resolve_latency_budget(latency, bootstrap, False)
             native = _NativePreparedAnalysis.prepare_path_specific(
@@ -1085,8 +1211,10 @@ class PreparedAnalysis:
                     "PreparedAnalysis InterventionalDistribution supports Frequentist only"
                 )
             if refute not in (False, "none", Refute.NONE):
-                raise CausalTypeError(
-                    "PreparedAnalysis InterventionalDistribution has no licensed validation cell"
+                raise CausalUnsupportedError(
+                    "refused: PreparedAnalysis InterventionalDistribution cheap/full is not "
+                    "licensed; execute_distribution returns empty refutations, so cheap and "
+                    "full do not run a distribution refuter suite. Use refute='none'."
                 )
             native = _NativePreparedAnalysis.prepare_distribution(
                 names,
@@ -1105,8 +1233,10 @@ class PreparedAnalysis:
             if inference is not None and not isinstance(inference, Frequentist):
                 raise CausalTypeError("PreparedAnalysis ResponseCurve supports Frequentist only")
             if refute not in (False, "none", Refute.NONE):
-                raise CausalTypeError(
-                    "PreparedAnalysis ResponseCurve has no licensed validation cell"
+                raise CausalUnsupportedError(
+                    "not_applicable: PreparedAnalysis ResponseCurve cheap/full does not "
+                    "denote; cheap and full name the ATE-shaped scalar refuter suite and a "
+                    "function-valued estimand has no such state. Use refute='none'."
                 )
             native = _NativePreparedAnalysis.prepare_response(
                 names,
@@ -1129,8 +1259,10 @@ class PreparedAnalysis:
                     "PreparedAnalysis InterventionResponse supports Frequentist only"
                 )
             if refute not in (False, "none", Refute.NONE):
-                raise CausalTypeError(
-                    "PreparedAnalysis InterventionResponse has no licensed validation cell"
+                raise CausalUnsupportedError(
+                    "not_applicable: PreparedAnalysis InterventionResponse cheap/full does "
+                    "not denote; cheap and full name the ATE-shaped scalar refuter suite and "
+                    "a function-valued estimand has no such state. Use refute='none'."
                 )
             from . import intervention as intervention_specs
 
@@ -1187,6 +1319,7 @@ class PreparedAnalysis:
             raise CausalTypeError(
                 "PreparedAnalysis supports AverageEffect, ResponseCurve, ConditionalEffect, "
                 "PathSpecificEffect, InterventionalDistribution, InterventionResponse, "
+                "PulseEffect, SustainedEffect, TemporalMediationEffect, "
                 "or temporal ResponseCurve / InterventionResponse"
             )
         inference = inference or Frequentist()
@@ -1195,10 +1328,9 @@ class PreparedAnalysis:
         # `True` is rejected), so no `None`-sentinel dance is needed here.
         refute = coerce_refute(refute)  # type: ignore[assignment]
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
-        bayes_kw: dict[str, Any] = {}
+        average_bayes_kw: dict[str, Any] = {}
         if isinstance(inference, Bayesian):
-            bayes_kw = _bayesian_inference_kwargs(inference)
-            inference_mode = str(bayes_kw.pop("inference"))
+            inference_mode, average_bayes_kw = _prepared_bayesian_args(inference)
         else:
             inference_mode = "frequentist"
         native = _NativePreparedAnalysis.prepare(
@@ -1212,8 +1344,8 @@ class PreparedAnalysis:
             identifier=identifier,
             estimator=estimator,
             inference=inference_mode,
-            n_draws=int(bayes_kw.get("n_draws", 1000)),
-            prior_scale=float(bayes_kw.get("prior_scale", 10.0)),
+            n_draws=int(average_bayes_kw.get("n_draws", 1000)),
+            prior_scale=float(average_bayes_kw.get("prior_scale", 10.0)),
             refute=refute,
             seed=seed,
             bootstrap=bootstrap,
@@ -1222,6 +1354,83 @@ class PreparedAnalysis:
             accepted=structure_accepted,
         )
         return cls(native, kind="average", query=query)
+
+    @classmethod
+    def _prepare_discovery(
+        cls,
+        names: list[str],
+        columns: Any,
+        discovery: Any,
+        query: Any,
+        *,
+        inference: Frequentist | Bayesian | None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
+        seed: int,
+        bootstrap: int | None,
+        threads: int,
+        latency: Latency | Literal["interactive", "standard", "report"] | str | None,
+    ) -> PreparedAnalysis:
+        if not isinstance(inference, Bayesian):
+            raise CausalTypeError(
+                "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...)"
+            )
+        refute = coerce_refute(refute)
+        bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+        inference_mode, bayes_kw = _prepared_bayesian_args(inference)
+        n_draws = int(bayes_kw.get("n_draws", 1000))
+        prior_scale = float(bayes_kw.get("prior_scale", 10.0))
+        if isinstance(discovery, ExactDagPosterior) and isinstance(query, AverageEffect):
+            native = _NativePreparedAnalysis.prepare_graph_posterior_ate(
+                names,
+                columns,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                inference=inference_mode,
+                n_draws=n_draws,
+                prior_scale=prior_scale,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap if bootstrap is not None else 0,
+                threads=threads,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(discovery, DbnPosterior) and isinstance(
+            query, (PulseEffect, SustainedEffect)
+        ):
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalUnsupportedError(
+                    "refused: PreparedAnalysis DbnPosterior cheap/full is not licensed; "
+                    "execute_dbn_posterior_bayesian always returns empty refutations, so "
+                    "cheap and full do not run the ATE refuter suite on the DBN envelope. "
+                    "Use refute='none'."
+                )
+            native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
+                names,
+                columns,
+                query.treatment,
+                query.outcome,
+                policy=query.kind,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                max_lag=discovery.max_lag,
+                force_mcmc=discovery.force_mcmc,
+                n_chains=discovery.n_chains,
+                n_warmup=discovery.n_warmup,
+                mcmc_draws=discovery.n_draws,
+                inference=inference_mode,
+                n_draws=n_draws,
+                prior_scale=prior_scale,
+                seed=seed,
+                threads=threads,
+            )
+            return cls(native, kind="average", query=query)
+        raise CausalTypeError(
+            "PreparedAnalysis.prepare(discovery=) is licensed for ExactDagPosterior "
+            "(AverageEffect) and DbnPosterior (PulseEffect / SustainedEffect)"
+        )
 
     @classmethod
     def _prepare_temporal(
@@ -1240,8 +1449,10 @@ class PreparedAnalysis:
         if inference is not None and not isinstance(inference, Frequentist):
             raise CausalTypeError("PreparedAnalysis temporal response supports Frequentist only")
         if refute not in (False, "none", Refute.NONE):
-            raise CausalTypeError(
-                "PreparedAnalysis temporal response has no licensed validation cell"
+            raise CausalUnsupportedError(
+                "not_applicable: PreparedAnalysis temporal ResponseCurve/InterventionResponse "
+                "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
+                "suite and a function-valued estimand has no such state. Use refute='none'."
             )
         lagged = _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_intervention
@@ -1401,8 +1612,10 @@ class PreparedAnalysis:
         """
         if self._kind in ("response_curve", "intervention_response"):
             raise CausalUnsupportedError(
-                "refused: PreparedAnalysis.refute is AverageEffect-only; "
-                "ResponseCurve / InterventionResponse have no licensed validation cell"
+                "not_applicable: PreparedAnalysis.refute is AverageEffect-only; "
+                "ResponseCurve / InterventionResponse cheap/full/placebo do not denote — "
+                "cheap and full name the ATE-shaped scalar refuter suite and a "
+                "function-valued estimand has no such state."
             )
         if isinstance(suite, Refute):
             suite = str(suite)

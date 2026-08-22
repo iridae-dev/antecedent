@@ -72,6 +72,18 @@ def test_oneshot_analyze_result_cannot_refresh():
         result.refresh(data)
 
 
+def test_prepared_rejects_bayesian_prior_options_it_cannot_apply():
+    data, edges = _confounded_scm(n=80, seed=7)
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="prior transfer"):
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(prior_from=b"not-used"),
+            refute=False,
+        )
+
+
 def test_prepared_second_shot_not_slower_than_prepare_plus_first():
     data, edges = _confounded_scm(n=800, seed=31)
     t0 = time.perf_counter()
@@ -107,5 +119,45 @@ def test_prepared_response_curve_matches_analyze():
     assert click.response is not None
     assert fresh.response is not None
     assert click.response.values == fresh.response.values
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="refused"):
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="not_applicable:"):
         prepared.refute(data, suite="cheap")
+
+
+def test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable():
+    """Staged ResponseCurve must agree with ``analyze()``: cheap/full denote
+    the ATE-shaped scalar refuter suite, which a function-valued estimand has
+    no state for, so this is a typed impossibility (``not_applicable:``), not
+    a bespoke ``CausalTypeError``."""
+    rng = np.random.default_rng(31)
+    z = rng.normal(size=400)
+    t = 0.7 * z + rng.normal(size=400)
+    y = 2.0 * t + z + rng.normal(scale=0.2, size=400)
+    data = {"t": t, "y": y, "z": z}
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="not_applicable:"):
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data, graph=edges, query=query, refute="cheap", seed=1
+        )
+
+
+def test_prepared_temporal_mediation_cheap_refute_is_refused():
+    """Staged TemporalMediationEffect must agree with ``analyze()``:
+    ``execute_temporal_mediation`` hardcodes empty refutations, so cheap/full
+    are a written refusal (``refused:``), not a typed impossibility and not a
+    bespoke ``CausalTypeError``."""
+    n = 80
+    t = np.zeros(n)
+    m = np.zeros(n)
+    y = np.zeros(n)
+    for i in range(1, n):
+        t[i] = 0.3 * t[i - 1] + 0.1 * math.sin(i)
+        m[i] = 0.8 * t[i - 1] + 0.05 * math.cos(i)
+        y[i] = 0.5 * m[i] + 0.02 * math.sin(i)
+    data = {"t": t, "m": m, "y": y}
+    edges = [("t", 1, "t", 0), ("t", 1, "m", 0), ("m", 0, "y", 0)]
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="refused:"):
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data, graph=edges, query=query, refute="cheap", seed=1
+        )

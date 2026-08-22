@@ -136,6 +136,9 @@ class AteAnalysisResult:
     posterior: PosteriorSection
     validation: ValidationSection
     performance: PerformanceSection
+    mediation_total: float | None
+    mediation_direct: float | None
+    mediation_mediated: float | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -483,6 +486,50 @@ class PreparedAnalysis:
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_pag(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Pag,
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_admg(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Admg,
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_response(
         names: list[str],
         columns: Sequence[Any],
@@ -517,6 +564,83 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
         accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, int, str, int]],
+        treatment: str,
+        outcome: str,
+        *,
+        policy: str = "pulse",
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        active_level: float = 1.0,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_mediation(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, int, str, int]],
+        treatment: str,
+        mediator: str,
+        outcome: str,
+        *,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_ate(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_dbn_posterior_temporal(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: str,
+        outcome: str,
+        *,
+        policy: str = "pulse",
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        active_level: float = 1.0,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        seed: int = 1,
+        threads: int = 1,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_conditional(
@@ -1099,6 +1223,7 @@ def analyze_distribution(
     interventions: dict[str, float],
     *,
     conditioning: list[str] | None = None,
+    refute: bool | str | None = None,
     seed: int = 1,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
@@ -1287,6 +1412,7 @@ def analyze_path_specific(
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
+    refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_conditional(
     names: list[str],
