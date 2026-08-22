@@ -220,6 +220,17 @@ The Cartesian product (query × graph class × structure source × inference ×
 validation) is **{cartesian}** cells. That denominator is not a feature count.
 Most of it is typed impossibility, not missing work.
 
+Every cell is in exactly **one of three runtime states**: **licensed** (a
+result), **n/a** (the coordinate does not denote — a typed impossibility),
+or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
+cell that is not licensed and not n/a is refused, whether or not a rule
+names a reason for it. `support_closed.toml` does not close anything — it
+is the **reason table** for refused cells, not a fourth state. A refused
+cell either has a documented reason on file or it doesn't; both refuse
+identically at runtime. The allowlist below is a separate, bounded
+carve-out inside the refused set: cells that execute end-to-end without
+being licensed.
+
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | {cartesian} | Axis product, not a coverage score |
@@ -227,8 +238,8 @@ Most of it is typed impossibility, not missing work.
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
 | Licensed | {len(cells)} | Staged path plus executing known-truth evidence — the strongest contract |
 | Allowlisted (running, unlicensed) | {allowed_count} | Executes end-to-end; a successful number is **not** a licensed claim |
-| Refused (enforced closed rules) | {closed_count} | Fail shut, including mislabeled-inference laundering |
-| Refused (no allowlist match) | {default_refused} | Fail shut by default |
+| Refused — reason on file | {closed_count} | Same runtime outcome as any other refused cell; documented in `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — no reason on file yet | {default_refused} | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
 Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry the evidence contract**; {allowed_count} more run without that contract;
@@ -236,11 +247,11 @@ the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
-licensed. A cell is exactly one of licensed / n/a / closed / allowlisted; any
-refused cell not matched by the allowlist fails closed. Successful studies
-record `licensed` vs `allowed_unlicensed` on the result (`evidence_status` in
-Python, `StudyResult.support_status` in Rust) so the distinction survives
-dispatch.
+licensed. A cell is exactly one of licensed / n/a / refused; the allowlist
+is a bounded carve-out of cells inside the refused set that still execute.
+Successful studies record `licensed` vs `allowed_unlicensed` on the result
+(`evidence_status` in Python, `StudyResult.support_status` in Rust) so the
+distinction survives dispatch.
 
 ## Axes
 
@@ -266,9 +277,13 @@ dispatch.
 
 {chr(10).join(na_lines) if na_lines else "_None._"}
 
-## Enforced refusals
+## Refusal reasons
 
-These default-refused cells fail closed with id `refused`.
+These cells are refused (wire id `refused`) — the default runtime state for
+any cell that is not licensed and not n/a — and each row below is the
+documented reason for that refusal. This is a reason table, not a fourth
+state: an undocumented refused cell behaves identically, it just has no
+row here yet.
 
 {chr(10).join(closed_lines) if closed_lines else "_None._"}
 

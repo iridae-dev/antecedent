@@ -13,6 +13,22 @@ use pyo3::prelude::*;
 
 use crate::{CausalDataError, py_err};
 
+/// Typed Pag/Admg/Cpdag nodes are positional (`DenseNodeId(i)` is `VariableId(i)`).
+/// Python wrappers carry names separately; refuse a silent misbind when those
+/// names are not the data columns in the same order.
+pub(crate) fn require_named_graph_order(
+    graph_names: &[String],
+    data_names: &[String],
+    kind: &str,
+) -> PyResult<()> {
+    if graph_names != data_names {
+        return Err(PyValueError::new_err(format!(
+            "{kind} variable names must match data column names and order"
+        )));
+    }
+    Ok(())
+}
+
 /// Build a static [`Dag`] from named directed edges against a schema.
 ///
 /// Unknown names map to [`CausalDataError`] (schema lookup at the Python boundary).

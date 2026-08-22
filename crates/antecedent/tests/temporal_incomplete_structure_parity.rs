@@ -5,7 +5,7 @@
 //! reached exactly when completion *fails*. 0.9 refuses that coordinate at
 //! `Study::build()` with a named completion reason (`parity/support_closed.toml`),
 //! not the generic unlicensed message and not a number. Successful completion
-//! still collapses to the TemporalDag cell.
+//! still collapses to the `TemporalDag` cell.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, CausalError, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
-    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
+    TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -168,11 +168,11 @@ fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 }
 
 /// The `SustainedEffect` half of the same policy-generic compile arm. Before
-/// `parity/support_allowlist.toml` carried a matching `SustainedEffect` row,
-/// this refused at `build()` with the generic "neither licensed nor on the
-/// named running allowlist" message while the Pulse tests above reached the
-/// specific completion error -- an inconsistency between two policies of one
-/// query family sharing a single arm.
+/// the incomplete TemporalCpdag/Pag Pulse/Sustained cells were named as
+/// completion refusals, this refused at `build()` with the generic "neither
+/// licensed nor on the named running allowlist" message while the Pulse tests
+/// above reached the specific completion error -- an inconsistency between two
+/// policies of one query family sharing a single arm.
 #[test]
 fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
     assert_support_completion_refusal(
@@ -191,10 +191,9 @@ fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
     );
 }
 
-/// The allowlist row is Frequentist-only, matching its parent family: the whole
-/// running `SustainedEffect` family is Frequentist (Bayesian Sustained has no
-/// licensed or allowlisted cell anywhere), so the new row must not be broader
-/// than the family it rides.
+/// Incomplete TemporalCpdag/Pag still refuse Bayesian Sustained at `build()`.
+/// The licensed Bayesian Sustained cell is `TemporalDag` (explicit/accepted);
+/// completion failure is not that cell.
 #[test]
 fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refused() {
     for graph in [incompletable_temporal_pag(), incompletable_temporal_cpdag()] {
@@ -205,7 +204,7 @@ fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refuse
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
-            .expect_err("Bayesian Sustained is outside the allowlist row");
+            .expect_err("Bayesian Sustained on incomplete TemporalCpdag/Pag stays refused");
         assert!(
             matches!(err, CausalError::Support { .. }),
             "expected a support refusal, got {err}"

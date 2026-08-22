@@ -197,6 +197,37 @@ def referenced(name: str) -> bool:
             return True
     return False
 
+# A fixture "referenced" only by a bare `include_str!(...); assert!(!pin.is_empty())`
+# (or Python equivalent) is named but never consumed -- the string literal reads as
+# evidence to a human skimming the row, but nothing is parsed or compared. Rows that
+# claim `internal_known_truth` / `frozen_external_oracle` must do better: the fixture's
+# path must appear in a test that also parses it (`serde_json::from_str`,
+# `serde_json::Value`, `from_str::<...>`, `json.loads`/`json.load`, `tomllib.loads`, or a
+# `load_expected` helper) within a reasonable distance of the mention, in the SAME file.
+# This does not weaken `referenced()` above -- it is an additional, stricter bar that
+# only applies to the two strongest evidence kinds.
+PARSE_MARKERS = re.compile(
+    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
+    r"tomllib\.loads|tomllib\.load\(|load_expected"
+)
+CONSUMPTION_WINDOW = 800
+
+
+def meaningfully_consumed(name: str) -> bool:
+    for p in corpus_files:
+        if "target" in p.parts or ".venv" in p.parts:
+            continue
+        text = p.read_text(errors="ignore")
+        for m in re.finditer(re.escape(name), text):
+            before = text[m.start() - 1] if m.start() > 0 else ""
+            after = text[m.end()] if m.end() < len(text) else ""
+            if re.match(r"[A-Za-z0-9_]", before) or re.match(r"[A-Za-z0-9_]", after):
+                continue
+            window = text[max(0, m.start() - CONSUMPTION_WINDOW) : m.end() + CONSUMPTION_WINDOW]
+            if PARSE_MARKERS.search(window):
+                return True
+    return False
+
 closed_rules = closed_doc.get("closed") or []
 for i, rule in enumerate(closed_rules, 1):
     if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
@@ -357,6 +388,14 @@ for i, row in enumerate(cells, 1):
     elif not referenced(Path(fixture).name):
         fail.append(
             f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
+        )
+    elif kind in {"internal_known_truth", "frozen_external_oracle"} and not meaningfully_consumed(
+        Path(fixture).name
+    ):
+        fail.append(
+            f"{label}: known_truth_fixture {fixture!r} is named ({kind!r}) but never parsed "
+            "by a test (e.g. only reachable via a bare include_str!/is_empty check) -- "
+            "parse it and compare a real field, or demote evidence_kind"
         )
     key = (q, g, s, inf, v)
     if key in seen:

@@ -216,13 +216,6 @@ inferences = ["Bayesian"]
 reason = "execute_graph_posterior_bayesian is Dag-shaped; Admg/Cpdag/Pag posterior atoms are not mixed into an ATE envelope."
 
 [[closed]]
-queries = ["SustainedEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "Bayesian SustainedEffect is not wired; Pulse Bayesian g-comp is the temporal Bayesian sibling."
-
-[[closed]]
 queries = ["PulseEffect", "SustainedEffect"]
 graph_classes = ["TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
@@ -239,7 +232,7 @@ reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/Te
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Dag", "Cpdag", "Admg", "Pag"]
 validations = ["cheap", "full"]
-reason = "cheap and full synthesize AverageEffectQuery::binary_ate and run the ATE refuter suite; that is not a validation of the path-specific or distribution estimand."
+reason = "execute_path_specific and execute_distribution return empty refutations; cheap and full do not run a path-specific or distribution refuter suite."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]

@@ -47,8 +47,8 @@ pub(crate) use discovery_api::{
 };
 pub(crate) use graph_build::{
     dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, pool_panel_series,
-    schema_var_id, series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
-    temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
+    require_named_graph_order, schema_var_id, series_from_tabular, space_dummy_ci_from_bool,
+    temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
 };
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
@@ -744,6 +744,12 @@ pub(crate) struct AteAnalysisResult {
     /// Nested performance section.
     #[pyo3(get)]
     performance: PerformanceSection,
+    #[pyo3(get)]
+    mediation_total: Option<f64>,
+    #[pyo3(get)]
+    mediation_direct: Option<f64>,
+    #[pyo3(get)]
+    mediation_mediated: Option<f64>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,

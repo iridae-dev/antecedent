@@ -867,7 +867,7 @@ fn analyze_panel_discover(
     })
 }
 
-fn temporal_query_from_policy(
+pub(crate) fn temporal_query_from_policy(
     policy: &str,
     t_id: VariableId,
     y_id: VariableId,
@@ -1758,7 +1758,7 @@ fn analysis_result_from_run(
     })
 }
 
-fn apply_temporal_inference(
+pub(crate) fn apply_temporal_inference(
     builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: usize,

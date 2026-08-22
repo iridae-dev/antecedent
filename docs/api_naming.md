@@ -16,7 +16,7 @@ Every analysis is three verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 49 names through 0.6**: the three verbs
+The root namespace (`import antecedent`) is **frozen at 49 names through 0.9**: the three verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
@@ -40,12 +40,38 @@ the module path rather than importing it flat:
 ``antecedent.extensibility``, ``antecedent.gcm``, ``antecedent.graph``,
 ``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
 
-A handful of further modules are reachable as ``antecedent.<name>`` (nothing stops
+Eleven further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
-left out of the frozen `__all__` list because their public content is already
-re-exported above, or because they're a narrower surface than the twelve stage
-modules: ``antecedent.counterfactual``, ``antecedent.inference``, ``antecedent.model``,
-``antecedent.population``, ``antecedent.query``.
+left off the frozen `__all__` list. Two are left off because their public content is
+already re-exported above:
+
+- ``antecedent.query`` — the typed query classes (`AverageEffect`, `ResponseCurve`, …)
+  are re-exported at root already.
+- ``antecedent.inference`` — the `Frequentist` / `Bayesian` selector classes are
+  re-exported at root already.
+
+The other nine are left off because they're a narrower surface than the twelve stage
+modules — each one owns a single specialized concern that most callers never touch
+directly:
+
+- ``antecedent.artifacts`` — durable format-0.4 artifact encode/decode, an advanced
+  serialization surface, not part of the day-1 workflow.
+- ``antecedent.counterfactual`` — GCM counterfactual helpers (`fit_gcm`,
+  `counterfactual_ite`), distinct from the root `Counterfactual` query type.
+- ``antecedent.estimators`` — the typed `estimator_config=` front-end; a real,
+  documented stage module, but its content (per-estimator dataclasses) has no
+  root-level re-export the way queries/selectors do.
+- ``antecedent.interference`` — randomization designs and exposure mappings for
+  interference queries.
+- ``antecedent.intervention`` — typed intervention specifications for
+  `InterventionResponse`.
+- ``antecedent.model`` — interventional sampling helpers.
+- ``antecedent.observation`` — observation-mechanism specifications for latent
+  scientific outcomes.
+- ``antecedent.population`` — named predicates and custom target-distribution
+  weights for `analyze()`.
+- ``antecedent.transport`` — single-source graphical transportability
+  specifications.
 
 Discovery algorithms follow the same rule: what used to be sixteen free
 `discover_*()` functions are now config dataclasses on ``antecedent.discovery``
@@ -92,7 +118,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.accepted(...)` / `.asserted(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
 | Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
-| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the default suite. Temporal `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and expose that skip on `CausalResponseView.validation` as `refute.temporal_response.skipped` (Rust `Study` diagnostics carry the same code). |
+| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued response queries license validation `none`, so requesting a scalar suite raises `CausalUnsupportedError`. |
 | Tabular data | `TabularData::from_f64_columns` | `dict[str, array]` / pandas / Arrow |
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
@@ -122,8 +148,9 @@ outside), not the union of per-horizon treatment ranges. Static curves keep
 worst-over-points.
 
 **Temporal response refuters.** Scalar ATE refuters are not applicable to a
-function-valued temporal surface; licensed runs skip them. Python surfaces the
-skip on `CausalResponseView.validation` as check id
+function-valued temporal surface; explicitly requesting one is not applicable.
+Licensed no-refutation runs surface the informational skip on
+`CausalResponseView.validation` as check id
 `refute.temporal_response.skipped`. Rust `Study` diagnostics carry the same
 code. `PreparedAnalysis.refute` remains AverageEffect-only.
 

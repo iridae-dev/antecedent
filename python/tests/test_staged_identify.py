@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("antecedent")
 import antecedent
+from antecedent.errors import CausalUnsupportedError
 
 # NOTE: ``antecedent.identify`` the *attribute* is the function (one of the 41
 # frozen root names), so ``import antecedent.identify as m`` silently binds the
@@ -91,7 +92,7 @@ def test_response_curve_identify_then_estimate_matches_analyze():
     assert list(staged.response.points) == [[-0.5], [0.0], [0.5]]
 
 
-def test_response_curve_staged_validate_runs_curve_legal_suite_by_default():
+def test_response_curve_staged_validate_refuses_scalar_suite_by_default():
     rng = np.random.default_rng(23)
     t = rng.normal(size=320)
     y = 1.5 * t + rng.normal(scale=0.2, size=320)
@@ -103,14 +104,8 @@ def test_response_curve_staged_validate_runs_curve_legal_suite_by_default():
         identifier=antecedent.Identifier.RESPONSE_BACKDOOR,
     )
 
-    validated = identification.validate({"t": t, "y": y}, seed=3)
-
-    assert validated.validation is not None
-    assert [check.id for check in validated.validation.checks] == [
-        "overlap.support",
-        "data.subset",
-        "scalar_ate_refuters",
-    ]
+    with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
+        identification.validate({"t": t, "y": y}, seed=3)
 
 
 def test_identification_validate_runs_refutation_suite():

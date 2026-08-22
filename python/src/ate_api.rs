@@ -1118,6 +1118,7 @@ fn analyze_ate_pag(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    require_named_graph_order(&graph.names, &names, "Pag")?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
     analyze_ate_typed_graph(
@@ -1190,6 +1191,7 @@ fn analyze_ate_cpdag(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    require_named_graph_order(&graph.names, &names, "Cpdag")?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
     analyze_ate_typed_graph(
@@ -1262,6 +1264,7 @@ fn analyze_ate_admg(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    require_named_graph_order(&graph.names, &names, "Admg")?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
     analyze_ate_typed_graph(
@@ -1335,6 +1338,7 @@ macro_rules! typed_ate_arrow_c {
             bootstrap: u32,
             threads: u32,
         ) -> PyResult<AteAnalysisResult> {
+            require_named_graph_order(&graph.names, &names, stringify!($variant))?;
             let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
             analyze_ate_typed_graph(
                 py,
@@ -1739,10 +1743,10 @@ fn analyze_ate_discover(
     interventions,
     *,
     conditioning=None,
+    refute=None,
     seed=1,
     threads=1
 ))]
-
 fn analyze_distribution(
     py: Python<'_>,
     names: Vec<String>,
@@ -1751,10 +1755,12 @@ fn analyze_distribution(
     outcome: String,
     interventions: std::collections::HashMap<String, f64>,
     conditioning: Option<Vec<String>>,
+    refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
     detach_catch(py, move || {
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let mut ivs = Vec::with_capacity(interventions.len());
@@ -1776,7 +1782,7 @@ fn analyze_distribution(
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution)
-            .refute(RefuteSuite::None)
+            .refute(suite)
             .build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
@@ -1801,7 +1807,8 @@ fn analyze_distribution(
     max_len=16,
     seed=1,
     bootstrap=50,
-    threads=1
+    threads=1,
+    refute=None
 ))]
 fn analyze_path_specific(
     py: Python<'_>,
@@ -1818,8 +1825,10 @@ fn analyze_path_specific(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    refute: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AteAnalysisResult> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -1843,7 +1852,7 @@ fn analyze_path_specific(
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect)
             .bootstrap_replicates(bootstrap)
-            .refute(RefuteSuite::None)
+            .refute(suite)
             .build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
@@ -2047,6 +2056,9 @@ pub(crate) fn ate_result_from_analysis(
         posterior,
         validation,
         performance,
+        mediation_total: result.mediation.as_ref().and_then(|m| m.total),
+        mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
+        mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
         evidence_status,
         allowlist_reason,
         allowlist_parent,

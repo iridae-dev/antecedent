@@ -296,8 +296,6 @@ def handle_response(
         IdentificationView,
         ResponseEnvelopeView,
         ResponseUncertainty,
-        ResponseValidationCheck,
-        ResponseValidationView,
         ResponseView,
         SupportDiagnostic,
         SupportReport,
@@ -710,82 +708,6 @@ def handle_response(
             raw.enumeration_capped,
             cast(Literal["full_class", "examined_completions"], raw.mass_scope),
         )
-    validation = None
-    if refute_requested and refute is not False:
-        checks = [
-            ResponseValidationCheck(
-                "overlap.support",
-                "passed" if raw.support_status == "supported" else "failed",
-                None,
-                None,
-                f"curve support status is {raw.support_status!r}",
-            )
-        ]
-        if isinstance(query, ResponseCurve):
-            import numpy as np
-
-            rng = np.random.default_rng(seed)
-            subset_curves: list[list[list[float]]] = []
-            n_rows = len(columns[0])
-            subset_size = max(2, int(0.8 * n_rows))
-            for _ in range(10):
-                rows = np.sort(rng.choice(n_rows, size=subset_size, replace=False))
-                subset_columns = [column[rows] for column in columns]
-                if isinstance(graph, Pag):
-                    subset_raw = _analyze_response_pag(
-                        names,
-                        subset_columns,
-                        graph,
-                        query.treatment,
-                        query.outcome,
-                        list(query.grid),
-                    )
-                    # Envelope widths, not completion-conditioned point curves, are the
-                    # honest graph-class sensitivity target.
-                    assert subset_raw.lower is not None and subset_raw.upper is not None
-                    subset_curves.append(subset_raw.lower + subset_raw.upper)
-                else:
-                    subset_raw = _analyze_response(
-                        names,
-                        subset_columns,
-                        edges,
-                        query.kind,
-                        treatments,
-                        outcomes,
-                        grid=list(query.grid),
-                        scale=scale,
-                        weighting=weighting,
-                        accepted=structure_accepted,
-                    )
-                    subset_curves.append(subset_raw.values)
-            baseline_rows = (
-                (raw.lower or []) + (raw.upper or []) if isinstance(graph, Pag) else raw.values
-            )
-            baseline_array = np.asarray(baseline_rows, dtype=float)
-            subset_mean = np.asarray(subset_curves, dtype=float).mean(axis=0)
-            max_shift = float(np.max(np.abs(subset_mean - baseline_array)))
-            checks.append(
-                ResponseValidationCheck(
-                    "data.subset",
-                    "informative",
-                    max_shift,
-                    None,
-                    "maximum absolute shift of the mean curve/envelope across ten "
-                    "deterministic 80% row-subset refits; no universal pass threshold is imposed",
-                    10,
-                )
-            )
-        checks.append(
-            ResponseValidationCheck(
-                "scalar_ate_refuters",
-                "skipped",
-                None,
-                None,
-                "placebo treatment, dummy outcome, random common cause, and scalar "
-                "sensitivity refuters do not define a function-valued curve check",
-            )
-        )
-        validation = ResponseValidationView(checks)
     identification_operation = (
         "identify.generalized_adjustment" if isinstance(graph, Pag) else "identify.response"
     )
@@ -793,11 +715,6 @@ def handle_response(
         "operation_id": raw.provenance_id,
         "operation_ids": [identification_operation, raw.provenance_id],
     }
-    if validation is not None:
-        provenance["validation_operation_ids"] = [
-            "validate.overlap",
-            "validate.response_data_subset",
-        ]
     return CausalResponseView(
         estimand=query,
         response=response,
@@ -820,7 +737,7 @@ def handle_response(
         assumptions=raw.assumptions,
         provenance=provenance,
         envelope=envelope,
-        validation=validation,
+        validation=None,
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
@@ -862,6 +779,8 @@ def handle_distribution(
     graph: Any,
     discovery: Any,
     accept_discovered: bool,
+    refute_requested: bool,
+    refute: bool | str,
     seed: int,
     threads: int,
 ) -> Any:
@@ -870,6 +789,7 @@ def handle_distribution(
         _wrap_ate,
     )
 
+    del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
@@ -885,6 +805,7 @@ def handle_distribution(
         query.outcome,
         dict(query.interventions),
         conditioning=list(query.conditioning) or None,
+        refute=refute if refute_requested else False,
         seed=seed,
         threads=threads,
     )
@@ -898,6 +819,8 @@ def handle_path_specific(
     graph: Any,
     discovery: Any,
     accept_discovered: bool,
+    refute_requested: bool,
+    refute: bool | str,
     seed: int,
     bootstrap: int | None,
     threads: int,
@@ -907,6 +830,7 @@ def handle_path_specific(
         _wrap_ate,
     )
 
+    del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
@@ -929,6 +853,7 @@ def handle_path_specific(
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
+        refute=refute if refute_requested else False,
     )
     return _wrap_ate(raw)
 
@@ -1729,11 +1654,28 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
     ),
     "distribution": (
         handle_distribution,
-        ("graph", "discovery", "accept_discovered", "seed", "threads"),
+        (
+            "graph",
+            "discovery",
+            "accept_discovered",
+            "refute_requested",
+            "refute",
+            "seed",
+            "threads",
+        ),
     ),
     "path_specific": (
         handle_path_specific,
-        ("graph", "discovery", "accept_discovered", "seed", "bootstrap", "threads"),
+        (
+            "graph",
+            "discovery",
+            "accept_discovered",
+            "refute_requested",
+            "refute",
+            "seed",
+            "bootstrap",
+            "threads",
+        ),
     ),
 }
 

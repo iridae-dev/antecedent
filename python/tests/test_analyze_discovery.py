@@ -74,9 +74,16 @@ def test_analyze_discovery_jpcmci_plus_two_env():
     # J-PCMCI+ discovery is CPDAG-shaped (`accept_temporal_cpdag_review` in
     # `python/src/lib.rs`): accept_discovered=True (the default here) only
     # auto-accepts already-directed pending edges, so a leftover undirected/circle
-    # mark on this 2-env system can still block with ReviewRequired; a downstream
-    # CausalIdentifyError is the other legitimate fail-closed outcome. Only these
-    # two exceptions are acceptable — anything else is a real wiring break.
+    # mark on this 2-env system can still block with ReviewRequired
+    # (CausalReviewError); a downstream identification failure
+    # (CausalIdentifyError) and a compile-stage failure (CausalCompileError) are
+    # both legitimate fail-closed outcomes too. CausalUnsupportedError is the
+    # fourth: it is how a support-matrix refusal (`SupportRefusal::Refused` /
+    # `NotApplicable`, surfaced via `Support{id, message}` in
+    # `python/src/lib.rs`) reaches Python, and this discovery/query/graph
+    # combination can legitimately be one the matrix has not licensed. Only
+    # these four exceptions are acceptable — anything else is a real wiring
+    # break.
     try:
         result = antecedent.analyze(
             envs,

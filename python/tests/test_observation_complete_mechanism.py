@@ -15,7 +15,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import observation
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalUnsupportedError, CausalValueError
 
 
 def _curve_data(seed: int = 17) -> dict[str, np.ndarray]:
@@ -54,26 +54,18 @@ def test_complete_observation_runs_through_analyze_like_no_mechanism():
     )
 
 
-def test_complete_observation_accepts_refute_like_no_mechanism():
+def test_complete_observation_refuses_scalar_refute_like_no_mechanism():
     data = _curve_data(seed=172)
-    query = antecedent.ResponseCurve(
-        "a", "y", grid=[-0.4, 0.0, 0.4], observation=observation.Complete()
-    )
-
-    result = antecedent.analyze(
-        {"a": data["a"], "y": data["y"]},
-        query=query,
-        graph=[("a", "y")],
-        refute="cheap",
-        seed=9,
-    )
-
-    assert result.validation is not None
-    assert [check.id for check in result.validation.checks] == [
-        "overlap.support",
-        "data.subset",
-        "scalar_ate_refuters",
-    ]
+    for mechanism in (None, observation.Complete()):
+        query = antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4], observation=mechanism)
+        with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
+            antecedent.analyze(
+                {"a": data["a"], "y": data["y"]},
+                query=query,
+                graph=[("a", "y")],
+                refute="cheap",
+                seed=9,
+            )
 
 
 def test_complete_observation_accepts_estimator_config_like_no_mechanism():

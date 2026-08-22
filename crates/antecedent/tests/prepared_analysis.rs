@@ -774,7 +774,17 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
 
 #[test]
 fn prepared_temporal_mediation_reuses_identification() {
-    let n = 80usize;
+    // Known-truth pin: statsmodels oracle for the exact DGP below (three
+    // independently fitted OLS models + Sobel product), n=320. Reproducing
+    // the oracle's data-generating process here (not an arbitrary series)
+    // is what makes the fixture a genuine known-truth check rather than a
+    // name mentioned in an unrelated file.
+    let pin = include_str!("../../../conformance/estimate/temporal_mediation_grid/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let reference = &expected["reference"];
+    let expected_mediated = reference["mediated"].as_f64().unwrap();
+
+    let n = 320usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
         b.add_variable(
@@ -788,13 +798,17 @@ fn prepared_temporal_mediation_reuses_identification() {
         .unwrap();
     }
     let schema = b.build().unwrap();
+    // Matches conformance/estimate/temporal_mediation_grid/expected.json's
+    // "data" block exactly: treatment/mediator/outcome formulas, n=320.
     let mut t = vec![0.0; n];
     let mut m = vec![0.0; n];
     let mut y = vec![0.0; n];
+    for (i, slot) in t.iter_mut().enumerate() {
+        *slot = (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos();
+    }
     for i in 1..n {
-        t[i] = 0.3 * t[i - 1] + 0.1 * (i as f64).sin();
-        m[i] = 0.8 * t[i - 1] + 0.05 * (i as f64).cos();
-        y[i] = 0.5 * m[i] + 0.2 * t[i - 1] + 0.02 * (i as f64).sin();
+        m[i] = 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin();
+        y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos();
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -846,15 +860,51 @@ fn prepared_temporal_mediation_reuses_identification() {
     );
     assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    // Known-truth check: contrast is Mediated, so `estimate.ate` is the
+    // path-product a*b*delta the statsmodels oracle also reports.
+    assert!(
+        (click.estimate.ate - expected_mediated).abs() < 1e-6,
+        "mediated estimate {} vs statsmodels oracle {}",
+        click.estimate.ate,
+        expected_mediated
+    );
 }
 
 #[test]
 fn prepared_pag_ate_runs_identify_per_click() {
+    // Known-truth pin: clean-room generalized-adjustment oracle. The PAG built
+    // below (Z->T, Z->Y, T->Y) is exactly the fixture's "observed_confounder"
+    // case, so we can assert the identifier's status and adjustment set
+    // against the recorded oracle rather than just naming the fixture.
+    let pin = include_str!("../../../conformance/identify/generalized_adjustment/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let case = expected["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "observed_confounder")
+        .unwrap();
+    assert_eq!(case["status"], "identified");
+    let expected_adjustment_set = case["adjustment_set"].as_array().unwrap();
+    assert_eq!(expected_adjustment_set.len(), 1);
+    assert_eq!(expected_adjustment_set[0], "Z");
+
     let (data, _, query) = confounded_scm(80, 3);
     let mut pag = Pag::with_variables(3);
     pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+
+    // variable 2 is "z" (the confounder) per confounded_scm's schema order;
+    // confirm the identifier's envelope agrees with the oracle before using
+    // prepare()/estimate() below.
+    let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&pag, &query)
+        .unwrap();
+    assert_eq!(envelope.status, antecedent_core::IdentificationStatus::NonparametricallyIdentified);
+    let invariant = envelope.invariant.as_ref().unwrap();
+    assert_eq!(invariant.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+
     let ctx = ExecutionContext::for_tests(1);
     let study = Study::tabular(data.clone())
         .graph(pag)
@@ -873,20 +923,30 @@ fn prepared_pag_ate_runs_identify_per_click() {
 
 #[test]
 fn prepared_admg_ate_runs_identify_per_click() {
-    let _pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+    // Recorded-and-uncompared external identify() oracle for the frontdoor case
+    // (t -> m -> y with U -> t, U -> y latent confounding, i.e. t <-> y in
+    // the ADMG projection below). The oracle only pins the baseline identify()
+    // *status*, not a numeric ATE (see TODO.md sec. 4: full comparison is
+    // 1.x general-ID/IDC work). We consume the status field genuinely: the
+    // ADMG built below has exactly this shape, and we assert our own ID
+    // algorithm agrees it is identified.
+    let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    assert_eq!(expected["case"], "identifiable_frontdoor");
+    assert_eq!(expected["expected_status_family"], "identified");
 
     let n = 300usize;
     let mut t = Vec::with_capacity(n);
     let mut m = Vec::with_capacity(n);
     let mut y = Vec::with_capacity(n);
     for i in 0..n {
-        let ui = if i % 5 < 2 { 1.0 } else { 0.0 };
-        let ti = if i % 3 == 0 { 1.0 } else { 0.0 };
-        let mi = ((ti as u32 + ui as u32) % 2) as f64;
-        let yi = ((mi as u32 + ui as u32) % 2) as f64;
-        t.push(ti);
-        m.push(mi);
-        y.push(yi);
+        let ui = u32::from(i % 5 < 2);
+        let ti = u32::from(i % 3 == 0);
+        let mi = (ti + ui) % 2;
+        let yi = (mi + ui) % 2;
+        t.push(f64::from(ti));
+        m.push(f64::from(mi));
+        y.push(f64::from(yi));
     }
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
@@ -921,6 +981,19 @@ fn prepared_admg_ate_runs_identify_per_click() {
     admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
+
+    // Confirm our own general-ID algorithm agrees with the pinned external
+    // status on this exact frontdoor shape (t -> m -> y, t <-> y).
+    let prepared_admg = antecedent_identify::IdIdentifier::new().prepare(&admg).unwrap();
+    let mut workspace = antecedent_identify::IdentificationWorkspace::default();
+    let id_result = antecedent_identify::IdIdentifier::new()
+        .identify_ate(&prepared_admg, &query, &mut workspace)
+        .unwrap();
+    assert_eq!(
+        id_result.status,
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified
+    );
+
     let ctx = ExecutionContext::for_tests(1);
     let study = Study::tabular(data.clone())
         .graph(admg)

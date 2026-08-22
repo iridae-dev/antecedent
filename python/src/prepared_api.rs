@@ -4,11 +4,14 @@
 
 use std::sync::Arc;
 
+use antecedent::discovery::{
+    BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior, discover_exact_dag_posterior,
+};
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, PreparedStudy, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
-    Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseFunctional,
-    ResponseQuery, TemporalResponseSpec, Value,
+    Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
+    PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
@@ -18,9 +21,10 @@ use pyo3::types::{PyAny, PyModule};
 
 use crate::response_api::{ResponseAnalysisResult, build_functional, response_result};
 use crate::{
-    AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs, py_err,
-    py_execution_context_ext, series_from_tabular, suite_from_refute, tabular_from_arrow_c_objs,
-    tabular_from_numpy, tabular_from_py_columns, temporal_dag_from_schema_edges,
+    AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs,
+    py_err, py_execution_context_ext, require_named_graph_order, series_from_tabular,
+    suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy, tabular_from_py_columns,
+    temporal_dag_from_schema_edges,
 };
 
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
@@ -55,6 +59,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
+        let series = self.series;
         let (mapped, result) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
@@ -63,7 +68,12 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.estimate(&data, &ctx).map_err(py_err)?;
+            let result = if series {
+                let series_data = series_from_tabular(data)?;
+                inner.estimate_series(&series_data, &ctx).map_err(py_err)?
+            } else {
+                inner.estimate(&data, &ctx).map_err(py_err)?
+            };
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((mapped, result))
         })?;
@@ -111,6 +121,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         let mut inner = (*self.inner).clone();
         let out_names = self.names.clone();
+        let series = self.series;
         let (updated, mapped, result) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
@@ -119,7 +130,12 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.refresh(data, &ctx).map_err(py_err)?;
+            let result = if series {
+                let series_data = series_from_tabular(data)?;
+                inner.refresh_series(series_data, &ctx).map_err(py_err)?
+            } else {
+                inner.refresh(data, &ctx).map_err(py_err)?
+            };
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((inner, mapped, result))
         })?;
@@ -341,11 +357,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        if graph.names != names {
-            return Err(PyValueError::new_err(
-                "Pag variable names must match data column names and order",
-            ));
-        }
+        require_named_graph_order(&graph.names, &names, "Pag")?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -446,11 +458,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
-        if graph.names != names {
-            return Err(PyValueError::new_err(
-                "Admg variable names must match data column names and order",
-            ));
-        }
+        require_named_graph_order(&graph.names, &names, "Admg")?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -684,6 +692,341 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+        })
+    }
+
+    /// Compile once for licensed Pulse / single-step Sustained on a TemporalDag.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        treatment,
+        outcome,
+        *,
+        policy="pulse",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_temporal_effect(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, u32, String, u32)>,
+        treatment: String,
+        outcome: String,
+        policy: &str,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let policy = policy.to_ascii_lowercase();
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+            let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
+            let q = crate::temporal_api::temporal_query_from_policy(
+                &policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            let mut builder = Study::series(series);
+            builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                builder.graph(dag)
+            };
+            builder = builder.temporal_query(q).refute(suite).bootstrap_replicates(bootstrap);
+            builder = crate::temporal_api::apply_temporal_inference(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+        })
+    }
+
+    /// Compile once for licensed TemporalMediationEffect on a TemporalDag.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        edges,
+        treatment,
+        mediator,
+        outcome,
+        *,
+        contrast="mediated",
+        control_level=0.0,
+        active_level=1.0,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_temporal_mediation(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, u32, String, u32)>,
+        treatment: String,
+        mediator: String,
+        outcome: String,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let contrast = contrast.to_string();
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+            let m_id = series.schema().id_of(&mediator).map_err(py_err)?;
+            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+            let contrast = match contrast.to_ascii_lowercase().as_str() {
+                "total" => MediationContrast::Total,
+                "direct" => MediationContrast::Direct,
+                "mediated" | "indirect" => MediationContrast::Mediated,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown mediation contrast {other:?}; use total|direct|mediated"
+                    )));
+                }
+            };
+            let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
+            q.control = Intervention::set(t_id, Value::f64(control_level));
+            q.active = Intervention::set(t_id, Value::f64(active_level));
+            let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
+            let mut builder = Study::series(series);
+            builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                builder.graph(dag)
+            };
+            let analysis = builder
+                .query(CausalQuery::Mediation(q))
+                .refute(antecedent::RefuteSuite::None)
+                .bootstrap_replicates(bootstrap)
+                .build()
+                .map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+        })
+    }
+
+    /// Compile once for licensed AverageEffect × graph_posterior × Bayesian.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_ate(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+    ) -> PyResult<Self> {
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let gp = discover_exact_dag_posterior(
+                &data,
+                &vars,
+                &BayesianDiscoverParams::default(),
+                &ctx,
+            )
+            .map_err(py_err)?;
+            let mut builder = Study::tabular(data)
+                .graph_posterior(gp)
+                .query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("conjugate"),
+                n_draws,
+                prior_scale,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for licensed Pulse/Sustained × DBN graph_posterior × Bayesian.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        outcome,
+        *,
+        policy="pulse",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        max_lag=1,
+        force_mcmc=false,
+        n_chains=2,
+        n_warmup=200,
+        mcmc_draws=400,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        seed=1,
+        threads=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_dbn_posterior_temporal(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        outcome: String,
+        policy: &str,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        max_lag: u32,
+        force_mcmc: bool,
+        n_chains: u32,
+        n_warmup: u32,
+        mcmc_draws: u32,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<Self> {
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let policy = policy.to_ascii_lowercase();
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+            let q = crate::temporal_api::temporal_query_from_policy(
+                &policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+            let gp = discover_dbn_posterior(
+                &series,
+                &vars,
+                &BayesianDiscoverParams::default(),
+                max_lag,
+                force_mcmc,
+                &schedule,
+                &ctx,
+            )
+            .map_err(py_err)?;
+            let mut builder = Study::series(series)
+                .graph_posterior(gp)
+                .temporal_query(q)
+                .refute(antecedent::RefuteSuite::None)
+                .bootstrap_replicates(0);
+            builder = crate::temporal_api::apply_temporal_inference(
+                builder,
+                Some(inference.as_deref().unwrap_or("conjugate")),
+                n_draws,
+                prior_scale,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
             Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
         })

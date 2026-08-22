@@ -44,6 +44,33 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
     assert result.posterior.artifact is None
 
 
+def test_manufacturing_bayesian_sustained_recovers_effect():
+    n = 400
+    pressure = np.array([math.sin(0.04 * t) for t in range(n)], dtype=np.float64)
+    defect = np.zeros(n, dtype=np.float64)
+    for t in range(1, n):
+        defect[t] = 0.9 * pressure[t - 1]
+
+    result = antecedent.analyze(
+        {"pressure": pressure, "defect": defect},
+        graph=[("pressure", 1, "defect", 0)],
+        query=antecedent.SustainedEffect(
+            treatment="pressure",
+            outcome="defect",
+            treatment_lag=1,
+            horizon_steps=1,
+            active_level=1.0,
+        ),
+        inference=antecedent.Bayesian(n_draws=256),
+        refute=False,
+        bootstrap=0,
+        seed=42,
+    )
+    assert result.posterior is not None
+    assert abs(result.posterior.effect_mean - 0.9) < 0.05
+    assert result.evidence_status == "licensed"
+
+
 def _pulse_query_and_data(n: int = 200):
     pressure = np.array([math.sin(0.04 * t) for t in range(n)], dtype=np.float64)
     defect = np.zeros(n, dtype=np.float64)

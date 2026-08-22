@@ -10,13 +10,14 @@ use std::sync::Arc;
 
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::validate::PredictiveCheckKind as FacadeKind;
-use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
+use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use antecedent_estimate::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, EnvelopeOptions,
@@ -469,6 +470,402 @@ fn temporal_pulse() {
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
     }
+}
+
+/// Fixed-seed, dependency-free `SplitMix64` generator so the `temporal_sustained`
+/// fixture's additive noise is exactly reproducible across runs and machines
+/// (no external `rand` crate is a dependency of this test binary).
+struct SplitMix64(u64);
+
+impl SplitMix64 {
+    fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Uniform double in `(0, 1]` (never exactly 0, so `ln` below stays finite).
+    fn next_f64(&mut self) -> f64 {
+        // 53 bits of mantissa precision, then shifted into (0, 1].
+        let bits = self.next_u64() >> 11;
+        #[allow(clippy::cast_precision_loss)]
+        let v = (bits as f64) / (1u64 << 53) as f64;
+        1.0 - v
+    }
+
+    /// Standard-normal sample via Box-Muller (one of the two values per pair is discarded
+    /// for simplicity; this is a test fixture, not a hot path).
+    fn next_gaussian(&mut self) -> f64 {
+        let u1 = self.next_f64();
+        let u2 = self.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
+    }
+}
+
+/// Additive noise SD for the `temporal_sustained` fixture's outcome equation.
+///
+/// Chosen so the conjugate-Gaussian posterior spread is non-degenerate (large enough
+/// that the `data.subset` stability refuter is comparing real replicate-to-replicate
+/// estimation noise, not floating-point dust) while staying small enough that the
+/// posterior mean recovers the true coefficient 0.7 comfortably within the fixture's
+/// 0.05 tolerance at n=400. `pressure` has amplitude 1 and empirical SD ~0.71 over the
+/// full sample (a sampled sinusoid), so with `sigma = 0.05` the OLS/conjugate standard
+/// error on the slope is approximately `sigma / (sqrt(n) * sd(pressure))
+/// ~= 0.05 / (20 * 0.71) ~= 0.0035` — about three orders of magnitude larger than the
+/// ~1e-5 floating-point-only spread the noiseless SCM produced (making the posterior
+/// genuinely non-degenerate) while still ~14x smaller than the 0.05 tolerance (so the
+/// point estimate recovers 0.7 with a large, deterministic safety margin, not a
+/// probabilistic one that could flake).
+const SUSTAINED_NOISE_SD: f64 = 0.05;
+
+/// Fixed seed for `SplitMix64`; any change here changes the fixture's exact numbers.
+const SUSTAINED_NOISE_SEED: u64 = 0xA5EC_0DEF_5EED_0002;
+
+/// Build the `temporal_sustained` fixture's series + lag-2 `TemporalDag`.
+///
+/// `defect_t = 0.7 * pressure_{t-2} + eps_t`, `eps_t ~ N(0, SUSTAINED_NOISE_SD^2)`,
+/// drawn from a fixed-seed `SplitMix64` stream so the series is exactly reproducible
+/// run to run — see `conformance/bayesian/temporal_sustained/expected.json` for the
+/// full derivation of the true coefficient and the tolerance it implies. This graph
+/// deliberately has *only* a lag-2 edge (no lag-1 edge), so a test that accidentally
+/// reused the Pulse fixture's lag-1 wiring would fail to identify or recover the wrong
+/// number.
+fn sustained_scm_series(n: usize, true_effect: f64) -> (TimeSeriesData, TemporalDag) {
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "pressure",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "defect",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let mut pressure = vec![0.0; n];
+    let mut defect = vec![0.0; n];
+    let mut rng = SplitMix64::new(SUSTAINED_NOISE_SEED);
+    // Draw noise for every row up front (including 0, 1) in a single fixed order so the
+    // sequence — and therefore every downstream number — never depends on `n`.
+    let noise: Vec<f64> = (0..n).map(|_| SUSTAINED_NOISE_SD * rng.next_gaussian()).collect();
+    for t in 2..n {
+        pressure[t] = ((t as f64) * 0.04).sin();
+        defect[t] = true_effect * pressure[t - 2] + noise[t];
+    }
+    // pressure[0], pressure[1] also need values (they feed pressure[2], pressure[3]'s lag).
+    pressure[0] = 0.0;
+    pressure[1] = (0.04_f64).sin();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(pressure),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(1),
+                Arc::from(defect),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 3_600_000_000_000 },
+            length: n,
+        },
+    )
+    .unwrap();
+    let mut g = TemporalDag::empty();
+    let p2 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let d0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(p2, d0).unwrap();
+    (series, g)
+}
+
+fn sustained_query() -> TemporalEffectQuery {
+    TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -2, 1.0)
+        .with_policy(TemporalPolicy::sustained(-2, -2))
+        .with_horizon_steps(1)
+}
+
+/// Multi-step `Sustained` (`until > from`) is refused by
+/// `TemporalLinearAdjustment`/`BayesianGComputationAte::from_prepared_estimation`
+/// (`refuse_multi_step_schedule`, `antecedent-estimate/src/temporal_adjustment.rs`):
+/// a single-column regression cannot honor the multi-node contrast a genuine
+/// multi-step Sustained estimand requires. Confirms that limitation still holds
+/// so the single-step-only scope claimed by the fixture/limitations text stays
+/// honest, rather than silently becoming stale if the estimator is ever extended.
+#[test]
+fn temporal_sustained_multi_step_is_refused() {
+    let (series, g) = sustained_scm_series(400, 0.7);
+    let q =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0)
+            .with_policy(TemporalPolicy::sustained(-2, -1))
+            .with_horizon_steps(1);
+    let analysis = Study::series(series)
+        .graph(g)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let err = analysis.run(&ExecutionContext::for_tests(42)).unwrap_err();
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("not supported") || msg.contains("single-step") || msg.contains("refus"),
+        "expected a multi-step-refusal error, got: {msg}"
+    );
+}
+
+/// Exercise one of the six licensed `SustainedEffect × TemporalDag × Bayesian`
+/// coordinates on the **staged** `Study::prepare()` → `PreparedStudy::estimate_series()`
+/// path (not the one-shot `.build().unwrap().run(&ctx)` sugar), for a given
+/// structure source (`explicit` graph vs. `accepted` graph) and validation suite.
+fn run_staged_sustained(
+    accepted: bool,
+    suite: RefuteSuite,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let expected = load_expected("temporal_sustained");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
+    let (series, g) = sustained_scm_series(n, true_ate);
+    let q = sustained_query();
+
+    let mut builder = Study::series(series.clone())
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
+        ))
+        .refute(suite)
+        .bootstrap_replicates(0);
+    builder =
+        if accepted { builder.graph(AcceptedGraph::temporal_dag(g)) } else { builder.graph(g) };
+    let study = builder.build().unwrap();
+    let expected_structure = if accepted { "accepted" } else { "explicit" };
+    assert_eq!(study.structure_source().as_str(), expected_structure);
+
+    let ctx = ExecutionContext::for_tests(42);
+    let prepared = study.prepare(&ctx).expect("staged prepare");
+    prepared.estimate_series(&series, &ctx)
+}
+
+fn assert_sustained_mean(result: &antecedent::StudyResult) {
+    let expected = load_expected("temporal_sustained");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let post = result.posterior.as_ref().expect("posterior");
+    let eq = post.effect_column().unwrap();
+    let mean = post.summaries.mean[eq];
+    assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    if expected["require_finite_p_below_zero"].as_bool().unwrap() {
+        assert!(post.probability_below(0.0).unwrap().is_finite());
+    }
+    if expected["require_artifact_round_trip"].as_bool().unwrap() {
+        let bytes = encode_causal_posterior_bytes(post, "temporal-sustained").unwrap();
+        let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
+        assert_eq!(meta.n_draws as usize, post.draws.n_draws);
+    }
+    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+}
+
+#[test]
+fn temporal_sustained_explicit_none() {
+    let result = run_staged_sustained(false, RefuteSuite::None).expect("staged estimate_series");
+    assert_sustained_mean(&result);
+    assert!(
+        result.refutations.is_empty(),
+        "refute=None must not run refuters, got {:?}",
+        result.refutations
+    );
+    assert!(
+        result.predictive_checks.is_empty(),
+        "refute=None must not run PPC, got {:?}",
+        result.predictive_checks
+    );
+}
+
+#[test]
+fn temporal_sustained_accepted_none() {
+    let result = run_staged_sustained(true, RefuteSuite::None).expect("staged estimate_series");
+    assert_sustained_mean(&result);
+    assert!(result.refutations.is_empty());
+    assert!(result.predictive_checks.is_empty());
+}
+
+/// `RefuteSuite::Cheap` runs the overlap+E-value validator suite plus, on the
+/// Bayesian temporal path, prior/posterior predictive checks whenever
+/// `refute != None` (`execute_temporal`,
+/// `crates/antecedent/src/analysis/execute/temporal_path.rs`).
+///
+/// **Known gap** (found while earning this cell, not fixed here — this test
+/// file cannot touch `execute/temporal_path.rs`): unlike the static Bayesian
+/// path (`execute_bayesian`, which pushes into both `refutations` *and*
+/// `result.predictive_checks`), `execute_temporal` folds the prior/posterior
+/// predictive checks into `refutations` only (as `RefutationReport`s named
+/// `"prior_predictive"` / `"posterior_predictive"`) and never populates
+/// `StudyResult::predictive_checks`. The PPC computation itself genuinely
+/// runs (this is not the `execute_pag_bayesian`-style "claims a check it
+/// skips" bug) — the check's *result* is just not surfaced through the field
+/// callers would normally read it from. Assert against `refutations`, and
+/// assert the gap explicitly so a future fix is visible as a test change
+/// here, not a silent pass.
+#[test]
+fn temporal_sustained_explicit_cheap() {
+    let result = run_staged_sustained(false, RefuteSuite::Cheap).expect("staged estimate_series");
+    assert_sustained_mean(&result);
+    assert!(
+        result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"),
+        "cheap suite should run prior PPC on the Bayesian temporal path, got {:?}",
+        result.refutations
+    );
+    assert!(
+        result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"),
+        "cheap suite should run posterior PPC on the Bayesian temporal path, got {:?}",
+        result.refutations
+    );
+    assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
+    // Gap: `execute_temporal` never populates `predictive_checks` (see doc comment above).
+    assert!(
+        result.predictive_checks.is_empty(),
+        "if this starts failing, execute_temporal now populates predictive_checks — \
+         update this test to assert on it instead of refutations and drop this comment"
+    );
+    // Prior sensitivity is Full-only; cheap must not add it.
+    assert!(
+        !result.refutations.iter().any(|r| r.refuter.contains("prior_sensitivity")),
+        "cheap suite must not run prior sensitivity, got {:?}",
+        result.refutations
+    );
+}
+
+#[test]
+fn temporal_sustained_accepted_cheap() {
+    let result = run_staged_sustained(true, RefuteSuite::Cheap).expect("staged estimate_series");
+    assert_sustained_mean(&result);
+    assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"));
+    assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"));
+    assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
+    assert!(result.predictive_checks.is_empty());
+}
+
+/// `RefuteSuite::Full` now completes for Bayesian `TemporalDag` effect queries
+/// (this used to hard-fail for *any* such query — the Pulse cell too, not just
+/// Sustained — see the fixed root cause below).
+///
+/// `ValidationSuite::full_effect()` adds `stability_effect()`
+/// (`ValidatorId::Bootstrap`, `ValidatorId::DataSubset`,
+/// `crates/antecedent-validate/src/suite.rs`). `Bootstrap`'s row-resampling
+/// (`with_resampled_rows`) never trips `ensure_unmasked`
+/// (`crates/antecedent-data/src/sample.rs`) because it keeps every originally-valid
+/// row (no mask is stamped when nothing was already invalid). `DataSubset` used to:
+/// it kept a random ~80% of rows via a row-hiding `analysis_mask`
+/// (`with_row_subset`), which `ensure_unmasked` unconditionally refuses for temporal
+/// designs (lag-gather indexes raw row positions, so a masked-out row would corrupt
+/// the lag alignment). `DataSubsetRefuter` now keeps one random *contiguous* window
+/// of rows for temporal (non-panel) designs instead
+/// (`with_contiguous_row_window`, `crates/antecedent-validate/src/common.rs`):
+/// every retained row's immediate predecessor in the window is still its immediate
+/// predecessor in the original series, so lag semantics survive, and `refit_effect`
+/// rebuilds the series `TimeIndex` at the window's shorter length.
+///
+/// The `data.subset` refuter reports `passed: true` here — pinned below, not just
+/// smoke-tested — now that the fixture carries a real (fixed-seed, reproducible)
+/// additive noise term (`SUSTAINED_NOISE_SD` in `sustained_scm_series`) instead of the
+/// exact-zero-residual SCM this fixture used to pin. With genuine noise in the outcome
+/// equation, the conjugate-Gaussian posterior — and the spread of the ATE across
+/// contiguous-window replicates — has a real, non-degenerate scale (on the order of the
+/// OLS standard error, ~3.5e-3; see the constant's doc comment for the derivation), so
+/// the ~6e-4 shift between the full-sample estimate and the replicate-mean estimate is
+/// unremarkable sampling noise, not a many-sigma outlier. A zero/near-zero-residual SCM
+/// cannot exercise this refuter meaningfully: any nonzero shift, however tiny, reads as
+/// "many replicate-SDs out" against an essentially-zero spread, which is a fixture
+/// artifact rather than a finding about the estimator (see the previous revision of
+/// this file, which pinned exactly that `passed: false` artifact). This test now
+/// verifies the refuter does its job on an estimator it can actually evaluate.
+#[test]
+fn temporal_sustained_explicit_full_completes_with_data_subset_refuter() {
+    let result = run_staged_sustained(false, RefuteSuite::Full)
+        .expect("RefuteSuite::Full now completes for Bayesian TemporalDag");
+    assert_sustained_mean(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+#[test]
+fn temporal_sustained_accepted_full_completes_with_data_subset_refuter() {
+    let result = run_staged_sustained(true, RefuteSuite::Full)
+        .expect("RefuteSuite::Full now completes for Bayesian TemporalDag");
+    assert_sustained_mean(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+/// Pins the `data.subset` refuter's exact output on the Bayesian `temporal_sustained`
+/// fixture (see the doc comment above): pinning the numbers (not just `is_finite()`)
+/// pins that the refuter genuinely passes with a healthy, well-away-from-`alpha`
+/// p-value on this now-non-degenerate estimator, and not merely "happens to be >=
+/// 0.05" by an accident that a future change could silently erode.
+fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
+    let subset = result
+        .refutations
+        .iter()
+        .find(|r| r.refuter.as_ref() == "data.subset")
+        .expect("data.subset refuter must have run under RefuteSuite::Full");
+    assert!(
+        (subset.original_ate - 0.703_919_322_460_684).abs() < 1e-9,
+        "unexpected original_ate: {}",
+        subset.original_ate
+    );
+    assert!(
+        (subset.refuted_ate - 0.704_541_213_927_508_7).abs() < 1e-6,
+        "contiguous-window subset ATE should stay close to the original (lag semantics \
+         preserved, no gross corruption; the two differ only by ordinary sampling \
+         variation from the additive noise, ~6.2e-4 here); got {}",
+        subset.refuted_ate
+    );
+    assert!(
+        (subset.comparison - 0.850_007_214_382_272_2).abs() < 1e-6,
+        "expected a large p-value: with real additive noise the replicate spread across \
+         contiguous windows is on the order of the estimator's own standard error, so the \
+         ~6.2e-4 shift between original and subset ATE is unremarkable; got {}",
+        subset.comparison
+    );
+    assert!(
+        subset.passed,
+        "data.subset is expected to report passed=true here: once the fixture has a real \
+         (non-degenerate) noise term, the posterior/replicate spread is wide enough that a \
+         genuinely correct estimator is not flagged as unstable"
+    );
+    assert_eq!(subset.replicates, 20);
+    // The suite as a whole still completes even though one refuter reports a finding.
+    assert!(
+        result.refutations.iter().any(|r| r.refuter.as_ref() == "bootstrap.ci_coverage"),
+        "Full must also run Bootstrap (unaffected by the DataSubset fix)"
+    );
 }
 
 #[test]
