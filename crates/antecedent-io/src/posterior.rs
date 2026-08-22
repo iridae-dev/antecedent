@@ -66,6 +66,85 @@ pub struct CausalPosteriorWire {
     pub draws_encoding: String,
 }
 
+fn validate_posterior_meta(
+    meta: &CausalPosteriorWire,
+    draws: Option<&[f64]>,
+) -> Result<(), IoError> {
+    let quantities = meta.quantities.len();
+    if quantities == 0
+        || meta.mean.len() != quantities
+        || meta.sd.len() != quantities
+        || meta.q025.len() != quantities
+        || meta.q975.len() != quantities
+    {
+        return Err(IoError::Convert(
+            "posterior summaries must match a non-empty quantity schema".into(),
+        ));
+    }
+    if meta
+        .mean
+        .iter()
+        .chain(&meta.sd)
+        .chain(&meta.q025)
+        .chain(&meta.q975)
+        .any(|value| !value.is_finite())
+        || meta.sd.iter().any(|value| *value < 0.0)
+        || meta.q025.iter().zip(&meta.q975).any(|(lower, upper)| lower > upper)
+    {
+        return Err(IoError::Convert(
+            "posterior summaries must be finite with non-negative SD and ordered quantiles".into(),
+        ));
+    }
+    if !meta.unidentified_mass.is_finite() || !(0.0..=1.0).contains(&meta.unidentified_mass) {
+        return Err(IoError::Convert("posterior unidentified mass must lie in [0,1]".into()));
+    }
+    if meta.backend_id.trim().is_empty() || meta.n_draws == 0 {
+        return Err(IoError::Convert(
+            "posterior backend id must be non-blank and draw count must be positive".into(),
+        ));
+    }
+    if !matches!(
+        meta.identification.as_str(),
+        "NonparametricallyIdentified"
+            | "IdentifiedUnderParametricRestrictions"
+            | "IdentifiedUnderPriorRestrictions"
+            | "PartiallyIdentified"
+            | "GraphDependent"
+            | "NotIdentified"
+    ) {
+        return Err(IoError::Convert(format!(
+            "unknown posterior identification status `{}`",
+            meta.identification
+        )));
+    }
+    if !matches!(meta.draws_encoding.as_str(), "none" | "f64_le_colmajor") {
+        return Err(IoError::Convert(format!(
+            "unknown posterior draws encoding `{}`",
+            meta.draws_encoding
+        )));
+    }
+    if let Some(draws) = draws {
+        if draws.iter().any(|value| !value.is_finite()) {
+            return Err(IoError::Convert("posterior draws must be finite".into()));
+        }
+        let expected = if meta.draws_encoding == "none" {
+            0
+        } else {
+            usize::try_from(meta.n_draws)
+                .ok()
+                .and_then(|count| count.checked_mul(quantities))
+                .ok_or(IoError::TooLarge)?
+        };
+        if draws.len() != expected {
+            return Err(IoError::Convert(format!(
+                "posterior draws length {} != expected {expected}",
+                draws.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Encode a posterior artifact (CBOR meta + little-endian f64 column-major draws).
 ///
 /// # Errors
@@ -77,6 +156,7 @@ pub fn encode_posterior_artifact(
     artifact_id: &str,
     library_version: &str,
 ) -> Result<EncodedArtifact, IoError> {
+    validate_posterior_meta(meta, Some(draws_colmajor))?;
     let summary_only = meta.draws_encoding == "none";
     if summary_only {
         if !draws_colmajor.is_empty() {
@@ -152,22 +232,7 @@ pub fn decode_posterior_artifact(
         buf.copy_from_slice(chunk);
         draws.push(f64::from_le_bytes(buf));
     }
-    if meta.draws_encoding == "none" {
-        if !draws.is_empty() {
-            return Err(IoError::Convert(
-                "summary posterior encoding expects empty draws section".into(),
-            ));
-        }
-        return Ok((meta, draws));
-    }
-    let expected = meta.n_draws as usize * meta.quantities.len();
-    if draws.len() != expected {
-        return Err(IoError::Convert(format!(
-            "decoded draws {} != expected {}",
-            draws.len(),
-            expected
-        )));
-    }
+    validate_posterior_meta(&meta, Some(&draws))?;
     Ok((meta, draws))
 }
 
@@ -187,7 +252,9 @@ pub fn decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(
         )));
     }
     let access = reader.load_section("posterior.meta")?;
-    from_cbor(access.as_bytes())
+    let meta = from_cbor(access.as_bytes())?;
+    validate_posterior_meta(&meta, None)?;
+    Ok(meta)
 }
 
 /// Decode only posterior metadata from a memory-mapped artifact path.
@@ -206,16 +273,17 @@ pub fn decode_posterior_meta_from_path(
         )));
     }
     let access = reader.load_section("posterior.meta")?;
-    from_cbor(access.as_bytes())
+    let meta = from_cbor(access.as_bytes())?;
+    validate_posterior_meta(&meta, None)?;
+    Ok(meta)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn posterior_artifact_round_trip() {
-        let meta = CausalPosteriorWire {
+    fn valid_meta() -> CausalPosteriorWire {
+        CausalPosteriorWire {
             quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
             n_draws: 3,
             mean: vec![1.0],
@@ -228,7 +296,12 @@ mod tests {
             converged: true,
             hessian_condition: 10.0,
             draws_encoding: "f64_le_colmajor".into(),
-        };
+        }
+    }
+
+    #[test]
+    fn posterior_artifact_round_trip() {
+        let meta = valid_meta();
         let draws = vec![0.9, 1.0, 1.1];
         let art = encode_posterior_artifact(&meta, &draws, "test-post", "0.1.0").unwrap();
         let mut buf = Vec::new();
@@ -238,6 +311,22 @@ mod tests {
         assert_eq!(meta2.n_draws, 3);
         assert_eq!(draws2, draws);
         assert_eq!(meta2.backend_id, "laplace");
+    }
+
+    #[test]
+    fn posterior_rejects_invalid_mass_and_summary_shape() {
+        let draws = vec![0.9, 1.0, 1.1];
+        let mut invalid_mass = valid_meta();
+        invalid_mass.unidentified_mass = 1.1;
+        assert!(encode_posterior_artifact(&invalid_mass, &draws, "bad", "0.9.0").is_err());
+
+        let mut invalid_summary = valid_meta();
+        invalid_summary.q975.clear();
+        assert!(encode_posterior_artifact(&invalid_summary, &draws, "bad", "0.9.0").is_err());
+
+        let mut invalid_encoding = valid_meta();
+        invalid_encoding.draws_encoding = "opaque".into();
+        assert!(encode_posterior_artifact(&invalid_encoding, &draws, "bad", "0.9.0").is_err());
     }
 
     #[test]

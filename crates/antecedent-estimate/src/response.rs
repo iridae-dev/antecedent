@@ -22,17 +22,18 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalResponse, DerivativeScale, DerivativeWeighting, Diagnostic,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalResponse, DerivativeScale, DerivativeWeighting, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy, SupportDiagnostic,
-    SupportRegion, SupportReport, SupportStatus, TargetPopulation, VariableId,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
+    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
     FaerBackend, GamOptions, GamWorkspace, LocalQuadraticWorkspace, SmoothSpec, StatsError,
-    fit_gam, gaussian_density, gaussian_local_quadratic,
-    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
+    fit_gam, gaussian_density, gaussian_local_quadratic_influence_prechecked, normal_ppf,
+    silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -222,6 +223,7 @@ impl ContinuousResponseEstimator {
                 (value, uncertainty, support, "estimate.response.intervention_gcomp")
             }
         };
+        let assumptions = with_estimation_assumptions(assumptions, &query.functional);
         Ok(CausalResponse {
             estimand: query.functional.clone(),
             identification_status,
@@ -240,6 +242,11 @@ impl ContinuousResponseEstimator {
         identification_status: IdentificationStatus,
     ) -> Result<(), EstimationError> {
         query.validate()?;
+        if query.temporal.is_some() {
+            return Err(EstimationError::unsupported(
+                "static continuous-response estimator does not execute temporal response queries; use TemporalResponseEstimator",
+            ));
+        }
         if query.observation != ObservationSpec::Complete {
             return Err(EstimationError::unsupported(
                 "continuous-response estimator currently requires complete observations",
@@ -510,7 +517,13 @@ impl ContinuousResponseEstimator {
         let PseudoOutcome { values: pseudo, density_floor_rows } =
             self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
-        let point = gaussian_local_quadratic(&sample.treatments, &pseudo, at, bandwidth)?;
+        let local = antecedent_stats::gaussian_local_quadratic_influence(
+            &sample.treatments,
+            &pseudo,
+            at,
+            bandwidth,
+        )?;
+        let point = local.point;
         let estimate = transform_point_derivative(
             point.value,
             point.first_derivative,
@@ -520,9 +533,9 @@ impl ContinuousResponseEstimator {
             scale,
         )?;
         let derivative_se = if order == 1 {
-            point.first_derivative_standard_error
+            local.robust_first_derivative_standard_error
         } else {
-            point.second_derivative_standard_error
+            local.robust_second_derivative_standard_error
         };
         let standard_error = match (order, scale) {
             (1 | 2, DerivativeScale::Identity) => derivative_se,
@@ -908,6 +921,49 @@ impl ContinuousResponseEstimator {
         )
         .map(Some)
     }
+}
+
+fn with_estimation_assumptions(
+    mut assumptions: AssumptionSet,
+    functional: &ResponseFunctional,
+) -> AssumptionSet {
+    let (id, description, algorithm) = match functional {
+        ResponseFunctional::MeanCurve { .. } => (
+            "response.kennedy_dr.nuisance_regularity",
+            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment smoothness/positivity; reported local-polynomial bands condition on the fitted nuisances and selected bandwidth.",
+            "estimate.response.kennedy_dr",
+        ),
+        ResponseFunctional::PointDerivative { .. } => (
+            "response.kennedy_dr.nuisance_regularity",
+            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment differentiability/positivity; the local-polynomial derivative interval conditions on the fitted nuisances and caller-selected bandwidth.",
+            "estimate.response.point_derivative",
+        ),
+        ResponseFunctional::AverageDerivative { .. } => (
+            "response.riesz_ade.gaussian_score",
+            "The average-derivative augmentation uses a homoskedastic Gaussian treatment-score representer and an additive-GAM outcome derivative. Consistency requires the treatment score or outcome-derivative nuisance to be adequate; the scalar interval conditions on those fitted nuisances.",
+            "estimate.response.riesz_ade",
+        ),
+        ResponseFunctional::Jacobian { .. } | ResponseFunctional::DirectionalDerivative { .. } => (
+            "response.additive_gam.plugin",
+            "This response is an additive-GAM plug-in functional. Its numerical value depends on the additive outcome-surface restriction; treatment interactions are not learned unless represented by the fitted model.",
+            "estimate.response.gam_derivative",
+        ),
+        ResponseFunctional::InterventionResponse { .. } => (
+            "response.additive_gam.plugin",
+            "This response is an additive-GAM plug-in functional. Its numerical value depends on the additive outcome-surface restriction; treatment interactions are not learned unless represented by the fitted model.",
+            "estimate.response.intervention_gcomp",
+        ),
+    };
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(id),
+            description: Arc::from(description),
+        }),
+        source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    assumptions
 }
 
 #[derive(Clone, Debug)]
@@ -1826,6 +1882,11 @@ mod tests {
         assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(response.support.diagnostics[0].values.len(), 3);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
+        assert!(response.assumptions.entries.iter().any(|record| matches!(
+            &record.assumption,
+            Assumption::ParametricRestriction(restriction)
+                if restriction.id.as_ref() == "response.kennedy_dr.nuisance_regularity"
+        )));
         let tail = response
             .support
             .diagnostics
@@ -2398,6 +2459,74 @@ mod tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("explicit bandwidth"), "got {error}");
+    }
+
+    #[test]
+    fn static_estimator_refuses_temporal_response_attachment() {
+        let (data, a, y, x) = confounded_curve(100);
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.2, 0.2]))),
+        })
+        .with_temporal(
+            antecedent_core::TemporalResponseSpec::new(
+                [1u32],
+                antecedent_core::TemporalPolicy::pulse(0),
+                None,
+            )
+            .unwrap(),
+        );
+        let error = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("TemporalResponseEstimator"));
+    }
+
+    #[test]
+    fn point_derivative_reports_the_robust_influence_se() {
+        let (data, a, y, x) = confounded_curve(500);
+        let at = 0.2;
+        let bandwidth = 0.35;
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        });
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(bandwidth);
+
+        let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+        let pseudo = estimator.cross_fitted_pseudo_outcome(&sample).unwrap().values;
+        let local = antecedent_stats::gaussian_local_quadratic_influence(
+            &sample.treatments,
+            &pseudo,
+            at,
+            bandwidth,
+        )
+        .unwrap();
+        let response = estimator
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseUncertainty::Scalar { standard_error, .. } = response.uncertainty else {
+            panic!("expected scalar uncertainty");
+        };
+        assert!((standard_error - local.robust_first_derivative_standard_error).abs() < 1e-12);
+        assert!(
+            (standard_error - local.point.first_derivative_standard_error).abs() > 1e-8,
+            "fixture must distinguish robust and common-sigma derivative SEs"
+        );
     }
 
     #[test]

@@ -199,9 +199,14 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
     let prepared = analysis.prepare(&ctx).unwrap();
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    let post = result.posterior.expect("DBN mixture posterior");
+    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    let post = result.posterior.as_ref().expect("DBN mixture posterior");
+    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
+    let click_eq = click_post.effect_column().unwrap();
+    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!(post.summaries.mean[eq].is_finite());
     assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
 }
@@ -247,9 +252,14 @@ fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
     let prepared = analysis.prepare(&ctx).unwrap();
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    let post = result.posterior.expect("DBN mixture posterior");
+    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    let post = result.posterior.as_ref().expect("DBN mixture posterior");
+    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
+    let click_eq = click_post.effect_column().unwrap();
+    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!(post.summaries.mean[eq].is_finite());
     assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
 }

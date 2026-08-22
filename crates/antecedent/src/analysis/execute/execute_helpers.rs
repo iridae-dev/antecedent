@@ -335,13 +335,29 @@ pub(super) fn parametric_scm_identification(
         },
     );
     let estimand = IdentifiedEstimand::backdoor("gcm.parametric", Arc::from([]), functional);
+    let mut assumptions = antecedent_core::AssumptionSet::default();
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("gcm.supplied_structural_mechanisms"),
+                description: Arc::from(
+                    "Identification is conditional on the supplied acyclic structural mechanisms and their declared intervention semantics being an adequate model of the data-generating process.",
+                ),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("gcm.parametric"),
+        },
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
     let identification = IdentificationResult::from_parts(
         IdentificationStatus::IdentifiedUnderParametricRestrictions,
         query,
         vec![estimand.clone()],
         arena,
         DerivationTrace::default(),
-        antecedent_core::AssumptionSet::default(),
+        assumptions,
         Vec::new(),
         IdentificationPerformanceRecord::default(),
         None,
@@ -375,6 +391,7 @@ pub(super) fn identification_status_ok_for_case(status: IdentificationStatus) ->
         IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
     )
 }
 
@@ -388,7 +405,11 @@ pub(super) fn envelope_to_identification_result(
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {
             estimands.extend(case.result.estimands.iter().cloned());
-            assumptions = case.result.required_assumptions.clone();
+            for record in &case.result.required_assumptions.entries {
+                if !assumptions.entries.contains(record) {
+                    assumptions.push(record.clone());
+                }
+            }
             diagnostics.extend(case.result.diagnostics.iter().cloned());
         }
     }
