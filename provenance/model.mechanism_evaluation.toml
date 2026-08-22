@@ -5,8 +5,14 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Local Markov checks use linear-Gaussian partial-correlation tests and compare each node only with earlier topological nonparents; later nondescendants and non-Gaussian conditional-independence implications are omitted.",
+ "The report declares falsification when any unadjusted p-value is below alpha, without multiplicity correction across residual and local-Markov tests.",
+ "The permutation baseline scores only the final topological leaf and is an engineering heuristic not derived from the cited Local Markov result.",
+]
+
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Local Markov condition (testable implications of a causal graph)"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Local Markov condition only; does not source the residual-independence or permutation heuristics"] },
 ]
 
 upstream_implementations_observed = []

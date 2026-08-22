@@ -10,6 +10,13 @@ papers = [
  { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["complete FCI orientation rule set (phase 5)"] },
 ]
 
+implementation_deviations = [
+ "Both adjacency and Possible-D-Sep subset testing are bounded by max_cond_size, which defaults to 3.",
+ "Possible-D-Sep expansion is limited to 10000 nodes and fails closed when exhausted.",
+ "The static orientation stack omits Zhang R5-R7 and substitutes stricter LPCMCI-primed R9/R10 bodies for the corresponding unprimed static rules.",
+ "Discriminating and uncovered-path searches have fixed path-count and length budgets and fail closed when exceeded.",
+]
+
 upstream_implementations_observed = [
  { project = "causal-learn", exposure = "black-box comparison only" },
 ]

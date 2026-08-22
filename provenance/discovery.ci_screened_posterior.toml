@@ -11,10 +11,16 @@ papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
 ]
 
+implementation_deviations = [
+ "PC screening is a hard posterior-support restriction: any edge removed by the finite-depth, BH-adjusted PC screen has zero posterior probability.",
+ "The optional Bayes-factor and posterior-dependence soft weights are calculated only for a diagnostic note; they do not bias MCMC proposals despite the feature description.",
+ "The retained support is sampled using the Gaussian-BIC structure-MCMC pseudo-posterior and inherits its finite-chain and graph-size limits.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/ci_screened_posterior.rs unit tests",
- "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
- "conformance/discovery/graph_mcmc_exact",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (CI-screened sampler against exact restricted three-node Gaussian-BIC targets)",
+ "conformance/discovery/graph_mcmc_exact (component target fixture; no citation or external oracle covers the composed PC-screened posterior method)",
 ]

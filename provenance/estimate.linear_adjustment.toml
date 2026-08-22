@@ -9,6 +9,8 @@ papers = [
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment / regression"] },
 ]
 
+implementation_deviations = []
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]

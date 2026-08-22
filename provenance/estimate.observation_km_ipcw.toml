@@ -11,10 +11,17 @@ papers = [
  { title = "A note on the product-limit estimator under right censoring and left truncation", doi = "10.1093/biomet/74.4.883", sections = ["Section 2: delayed-entry product-limit estimator with each risk set restricted to subjects entered before and still at risk at the event time", "Left-truncated IPCW weight G(entry−)/G(time−) under independent censoring"] },
 ]
 
+implementation_deviations = [
+ "Estimates a single marginal censoring distribution and therefore requires unconditional independent censoring; covariate-conditional, stratified, and time-varying censoring models are unsupported.",
+ "Floors the estimated censoring survival at a configurable value, 0.01 by default, changing the cited product-limit IPCW equations when estimated survival approaches zero.",
+ "The estimator composition produces IPCW pseudo-outcomes for downstream response estimation but omits joint uncertainty from censoring-distribution estimation and the downstream outcome model.",
+ "The IPCW path covers right censoring with optional delayed entry and a left-censoring sign-reversal specialization; interval censoring, truncation, competing risks, and general survival functionals are outside the cited implementation.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-stats/src/observation.rs",
- "crates/antecedent-estimate/src/observation.rs",
- "conformance/response/observation_primitives (independent product-limit/IPCW fixture)",
+ "in-crate unit tests in crates/antecedent-stats/src/observation.rs for grouped product-limit IPCW, left limits, and delayed entry",
+ "in-crate integration tests in crates/antecedent-estimate/src/observation.rs for supported observation-mechanism composition and refusal paths",
+ "conformance/response/observation_primitives (clean-room closed-form product-limit/IPCW equation fixture; no external implementation parity claimed)",
 ]

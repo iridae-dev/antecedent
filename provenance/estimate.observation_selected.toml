@@ -10,20 +10,29 @@ papers = [
  { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
 ]
 
-# The AIPW path cross-fits both nuisances over deterministic row-index folds, so the
-# sample-splitting condition behind the Bang & Robins double-robustness argument holds
-# rather than being assumed. A fold whose training rows cannot support either model is
-# refused, never refit in sample. The IPW path deliberately keeps its in-sample
+# The AIPW path cross-fits both nuisances over deterministic row-index folds as a
+# deliberate modern extension; Bang & Robins' classical parametric
+# double-robustness result does not itself require sample splitting. A fold whose
+# training rows cannot support either model is refused, never refit in sample.
+# The IPW path deliberately keeps its in-sample
 # maximum-likelihood propensity, which is the published estimator for that correction.
-# Cross-fitting removes in-sample nuisance bias; it does not by itself license an interval,
+# Cross-fitting separates nuisance training from pseudo-value evaluation; it does not by
+# itself license an interval,
 # and no standard error is published from this path (`estimate_mean_curve` reports
 # `ResponseUncertainty::None`).
 cross_fitted = "aipw_only"
 
+implementation_deviations = [
+ "Restricts the observation nuisance to logistic regression and the augmented outcome nuisance to a Gaussian linear regression; the broader nuisance-model and estimating-equation classes in Bang and Robins are unsupported.",
+ "The default AIPW path uses deterministic five-fold cross-fitting, which is a deliberate modern sample-splitting extension rather than the estimator described in Bang and Robins 2005.",
+ "Fitted observation probabilities are floored at 0.01 by default, changing the published IPW and AIPW equations under limited observation positivity.",
+ "Produces corrected pseudo-outcomes and point response curves but intentionally publishes no joint nuisance-adjusted standard error or confidence interval.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-stats/src/observation.rs",
- "crates/antecedent-estimate/src/observation.rs",
- "conformance/response/observation_primitives (independent AIPW equation fixture)",
+ "in-crate unit tests in crates/antecedent-stats/src/observation.rs for selected-outcome IPW and AIPW pseudo-value equations",
+ "in-crate integration tests in crates/antecedent-estimate/src/observation.rs for out-of-fold nuisance use, latent-mean recovery, and unsupported-fold refusal",
+ "conformance/response/observation_primitives (clean-room closed-form AIPW equation fixture; no external implementation parity claimed)",
 ]

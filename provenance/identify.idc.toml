@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Delegates its line-2 subproblem to the incomplete ID implementation and therefore is not a complete implementation of the cited IDC algorithm.",
+ "When IDC rule 2 moves a conditioning variable into the intervention set, the implementation assigns the concrete placeholder value Int64(0); the resulting functional is wrong for conditioning values other than zero instead of retaining the conditioning value symbolically.",
+ "Supports only hard Set interventions and finite-domain symbolic normalization.",
+]
+
 papers = [
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["Algorithm IDC, lines 1-2"] },
 ]
@@ -14,6 +20,6 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "clean-room Shpitser-Pearl IDC recursion oracle (conformance/identify/idc)",
- "inline unit tests (crates/antecedent-identify/src/idc.rs)",
+ "frozen IDC fixture metadata; the executable test consumes only the unconditional reduction case (conformance/identify/idc)",
+ "unconditional reduction unit test (crates/antecedent-identify/src/idc.rs)",
 ]

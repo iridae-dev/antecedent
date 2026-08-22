@@ -10,6 +10,12 @@ papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score on the aligned lagged design"] },
 ]
 
+implementation_deviations = [
+ "Scores a stationary contemporaneous-plus-lag template using continuous Gaussian BIC, rather than the cited DBN method's Bayesian parameter integration and separately modelled initial network.",
+ "Exact enumeration is used only for at most 4 variables, lag at most 2, and at most 16 lag-edge bits; larger supported cases use finite template MCMC.",
+ "The engine refuses more than 48 lag-edge bits and uses the shared 63-bit contemporaneous adjacency representation.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

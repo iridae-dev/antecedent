@@ -16,6 +16,14 @@ papers = [
   { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator of the effect curve"] },
 ]
 
+implementation_deviations = [
+  "The implementation composes an observation-mechanism pseudo-outcome with the complete-data Kennedy response estimator. The cited missingness, censoring, and continuous-treatment papers do not derive this joint estimator or establish double robustness or efficiency for the composition.",
+  "Selected-outcome AIPW uses fixed logistic-selection and linear-outcome nuisance models with deterministic five-fold fitting and a 0.01 probability floor; the plain IPW path fits the selection model in-sample.",
+  "Censoring correction is limited to an unconditional Kaplan-Meier censoring distribution under marginal independent censoring, with a 0.01 survival floor; conditional censoring models and time-varying covariates are not implemented.",
+  "Only mean response curves are supported, and the downstream curve retains the Kennedy estimator's Gaussian local-quadratic kernel, explicit bandwidth, and restricted additive-GAM nuisances.",
+  "Joint uncertainty is deliberately omitted because complete-data curve intervals do not propagate estimation of the observation mechanism.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

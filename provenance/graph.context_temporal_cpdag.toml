@@ -6,8 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["same-skeleton / same-v-structure Markov equivalence characterization"] },
- { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["context variables (J-PCMCI+)"] },
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["static same-skeleton / same-v-structure characterization only; no context-augmented equivalence theorem is claimed"] },
+ { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["context-variable semantics from J-PCMCI+ only; discovery and latent-context identification are not implemented here"] },
+]
+
+implementation_deviations = [
+ "The implementation augments a TemporalCpdag with typed context nodes and edges; it does not implement J-PCMCI+, context-system discovery, conditional-independence testing, or latent-context identification.",
+ "Context insertion is representational and does not derive or certify a context-specific Markov equivalence class.",
+ "The static same-skeleton and same-v-structure theorem does not by itself establish completeness for temporal or context-augmented orientations.",
 ]
 
 upstream_implementations_observed = [
@@ -15,5 +21,5 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated Context node insertion on TemporalCpdag",
+ "TemporalCpdag context-node unit tests (crates/antecedent-graph/src/cpdag.rs)",
 ]

@@ -6,7 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal-Inverse-Gamma conjugate model comparison", "Bayes factors"] },
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Chapter 6 (posterior predictive checking)", "Chapter 7 (Bayes factors for model comparison)"] },
+]
+
+implementation_deviations = [
+ "Bayes-factor branches compare standardized Gaussian regressions y ~ [1, Z] and y ~ [1, Z, x] under fixed shared Normal-Inverse-Gamma hyperparameters and equal prior model odds; these are library-specific choices rather than a procedure specified by the cited textbook.",
+ "PosteriorPredictiveCi uses a custom absolute residual-correlation discrepancy, repeated posterior refits, and an add-one Monte Carlo p-value rather than a cited conditional-independence procedure.",
 ]
 
 upstream_implementations_observed = []

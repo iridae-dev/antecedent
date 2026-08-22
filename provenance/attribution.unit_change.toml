@@ -9,6 +9,10 @@ papers = [
  { title = "Explaining the root causes of unit-level changes", doi = "10.48550/arXiv.2206.12986", sections = ["Section 4.1 (coarse-grained counterfactual Shapley attribution for any mechanism type)"] },
 ]
 
+implementation_deviations = [
+ "Uses each outcome parent as a separate player, one fitted mechanism, and global parent means as the background point; cited Section 4.1 uses two players—the whole input vector and the mechanism—with explicit background and foreground units and mechanisms.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]

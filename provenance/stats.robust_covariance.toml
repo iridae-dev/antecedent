@@ -13,6 +13,11 @@ papers = [
  { title = "Computing Robust Standard Errors for Within-Groups Estimators", doi = "10.1111/j.1468-0084.1987.mp49004006.x", sections = ["panel cluster + within-unit temporal HAC"] },
 ]
 
+implementation_deviations = [
+ "Multiway clustering is limited to four dimensions, applies a G/(G-1) correction separately to each inclusion-exclusion subset, and rejects materially negative combined meat; these are explicit finite-sample and numerical policies.",
+ "Panel HAC combines within-unit score products with explicit integer-time Bartlett lags and a global effective lag. This is a repository-defined cluster-plus-HAC construction, not the within-groups covariance estimator stated in the Arellano citation.",
+]
+
 upstream_implementations_observed = [
  { project = "statsmodels", exposure = "black-box comparison only" },
 ]

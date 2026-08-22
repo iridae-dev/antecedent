@@ -9,10 +9,15 @@ papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the shared Gaussian score"] },
 ]
 
+implementation_deviations = [
+ "Normalizes exp(Gaussian-BIC/2) times a simple graph prior as a graph posterior; this is a BIC pseudo-posterior rather than an integrated Bayesian posterior.",
+ "MCMC results are finite-chain empirical frequencies subject to R-hat and ESS gates, and graph states are limited to 63 directed-edge bits.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/graph_posterior.rs unit tests",
- "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
- "conformance/discovery/graph_mcmc_exact",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (shared machinery and composed samplers against small clean-room exhaustive Gaussian-BIC targets)",
+ "conformance/discovery/graph_mcmc_exact (three-node exhaustive Gaussian-BIC evidence; no paper or external oracle covers the composed shared MCMC machinery)",
 ]

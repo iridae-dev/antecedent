@@ -11,6 +11,8 @@ papers = [
  { title = "Statistical Tables for Biological, Agricultural and Medical Research", sections = ["Random permutation by successive random draws (Example 12, the origin of the Fisher-Yates shuffle)"] },
 ]
 
+implementation_deviations = []
+
 upstream_implementations_observed = []
 
 test_sources = [

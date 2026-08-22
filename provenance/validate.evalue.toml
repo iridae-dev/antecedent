@@ -9,6 +9,11 @@ papers = [
  { title = "Sensitivity Analysis in Observational Research: Introducing the E-Value", doi = "10.7326/M16-2607", sections = ["E-value formula", "risk-ratio conversion for continuous outcomes"] },
 ]
 
+implementation_deviations = [
+ "Computes only the point-estimate E-value after the approximate continuous-outcome conversion RR=exp(0.91*ATE/SD(Y)); it does not calculate the recommended E-value for the confidence-limit nearest the null.",
+ "Adds a default pass threshold of 2.0, whereas the cited method defines a continuous diagnostic and does not prescribe that verdict threshold.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

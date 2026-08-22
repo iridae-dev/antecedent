@@ -5,9 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Does not calculate Wright path-coefficient products or propagate coefficients through temporal lags; all contrasts emit the same static front-door-shaped mediation functional.",
+ "Direct, mediated, natural-direct, and natural-indirect labels do not produce distinct direct and indirect decompositions.",
+ "The graph check only requires some treatment-to-mediator edge and some mediator-to-outcome edge anywhere in the template; it does not verify one coherent lagged path, treatment-mediator or mediator-outcome confounding conditions, or cross-world identification assumptions.",
+ "Natural effects are optionally aliased to controlled effects under a declared linearity flag rather than identified by the cited natural-effect result.",
+]
+
 papers = [
- { title = "The Method of Path Coefficients", doi = "10.1214/aoms/1177732676", sections = ["path-product effect decomposition"] },
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["mediation formula / natural direct and indirect effects"] },
+ { title = "The Method of Path Coefficients", doi = "10.1214/aoms/1177732676", sections = ["path-product effect decomposition used as the intended reference, not implemented coefficient arithmetic"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["mediation formula and natural direct/indirect effects used as intended semantics, not an implemented identification proof"] },
 ]
 
 upstream_implementations_observed = [

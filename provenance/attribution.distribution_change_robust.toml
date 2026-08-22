@@ -9,6 +9,10 @@ papers = [
  { title = "Why did the distribution change?", doi = "10.48550/arXiv.2102.13384", sections = ["Section 4 (Sections 4.1 Shapley Values, 4.2 Attributing Marginal Distribution Change)"] },
 ]
 
+implementation_deviations = [
+ "Uses deterministic structural-mean payoffs—OLS recursion for linear mechanisms and zero-noise evaluation for nonlinear mechanisms—instead of the cited paper's sampled hybrid marginal distributions.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]

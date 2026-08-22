@@ -10,6 +10,11 @@ papers = [
  { title = "Measuring and Testing Dependence by Correlation of Distances", doi = "10.1214/009053607000000505", sections = ["distance covariance / distance correlation, substituted here for the paper's kernel-based mutual-information statistic T_kernel (Eqs. 9-14) as the residual-independence measure"] },
 ]
 
+implementation_deviations = [
+ "Exogeneity is scored with distance correlation rather than DirectLiNGAM's kernel mutual-information statistic T_kernel.",
+ "The final adjacency is ordinary OLS followed by a fixed absolute coefficient threshold and optional top-k parent truncation, rather than the reference method's adaptive-lasso pruning.",
+]
+
 upstream_implementations_observed = [
  { project = "lingam", exposure = "black-box comparison only" },
 ]

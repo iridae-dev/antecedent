@@ -10,6 +10,12 @@ papers = [
  { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["acyclicity / no-new-unshielded-collider orientation constraints"] },
 ]
 
+implementation_deviations = [
+ "The implementation exhaustively orients undirected CPDAG edges and filters by acyclicity, skeleton, and unshielded colliders; it does not derive or validate the input CPDAG through Meek closure.",
+ "Enumeration is limited to 63 undirected edges by the bit-mask representation and may retain only a caller-bounded deterministic prefix.",
+ "When the retention cap is hit, yielded DAGs are valid MEC members but are not the complete equivalence class and are not a representative random sample.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

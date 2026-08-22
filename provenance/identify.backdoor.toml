@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+  "Supports only single-treatment, single-outcome AverageEffect queries with hard Set contrasts on static DAGs.",
+  "Adjustment-set search is bounded: exhaustive enumeration stops above 40 candidates and results default to 64; larger problems use only an ancestral screen and an O-set-like fallback.",
+]
+
 papers = [
   { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.1"] },
 ]
@@ -15,6 +20,6 @@ upstream_implementations_observed = [
 
 test_sources = [
   "independently generated synthetic SCMs",
-  "property tests vs path-enumeration d-separation oracle",
-  "black-box comparison against pinned DoWhy baseline (conformance/estimate/linear_gaussian_ate)",
+  "consumed black-box identify() status/estimand-family comparison against pinned DoWhy 0.14 baseline (conformance/identify/general_id_backdoor_chain)",
+  "confounding_requires_z (crates/antecedent-identify/src/backdoor.rs)",
 ]

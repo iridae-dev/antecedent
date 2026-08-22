@@ -14,6 +14,10 @@ papers = [
  { title = "Causal structure-based root cause analysis of outliers", doi = "10.48550/arXiv.1912.02724", sections = ["Section 5 (Shapley attribution of a target's outlier to ancestor noise terms, ranked by absolute contribution)"] },
 ]
 
+implementation_deviations = [
+ "Only ranks externally supplied contributions by absolute magnitude, optionally averaging posterior draws; it does not implement the cited counterfactual noise-randomization and Shapley outlier-attribution procedure.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]
