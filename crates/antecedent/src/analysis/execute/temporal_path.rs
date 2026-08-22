@@ -104,7 +104,7 @@ impl super::Study {
             time_index: Some(data.time_index()),
             panel: None,
         };
-        let mut refutations = run_refuters(
+        let (mut refutations, na_diagnostics) = run_refuters(
             &tabular,
             &estimand,
             &ate_q,
@@ -121,6 +121,7 @@ impl super::Study {
             &self.custom_validators,
             Some(temporal_ctx),
         )?;
+        diagnostics.extend(na_diagnostics);
 
         // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
         let mut posterior = posterior;

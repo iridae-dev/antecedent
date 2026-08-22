@@ -91,7 +91,7 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, run_refuters,
+    push_conflict_diagnostics, run_refuters, validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -110,6 +110,16 @@ pub struct Study {
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
+    /// Set at [`crate::StudyBuilder::build`] when the caller did not call
+    /// `.refute(..)` explicitly and the default refute suite
+    /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
+    /// `RefuteSuite::None` because the requested cell was
+    /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
+    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
+    /// requested before the downgrade (always some suite other than
+    /// `None`); `None` here means no downgrade happened. Surfaced to the
+    /// caller as diagnostic `exec.refute.default_suite_unsupported`.
+    pub(crate) refute_default_downgrade: Option<RefuteSuite>,
     pub(crate) bootstrap_replicates: u32,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
@@ -144,6 +154,7 @@ impl std::fmt::Debug for Study {
             .field("support_status", &self.support_status)
             .field("query", &"<query>")
             .field("refute", &self.refute)
+            .field("refute_default_downgrade", &self.refute_default_downgrade)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
             .field("split", &self.split)
             .field("identifier", &self.identifier)
@@ -279,7 +290,14 @@ mod identify_only_tests {
 
     #[test]
     fn prepare_graph_posterior_ate_runs_identify_per_click() {
-        let _pin = include_str!("../../../../../conformance/bayesian/dag_posterior/expected.json");
+        // No known-truth fixture is consumed here: `conformance/bayesian/dag_posterior`
+        // pins discovery-algorithm skeleton/orientation/lag-edge posterior mass on
+        // chain/collider/DBN SCMs (see its `chain_fixture` / `collider_fixture` /
+        // `dbn_lag1_fixture`), not the mixture ATE this hand-built two-node
+        // `GraphPosterior` stub produces. This test is an internal cross-check
+        // only: it confirms `prepare()` + per-click `estimate()` reproduces the
+        // same ATE as a fresh `run()` on a graph-posterior study. The matching
+        // `parity/support_licensed.toml` cells reflect that (`internal_cross_check`).
         let gp = GraphPosterior::new(
             2,
             vec![1.0],

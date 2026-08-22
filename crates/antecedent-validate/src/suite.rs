@@ -124,6 +124,42 @@ pub enum ValidatorId {
     McmcDiagnostics,
 }
 
+impl ValidatorId {
+    /// Stable identifier string, for diagnostics and logs. Not necessarily identical to
+    /// the `refuter` name on the [`RefutationReport`] this validator would have produced
+    /// (a few validators — e.g. `LinearSensitivity` — dispatch to more than one report
+    /// name depending on the estimand); this is a validator id, not a report id.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Placebo => "placebo",
+            Self::RandomCommonCause => "random_common_cause",
+            Self::Bootstrap => "bootstrap",
+            Self::UnobservedCommonCause => "unobserved_common_cause",
+            Self::Overlap => "overlap",
+            Self::OverlapRule => "overlap_rule",
+            Self::DataSubset => "data_subset",
+            Self::DummyOutcome => "dummy_outcome",
+            Self::EValue => "evalue",
+            Self::Graph => "graph",
+            Self::LinearSensitivity => "linear_sensitivity",
+            Self::PartialLinearSensitivity => "partial_linear_sensitivity",
+            Self::NonparametricSensitivity => "nonparametric_sensitivity",
+            Self::Riesz => "riesz",
+            Self::PriorPredictive => "prior_predictive",
+            Self::PosteriorPredictive => "posterior_predictive",
+            Self::PriorSensitivity => "prior_sensitivity",
+            Self::McmcDiagnostics => "mcmc_diagnostics",
+        }
+    }
+}
+
+impl std::fmt::Display for ValidatorId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Outcome of one validator in a suite.
 #[derive(Clone, Debug)]
 pub enum ValidationOutcome {
@@ -293,6 +329,30 @@ impl ValidationSuite {
             .filter_map(|o| match o {
                 ValidationOutcome::Report(r) => Some(r.clone()),
                 ValidationOutcome::NotApplicable { .. } => None,
+            })
+            .collect()
+    }
+
+    /// Collect only the skipped ([`ValidationOutcome::NotApplicable`]) outcomes, as
+    /// `(validator, reason)` pairs.
+    ///
+    /// Pairs with [`Self::reports_only`]: together the two partition every outcome in
+    /// `outcomes`. Callers that build a caller-visible refutation list from
+    /// `reports_only` should also surface this list — e.g. as one diagnostic per
+    /// skipped validator — so a per-run skip is visible rather than silently dropped.
+    /// This is a *per-run, data-dependent* skip (this validator did not fit this run's
+    /// problem), not the support matrix's permanent typed impossibility
+    /// (`SupportRefusal::NotApplicable` / wire `not_applicable`); the same validator can
+    /// run cleanly on a different dataset against the same licensed cell.
+    #[must_use]
+    pub fn not_applicable_only(outcomes: &[ValidationOutcome]) -> Vec<(ValidatorId, Arc<str>)> {
+        outcomes
+            .iter()
+            .filter_map(|o| match o {
+                ValidationOutcome::Report(_) => None,
+                ValidationOutcome::NotApplicable { validator, reason } => {
+                    Some((*validator, Arc::clone(reason)))
+                }
             })
             .collect()
     }
