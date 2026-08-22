@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "tolerance_class": "StableFloat",
   "oracle": {
     "project": "DoWhy",
     "version": "0.14",
@@ -12,7 +13,9 @@
     "placebo_abs_max": 0.35,
     "dummy_outcome_abs_max": 0.25,
     "random_common_cause_abs_delta_max": 0.15,
+    "unobserved_common_cause_std_delta": 0.2225404918281506,
     "subset_abs_delta_max": 0.30,
-    "bootstrap_contains_original": true
+    "bootstrap_contains_original": true,
+    "evalue_point": 4.925393992471063
   }
 }

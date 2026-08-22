@@ -8,4 +8,4 @@
 
 ## Expected summary
 
-Top-level keys: `edges, expected_ate, horizon_steps, n, note, outcome, pulse_active_level, sampling_interval_ns, scm, tolerance_class, treatment, treatment_lag, true_effect_per_unit` (13 fields).
+Top-level keys: `ate_abs_tolerance, edges, expected_ate, horizon_steps, n, note, outcome, pulse_active_level, sampling_interval_ns, scm, tolerance_class, treatment, treatment_lag, true_effect_per_unit` (14 fields).
