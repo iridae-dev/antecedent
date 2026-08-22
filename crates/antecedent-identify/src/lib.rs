@@ -43,6 +43,9 @@ pub mod transport;
 
 #[cfg(test)]
 mod id_scm_property;
+/// Hidden parser for the frozen external `graph_dot` oracles used by tests.
+#[doc(hidden)]
+pub mod oracle_dot;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{

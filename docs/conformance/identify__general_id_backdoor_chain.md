@@ -2,13 +2,14 @@
 
 **Suite path:** `conformance/identify/general_id_backdoor_chain`
 
-Recorded pinned baseline 0.14 `identify_effect` output, frozen for the pending
-general ID / ID-IDC work.
+Recorded pinned baseline 0.14 `identify_effect` output for the confounded
+backdoor graph `Z -> T`, `Z -> Y`, `T -> Y`.
 
-**Not currently exercised.** No Rust or Python test loads this fixture. It is a
-recorded oracle awaiting the comparison gate that ships with full general ID, so
-it is not evidence that Antecedent's ID output has been compared against the
-baseline. See the `notes` field in `expected.json`.
+`antecedent-identify::backdoor::tests::confounding_requires_z` and
+`antecedent-identify::id::tests::backdoor_chain_identified` parse this fixture,
+check the frozen baseline status, graph, and backdoor estimand family, then
+require Antecedent's backdoor and general-ID implementations to identify the
+same graph.
 
 ## Expected summary
 

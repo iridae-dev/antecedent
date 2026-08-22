@@ -14,12 +14,13 @@ use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, Va
 use antecedent_expr::{
     Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec, InterventionAssignment,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Dag, DenseNodeId};
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::frontdoor::FrontDoorIdentifier;
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
+use crate::oracle_dot::admg_from_oracle_dot;
 use crate::result::IdentificationStatus;
 
 fn f(x: f64) -> Value {
@@ -250,45 +251,42 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
         "oracle must certify the front-door estimand for this graph"
     );
 
-    let mut g = Admg::with_variables(3);
-    let t = DenseNodeId::from_raw(0);
-    let m = DenseNodeId::from_raw(1);
-    let y = DenseNodeId::from_raw(2);
-    g.insert_directed(t, m).unwrap();
-    g.insert_directed(m, y).unwrap();
-    g.insert_bidirected(t, y).unwrap();
+    let (g, nodes) = admg_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
+    let t = nodes.id(fixture["treatment"].as_str().unwrap());
+    let y = nodes.id(fixture["outcome"].as_str().unwrap());
+    let m = nodes.id("m");
     let id = IdIdentifier::new();
     let prep = id.prepare(&g).unwrap();
-    let q = AverageEffectQuery::with_levels(v(0), v(2), 0.0, 1.0);
+    let q = AverageEffectQuery::with_levels(t, y, 0.0, 1.0);
     let mut ws = IdentificationWorkspace::default();
     let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
     assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
 
     let mut p = EmpiricalTableProvider::new();
-    for var in [v(0), v(1), v(2)] {
+    for var in [t, m, y] {
         p.set_domain(var, [f(0.0), f(1.0)]);
     }
     // P(T): U-marginal treatment law.
     for (tval, prob) in [(1.0, 0.60), (0.0, 0.40)] {
         let spec = FactorSpec {
-            variables: &[v(0)],
+            variables: &[t],
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
         };
-        p.insert_probability(&spec, &Assignment::from_pairs([(v(0), f(tval))]), prob).unwrap();
+        p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
     }
     // P(M | do(T)) = P(M | T): the mechanism is unconfounded.
     for (tlev, p_m1) in [(1.0, 0.9), (0.0, 0.2)] {
-        let interv = [InterventionAssignment { variable: v(0), value: f(tlev) }];
+        let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
         for (mval, prob) in [(1.0, p_m1), (0.0, 1.0 - p_m1)] {
             let spec = FactorSpec {
-                variables: &[v(1)],
-                conditioned_on: &[v(0)],
+                variables: &[m],
+                conditioned_on: &[t],
                 intervention: &interv,
                 domain: DomainRef::Interventional,
             };
-            let assign = Assignment::from_pairs([(v(1), f(mval)), (v(0), f(tlev))]);
+            let assign = Assignment::from_pairs([(m, f(mval)), (t, f(tlev))]);
             p.insert_probability(&spec, &assign, prob).unwrap();
         }
     }
@@ -307,13 +305,12 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
             let p1 = p_y1(tlev, mlev);
             for (yval, prob) in [(1.0, p1), (0.0, 1.0 - p1)] {
                 let spec = FactorSpec {
-                    variables: &[v(2)],
-                    conditioned_on: &[v(0), v(1)],
+                    variables: &[y],
+                    conditioned_on: &[t, m],
                     intervention: &[],
                     domain: DomainRef::Observational,
                 };
-                let assign =
-                    Assignment::from_pairs([(v(2), f(yval)), (v(0), f(tlev)), (v(1), f(mlev))]);
+                let assign = Assignment::from_pairs([(y, f(yval)), (t, f(tlev)), (m, f(mlev))]);
                 p.insert_probability(&spec, &assign, prob).unwrap();
             }
         }

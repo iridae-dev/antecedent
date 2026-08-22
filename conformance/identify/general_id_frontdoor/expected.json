@@ -10,7 +10,7 @@
     "baseline_pin": "parity/baselines/dowhy.toml",
     "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
-  "notes": "Pre-recorded identify() oracle for pending general ID / ID-IDC work. Rust gate will compare when estimate.identify.general_id ships.",
+  "notes": "Consumed by the general-ID front-door functional test and prepared ADMG parity test, which compare the frozen identified/front-door status and graph_dot on the same graph.",
   "reference": {
     "project": "dowhy",
     "available": true,

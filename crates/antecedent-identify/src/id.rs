@@ -1065,6 +1065,7 @@ mod tests {
     use super::*;
     use crate::error::IdentificationError;
     use crate::identifier::IdentificationWorkspace;
+    use crate::oracle_dot::{admg_from_oracle_dot, dag_from_oracle_dot};
     use crate::result::IdentificationStatus;
 
     fn chain_dag() -> Dag {
@@ -1079,9 +1080,29 @@ mod tests {
 
     #[test]
     fn backdoor_chain_identified() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/general_id_backdoor_chain/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["case"], "identifiable_backdoor");
+        assert_eq!(fixture["treatment"], "t");
+        assert_eq!(fixture["outcome"], "y");
+        assert_eq!(fixture["expected_status_family"], "identified");
+        assert!(
+            fixture["reference"]["outputs"]["estimand"]
+                .as_str()
+                .unwrap()
+                .contains("Estimand name: backdoor"),
+            "external oracle must identify the frozen Z -> T, Z -> Y, T -> Y graph by backdoor"
+        );
+
+        let (dag, nodes) = dag_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
         let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let prep = id.prepare_dag(&dag).unwrap();
+        let q = AverageEffectQuery::binary_ate(
+            nodes.id(fixture["treatment"].as_str().unwrap()),
+            nodes.id(fixture["outcome"].as_str().unwrap()),
+        );
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
@@ -1095,13 +1116,28 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(fixture["cases"][1]["certificate"].as_str(), Some("hedge"));
-        // t -> y with t ↔ y
-        let mut g = Admg::with_variables(2);
-        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let external: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/general_id_hedge/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(external["case"], "nonidentifiable_or_unidentified");
+        assert_eq!(external["treatment"], "t");
+        assert_eq!(external["outcome"], "y");
+        assert_eq!(external["expected_status_family"], "unidentified");
+        assert!(
+            external["reference"]["outputs"]["estimand"]
+                .as_str()
+                .unwrap()
+                .contains("No such variable(s) found!"),
+            "external oracle must refuse every standard identification strategy on the bow arc"
+        );
+        let (g, nodes) = admg_from_oracle_dot(external["graph_dot"].as_str().unwrap());
         let id = IdIdentifier::new();
         let prep = id.prepare(&g).unwrap();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let q = AverageEffectQuery::binary_ate(
+            nodes.id(external["treatment"].as_str().unwrap()),
+            nodes.id(external["outcome"].as_str().unwrap()),
+        );
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NotIdentified);
@@ -1110,17 +1146,18 @@ mod tests {
 
     #[test]
     fn frontdoor_admg_identified() {
-        // t -> m -> y, t ↔ y
-        let mut g = Admg::with_variables(3);
-        let t = DenseNodeId::from_raw(0);
-        let m = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        g.insert_directed(t, m).unwrap();
-        g.insert_directed(m, y).unwrap();
-        g.insert_bidirected(t, y).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/general_id_frontdoor/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["expected_status_family"], "identified");
+        let (g, nodes) = admg_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
         let id = IdIdentifier::new();
         let prep = id.prepare(&g).unwrap();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
+        let q = AverageEffectQuery::binary_ate(
+            nodes.id(fixture["treatment"].as_str().unwrap()),
+            nodes.id(fixture["outcome"].as_str().unwrap()),
+        );
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);

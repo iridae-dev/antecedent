@@ -923,17 +923,27 @@ fn prepared_pag_ate_runs_identify_per_click() {
 
 #[test]
 fn prepared_admg_ate_runs_identify_per_click() {
-    // Recorded-and-uncompared external identify() oracle for the frontdoor case
-    // (t -> m -> y with U -> t, U -> y latent confounding, i.e. t <-> y in
-    // the ADMG projection below). The oracle only pins the baseline identify()
-    // *status*, not a numeric ATE (see TODO.md sec. 4: full comparison is
-    // 1.x general-ID/IDC work). We consume the status field genuinely: the
-    // ADMG built below has exactly this shape, and we assert our own ID
-    // algorithm agrees it is identified.
+    // Frozen pinned-baseline identify() oracle for the frontdoor case (t -> m -> y with
+    // U -> t, U -> y, i.e. t <-> y in the ADMG projection below). The oracle
+    // pins identified/front-door status on this graph, not a numeric ATE.
     let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
     let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
     assert_eq!(expected["case"], "identifiable_frontdoor");
     assert_eq!(expected["expected_status_family"], "identified");
+    assert!(
+        expected["reference"]["outputs"]["estimand"]
+            .as_str()
+            .unwrap()
+            .contains("Estimand name: frontdoor"),
+        "oracle must certify the front-door estimand for this graph"
+    );
+
+    let (admg, nodes) = antecedent_identify::oracle_dot::admg_from_oracle_dot(
+        expected["graph_dot"].as_str().unwrap(),
+    );
+    let t_id = nodes.id(expected["treatment"].as_str().unwrap());
+    let y_id = nodes.id(expected["outcome"].as_str().unwrap());
+    let m_id = nodes.id("m");
 
     let n = 300usize;
     let mut t = Vec::with_capacity(n);
@@ -949,9 +959,9 @@ fn prepared_admg_ate_runs_identify_per_click() {
         y.push(f64::from(yi));
     }
     let mut b = CausalSchemaBuilder::new();
-    for name in ["t", "m", "y"] {
+    for name in nodes.observed() {
         b.add_variable(
-            name,
+            name.as_str(),
             ValueType::Continuous,
             SmallRoleSet::from_hint(RoleHint::Context),
             None,
@@ -963,27 +973,20 @@ fn prepared_admg_ate_runs_identify_per_click() {
     let schema = b.build().unwrap();
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                .unwrap(),
+            Float64Column::new(t_id, Arc::from(t), ValidityBitmap::all_valid(n)).unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
-                .unwrap(),
+            Float64Column::new(m_id, Arc::from(m), ValidityBitmap::all_valid(n)).unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
-                .unwrap(),
+            Float64Column::new(y_id, Arc::from(y), ValidityBitmap::all_valid(n)).unwrap(),
         ),
     ];
     let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
+    let query = AverageEffectQuery::binary_ate(t_id, y_id);
 
     // Confirm our own general-ID algorithm agrees with the pinned external
-    // status on this exact frontdoor shape (t -> m -> y, t <-> y).
+    // status on the ADMG projected from the frozen oracle DOT.
     let prepared_admg = antecedent_identify::IdIdentifier::new().prepare(&admg).unwrap();
     let mut workspace = antecedent_identify::IdentificationWorkspace::default();
     let id_result = antecedent_identify::IdIdentifier::new()

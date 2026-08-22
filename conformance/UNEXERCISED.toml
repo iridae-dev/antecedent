@@ -20,16 +20,6 @@
 # `blocked_on` (what has to ship before a consumer can exist).
 
 [[unexercised]]
-dir = "conformance/identify/general_id_backdoor_chain"
-reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
-blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
-
-[[unexercised]]
-dir = "conformance/identify/general_id_hedge"
-reason = "Frozen pinned-baseline 0.14 identify() oracle recorded ahead of the general ID / ID-IDC comparison gate; no consumer exists yet."
-blocked_on = "full general ID / IDC shipping with a comparison test (estimate.identify.general_id)"
-
-[[unexercised]]
 dir = "conformance/manufacturing/temporal_pressure_defect"
 reason = "The manufacturing temporal tests (crates/antecedent/tests/manufacturing_temporal.rs) generate their own series via manufacturing_series(n) and never read this fixture; it froze a scenario description nothing consumes."
 blocked_on = "either a test that loads this fixture and checks expected_ate under its SCM, or deletion if the in-test generator is judged the better record"
