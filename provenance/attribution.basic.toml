@@ -17,7 +17,12 @@ papers = [
  # first-order term beta^2*Var(parent), not the exact log-KL expression. Section 3
  # ("Problems of known definitions") is a critique of prior measures and defines nothing used
  # here.
- { title = "Quantifying causal influences", doi = "10.1214/13-AOS1145", sections = ["Section 6 (causal strength for linear structural equations); implementation uses the first-order variance term beta^2*Var(parent), not the exact log-KL expression"] },
+ { title = "Quantifying causal influences", doi = "10.1214/13-AOS1145", sections = ["Section 6 (causal strength for linear structural equations)"] },
+]
+
+implementation_deviations = [
+ "Anomaly attribution fits a Gaussian tail by median and MAD and replaces excluded ancestor noises by zero; the cited procedure evaluates counterfactual tail probabilities by randomizing excluded noises from their reference distributions.",
+ "Arrow strength reports beta^2 * Var(parent), the first-order numerator, rather than the cited normalized logarithmic causal-strength measure.",
 ]
 
 upstream_implementations_observed = [

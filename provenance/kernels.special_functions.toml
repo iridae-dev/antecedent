@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The cited Cody paper supports the erf and erfc rational approximations, but norm_inv is a separate Acklam rational approximation not covered by the papers list.",
+ "The implementation exposes normal CDF, survival, density, and quantile helpers beyond the cited paper's erf and erfc scope.",
+]
+
 # The CODY_A/B/C/D and CODY_P/Q rational-approximation coefficients in
 # crates/antecedent-kernels/src/special.rs are transcribed from Cody's published paper,
 # cited below — the paper IS the source, and its coefficient tables are the citable
@@ -23,5 +28,4 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-kernels/src/special.rs unit tests",
- "conformance/stats/rng_gaussian (SciPy statistical battery, exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
 ]

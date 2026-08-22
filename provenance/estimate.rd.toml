@@ -10,10 +10,18 @@ papers = [
  { title = "Regression Discontinuity Designs: A Guide to Practice", doi = "10.1016/j.jeconom.2007.05.001", sections = ["local-linear estimation"] },
 ]
 
+implementation_deviations = [
+ "Uses an unweighted rectangular window with a user-supplied symmetric bandwidth and a fixed local-linear specification; it does not implement kernel choice, data-driven bandwidth selection, or robust bias correction.",
+ "Reports a homoskedastic OLS intercept-difference standard error, with an optional ordinary row bootstrap, rather than modern heteroskedasticity-robust and bias-corrected local-polynomial RD inference.",
+ "Synthesizes treatment as the indicator that the running variable is at or above the cutoff and never reads or verifies the query's treatment column; treatment miscoding, noncompliance, and fuzzy RD are therefore not detected or estimated.",
+ "Supports neither covariate-adjusted RD nor manipulation, density, or continuity diagnostics.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
  "independently generated synthetic sharp-RD SCM with known jump size at the cutoff",
+ "conformance/estimate/rd_sharp (known-truth recovery fixture; its recorded DoWhy 0.14 attempt was unavailable and is not treated as parity evidence)",
 ]

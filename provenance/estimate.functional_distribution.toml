@@ -16,9 +16,16 @@ papers = [
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
 ]
 
+implementation_deviations = [
+ "This module evaluates an already identified expression using empirical conditional probability tables; it does not itself implement the full ID or IDC identification algorithms cited in the papers.",
+ "Supports only discrete variables with finite observed support, a maximum of 64 levels per variable, hard interventions, and unsmoothed empirical conditional tables; continuous or mixed-support functionals are unsupported.",
+ "Unobserved conditioning cells receive no smoothing or model-based extrapolation, so positivity failures and sparse cells are handled differently from a general nonparametric estimator.",
+ "Provides no analytic uncertainty calculation; optional uncertainty is an ordinary row bootstrap of the plug-in functional.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "conformance/estimate/functional_plugin (clean-room fixture: known interventional mean under backdoor confounding)",
+ "conformance/estimate/functional_plugin (clean-room known-truth fixture for one backdoor interventional mean; does not exercise IDC or general ID expressions)",
  "in-crate unit tests (crates/antecedent-estimate/src/functional_distribution.rs): plug-in matches known interventional mean, bootstrap SE finiteness, no-bootstrap replicate-count invariant",
 ]

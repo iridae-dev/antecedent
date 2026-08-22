@@ -10,11 +10,18 @@ papers = [
  { title = "High-recall causal discovery for autocorrelated time series with latent confounders", doi = "10.48550/arXiv.2007.01884", sections = ["R3', R9', R10' generalizations (weakly-minimal separating-set requirement on middle colliders); NOT present in Zhang 2008"] },
 ]
 
+implementation_deviations = [
+ "The static FCI rule set omits Zhang R5-R7, so it is not the complete orientation rule set when selection-bias tail-tail structures are possible.",
+ "Static FCI and RFCI reuse LPCMCI-primed R9 and R10: R9 adds a weakly-minimal-sepset requirement and R10 requires globally node-disjoint uncovered paths, both stricter than Zhang's unprimed static rules.",
+ "R4 discriminating paths are capped at 64 paths and length 8; R9 and R10 uncovered-path searches are capped at 8 paths and length 8, with fail-closed budget errors.",
+ "Contradictory orientations are represented by implementation-specific conflict endpoints rather than a paper-defined PAG mark.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/rule_scheduling_tests.rs",
  "crates/antecedent-discovery/src/discriminating_paths.rs unit tests",
- "conformance/discovery/rfci",
- "conformance/discovery/lpcmci_matrix",
+ "conformance/discovery/rfci (clean-room motif expectations)",
+ "conformance/discovery/lpcmci_matrix (Tigramite temporal skeleton only; PAG endpoints and middle marks are not compared)",
 ]

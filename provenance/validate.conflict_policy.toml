@@ -6,7 +6,13 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Checking for Prior-Data Conflict", doi = "10.1214/06-BA129", sections = ["Prior-data conflict measures used to inform prior discounting"] },
+ { title = "Checking for Prior-Data Conflict", doi = "10.1214/06-BA129", sections = ["Prior-data conflict diagnostic construction"] },
+]
+
+implementation_deviations = [
+ "The alpha update alpha'=alpha*1{p>p_min}*exp(-kl_scale*KL), including p_min=0.05 and kl_scale=1, is repository-defined and is not proposed by Evans and Moshonov.",
+ "Conflict signals use a mean-based prior-predictive Monte Carlo p-value and a Gaussian KL against the observed outcome mean with equal floored variance, not the cited minimally-sufficient-statistic conflict construction.",
+ "Missing conflict signals cause no discount and the result is clipped never to increase alpha; these are explicit engineering policies.",
 ]
 
 upstream_implementations_observed = []

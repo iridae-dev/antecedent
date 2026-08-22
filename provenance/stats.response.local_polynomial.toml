@@ -14,6 +14,12 @@ papers = [
  { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Section 3.2, pages 45 and 47: Gaussian normal-reference bandwidth h = 1.06 sigma n^(-1/5); used here only as a deterministic default heuristic"] },
 ]
 
+implementation_deviations = [
+ "Uses a Gaussian-kernel local quadratic fit, not the cited paper's optimal-kernel or asymptotic-minimax construction.",
+ "Uses Silverman's 1.06*sigma*n^(-1/5) density-estimation bandwidth with a range-based numerical floor; this is a deterministic default, not a local-polynomial bandwidth selector from the cited paper.",
+ "Reports repository-defined pointwise plug-in and influence-sandwich standard errors; it does not implement simultaneous bands or the cited paper's inferential theory.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

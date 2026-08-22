@@ -16,10 +16,15 @@ papers = [
  { title = "A new approach to causal inference in mortality studies with a sustained exposure period—application to control of the healthy worker survivor effect", doi = "10.1016/0270-0255(86)90088-6", sections = ["single-time-point g-computation substitution rule only — this module does not implement the paper's iterated formula for time-varying, treatment-affected confounders"] },
 ]
 
+implementation_deviations = [
+ "Implements only a single-time-point substitution contrast through a fitted outcome model; it does not implement Robins's iterated g-formula for sustained treatment, treatment-affected confounders, or longitudinal histories.",
+ "Evaluates active and control treatment values while holding one row's remaining design values fixed; population standardization, model fitting, and uncertainty are delegated to callers rather than implemented by this kernel.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "conformance/estimate/glm_adjustment (DoWhy-oracle fixture; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
+ "conformance/estimate/glm_adjustment (known-truth recovery fixture carrying an unasserted recorded DoWhy run; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
  "conformance/estimate/glm_adjustment_grid (statsmodels-oracle fixture; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
  "conformance/bayesian/shared_functional_ate (exercises gcomp.rs via crates/antecedent-estimate/src/bayesian.rs bayesian_gcomp path)",
 ]

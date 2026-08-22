@@ -10,6 +10,11 @@ papers = [
  { title = "The Control of the False Discovery Rate in Multiple Testing Under Dependency", doi = "10.1214/aos/1013699998", sections = ["harmonic-sum FDR correction under arbitrary dependence"] },
 ]
 
+implementation_deviations = [
+ "BH and BY adjusted-p-value calculations follow the cited procedures, but the feature also implements uncited Bonferroni and Holm corrections.",
+ "The default temporal-discovery family excludes contemporaneous tests from adjustment; this is a pinned baseline compatibility policy, not part of the BH or BY procedures.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

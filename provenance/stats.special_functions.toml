@@ -21,11 +21,16 @@ papers = [
  { title = "Rational Chebyshev Approximations for the Error Function", doi = "10.1090/S0025-5718-1969-0247736-4", sections = ["underlying erf/erfc via antecedent-kernels"] },
 ]
 
+implementation_deviations = [
+ "normal_ppf transcribes Acklam's published rational-approximation coefficients and applies one Halley refinement; Acklam's non-DOI note, rather than the listed Cody erf paper, is the direct source of that algorithm.",
+ "Student-t tails and quantiles plus incomplete-beta and incomplete-gamma routines use independently written classical continued-fraction and inversion procedures that are not specified by the listed paper.",
+ "The listed paper supports the delegated erf/erfc implementation in antecedent-kernels, not most algorithms implemented by this feature.",
+]
+
 upstream_implementations_observed = [
  { project = "Acklam inverse-normal-CDF algorithm", exposure = "none" },
 ]
 
 test_sources = [
  "crates/antecedent-stats/src/special.rs unit tests",
- "conformance/stats/rng_gaussian (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
 ]

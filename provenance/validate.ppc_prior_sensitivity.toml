@@ -7,8 +7,15 @@ copied_tests = false
 
 papers = [
  { title = "Sampling and Bayes' Inference in Scientific Modelling and Robustness", doi = "10.2307/2982063", sections = ["Prior predictive checking"] },
- { title = "Posterior Predictive Assessment of Model Fitness via Realized Discrepancies", sections = ["Posterior predictive p-values"] },
+ { title = "Posterior Predictive Assessment of Model Fitness via Realized Discrepancies", doi = "10.2307/2240839", sections = ["Posterior predictive p-values"] },
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Ch. 6: Model checking (secondary textbook treatment)"] },
+]
+
+implementation_deviations = [
+ "Prior and posterior predictive simulations propagate coefficient uncertainty through inverse-link fitted means but do not sample observation noise; their dispersion statistic is cross-row variation in fitted means rather than replicated-outcome dispersion.",
+ "Uses repository-defined two-sided Monte Carlo checks on outcome mean and dispersion with an alpha gate.",
+ "Prior sensitivity is a finite grid of isotropic prior scales or external-prior alpha multipliers, judged by a maximum relative effect-mean range; it is not specified by the predictive-check papers.",
+ "Simulation-based calibration, MCMC diagnostics, and related routing covered by this feature require separate provenance; they are not established by the listed predictive-check citations.",
 ]
 
 upstream_implementations_observed = []

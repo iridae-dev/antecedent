@@ -6,8 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["same-skeleton / same-v-structure Markov equivalence characterization"] },
- { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation rules / MPDAG completion"] },
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["static same-skeleton / same-v-structure Markov equivalence characterization only; no temporal construction theorem is claimed"] },
+ { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation-rule and MPDAG background only; TemporalCpdag stores marks but does not run MPDAG completion"] },
+]
+
+implementation_deviations = [
+ "TemporalCpdag is principally a marked-edge representation with lag metadata; it does not derive a CPDAG or MPDAG from a DAG, run the cited orientation rules, or certify Markov-equivalence-class completeness.",
+ "Temporal precedence is enforced through local endpoint and lag invariants, not through a complete temporal-equivalence characterization.",
+ "Contemporaneous partially directed structure is stored but not completed into all consistent time-series DAGs, and latent-confounded PAG semantics are outside this graph class.",
 ]
 
 upstream_implementations_observed = [
@@ -15,5 +21,5 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated temporal CPDAG mark invariants",
+ "TemporalCpdag mark-invariant unit tests (crates/antecedent-graph/src/cpdag.rs)",
 ]

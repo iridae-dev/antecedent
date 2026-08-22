@@ -20,10 +20,19 @@ papers = [
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["do-operator / truncated factorization (single-shot intervention-and-predict)"] },
 ]
 
+implementation_deviations = [
+ "This is a one-equation OLS prediction utility over caller-supplied lagged parents, not a fitted longitudinal g-formula, full structural equation model, or identified causal estimator.",
+ "Intervening replaces every included lag of the selected parent by one common level in the fitted one-step equation; effects are not recursively propagated through future states or mediating variables.",
+ "No explicit prediction horizon, sustained or dynamic treatment regime, treatment-confounder feedback, residual simulation, or multi-equation system is supported.",
+ "No uncertainty is returned. The Robins citation is conceptual provenance for intervention prediction, not a derivation of this estimator.",
+]
+
 upstream_implementations_observed = [
  { project = "tigramite", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
  "crates/antecedent-estimate/src/prediction.rs unit test `intervene_and_predict_batch` (lag-1 linear SEM, batch predict under do())",
+ "crates/antecedent/tests/context_effects.rs",
+ "conformance/context/prediction_smoke",
 ]

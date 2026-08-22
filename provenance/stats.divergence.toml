@@ -11,6 +11,13 @@ papers = [
  { title = "The Large-Sample Distribution of the Likelihood Ratio for Testing Composite Hypotheses", doi = "10.1214/aoms/1177732360", sections = ["asymptotic chi-square distribution of the Gaussian mean+variance change-point likelihood ratio"] },
 ]
 
+implementation_deviations = [
+ "The MMD path is one-dimensional, uses the biased statistic, selects an RBF bandwidth by an exact or seeded-subsampled pooled median heuristic, and obtains its p-value from a fixed repository permutation budget.",
+ "The Mann-Whitney path reports absolute AUC distance and a tie-corrected normal approximation without continuity correction.",
+ "The Gaussian likelihood-ratio method is specialized to two supplied segments with variance floors and a chi-square-2 approximation; it is not a general composite-hypothesis implementation.",
+ "Gaussian KL, mean-difference testing, and the permutation CUSUM change-point scan are additional algorithms not supported by the three listed papers.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

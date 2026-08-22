@@ -6,7 +6,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "The Method of Path Coefficients", doi = "10.1214/aoms/1177732676", sections = ["signed product-of-coefficients path tracing"] },
+ { title = "The Method of Path Coefficients", doi = "10.1214/aoms/1177732676", sections = ["path-tracing rules expressing associations as sums of signed products of path coefficients"] },
+]
+
+implementation_deviations = [
+ "Enumerates directed source-to-outcome paths and multiplies unstandardized fitted regression coefficients; Wright's path tracing uses standardized path coefficients and also admits appropriate common-cause or residual-correlation paths.",
 ]
 
 upstream_implementations_observed = []

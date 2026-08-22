@@ -10,6 +10,12 @@ papers = [
  { title = "Generalized Linear Models", doi = "10.1007/978-1-4899-3242-6", sections = ["logit/probit binomial", "log-link Poisson", "NB2 dispersion", "IRLS convergence diagnostics"] },
 ]
 
+implementation_deviations = [
+ "Binomial logit and probit fits use probability clamps and optionally replace a separated fit with a ridge-penalized refit using default lambda 1e-4.",
+ "Negative-binomial dispersion is selected by a repository policy: fixed alpha, a Poisson-based method-of-moments estimate, or a safeguarded nested one-dimensional MLE.",
+ "Convergence, separation, iteration limits, and numerical clamps are implementation policies rather than claims of reproducing one algorithm from the cited sources.",
+]
+
 upstream_implementations_observed = [
  { project = "statsmodels", exposure = "black-box comparison only" },
 ]

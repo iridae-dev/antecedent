@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "For non-Gaussian GLMs the posterior is represented by one local multivariate-normal approximation at the MAP with a diagonal Gaussian coefficient prior; skewness, multimodality, and prior hyperparameter uncertainty are not represented.",
+ "Supported likelihoods are limited to Gaussian identity, Bernoulli logit, Bernoulli probit, and Poisson log.",
+ "Gaussian identity with unknown residual variance is delegated to the exact conjugate Normal-Inverse-Gamma backend rather than approximated by Laplace.",
+]
+
 papers = [
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Laplace approximation"] },
 ]

@@ -9,6 +9,10 @@ papers = [
  { title = "Permutation Entropy: A Natural Complexity Measure for Time Series", doi = "10.1103/PhysRevLett.88.174102", sections = ["Ordinal pattern encoding"] },
 ]
 
+implementation_deviations = [
+ "Implements Bandt-Pompe ordinal-pattern codes only; it does not compute ordinal-pattern frequencies or permutation entropy.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

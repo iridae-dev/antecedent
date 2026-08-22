@@ -5,6 +5,10 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The hedge certificate stores only the two node sets returned at ID line 5; it does not construct or validate the directed and bidirected edge subgraphs, shared root set, or R-rooted C-forest properties required by the paper's hedge definition.",
+]
+
 papers = [
  { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", sections = ["Algorithm ID, line 5 (hedge / R-rooted C-forest pair)"] },
 ]
@@ -14,9 +18,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "hedge certificate case in clean-room ID oracle (conformance/identify/id_hedge)",
- # Recorded, NOT exercised: no test loads this fixture, so no black-box comparison
- # currently runs. Same correction as provenance/identify.id.toml; found by
- # scripts/gate_evidence_reachability.sh on its first run.
- "recorded-but-unexercised DoWhy non-identifiable-case oracle, pending general ID (conformance/identify/general_id_hedge)",
+ "clean-room ID status case expecting a hedge label (conformance/identify/id_hedge)",
+ "consumed DoWhy 0.14 non-identifiable status oracle (conformance/identify/general_id_hedge)",
+ "hedge_not_identified (crates/antecedent-identify/src/id.rs)",
 ]

@@ -5,6 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = []
+
 papers = [
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal–Inv-Gamma conjugate linear regression"] },
 ]

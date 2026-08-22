@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+  "Returns pairwise back-door AverageEffect witnesses for treatment-outcome pairs rather than identifying the requested joint response functional.",
+  "Vector treatments and outcomes are handled independently, so joint-intervention interactions and compatibility of pairwise adjustment sets are not represented.",
+  "Only hard binary-style active/control Set contrasts are emitted.",
+]
+
 papers = [
   { title = "Causal diagrams for empirical research", doi = "10.1093/biomet/82.4.669", sections = ["Section 3.1, Definition 3: back-door criterion", "Section 3.1, Theorem 1 and equation (6): adjustment formula"] },
 ]

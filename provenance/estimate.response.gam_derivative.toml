@@ -7,11 +7,20 @@ copied_tests = false
 
 # Antecedent fits the outcome GAM, averages its predictions after setting the
 # treatment coordinates, and obtains the gradient with a centered two-point
-# finite difference whose step is 1e-4 of the observed range. No analytic GAM
-# derivative or uncertainty theorem is claimed.
+# finite difference whose step is the maximum of 1e-4 of the observed range,
+# 1e-8 of the coordinate/range scale, and 1e-7. No analytic GAM derivative or
+# uncertainty theorem is claimed.
 papers = [
   { title = "Generalized Additive Models", doi = "10.1214/ss/1177013604", sections = ["Section 2: Gaussian additive model", "Sections 4 and 7: additive-model backfitting"] },
   { title = "Generation of Finite Difference Formulas on Arbitrarily Spaced Grids", doi = "10.1090/S0025-5718-1988-0935077-0", sections = ["Section 1, centered finite-difference derivative formulas; Antecedent uses the standard symmetric two-point first derivative"] },
+]
+
+implementation_deviations = [
+  "The fitted GAM is a custom identity-link additive cubic B-spline model with a fixed basis size and fixed ridge-style penalty, rather than the paper's generic local-scoring framework or data-adaptive smoothness selection.",
+  "The causal response and Jacobian are plug-in standardizations over observed adjustment rows; the GAM citation supplies a regression model, not identification or causal-validity results for this operation.",
+  "Derivatives are centered finite differences with step max(range times 1e-4, scale times 1e-8, 1e-7), rather than analytic derivatives of the fitted smooths.",
+  "At most two treatment coordinates are supported; interactions and joint-support estimation are absent, and support is checked only through marginal ranges.",
+  "The clamped spline basis forces derivatives to zero outside fitted ranges, and no uncertainty estimate is returned.",
 ]
 
 upstream_implementations_observed = [

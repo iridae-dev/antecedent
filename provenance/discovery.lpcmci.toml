@@ -9,14 +9,20 @@ papers = [
  { title = "High-recall causal discovery for autocorrelated time series with latent confounders", doi = "10.48550/arXiv.2007.01884", sections = ["LPCMCI"] },
 ]
 
+implementation_deviations = [
+ "Ancestral and non-ancestral removal searches are bounded by max_cond_size, which defaults to 3.",
+ "Discriminating and uncovered-path orientation searches use fixed 64-path or 8-path budgets and maximum path length 8, failing closed when exceeded.",
+ "The public FDR option defaults to BH but is ignored by the LPCMCI phase implementation; removals use unadjusted alpha decisions.",
+]
+
 upstream_implementations_observed = [
- { project = "tigramite", exposure = "black-box comparison only" },
+ { project = "tigramite", exposure = "black-box comparison only", notes = "Comparison covers canonical temporal skeletons only; PAG endpoints and middle marks are not compared" },
 ]
 
 test_sources = [
  "crates/antecedent-discovery/src/lpcmci.rs unit tests",
  "crates/antecedent-discovery/src/lpcmci_phases.rs unit tests",
- "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs",
+ "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs (Tigramite canonical temporal skeleton equality only)",
  "crates/antecedent-discovery/tests/lpcmci_evidence_reconciliation.rs",
- "conformance/discovery/lpcmci_matrix",
+ "conformance/discovery/lpcmci_matrix (frozen Tigramite skeleton evidence; PAG endpoint and middle-mark parity are untested)",
 ]

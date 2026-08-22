@@ -9,6 +9,12 @@ papers = [
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Bayesian g-computation / posterior predictive contrasts"] },
 ]
 
+implementation_deviations = [
+ "Implements a complete-case, all-observed, single-time-point parametric outcome regression with intercept, treatment, and adjustment-variable main effects; treatment interactions, nonlinear terms, longitudinal g-computation, and alternative target populations are unsupported.",
+ "The default posterior uses a Laplace approximation with an isotropic Gaussian coefficient prior rather than a generally exact posterior-predictive computation; conjugate Gaussian and HMC backends are optional alternatives.",
+ "The effect functional standardizes over the retained empirical covariate rows and treats that empirical distribution as fixed, so superpopulation covariate-distribution uncertainty is not propagated.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

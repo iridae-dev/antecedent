@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Does not implement the paper's direct complete generalized-adjustment algorithm; it streams graph completions and applies ordinary adjustment separately to each completion.",
+ "Completion and covariate enumeration default to hard caps of 32 completions and 16 candidate covariates, so class-level conclusions are exact only when those enumerations are exhaustive; capped mass is reported through an envelope.",
+]
+
 papers = [
  { title = "A Complete Generalized Adjustment Criterion", doi = "10.48550/arXiv.1507.01524", sections = ["generalized adjustment criterion for DAGs/MAGs/CPDAGs/PAGs"] },
 ]
@@ -14,5 +19,5 @@ upstream_implementations_observed = []
 test_sources = [
  "IdentificationEnvelope unidentified mass",
  "PAG completion envelope",
- "clean-room MAG-enumeration-plus-generalized-adjustment oracle (conformance/identify/generalized_adjustment)",
+ "frozen status and adjustment-set cases from a clean-room MAG-enumeration harness (conformance/identify/generalized_adjustment)",
 ]

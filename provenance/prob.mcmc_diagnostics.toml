@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Positive-lag autocovariances divide by split-chain length minus one rather than split-chain length as in the cited Vehtari/Stan ESS estimator, changing reported ESS values.",
+ "When split-chain length is even, the implementation's pair-count bound omits the final available autocorrelation pair.",
+ "Diagnostics are marginal scalar-parameter diagnostics only, with tail ESS fixed to the 5 percent and 95 percent indicator quantiles.",
+]
+
 papers = [
  { title = "Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["rank-normalized split R-hat", "folded R-hat", "bulk/tail ESS"] },
  { title = "Practical Markov Chain Monte Carlo", doi = "10.1214/ss/1177011137", sections = ["initial positive/monotone sequence ESS estimator"] },

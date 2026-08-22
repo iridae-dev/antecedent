@@ -20,6 +20,13 @@ papers = [
   { title = "Simultaneous bootstrap confidence bands in nonparametric regression", doi = "10.1080/10485259808832748", sections = ["Section 2: local-polynomial wild-bootstrap band construction", "Section 3: coverage conditions; cited as motivation, not claimed for Antecedent's conditional fixed-grid multiplier implementation"] },
 ]
 
+implementation_deviations = [
+  "The Kennedy pseudo-outcome nuisances are fixed additive penalized GAMs with deterministic folds and a homoskedastic Gaussian treatment-density model; this is a restricted implementation of the paper's generic cross-fitted nuisance estimators.",
+  "The response curve uses unbounded Gaussian local-quadratic smoothing rather than the cited local-linear construction, and requires a caller-supplied bandwidth rather than implementing data-driven bandwidth selection or undersmoothing.",
+  "The simultaneous band is a fixed-grid Rademacher multiplier band over stored local-fit influence residuals. It does not refit nuisances, reselect the bandwidth, or reproduce the cited wild-bootstrap procedure.",
+  "Coverage applies only to the requested finite grid; no continuum supremum, smoothing-bias correction, bandwidth uncertainty, or nuisance-selection uncertainty is represented.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

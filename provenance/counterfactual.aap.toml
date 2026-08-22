@@ -6,7 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Counterfactuals", "abduction-action-prediction (Ch. 7)"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 (structural counterfactuals and the abduction-action-prediction procedure)"] },
+]
+
+implementation_deviations = [
+ "Discrete and LGSSM mechanisms abduct one sampled posterior noise realization and condition prediction on that draw rather than integrating over the exogenous posterior required for counterfactual probabilities under non-invertible mechanisms.",
+ "Under ZeroFill, wholly absent factual columns are filled using prior noise draws, so those nodes are not abducted from factual evidence.",
 ]
 
 upstream_implementations_observed = [

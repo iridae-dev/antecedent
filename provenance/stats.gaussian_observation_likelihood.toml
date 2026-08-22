@@ -16,6 +16,11 @@ papers = [
  { title = "Inference on a progressive type I interval-censored truncated normal distribution", doi = "10.1080/02664763.2019.1679096", sections = ["Section 2, likelihood equation (5): interval contribution as a difference of normal CDF values and truncation normalization"] },
 ]
 
+implementation_deviations = [
+ "Implements exact, left-censored, right-censored, interval-censored, and exact-truncated observations as mutually exclusive row variants; it cannot represent an observation that is simultaneously censored and sampled from a truncated distribution as in the cited truncated-censoring models.",
+ "Provides likelihood contributions for supplied means and sigma only; it does not implement the papers' parameter estimators, EM algorithms, uncertainty calculations, or censoring-plan inference.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

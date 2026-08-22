@@ -14,6 +14,10 @@ papers = [
 # covariance with Young's inequality. It is not Aronow and Samii's Section 5
 # joint-exposure-probability variance estimator and carries no coverage theorem.
 
+implementation_deviations = [
+ "The conservative_variance result is a covariance-free Young-inequality upper-bound diagnostic; it is not Aronow and Samii's joint-exposure-probability variance estimator and carries no coverage guarantee.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

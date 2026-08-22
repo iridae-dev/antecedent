@@ -10,6 +10,13 @@ papers = [
  { title = "Independence properties of directed Markov fields", doi = "10.1002/net.3230200503", sections = ["directed global Markov property / moralization criterion"] },
 ]
 
+implementation_deviations = [
+ "The public API evaluates one node against one node rather than arbitrary sets X and Y from the paper's definition.",
+ "Queries with x equal to y or with an endpoint in the conditioning set are treated as connected instead of enforcing the paper's disjoint-set precondition.",
+ "The boolean result uses the exact ancestral-moral-graph criterion for DAGs, but the returned active_path is a path in the moralized ancestral graph and need not be an active trail in the original DAG.",
+ "The separated certificate merely records the conditioning set; it is not a constructive graphical proof or minimal separator.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

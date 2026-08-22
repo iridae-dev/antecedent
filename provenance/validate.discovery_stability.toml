@@ -14,8 +14,14 @@ copied_tests = false
 # no single introducing paper distinct from the primitives themselves. Honestly reported
 # rather than inventing a wrapper-methodology citation — see report for detail.
 papers = [
- { title = "The Stationary Bootstrap", doi = "10.1080/01621459.1994.10476870", sections = ["Moving-block resampling for dependent time series (block-bootstrap stability)"] },
+ { title = "The Stationary Bootstrap", doi = "10.1080/01621459.1994.10476870", sections = ["Dependent-series bootstrap motivation and contrast with the fixed-block implementation"] },
  { title = "Testing for Nonlinearity in Time Series: The Method of Surrogate Data", doi = "10.1016/0167-2789(92)90102-S", sections = ["Permutation and phase-randomized surrogate nulls"] },
+]
+
+implementation_deviations = [
+ "Block-bootstrap checks use fixed-length moving blocks, not the cited stationary bootstrap's geometrically distributed block lengths.",
+ "Orientation, regime, link-frequency, parameter-grid, synthetic-null, and environment-holdout wrappers and their replicate counts or verdict thresholds are repository-defined.",
+ "The surrogate citation supports the null-data primitives, but repeated PCMCI-family discovery and edge-frequency/FPR summaries are not procedures introduced by that paper.",
 ]
 
 upstream_implementations_observed = [

@@ -9,13 +9,19 @@ papers = [
  { title = "Reconstructing regime-dependent causal relationships from observational time series", doi = "10.1063/5.0020538", sections = ["regime-learning phase + per-regime PCMCI causal-discovery phase"] },
 ]
 
+implementation_deviations = [
+ "This is primarily a caller-labelled per-regime PCMCI+ wrapper, whereas Regime-PCMCI jointly learns persistent latent regime assignments and per-regime PCMCI graphs.",
+ "Optional assignment refinement uses hard per-time OLS residual reassignment from discovered lag-1 parents only; it omits the paper's regime-learning optimization, persistence constraints, and higher-lag or contemporaneous terms.",
+ "Short regimes are skipped under a fixed minimum-length policy, and failed refinement retains the preceding labelled result.",
+]
+
 upstream_implementations_observed = [
- { project = "tigramite", exposure = "black-box comparison only" },
+ { project = "tigramite", exposure = "black-box comparison only", notes = "RPCMCI import attempt failed on the earlier pin; fixed-label evidence compares independent per-regime PCMCI+ only" },
 ]
 
 test_sources = [
  "crates/antecedent-discovery/src/rpcmci.rs unit tests",
- "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs",
- "conformance/discovery/rpcmci_two_regime",
- "conformance/discovery/rpcmci_fixed_regime_matrix",
+ "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs (fixed caller labels, alternating disabled, per-regime PCMCI+ skeleton equality)",
+ "conformance/discovery/rpcmci_two_regime (library structure pin; external RPCMCI unavailable on the pinned version)",
+ "conformance/discovery/rpcmci_fixed_regime_matrix (Tigramite PCMCI+ per fixed regime; not RPCMCI regime-inference parity)",
 ]

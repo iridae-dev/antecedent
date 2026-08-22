@@ -6,7 +6,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Measuring and Testing Dependence by Correlation of Distances", doi = "10.1214/009053607000000505", sections = ["distance covariance / distance correlation"] },
+ { title = "Measuring and Testing Dependence by Correlation of Distances", doi = "10.1214/009053607000000505", sections = ["population and empirical distance covariance and distance correlation"] },
+]
+
+implementation_deviations = [
+ "Applies fixed-hyperparameter RBF kernel-ridge residualization before the cited biased sample distance correlation; the cited distance-correlation paper does not specify this GPDC construction.",
 ]
 
 upstream_implementations_observed = [
@@ -14,7 +18,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "gpdc_runs / gpdc_permutation_pvalue_separates_dependence unit tests (crates/antecedent-stats/src/ci/advanced.rs::tests)",
+ "crates/antecedent-stats/src/ci/advanced.rs (gpdc_runs and gpdc_permutation_pvalue_separates_dependence unit tests)",
  "conformance/discovery/ci_stats (gpdc_dep / gpdc_ind, black-box comparison against pinned Tigramite baseline)",
  "conformance/discovery/advanced_ci (gpdc_cases, black-box comparison against pinned Tigramite baseline)",
 ]

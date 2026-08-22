@@ -12,6 +12,13 @@ papers = [
  { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Ch. 3.4: rule-of-thumb bandwidth selection"] },
 ]
 
+implementation_deviations = [
+ "Does not compute the closed-form Cinelli-Hazlett robustness value from the treatment coefficient's t statistic and residual degrees of freedom.",
+ "Instead injects one seeded synthetic confounder into treatment and outcome at equal partial-R2 grid strengths, or a bounded analogue, refits, and reports the first grid point that explains away the estimate.",
+ "The nonparametric path uses repository-defined product-Gaussian Nadaraya-Watson residualization and a fixed normal-reference bandwidth policy before applying the same simulation grid.",
+ "The fixed partial-R2 grid and pass threshold 0.1 are repository policy.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only", notes = "conformance oracle formula is named after the R package sensemakr (Cinelli & Hazlett); no sensemakr or DoWhy code observed or ported" },
 ]

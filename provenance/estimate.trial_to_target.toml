@@ -9,6 +9,14 @@ papers = [
  { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.2: identification for a target population of nonparticipants", "Section 5.2, equation (2): inverse-odds weighting", "Section 5.3, equation (4): doubly robust estimator DR1"] },
 ]
 
+implementation_deviations = [
+ "The implementation evaluates the paper's time-fixed binary-treatment inverse-odds and DR1 equations using caller-supplied nuisance arrays; it does not estimate, tune, or cross-fit participation, randomization, or outcome models.",
+ "The target is restricted to the population of trial nonparticipants under direct Dahabreh-compatible identification. General target populations, longitudinal treatments, and recursive graphical transport are outside scope.",
+ "Only binary treatment contrasts are supported.",
+ "Probabilities are validated but not clipped or stabilized by the estimator; weak-overlap information is diagnostic only.",
+ "No sandwich, bootstrap, or influence-function uncertainty is returned, despite the cited paper providing inferential procedures.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
