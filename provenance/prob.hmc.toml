@@ -5,6 +5,13 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Uses fixed-length leapfrog trajectories with one scalar mass for every dimension; NUTS trajectory construction and mass-matrix adaptation are not implemented.",
+ "Dual averaging differs from NUTS Algorithms 5 and 6: mu is log(initial_step_size) rather than log(10 * initial_step_size), and step size is hard-clamped to [1e-6, 0.5].",
+ "The first retained transition is generated with the final unsmoothed warmup step size; the averaged step size is finalized only after that transition.",
+ "Divergence detection uses a fixed absolute Hamiltonian-error threshold of 1000 and publication requires zero post-warmup divergences.",
+]
+
 papers = [
  { title = "Hybrid Monte Carlo", doi = "10.1016/0370-2693(87)91197-X", sections = ["leapfrog integrator", "Metropolis correction"] },
  { title = "MCMC Using Hamiltonian Dynamics", doi = "10.1201/b10905-6", sections = ["Section 5.2 (leapfrog)", "Section 5.3 (fixed-trajectory HMC)"] },
@@ -16,5 +23,4 @@ upstream_implementations_observed = []
 test_sources = [
  "leapfrog reversibility unit test (crates/antecedent-prob/src/hmc.rs::tests::leapfrog_is_reversible)",
  "Gaussian-target HMC vs conjugate-Gaussian moment agreement (crates/antecedent-prob/src/hmc.rs::tests)",
- "conformance/bayesian/laplace_glm (shared Bayesian GLM fixture family)",
 ]

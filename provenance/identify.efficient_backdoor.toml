@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Implements the O-set only for a single-treatment, single-outcome hard-Set AverageEffect query on a static fully observed DAG.",
+ "When the O-set violates user constraints or fails the ordinary back-door check, the implementation falls back to bounded minimum-cardinality adjustment search; that fallback does not retain the paper's efficiency-optimality guarantee.",
+]
+
 papers = [
  { title = "Graphical Criteria for Efficient Total Effect Estimation via Adjustment in Causal Linear Models", doi = "10.1111/rssb.12451", sections = ["Theorem 3.13 (O-set optimal adjustment set)"] },
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["back-door criterion"] },

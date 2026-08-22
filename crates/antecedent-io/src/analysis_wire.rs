@@ -7,7 +7,10 @@ use std::sync::Arc;
 use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus, VariableId,
 };
-use antecedent_estimate::{EffectEstimate, OverlapPolicy};
+use antecedent_estimate::{
+    ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy, OverlapReport,
+    PropensityInterval,
+};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 use antecedent_validate::RefutationReport;
@@ -17,7 +20,9 @@ use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
 use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
-use crate::trace::{AssumptionRecordWire, DerivationStepWire, assumptions_to_wire};
+use crate::trace::{
+    AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
+};
 
 /// Effect estimate wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -32,6 +37,12 @@ pub struct EffectEstimateWire {
     pub bootstrap_replicates_ok: Option<u32>,
     /// Bootstrap failed.
     pub bootstrap_replicates_failed: Option<u32>,
+    /// Whether bootstrap stopped cooperatively after cancellation.
+    #[serde(default)]
+    pub bootstrap_cancelled: bool,
+    /// Whether adaptive bootstrap stopped after convergence.
+    #[serde(default)]
+    pub bootstrap_early_stopped: bool,
     /// Assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Overlap policy tag.
@@ -40,8 +51,60 @@ pub struct EffectEstimateWire {
     pub overlap_clip: Option<f64>,
     /// Trim.
     pub overlap_trim: Option<f64>,
+    /// Propensity-overlap evidence, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overlap_report: Option<OverlapReportWire>,
+    /// Weak-instrument first-stage evidence, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_stage_diagnostics: Option<FirstStageDiagnosticsWire>,
     /// Retained memory.
     pub retained_memory_bytes: Option<u64>,
+}
+
+/// Closed excluded propensity interval.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct PropensityIntervalWire {
+    pub low: f64,
+    pub high: f64,
+}
+
+/// Sensitivity of overlap evidence to clipping thresholds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct ClipSensitivityWire {
+    pub thresholds: Vec<f64>,
+    pub ess: Vec<f64>,
+    pub treated_ess: Vec<f64>,
+    pub control_ess: Vec<f64>,
+    pub extreme_weight_counts: Vec<u32>,
+}
+
+/// Propensity overlap evidence retained on an effect estimate.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct OverlapReportWire {
+    pub propensity_min: f64,
+    pub propensity_max: f64,
+    pub ess: Option<f64>,
+    pub extreme_weight_count: u32,
+    pub excluded_fraction: f64,
+    pub target_population_support: f64,
+    pub excluded_regions: Vec<PropensityIntervalWire>,
+    pub clip: Option<f64>,
+    pub trim: Option<f64>,
+    pub retained_fraction: f64,
+    pub clip_sensitivity: Option<ClipSensitivityWire>,
+}
+
+/// Weak-instrument first-stage evidence.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct FirstStageDiagnosticsWire {
+    pub f_statistic: f64,
+    pub df1: u64,
+    pub df2: u64,
+    pub partial_r2: f64,
 }
 
 /// Sharp RD design on the wire.
@@ -109,6 +172,9 @@ pub struct DiagnosticWire {
     pub message: String,
     /// Artifact id.
     pub artifact_id: Option<String>,
+    /// Structured diagnostic evidence retained losslessly.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<(String, String)>,
 }
 
 /// Refutation report wire.
@@ -147,36 +213,173 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         se_bootstrap: e.se_bootstrap,
         bootstrap_replicates_ok: e.bootstrap_replicates_ok,
         bootstrap_replicates_failed: e.bootstrap_replicates_failed,
+        bootstrap_cancelled: e.bootstrap_cancelled,
+        bootstrap_early_stopped: e.bootstrap_early_stopped,
         assumptions: assumptions_to_wire(&e.assumptions),
         overlap_policy,
         overlap_clip,
         overlap_trim,
+        overlap_report: e.overlap_report.as_ref().map(overlap_report_to_wire),
+        first_stage_diagnostics: e.first_stage_diagnostics.as_ref().map(|diagnostic| {
+            FirstStageDiagnosticsWire {
+                f_statistic: diagnostic.f_statistic,
+                df1: u64::try_from(diagnostic.df1).unwrap_or(u64::MAX),
+                df2: u64::try_from(diagnostic.df2).unwrap_or(u64::MAX),
+                partial_r2: diagnostic.partial_r2,
+            }
+        }),
         retained_memory_bytes: e.retained_memory_bytes,
     }
 }
 
-/// Decode effect estimate (overlap report dropped).
-#[must_use]
-pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> EffectEstimate {
+fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
+    OverlapReportWire {
+        propensity_min: report.propensity_min,
+        propensity_max: report.propensity_max,
+        ess: report.ess,
+        extreme_weight_count: report.extreme_weight_count,
+        excluded_fraction: report.excluded_fraction,
+        target_population_support: report.target_population_support,
+        excluded_regions: report
+            .excluded_regions
+            .iter()
+            .map(|region| PropensityIntervalWire { low: region.low, high: region.high })
+            .collect(),
+        clip: report.clip,
+        trim: report.trim,
+        retained_fraction: report.retained_fraction,
+        clip_sensitivity: report.clip_sensitivity.as_ref().map(|sensitivity| ClipSensitivityWire {
+            thresholds: sensitivity.thresholds.to_vec(),
+            ess: sensitivity.ess.to_vec(),
+            treated_ess: sensitivity.treated_ess.to_vec(),
+            control_ess: sensitivity.control_ess.to_vec(),
+            extreme_weight_counts: sensitivity.extreme_weight_counts.to_vec(),
+        }),
+    }
+}
+
+/// Decode an effect estimate without dropping its assumptions or diagnostic evidence.
+///
+/// # Errors
+///
+/// Invalid assumption labels or scopes.
+pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
     let overlap = match w.overlap_policy.as_str() {
         "require_diagnostics" => {
             OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
         }
-        _ => OverlapPolicy::ExplicitOverride,
+        "explicit_override" => OverlapPolicy::ExplicitOverride,
+        other => return Err(IoError::Convert(format!("unknown overlap policy `{other}`"))),
     };
-    EffectEstimate::from_parts(
+    let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
+    let first_stage = w
+        .first_stage_diagnostics
+        .as_ref()
+        .map(|diagnostic| {
+            if !diagnostic.f_statistic.is_finite()
+                || diagnostic.f_statistic < 0.0
+                || !diagnostic.partial_r2.is_finite()
+                || !(0.0..=1.0).contains(&diagnostic.partial_r2)
+                || diagnostic.df1 == 0
+                || diagnostic.df2 == 0
+            {
+                return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
+            }
+            Ok(FirstStageDiagnostics {
+                f_statistic: diagnostic.f_statistic,
+                df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
+                df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
+                partial_r2: diagnostic.partial_r2,
+            })
+        })
+        .transpose()?;
+    Ok(EffectEstimate::from_parts(
         w.ate,
         w.se_analytic,
         w.se_bootstrap,
         w.bootstrap_replicates_ok,
         w.bootstrap_replicates_failed,
-        false,
-        false,
-        antecedent_core::AssumptionSet::new(),
+        w.bootstrap_cancelled,
+        w.bootstrap_early_stopped,
+        assumptions_from_wire(&w.assumptions)?,
         overlap,
-        None,
+        overlap_report,
         w.retained_memory_bytes,
     )
+    .with_first_stage_diagnostics(first_stage))
+}
+
+fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, IoError> {
+    let finite = [
+        wire.propensity_min,
+        wire.propensity_max,
+        wire.excluded_fraction,
+        wire.target_population_support,
+        wire.retained_fraction,
+    ]
+    .into_iter()
+    .chain(wire.ess)
+    .all(f64::is_finite);
+    if !finite
+        || wire.propensity_min < 0.0
+        || wire.propensity_min > wire.propensity_max
+        || wire.propensity_max > 1.0
+        || wire.ess.is_some_and(|value| value < 0.0)
+        || !(0.0..=1.0).contains(&wire.excluded_fraction)
+        || !(0.0..=1.0).contains(&wire.target_population_support)
+        || !(0.0..=1.0).contains(&wire.retained_fraction)
+        || wire.excluded_regions.iter().any(|region| {
+            !region.low.is_finite()
+                || !region.high.is_finite()
+                || region.low < 0.0
+                || region.low > region.high
+                || region.high > 1.0
+        })
+    {
+        return Err(IoError::Convert("invalid propensity-overlap evidence".into()));
+    }
+    if let Some(sensitivity) = &wire.clip_sensitivity {
+        let len = sensitivity.thresholds.len();
+        if len == 0
+            || sensitivity.ess.len() != len
+            || sensitivity.treated_ess.len() != len
+            || sensitivity.control_ess.len() != len
+            || sensitivity.extreme_weight_counts.len() != len
+            || sensitivity
+                .thresholds
+                .iter()
+                .chain(&sensitivity.ess)
+                .chain(&sensitivity.treated_ess)
+                .chain(&sensitivity.control_ess)
+                .any(|value| !value.is_finite() || *value < 0.0)
+        {
+            return Err(IoError::Convert("invalid overlap clip-sensitivity evidence".into()));
+        }
+    }
+    Ok(OverlapReport {
+        propensity_min: wire.propensity_min,
+        propensity_max: wire.propensity_max,
+        ess: wire.ess,
+        extreme_weight_count: wire.extreme_weight_count,
+        excluded_fraction: wire.excluded_fraction,
+        target_population_support: wire.target_population_support,
+        excluded_regions: wire
+            .excluded_regions
+            .iter()
+            .map(|region| PropensityInterval { low: region.low, high: region.high })
+            .collect::<Vec<_>>()
+            .into(),
+        clip: wire.clip,
+        trim: wire.trim,
+        retained_fraction: wire.retained_fraction,
+        clip_sensitivity: wire.clip_sensitivity.as_ref().map(|sensitivity| ClipSensitivity {
+            thresholds: sensitivity.thresholds.clone().into(),
+            ess: sensitivity.ess.clone().into(),
+            treated_ess: sensitivity.treated_ess.clone().into(),
+            control_ess: sensitivity.control_ess.clone().into(),
+            extreme_weight_counts: sensitivity.extreme_weight_counts.clone().into(),
+        }),
+    })
 }
 
 /// Encode identification result.
@@ -289,7 +492,7 @@ pub fn identification_from_wire(
                 })
                 .collect(),
         },
-        antecedent_core::AssumptionSet::new(),
+        assumptions_from_wire(&w.required_assumptions)?,
         w.diagnostics.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
         IdentificationPerformanceRecord {
             candidates_examined: w.candidates_examined,
@@ -347,6 +550,7 @@ pub fn diagnostic_to_wire(d: &Diagnostic) -> DiagnosticWire {
         .into(),
         message: d.message.to_string(),
         artifact_id: d.artifact_id.as_ref().map(ToString::to_string),
+        fields: d.fields.iter().map(|(key, value)| (key.to_string(), value.to_string())).collect(),
     }
 }
 
@@ -373,7 +577,12 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
         },
         message: Arc::from(w.message.as_str()),
         artifact_id: w.artifact_id.as_ref().map(|a| Arc::<str>::from(a.as_str())),
-        fields: Arc::from([]),
+        fields: w
+            .fields
+            .iter()
+            .map(|(key, value)| (Arc::from(key.as_str()), Arc::from(value.as_str())))
+            .collect::<Vec<_>>()
+            .into(),
     })
 }
 
@@ -383,6 +592,7 @@ mod tests {
     use antecedent_expr::CausalExprArena;
 
     use super::*;
+    use crate::trace::{AssumptionRecordWire, AssumptionTagWire};
 
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
         let t = VariableId::from_raw(0);
@@ -410,6 +620,94 @@ mod tests {
             let back = identification_from_wire(&wire).unwrap();
             assert_eq!(back.status, status);
         }
+    }
+
+    fn descriptive_assumption() -> AssumptionRecordWire {
+        AssumptionRecordWire {
+            assumption: AssumptionTagWire::Custom {
+                id: "stable.assumption.id".into(),
+                description: Some("scientifically meaningful description".into()),
+            },
+            source: "derived:diagnostic-7".into(),
+            scope: "variables:[0,1]".into(),
+            status: "contradicted".into(),
+        }
+    }
+
+    #[test]
+    fn effect_estimate_preserves_assumption_evidence() {
+        let wire = EffectEstimateWire {
+            ate: 1.0,
+            se_analytic: 0.1,
+            se_bootstrap: Some(0.2),
+            bootstrap_replicates_ok: Some(99),
+            bootstrap_replicates_failed: Some(1),
+            bootstrap_cancelled: true,
+            bootstrap_early_stopped: true,
+            assumptions: vec![descriptive_assumption()],
+            overlap_policy: "require_diagnostics".into(),
+            overlap_clip: Some(0.01),
+            overlap_trim: Some(0.02),
+            overlap_report: Some(OverlapReportWire {
+                propensity_min: 0.01,
+                propensity_max: 0.98,
+                ess: Some(42.0),
+                extreme_weight_count: 2,
+                excluded_fraction: 0.1,
+                target_population_support: 0.9,
+                excluded_regions: vec![PropensityIntervalWire { low: 0.0, high: 0.02 }],
+                clip: Some(0.01),
+                trim: Some(0.02),
+                retained_fraction: 0.9,
+                clip_sensitivity: Some(ClipSensitivityWire {
+                    thresholds: vec![0.005, 0.01],
+                    ess: vec![40.0, 42.0],
+                    treated_ess: vec![20.0, 21.0],
+                    control_ess: vec![20.0, 21.0],
+                    extreme_weight_counts: vec![3, 2],
+                }),
+            }),
+            first_stage_diagnostics: Some(FirstStageDiagnosticsWire {
+                f_statistic: 12.0,
+                df1: 1,
+                df2: 98,
+                partial_r2: 0.2,
+            }),
+            retained_memory_bytes: Some(4096),
+        };
+        let domain = effect_estimate_from_wire(&wire).unwrap();
+        assert_eq!(effect_estimate_to_wire(&domain), wire);
+    }
+
+    #[test]
+    fn identification_result_preserves_required_assumption_evidence() {
+        let mut wire = identification_to_wire(&empty_id_result(
+            IdentificationStatus::NonparametricallyIdentified,
+        ))
+        .unwrap();
+        wire.required_assumptions = vec![descriptive_assumption()];
+        let domain = identification_from_wire(&wire).unwrap();
+        assert_eq!(
+            identification_to_wire(&domain).unwrap().required_assumptions,
+            wire.required_assumptions
+        );
+    }
+
+    #[test]
+    fn diagnostic_preserves_structured_evidence_fields() {
+        let diagnostic = Diagnostic {
+            code: Arc::from("support.overlap"),
+            kind: DiagnosticKind::Scientific,
+            severity: DiagnosticSeverity::Warning,
+            message: Arc::from("weak overlap"),
+            artifact_id: Some(Arc::from("artifact-7")),
+            fields: Arc::from([
+                (Arc::from("minimum_probability"), Arc::from("0.01")),
+                (Arc::from("effective_sample_size"), Arc::from("12.5")),
+            ]),
+        };
+        let wire = diagnostic_to_wire(&diagnostic);
+        assert_eq!(diagnostic_from_wire(&wire).unwrap(), diagnostic);
     }
 
     #[test]

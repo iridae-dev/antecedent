@@ -3,7 +3,7 @@
 Intentions from the 0.5 causal-response release through 1.0 and after.
 This is not a working checklist for an in-flight cut.
 
-Last updated: 2026-08-20
+Last updated: 2026-08-22
 
 ## How to read this
 
@@ -112,6 +112,9 @@ two-point temporal contrasts. 0.7 makes time a response, not a contrast.
 
 ## 0.9 — Audit and freeze
 
+Cutting as **0.9.0**. The bullets below are the 0.9 intent; they are not an
+open checklist.
+
 No new estimands. No new identification theories.
 
 - A 0.4-style correctness pass on the 0.5–0.7 estimators: places a curve can
@@ -121,8 +124,9 @@ No new estimands. No new identification theories.
   not a lie.
 - Rewrite `docs/capabilities.md` and `docs/comparison.md` against the support
   matrix. Release notes state the matrix, including explicit refusals.
-- Freeze the durable artifact format for 1.0 (package 1.0.0; format may remain
-  0.3 if migration and round trips already cover it).
+- Freeze durable artifact format 0.4 for package 1.0.0. The 0.9 audit found
+  no remaining wire hole: migration and cross-language round trips cover the
+  implemented query and result variants.
 - Confirm every claimed external oracle has a pinned baseline, frozen fixture,
   and consuming conformance test.
 

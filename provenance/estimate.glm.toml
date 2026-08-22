@@ -6,8 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Generalized Linear Models", doi = "10.1007/978-1-4899-3242-6", sections = ["logistic regression / IRLS"] },
+ { title = "Generalized Linear Models", doi = "10.1201/9780203753736", sections = ["logistic regression / IRLS"] },
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["g-computation / adjustment"] },
+]
+
+implementation_deviations = [
+ "Uses a fixed main-effects GLM design with intercept, treatment, and adjustment variables; treatment interactions, nonlinear terms, splines, and flexible outcome nuisance models are unsupported.",
+ "Reports an empirical g-computation contrast over complete-case all-observed rows rather than interpreting the treatment coefficient directly, and does not propagate uncertainty in the empirical target-population distribution.",
+ "For separated binomial fits the default path applies a ridge penalty of 1e-4, changing the unpenalized maximum-likelihood IRLS procedure described by the citation.",
 ]
 
 upstream_implementations_observed = [
@@ -16,4 +22,6 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic binary-outcome SCM with known sign of the treatment effect",
+ "conformance/estimate/glm_adjustment (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
+ "conformance/estimate/glm_adjustment_grid (direct statsmodels 0.14.4 coefficient and empirical g-computation oracle)",
 ]

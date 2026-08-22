@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Implements only a scalar, time-invariant LGSSM with unit observation loading and no controls, vector states, missing-observation handling, or general initial-state model.",
+ "Latent-state abduction samples each RTS smoothed marginal independently rather than drawing a joint smoothing trajectory by FFBS, so temporal posterior covariance is not preserved.",
+ "Innovation packing converts values to f32 and therefore loses precision relative to the f64 Kalman and RTS recursions.",
+]
+
 papers = [
  { title = "A New Approach to Linear Filtering and Prediction Problems", doi = "10.1115/1.3662552", sections = ["Recursive forward filter (Kalman filter)"] },
  { title = "Maximum Likelihood Estimates of Linear Dynamic Systems", doi = "10.2514/3.3166", sections = ["Fixed-interval smoother (Rauch-Tung-Striebel recursion)"] },

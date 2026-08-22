@@ -10,6 +10,13 @@ papers = [
  { title = "Survey Sampling", sections = ["Effective sample size (design effect)"] },
 ]
 
+implementation_deviations = [
+ "Combines two repository diagnostics: an eps=0.05 propensity-range plus ESS-fraction gate and a separate fixed [0.1, 0.9] retained-support rule.",
+ "Fits a diagnostic-only logistic propensity when the original estimator has no overlap report.",
+ "The Crump-style rule checks retained mass but does not derive the paper's sample-dependent optimal trimming threshold or re-estimate an effect on the trimmed target population.",
+ "The default ESS and retained-fraction pass thresholds are repository policy.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

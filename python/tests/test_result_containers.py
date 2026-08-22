@@ -145,7 +145,7 @@ def test_posterior_view_array_decodes_real_artifact():
         q025=[0.8],
         q975=[1.2],
         backend_id="conjugate",
-        identification="identified",
+        identification="NonparametricallyIdentified",
         quantity_names=["ate"],
     )
     encoded = native.encode_posterior_artifact(artifact)

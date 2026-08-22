@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `expected, oracle, schema_version, scm` (4 fields).
+Top-level keys: `expected, oracle, schema_version, scm, tolerance_class` (5 fields).

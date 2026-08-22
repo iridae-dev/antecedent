@@ -10,6 +10,11 @@ papers = [
  { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation rules R1-R4 (Meek rules)"] },
 ]
 
+implementation_deviations = [
+ "Skeleton search is bounded by max_cond_size, which defaults to 3, so higher-order separating sets are not considered by default.",
+ "The default applies Benjamini-Hochberg adjustment over the accumulated CI-test family, whereas the cited PC procedure uses fixed-alpha conditional-independence decisions.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

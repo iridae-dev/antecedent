@@ -65,6 +65,19 @@ impl Default for TemporalResponseEstimator {
 fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -> AssumptionSet {
     assumptions.push(AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("ols.linear_additive.gcomp"),
+            description: Arc::from(
+                "Temporal response levels use linear additive g-computation on each unfolded horizon. The numerical surface is model-dependent when the conditional outcome response is nonlinear or contains treatment-covariate interactions.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.temporal_response.gcomp"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from("ols.homoskedastic.pointwise"),
             description: Arc::from(
                 "Pointwise 95% band from the delta-method SE of the g-computed level, using the \
@@ -113,6 +126,20 @@ impl TemporalResponseEstimator {
         assumptions: AssumptionSet,
         ctx: &ExecutionContext,
     ) -> Result<CausalResponse, EstimationError> {
+        // This estimator is a public Rust entry point, not merely an internal
+        // continuation from the planner. Enforce the complete ResponseQuery
+        // contract here so callers cannot bypass treatment/outcome, observation,
+        // or intervention validation and still receive a numerical response.
+        query.validate()?;
+        if !matches!(
+            identification_status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        ) {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "temporal response estimation requires point identification",
+            });
+        }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
             EstimationError::unsupported(
                 "TemporalResponseEstimator requires ResponseQuery.temporal (ADR 0021)",
@@ -128,7 +155,7 @@ impl TemporalResponseEstimator {
             return Err(EstimationError::TargetPopulation);
         }
         let assumptions = with_pointwise_homoskedastic_ols_assumption(assumptions);
-        match &query.functional {
+        let mut response = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => self.estimate_mean_curve(
                 data,
                 identifications,
@@ -158,7 +185,12 @@ impl TemporalResponseEstimator {
             _ => Err(EstimationError::unsupported(
                 "temporal response is licensed only for MeanCurve and InterventionResponse",
             )),
-        }
+        }?;
+        // Preserve the exact query estimand. Reconstructing it in the numerical
+        // helpers changed Linspace into Values and erased a licensed single-step
+        // Sequence into a plain Set/Soft intervention.
+        response.estimand = query.functional.clone();
+        Ok(response)
     }
 
     fn estimate_mean_curve(
@@ -294,7 +326,7 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
             },
-            support: intervention_support(&eval_levels, temporal, &horizon_ranges),
+            support: intervention_support(&eval_levels, level, shift, temporal, &horizon_ranges),
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
             horizon_identification: Some(Arc::from(horizon_identification)),
@@ -545,15 +577,89 @@ fn mean_curve_support(
 
 fn intervention_support(
     eval_levels: &[f64],
+    level: Option<f64>,
+    shift: f64,
     temporal: &TemporalResponseSpec,
     horizon_ranges: &[HorizonTreatmentRange],
 ) -> SupportReport {
     let point_status: Vec<SupportStatus> = eval_levels
         .iter()
         .zip(horizon_ranges.iter())
-        .map(|(&dose, &(lo, hi))| cell_against_range(dose, lo, hi))
+        .map(|(&dose, &(lo, hi))| {
+            if level.is_some() {
+                cell_against_range(dose, lo, hi)
+            } else {
+                // A shift intervention evaluates the factual treatment law at
+                // A + delta, not just at E[A] + delta. The latter can sit inside
+                // [min(A), max(A)] while a large fraction of shifted rows are
+                // outside it. Classify the whole shifted interval instead.
+                shifted_range_against_range(shift, lo, hi)
+            }
+        })
         .collect();
-    assemble_temporal_support(eval_levels, temporal, horizon_ranges, point_status)
+    let shifted_extrapolation = level.is_none()
+        && point_status.iter().any(|status| *status == SupportStatus::Extrapolative);
+    let mut report = assemble_temporal_support(eval_levels, temporal, horizon_ranges, point_status);
+    // InterventionResponse has one result cell per horizon. Reusing the mean
+    // surface assembler used to claim an H x H dose-by-horizon layout even
+    // though both the estimate and point_status contain only H cells.
+    if let Some(layout) = report
+        .diagnostics
+        .iter_mut()
+        .find(|diagnostic| diagnostic.id.as_ref() == "response.temporal.dose_horizon_layout")
+    {
+        layout.id = Arc::from("response.temporal.intervention_horizon_layout");
+        layout.values = Arc::from([temporal.horizons.len() as f64]);
+        layout.detail = Arc::from("one intervention-response cell per requested horizon");
+    }
+    if level.is_none() {
+        let mut shifted_ranges = Vec::with_capacity(horizon_ranges.len().saturating_mul(2));
+        for &(lo, hi) in horizon_ranges {
+            shifted_ranges.push(lo + shift);
+            shifted_ranges.push(hi + shift);
+        }
+        let shifted_min = shifted_ranges.iter().step_by(2).copied().fold(f64::INFINITY, f64::min);
+        let shifted_max =
+            shifted_ranges.iter().skip(1).step_by(2).copied().fold(f64::NEG_INFINITY, f64::max);
+        report.query_region.minima =
+            Arc::from([shifted_min, f64::from(temporal.horizons.first().copied().unwrap_or(1))]);
+        report.query_region.maxima =
+            Arc::from([shifted_max, f64::from(temporal.horizons.last().copied().unwrap_or(1))]);
+        report.diagnostics.push(SupportDiagnostic {
+            id: Arc::from("response.temporal.shifted_treatment_range"),
+            values: Arc::from(shifted_ranges),
+            detail: Arc::from(
+                "per-horizon support requested by A + delta as [min_0+delta, max_0+delta, …]",
+            ),
+        });
+    }
+    if shifted_extrapolation {
+        report.warnings.push(Diagnostic::new(
+            "response.temporal.shift_distribution_extrapolative",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "the shifted treatment distribution extends beyond at least one horizon's observed treatment range",
+        ));
+    }
+    report
+}
+
+fn shifted_range_against_range(shift: f64, observed_min: f64, observed_max: f64) -> SupportStatus {
+    if !shift.is_finite() || !observed_min.is_finite() || !observed_max.is_finite() {
+        return SupportStatus::Extrapolative;
+    }
+    if shift == 0.0 {
+        return SupportStatus::Supported;
+    }
+    let shifted_min = observed_min + shift;
+    let shifted_max = observed_max + shift;
+    if !shifted_min.is_finite() || !shifted_max.is_finite() {
+        SupportStatus::Extrapolative
+    } else if shifted_max < observed_min || shifted_min > observed_max {
+        SupportStatus::OutsideEmpiricalSupport
+    } else {
+        SupportStatus::Extrapolative
+    }
 }
 
 fn assemble_temporal_support(
@@ -647,30 +753,39 @@ fn resolve_one(
     iv: &Intervention,
     depth: usize,
 ) -> Result<(VariableId, Option<f64>, f64), EstimationError> {
+    let finite_numeric = |value: &Value, kind: &'static str| {
+        value.as_f64().filter(|v| v.is_finite()).ok_or_else(|| {
+            EstimationError::unsupported(match kind {
+                "set" => "intervention Set requires a finite numeric value",
+                _ => "intervention Shift requires a finite numeric delta",
+            })
+        })
+    };
+    let one_finite_parameter = |mechanism: &MechanismOverride, family: &'static str| {
+        if mechanism.parameters.len() != 1 || !mechanism.parameters[0].is_finite() {
+            return Err(EstimationError::unsupported(match family {
+                "constant" => "Soft(constant) requires exactly one finite parameter",
+                _ => "Soft(additive_shift) requires exactly one finite parameter",
+            }));
+        }
+        Ok(mechanism.parameters[0])
+    };
     match iv {
         Intervention::Set { variable, value } => {
-            let level = value.as_f64().ok_or_else(|| {
-                EstimationError::unsupported("intervention Set requires a numeric value")
-            })?;
+            let level = finite_numeric(value, "set")?;
             Ok((*variable, Some(level), 0.0))
         }
         Intervention::Shift { variable, delta } => {
-            let d = delta.as_f64().ok_or_else(|| {
-                EstimationError::unsupported("intervention Shift requires a numeric delta")
-            })?;
+            let d = finite_numeric(delta, "shift")?;
             Ok((*variable, None, d))
         }
         Intervention::Soft { variable, mechanism } => match mechanism.family_id.as_ref() {
             "constant" => {
-                let level = mechanism.parameters.first().copied().ok_or_else(|| {
-                    EstimationError::unsupported("Soft(constant) requires a parameter")
-                })?;
+                let level = one_finite_parameter(mechanism, "constant")?;
                 Ok((*variable, Some(level), 0.0))
             }
             "additive_shift" => {
-                let d = mechanism.parameters.first().copied().ok_or_else(|| {
-                    EstimationError::unsupported("Soft(additive_shift) requires a parameter")
-                })?;
+                let d = one_finite_parameter(mechanism, "additive_shift")?;
                 Ok((*variable, None, d))
             }
             other => Err(EstimationError::data_msg(format!(
@@ -753,6 +868,20 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("not licensed"));
+    }
+
+    #[test]
+    fn non_finite_and_ambiguous_soft_parameters_fail_closed() {
+        let v = VariableId::from_raw(0);
+        let non_finite = resolve_one(&Intervention::set(v, Value::f64(f64::NAN)), 0).unwrap_err();
+        assert!(non_finite.to_string().contains("finite numeric"));
+
+        let too_many = resolve_one(
+            &Intervention::soft(v, MechanismOverride::named("additive_shift", vec![1.0, 2.0])),
+            0,
+        )
+        .unwrap_err();
+        assert!(too_many.to_string().contains("exactly one finite parameter"));
     }
 
     #[test]
@@ -879,6 +1008,79 @@ mod tests {
         (estimand, id_res.indexer)
     }
 
+    #[test]
+    fn public_entry_point_revalidates_query_and_identification_status() {
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(0), None).unwrap();
+        let invalid_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(0),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([-1.0, 1.0])),
+            ),
+        })
+        .with_temporal(temporal.clone());
+        let (data, _) = synthetic_series(100);
+        let err = TemporalResponseEstimator::new()
+            .estimate(
+                &data,
+                &[],
+                &invalid_query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("same variable"), "got {err}");
+
+        let valid_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([-1.0, 1.0])),
+            ),
+        })
+        .with_temporal(temporal);
+        let err = TemporalResponseEstimator::new()
+            .estimate(
+                &data,
+                &[],
+                &valid_query,
+                IdentificationStatus::NotIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("point identification"), "got {err}");
+    }
+
+    #[test]
+    fn response_preserves_the_exact_caller_estimand() {
+        let (data, graph) = synthetic_series(300);
+        let (estimand, indexer) = identify(&graph, 1);
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(0), None).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Linspace { start: -1.0, end: 1.0, points: 3 },
+            ),
+        })
+        .with_temporal(temporal);
+        let result = TemporalResponseEstimator::new()
+            .estimate(
+                &data,
+                &[(&estimand, &indexer)],
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap();
+        assert_eq!(result.estimand, query.functional);
+    }
+
     /// (a) `lower < mean < upper` strictly for every cell of the dose x horizon surface,
     /// and the band is symmetric about the mean.
     /// (b) A dose of exactly 0.0 in the grid produces a STRICTLY POSITIVE band width —
@@ -918,6 +1120,10 @@ mod tests {
             )),
             "temporal response must record the homoskedastic pointwise OLS assumption"
         );
+        assert!(result.assumptions.entries.iter().any(|r| matches!(
+            &r.assumption,
+            Assumption::ParametricRestriction(p) if p.id.as_ref() == "ols.linear_additive.gcomp"
+        )));
 
         let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
             &result.estimate
@@ -1193,9 +1399,54 @@ mod tests {
         let temporal =
             TemporalResponseSpec::new(vec![1u32, 2, 8], TemporalPolicy::pulse(0), None).unwrap();
         let ranges = [(-2.0, 2.0), (-1.0, 1.0), (-0.4, 0.4)];
-        let report = intervention_support(&[1.5, 1.5, 1.5], &temporal, &ranges);
+        let report = intervention_support(&[1.5, 1.5, 1.5], Some(1.5), 0.0, &temporal, &ranges);
         assert_eq!(report.status, SupportStatus::Extrapolative);
         assert_eq!(report.point_status.as_ref().unwrap().len(), 3);
+        let layout = report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.id.as_ref() == "response.temporal.intervention_horizon_layout"
+            })
+            .expect("intervention layout");
+        assert_eq!(layout.values.as_ref(), &[3.0]);
+    }
+
+    #[test]
+    fn shift_support_checks_the_shifted_law_not_only_its_mean() {
+        let temporal =
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(0), None).unwrap();
+        let ranges = [(0.0, 1.0)];
+
+        // E[A] + 0.4 = 0.9 is inside the observed range, but the shifted
+        // treatment law spans [0.4, 1.4] and therefore extrapolates.
+        let partial = intervention_support(&[0.9], None, 0.4, &temporal, &ranges);
+        assert_eq!(partial.status, SupportStatus::Extrapolative);
+        assert_eq!(partial.point_status.as_deref(), Some(&[SupportStatus::Extrapolative][..]));
+        assert!(partial.warnings.iter().any(|warning| {
+            warning.code.as_ref() == "response.temporal.shift_distribution_extrapolative"
+        }));
+        assert_eq!(partial.query_region.minima.as_ref(), &[0.4, 1.0]);
+        assert_eq!(partial.query_region.maxima.as_ref(), &[1.4, 1.0]);
+        let shifted = partial
+            .diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.id.as_ref() == "response.temporal.shifted_treatment_range"
+            })
+            .expect("shifted treatment range");
+        assert_eq!(shifted.values.as_ref(), &[0.4, 1.4]);
+
+        // A disjoint shifted law gets the stronger outside-support status.
+        let outside = intervention_support(&[2.5], None, 2.0, &temporal, &ranges);
+        assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(
+            outside.point_status.as_deref(),
+            Some(&[SupportStatus::OutsideEmpiricalSupport][..])
+        );
+
+        let identity = intervention_support(&[0.5], None, 0.0, &temporal, &ranges);
+        assert_eq!(identity.status, SupportStatus::Supported);
     }
 
     /// Extreme T only at the end of the series. A longer-horizon pulse looks

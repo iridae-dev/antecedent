@@ -9,6 +9,13 @@ papers = [
   { title = "Parameterising the effect of a continuous treatment using average derivative effects", doi = "10.1093/biomet/asag012", sections = ["Sections 3.1-3.2, Example 1: unweighted ADE and negative conditional-density-score Riesz representer", "Section 3.3, equation (6): influence curve for a weighted ADE", "Section 4.1, Theorem 4: sample-splitting conditions; Antecedent uses deterministic row folds with a homoskedastic Gaussian treatment-score restriction"] },
 ]
 
+implementation_deviations = [
+  "Only the unweighted average derivative effect under the observed treatment law is implemented; general weighted derivative functionals and alternative Riesz representers are outside scope.",
+  "The Riesz score is specialized to a homoskedastic Gaussian treatment model, using (A - E[A|X]) / sigma_squared with pooled residual variance. It equals the conditional-density score only under that restriction.",
+  "Outcome and treatment nuisances are fixed additive penalized GAMs without interactions, fitted using deterministic folds; the generic learner and rate conditions in the cited theory are not implemented.",
+  "Uncertainty is an iid empirical influence-score standard error. It does not account for clustered or serial dependence, nuisance tuning, model selection, or representer misspecification.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

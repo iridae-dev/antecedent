@@ -14,11 +14,13 @@ use antecedent_core::{
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::{
     AnalysisTraceWire, ArtifactKind, ArtifactManifest, CausalPosteriorWire, DerivationStepWire,
-    EncodedArtifact, FormatVersion, PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT,
-    SchemaWire, SchemaWireV01, SectionBytes, SemanticVersion, assumptions_to_wire, dag_to_wire,
+    EncodedArtifact, FormatVersion, ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire,
+    PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT, SchemaWire, SchemaWireV01, SectionBytes,
+    SemanticVersion, assumptions_to_wire, dag_to_wire, decode_model_bundle, encode_model_bundle,
     encode_posterior_artifact, from_cbor, migrate_artifact, read_and_migrate, schema_to_wire,
     section_descriptor, to_cbor,
 };
+use antecedent_model::{CompiledMechanismStore, MechanismSlot};
 use serde_json::Value;
 
 fn fixture_dir() -> PathBuf {
@@ -26,17 +28,28 @@ fn fixture_dir() -> PathBuf {
 }
 
 #[test]
-fn conformance_migrate_three_kinds_at_stable() {
+fn conformance_migrate_stable_kinds_round_trip() {
     let raw = fs::read_to_string(fixture_dir().join("expected.json")).unwrap();
     let v: Value = serde_json::from_str(&raw).unwrap();
     // Validate the fixture against the live constant rather than a second hardcoded
     // copy of it. The previous form asserted `minor == 2` against a fixture that also
     // said 2, so it agreed with itself while both drifted a full version behind
-    // `STABLE_FORMAT` (0.3) — the drift this fixture exists to catch.
+    // `STABLE_FORMAT` (now 0.4) — the drift this fixture exists to catch.
     assert_eq!(v["stable_format"]["major"], u64::from(STABLE_FORMAT.major));
     assert_eq!(v["stable_format"]["minor"], u64::from(STABLE_FORMAT.minor));
 
-    for art in [schema_graph_artifact(), analysis_trace_artifact(), posterior_artifact()] {
+    let artifacts = [
+        ("schema_graph", schema_graph_artifact()),
+        ("analysis_trace", analysis_trace_artifact()),
+        ("causal_posterior", posterior_artifact()),
+        ("model_bundle", model_bundle_artifact()),
+    ];
+    let fixture_kinds: Vec<&str> =
+        v["kinds"].as_array().unwrap().iter().map(|k| k.as_str().unwrap()).collect();
+    let tested_kinds: Vec<&str> = artifacts.iter().map(|(kind, _)| *kind).collect();
+    assert_eq!(fixture_kinds, tested_kinds);
+
+    for (_, art) in artifacts {
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
         let migrated = read_and_migrate(buf.as_slice()).unwrap();
@@ -52,7 +65,7 @@ fn conformance_migrate_three_kinds_at_stable() {
 }
 
 #[test]
-fn conformance_migrate_0_1_schema_to_0_2() {
+fn conformance_migrate_0_1_schema_to_stable() {
     let v01 = SchemaWireV01 { variable_names: vec!["x".into(), "y".into()] };
     let payload = to_cbor(&v01).unwrap();
     let art = EncodedArtifact {
@@ -171,6 +184,81 @@ fn posterior_artifact() -> EncodedArtifact {
         draws_encoding: "f64_le_colmajor".into(),
     };
     encode_posterior_artifact(&meta, &[1.0, 1.0], "p12-post", VERSION).unwrap()
+}
+
+fn model_bundle_artifact() -> EncodedArtifact {
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "x",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let mut dag = Dag::with_variables(2);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let mechanisms = CompiledMechanismStore {
+        slots: vec![
+            MechanismSlot::Constant { value: 0.0 },
+            MechanismSlot::LinearGaussian {
+                intercept: 0.1,
+                coeffs: Arc::from([0.5f64]),
+                sigma: 1.0,
+            },
+        ]
+        .into(),
+    };
+    encode_model_bundle(&ModelBundleEncode {
+        header: ModelBundleHeaderWire {
+            model_kind: ModelKindWire::Scm,
+            label: Some("p12-bundle".into()),
+        },
+        schema: &schema,
+        dag: &dag,
+        mechanisms: &mechanisms,
+        artifact_id: "p12-bundle",
+        contrast: None,
+        query: None,
+        analysis_trace: None,
+        identification: None,
+        estimate: None,
+        refutations: None,
+        logical_plan: None,
+        physical_plan: None,
+        performance: None,
+        diagnostics: None,
+        provenance: None,
+        posterior: None,
+        discovery: None,
+    })
+    .unwrap()
+}
+
+#[test]
+fn conformance_migrate_0_2_model_bundle_to_stable() {
+    let mut art = model_bundle_artifact();
+    art.manifest.format_version = FormatVersion { major: 0, minor: 2 };
+    art.manifest.minimum_reader_version = FormatVersion { major: 0, minor: 2 };
+    let migrated = migrate_artifact(art).unwrap();
+    assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
+    assert_eq!(migrated.manifest.minimum_reader_version, STABLE_FORMAT);
+    let bundle = decode_model_bundle(&migrated).unwrap();
+    assert_eq!(bundle.header.model_kind, ModelKindWire::Scm);
+    assert_eq!(bundle.schema.len(), 2);
+    assert_eq!(bundle.dag.node_count(), 2);
+    assert!(matches!(bundle.mechanisms.slots[1], MechanismSlot::LinearGaussian { .. }));
 }
 
 #[test]

@@ -11,6 +11,11 @@ paths-ignore:
   - "**/__pycache__/**"
   - "**/.codeql-db/**"
   - "**/.codeql-results/**"
+  # Developer worktrees are independent checkouts. Scanning them duplicates
+  # stale code outside the current release tree and can report already-fixed
+  # findings against ignored local state.
+  - "**/.claude/worktrees/**"
+  - "**/.refactor-ref/**"
   - "**/conformance/**/data.csv"
   - "**/parity/fixtures/**"
 

@@ -5,9 +5,14 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The weighting sampler is a self-normalized kernel-weighted ratio estimator, not a Horvitz-Thompson estimator; weights are clipped and normalized before estimation.",
+ "Continuous treatment localization and KDE use one-dimensional Gaussian kernels with a Silverman-style standard-deviation bandwidth and finite pilot samples.",
+ "The MCMC sampler is fixed random-walk Metropolis over a KDE pilot proxy, with fixed burn-in and thinning; it is not sampling the SCM joint distribution and reports acceptance rate but no multi-chain R-hat, ESS, or divergence diagnostics.",
+]
+
 papers = [
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions (mutilated-model / do-operator sampling)"] },
- { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["Horvitz-Thompson estimator (weighting do-sampler)"] },
  { title = "Density Estimation for Statistics and Data Analysis", doi = "10.1201/9781315140919", sections = ["Ch. 3.4: rule-of-thumb bandwidth selection (weighting kernel / KDE do-sampler bandwidth)"] },
  { title = "Survey Sampling", sections = ["Effective sample size of weighted estimators"] },
 ]

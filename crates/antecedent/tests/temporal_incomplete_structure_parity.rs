@@ -2,16 +2,10 @@
 //!
 //! `effective_graph_class` collapses an accepted temporal CPDAG/PAG to
 //! `TemporalDag` whenever `try_into_temporal_dag()` succeeds, so this cell is
-//! reached exactly when completion *fails*. Both `PulseEffect` and
-//! `SustainedEffect` reach it through the same policy-generic
-//! `(AnalysisRoute::TemporalEffect, GraphClass::TemporalCpdag/TemporalPag)`
-//! arms in `analysis/execute/compile.rs`, so the two must behave identically:
-//! `Study::build()` admits the cell and `run()` surfaces the specific
-//! `CausalError::Compile` naming the completion failure, never the generic
-//! "unlicensed and not allowed" support refusal and never a silent number.
-//!
-//! This file is the evidence behind the `PulseEffect` and `SustainedEffect`
-//! rows for this coordinate in `parity/support_allowlist.toml`.
+//! reached exactly when completion *fails*. 0.9 refuses that coordinate at
+//! `Study::build()` with a named completion reason (`parity/support_closed.toml`),
+//! not the generic unlicensed message and not a number. Successful completion
+//! still collapses to the `TemporalDag` cell.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,8 +13,8 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, CausalError, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
-    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
+    TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -135,38 +129,38 @@ fn single_step_sustained_query() -> CausalQuery {
     CausalQuery::TemporalEffect(q)
 }
 
-/// `build()` must admit the cell, and `run()` must fail with the specific
-/// completion `CausalError::Compile` -- not a support refusal, not a number.
-/// Swept across every validation suite, because the allowlist rows for this
-/// coordinate leave the validation axis unconstrained.
-fn assert_admitted_then_compile_error(graph: &AcceptedGraph, query: &CausalQuery, label: &str) {
+/// `build()` must refuse with the named completion reason — not a number,
+/// not the generic unlicensed message.
+fn assert_support_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery, label: &str) {
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-        let study = Study::series(series())
+        let err = Study::series(series())
             .graph(graph.clone())
             .query(query.clone())
             .refute(suite)
             .bootstrap_replicates(0)
             .build()
-            .unwrap_or_else(|e| panic!("{label}/{suite:?}: support gate refused build(): {e}"));
-        let ctx = ExecutionContext::for_tests(21);
-        let err = study.run(&ctx).err().unwrap_or_else(|| {
-            panic!("{label}/{suite:?}: incompletable structure must not produce an estimate")
-        });
+            .expect_err(&format!("{label}/{suite:?}: incompletable structure must not build"));
         assert!(
-            matches!(err, CausalError::Compile { .. }),
-            "{label}/{suite:?}: expected CausalError::Compile, got {err}"
+            matches!(err, CausalError::Support { .. }),
+            "{label}/{suite:?}: expected CausalError::Support, got {err}"
+        );
+        let msg = err.to_string();
+        assert!(msg.starts_with("refused:"), "{label}/{suite:?}: {msg}");
+        assert!(
+            msg.contains("try_into_temporal_dag") || msg.contains("completion"),
+            "{label}/{suite:?}: {msg}"
         );
     }
 }
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_admitted_then_compile_error(&incompletable_temporal_pag(), &pulse_query(), "pulse/pag");
+    assert_support_completion_refusal(&incompletable_temporal_pag(), &pulse_query(), "pulse/pag");
 }
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_admitted_then_compile_error(
+    assert_support_completion_refusal(
         &incompletable_temporal_cpdag(),
         &pulse_query(),
         "pulse/cpdag",
@@ -174,14 +168,14 @@ fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 }
 
 /// The `SustainedEffect` half of the same policy-generic compile arm. Before
-/// `parity/support_allowlist.toml` carried a matching `SustainedEffect` row,
-/// this refused at `build()` with the generic "neither licensed nor on the
-/// named running allowlist" message while the Pulse tests above reached the
-/// specific completion error -- an inconsistency between two policies of one
-/// query family sharing a single arm.
+/// the incomplete TemporalCpdag/Pag Pulse/Sustained cells were named as
+/// completion refusals, this refused at `build()` with the generic "neither
+/// licensed nor on the named running allowlist" message while the Pulse tests
+/// above reached the specific completion error -- an inconsistency between two
+/// policies of one query family sharing a single arm.
 #[test]
 fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_admitted_then_compile_error(
+    assert_support_completion_refusal(
         &incompletable_temporal_pag(),
         &single_step_sustained_query(),
         "sustained/pag",
@@ -190,17 +184,16 @@ fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
 
 #[test]
 fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_admitted_then_compile_error(
+    assert_support_completion_refusal(
         &incompletable_temporal_cpdag(),
         &single_step_sustained_query(),
         "sustained/cpdag",
     );
 }
 
-/// The allowlist row is Frequentist-only, matching its parent family: the whole
-/// running `SustainedEffect` family is Frequentist (Bayesian Sustained has no
-/// licensed or allowlisted cell anywhere), so the new row must not be broader
-/// than the family it rides.
+/// Incomplete TemporalCpdag/Pag still refuse Bayesian Sustained at `build()`.
+/// The licensed Bayesian Sustained cell is `TemporalDag` (explicit/accepted);
+/// completion failure is not that cell.
 #[test]
 fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refused() {
     for graph in [incompletable_temporal_pag(), incompletable_temporal_cpdag()] {
@@ -211,7 +204,7 @@ fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refuse
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
-            .expect_err("Bayesian Sustained is outside the allowlist row");
+            .expect_err("Bayesian Sustained on incomplete TemporalCpdag/Pag stays refused");
         assert!(
             matches!(err, CausalError::Support { .. }),
             "expected a support refusal, got {err}"

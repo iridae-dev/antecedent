@@ -296,8 +296,6 @@ def handle_response(
         IdentificationView,
         ResponseEnvelopeView,
         ResponseUncertainty,
-        ResponseValidationCheck,
-        ResponseValidationView,
         ResponseView,
         SupportDiagnostic,
         SupportReport,
@@ -307,8 +305,10 @@ def handle_response(
     if discovery is not None:
         if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
             raise CausalUnsupportedError(
-                "not_applicable: Structural uncertainty around curves is contrast-only; "
-                "graph-posterior mixtures do not license a response cell."
+                "refused: Graph-posterior response is a contract choice, not typed "
+                "impossibility: the ATE envelope (retained unidentified mass) is the "
+                "same object a curve arm would use. This cut does not license a "
+                "response mixture."
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
@@ -333,7 +333,7 @@ def handle_response(
         if isinstance(query, InterventionResponse):
             raise CausalUnsupportedError(
                 "refused: InterventionResponse executes only on a supplied static Dag, the "
-                "same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no "
+                "same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no "
                 "Response compile arm."
             )
         raise CausalUnsupportedError(
@@ -342,8 +342,6 @@ def handle_response(
     if getattr(query, "is_temporal", False):
         from .estimation import _lagged_edges, _wrap_prepared_response
 
-        if discovery is not None:
-            raise ValueError("temporal response queries do not yet support discovery=")
         if isinstance(inference, Bayesian):
             raise TypeError("temporal response queries do not support inference=Bayesian(...)")
         if not isinstance(graph, (TemporalDag, list, tuple)):
@@ -409,6 +407,7 @@ def handle_response(
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
+            refute=refute if refute_requested else False,
         )
         return _wrap_prepared_response(temporal_raw, query)
     if (
@@ -656,6 +655,7 @@ def handle_response(
             multiplier_seed=cast(int, response_options.get("multiplier_seed", seed)),
             export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
             accepted=structure_accepted,
+            refute=refute if refute_requested else False,
         )
     response = (
         ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
@@ -706,82 +706,6 @@ def handle_response(
             raw.enumeration_capped,
             cast(Literal["full_class", "examined_completions"], raw.mass_scope),
         )
-    validation = None
-    if refute_requested and refute is not False:
-        checks = [
-            ResponseValidationCheck(
-                "overlap.support",
-                "passed" if raw.support_status == "supported" else "failed",
-                None,
-                None,
-                f"curve support status is {raw.support_status!r}",
-            )
-        ]
-        if isinstance(query, ResponseCurve):
-            import numpy as np
-
-            rng = np.random.default_rng(seed)
-            subset_curves: list[list[list[float]]] = []
-            n_rows = len(columns[0])
-            subset_size = max(2, int(0.8 * n_rows))
-            for _ in range(10):
-                rows = np.sort(rng.choice(n_rows, size=subset_size, replace=False))
-                subset_columns = [column[rows] for column in columns]
-                if isinstance(graph, Pag):
-                    subset_raw = _analyze_response_pag(
-                        names,
-                        subset_columns,
-                        graph,
-                        query.treatment,
-                        query.outcome,
-                        list(query.grid),
-                    )
-                    # Envelope widths, not completion-conditioned point curves, are the
-                    # honest graph-class sensitivity target.
-                    assert subset_raw.lower is not None and subset_raw.upper is not None
-                    subset_curves.append(subset_raw.lower + subset_raw.upper)
-                else:
-                    subset_raw = _analyze_response(
-                        names,
-                        subset_columns,
-                        edges,
-                        query.kind,
-                        treatments,
-                        outcomes,
-                        grid=list(query.grid),
-                        scale=scale,
-                        weighting=weighting,
-                        accepted=structure_accepted,
-                    )
-                    subset_curves.append(subset_raw.values)
-            baseline_rows = (
-                (raw.lower or []) + (raw.upper or []) if isinstance(graph, Pag) else raw.values
-            )
-            baseline_array = np.asarray(baseline_rows, dtype=float)
-            subset_mean = np.asarray(subset_curves, dtype=float).mean(axis=0)
-            max_shift = float(np.max(np.abs(subset_mean - baseline_array)))
-            checks.append(
-                ResponseValidationCheck(
-                    "data.subset",
-                    "informative",
-                    max_shift,
-                    None,
-                    "maximum absolute shift of the mean curve/envelope across ten "
-                    "deterministic 80% row-subset refits; no universal pass threshold is imposed",
-                    10,
-                )
-            )
-        checks.append(
-            ResponseValidationCheck(
-                "scalar_ate_refuters",
-                "skipped",
-                None,
-                None,
-                "placebo treatment, dummy outcome, random common cause, and scalar "
-                "sensitivity refuters do not define a function-valued curve check",
-            )
-        )
-        validation = ResponseValidationView(checks)
     identification_operation = (
         "identify.generalized_adjustment" if isinstance(graph, Pag) else "identify.response"
     )
@@ -789,11 +713,6 @@ def handle_response(
         "operation_id": raw.provenance_id,
         "operation_ids": [identification_operation, raw.provenance_id],
     }
-    if validation is not None:
-        provenance["validation_operation_ids"] = [
-            "validate.overlap",
-            "validate.response_data_subset",
-        ]
     return CausalResponseView(
         estimand=query,
         response=response,
@@ -816,7 +735,7 @@ def handle_response(
         assumptions=raw.assumptions,
         provenance=provenance,
         envelope=envelope,
-        validation=validation,
+        validation=None,
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
@@ -858,6 +777,8 @@ def handle_distribution(
     graph: Any,
     discovery: Any,
     accept_discovered: bool,
+    refute_requested: bool,
+    refute: bool | str,
     seed: int,
     threads: int,
 ) -> Any:
@@ -866,6 +787,7 @@ def handle_distribution(
         _wrap_ate,
     )
 
+    del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
@@ -881,6 +803,7 @@ def handle_distribution(
         query.outcome,
         dict(query.interventions),
         conditioning=list(query.conditioning) or None,
+        refute=refute if refute_requested else False,
         seed=seed,
         threads=threads,
     )
@@ -894,6 +817,8 @@ def handle_path_specific(
     graph: Any,
     discovery: Any,
     accept_discovered: bool,
+    refute_requested: bool,
+    refute: bool | str,
     seed: int,
     bootstrap: int | None,
     threads: int,
@@ -903,6 +828,7 @@ def handle_path_specific(
         _wrap_ate,
     )
 
+    del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Path and distribution queries are licensed only as explicit "
@@ -925,6 +851,7 @@ def handle_path_specific(
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
+        refute=refute if refute_requested else False,
     )
     return _wrap_ate(raw)
 
@@ -1150,6 +1077,7 @@ def _analyze_jpcmci_plus_discover(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    refute: bool | str = False,
 ) -> Any:
     """Shared ``_analyze_temporal_discover`` call for J-PCMCI+ multi-environment discovery.
 
@@ -1186,6 +1114,7 @@ def _analyze_jpcmci_plus_discover(
         time_dummy_encoding=cfg["time_dummy_encoding"],
         time_dummy_ci=cfg["time_dummy_ci"],
         ci=cfg.get("ci"),
+        refute=refute,
     )
 
 
@@ -1262,6 +1191,7 @@ def handle_temporal_pulse(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if discovery is not None:
@@ -1278,6 +1208,7 @@ def handle_temporal_pulse(
             threads=threads,
             regimes=regimes,
             temporal_discovery=_TEMPORAL_DISCOVERY,
+            refute=refute,
         )
     names, columns = ingest_columns(data)
     if isinstance(graph, TemporalPag):
@@ -1535,6 +1466,7 @@ def _handle_series_discover(
     threads: int,
     regimes: Sequence[int] | None,
     temporal_discovery: tuple[type, ...],
+    refute: bool | str,
 ) -> Any:
     from .estimation import _discovery_algorithm, _wrap_temporal
 
@@ -1566,6 +1498,7 @@ def _handle_series_discover(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if not isinstance(discovery, temporal_discovery):
@@ -1592,6 +1525,7 @@ def _handle_series_discover(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            refute=refute,
         )
         return _wrap_temporal(raw)
     if algo == "rpcmci":
@@ -1619,6 +1553,7 @@ def _handle_series_discover(
             threads=threads,
             regimes=list(regimes),
             ci=cfg.get("ci"),
+            refute=refute,
         )
         return _wrap_temporal(raw)
     names, columns = as_columns(data)
@@ -1642,6 +1577,7 @@ def _handle_series_discover(
         bootstrap=bootstrap,
         threads=threads,
         ci=cfg.get("ci"),
+        refute=refute,
     )
     return _wrap_temporal(raw)
 
@@ -1716,11 +1652,28 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
     ),
     "distribution": (
         handle_distribution,
-        ("graph", "discovery", "accept_discovered", "seed", "threads"),
+        (
+            "graph",
+            "discovery",
+            "accept_discovered",
+            "refute_requested",
+            "refute",
+            "seed",
+            "threads",
+        ),
     ),
     "path_specific": (
         handle_path_specific,
-        ("graph", "discovery", "accept_discovered", "seed", "bootstrap", "threads"),
+        (
+            "graph",
+            "discovery",
+            "accept_discovered",
+            "refute_requested",
+            "refute",
+            "seed",
+            "bootstrap",
+            "threads",
+        ),
     ),
 }
 

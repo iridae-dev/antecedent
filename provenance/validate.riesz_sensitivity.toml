@@ -9,6 +9,12 @@ papers = [
  { title = "Automatic Debiased Machine Learning of Causal and Structural Effects", doi = "10.3982/ECTA18515", sections = ["Binary-treatment ATE Riesz representer alpha(T,Z) = T/pi - (1-T)/(1-pi) (running example)"] },
 ]
 
+implementation_deviations = [
+ "Uses a logistic plug-in propensity and the closed-form binary-treatment IPW representer; it does not learn a Riesz representer or construct the paper's automatic-debiased estimator.",
+ "Clips propensity scores, computes an IPW ATE, and scans a fixed delta grid using the repository's Cauchy-Schwarz worst-case bias bound.",
+ "The pass threshold and first grid point whose bound covers zero are repository-defined robustness semantics, not a procedure or theorem from the cited paper.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

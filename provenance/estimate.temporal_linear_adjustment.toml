@@ -6,7 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment"] },
+ { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment only; this citation does not derive the temporal identification or horizon-alignment construction"] },
+]
+
+implementation_deviations = [
+ "The estimator is a horizon-specific OLS regression on one aligned treatment column and an identified adjustment set, rather than recursive longitudinal g-computation.",
+ "Only a single treatment time and outcome horizon are represented per fit; multi-step, sustained, and dynamic schedules and treatment-confounder feedback are not implemented.",
+ "The default analytic standard error assumes iid homoskedastic rows, while the optional bootstrap resamples rows iid. Neither accounts for serial dependence or provides joint inference across horizons.",
+ "The Mostly Harmless Econometrics citation supports static OLS adjustment and standard errors, not the temporal identification or horizon-alignment construction.",
 ]
 
 upstream_implementations_observed = [
@@ -14,6 +21,8 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated lagged linear SCMs with known coefficients",
- "manufacturing-style pressure→defect temporal example",
+ "crates/antecedent-estimate/src/temporal_adjustment.rs",
+ "conformance/estimate/temporal_adjustment",
+ "crates/antecedent/tests/manufacturing_temporal.rs",
+ "conformance/manufacturing/temporal_pressure_defect",
 ]

@@ -9,6 +9,10 @@ papers = [
  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
 ]
 
+implementation_deviations = [
+ "Returns exponential draws normalized to mean one rather than Dirichlet probabilities summing to one; this is equivalent only for downstream statistics invariant to a common rescaling of all weights.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

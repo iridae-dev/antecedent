@@ -7,6 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-22
+
+Support is now closed-world: every cell that executes is licensed, while typed
+impossibilities and unsupported combinations fail before execution. Of the 2394
+coordinates in the matrix, 77 are licensed, 988 are not applicable, and the
+remaining 1329 carry a written refusal reason.
+Workspace and Python package versions are **0.9.0**.
+
+### Added
+
+- Prepared-analysis entry points for PAG/ADMG ATE, graph-posterior ATE,
+  temporal pulse/sustained effects, DBN-posterior temporal effects, and
+  temporal mediation. These configurations accept `prepare()` but do not cache
+  identification: PAG envelopes, bidirected ADMGs, and graph posteriors
+  re-identify on every click. Caching them is 1.x optimization work.
+- Bayesian validation on prepared analyses, including prior and posterior
+  predictive checks on second-click refutation for single-graph Dag studies.
+  The multi-graph PAG envelope runs effect refuters on the mixture mean and
+  records `refute.bayesian.ppc.skipped` rather than running a PPC suite.
+
+### Changed
+
+- Emptied the allowlist: the `allowed_unlicensed` support state remains on the
+  wire but now classifies zero cells, and the support-matrix gate enforces that
+  it stays empty. Former exceptions are classified explicitly as not applicable
+  or refused.
+- Expanded the licensed matrix to 77 cells, including validation riders for
+  supported frequentist and Bayesian analyses.
+- Froze the 12 root-exported stage-module surfaces as well as the 49-name root
+  namespace, and corrected the documented reachable-but-unlisted module count
+  from 11 to 14.
+- Tightened external-oracle gates: every external capability claim now needs a
+  baseline record, valid frozen fixture, and consuming test; oracle-closure rows
+  likewise require an executing consumer.
+- Separated independent known-truth evidence from internal cross-checks in the
+  licensed matrix. Cross-check cells now name an exact executing assertion and
+  cannot borrow a contextual fixture as truth evidence; overstated graph-
+  posterior calibration/parity claims were demoted to what the tests establish.
+- Re-ran the unsafe-code, dependency, license, source, workflow, and default-
+  linkage review against the 0.9.0 tree. `cargo deny check` passes all four
+  enforced categories; configured duplicate/unused-allowance warnings remain
+  maintenance signals.
+
+### Fixed
+
+- Propagated requested refutation suites through distribution, path-specific,
+  discovery, and temporal effect entry points; function-valued response
+  queries now reject scalar suites as not applicable.
+- Reject mismatched graph variable names or ordering before PAG, CPDAG, and
+  ADMG analyses consume Arrow data.
+- Reject Bayesian prepared-analysis options that cannot be applied instead of
+  silently ignoring prior transfer or mapping.
+- Point-derivative intervals now use rowwise heteroskedasticity-robust influence
+  contributions instead of a common-sigma local-polynomial standard error.
+- Temporal response estimation now validates the full query and point-
+  identification status at its public Rust entry point, rejects non-finite or
+  ambiguously parameterized interventions, preserves the exact caller estimand,
+  classifies shift support against the shifted treatment law, and reports the
+  correct horizon-only intervention layout.
+- Format-0.4 temporal response artifacts now validate dose/horizon geometry and
+  per-horizon identification metadata against the artifact name table, with
+  Rust/Python round trips for temporal policies and results.
+- Identification aggregation now preserves the weakest justified status and
+  unions the assumptions from every graph or horizon. Backdoor response, MAG
+  adjustment, and parametric-SCM paths expose the premises their status depends
+  on instead of returning identified results with missing evidence.
+- Format-0.4 artifacts now retain assumption descriptions, structured
+  diagnostics, bootstrap stop state, overlap/clip-sensitivity reports, and weak-
+  instrument evidence. Restricted-identification, temporal-support, and
+  posterior-integrity claims fail closed when their evidentiary basis is absent
+  or internally inconsistent.
+- Failed `CausalState` mutations are atomic: rejected constraint removals no
+  longer advance the state clock, batched result refreshes commit all-or-none,
+  and invalid Python data replacement preserves the prior catalog and retained
+  columns.
+
+## [0.7.1] — 2026-08-21
+
+Patch on 0.7.0. No public API rename. Licensed cells are unchanged.
+Workspace and Python package versions are **0.7.1**.
+
+### Fixed
+
+- **Kennedy-DR curves no longer stay silent under heavy-tailed outcomes.**
+  Least-squares `response.kennedy_dr` nuisances need finite residual moments;
+  a Cauchy (or spiked) outcome can inflate the fitted curve by orders of
+  magnitude while `evidence_status` stays `licensed` and `support.status`
+  stays `supported`. Mean curves now always report
+  `response.outcome_tail_ratio` (`max |Y - median| / (1.4826 MAD)`, then the
+  warning bound 20) and, when the ratio exceeds the bound,
+  `response.heavy_tailed_outcome`. A 1%/99% pseudo-outcome winsorization
+  shift is `response.pseudo_outcome_winsor_shift`; a large relative move
+  emits `response.pseudo_outcome_tail_sensitivity`. Point derivatives and
+  the Riesz ADE report the tail ratio. Neither diagnostic demotes
+  `evidence_status` or overlap: those axes are the matrix cell and
+  treatment support. `CausalResponseView` shows a warning count in its
+  repr.
+
 ## [0.7.0] — 2026-08-20
 
 Time as a response, not a contrast: dose × horizon surfaces and temporal
@@ -1380,6 +1478,14 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.9.0
+[0.7.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.7.0
+[0.6.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.6.1
+[0.6.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.6.0
+[0.5.2]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.2
+[0.5.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.1
+[0.5.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.0
 [0.4.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.1
 [0.4.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.0
 [0.3.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.3.0

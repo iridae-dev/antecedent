@@ -1,157 +1,31 @@
 # Deviations-field backlog — frozen 2026-08-18.
 #
-# Records listed here predate the `implementation_deviations` field and have
-# not yet been re-read against their cited papers. The gate
-# (scripts/gate_evidence_reachability.sh) enforces a one-way ratchet:
+# Every paper-backed scientific record was re-read in the 0.9 audit and now
+# carries `implementation_deviations` (possibly `[]`). The records below are
+# grandfathered engineering/folklore records with `papers = []`; they remain
+# outside that paper-comparison audit. New records still cannot join this list.
 #
-#   - a provenance record NOT on this list must carry
-#     `implementation_deviations` (possibly `= []`, which asserts exact
-#     reproduction of the cited procedure — an assertion, not a default);
-#   - a record on this list that gains the field must be removed from the
-#     list in the same change;
-#   - adding a NEW id to this list fails the gate. The list only shrinks.
-#
-# The field exists because deviations used to live in whoever-remembered
-# prose: estimate.aipw cited the DML paper for two releases without recording
-# that the implementation has no cross-fitting.
-#
-# One id per line. Lines starting with # are comments.
-attribution.basic
-attribution.distribution_change
-attribution.distribution_change_robust
-attribution.feature_relevance
-attribution.mechanism_change_detection
-attribution.path_decompose
-attribution.root_cause
-attribution.shapley
+# One id per line. Each id has the required one-line grandfather explanation.
+
+# Grandfathered: papers = []; structure-attribution engineering, no cited procedure to re-read.
 attribution.structure
-attribution.unit_change
-ci.analytic
-ci.bayes
-ci.gpdc
-ci.gsquared
-ci.parcorr_variants
-ci.partial_correlation
-counterfactual.aap
-data.bayesian_bootstrap
-data.resample
-data.surrogate
-data.transforms
-design.decision
+# Grandfathered: papers = []; original design heuristic, no cited procedure to re-read.
 design.effect_width_reduction
-design.eig
-design.model_distinguish
-discovery.ci_screened_posterior
-discovery.dbn_posterior
-discovery.exact_enumeration
-discovery.fci
-discovery.ges
-discovery.graph_mcmc
-discovery.jpcmci_plus
-discovery.lingam
-discovery.lpcmci
-discovery.meek_rules
-discovery.multi_dataset_constraints
-discovery.notears
-discovery.order_mcmc
-discovery.orientation_rules
-discovery.pc
-discovery.pcmci
-discovery.pcmci_plus
-discovery.rfci
-discovery.rpcmci
-discovery.structure_mcmc
-estimate.bayesian_gcomp
+# Grandfathered: papers = []; calibration plumbing, no cited procedure to re-read.
 estimate.calibration_coverage
-estimate.conditional
-estimate.distance_matching
-estimate.envelope
-estimate.frontdoor_two_stage
-estimate.functional_distribution
-estimate.gcomp
-estimate.glm
-estimate.iv_2sls
-estimate.linear_adjustment
-estimate.observation_km_ipcw
-estimate.observation_selected
-estimate.overlap
-estimate.propensity_matching
-estimate.propensity_stratification
-estimate.propensity_weighting
-estimate.rd
-estimate.response.gam_derivative
-estimate.response.intervention_gcomp
-estimate.response.kennedy_dr_simultaneous
-estimate.response.observation_adjusted
-estimate.response.point_derivative
-estimate.response.riesz_ade
-estimate.se
-estimate.temporal_effects_prediction
-estimate.temporal_linear_adjustment
-estimate.temporal_mediation
-estimate.transport_response_grid
-estimate.trial_to_target
-graph.completion
-graph.context_temporal_cpdag
-graph.cpdag_completion
-graph.dsep
-graph.m_separation
-graph.markov_blanket
-graph.projection
-graph.temporal_cpdag
+# Grandfathered: papers = []; graph-unfolding engineering, no cited procedure to re-read.
 graph.unfold
+# Grandfathered: papers = []; identifier dispatch engineering, no cited procedure to re-read.
 identify.auto
-identify.backdoor
-identify.binary_iv_bounds
-identify.efficient_backdoor
+# Grandfathered: papers = []; result-envelope engineering, no cited procedure to re-read.
 identify.envelope
-identify.frontdoor
-identify.generalized_adjustment
-identify.hedge
-identify.id
-identify.idc
+# Grandfathered: papers = []; intervention support policy, no cited procedure to re-read.
 identify.intervention_support
-identify.iv
-identify.path_specific
-identify.response
-identify.temporal_backdoor
-identify.temporal_mediation
-identify.transport_sid
-kernels.special_functions
-model.compiled_scm
-model.gcm_sampling
-model.lgssm
-model.mechanism_evaluation
-model.registry
-prob.conjugate_gaussian
-prob.external_prior
-prob.hmc
-prob.laplace_glm
-prob.mcmc_diagnostics
-state.incremental.particle_graph_score
+# Grandfathered: papers = []; incremental OLS engineering, no cited procedure to re-read.
 state.incremental_ols
+# Grandfathered: papers = []; rolling diagnostic engineering, no cited procedure to re-read.
 state.rolling_mechanism_diag
-stats.divergence
-stats.fdr
-stats.gam
-stats.gaussian_observation_likelihood
-stats.glm
-stats.m_estimate
-stats.randomized_interference
-stats.regularized
-stats.response.local_polynomial
-stats.robust_covariance
-stats.special_functions
-stats.twosls
-validate.bootstrap_refute
-validate.conflict_policy
-validate.confounding_sensitivity
-validate.discovery_stability
-validate.evalue
+# Grandfathered: papers = []; graph-refutation heuristic, no cited procedure to re-read.
 validate.graph_refute
-validate.overlap
-validate.ppc_prior_sensitivity
-validate.response_data_subset
-validate.riesz_sensitivity
+# Grandfathered: papers = []; robustness-refuter folklore, no cited procedure to re-read.
 validate.robustness_refuters
-validate.simulated_unobserved_confounder

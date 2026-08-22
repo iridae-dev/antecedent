@@ -17,7 +17,7 @@ id = "estimate.response.kennedy_dr"
 status = "done"
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested)."
+limitations = "Single well-specified linear DGP; conformance is with Antecedent's own linear-adjustment AverageEffect, not an external package. The doubly robust property the name invokes is not empirically demonstrated (no nuisance-misspecification regime is tested). Least-squares nuisances require finite outcome moments; heavy tails warn via response.heavy_tailed_outcome rather than changing the licensed cell."
 python_facade = "full"
 notes = "Claimed shared-linear-contract conformance: frozen fixture conformance/response/two_point_curve_average_effect compares ResponseCurve(kennedy_dr) two-point contrast to AverageEffect(linear adjustment) on one DAG/adjustment set. External ehkennedy/npcausal::ctseff remains an unclaimed candidate (nuisance/bandwidth contract not pinned)."
 

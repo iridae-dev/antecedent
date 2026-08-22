@@ -15,6 +15,13 @@ papers = [
   { title = "Local Polynomial Regression: Optimal Kernels and Asymptotic Minimax Efficiency", doi = "10.1023/A:1003162622169", sections = ["Section 2, equations defining the local polynomial coefficient estimator and derivative extraction"] },
 ]
 
+implementation_deviations = [
+  "The estimator reuses the restricted Kennedy nuisance construction: additive penalized outcome and treatment GAMs, a homoskedastic Gaussian conditional treatment density, and deterministic cross-fitting.",
+  "First- and second-order derivatives are obtained from an unbounded Gaussian local-quadratic fit with a caller-supplied bandwidth; the cited local-polynomial theory does not prescribe this fixed kernel, degree, or bandwidth policy.",
+  "Only derivative orders one and two are supported.",
+  "Uncertainty is a pointwise normal interval derived from local influence values and is conditional on fitted nuisances and bandwidth. Smoothing bias, bandwidth selection, nuisance uncertainty, and simultaneous coverage are omitted.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

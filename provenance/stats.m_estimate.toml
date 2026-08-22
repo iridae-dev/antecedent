@@ -9,6 +9,12 @@ papers = [
  { title = "Robust Estimation of a Location Parameter", doi = "10.1214/aoms/1177703732", sections = ["Huber loss / IRLS with MAD scale, c=1.345"] },
 ]
 
+implementation_deviations = [
+ "Extends the cited location M-estimator to multivariable linear regression using an OLS warm start and iteratively reweighted least squares.",
+ "Re-estimates scale on every iteration with 1.4826 times the residual MAD and defaults to c=1.345; that full regression algorithm is not established by the cited 1964 location-parameter paper alone.",
+ "Returns coefficients and convergence diagnostics but no robust covariance or inferential result.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

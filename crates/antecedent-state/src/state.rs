@@ -75,6 +75,15 @@ impl CausalState {
     ///
     /// Invalid event payloads.
     pub fn apply(&mut self, event: StateEvent) -> Result<StateVersion, StateError> {
+        // Validate fallible events before advancing the state clock. A rejected
+        // event must be observationally atomic: callers use `version` as the
+        // freshness boundary for cached causal results, so consuming a version
+        // on an operation that did not happen would make that evidence stamp lie.
+        if let StateEvent::RemoveConstraint(id) = &event {
+            if !self.graph_evidence.constraints.iter().any(|constraint| constraint.id == id.0) {
+                return Err(StateError::UnknownId(format!("constraint {}", id.0)));
+            }
+        }
         self.version = self.version.next();
         let v = self.version;
         match event {
@@ -111,11 +120,7 @@ impl CausalState {
                 self.invalidate_all_results(v, "add_constraint");
             }
             StateEvent::RemoveConstraint(id) => {
-                let before = self.graph_evidence.constraints.len();
                 self.graph_evidence.constraints.retain(|c| c.id != id.0);
-                if self.graph_evidence.constraints.len() == before {
-                    return Err(StateError::UnknownId(format!("constraint {}", id.0)));
-                }
                 self.invalidate_all_results(v, "remove_constraint");
             }
             StateEvent::UpdateAssumption(rec) => {
@@ -159,17 +164,32 @@ impl CausalState {
     ///
     /// Unknown query or cache budget refusal.
     pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
-        for &(query, fingerprint, bytes) in updates {
+        // Stage the whole batch first. `ResultStore::insert` is individually
+        // atomic, but applying it directly to `self` would leave a prefix of the
+        // batch committed when a later entry is unknown or exceeds the budget.
+        // A refresh batch represents one caller-supplied recomputation boundary,
+        // so publish all freshness stamps together or none of them.
+        for &(query, _, _) in updates {
             if !self.queries.queries.contains_key(&query) {
                 return Err(StateError::UnknownId(format!("query {}", query.raw())));
             }
-            self.cached_results.insert(
+        }
+        let mut staged_results = self.cached_results.clone();
+        let mut staged_budget = self.cache_budget;
+        for &(query, fingerprint, bytes) in updates {
+            staged_results.insert(
                 CachedResult { query, fingerprint, bytes, computed_at: self.version },
-                &mut self.cache_budget,
+                &mut staged_budget,
             )?;
-            if let Some(rec) = self.queries.queries.get_mut(&query) {
-                rec.result_valid_at = Some(self.version);
-            }
+        }
+        self.cached_results = staged_results;
+        self.cache_budget = staged_budget;
+        for &(query, _, _) in updates {
+            self.queries
+                .queries
+                .get_mut(&query)
+                .expect("query ids were prevalidated")
+                .result_valid_at = Some(self.version);
         }
         Ok(())
     }
@@ -253,6 +273,56 @@ mod tests {
         )));
         let err = state.refresh_results(&[(q, 1, 64)]).expect_err("budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
+    }
+
+    #[test]
+    fn rejected_constraint_removal_does_not_advance_version() {
+        use crate::store::ConstraintId;
+
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let before = state.version;
+        let err = state
+            .apply(StateEvent::RemoveConstraint(ConstraintId(Arc::from("missing"))))
+            .expect_err("unknown constraint");
+        assert!(matches!(err, StateError::UnknownId(_)));
+        assert_eq!(state.version, before);
+        assert!(state.invalidations.entries.is_empty());
+    }
+
+    #[test]
+    fn refresh_batch_is_atomic_on_unknown_query() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let known = state.queries.register(CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+        ));
+        let unknown = QueryId::from_raw(99);
+        let err =
+            state.refresh_results(&[(known, 1, 16), (unknown, 2, 16)]).expect_err("unknown query");
+        assert!(matches!(err, StateError::UnknownId(_)));
+        assert!(state.cached_results.results.is_empty());
+        assert_eq!(state.cache_budget.used_bytes, 0);
+        assert!(state.is_stale(known));
+    }
+
+    #[test]
+    fn refresh_batch_is_atomic_on_late_budget_failure() {
+        let mut state = CausalState::new(CacheBudget::new(24));
+        let query = |treatment| {
+            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(treatment),
+                VariableId::from_raw(2),
+            ))
+        };
+        let first = state.queries.register(query(0));
+        let second = state.queries.register(query(1));
+        let err = state
+            .refresh_results(&[(first, 1, 16), (second, 2, 16)])
+            .expect_err("aggregate budget");
+        assert!(matches!(err, StateError::CacheBudget { .. }));
+        assert!(state.cached_results.results.is_empty());
+        assert_eq!(state.cache_budget.used_bytes, 0);
+        assert!(state.is_stale(first));
+        assert!(state.is_stale(second));
     }
 
     #[test]

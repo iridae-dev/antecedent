@@ -9,6 +9,10 @@ papers = [
  { title = "Feature relevance quantification in explainable AI: A causal problem", doi = "10.48550/arXiv.1910.13413", sections = ["Section 3 (\"How should we sample the dropped features?\" — observational vs. interventional/do conditional distributions for Shapley feature relevance)"] },
 ]
 
+implementation_deviations = [
+ "Attributes a common mean-plus-delta intervention through a fitted SCM; the cited construction explains a specified prediction by averaging dropped features under their marginal or interventional distributions.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]

@@ -8,12 +8,17 @@ copied_tests = false
 papers = [
  { title = "Relations Between Two Sets of Variates", doi = "10.1093/biomet/28.3-4.321", sections = ["canonical correlation via whitened cross-covariance"] },
  { title = "Certain Generalizations in the Analysis of Variance", doi = "10.1093/biomet/24.3-4.471", sections = ["Wilks' Lambda"] },
- { title = "Further Aspects of the Theory of Multiple Regression", doi = "10.1017/S0305004100019897", sections = ["chi-square approximation to -[(n-q)-(p+q+1)/2] ln(Lambda)"] },
+ { title = "Further Aspects of the Theory of Multiple Regression", doi = "10.1017/S0305004100019897", sections = ["chi-square approximation to Wilks' Lambda"] },
+]
+
+implementation_deviations = [
+ "The reported leading canonical correlation uses 64-step power iteration after adding 1e-8 diagonal regularization, while Wilks-Lambda significance is computed from the unregularized full canonical spectrum.",
+ "Robust rank-transform and weighted-WLS variants are not procedures described by the three cited canonical-correlation papers.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "robust/weighted/multivariate unit tests (crates/antecedent-stats/src/ci/parcorr_variants.rs::tests)",
- "multivariate_block_calibration_gate (crates/antecedent-stats/src/ci/calibration.rs)",
+ "crates/antecedent-stats/src/ci/parcorr_variants.rs (robust, weighted, and multivariate unit tests)",
+ "crates/antecedent-stats/src/ci/calibration.rs (multivariate_block_calibration_gate)",
 ]

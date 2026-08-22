@@ -238,6 +238,37 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     assert state.stale_query_count() >= 1
 
 
+def test_antecedent_state_rejected_replace_preserves_existing_data():
+    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state.append_data(
+        ["t", "y"],
+        [np.array([0.0, 1.0]), np.array([1.0, 3.0])],
+    )
+    before_version = state.version
+    before_ids = state.batch_ids()
+    before_names, before_columns = state.get_batch(before_ids[0])
+
+    with pytest.raises(ValueError, match="names/columns length mismatch"):
+        state.replace_data(
+            ["t", "y"],
+            [np.array([2.0, 3.0])],
+        )
+
+    assert state.version == before_version
+    assert state.batch_ids() == before_ids
+    after_names, after_columns = state.get_batch(before_ids[0])
+    assert after_names == before_names
+    assert all(
+        np.array_equal(after, before)
+        for after, before in zip(after_columns, before_columns, strict=True)
+    )
+
+    with pytest.raises(ValueError, match="both names and columns"):
+        state.replace_data(names=["t", "y"])
+    assert state.version == before_version
+    assert state.batch_ids() == before_ids
+
+
 def test_rank_designs_full_surface():
     ranking = antecedent.design.rank_designs(
         [0.5, 0.3, 0.2],

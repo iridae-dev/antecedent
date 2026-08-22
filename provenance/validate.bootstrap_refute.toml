@@ -6,11 +6,18 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Bootstrap Methods: Another Look at the Jackknife", doi = "10.1214/aos/1176344552", sections = ["Percentile bootstrap confidence interval"] },
+ { title = "Bootstrap Methods: Another Look at the Jackknife", doi = "10.1214/aos/1176344552", sections = ["IID nonparametric bootstrap resampling construction"] },
+]
+
+implementation_deviations = [
+ "Uses 200 seeded IID complete-case row resamples by default and refits the repository's linear-adjustment ATE with nested bootstrap disabled.",
+ "Forms percentile endpoints by rounding indexes into the sorted replicate estimates rather than interpolating empirical quantiles.",
+ "The verdict asks whether the original point estimate lies inside the interval; this repository-defined stability gate is not itself a bootstrap coverage theorem or placebo refutation.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-validate/src/bootstrap_refute.rs unit tests",
+ "bootstrap_refute_contains_original_ate against conformance/validate/refuters (crates/antecedent-validate/src/tests.rs)",
 ]

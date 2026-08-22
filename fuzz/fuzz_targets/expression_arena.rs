@@ -52,10 +52,13 @@ fuzz_target!(|data: &[u8]| {
         last = Some(id);
     }
     if let Some(id) = last {
-        let simplified = arena.simplify(id);
-        let _ = arena.compile(simplified);
-        let again = arena.simplify(simplified);
-        assert_eq!(simplified, again);
+        if let Ok(simplified) = arena.simplify(id) {
+            let _ = arena.compile(simplified);
+            let again = arena
+                .simplify(simplified)
+                .expect("simplifying a simplified expression must succeed");
+            assert_eq!(simplified, again);
+        }
     }
     if let Ok(s) = std::str::from_utf8(data) {
         let slice = if s.len() > 256 { &s[..256] } else { s };

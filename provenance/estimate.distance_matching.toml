@@ -10,11 +10,17 @@ papers = [
  { title = "On the Failure of the Bootstrap for Matching Estimators", doi = "10.3982/ECTA6474", sections = ["bootstrap invalidity for fixed-number-of-matches NN estimators"] },
 ]
 
+implementation_deviations = [
+ "Implements standardized-Euclidean one-nearest-neighbor matching with replacement, an optional caliper, and a linear donor-arm bias correction; it does not implement arbitrary matching metrics, multiple matches, or the paper's broader matching-estimator class.",
+ "The function labelled Abadie-Imbens standard error is a simplified reuse-count formula using one half of the matched-effect sample variance; it is not the conditional-residual variance estimator derived in Abadie and Imbens and therefore does not inherit that variance theory.",
+ "An ordinary row bootstrap is enabled by default even though the separately cited Abadie-Imbens paper proves ordinary bootstrap inconsistency for fixed-match nearest-neighbor estimators.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
  "independently generated synthetic confounded SCM with known ATT",
- "conformance/estimate/distance_matching (DoWhy-oracle fixture, generated against the pinned baseline in parity/baselines/dowhy.toml)",
+ "conformance/estimate/distance_matching (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]

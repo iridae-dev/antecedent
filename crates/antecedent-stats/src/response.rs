@@ -43,6 +43,10 @@ pub struct LocalPolynomialInfluence {
     pub influences: Vec<f64>,
     /// Heteroskedasticity-robust standard error from the linearized contributions.
     pub robust_standard_error: f64,
+    /// Heteroskedasticity-robust standard error for the first derivative.
+    pub robust_first_derivative_standard_error: f64,
+    /// Heteroskedasticity-robust standard error for the second derivative.
+    pub robust_second_derivative_standard_error: f64,
 }
 
 /// Scratch for a local-quadratic fit. Reuse across a treatment grid so kernel
@@ -211,12 +215,19 @@ fn fit_local_quadratic(
         .ok_or_else(|| StatsError::Backend("singular local response design".into()))?;
     let beta = matvec(inverse, rhs);
     let mut influences = Vec::with_capacity(workspace.weights.len());
+    let mut first_derivative_influence_ss = 0.0;
+    let mut second_derivative_influence_ss = 0.0;
     let mut weighted_rss = 0.0;
     for &(w, row, yi) in &workspace.weights {
         let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
         weighted_rss += w * residual * residual;
         let hat = inverse[0].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         influences.push(w * hat * residual);
+        let first_hat = inverse[1].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
+        first_derivative_influence_ss += (w * first_hat * residual).powi(2);
+        let second_hat = inverse[2].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
+        // The fitted quadratic coefficient is half the second derivative.
+        second_derivative_influence_ss += (2.0 * w * second_hat * residual).powi(2);
     }
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
     let sigma2 = weighted_rss / (weight_sum - 3.0);
@@ -235,7 +246,13 @@ fn fit_local_quadratic(
         weight_sum,
     };
     let robust_standard_error = influences.iter().map(|value| value * value).sum::<f64>().sqrt();
-    Ok(LocalPolynomialInfluence { point, influences, robust_standard_error })
+    Ok(LocalPolynomialInfluence {
+        point,
+        influences,
+        robust_standard_error,
+        robust_first_derivative_standard_error: first_derivative_influence_ss.sqrt(),
+        robust_second_derivative_standard_error: second_derivative_influence_ss.sqrt(),
+    })
 }
 
 fn matvec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
@@ -309,6 +326,60 @@ mod tests {
         assert!(
             (plugin - robust).abs() / robust < 0.05,
             "plugin={plugin} robust={robust} — sandwich and robust SEs should agree"
+        );
+    }
+
+    #[test]
+    fn derivative_robust_standard_errors_use_rowwise_squared_residuals() {
+        // Deliberately heteroskedastic residuals. A common sigma² multiplied by
+        // X'W²X is not the Eicker-White meat for a derivative; every row must
+        // carry its own residual².
+        let x: Vec<f64> = (0..401).map(|i| -2.0 + 4.0 * f64::from(i) / 400.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, value)| {
+                let scale = 0.02 + value.abs();
+                1.0 + 2.0 * value + scale * (1.7 * i as f64).sin()
+            })
+            .collect();
+        let at = 0.1;
+        let bandwidth = 0.65;
+        let fit = gaussian_local_quadratic_influence(&x, &y, at, bandwidth).unwrap();
+
+        let mut gram = [[0.0; 3]; 3];
+        for &xi in &x {
+            let dx = xi - at;
+            let w = (-0.5 * (dx / bandwidth).powi(2)).exp();
+            let row = [1.0, dx, dx * dx];
+            for j in 0..3 {
+                for k in 0..3 {
+                    gram[j][k] += w * row[j] * row[k];
+                }
+            }
+        }
+        let inverse = inverse_3x3(gram).unwrap();
+        let beta = [fit.point.value, fit.point.first_derivative, fit.point.second_derivative / 2.0];
+        let mut first_ss = 0.0;
+        let mut second_ss = 0.0;
+        for (&xi, &yi) in x.iter().zip(&y) {
+            let dx = xi - at;
+            let w = (-0.5 * (dx / bandwidth).powi(2)).exp();
+            let row = [1.0, dx, dx * dx];
+            let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
+            let first_hat = inverse[1].iter().zip(row).map(|(a, b)| a * b).sum::<f64>();
+            let second_hat = inverse[2].iter().zip(row).map(|(a, b)| a * b).sum::<f64>();
+            first_ss += (w * first_hat * residual).powi(2);
+            second_ss += (2.0 * w * second_hat * residual).powi(2);
+        }
+        assert!((fit.robust_first_derivative_standard_error - first_ss.sqrt()).abs() < 1e-12);
+        assert!((fit.robust_second_derivative_standard_error - second_ss.sqrt()).abs() < 1e-12);
+        assert!(
+            (fit.robust_first_derivative_standard_error
+                - fit.point.first_derivative_standard_error)
+                .abs()
+                > 1e-5,
+            "heteroskedastic robust SE must not collapse to the common-sigma plug-in"
         );
     }
 

@@ -5,15 +5,21 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The power-prior implementation discounts already-Gaussian coefficient priors by scaling their precision and adding them to a baseline Gaussian prior; it does not construct the cited power prior by exponentiating a historical-data likelihood.",
+ "Mixture composition is collapsed to one moment-matched diagonal Gaussian, discarding multimodality and cross-coefficient covariance.",
+ "Reported component effective sample size is an alpha-scaled metadata quantity; it is not generally the Kish effective sample size of the composed prior.",
+]
+
 papers = [
- { title = "Power Prior Distributions for Regression Models", doi = "10.1214/ss/1009212673", sections = ["power-prior precision add", "moment-matched mixture composition"] },
+ { title = "Power Prior Distributions for Regression Models", doi = "10.1214/ss/1009212673", sections = ["historical-data likelihood raised to a discount power; cited as intended power-prior semantics, not as support for Gaussian precision addition or mixture moment matching"] },
  { title = "Survey Sampling", sections = ["effective sample size, (Σw)²/Σw²"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "power-prior precision-add and mixture-composition analytic unit tests (crates/antecedent-prob/src/external_prior.rs::tests)",
+ "discounted-Gaussian precision-add and mixture moment-matching analytic unit tests (crates/antecedent-prob/src/external_prior.rs::tests)",
  "conformance/bayesian/prior_bank_power_mixture (exercised via crates/antecedent/tests/bayesian.rs)",
  "conformance/bayesian/prior_bank_alpha_sensitivity",
  "conformance/bayesian/prior_bank_conflict_shrink",

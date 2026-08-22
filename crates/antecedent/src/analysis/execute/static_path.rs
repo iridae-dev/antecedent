@@ -182,15 +182,15 @@ impl super::Study {
 
         let cancelled = estimate.bootstrap_cancelled || clock.cancelled();
 
-        let refutations = if cancelled {
-            Vec::new()
+        let (refutations, na_diagnostics) = if cancelled {
+            (Vec::new(), Vec::new())
         } else {
             clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
             let prop_scratch = match estimator_id {
                 EstimatorId::Aipw => &mut estimate_ws.aipw.propensity,
                 _ => &mut estimate_ws.propensity.propensity,
             };
-            let reports = run_refuters(
+            let (reports, na_diagnostics) = run_refuters(
                 &data_est,
                 &estimand_est,
                 &query_est,
@@ -211,14 +211,16 @@ impl super::Study {
                     predictive_checks: Vec::new(),
                 },
             );
-            reports
+            (reports, na_diagnostics)
         };
 
-        let extra_diagnostics = if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
-            vec![d]
-        } else {
-            Vec::new()
-        };
+        let mut extra_diagnostics =
+            if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+                vec![d]
+            } else {
+                Vec::new()
+            };
+        extra_diagnostics.extend(na_diagnostics);
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -327,32 +329,6 @@ impl super::Study {
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let cancelled = estimate.bootstrap_cancelled;
         let early_stopped = estimate.bootstrap_early_stopped;
-        let mut extra_diagnostics = Vec::new();
-        let mut refute_ws = EstimationWorkspace::default();
-        let ate_q = AverageEffectQuery::binary_ate(treatment, outcome);
-        let refutations = if estimate.ate.is_finite() {
-            run_refuters(
-                data,
-                &estimand,
-                &ate_q,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                estimator,
-                &self.custom_validators,
-                None,
-            )?
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "refute.distribution.skipped",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "effect refuters skipped: interventional mean is not a finite scalar",
-            ));
-            Vec::new()
-        };
 
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -364,8 +340,8 @@ impl super::Study {
             treatment,
             outcome,
             identify_cached,
-            extra_diagnostics,
-            refutations,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
             distribution: Some(dist),
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -429,22 +405,6 @@ impl super::Study {
         let mut ws = FunctionalDistributionWorkspace::default();
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
-        let mut refute_ws = EstimationWorkspace::default();
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let refutations = run_refuters(
-            data,
-            &estimand,
-            &ate_q,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator,
-            &self.custom_validators,
-            None,
-        )?;
-
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -456,7 +416,7 @@ impl super::Study {
             outcome: query.outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations,
+            refutations: Vec::new(),
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -499,7 +459,7 @@ impl super::Study {
             .map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             query,
@@ -523,7 +483,7 @@ impl super::Study {
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: None,
@@ -559,7 +519,7 @@ impl super::Study {
         let est = ConditionalLinearAdjustment::new();
         let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             &query.inner,
@@ -582,7 +542,7 @@ impl super::Study {
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
             identify_cached,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: None,
@@ -637,7 +597,7 @@ impl super::Study {
             direct: None,
             mediated: None,
         };
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             &ate,
@@ -660,7 +620,7 @@ impl super::Study {
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: Some(mediation),

@@ -161,9 +161,11 @@ class Identification:
     ) -> Any:
         """Run the refutation/validation suite against this identification.
 
-        ``refute`` defaults to the curve-legal ``"cheap"`` suite. A literal
-        ``True`` is not accepted by :func:`antecedent.analyze`; it does not name
-        a validation contract.
+        ``refute`` defaults to the scalar ``"cheap"`` suite. Function-valued
+        response queries have no licensed scalar refutation state and raise
+        :class:`~antecedent.errors.CausalUnsupportedError`. A literal ``True``
+        is not accepted by :func:`antecedent.analyze`; it does not name a
+        validation contract.
         """
         return self.estimate(data, refute=refute, seed=seed, threads=threads)
 

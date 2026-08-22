@@ -9,6 +9,14 @@ papers = [
  { title = "The Moderator-Mediator Variable Distinction in Social Psychological Research: Conceptual, Strategic, and Statistical Considerations", doi = "10.1037/0022-3514.51.6.1173", sections = ["product-of-coefficients mediation"] },
 ]
 
+implementation_deviations = [
+ "The estimator is restricted to a single linear mediator and three OLS regressions, with treatment at lag one and mediator and outcome at the current time; covariate adjustment, multiple mediators, nonlinearities, interactions, and longer temporal pathways are absent.",
+ "The mediated effect is the product of fitted path coefficients. The Baron-Kenny significance-step procedure is not implemented.",
+ "The public execution path forcibly aliases natural and controlled mediation requests. That alias is valid only under the restricted linear no-interaction model and is not a general identification result for natural effects.",
+ "Total and direct-effect standard errors use iid homoskedastic OLS assumptions. Mediated-effect uncertainty is omitted by default; an optional iid Sobel approximation exists but bootstrap, robust, and serial-dependence-aware inference do not.",
+ "The reported effects are per-unit linear coefficients rather than general treatment-level contrasts or horizon-indexed natural effects.",
+]
+
 upstream_implementations_observed = [
  { project = "tigramite", exposure = "black-box comparison only" },
 ]

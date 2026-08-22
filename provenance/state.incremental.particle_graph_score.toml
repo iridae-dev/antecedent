@@ -5,9 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The Gaussian local BIC score counts intercept and parent coefficients but omits residual variance from the parameter count; this shifts absolute BIC scores by 0.5 * ln(n), although parent-set score differences are unchanged.",
+ "The Gaussian score floors residual variance at 1e-12 and rejects singular parent Gram matrices rather than defining a regularized or generalized-inverse score.",
+ "The particle filter is restricted to a scalar linear-Gaussian model with unit observation loading and initializes x0 from N(0, process_variance).",
+ "Resampling is adaptive at ESS below half the particle count and uses systematic resampling; Gordon, Salmond, and Smith describe the bootstrap weighted-resampling filter but do not supply this systematic-resampling scheme.",
+]
+
 papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["Bayesian information criterion penalty term used by the Gaussian local score"] },
- { title = "Novel Approach to Nonlinear/non-Gaussian Bayesian State Estimation", doi = "10.1049/ip-f-2.1993.0015", sections = ["bootstrap/SIR particle filter: importance sampling, systematic resampling"] },
+ { title = "Novel Approach to Nonlinear/non-Gaussian Bayesian State Estimation", doi = "10.1049/ip-f-2.1993.0015", sections = ["bootstrap/SIR particle filter and weighted resampling; not the implementation's systematic-resampling variant"] },
 ]
 
 upstream_implementations_observed = []

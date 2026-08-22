@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Implements only a conservative subset of sID: direct transport and standardization over selected covariates for singleton target C-components.",
+ "Refuses target C-components with more than one node and does not implement recursive source-experiment and target-factor decomposition for general selection diagrams.",
+ "Standardization-subset search is bounded to at most 20 candidate covariates, and response queries are reduced to componentwise response factors rather than differentiated response functionals.",
+]
+
 papers = [
  { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 3: direct transportability", "Section 5, Figure 5 lines 5-8: c-component decomposition and source/target factor selection; Antecedent implements only a conservative singleton-component subset, not general sID"] },
  { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Section 3, Definition 5: S-admissibility", "Section 3, Theorem 2 and equation (3.5): covariate-specific transportability and standardization"] },

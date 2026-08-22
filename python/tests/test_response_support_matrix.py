@@ -180,6 +180,7 @@ def test_path_distribution_literals_match_support_closed_toml():
         rule
         for rule in rules
         if set(rule.get("queries", [])) == {"PathSpecificEffect", "InterventionalDistribution"}
+        and set(rule.get("structures", [])) == {"graph_posterior", "accepted"}
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]

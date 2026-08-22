@@ -9,6 +9,12 @@ papers = [
  { title = "Optimal Structure Identification With Greedy Search", sections = ["Insert/Delete/Reverse operators, Meek completion (Theorem/Corollary on local search optimality)"] },
 ]
 
+implementation_deviations = [
+ "Supports only the continuous linear-Gaussian BIC score rather than an arbitrary score-equivalent decomposable score.",
+ "Adds a greedy Reverse turning phase between forward Insert and backward Delete, which is not part of Chickering's original two-phase GES.",
+ "T/H subset enumeration defaults to a maximum of 12 and refuses an incomplete operator search when the required neighborhood is larger; optional PC screening can further restrict Insert and Reverse candidates.",
+]
+
 upstream_implementations_observed = [
  { project = "causal-learn", exposure = "black-box comparison only" },
 ]

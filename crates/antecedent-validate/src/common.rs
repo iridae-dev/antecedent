@@ -9,8 +9,8 @@ use antecedent_core::{
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_data::{
-    ColumnView, DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeIndex,
-    TimeSeriesData, ValidityBitmap,
+    ColumnView, DiscoveryEstimationSplit, Float64Column, OwnedColumn, OwnedColumnarStorage,
+    PanelData, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
 
 use crate::panel_slice::PanelSliceTemplate;
@@ -254,7 +254,17 @@ pub(crate) fn refit_effect(
     let time_index = temporal.time_index.ok_or(ValidationError::NotApplicable {
         message: "temporal series refit requires time_index",
     })?;
-    let series = TimeSeriesData::try_new(data.storage().clone(), time_index.clone())
+    // Most refuters (noise-replace, resample) keep every row, so the original time index
+    // (built for the un-subset series length) still applies verbatim. `DataSubsetRefuter`'s
+    // contiguous-window subset (`with_contiguous_row_window`) physically shortens the series,
+    // so the index length must follow the data it actually describes; the sampling interval
+    // and regularity kind are unaffected by *which* contiguous window was kept.
+    let series_time_index = if data.row_count() == time_index.length {
+        time_index.clone()
+    } else {
+        TimeIndex { regularity: time_index.regularity.clone(), length: data.row_count() }
+    };
+    let series = TimeSeriesData::try_new(data.storage().clone(), series_time_index)
         .map_err(ValidationError::from)?;
     let prep = estimator
         .prepare_with_extras(
@@ -337,7 +347,6 @@ fn panel_prepare_with_extras(
 
 /// Stack panel units into one tabular table (row-major concat) for refute mutations.
 pub fn stack_panel_tabular(panel: &PanelData) -> Result<TabularData, ValidationError> {
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
     let total = panel.total_rows();
     let schema = panel.schema().clone();
     let n_cols = schema.len();
@@ -608,6 +617,92 @@ pub(crate) fn with_row_subset(
     }
     let mask = ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
     data.with_analysis_mask(mask).map_err(ValidationError::from)
+}
+
+/// Restrict a temporal series to one random contiguous window covering `keep_fraction` of
+/// its rows, physically dropping the excluded prefix/suffix rows (never an interior mask).
+///
+/// [`with_row_subset`] cannot be reused for temporal designs: it hides rows behind an
+/// analysis mask, but lag gathering ([`antecedent_data::LaggedSamplePlan::prepare`]) indexes
+/// *raw row positions*, and `ensure_unmasked` rejects any non-fully-valid mask outright for
+/// exactly that reason (a masked-out row would silently shift what "lag-1" reads once the
+/// gather stepped over it). Physically dropping an interior hole instead of masking it would
+/// dodge that error but not the underlying problem: rows on either side of the hole are no
+/// longer adjacent in time, so a lag gather across the seam would quietly average together
+/// samples separated by more than the intended step. A contiguous window sidesteps both
+/// failure modes — every retained row's immediate predecessor in the window is still its
+/// immediate predecessor in the original series, so lag-1/lag-2/etc. mean exactly what they
+/// meant on the full data, and the shortened window is a genuine data-subset falsification
+/// check (start-of-series and end-of-series windows are both reachable, so this is not
+/// equivalent to a fixed train/test split).
+///
+/// Only float64 columns are supported (temporal designs are float64-typed end to end, same
+/// restriction [`crate::panel_slice::PanelSliceTemplate`] applies to panel refits).
+pub(crate) fn with_contiguous_row_window(
+    data: &TabularData,
+    keep_fraction: f64,
+    ctx: &ExecutionContext,
+    stream_id: u64,
+) -> Result<TabularData, ValidationError> {
+    let n = data.row_count();
+    if n < 2 {
+        return Err(ValidationError::NotApplicable {
+            message: "contiguous row window requires at least 2 rows",
+        });
+    }
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let window_len = (((n as f64) * keep_fraction).floor() as usize).clamp(1, n - 1);
+    let span = n - window_len;
+    let mut rng = ctx.rng.stream(stream_id);
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let start = (rng.next_f64() * (span as f64 + 1.0)).floor() as usize;
+    let start = start.min(span);
+
+    let storage = data.storage();
+    let mut cols = Vec::with_capacity(storage.columns().len());
+    for col in storage.columns() {
+        cols.push(slice_float_column_window(col, start, window_len)?);
+    }
+    let mask =
+        storage.analysis_mask().map(|m| slice_validity_window(m, start, window_len)).transpose()?;
+    let weights =
+        storage.weights().map(|w| Arc::<[f64]>::from(w[start..start + window_len].to_vec()));
+    let new_storage = OwnedColumnarStorage::try_new(storage.schema().clone(), cols, mask, weights)
+        .map_err(ValidationError::from)?;
+    Ok(TabularData::new(new_storage))
+}
+
+fn slice_float_column_window(
+    col: &OwnedColumn,
+    start: usize,
+    len: usize,
+) -> Result<OwnedColumn, ValidationError> {
+    match col {
+        OwnedColumn::Float64(c) => {
+            let values: Arc<[f64]> = Arc::from(c.values.as_slice()[start..start + len].to_vec());
+            let validity = slice_validity_window(&c.validity, start, len)?;
+            Ok(OwnedColumn::Float64(
+                Float64Column::new(c.id, values, validity).map_err(ValidationError::from)?,
+            ))
+        }
+        _ => Err(ValidationError::NotApplicable {
+            message: "contiguous row window requires float64 columns",
+        }),
+    }
+}
+
+fn slice_validity_window(
+    src: &ValidityBitmap,
+    start: usize,
+    len: usize,
+) -> Result<ValidityBitmap, ValidationError> {
+    let mut bytes = vec![0u8; len.div_ceil(8)];
+    for i in 0..len {
+        if src.is_valid(start + i) {
+            bytes[i / 8] |= 1 << (i % 8);
+        }
+    }
+    ValidityBitmap::from_bytes(bytes, len).map_err(ValidationError::from)
 }
 
 /// Rebuild tabular data with `ids` columns resampled (with replacement) per `idx`; all other

@@ -10,10 +10,18 @@ papers = [
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["IV / 2SLS"] },
 ]
 
+implementation_deviations = [
+ "Supports one endogenous treatment only; systems with multiple endogenous regressors, GMM weighting, overidentification tests, and weak-instrument-robust confidence sets are unsupported.",
+ "The Wald ratio is exposed through the common ATE result type even though, under heterogeneous treatment effects, the cited theorem identifies a local average treatment effect under monotonicity rather than a population ATE.",
+ "Two-stage least squares is likewise reported as a single treatment effect without representing the instrument-dependent weighting of heterogeneous local effects.",
+ "Analytic standard errors are suppressed as NaN whenever the first-stage F statistic is below the uncited fixed threshold of 10; no Anderson-Rubin, conditional likelihood-ratio, or other weak-IV inference is substituted.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
  "independently generated synthetic SCMs with unmeasured T-Y confounding and a valid instrument (binary for Wald, continuous for 2SLS) with known structural effect",
+ "conformance/estimate/iv_2sls (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]

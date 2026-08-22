@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Does not emit the paper's edge-intervention or edge-g functional: it deletes treatment out-edges outside the selected paths and runs ordinary total-effect ID on the modified graph.",
+ "The recanting-witness check is approximated by testing whether a node appears on both a selected and an unselected directed path; it does not implement the full conflicting edge-assignment criterion.",
+ "Directed-path enumeration is bounded by query max_paths and max_len; truncation fails closed rather than deciding the paper's criterion.",
+]
+
 papers = [
  { title = "Identifiability of Path-Specific Effects", sections = ["recanting witness criterion"] },
 ]
@@ -12,7 +18,7 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
- "clean-room edge-g formula and canonical mediation examples (conformance/identify/path_specific)",
- "conformance/identify/path_specific_natural",
+ "frozen status and method-label cases for canonical mediation graphs (conformance/identify/path_specific)",
+ "status and method-label fixture (conformance/identify/path_specific_natural)",
  "inline unit tests (crates/antecedent-identify/src/path_specific.rs)",
 ]

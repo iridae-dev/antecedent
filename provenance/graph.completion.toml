@@ -11,6 +11,14 @@ papers = [
  { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["Section 3 (PAG orientation semantics)", "Section 4 (complete orientation rules)"] },
 ]
 
+implementation_deviations = [
+ "Completion is restricted to directed and bidirected MAGs; undirected Tail-Tail edges representing selection variables are outside the supported ancestral-graph class.",
+ "Circle endpoints are exhaustively enumerated only up to 16 endpoints; larger PAGs are refused.",
+ "A global all-conditioning-set m-separation equivalence audit is performed only through 12 nodes and a two-million-query budget. Above that budget, locally valid completions are yielded with an incomplete-class flag rather than proved to form one Markov-equivalence class.",
+ "At most max_completions candidates are retained as a deterministic low-bit-mask prefix. This is bounded enumeration, not random or representative sampling, and cannot by itself justify a whole-class conclusion when the cap is hit.",
+ "The implementation validates ancestralness, maximality, unshielded colliders, and, when affordable, an exhaustive separation signature; it does not implement the cited complete PAG orientation-rule algorithm.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

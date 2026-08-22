@@ -1,15 +1,45 @@
 # Capabilities
 
-The full inventory of what Antecedent implements, area by area. The
-[README](https://github.com/iridae-dev/antecedent#readme) carries the
-highlights; this page is the reference list. For what is deliberately *not*
-implemented, see [Comparison](comparison.md). The public **license** — which
-query × graph class × inference cells run, and which refuse — is the
-[support matrix](support-matrix.md), not this inventory.
+This page is a readable tour of what exists in Antecedent. The parity manifests
+are the maintained implementation inventory; the [support matrix](support-matrix.md)
+is the public **license** for analysis cells. Presence here does not mean every
+query × graph class × structure × inference × validation combination runs.
+For selection guidance and product boundaries, see [Comparison](comparison.md).
 
-## Graphs
+## How to read capability claims
 
-Supported graph classes:
+The matrix has three active runtime states:
+
+* **licensed** — the staged path runs under the row's recorded evidence
+  contract;
+* **n/a** — the coordinate does not denote and is a typed impossibility;
+* **refused** — the coordinate is meaningful, but this release does not
+  license it.
+
+The historical `allowed_unlicensed` wire value remains decodable for
+compatibility, but 0.9 has no active allowlist entries and the release gate
+rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin only
+identification or an effect point, while an internal cross-check may establish
+prepared-vs-fresh consistency without pinning the scientific target. Read each
+row's `limitations`; a shared method name is not a parity claim.
+
+A licensed row means the staged runtime path, refusal boundary, and recorded evidence
+contract are exercised for that coordinate. It does not mean causal assumptions were
+verified from the data, intervals are universally calibrated, identification is complete
+beyond the named subset, or parametric restrictions disappeared. In particular, priors
+cannot convert a nonidentified estimand into an identified one.
+
+At analysis level, the licensed query families are `AverageEffect`,
+`ConditionalEffect`, `PathSpecificEffect`, `InterventionalDistribution`,
+`ResponseCurve`, `InterventionResponse`, `PulseEffect`, `SustainedEffect`, and
+`TemporalMediationEffect`, only on the exact graph / structure / inference /
+validation rows in the matrix. Root query types outside that list —
+`Counterfactual`, static `MediationEffect`, and all six derivative query types —
+have no licensed `analyze` cell in 0.9. Importability is not a license.
+
+## Graph primitives
+
+Implemented graph representations:
 
 * DAG;
 * ADMG;
@@ -31,7 +61,10 @@ Graph operations:
 * intervention overlays.
 
 Static and temporal graphs have separate semantics. A static graph is not
-interpreted as temporal by default.
+interpreted as temporal by default. `Cpdag`, `TemporalCpdag`, and `TemporalPag`
+are implemented graph/interchange types, but 0.9 licenses no analysis cell on
+them. In particular, successful completion to a DAG does not turn an
+incomplete-class cell into a licensed one.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.
@@ -63,7 +96,12 @@ CBOR artifacts.
 * CI-screened graph posterior;
 * DBN posterior.
 
-Posterior graph samples can be propagated into downstream effect analyses.
+Selected posterior graph samples can be propagated into licensed Bayesian
+effect envelopes. Static graph-posterior analysis is limited to
+`AverageEffect` with DAG atoms. Temporal graph-posterior analysis is limited to
+pulse and single-step sustained effects with `TemporalDag` atoms and validation
+`none`. Frequentist mixtures, response mixtures, and ADMG/CPDAG/PAG posterior
+atoms are refused.
 
 ### Conditional independence tests
 
@@ -100,9 +138,9 @@ Implemented identification strategies:
 * front-door identification;
 * instrumental variables;
 * sharp regression discontinuity;
-* ID and IDC for DAGs and ADMGs;
-* hedge certificates;
-* nonparametric path-specific identification;
+* an explicitly scoped, incomplete ID/IDC implementation for DAGs and ADMGs;
+* line-5 hedge node-set diagnostics (not fully validated C-forest certificates);
+* bounded path-specific identification by selected-edge graph reduction;
 * generalized adjustment for partial graphs;
 * unfolded temporal backdoor;
 * temporal mediation;
@@ -115,13 +153,12 @@ Implemented identification strategies:
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
 
-For PAGs, Antecedent uses identification envelopes or explicit graph
-completions. That is an identification primitive, not a licensed
-`ResponseCurve` cell: `analyze` refuses response curves on PAG, CPDAG, and
-ADMG. The public license is the [support matrix](support-matrix.md). Full
-PAG-native ID and IDC are outside the supported scope.
+For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
+explicit graph completions. Licensed PAG analysis is `AverageEffect` only; this
+is not a licensed `ResponseCurve`, path-specific, distribution, or mediation
+surface. Full PAG-native ID and IDC are outside the supported scope.
 General multi-node sID recursion and definitive non-transportability
-certificates are outside the 0.5 transport contract.
+certificates are outside the 0.9 transport contract.
 
 ## Estimation
 
@@ -183,6 +220,14 @@ at runtime:
 Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.
 
+`response.kennedy_dr` is also a least-squares construction (additive GAMs plus
+a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+outcome moments. Unlike the three cases above, it reports
+`response.outcome_tail_ratio` at runtime and warns
+`response.heavy_tailed_outcome` when the ratio exceeds 20. That warning does
+not demote `evidence_status` or `support.status`. See
+[causal-responses.md](causal-responses.md#least-squares-kennedy-dr-regularity).
+
 ### Bayesian
 
 * Bayesian g-computation;
@@ -190,7 +235,8 @@ with no runtime signal.
 * conjugate Gaussian models;
 * Laplace GLM approximation;
 * HMC GLMs;
-* graph-by-effect posterior envelopes;
+* graph-by-effect posterior envelopes on the exact licensed DAG and
+  `TemporalDag` query families described above;
 * same-design prior transfer;
 * effect-level and mapped prior transfer;
 * prior catalogs and compatibility filtering;
@@ -199,7 +245,8 @@ with no runtime signal.
 * transport policies across compatible designs.
 
 Unidentified graph-posterior mass is retained rather than silently
-renormalized away.
+renormalized away. Current graph-posterior evidence is an internal
+prepared-vs-fresh cross-check, not a known-truth pin for the mixture effect.
 
 ## Observation, transport, and interference
 
@@ -320,6 +367,45 @@ Resampling support:
 * column permutation;
 * phase-randomized surrogates.
 
+### "Not applicable" means three different things
+
+The words "not applicable" surface in three unrelated places. A caller who
+only sees the bare phrase cannot tell which claim is being made — each is a
+different strength of statement, and only one of them is permanent:
+
+* **The support matrix's `not_applicable`** (`SupportRefusal::NotApplicable`,
+  wire id `not_applicable`). This is the strongest claim in the system: the
+  coordinate — a fixed (query, graph class, structure, inference, validation)
+  cell — does not denote, permanently, independent of any run's data. See the
+  [support matrix](support-matrix.md).
+* **`antecedent-validate`'s `NotApplicable`** (`ValidationOutcome::NotApplicable`
+  / `ValidationError::NotApplicable`). This is a per-run, data-dependent skip:
+  a requested validator is incompatible with *this run's* problem — an
+  E-value on a non-binary treatment, an MCMC diagnostic on a non-MCMC
+  posterior, a refuter outside its applicable regime. The same validator can
+  run cleanly on a different dataset against the same licensed cell. Callers
+  that only read `result.refutations` cannot see this skip — the produced
+  `RefutationReport`s and the skips are two disjoint outcomes, and
+  `result.refutations` carries only the former. Every execute path now emits
+  one `refute.validator.not_applicable` diagnostic per skipped validator into
+  `result.diagnostics`, naming the validator and the reason, so the skip is
+  visible instead of silently dropped. Its message states explicitly that
+  the skip is per-run and data-dependent, not a permanent support-matrix
+  refusal, so the two senses of "not applicable" are never mistaken for each
+  other at the point a caller actually reads them.
+* **The response path's NaN scalar summary**
+  (`estimate.response.no_scalar_summary`). A function-valued or
+  not-point-identified response has no single-number effect summary;
+  `result.effect` is `NaN` and a diagnostic states the scalar reading is "not
+  applicable" — the caller must read `result.response` instead. This is not
+  an error and not a refusal; it says the wrong field was checked, not that
+  anything failed.
+
+None of the three imply each other. A licensed cell can still emit a
+per-run validator skip or a NaN scalar summary; a matrix `not_applicable`
+cell never reaches either of the other two because `analyze` refuses it
+before validation or estimation runs.
+
 ## Experimental design
 
 Antecedent can rank candidate actions such as:
@@ -358,6 +444,18 @@ Available components:
 
 Invalidation does not automatically rerun an analysis.
 
+`PreparedStudy` (`Study::prepare`) does not cache identification uniformly
+across graph classes. For `AverageEffect`, an estimate click reuses
+prepare-time identification (`exec.identify.cached`) on `Dag`, `Cpdag`, and
+`Admg` without bidirected edges — this is the engine's caching behaviour, not a
+license: `AverageEffect` on a `Cpdag` is refused, so only the `Dag` and `Admg`
+arms are reachable from a licensed cell. `Pag`, bidirected `Admg`, `graph_posterior`
+structures, and the sharp-RD estimator are not cached: prepare() still
+accepts and freezes them, but each estimate click re-runs identification
+against the frozen graph rather than reusing a stored result. The frozen
+graph, query, and identifier never change across clicks either way — only
+whether the identification step itself is skipped or repeated.
+
 ## Data support
 
 Antecedent supports:
@@ -372,7 +470,8 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 ## Artifacts
 
-Versioned artifacts:
+Durable artifact format **0.4** is the 1.0 wire freeze. Versioned artifacts
+include:
 
 * graphs;
 * graph posteriors;

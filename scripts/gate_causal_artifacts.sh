@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Focused format-0.3 Rust/Python causal query/result artifact conformance.
+# Focused format-0.4 Rust/Python causal query/result artifact conformance.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

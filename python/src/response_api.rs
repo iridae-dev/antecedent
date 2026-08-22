@@ -20,7 +20,7 @@ use pyo3::prelude::*;
 
 use crate::{
     CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err, py_execution_context,
-    series_from_tabular, temporal_dag_from_schema_edges,
+    series_from_tabular, suite_from_refute, temporal_dag_from_schema_edges,
 };
 
 #[pyclass(skip_from_py_object)]
@@ -105,7 +105,8 @@ pub(crate) struct ResponseAnalysisResult {
     direction=None, intervention_kinds=None, intervention_parameters=None,
     order=1, scale="identity", weighting="observed", bandwidth=None,
     simultaneous_replicates=None, confidence_level=0.95,
-    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false
+    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false,
+    refute=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_response(
@@ -130,7 +131,12 @@ fn analyze_response(
     multiplier_seed: u64,
     export_row_diagnostics: bool,
     accepted: bool,
+    refute: Option<Bound<'_, PyAny>>,
 ) -> PyResult<ResponseAnalysisResult> {
+    let suite = match refute.as_ref() {
+        None => RefuteSuite::None,
+        Some(obj) => suite_from_refute(Some(obj))?,
+    };
     let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let scale = parse_scale(scale)?;
     let weighting = parse_weighting(weighting)?;
@@ -152,17 +158,9 @@ fn analyze_response(
             weighting,
         )?;
         let query = ResponseQuery::new(functional);
-        // Consult the generated support matrix before running, exactly like
-        // `StudyBuilder::build` does for every other analyze path. `analyze_response`
-        // never routes through `StudyBuilder` (it drives `ResponseIdentifier` /
-        // `ContinuousResponseEstimator` directly for its custom estimator options), so
-        // without this the matrix's closed/not-applicable rules were only enforced by
-        // hand-typed literals on the Python side and could silently drift from
-        // `parity/support_closed.toml`. This path only ever reaches a bare `Dag` (Pag /
-        // Admg / Cpdag graphs are routed to other native entry points before they get
-        // here), it is always frequentist, and it never runs the scalar
-        // placebo/dummy-outcome/RCC refuters that `RefuteSuite` governs elsewhere —
-        // those are skipped for response queries — so the validation axis is `none`.
+        // `analyze_response` never routes through `StudyBuilder`, so it must
+        // consult the matrix itself. Pass the caller's `refute=` suite: cheap/full
+        // on a function-valued estimand are n/a (`parity/support_n_a.toml`).
         let structure =
             if accepted { StructureSource::Accepted } else { StructureSource::Explicit };
         let causal_query = CausalQuery::Response(query.clone());
@@ -171,7 +169,7 @@ fn analyze_response(
             GraphClass::Dag,
             structure,
             &InferenceMode::Frequentist,
-            RefuteSuite::None,
+            suite,
         ) {
             Some(refuse_if_not_applicable(cell).map_err(py_err)?)
         } else {
@@ -842,7 +840,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, threads=1, accepted=false
+    seed=1, threads=1, accepted=false, refute=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_temporal_response(
@@ -863,7 +861,12 @@ fn analyze_temporal_response(
     seed: u64,
     threads: u32,
     accepted: bool,
+    refute: Option<Bound<'_, PyAny>>,
 ) -> PyResult<ResponseAnalysisResult> {
+    let suite = match refute.as_ref() {
+        None => RefuteSuite::None,
+        Some(obj) => suite_from_refute(Some(obj))?,
+    };
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     detach_catch(py, move || {
@@ -896,15 +899,14 @@ fn analyze_temporal_response(
             GraphClass::TemporalDag,
             if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
             &InferenceMode::Frequentist,
-            RefuteSuite::None,
+            suite,
         ) {
             refuse_if_not_applicable(cell).map_err(py_err)?;
         }
         let mut builder = Study::series(series);
         builder =
             if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
-        let analysis =
-            builder.query(causal_query).refute(RefuteSuite::None).build().map_err(py_err)?;
+        let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         let response = result.response.ok_or_else(|| {

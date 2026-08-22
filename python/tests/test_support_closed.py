@@ -24,7 +24,7 @@ _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
 _REASON_INTERVENTION_RESPONSE_OFF_DAG = (
     "refused: InterventionResponse executes only on a supplied static Dag, the same "
-    "requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response "
+    "requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response "
     "compile arm."
 )
 
@@ -173,7 +173,7 @@ def test_licensed_average_effect_on_dag_frequentist():
     assert result.evidence_status == "licensed"
 
 
-def test_default_refused_pag_ate_still_runs():
+def test_licensed_pag_ate_runs():
     result = antecedent.analyze(
         _DATA,
         graph=_PAG,
@@ -183,20 +183,39 @@ def test_default_refused_pag_ate_still_runs():
         seed=1,
     )
     assert np.isfinite(result.ate)
-    assert result.evidence_status == "allowed_unlicensed"
-    assert result.allowlist_parent
-    assert any("support.allowed_unlicensed" in d for d in result.diagnostics)
+    assert result.evidence_status == "licensed"
 
 
-# -- 2026-08-19: allowlist introduction (parity/support_allowlist.toml). PAG ATE
-# above is one allowlisted family; the temporal PulseEffect family is another.
+def test_licensed_admg_ate_runs():
+    n = 300
+    u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
+    t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
+    m = np.array([float(int(ti + ui) % 2) for ti, ui in zip(t, u, strict=True)])
+    y = np.array([float(int(mi + ui) % 2) for mi, ui in zip(m, u, strict=True)])
+    data = {"t": t, "m": m, "y": y}
+    admg = antecedent.Admg.from_edges(
+        ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+    )
+    result = antecedent.analyze(
+        data,
+        graph=admg,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
 
 
-def test_allowlisted_pulse_effect_temporal_dag_still_runs():
-    """PulseEffect x TemporalDag x explicit is on the allowlist (running,
-    unlicensed, not closed): the temporal backdoor path is fully wired for both
-    inference modes and every validation suite, but has no cell-shaped
-    known-truth fixture the way the static AverageEffect family does."""
+# Allowlist is empty: graph-posterior Bayesian ATE and Pulse DBN posterior none are licensed.
+
+
+def test_licensed_pulse_effect_temporal_dag_runs():
+    """PulseEffect x TemporalDag x explicit is licensed (the allowlist is
+    empty): the temporal backdoor path is fully wired for both inference
+    modes and every validation suite, pinned on a known-truth fixture the
+    same way the static AverageEffect family is."""
     n = 200
     t = np.array([float(i % 2) for i in range(n)])
     y = np.zeros(n)
@@ -213,6 +232,7 @@ def test_allowlisted_pulse_effect_temporal_dag_still_runs():
         seed=1,
     )
     assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
 
 
 def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
@@ -245,3 +265,37 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
         )
     msg = str(ei.value)
     assert msg.startswith("refused: General ID"), msg
+
+
+def test_path_specific_cheap_refute_is_refused():
+    t = np.array([0.0, 1.0] * 40)
+    m = t.copy()
+    y = t.copy()
+    data = {"t": t, "m": m, "y": y}
+    dag = antecedent.Dag.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")])
+    with pytest.raises(CausalUnsupportedError, match="empty refutations"):
+        antecedent.analyze(
+            data,
+            graph=dag,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute="cheap",
+            bootstrap=0,
+            seed=1,
+        )
+
+
+def test_distribution_full_refute_is_refused():
+    t = np.array([0.0, 1.0] * 40)
+    y = t.copy()
+    z = np.zeros(80)
+    data = {"t": t, "y": y, "z": z}
+    dag = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    with pytest.raises(CausalUnsupportedError, match="empty refutations"):
+        antecedent.analyze(
+            data,
+            graph=dag,
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute="full",
+            bootstrap=0,
+            seed=1,
+        )

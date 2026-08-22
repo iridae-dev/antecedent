@@ -303,6 +303,8 @@ fn identify_on_mag_completion(
     let label =
         if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
     let estimand = IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional);
+    let mut assumptions = AssumptionSet::default();
+    assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.mag"));
     Ok(IdentificationResult::identified(
         query,
         vec![estimand],
@@ -318,7 +320,7 @@ fn identify_on_mag_completion(
             );
             d
         },
-        AssumptionSet::default(),
+        assumptions,
         IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
     ))
 }
@@ -518,6 +520,10 @@ mod tests {
         let env = id.identify_pag_envelope(&pag, &q).unwrap();
         assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(env.unidentified_weight.0 == 0.0);
+        assert!(env.cases[0].result.required_assumptions.entries.iter().any(|record| {
+            record.assumption == antecedent_core::Assumption::CausalMarkov
+                && record.scope == antecedent_core::AssumptionScope::Identification
+        }));
     }
 
     #[test]

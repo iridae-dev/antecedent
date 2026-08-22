@@ -16,6 +16,14 @@ papers = [
   { title = "Fast Splittable Pseudorandom Number Generators", doi = "10.1145/2660193.2660195", sections = ["Section 3: SplitMix generator and mixing function"] },
 ]
 
+implementation_deviations = [
+  "The outcome regression is a fixed additive cubic-spline GAM with one-dimensional smooths, fixed regularization, and no interactions; it is a plug-in g-computation estimator rather than the cited doubly robust stochastic-intervention procedures.",
+  "Set, shift, Bernoulli, and categorical interventions are integrated exactly subject to a finite support-product budget, while Gaussian interventions use exactly 256 deterministic SplitMix64 Monte Carlo draws.",
+  "Monte Carlo error for Gaussian policies and outcome-model fitting uncertainty are not reported.",
+  "The implementation is cross-sectional: longitudinal modified treatment policies, treatment-confounder feedback, soft structural interventions, and intervention sequences are refused.",
+  "Support checking is marginal rather than joint, and no confidence interval is produced.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

@@ -5,6 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = []
+
 papers = [
   { title = "Bounds on Treatment Effects From Studies With Imperfect Compliance", doi = "10.1080/01621459.1997.10474074", sections = ["Section 2, equations (1)-(3): binary IV model and average causal effect", "Section 2: sixteen response-function classes and linear-programming optimization"] },
 ]

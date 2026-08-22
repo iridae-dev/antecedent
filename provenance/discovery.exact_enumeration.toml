@@ -9,10 +9,15 @@ papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
 ]
 
+implementation_deviations = [
+ "The reported posterior is the exact normalization of a Gaussian-BIC approximation and simple graph prior, not an exact Bayesian marginal posterior.",
+ "Enumeration is hard-limited to at most 6 variables.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/exact_enumeration.rs unit tests",
- "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
- "conformance/discovery/graph_mcmc_exact",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (small clean-room exhaustive Gaussian-BIC target and composed-sampler cross-checks)",
+ "conformance/discovery/graph_mcmc_exact (three-node Gaussian-BIC enumeration evidence; no full-method citation beyond the component score)",
 ]

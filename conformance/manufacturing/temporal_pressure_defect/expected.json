@@ -3,6 +3,7 @@
   "true_effect_per_unit": 0.9,
   "pulse_active_level": 1.0,
   "expected_ate": 0.9,
+  "ate_abs_tolerance": 0.05,
   "tolerance_class": "StableFloat",
   "n": 400,
   "treatment": "pressure",

@@ -5,6 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "The implementation is not complete ID: nested line-7 recursion after line-2 marginalization fails with 'nested C-factor of a marginalized Q is not yet supported' instead of identifying all functionals covered by Algorithm ID.",
+ "Supports unconditional Distribution and AverageEffect queries with hard Set interventions, plus only constant interventions reducible to Set; conditional queries are delegated to IDC.",
+ "Emitted products and SumOut expressions rely on enumerable variable domains and do not provide continuous-domain integral functionals.",
+]
+
 papers = [
  { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", sections = ["Algorithm ID"] },
 ]
@@ -14,11 +20,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "clean-room Shpitser-Pearl ID recursion oracle (conformance/identify/id_hedge)",
- # Recorded, NOT exercised. These three DoWhy 0.14 fixtures are frozen oracles for
- # the pending general ID / ID-IDC work; no test loads them, so no black-box
- # comparison currently runs. Listing them as an active comparison claimed evidence
- # that does not exist. Restore the comparison wording only when a test consumes them.
- "recorded-but-unexercised DoWhy 0.14 identify() oracles, pending general ID (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
+ "frozen clean-room ID status cases for back-door, front-door, and hedge graphs (conformance/identify/id_hedge)",
+ "consumed DoWhy 0.14 identify() status/estimand-family oracles (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
  "inline unit tests (crates/antecedent-identify/src/id.rs)",
 ]

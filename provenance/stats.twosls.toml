@@ -9,9 +9,10 @@ papers = [
  { title = "A Generalized Classical Method of Linear Estimation of Coefficients in a Structural Equation", doi = "10.2307/1907743", sections = ["two-stage least squares"] },
 ]
 
+implementation_deviations = []
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-stats/src/twosls.rs unit tests",
- "conformance/stats/ols_wls (WLS path, exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
 ]

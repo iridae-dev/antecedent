@@ -6,10 +6,14 @@ copied_comments = false
 copied_tests = false
 
 # Also covers DesignObjective::ReduceDecisionRegret / ranker.rs::decision_regret_reduction,
-# which scores candidate designs by their reduction in Bayesian decision regret using the
-# same expected-utility machinery as decision.rs.
+# a native heuristic that resamples existing outcome draws and scales the resulting regret
+# reduction by candidate reliability.
 papers = [
- { title = "Applied Statistical Decision Theory", sections = ["Expected utility over actions and chance outcomes; regret"] },
+ { title = "Applied Statistical Decision Theory", sections = ["Part II, Chapter 4 (additive utility, opportunity loss, and value of information)"] },
+]
+
+implementation_deviations = [
+ "evaluate_decision follows empirical expected-utility maximization, but ReduceDecisionRegret resamples existing outcome draws and shrinks regret by heuristic candidate reliability rather than performing cited preposterior Bayesian decision analysis under a design-specific predictive model.",
 ]
 
 upstream_implementations_observed = []

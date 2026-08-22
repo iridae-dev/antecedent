@@ -10,11 +10,16 @@ Pinned reference baselines:
 | Project | Pin |
 |---------|-----|
 | DoWhy | v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc` |
-| Tigramite | tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927` |
-| Tigramite extended | commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features |
+| Tigramite core fixtures | package `5.2.1.30`, reference commit `5a8768754e6103755b006e9357e21c1a58534927` |
+| Tigramite J-PCMCI+/RPCMCI fixtures | package `5.2.9.7`, reference commit `5a8768754e6103755b006e9357e21c1a58534927` |
 
 Parity is capability parity, not Python API parity. Manifests live under
 `parity/`.
+
+The package versions above are authoritative because they are the versions
+recorded in the frozen fixture environments. The reference commit is retained
+as provenance metadata; it is not a claim that both PyPI packages map to that
+single source revision.
 
 ## Consequences
 
