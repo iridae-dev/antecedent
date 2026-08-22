@@ -52,7 +52,7 @@ impl super::Study {
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             query,
@@ -76,7 +76,7 @@ impl super::Study {
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: None,
@@ -218,7 +218,7 @@ impl super::Study {
         );
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, na_diagnostics) = run_refuters(
             data,
             &estimand,
             query,
@@ -231,6 +231,7 @@ impl super::Study {
             &self.custom_validators,
             None,
         )?;
+        diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {

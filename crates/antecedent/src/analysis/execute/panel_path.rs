@@ -85,7 +85,7 @@ impl super::Study {
             time_index: None,
             panel: Some(panel),
         };
-        let mut refutations = run_refuters(
+        let (mut refutations, na_diagnostics) = run_refuters(
             &stacked,
             &estimand,
             &ate_q,
@@ -102,6 +102,7 @@ impl super::Study {
             &self.custom_validators,
             Some(temporal_ctx),
         )?;
+        diagnostics.extend(na_diagnostics);
 
         // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
         if matches!(self.refute, RefuteSuite::Full) {

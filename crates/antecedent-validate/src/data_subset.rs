@@ -11,7 +11,7 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
     RefutationProblem, RefutationReport, linear_estimator_no_bootstrap, refit_effect,
-    replicate_p_value, with_row_subset,
+    replicate_p_value, with_contiguous_row_window, with_row_subset,
 };
 use crate::error::ValidationError;
 
@@ -68,14 +68,25 @@ impl DataSubsetRefuter {
                 message: "data subset requires subset_fraction in (0, 1)",
             });
         }
+        // Row-hiding masks are unsafe for a single lag-gathered series: `ensure_unmasked`
+        // (crates/antecedent-data/src/sample.rs) rejects them outright because lag gathers
+        // index raw row positions, and even a physically-dropped interior hole would quietly
+        // change what "lag-1" means across the seam. A contiguous window keeps every retained
+        // row adjacent to its true predecessor, so lag semantics survive; see
+        // `with_contiguous_row_window` for the full argument. Panel refits are left on the
+        // row-mask path (unchanged from before): `PanelSliceTemplate::apply_stacked` slices
+        // stacked rows at fixed per-unit offsets computed from the *original* row count, so a
+        // window that shortens the stacked table would desynchronize those offsets — panel
+        // temporal designs are not part of this fix's required coverage.
+        let is_temporal_series = problem.temporal.is_some_and(|t| !t.is_panel());
         let mut ates = Vec::with_capacity(self.replicates as usize);
         for r in 0..self.replicates {
-            let data = with_row_subset(
-                problem.data,
-                self.subset_fraction,
-                ctx,
-                0xA7E0_0007_0000_u64.wrapping_add(u64::from(r)),
-            )?;
+            let stream = 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r));
+            let data = if is_temporal_series {
+                with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
+            } else {
+                with_row_subset(problem.data, self.subset_fraction, ctx, stream)?
+            };
             let est = refit_effect(
                 problem,
                 &data,

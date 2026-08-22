@@ -328,6 +328,45 @@ Resampling support:
 * column permutation;
 * phase-randomized surrogates.
 
+### "Not applicable" means three different things
+
+The words "not applicable" surface in three unrelated places. A caller who
+only sees the bare phrase cannot tell which claim is being made — each is a
+different strength of statement, and only one of them is permanent:
+
+* **The support matrix's `not_applicable`** (`SupportRefusal::NotApplicable`,
+  wire id `not_applicable`). This is the strongest claim in the system: the
+  coordinate — a fixed (query, graph class, structure, inference, validation)
+  cell — does not denote, permanently, independent of any run's data. See the
+  [support matrix](support-matrix.md).
+* **`antecedent-validate`'s `NotApplicable`** (`ValidationOutcome::NotApplicable`
+  / `ValidationError::NotApplicable`). This is a per-run, data-dependent skip:
+  a requested validator is incompatible with *this run's* problem — an
+  E-value on a non-binary treatment, an MCMC diagnostic on a non-MCMC
+  posterior, a refuter outside its applicable regime. The same validator can
+  run cleanly on a different dataset against the same licensed cell. Callers
+  that only read `result.refutations` cannot see this skip — the produced
+  `RefutationReport`s and the skips are two disjoint outcomes, and
+  `result.refutations` carries only the former. Every execute path now emits
+  one `refute.validator.not_applicable` diagnostic per skipped validator into
+  `result.diagnostics`, naming the validator and the reason, so the skip is
+  visible instead of silently dropped. Its message states explicitly that
+  the skip is per-run and data-dependent, not a permanent support-matrix
+  refusal, so the two senses of "not applicable" are never mistaken for each
+  other at the point a caller actually reads them.
+* **The response path's NaN scalar summary**
+  (`estimate.response.no_scalar_summary`). A function-valued or
+  not-point-identified response has no single-number effect summary;
+  `result.effect` is `NaN` and a diagnostic states the scalar reading is "not
+  applicable" — the caller must read `result.response` instead. This is not
+  an error and not a refusal; it says the wrong field was checked, not that
+  anything failed.
+
+None of the three imply each other. A licensed cell can still emit a
+per-run validator skip or a NaN scalar summary; a matrix `not_applicable`
+cell never reaches either of the other two because `analyze` refuses it
+before validation or estimation runs.
+
 ## Experimental design
 
 Antecedent can rank candidate actions such as:
@@ -365,6 +404,16 @@ Available components:
 * adaptive resampling.
 
 Invalidation does not automatically rerun an analysis.
+
+`PreparedStudy` (`Study::prepare`) does not cache identification uniformly
+across graph classes. For `AverageEffect`, an estimate click reuses
+prepare-time identification (`exec.identify.cached`) on `Dag`, `Cpdag`, and
+`Admg` without bidirected edges. `Pag`, bidirected `Admg`, `graph_posterior`
+structures, and the sharp-RD estimator are not cached: prepare() still
+accepts and freezes them, but each estimate click re-runs identification
+against the frozen graph rather than reusing a stored result. The frozen
+graph, query, and identifier never change across clicks either way — only
+whether the identification step itself is skipped or repeated.
 
 ## Data support
 

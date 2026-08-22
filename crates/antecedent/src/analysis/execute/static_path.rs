@@ -182,15 +182,15 @@ impl super::Study {
 
         let cancelled = estimate.bootstrap_cancelled || clock.cancelled();
 
-        let refutations = if cancelled {
-            Vec::new()
+        let (refutations, na_diagnostics) = if cancelled {
+            (Vec::new(), Vec::new())
         } else {
             clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
             let prop_scratch = match estimator_id {
                 EstimatorId::Aipw => &mut estimate_ws.aipw.propensity,
                 _ => &mut estimate_ws.propensity.propensity,
             };
-            let reports = run_refuters(
+            let (reports, na_diagnostics) = run_refuters(
                 &data_est,
                 &estimand_est,
                 &query_est,
@@ -211,14 +211,16 @@ impl super::Study {
                     predictive_checks: Vec::new(),
                 },
             );
-            reports
+            (reports, na_diagnostics)
         };
 
-        let extra_diagnostics = if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
-            vec![d]
-        } else {
-            Vec::new()
-        };
+        let mut extra_diagnostics =
+            if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+                vec![d]
+            } else {
+                Vec::new()
+            };
+        extra_diagnostics.extend(na_diagnostics);
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -457,7 +459,7 @@ impl super::Study {
             .map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             query,
@@ -481,7 +483,7 @@ impl super::Study {
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: None,
@@ -517,7 +519,7 @@ impl super::Study {
         let est = ConditionalLinearAdjustment::new();
         let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             &query.inner,
@@ -540,7 +542,7 @@ impl super::Study {
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
             identify_cached,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: None,
@@ -595,7 +597,7 @@ impl super::Study {
             direct: None,
             mediated: None,
         };
-        let refutations = run_refuters(
+        let (refutations, extra_diagnostics) = run_refuters(
             data,
             &estimand,
             &ate,
@@ -618,7 +620,7 @@ impl super::Study {
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: Some(mediation),

@@ -18,6 +18,7 @@ use antecedent_estimate::EstimationWorkspace;
 
 use crate::accepted::GraphClass;
 use crate::error::CausalError;
+use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
@@ -197,7 +198,33 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        let estimator = self.analysis.estimator.as_ref().map_or(DEFAULT_ESTIMATOR, |e| e.as_str());
+        if matches!(self.analysis.inference, InferenceMode::Bayesian(_)) {
+            // Bayesian validation also includes prior/posterior predictive checks
+            // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
+            // frozen physical plan is the only path that constructs those artifacts;
+            // retain the prior point/identification while replacing validation state.
+            let started = Instant::now();
+            let mut analysis = self.analysis.clone();
+            analysis.refute = suite;
+            let validated =
+                analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
+            let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+            let mut out = prior.clone();
+            out.refutations = validated.refutations;
+            out.predictive_checks = validated.predictive_checks;
+            out.posterior = validated.posterior;
+            out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
+            out.performance.wall_time_ns =
+                Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
+            out.diagnostics.push(antecedent_core::Diagnostic::new(
+                "exec.refute.second_click",
+                antecedent_core::DiagnosticKind::Execution,
+                antecedent_core::DiagnosticSeverity::Info,
+                format!("second-click refute suite={}", suite.diagnostic_label()),
+            ));
+            return Ok(out);
+        }
+        let estimator = self.plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
 
         let (data_est, query_est, estimand_est) =
             project_for_ate_estimate(data, query, &prior.estimand)?;
@@ -209,7 +236,7 @@ impl PreparedStudy {
         }
         let mut workspace = EstimationWorkspace::default();
         let started = Instant::now();
-        let reports = run_refuters(
+        let (reports, na_diagnostics) = run_refuters(
             &data_est,
             &estimand_est,
             &query_est,
@@ -227,6 +254,7 @@ impl PreparedStudy {
 
         let mut out = prior.clone();
         out.refutations = reports;
+        out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));

@@ -591,6 +591,24 @@ impl super::Study {
                 ]),
             });
         }
+        if let Some(requested) = self.refute_default_downgrade {
+            let requested_id = requested.validation_suite_id().unwrap_or("none");
+            result.diagnostics.push(Diagnostic {
+                code: Arc::from("exec.refute.default_suite_unsupported"),
+                kind: DiagnosticKind::Scientific,
+                severity: DiagnosticSeverity::Info,
+                message: Arc::from(format!(
+                    "no .refute(..) was set; the default validation suite \
+                     ({requested_id}) is not supported for this cell, so validation was \
+                     silently downgraded to none (no refuters ran)"
+                )),
+                artifact_id: None,
+                fields: Arc::from([
+                    (Arc::from("requested_suite"), Arc::from(requested_id)),
+                    (Arc::from("applied_suite"), Arc::from("none")),
+                ]),
+            });
+        }
         result
     }
 }
