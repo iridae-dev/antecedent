@@ -29,6 +29,9 @@ Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
 - [baselines/dowhy.toml](baselines/dowhy.toml)
 - [baselines/tigramite.toml](baselines/tigramite.toml)
+- [baselines/causal-learn.toml](baselines/causal-learn.toml)
+- [baselines/lingam.toml](baselines/lingam.toml)
+- [baselines/statsmodels.toml](baselines/statsmodels.toml)
 - [baselines/bpbounds.toml](baselines/bpbounds.toml)
 - [baselines/causaleffect.toml](baselines/causaleffect.toml)
 - [baselines/riskRegression.toml](baselines/riskRegression.toml)
@@ -49,6 +52,8 @@ Each `[[capabilities]]` row uses:
 | `evidence_kind` | on `done` rows | See table below |
 | `external_oracle` | with external kinds | `"<project> <pin>"` |
 | `known_truth_fixture` | no | Strongest exercised fixture path |
+| `evidence_test` | on support-matrix cross-check rows | Repository-relative Rust/Python test file |
+| `evidence_assertion` | on support-matrix cross-check rows | Executing test-function name |
 | `limitations` | no | What the evidence does **not** demonstrate |
 
 **`evidence_kind`** states exactly what proposition the row's evidence
@@ -66,10 +71,19 @@ row except in `release.toml` (infrastructure rows; evidence map lives in
 | `contract_equivalence` | Theorem-level / method-contract argument |
 
 For the two external kinds, `external_oracle` and `known_truth_fixture` are
-required, and the gate enforces the fixture-authoritative rule: the named
-project must literally appear in the frozen fixture. A clean-room enumeration
-is `internal_known_truth` no matter what the row's prose says — the 2026-08
-audit found fourteen ledger rows that had drifted the other way.
+required. The gate also requires a matching project/version record under
+`parity/baselines`, valid frozen `expected.json`, and an executing Rust/Python
+conformance test that names the fixture. It enforces the fixture-authoritative
+rule too: the named project must literally appear in the frozen fixture. A
+clean-room enumeration is `internal_known_truth` no matter what the row's prose
+says — the 2026-08 audit found fourteen ledger rows that had drifted the other
+way.
+
+Licensed support-matrix rows use a stricter truth condition. Known-truth and
+external-oracle rows must name a fixture that a test parses. An
+`internal_cross_check` row must instead name the exact executing test and test
+function, and must not name a `known_truth_fixture`: agreement between two
+Antecedent paths is consistency evidence, not independent truth evidence.
 
 What these fields do **not** mean, stated once so readers do not infer it:
 `evidence_kind` names the *strongest demonstrated* proposition, not the only

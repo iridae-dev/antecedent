@@ -801,8 +801,9 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "conformance/bayesian/dag_posterior pins discovery skeleton/orientation/lag-edge posterior mass on chain/collider/DBN SCMs; no test parses it to check the mixture ATE this cell computes, so this is not a known-truth pin. Evidence is an internal cross-check: prepare_graph_posterior_ate_runs_identify_per_click asserts prepared-then-click ATE equals a fresh run() on the same graph-posterior study. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom."
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "prepare_graph_posterior_ate_runs_identify_per_click"
+limitations = "Evidence is an internal cross-check, not a known-truth pin: prepare_graph_posterior_ate_runs_identify_per_click asserts prepared-then-click ATE equals a fresh run() on the same hand-built graph-posterior study. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom."
 
 [[cell]]
 query = "AverageEffect"
@@ -812,8 +813,9 @@ inference = "Bayesian"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_cross_check"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's overlap/E-value numbers, and no test parses it against this cell. Cheap suite is overlap + E-value on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh."
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "prepare_graph_posterior_ate_runs_identify_per_click"
+limitations = "Evidence is the same prepared-vs-fresh internal cross-check as the none cell, plus an assertion that cheap validation emits reports; it does not pin the mixture effect or validator values. Cheap runs the applicable overlap/E-value suite on the mixture. Per-atom identify on refresh."
 
 [[cell]]
 query = "AverageEffect"
@@ -823,8 +825,9 @@ inference = "Bayesian"
 validation = "full"
 staged = true
 evidence_kind = "internal_cross_check"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's refuter/PPC numbers, and no test parses it against this cell. Full adds PPC / prior-sensitivity on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh."
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "prepare_graph_posterior_ate_runs_identify_per_click"
+limitations = "Evidence is the same prepared-vs-fresh internal cross-check as the none cell, plus an assertion that full validation emits at least the cheap reports; it does not pin the mixture effect or validator values. This graph-posterior path runs effect refuters but does not currently attach Bayesian predictive checks or prior-sensitivity output. Per-atom identify on refresh."
 
 [[cell]]
 query = "PulseEffect"
@@ -834,8 +837,9 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "conformance/bayesian/dag_posterior's dbn_lag1_fixture pins DBN lag-edge posterior mass; no test in this corpus parses it and compares against execute_dbn_posterior_bayesian's mixed temporal effect, so this is not a known-truth pin here. execute_dbn_posterior_bayesian mixes per-atom temporal effects; evidence is an internal cross-check (prepared-then-click ATE equals a fresh run()). cheap/full are refused (empty refutations). Per-atom identify on refresh."
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_bayesian_envelope"
+limitations = "execute_dbn_posterior_bayesian mixes per-atom temporal effects. Evidence is an internal prepared-vs-fresh cross-check plus a loose seeded-DGP smoke envelope; it is not a frozen known-truth pin. cheap/full are refused because this path returns no refutations. Per-atom identify on refresh."
 
 [[cell]]
 query = "SustainedEffect"
@@ -845,5 +849,6 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. conformance/bayesian/dag_posterior's dbn_lag1_fixture is not parsed against this cell, so evidence is the same internal cross-check (prepared-then-click ATE equals a fresh run()), not a known-truth pin. cheap/full are refused (empty refutations). Per-atom identify on refresh."
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_bayesian_sustained_envelope"
+limitations = "Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. Evidence is an internal prepared-vs-fresh cross-check plus a loose seeded-DGP smoke envelope, not a frozen known-truth pin. cheap/full are refused because this path returns no refutations. Per-atom identify on refresh."

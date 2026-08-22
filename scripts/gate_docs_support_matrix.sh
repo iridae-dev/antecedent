@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 root = Path(".")
@@ -115,11 +116,45 @@ if caps.is_file():
                 "not licensed nearby"
             )
 
+# The current release notes are part of the 0.9 public contract, not an
+# optional changelog paraphrase.  Verify that their refusal section accounts
+# for every root query with zero licensed cells; otherwise a newly added root
+# query (or a removed license) can leave the release notes silently stale.
+cargo = tomllib.load(open(root / "Cargo.toml", "rb"))
+version = cargo["workspace"]["package"]["version"]
+notes_path = root / "docs" / "release-notes" / f"v{version}.md"
+if not notes_path.is_file():
+    fail.append(f"{notes_path}: current release notes missing")
+else:
+    notes = notes_path.read_text()
+    if "../support-matrix.md" not in notes:
+        fail.append(f"{notes_path}: does not link the authoritative support matrix")
+    refusal_heading = "## Explicit refusals"
+    if refusal_heading not in notes:
+        fail.append(f"{notes_path}: missing {refusal_heading!r}")
+    else:
+        refusal_text = notes.split(refusal_heading, 1)[1].split("\n## ", 1)[0]
+        axes = tomllib.load(open(root / "parity/support_axes.toml", "rb"))
+        licensed = tomllib.load(open(root / "parity/support_licensed.toml", "rb")).get(
+            "cell", []
+        )
+        licensed_queries = {row["query"] for row in licensed}
+        zero_cell_queries = set(axes["queries"]) - licensed_queries
+        for query in sorted(zero_cell_queries):
+            if f"`{query}`" not in refusal_text:
+                fail.append(
+                    f"{notes_path}: zero-cell root query {query!r} is absent from "
+                    "the explicit-refusals section"
+                )
+
 if fail:
     print("Docs support-matrix gate FAILED:")
     for item in fail:
         print(f" - {item}")
     sys.exit(1)
 
-print("Docs support-matrix OK (capabilities/comparison link the matrix; no unhedged overclaims)")
+print(
+    "Docs support-matrix OK (capabilities/comparison link the matrix; current "
+    "release notes enumerate every zero-cell root query; no unhedged overclaims)"
+)
 PY

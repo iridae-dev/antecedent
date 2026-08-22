@@ -194,7 +194,14 @@ def main() -> int:
         for row in cells:
             ev = row.get("evidence_kind", "")
             fix = row.get("known_truth_fixture", "")
-            ev_s = f"{ev}" + (f" (`{fix}`)" if fix else "")
+            test = row.get("evidence_test", "")
+            assertion = row.get("evidence_assertion", "")
+            if fix:
+                ev_s = f"{ev} (`{fix}`)"
+            elif test and assertion:
+                ev_s = f"{ev} (`{test}::{assertion}`)"
+            else:
+                ev_s = f"{ev}"
             limitations = md_cell(row.get("limitations", ""))
             lic_rows.append(
                 f"| `{row['query']}` | `{row['graph_class']}` | `{row['structure']}` | "

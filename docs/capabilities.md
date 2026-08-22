@@ -1,7 +1,7 @@
 # Capabilities
 
 This page is a readable tour of what exists in Antecedent. The parity manifests
-are the complete implementation inventory; the [support matrix](support-matrix.md)
+are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **license** for analysis cells. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -22,6 +22,20 @@ rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin only
 identification or an effect point, while an internal cross-check may establish
 prepared-vs-fresh consistency without pinning the scientific target. Read each
 row's `limitations`; a shared method name is not a parity claim.
+
+A licensed row means the staged runtime path, refusal boundary, and recorded evidence
+contract are exercised for that coordinate. It does not mean causal assumptions were
+verified from the data, intervals are universally calibrated, identification is complete
+beyond the named subset, or parametric restrictions disappeared. In particular, priors
+cannot convert a nonidentified estimand into an identified one.
+
+At analysis level, the licensed query families are `AverageEffect`,
+`ConditionalEffect`, `PathSpecificEffect`, `InterventionalDistribution`,
+`ResponseCurve`, `InterventionResponse`, `PulseEffect`, `SustainedEffect`, and
+`TemporalMediationEffect`, only on the exact graph / structure / inference /
+validation rows in the matrix. Root query types outside that list —
+`Counterfactual`, static `MediationEffect`, and all six derivative query types —
+have no licensed `analyze` cell in 0.9. Importability is not a license.
 
 ## Graph primitives
 
@@ -47,7 +61,10 @@ Graph operations:
 * intervention overlays.
 
 Static and temporal graphs have separate semantics. A static graph is not
-interpreted as temporal by default.
+interpreted as temporal by default. `Cpdag`, `TemporalCpdag`, and `TemporalPag`
+are implemented graph/interchange types, but 0.9 licenses no analysis cell on
+them. In particular, successful completion to a DAG does not turn an
+incomplete-class cell into a licensed one.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.

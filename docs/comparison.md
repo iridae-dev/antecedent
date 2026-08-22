@@ -15,20 +15,26 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 0.9 matrix licenses these main families:
+The 0.9 matrix licenses these families (structure and validation qualifiers are
+part of the claim, not implementation detail):
 
-- static `AverageEffect` on explicit or accepted DAGs, ADMGs, and PAGs under
-  the inference and validation combinations listed in the matrix;
-- `ConditionalEffect`, `PathSpecificEffect`, and
-  `InterventionalDistribution` on their narrower DAG-only cells;
+- Frequentist `AverageEffect` on explicit or accepted DAGs, ADMGs, and PAGs,
+  and Bayesian `AverageEffect` on explicit or accepted DAGs and PAGs; all
+  three validation values are licensed for those cells;
+- Bayesian graph-posterior `AverageEffect` over DAG atoms, with validation
+  `none`, `cheap`, or `full`;
+- Frequentist `ConditionalEffect` on explicit or accepted DAGs with all three
+  validation values;
+- Frequentist `PathSpecificEffect` and `InterventionalDistribution` on an
+  explicit DAG with validation `none`;
 - static and temporal `ResponseCurve` / `InterventionResponse` under
   Frequentist inference, explicit or accepted structure, and validation
   `none`;
-- pulse and single-step sustained temporal effects on `TemporalDag`, including
-  the listed Frequentist, Bayesian, and DBN-posterior cells;
+- pulse and single-step sustained temporal effects on explicit or accepted
+  `TemporalDag` under Frequentist or Bayesian inference with all three
+  validation values, plus the Bayesian DBN-posterior validation-`none` cells;
 - temporal mediation on explicit or accepted `TemporalDag` under Frequentist
   inference and validation `none`;
-- Bayesian graph-posterior `AverageEffect` envelopes whose atoms are DAGs.
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior × Bayesian` with validation
@@ -54,8 +60,18 @@ black-box outputs from pinned external packages:
   independence fixtures. J-PCMCI+ and fixed-regime RPCMCI-related fixtures use
   5.2.9.7. Evidence ranges from frozen examples to behavioral comparisons and
   is not a claim of whole-library parity.
+- causal-learn 0.1.4.3 supplies the frozen FCI and GES reference cases, while
+  lingam 1.9.1 supplies the DirectLiNGAM order/coefficient reference in the
+  same static-discovery fixture.
+- statsmodels 0.14.4 supplies the conditional-effect and multiplicity
+  reference outputs claimed by the capability manifests.
+- bpbounds 0.1.8 supplies the canonical binary-IV Balke–Pearl bounds fixture;
+  causaleffect 1.3.15 supplies formula-class references only for Antecedent's
+  explicitly scoped sound sID subset.
 
-See [ADR 0009](../adr/0009-parity-baselines.md), the parity manifests, and each
+Each external claim has an immutable record under `parity/baselines`, a frozen
+fixture, and an executing conformance test. See
+[ADR 0009](../adr/0009-parity-baselines.md), the parity manifests, and each
 licensed row's evidence kind and limitations. A shared algorithm name is not
 evidence of equivalent behavior.
 

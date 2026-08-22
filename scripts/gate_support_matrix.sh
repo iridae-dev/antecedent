@@ -188,6 +188,9 @@ corpus = "\n".join(
     for p in corpus_files
     if "target" not in p.parts and ".venv" not in p.parts
 )
+test_files = set(root.glob("crates/**/tests/**/*.rs"))
+test_files.update(root.glob("python/tests/**/*.py"))
+rust_src_files = set(root.glob("crates/**/src/**/*.rs"))
 
 def referenced(name: str) -> bool:
     for m in re.finditer(re.escape(name), corpus):
@@ -210,21 +213,22 @@ PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
     r"tomllib\.loads|tomllib\.load\(|load_expected"
 )
+ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
 CONSUMPTION_WINDOW = 800
 
 
 def meaningfully_consumed(name: str) -> bool:
-    for p in corpus_files:
-        if "target" in p.parts or ".venv" in p.parts:
-            continue
+    for p in test_files | rust_src_files:
         text = p.read_text(errors="ignore")
         for m in re.finditer(re.escape(name), text):
             before = text[m.start() - 1] if m.start() > 0 else ""
             after = text[m.end()] if m.end() < len(text) else ""
             if re.match(r"[A-Za-z0-9_]", before) or re.match(r"[A-Za-z0-9_]", after):
                 continue
+            if p in rust_src_files and "#[cfg(test)]" not in text[: m.start()]:
+                continue
             window = text[max(0, m.start() - CONSUMPTION_WINDOW) : m.end() + CONSUMPTION_WINDOW]
-            if PARSE_MARKERS.search(window):
+            if PARSE_MARKERS.search(window) and ASSERT_MARKERS.search(text):
                 return True
     return False
 
@@ -388,22 +392,60 @@ for i, row in enumerate(cells, 1):
     if row.get("status") is not None:
         fail.append(f"{label}: status is illegal on a matrix cell")
     fixture = row.get("known_truth_fixture")
-    if not isinstance(fixture, str) or not fixture.strip():
-        fail.append(f"{label}: known_truth_fixture is required")
-    elif not (root / fixture).exists():
-        fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
-    elif not referenced(Path(fixture).name):
-        fail.append(
-            f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
-        )
-    elif kind in {"internal_known_truth", "frozen_external_oracle"} and not meaningfully_consumed(
-        Path(fixture).name
-    ):
-        fail.append(
-            f"{label}: known_truth_fixture {fixture!r} is named ({kind!r}) but never parsed "
-            "by a test (e.g. only reachable via a bare include_str!/is_empty check) -- "
-            "parse it and compare a real field, or demote evidence_kind"
-        )
+    if kind in {"internal_known_truth", "frozen_external_oracle"}:
+        if not isinstance(fixture, str) or not fixture.strip():
+            fail.append(f"{label}: {kind} requires known_truth_fixture")
+        elif not (root / fixture).exists():
+            fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+        elif not referenced(Path(fixture).name):
+            fail.append(
+                f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
+            )
+        elif not meaningfully_consumed(Path(fixture).name):
+            fail.append(
+                f"{label}: known_truth_fixture {fixture!r} is named ({kind!r}) but never "
+                "parsed by a test (e.g. only reachable via a bare include_str!/is_empty "
+                "check) -- parse it and compare a real field, or demote evidence_kind"
+            )
+    elif kind == "internal_cross_check":
+        if fixture is not None:
+            fail.append(
+                f"{label}: internal_cross_check must not name known_truth_fixture; "
+                "that would present contextual data as independent truth evidence"
+            )
+        test_rel = row.get("evidence_test")
+        assertion = row.get("evidence_assertion")
+        if not isinstance(test_rel, str) or not test_rel.strip():
+            fail.append(f"{label}: internal_cross_check requires evidence_test")
+        elif not isinstance(assertion, str) or not assertion.strip():
+            fail.append(f"{label}: internal_cross_check requires evidence_assertion")
+        else:
+            test_path = root / test_rel
+            try:
+                test_path.resolve().relative_to(root.resolve())
+            except ValueError:
+                fail.append(f"{label}: evidence_test must remain inside the repository")
+            else:
+                if not test_path.is_file():
+                    fail.append(f"{label}: evidence_test {test_rel!r} does not exist")
+                elif test_path.suffix not in {".rs", ".py"}:
+                    fail.append(f"{label}: evidence_test must be Rust or Python test code")
+                else:
+                    test_text = test_path.read_text(errors="ignore")
+                    if test_path.suffix == ".rs":
+                        test_pattern = re.compile(
+                            rf"#\[test\][^\n]*\n\s*fn\s+{re.escape(assertion)}\s*\(",
+                            re.M,
+                        )
+                    else:
+                        test_pattern = re.compile(
+                            rf"^\s*def\s+{re.escape(assertion)}\s*\(", re.M
+                        )
+                    if not test_pattern.search(test_text):
+                        fail.append(
+                            f"{label}: evidence_assertion {assertion!r} is not an "
+                            f"executing test function in {test_rel}"
+                        )
     key = (q, g, s, inf, v)
     if key in seen:
         fail.append(f"{label}: duplicate cell {key}")

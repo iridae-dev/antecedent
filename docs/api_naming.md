@@ -40,15 +40,23 @@ the module path rather than importing it flat:
 ``antecedent.extensibility``, ``antecedent.gcm``, ``antecedent.graph``,
 ``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
 
-Eleven further modules are reachable as ``antecedent.<name>`` (nothing stops
+Each of those twelve modules has an explicit, separately frozen `__all__`
+surface. The 49-name count is only the package-root contract; it does not add
+the stage-module names a second time.
+
+**14** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
-left off the frozen `__all__` list. Two are left off because their public content is
+left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
 
+- ``antecedent.accepted_graph`` — `AcceptedGraph` is re-exported at root.
+- ``antecedent.ids`` — the identifier / estimator / latency / refute selectors are
+  re-exported at root.
 - ``antecedent.query`` — the typed query classes (`AverageEffect`, `ResponseCurve`, …)
   are re-exported at root already.
 - ``antecedent.inference`` — the `Frequentist` / `Bayesian` selector classes are
   re-exported at root already.
+- ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
 The other nine are left off because they're a narrower surface than the twelve stage
 modules — each one owns a single specialized concern that most callers never touch

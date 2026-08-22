@@ -1,0 +1,5 @@
+# Pinned external baseline (oracle pin only). Capability inventory lives in domain TOMLs.
+project = "lingam"
+version = "1.9.1"
+metadata_sha256 = "25849dadb4cf6ed6599db1d19972fd863fa4bc1252e1594476c7ba009f387c21"
+notes = "Black-box DirectLiNGAM reference for conformance/discovery/static_oracle_matrix. The frozen fixture records installed-package metadata and public-API outputs; source/tests are not copied."

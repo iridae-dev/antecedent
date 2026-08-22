@@ -40,6 +40,20 @@ Workspace and Python package versions are **0.9.0**.
   or refused.
 - Expanded the licensed matrix to 77 cells, including validation riders for
   supported frequentist and Bayesian analyses.
+- Froze the 12 root-exported stage-module surfaces as well as the 49-name root
+  namespace, and corrected the documented reachable-but-unlisted module count
+  from 11 to 14.
+- Tightened external-oracle gates: every external capability claim now needs a
+  baseline record, valid frozen fixture, and consuming test; oracle-closure rows
+  likewise require an executing consumer.
+- Separated independent known-truth evidence from internal cross-checks in the
+  licensed matrix. Cross-check cells now name an exact executing assertion and
+  cannot borrow a contextual fixture as truth evidence; overstated graph-
+  posterior calibration/parity claims were demoted to what the tests establish.
+- Re-ran the unsafe-code, dependency, license, source, workflow, and default-
+  linkage review against the 0.9.0 tree. `cargo deny check` passes all four
+  enforced categories; configured duplicate/unused-allowance warnings remain
+  maintenance signals.
 
 ### Fixed
 
@@ -50,6 +64,29 @@ Workspace and Python package versions are **0.9.0**.
   ADMG analyses consume Arrow data.
 - Reject Bayesian prepared-analysis options that cannot be applied instead of
   silently ignoring prior transfer or mapping.
+- Point-derivative intervals now use rowwise heteroskedasticity-robust influence
+  contributions instead of a common-sigma local-polynomial standard error.
+- Temporal response estimation now validates the full query and point-
+  identification status at its public Rust entry point, rejects non-finite or
+  ambiguously parameterized interventions, preserves the exact caller estimand,
+  classifies shift support against the shifted treatment law, and reports the
+  correct horizon-only intervention layout.
+- Format-0.4 temporal response artifacts now validate dose/horizon geometry and
+  per-horizon identification metadata against the artifact name table, with
+  Rust/Python round trips for temporal policies and results.
+- Identification aggregation now preserves the weakest justified status and
+  unions the assumptions from every graph or horizon. Backdoor response, MAG
+  adjustment, and parametric-SCM paths expose the premises their status depends
+  on instead of returning identified results with missing evidence.
+- Format-0.4 artifacts now retain assumption descriptions, structured
+  diagnostics, bootstrap stop state, overlap/clip-sensitivity reports, and weak-
+  instrument evidence. Restricted-identification, temporal-support, and
+  posterior-integrity claims fail closed when their evidentiary basis is absent
+  or internally inconsistent.
+- Failed `CausalState` mutations are atomic: rejected constraint removals no
+  longer advance the state clock, batched result refreshes commit all-or-none,
+  and invalid Python data replacement preserves the prior catalog and retained
+  columns.
 
 ## [0.7.1] — 2026-08-21
 
