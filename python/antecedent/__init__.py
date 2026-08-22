@@ -11,15 +11,19 @@ Day-1 surface::
 The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
 :func:`identify`, :func:`estimate`), the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. Everything
-else lives in a stage module and is reached through it:
+estimator selectors, and the two error names most callers catch. The twelve
+root-exported stage modules are:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
-``antecedent.estimators``, ``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.interference``, ``antecedent.intervention``,
-``antecedent.observation``, ``antecedent.priors``, ``antecedent.state``,
-``antecedent.transport``, and ``antecedent.validation``.
+``antecedent.extensibility``, ``antecedent.gcm``,
+``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
+``antecedent.validation``.
+
+Fourteen narrower modules are reachable but deliberately outside ``__all__``:
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``ids``,
+``inference``, ``interference``, ``intervention``, ``model``, ``observation``,
+``population``, ``query``, ``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.

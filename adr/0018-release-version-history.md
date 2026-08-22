@@ -45,10 +45,11 @@ independently needed correction to match reality.
   estimation, attribution, and diagnostics — see the 0.4.0 `CHANGELOG.md`
   entry's *Correctness* section and `docs/release-notes/v0.4.0.md`) →
   **0.4.1** (2026-07-30, patch: identify-only accepts an `Admg`).
-- Record the actual artifact format freeze: `FormatVersion { major: 0,
-  minor: 2 }` (`antecedent_io::STABLE_FORMAT`), unchanged from 0.2.0 through
-  0.4.1. `FormatVersion { major: 0, minor: 1 }` remains a supported *source*
-  format for migration, not the frozen target.
+- Record the historical artifact format at this decision: `FormatVersion {
+  major: 0, minor: 2 }`, unchanged from 0.2.0 through 0.4.1. ADR 0019 later
+  advanced response artifacts to 0.3, and ADR 0021 advanced temporal response
+  artifacts to the current `antecedent_io::STABLE_FORMAT`, 0.4. Formats
+  0.1–0.3 remain supported migration sources, not the frozen target.
 - Future version bumps continue to be recorded in `CHANGELOG.md` (breaking
   changes called out per the 0.4.0 entry's convention) rather than requiring
   a new ADR on every release; a new ADR is only needed if the artifact
@@ -57,8 +58,7 @@ independently needed correction to match reality.
 ## Consequences
 
 ADR 0017 is marked Superseded and points here for version/format history.
-`docs/development.md`, `docs/artifacts.md`, and `docs/security_review.md`
-are corrected to state 0.4.0 / `{ major: 0, minor: 2 }` directly; this ADR
-is the durable record of why those numbers are what they are. The next
-release should extend the version history above rather than editing ADR
-0017.
+`docs/artifacts.md` follows the live stable-format constant, currently 0.4;
+ADR 0019 and ADR 0021 record the two later wire advances. Package releases
+after 0.4.1 are recorded in `CHANGELOG.md` and their release notes rather than
+retroactively rewriting the historical version list above.
