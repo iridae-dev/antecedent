@@ -708,6 +708,7 @@ pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, Ide
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oracle_dot::dag_from_oracle_dot;
     use crate::result::IdentificationStatus;
     use antecedent_core::AverageEffectQuery;
 
@@ -741,26 +742,34 @@ mod tests {
 
     #[test]
     fn confounding_requires_z() {
-        // T <- Z -> Y, T -> Y
-        let mut g = Dag::with_variables(3);
-        let t = DenseNodeId::from_raw(0);
-        let y = DenseNodeId::from_raw(1);
-        let z = DenseNodeId::from_raw(2);
-        g.insert_directed(z, t).unwrap();
-        g.insert_directed(z, y).unwrap();
-        g.insert_directed(t, y).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/general_id_backdoor_chain/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["case"], "identifiable_backdoor");
+        assert_eq!(fixture["treatment"], "t");
+        assert_eq!(fixture["outcome"], "y");
+        assert_eq!(fixture["expected_status_family"], "identified");
+        assert!(
+            fixture["reference"]["outputs"]["estimand"]
+                .as_str()
+                .unwrap()
+                .contains("Estimand name: backdoor"),
+            "external oracle must identify Z -> T, Z -> Y, T -> Y by backdoor"
+        );
+
+        let (g, nodes) = dag_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
+        let treatment = nodes.id(fixture["treatment"].as_str().unwrap());
+        let outcome = nodes.id(fixture["outcome"].as_str().unwrap());
 
         let id = BackdoorIdentifier::new();
         let prep = id.prepare(&g).unwrap();
-        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        ));
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(treatment, outcome));
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 1);
-        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[nodes.id("z")]);
     }
 
     #[test]

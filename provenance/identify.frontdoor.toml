@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Supports only single-treatment, single-outcome AverageEffect queries with hard Set contrasts on static DAGs; emitted SumOut functionals require enumerable mediator and treatment domains.",
+ "Mediator search defaults to sets of size at most 4 and 64 results, and does not enumerate mixed intermediate sets when more than 12 intermediates exist; NotIdentified can therefore mean bounded-search failure.",
+]
+
 papers = [
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.2"] },
 ]
@@ -15,5 +20,4 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic SCMs with unmeasured T-Y confounders",
- "property tests vs path-enumeration d-separation oracle",
 ]

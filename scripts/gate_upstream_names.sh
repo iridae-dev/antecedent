@@ -7,6 +7,7 @@ cd "$ROOT"
 python3 - <<'PY'
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 root = Path(".")
@@ -79,7 +80,15 @@ skip_dirs = {
 }
 
 hits = []
-for path in root.rglob("*"):
+tracked = subprocess.run(
+    ["git", "ls-files", "-z"],
+    check=True,
+    capture_output=True,
+).stdout.split(b"\0")
+for raw_path in tracked:
+    if not raw_path:
+        continue
+    path = root / raw_path.decode()
     if not path.is_file():
         continue
     parts = set(path.parts)

@@ -10,10 +10,18 @@ papers = [
  { title = "The Moderator-Mediator Variable Distinction in Social Psychological Research: Conceptual, Strategic, and Statistical Considerations", doi = "10.1037/0022-3514.51.6.1173", sections = ["product-of-coefficients mediation"] },
 ]
 
+implementation_deviations = [
+ "Implements the front-door effect as a product of coefficients from linear mediator and outcome regressions rather than evaluating Pearl's nonparametric front-door functional.",
+ "The causal interpretation therefore requires a linear, additive, no-interaction structural model in addition to the graphical front-door conditions; nonlinear mediator or outcome relations and treatment-mediator interactions are unsupported.",
+ "Multiple mediators are handled as an additive sum of separate linear path products, not as a general joint-mediator front-door functional.",
+ "The cited mediation paper does not specify this implementation's complete-case policy or stacked analytic uncertainty calculation.",
+]
+
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
  "independently generated synthetic SCM with U->T, U->Y unmeasured confounding and T->M->Y mediation (no direct T->Y edge), mirroring antecedent-identify's front-door criterion test fixture, with known structural effect through the mediator path",
+ "conformance/estimate/frontdoor (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]

@@ -12,9 +12,17 @@ papers = [
  { title = "Robust Inference With Multiway Clustering", doi = "10.1198/jbes.2010.07136", sections = ["multiway cluster-robust variance via inclusion-exclusion"] },
 ]
 
+implementation_deviations = [
+ "For influence-function estimators, HC0, HC1, HC2, and HC3 all dispatch to the same demeaned sample-variance formula; leverage-corrected HC2 and HC3 and the HC0 versus HC1 finite-sample distinction are therefore not implemented despite the distinct public variants.",
+ "PanelClusterHac with positive lag is a custom within-unit Bartlett HAC calculation, not Arellano's arbitrary within-unit cluster covariance; only the special lag-zero branch equals the ordinary cluster estimator.",
+ "Newey-West bandwidth is entirely caller supplied, with no automatic bandwidth selection or prewhitening.",
+ "Multiway clustering is limited to four dimensions and applies a particular subset-specific finite-sample correction; alternative corrections discussed in the clustering literature are unsupported.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "conformance/estimate/uncertainty_routing (statsmodels-oracle routing/identity fixture; numeric tolerances inherit conformance/stats/sandwich_covariance)",
- "in-crate unit tests (crates/antecedent-estimate/src/se.rs): one/multiway/panel-HAC IF-vs-sandwich parity, demeaning correctness, dimension-permutation and relabeling invariance",
+ "conformance/estimate/uncertainty_routing (self-authored routing-contract fixture; numeric assertions are explicitly deferred to conformance/stats/sandwich_covariance)",
+ "conformance/stats/sandwich_covariance (statsmodels 0.14.4 coefficient-covariance oracle consumed by crates/antecedent-stats/tests/foundations_oracle.rs)",
+ "in-crate unit tests (crates/antecedent-estimate/src/se.rs): one/multiway/panel-HAC IF-vs-sandwich implementation parity, demeaning correctness, dimension-permutation and relabeling invariance",
 ]

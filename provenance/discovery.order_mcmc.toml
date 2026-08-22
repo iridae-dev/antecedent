@@ -10,10 +10,16 @@ papers = [
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
 ]
 
+implementation_deviations = [
+ "The chain state is a single DAG plus compatible topological order, with edge flips and order transpositions corrected by the DAG's number of topological orders; it does not implement Friedman and Koller's order score that sums over all compatible parent sets.",
+ "The target uses continuous Gaussian BIC rather than an exact modular Bayesian marginal likelihood.",
+ "Sampling is finite and empirical, and the u64 adjacency representation limits the method to at most 63 directed-edge bits.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/order_mcmc.rs unit tests",
- "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
- "conformance/discovery/graph_mcmc_exact",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (finite-chain edge marginals against a clean-room exhaustive Gaussian-BIC target on three-node cases)",
+ "conformance/discovery/graph_mcmc_exact (small exhaustive Gaussian-BIC target; not an external full-method Order MCMC oracle)",
 ]

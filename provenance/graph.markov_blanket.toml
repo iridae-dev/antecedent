@@ -6,12 +6,19 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Markov Properties for Acyclic Directed Mixed Graphs", doi = "10.1111/1467-9469.00323", sections = ["m-separation via moralization of the ancestral subgraph"] },
- { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["Markov blankets via moralization"] },
+ { title = "Markov Properties for Acyclic Directed Mixed Graphs", doi = "10.1111/1467-9469.00323", sections = ["augmented/moral graph construction used for global m-separation; cited for the full-graph neighborhood construction, not an ordered-local blanket"] },
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["ancestral-graph augmentation and moralization; cited for the implemented augmented-graph neighborhood semantics"] },
+]
+
+implementation_deviations = [
+ "The DAG operation is the standard parents, children, and co-parents blanket, but the ADMG operation returns neighbors in the fully Richardson-augmented moral graph.",
+ "That ADMG augmented-graph neighborhood can be larger than, and should not be conflated with, the ordered-local ADMG blanket defined from a node's district and parents within a chosen ancestral set.",
+ "Only DAGs and directed-bidirected ADMGs are supported; general MAGs with undirected edges, PAGs, and ancestral-set-relative blankets are absent.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "ADMG Markov blanket unit tests (inducing-path closure, DAG equivalence, m-separation of outsiders)",
+ "DAG Markov blanket unit tests (crates/antecedent-graph/src/ancestry.rs)",
+ "ADMG Markov blanket unit tests (crates/antecedent-graph/src/msep.rs)",
 ]

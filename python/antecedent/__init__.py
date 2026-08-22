@@ -11,15 +11,19 @@ Day-1 surface::
 The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
 :func:`identify`, :func:`estimate`), the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. Everything
-else lives in a stage module and is reached through it:
+estimator selectors, and the two error names most callers catch. The twelve
+root-exported stage modules are:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
-``antecedent.estimators``, ``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.interference``, ``antecedent.intervention``,
-``antecedent.observation``, ``antecedent.priors``, ``antecedent.state``,
-``antecedent.transport``, and ``antecedent.validation``.
+``antecedent.extensibility``, ``antecedent.gcm``,
+``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
+``antecedent.validation``.
+
+Fourteen narrower modules are reachable but deliberately outside ``__all__``:
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``ids``,
+``inference``, ``interference``, ``intervention``, ``model``, ``observation``,
+``population``, ``query``, ``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -38,10 +42,11 @@ from typing import NoReturn
 # module was compiled without optimizations.
 from . import _native as _native_module
 
-# `artifacts` belongs to the "reachable but deliberately outside `__all__`"
-# family described in the comment below; isort's alphabetical import
-# ordering just happens to place it ahead of the `__all__`-exported block
-# rather than next to its siblings.
+# These explicit self-alias imports belong to the "reachable but deliberately
+# outside `__all__`" family described below. Isort's alphabetical ordering
+# places the first pair ahead of the `__all__`-exported module block rather
+# than next to their siblings.
+from . import accepted_graph as accepted_graph
 from . import artifacts as artifacts
 from . import (
     attribution,
@@ -68,6 +73,7 @@ from . import (
 # (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
 from . import estimators as estimators
+from . import ids as ids
 from . import inference as inference
 from . import interference as interference
 from . import intervention as intervention
@@ -75,6 +81,7 @@ from . import model as model
 from . import observation as observation
 from . import population as population
 from . import query as query
+from . import results as results
 from . import transport as transport
 from ._analyze import analyze
 from ._native import (
@@ -195,7 +202,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "0.7.0"
+        __version__ = "0+unknown"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

@@ -6,7 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Equivalence and Synthesis of Causal Models", sections = ["latent projection (DAG marginalization to a mixed graph)"] },
+ { title = "Equivalence and Synthesis of Causal Models", sections = ["conceptual provenance for DAG marginalization over latent variables to a directed/bidirected mixed graph; no exact section locator is recorded"] },
+]
+
+implementation_deviations = [
+ "Projection is limited to marginalizing latent vertices from a DAG into a directed-bidirected ADMG.",
+ "Conditioning or selection-variable projection, undirected MAG edges, projection from an ADMG or MAG, and PAG-level projection are not implemented.",
+ "The output uses new dense node identifiers in the caller-provided observed-node order; original identifiers are not preserved.",
+ "Equivalence is checked only by optional sampled d-separation/m-separation queries, not exhaustively as part of projection.",
 ]
 
 upstream_implementations_observed = []

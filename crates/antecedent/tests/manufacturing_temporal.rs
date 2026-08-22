@@ -185,7 +185,7 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
         &ctx,
     )
     .unwrap();
-    let analysis = Study::series(series)
+    let analysis = Study::series(series.clone())
         .graph_posterior(gp)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
@@ -196,9 +196,70 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
         .build()
         .unwrap();
     let result = analysis.run(&ctx).unwrap();
-    let post = result.posterior.expect("DBN mixture posterior");
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    let post = result.posterior.as_ref().expect("DBN mixture posterior");
+    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
+    let click_eq = click_post.effect_column().unwrap();
+    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
+    assert!(post.summaries.mean[eq].is_finite());
+    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
+}
+
+#[test]
+fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
+    use antecedent::discovery::{
+        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
+    };
+    use antecedent_core::TemporalPolicy;
+
+    let (series, _g, q) = white_noise_pulse_series(400, 42);
+    let q = q.with_policy(TemporalPolicy::sustained(-1, -1));
+    let ctx = ExecutionContext::for_tests(11);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let schedule = GraphMcmcSchedule {
+        n_chains: 2,
+        n_warmup: 40,
+        n_draws: 60,
+        ..GraphMcmcSchedule::default()
+    };
+    let gp = discover_dbn_posterior(
+        &series,
+        &vars,
+        &BayesianDiscoverParams::default(),
+        1,
+        false,
+        &schedule,
+        &ctx,
+    )
+    .unwrap();
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    let post = result.posterior.as_ref().expect("DBN mixture posterior");
+    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
+    assert!((0.0..=1.0).contains(&post.unidentified_mass));
+    let eq = post.effect_column().unwrap();
+    let click_eq = click_post.effect_column().unwrap();
+    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!(post.summaries.mean[eq].is_finite());
     assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
 }
@@ -346,7 +407,23 @@ fn incomplete_temporal_pag_review_required_structured() {
 
 #[test]
 fn manufacturing_pressure_defect_bayesian() {
-    let (series, g, q) = manufacturing_series(400);
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/manufacturing/temporal_pressure_defect/expected.json"
+    ))
+    .unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).unwrap();
+    let expected_ate = expected["expected_ate"].as_f64().unwrap();
+    let tolerance = expected["ate_abs_tolerance"].as_f64().unwrap();
+    let interval_ns = expected["sampling_interval_ns"].as_u64().unwrap();
+    let treatment_lag = u32::try_from(expected["treatment_lag"].as_u64().unwrap()).unwrap();
+    let horizon_steps = u32::try_from(expected["horizon_steps"].as_u64().unwrap()).unwrap();
+    assert_eq!(expected["treatment"], "pressure");
+    assert_eq!(expected["outcome"], "defect");
+
+    let (series, g, q) = manufacturing_series(n);
+    assert_eq!(series.time_index().regularity, SamplingRegularity::Regular { interval_ns });
+    assert_eq!(q.policy, TemporalPolicy::pulse(-i32::try_from(treatment_lag).unwrap()));
+    assert_eq!(q.horizon_steps, horizon_steps);
     let analysis = Study::series(series)
         .graph(g)
         .temporal_query(q)
@@ -363,7 +440,10 @@ fn manufacturing_pressure_defect_bayesian() {
     let post = result.posterior.as_ref().expect("Bayesian temporal should attach posterior");
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
-    assert!((mean - 0.9).abs() < 0.05, "posterior mean={mean} expected ~0.9");
+    assert!(
+        (mean - expected_ate).abs() < tolerance,
+        "posterior mean={mean} expected ~{expected_ate}"
+    );
     assert!((result.estimate.ate - mean).abs() < 1e-12);
     let p_below = post.probability_below(0.0).unwrap();
     assert!(p_below.is_finite(), "p_below_zero={p_below}");
@@ -423,4 +503,377 @@ fn discovered_temporal_pag_records_its_algorithm() {
         plan.logical.record.discovery_algorithm.as_deref(),
         Some("supplied.temporal_pag.completed_to_dag")
     );
+}
+
+// ---------------------------------------------------------------------------
+// PulseEffect / SustainedEffect × TemporalDag × Frequentist × {cheap, full}
+// refuter coverage.
+//
+// `parity/support_licensed.toml` licenses these 8 cells with
+// `staged = true`, but before this addition no test anywhere ever passed
+// `RefuteSuite::Cheap` or `RefuteSuite::Full` through the temporal Frequentist
+// path — every existing test used `RefuteSuite::None`. `execute_temporal`
+// (crates/antecedent/src/analysis/execute/temporal_path.rs) does wire
+// `run_refuters` with a `TemporalRefitContext`, so this closes a real gap
+// rather than a paper one: it exercises the suite and pins which refuters
+// the temporal-unfolded design actually runs (several of the static-DAG
+// refuters — Overlap, `OverlapRule`, Riesz, the drop-covariate Graph
+// refuter — are `NotApplicable` for a temporal unfolded design and are
+// silently dropped by `ValidationSuite::reports_only`, not surfaced as a
+// "skipped" report).
+//
+// The series is the same deterministic `t`/`y` design
+// `conformance/response/temporal_dose_horizon` pins
+// (`y_i = 1 + 2*t_(i-1) + 3*t_(i-2)`, n chosen so both lag-aligned OLS
+// windows are exactly orthogonal): a `Pulse` at treatment lag 1 recovers the
+// structural coefficient 2.0 exactly, and the single-step `Sustained` window
+// at the same offset matches it (`parity/support_licensed.toml`'s own
+// "Projection matches Pulse at the same offset" language for the Sustained
+// cells).
+// ---------------------------------------------------------------------------
+
+fn dose_horizon_series() -> (TimeSeriesData, TemporalDag) {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/temporal_dose_horizon/expected.json"
+    ))
+    .unwrap();
+    let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let t: Vec<f64> = (0..n)
+        .map(|i| match i % 4 {
+            0 | 2 => 0.0,
+            1 => 1.0,
+            _ => -1.0,
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * i.checked_sub(1).map_or(0.0, |j| t[j])
+                + 3.0 * i.checked_sub(2).map_or(0.0, |j| t[j])
+        })
+        .collect();
+
+    let mut builder = CausalSchemaBuilder::new();
+    builder
+        .add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    builder
+        .add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    let schema = builder.build().unwrap();
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t2, y0).unwrap();
+    (series, graph)
+}
+
+fn dose_horizon_pulse_query() -> TemporalEffectQuery {
+    TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+}
+
+/// Single-step Sustained window at `-treatment_lag`, the only licensed Sustained
+/// form (multi-step remains estimator-refused per `parity/support_licensed.toml`).
+fn dose_horizon_sustained_query() -> TemporalEffectQuery {
+    let mut q =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
+    q.policy = TemporalPolicy::sustained(-1, -1);
+    q.horizon_steps = 1;
+    q
+}
+
+/// Build + `prepare()` + `estimate_series()` (never the one-shot `.run()`) for a
+/// Frequentist temporal query, on either the explicit `TemporalDag` or the
+/// `AcceptedGraph::temporal_dag` wrapper for the `accepted` structure axis.
+///
+/// Returns the `estimate_series` `Result` directly (does not `unwrap()`): see
+/// `dose_horizon_full_suite_data_subset_masking_error` below — `RefuteSuite::Full`
+/// genuinely errors at every one of these coordinates, so callers must be able to
+/// assert the failure rather than have it hidden behind a panic message.
+fn run_temporal_frequentist_case(
+    accepted: bool,
+    query: TemporalEffectQuery,
+    suite: RefuteSuite,
+) -> Result<antecedent::result::StudyResult, antecedent::CausalError> {
+    let (series, graph) = dose_horizon_series();
+    let builder = Study::series(series.clone());
+    let builder = if accepted {
+        builder.graph(AcceptedGraph::temporal_dag(graph))
+    } else {
+        builder.graph(graph)
+    };
+    let analysis =
+        builder.temporal_query(query).refute(suite).bootstrap_replicates(0).build().unwrap_or_else(
+            |e| panic!("build failed for accepted={accepted}, suite={suite:?}: {e}"),
+        );
+    let ctx = ExecutionContext::for_tests(7);
+    let prepared = analysis
+        .prepare(&ctx)
+        .unwrap_or_else(|e| panic!("prepare failed for accepted={accepted}, suite={suite:?}: {e}"));
+    prepared.estimate_series(&series, &ctx)
+}
+
+fn assert_dose_horizon_ate(result: &antecedent::result::StudyResult) {
+    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert!(
+        (result.estimate.ate - 2.0).abs() < 1e-6,
+        "structural contrast is exactly 2.0 on the orthogonal-design fixture; got ate={}",
+        result.estimate.ate
+    );
+}
+
+/// `RefuteSuite::Cheap` on a temporal-unfolded design actually runs exactly one
+/// refuter: `OverlapRefuter` is `NotApplicable` here (`ValidatorId::Overlap` in
+/// `crates/antecedent-validate/src/suite.rs` refuses when `problem.temporal.is_some()`),
+/// so only E-value is left in `result.refutations`. `parity/support_licensed.toml`'s
+/// "Cheap suite is overlap + E-value" limitations text for these cells describes the
+/// suite's *configuration*, not what actually executes at this coordinate — that's the
+/// finding this test pins. The Overlap skip itself is not lost: `result.diagnostics`
+/// carries a `refute.validator.not_applicable` entry for it (see
+/// `assert_cheap_temporal_overlap_skip_diagnostic`) — a per-run skip, not the support
+/// matrix's permanent `not_applicable`.
+fn assert_cheap_temporal_refuters(result: &antecedent::result::StudyResult) {
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    assert_eq!(
+        names,
+        vec!["sensitivity.evalue"],
+        "cheap suite on TemporalDag Frequentist runs only E-value (Overlap is \
+         NotApplicable for temporal unfolded designs, but that skip is now a diagnostic, \
+         not a silent drop)"
+    );
+    assert!(result.refutations[0].informative, "e-value must be informative here");
+}
+
+/// The `OverlapRefuter` skip `assert_cheap_temporal_refuters` documents must be visible
+/// to a caller who only reads `result.diagnostics`, and must say plainly that it is a
+/// per-run skip rather than the support matrix's permanent `SupportRefusal::NotApplicable`
+/// / wire `not_applicable` (`crates/antecedent/tests/manufacturing_temporal.rs` and
+/// `parity/support_licensed.toml`'s `staged = true` on this exact cell prove the two are
+/// not the same claim: this cell is licensed and runs, it just skips one validator).
+fn assert_cheap_temporal_overlap_skip_diagnostic(result: &antecedent::result::StudyResult) {
+    let skip = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "refute.validator.not_applicable")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected a refute.validator.not_applicable diagnostic; got codes {:?}",
+                result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
+            )
+        });
+    assert!(
+        skip.fields.iter().any(|(k, v)| k.as_ref() == "validator" && v.as_ref() == "overlap"),
+        "expected the skip diagnostic to name the overlap validator; got fields {:?}",
+        skip.fields
+    );
+    assert!(
+        skip.message.contains("per-run") && skip.message.contains("not a permanent"),
+        "diagnostic message must distinguish this per-run skip from the support matrix's \
+         permanent not_applicable state; got: {}",
+        skip.message
+    );
+}
+
+/// `RefuteSuite::Full` on `TemporalDag` Frequentist Pulse/Sustained now runs the full
+/// ATE-shaped falsification + stability suite to completion (it previously errored
+/// before producing any result — see the fixed root cause below).
+///
+/// Root cause (fixed): `DataSubsetRefuter` (`crates/antecedent-validate/src/data_subset.rs`)
+/// used to keep a random ~80% of rows by calling `TabularData::with_analysis_mask` — it
+/// *masked* excluded rows rather than physically dropping them. `refit_effect`'s temporal
+/// branch (`crates/antecedent-validate/src/common.rs`) rebuilt a `TimeSeriesData` from that
+/// masked table and called `TemporalLinearAdjustment::prepare_with_extras`, which
+/// lag-gathers through `LaggedSample::prepare` (`crates/antecedent-data/src/sample.rs`).
+/// That gather calls `ensure_unmasked`, which unconditionally rejects any non-fully-valid
+/// analysis mask (the lag map indexes raw rows by position, so a masked-out row would
+/// silently corrupt the lag alignment if allowed through). Physically dropping the
+/// *interior* holes instead would have dodged that error but not the underlying problem:
+/// rows on either side of a dropped interior row are no longer adjacent in time, so a lag
+/// gather across the seam would quietly average together samples separated by more than
+/// the intended step — a confidently wrong refuter number, not a fix.
+///
+/// The actual fix: `DataSubsetRefuter` now keeps one random *contiguous* window of rows for
+/// temporal (non-panel) designs (`with_contiguous_row_window` in
+/// `crates/antecedent-validate/src/common.rs`) instead of a scattered row mask. Every
+/// retained row's immediate predecessor in the window is still its immediate predecessor in
+/// the original series, so lag-1/lag-2/etc. mean exactly what they meant on the full data,
+/// and `refit_effect` rebuilds the series `TimeIndex` at the window's (shorter) length
+/// instead of reusing the original.
+fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyResult) {
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "placebo.treatment",
+            "random.common_cause",
+            "unobserved.common_cause",
+            "dummy.outcome",
+            "sensitivity.evalue",
+            "sensitivity.linear",
+            "sensitivity.partial_linear",
+            "sensitivity.nonparametric",
+            "bootstrap.ci_coverage",
+            "data.subset",
+        ],
+        "RefuteSuite::Full on TemporalDag Frequentist runs this fixed refuter set"
+    );
+    let subset = names
+        .iter()
+        .zip(result.refutations.iter())
+        .find(|(n, _)| **n == "data.subset")
+        .map(|(_, r)| r)
+        .expect("data.subset refuter must have run");
+    // The structural fixture (y_i = 1 + 2*t_(i-1) + 3*t_(i-2), no noise) is exactly
+    // recovered by OLS on *any* complete contiguous window with enough variation, so the
+    // contiguous-window subset refit reproduces the original ATE (2.0) to floating point:
+    // a genuine, non-degenerate data-subset check that keeps lag semantics valid, not a
+    // trivially-passing no-op.
+    assert!(
+        (subset.original_ate - 2.0).abs() < 1e-6,
+        "original ATE should be exactly 2.0 on the orthogonal-design fixture; got {}",
+        subset.original_ate
+    );
+    assert!(
+        (subset.refuted_ate - 2.0).abs() < 1e-6,
+        "contiguous-window subset ATE should match the structural coefficient 2.0 \
+         (lag semantics preserved); got {}",
+        subset.refuted_ate
+    );
+    assert!(
+        (subset.comparison - 1.0).abs() < 1e-6,
+        "subset ATE distribution should be fully consistent with the original estimate \
+         (p≈1.0 on the noiseless fixture); got {}",
+        subset.comparison
+    );
+    assert!(subset.passed, "data.subset refuter should pass on this design");
+    assert_eq!(subset.replicates, 20);
+}
+
+#[test]
+fn dose_horizon_pulse_explicit_cheap_runs_evalue_only() {
+    let result =
+        run_temporal_frequentist_case(false, dose_horizon_pulse_query(), RefuteSuite::Cheap)
+            .unwrap();
+    assert_dose_horizon_ate(&result);
+    assert_cheap_temporal_refuters(&result);
+    assert_cheap_temporal_overlap_skip_diagnostic(&result);
+}
+
+/// See `assert_full_suite_data_subset_refuter_ran`: Full now completes here.
+#[test]
+fn dose_horizon_pulse_explicit_full_completes_with_data_subset_refuter() {
+    let result =
+        run_temporal_frequentist_case(false, dose_horizon_pulse_query(), RefuteSuite::Full)
+            .expect("RefuteSuite::Full completes for TemporalDag Frequentist");
+    assert_dose_horizon_ate(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+#[test]
+fn dose_horizon_pulse_accepted_cheap_runs_evalue_only() {
+    let result =
+        run_temporal_frequentist_case(true, dose_horizon_pulse_query(), RefuteSuite::Cheap)
+            .unwrap();
+    assert_dose_horizon_ate(&result);
+    assert_cheap_temporal_refuters(&result);
+}
+
+/// See `assert_full_suite_data_subset_refuter_ran`: Full now completes here.
+#[test]
+fn dose_horizon_pulse_accepted_full_completes_with_data_subset_refuter() {
+    let result = run_temporal_frequentist_case(true, dose_horizon_pulse_query(), RefuteSuite::Full)
+        .expect("RefuteSuite::Full completes for TemporalDag Frequentist");
+    assert_dose_horizon_ate(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+#[test]
+fn dose_horizon_sustained_explicit_cheap_runs_evalue_only() {
+    let result =
+        run_temporal_frequentist_case(false, dose_horizon_sustained_query(), RefuteSuite::Cheap)
+            .unwrap();
+    assert_dose_horizon_ate(&result);
+    assert_cheap_temporal_refuters(&result);
+}
+
+/// See `assert_full_suite_data_subset_refuter_ran`: Full now completes here.
+#[test]
+fn dose_horizon_sustained_explicit_full_completes_with_data_subset_refuter() {
+    let result =
+        run_temporal_frequentist_case(false, dose_horizon_sustained_query(), RefuteSuite::Full)
+            .expect("RefuteSuite::Full completes for TemporalDag Frequentist");
+    assert_dose_horizon_ate(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+#[test]
+fn dose_horizon_sustained_accepted_cheap_runs_evalue_only() {
+    let result =
+        run_temporal_frequentist_case(true, dose_horizon_sustained_query(), RefuteSuite::Cheap)
+            .unwrap();
+    assert_dose_horizon_ate(&result);
+    assert_cheap_temporal_refuters(&result);
+}
+
+/// See `assert_full_suite_data_subset_refuter_ran`: Full now completes here.
+#[test]
+fn dose_horizon_sustained_accepted_full_completes_with_data_subset_refuter() {
+    let result =
+        run_temporal_frequentist_case(true, dose_horizon_sustained_query(), RefuteSuite::Full)
+            .expect("RefuteSuite::Full completes for TemporalDag Frequentist");
+    assert_dose_horizon_ate(&result);
+    assert_full_suite_data_subset_refuter_ran(&result);
+}
+
+/// `PlaceboAndRcc` (Placebo + `RandomCommonCause`, no `DataSubsetRefuter`) runs exactly
+/// those two refuters on this design. Historically this isolation was what pinned the
+/// since-fixed `DataSubsetRefuter` masking bug to that one refuter rather than the
+/// temporal refit path in general (see `assert_full_suite_data_subset_refuter_ran`);
+/// `Full` now also succeeds on the identical design, so this test just confirms the
+/// suite-restriction behavior on its own.
+#[test]
+fn dose_horizon_pulse_explicit_placebo_and_rcc_succeed() {
+    let result = run_temporal_frequentist_case(
+        false,
+        dose_horizon_pulse_query(),
+        RefuteSuite::PlaceboAndRcc,
+    )
+    .unwrap();
+    assert_dose_horizon_ate(&result);
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    assert_eq!(names, vec!["placebo.treatment", "random.common_cause"]);
 }

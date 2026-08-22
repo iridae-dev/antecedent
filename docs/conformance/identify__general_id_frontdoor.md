@@ -2,13 +2,12 @@
 
 **Suite path:** `conformance/identify/general_id_frontdoor`
 
-Recorded pinned baseline 0.14 `identify_effect` output, frozen for the pending
-general ID / ID-IDC work.
+Recorded pinned baseline 0.14 `identify_effect` output for the front-door ADMG
+`T -> M -> Y`, `T <-> Y`.
 
-**Not currently exercised.** No Rust or Python test loads this fixture. It is a
-recorded oracle awaiting the comparison gate that ships with full general ID, so
-it is not evidence that Antecedent's ID output has been compared against the
-baseline. See the `notes` field in `expected.json`.
+The fixture is consumed by the general-ID front-door functional test and the
+prepared ADMG parity test. They compare the frozen identified/front-door status
+and `graph_dot` before checking Antecedent on the same graph.
 
 ## Expected summary
 

@@ -23,6 +23,7 @@ implementation_deviations = [
  "nuisances restricted to additive cubic-B-spline GAMs (one 1-D smooth per column, no interaction/tensor terms), not the arbitrary consistent learners the paper's theory admits",
  "nuisance penalty lambda is a fixed caller-supplied constant (default 1.0); the GCV selection path in fit_gam is never invoked, so nuisance complexity does not grow with n",
  "conditional treatment density is a Gaussian plug-in from a GAM conditional mean plus a single pooled homoskedastic residual scale, not a nonparametric conditional density estimator",
+ "least-squares additive GAMs and the influence sandwich require finite outcome moments; a tail ratio max|Y-median|/(1.4826 MAD) above 20 is reported as response.heavy_tailed_outcome rather than inherited from the Kennedy et al. rates",
  "default curve bandwidth is Silverman's normal-reference KDE rule on the marginal treatment distribution, not a bandwidth selected for local-polynomial regression risk as in Section 3.2",
  "cross-fitting folds are deterministic index-modulo splits rather than randomized sample splitting",
 ]

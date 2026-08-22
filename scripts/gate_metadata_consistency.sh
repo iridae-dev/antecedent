@@ -66,15 +66,17 @@ else:
                 f"creator ORCIDs differ: CITATION.cff {sorted(cff_orcids)} vs .zenodo.json {sorted(zen_orcids)}"
             )
 
-# A hardcoded version in prose is the drift that started this gate. parity/README.md
-# carried "Package version remains 0.1.0" for five minor releases.
+# A hardcoded version in live prose is the drift that started this gate.
+# parity/README.md carried "Package version remains 0.1.0" for five minor
+# releases. Dated audit artifacts are intentionally excluded: for example,
+# docs/security_review.md must retain the package version that was actually
+# reviewed rather than being rewritten to imply coverage of the current cut.
 for doc in [
     "parity/README.md",
     "docs/development.md",
     "README.md",
     "docs/README.md",
     "docs/index.md",
-    "docs/security_review.md",
 ]:
     text = Path(doc).read_text()
     # Loose gap absorbs "is", "remains", "are kept in sync (currently", and
@@ -100,6 +102,21 @@ for path in sorted(Path("docs/release-notes").glob("v*.md")):
             f"{path} still has live generated licensed-block markers; "
             f"only {current_notes} may. Freeze the shipped snapshot."
         )
+
+# `parity/release.toml` declares the security review done, so the dated review
+# must actually cover this cut. Previously the gate mapped that capability to
+# file existence alone while the file explicitly said its last reviewed scope
+# was 0.7.1 on the 0.9.0 branch.
+security_review = Path("docs/security_review.md").read_text()
+scope = re.search(r"^Scope:.*package version \*\*(\d+\.\d+\.\d+)\*\*", security_review, re.M)
+if not scope:
+    fail.append("docs/security_review.md has no parseable package-version scope")
+elif scope.group(1) != version:
+    fail.append(
+        f"docs/security_review.md covers package {scope.group(1)!r}; canonical is {version!r}"
+    )
+if re.search(r"\bnot been re-run\b|\bdoes not cover\b", security_review, re.I):
+    fail.append("docs/security_review.md explicitly disclaims the current review")
 
 # ------------------------------------------------------- 2. artifact format
 # Canonical: STABLE_FORMAT in crates/antecedent-io/src/migrate.rs.
@@ -206,6 +223,32 @@ UPSTREAM = [
     "sensemakr", "arviz", "bpbounds",
 ]
 ledger = tomllib.load(open("parity/oracle_closure.toml", "rb"))
+
+# A closed oracle row is only evidence when an executing conformance test
+# consumes its frozen fixture.  The repository-wide reachability gate answers
+# a broader question and deliberately counts package code/gate scripts; that is
+# insufficient for the ROADMAP's oracle-closure promise.
+oracle_test_sources = set(root.glob("crates/**/tests/**/*.rs"))
+oracle_test_sources.update(root.glob("python/tests/**/*.py"))
+oracle_rust_sources = set(root.glob("crates/**/src/**/*.rs"))
+
+
+def oracle_fixture_has_test(fixture_dir: str) -> bool:
+    name = Path(fixture_dir).name
+    marker = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")
+    for path in oracle_test_sources:
+        if marker.search(path.read_text(errors="ignore")):
+            return True
+    for path in oracle_rust_sources:
+        text = path.read_text(errors="ignore")
+        hits = list(marker.finditer(text))
+        if path.name == "tests.rs" and hits:
+            return True
+        if any("#[cfg(test)]" in text[: hit.start()] for hit in hits):
+            return True
+    return False
+
+
 for method in ledger.get("method", []):
     mid = method["id"]
     fixture = root / method["fixture_dir"] / "expected.json"
@@ -219,7 +262,10 @@ for method in ledger.get("method", []):
                 f"oracle_closure {mid}: oracle_project names {pkg!r} but "
                 f"{fixture} never records it — the fixture is authoritative"
             )
-    if method["oracle_pin"] == "pending-generation":
+    pin = method.get("oracle_pin")
+    if not isinstance(pin, str) or not pin.strip():
+        fail.append(f"oracle_closure {mid}: missing non-empty oracle_pin")
+    elif pin == "pending-generation":
         fail.append(
             f"oracle_closure {mid}: status={method['status']!r} with "
             "oracle_pin='pending-generation'; take the real pin from the fixture's oracle block"
@@ -229,6 +275,11 @@ for method in ledger.get("method", []):
         json.loads(fixture.read_text())
     except json.JSONDecodeError as exc:
         fail.append(f"oracle_closure {mid}: {fixture} is not valid JSON ({exc})")
+    if not oracle_fixture_has_test(method["fixture_dir"]):
+        fail.append(
+            f"oracle_closure {mid}: {method['fixture_dir']} is not named by an "
+            "executing Rust/Python conformance test"
+        )
 
 # --------------------------------------------- 6. crate README staleness
 # crates/antecedent/README.md carried `antecedent = "0.1"` and a

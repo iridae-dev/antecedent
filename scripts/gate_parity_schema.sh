@@ -19,6 +19,7 @@ cd "$ROOT"
 
 python3 - <<'PY'
 from pathlib import Path
+import json
 import re
 import sys
 import tomllib
@@ -55,6 +56,61 @@ EVIDENCE_KINDS = {
 }
 # Kinds that assert an upstream package produced the truth being matched.
 EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
+
+# An external claim is a three-link evidence contract, not just prose on an
+# inventory row: immutable baseline metadata, a frozen JSON fixture, and an
+# executing test that consumes that fixture.  Keep this stricter than the
+# repository-wide reachability scan, which also accepts package code and gate
+# scripts because it answers the broader question "is this artifact used?".
+baseline_versions = {}
+for path in sorted(root.glob("parity/baselines/*.toml")):
+    baseline = tomllib.load(open(path, "rb"))
+    project = str(baseline.get("project", "")).lower()
+    if not project:
+        continue
+    versions = {
+        str(value)
+        for key, value in baseline.items()
+        if key == "version" or key.endswith("_version")
+    }
+    baseline_versions.setdefault(project, set()).update(versions)
+
+test_sources = set(root.glob("crates/**/tests/**/*.rs"))
+test_sources.update(root.glob("python/tests/**/*.py"))
+# Rust unit/conformance tests commonly live next to the implementation.  They
+# count only when the fixture reference occurs below a cfg(test) marker.
+rust_src = set(root.glob("crates/**/src/**/*.rs"))
+PARSE_MARKERS = re.compile(
+    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
+    r"tomllib\.loads|tomllib\.load\(|load_expected"
+)
+ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
+
+
+def consuming_test_file(text: str) -> bool:
+    # Fixture-loader helpers commonly live at the top of a long conformance
+    # test file while comparisons appear in several tests below. Requiring all
+    # three signals in that same test source avoids accepting a prose mention
+    # or bare existence check without imposing a brittle line-distance rule.
+    return bool(PARSE_MARKERS.search(text) and ASSERT_MARKERS.search(text))
+
+
+def has_consuming_test(fixture: str) -> bool:
+    name = Path(fixture).name
+    marker = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")
+    for path in test_sources:
+        text = path.read_text(errors="ignore")
+        if marker.search(text) and consuming_test_file(text):
+            return True
+    for path in rust_src:
+        text = path.read_text(errors="ignore")
+        hits = list(marker.finditer(text))
+        if path.name == "tests.rs" and hits and consuming_test_file(text):
+            return True
+        for hit in hits:
+            if "#[cfg(test)]" in text[: hit.start()] and consuming_test_file(text):
+                return True
+    return False
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
 # Kept explicit rather than inferred from whichever keys the majority of rows
@@ -157,6 +213,15 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 "an implied one is not)"
             )
 
+        if kind == "internal_cross_check":
+            limitations = row.get("limitations")
+            if not isinstance(limitations, str) or not limitations.strip():
+                problems.append(
+                    f"{rel}: {label} is an internal_cross_check without limitations; "
+                    "state explicitly that agreement between Antecedent paths is not "
+                    "independent truth evidence"
+                )
+
         oracle = row.get("external_oracle")
         fixture = row.get("known_truth_fixture")
 
@@ -178,6 +243,40 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                     "pointing at the frozen fixture"
                 )
             else:
+                oracle_parts = oracle.split(maxsplit=1)
+                oracle_project = oracle_parts[0].lower()
+                oracle_version = oracle_parts[1] if len(oracle_parts) == 2 else ""
+                pins = baseline_versions.get(oracle_project)
+                if not pins:
+                    problems.append(
+                        f"{rel}: {label} names external oracle {oracle!r} without "
+                        f"parity/baselines metadata for {oracle_project!r}"
+                    )
+                elif oracle_version not in pins:
+                    problems.append(
+                        f"{rel}: {label} external oracle version {oracle_version!r} "
+                        f"is not pinned by parity/baselines ({sorted(pins)})"
+                    )
+
+                fixture_path = root / fixture
+                expected = fixture_path if fixture_path.is_file() else fixture_path / "expected.json"
+                if not expected.is_file():
+                    problems.append(
+                        f"{rel}: {label} external fixture {fixture!r} has no expected.json"
+                    )
+                else:
+                    try:
+                        json.loads(expected.read_text())
+                    except json.JSONDecodeError as exc:
+                        problems.append(
+                            f"{rel}: {label} external fixture {expected} is not valid JSON: {exc}"
+                        )
+                if not has_consuming_test(fixture):
+                    problems.append(
+                        f"{rel}: {label} external fixture {fixture!r} is not parsed and "
+                        "compared by an executing Rust/Python conformance test"
+                    )
+
                 # Fixture-authoritative rule: the named project must actually
                 # appear in the frozen fixture. The audit found ledger rows
                 # claiming scikit-learn/pcalg/causaleffect against fixtures

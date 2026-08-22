@@ -15,8 +15,15 @@ papers = [
 # so no double-robustness, efficiency, or curve-inference theorem is claimed for the composition.
 # The citations resolve the two component equations only.
 
+implementation_deviations = [
+ "This is an algebraic composition of the Dahabreh DR1 transport score with caller-supplied signed local-smoothing weights from Kennedy-style response estimation; neither cited paper derives this transported continuous-dose curve estimator.",
+ "All outcome regressions, participation probabilities, randomization probabilities, and local weights must be supplied by the caller. Nuisance fitting, cross-fitting, kernel construction, and bandwidth selection are not implemented.",
+ "The implementation handles only the direct trial-to-nonparticipant transport formula and refuses recursive selection-diagram or sID transport expressions.",
+ "Evaluation is limited to a supplied finite grid and returns no pointwise or simultaneous uncertainty; no double-robustness, efficiency, or curve-coverage theorem is claimed for the composition.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-estimate/src/transport.rs",
+ "inline unit tests (crates/antecedent-estimate/src/transport.rs)",
 ]

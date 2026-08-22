@@ -9,6 +9,12 @@ papers = [
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["interaction-term / heterogeneous-effects regression"] },
 ]
 
+implementation_deviations = [
+ "Supports exactly one numeric effect modifier in the linear model with intercept, treatment, modifier, treatment-by-modifier interaction, and adjustment-variable main effects; multiple modifiers, nonlinear heterogeneity, and additional treatment interactions are unsupported.",
+ "Reports the treatment contrast at the retained sample mean of the modifier rather than a conditional-effect curve or effects at user-specified modifier values.",
+ "Uses a homoskedastic OLS delta-method standard error that treats the sample modifier mean as fixed; robust, clustered, and bootstrap uncertainty for this estimator are not implemented.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

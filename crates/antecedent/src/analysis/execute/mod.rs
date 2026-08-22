@@ -91,7 +91,7 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, run_refuters,
+    push_conflict_diagnostics, run_refuters, validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -110,6 +110,16 @@ pub struct Study {
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
+    /// Set at [`crate::StudyBuilder::build`] when the caller did not call
+    /// `.refute(..)` explicitly and the default refute suite
+    /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
+    /// `RefuteSuite::None` because the requested cell was
+    /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
+    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
+    /// requested before the downgrade (always some suite other than
+    /// `None`); `None` here means no downgrade happened. Surfaced to the
+    /// caller as diagnostic `exec.refute.default_suite_unsupported`.
+    pub(crate) refute_default_downgrade: Option<RefuteSuite>,
     pub(crate) bootstrap_replicates: u32,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
@@ -144,6 +154,7 @@ impl std::fmt::Debug for Study {
             .field("support_status", &self.support_status)
             .field("query", &"<query>")
             .field("refute", &self.refute)
+            .field("refute_default_downgrade", &self.refute_default_downgrade)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
             .field("split", &self.split)
             .field("identifier", &self.identifier)
@@ -210,6 +221,76 @@ mod support_tests {
         // The adjustment set stays deliberately empty (GCM doesn't identify via backdoor
         // covariates); this is unchanged behavior, asserted here as a scope guard.
         assert!(estimand.adjustment_set.is_empty());
+        assert!(identification.required_assumptions.entries.iter().any(|record| {
+            matches!(
+                &record.assumption,
+                antecedent_core::Assumption::ParametricRestriction(restriction)
+                    if restriction.id.as_ref() == "gcm.supplied_structural_mechanisms"
+            ) && record.scope == antecedent_core::AssumptionScope::Identification
+        }));
+    }
+
+    #[test]
+    fn graph_envelope_unions_assumptions_from_every_identified_case() {
+        fn case_result(
+            query: &AverageEffectQuery,
+            status: IdentificationStatus,
+            assumption_id: &'static str,
+        ) -> IdentificationResult {
+            let mut assumptions = antecedent_core::AssumptionSet::new();
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom {
+                    id: Arc::from(assumption_id),
+                    description: Arc::from("case-specific restriction"),
+                },
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("test.case"),
+                },
+                scope: antecedent_core::AssumptionScope::Identification,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+            IdentificationResult::from_parts(
+                status,
+                CausalQuery::AverageEffect(query.clone()),
+                Vec::new(),
+                CausalExprArena::new(),
+                DerivationTrace::default(),
+                assumptions,
+                Vec::new(),
+                IdentificationPerformanceRecord::default(),
+                None,
+            )
+        }
+
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let envelope = IdentificationEnvelope::from_cases(vec![
+            antecedent_identify::GraphIdentificationCase {
+                graph: Pag::with_variables(2),
+                result: case_result(
+                    &query,
+                    IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                    "case.zero",
+                ),
+                weight: antecedent_identify::ProbabilityMass(0.5),
+            },
+            antecedent_identify::GraphIdentificationCase {
+                graph: Pag::with_variables(2),
+                result: case_result(
+                    &query,
+                    IdentificationStatus::IdentifiedUnderPriorRestrictions,
+                    "case.one",
+                ),
+                weight: antecedent_identify::ProbabilityMass(0.5),
+            },
+        ]);
+        let result = envelope_to_identification_result(&envelope, &query);
+        assert_eq!(result.status, IdentificationStatus::IdentifiedUnderPriorRestrictions);
+        for expected in ["case.zero", "case.one"] {
+            assert!(result.required_assumptions.entries.iter().any(|record| {
+                matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == expected)
+            }));
+        }
     }
 }
 
@@ -278,31 +359,49 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn prepare_refuses_graph_posterior_with_matrix_id() {
-        let gp = GraphPosterior::new(
-            2,
-            vec![1.0],
-            vec![0u64],
-            vec![0.0; 4],
-            vec![0.0; 4],
-            1.0,
-            InferenceDiagnostics::analytic("test"),
-            0,
-        )
-        .unwrap();
-        let err = Study::tabular(toy_data())
-            .graph_posterior(gp)
-            .query(ate())
-            .refute(RefuteSuite::None)
-            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
-            .build()
-            .unwrap()
-            .prepare(&ExecutionContext::for_tests(1))
-            .unwrap_err();
-        assert_identify_only_refused(
-            &err,
-            "graph_posterior is not on the prepared handle; identification runs \
-                per-graph inside execute. Use analyze, or accept a single graph.",
+    fn prepare_graph_posterior_ate_runs_identify_per_click() {
+        // This is deliberately an internal cross-check, not known-truth evidence:
+        // it compares two Antecedent execution modes over a hand-built posterior.
+        // Cover each licensed validation coordinate so the matrix cannot infer
+        // cheap/full support from a validation-none test.
+        let mut report_counts = Vec::new();
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let gp = GraphPosterior::new(
+                2,
+                vec![1.0],
+                vec![0u64],
+                vec![0.0; 4],
+                vec![0.0; 4],
+                1.0,
+                InferenceDiagnostics::analytic("test"),
+                0,
+            )
+            .unwrap();
+            let data = toy_data();
+            let ctx = ExecutionContext::for_tests(1);
+            let study = Study::tabular(data.clone())
+                .graph_posterior(gp)
+                .query(ate())
+                .refute(suite)
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+                .build()
+                .unwrap();
+            let fresh = study.clone().run(&ctx).unwrap();
+            let prepared = study.prepare(&ctx).unwrap();
+            let click = prepared.estimate(&data, &ctx).unwrap();
+            assert!(click.estimate.ate.is_finite());
+            assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+            assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(click.refutations.len(), fresh.refutations.len());
+            assert_eq!(click.predictive_checks.len(), fresh.predictive_checks.len());
+            assert!(click.predictive_checks.is_empty());
+            report_counts.push(click.refutations.len());
+        }
+        assert_eq!(report_counts[0], 0, "validation none must emit no reports");
+        assert!(report_counts[1] > 0, "cheap validation must execute a refuter");
+        assert!(
+            report_counts[2] >= report_counts[1],
+            "full validation must include at least the cheap reports"
         );
     }
 

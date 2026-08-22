@@ -267,6 +267,8 @@ class CausalResponseView:
         extra = ""
         if self.evidence_status == "allowed_unlicensed":
             extra = " unlicensed"
+        if self.support.warnings:
+            extra += f" warnings={len(self.support.warnings)}"
         return (
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
             f"uncertainty={self.uncertainty.kind!r}{extra}>"

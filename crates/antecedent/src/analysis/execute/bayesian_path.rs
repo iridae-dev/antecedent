@@ -78,8 +78,8 @@ impl super::Study {
 
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
         let mut refute_ws = EstimationWorkspace::default();
-        let mut refutations = match self.refute {
-            RefuteSuite::None => Vec::new(),
+        let (mut refutations, na_diagnostics) = match self.refute {
+            RefuteSuite::None => (Vec::new(), Vec::new()),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
                 &data_est,
                 &estimand_est,
@@ -94,6 +94,7 @@ impl super::Study {
                 None,
             )?,
         };
+        extra_diagnostics.extend(na_diagnostics);
         // Prior + posterior PPC whenever refute is enabled (full PredictiveCheckReport retained).
         let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None) {
@@ -145,6 +146,7 @@ impl super::Study {
             );
             let outcomes = suite.run_bayesian(&mut bayes_ctx, ctx).map_err(CausalError::from)?;
             refutations.extend(ValidationSuite::reports_only(&outcomes));
+            extra_diagnostics.extend(validator_not_applicable_diagnostics(&outcomes));
         }
         clock.finish(super::super::stage::STAGE_VALIDATE);
         super::super::stage::emit_stage(
@@ -297,19 +299,23 @@ impl super::Study {
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
-            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
-                data,
-                &estimand,
-                query,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                "bayesian.gcomp",
-                &self.custom_validators,
-                None,
-            )?,
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                let (reports, na_diagnostics) = run_refuters(
+                    data,
+                    &estimand,
+                    query,
+                    &estimate,
+                    &mut refute_ws,
+                    None,
+                    ctx,
+                    self.refute,
+                    "bayesian.gcomp",
+                    &self.custom_validators,
+                    None,
+                )?;
+                diagnostics.extend(na_diagnostics);
+                reports
+            }
         };
         if matches!(self.refute, RefuteSuite::Full) {
             // PPC suite needs a single-graph fit context; skip with diagnostic when envelope-only.
@@ -599,19 +605,23 @@ impl super::Study {
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
-            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
-                data,
-                &estimand,
-                query,
-                &estimate,
-                &mut refute_ws,
-                None,
-                ctx,
-                self.refute,
-                "bayesian.gcomp",
-                &self.custom_validators,
-                None,
-            )?,
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                let (reports, na_diagnostics) = run_refuters(
+                    data,
+                    &estimand,
+                    query,
+                    &estimate,
+                    &mut refute_ws,
+                    None,
+                    ctx,
+                    self.refute,
+                    "bayesian.gcomp",
+                    &self.custom_validators,
+                    None,
+                )?;
+                diagnostics.extend(na_diagnostics);
+                reports
+            }
         };
 
         let algo =

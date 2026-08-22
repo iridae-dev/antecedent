@@ -13,9 +13,18 @@ copied_tests = false
 # fixed SplitMix64 stream. The contract is conditional on the cross-fitted
 # pseudo-outcome and a caller-supplied bandwidth; it does not reproduce the
 # paper's bandwidth rule, refit nuisances, or claim the paper's coverage theorem.
+# The shared least-squares nuisances require finite outcome moments; see
+# estimate.response.kennedy_dr for the tail-ratio diagnostic.
 papers = [
   { title = "Nonparametric methods for doubly robust estimation of continuous treatment effects", doi = "10.1111/rssb.12212", sections = ["Section 3.1: doubly robust pseudo-outcome mapping", "Section 3.2: kernel estimator and asymptotic inference"] },
   { title = "Simultaneous bootstrap confidence bands in nonparametric regression", doi = "10.1080/10485259808832748", sections = ["Section 2: local-polynomial wild-bootstrap band construction", "Section 3: coverage conditions; cited as motivation, not claimed for Antecedent's conditional fixed-grid multiplier implementation"] },
+]
+
+implementation_deviations = [
+  "The Kennedy pseudo-outcome nuisances are fixed additive penalized GAMs with deterministic folds and a homoskedastic Gaussian treatment-density model; this is a restricted implementation of the paper's generic cross-fitted nuisance estimators.",
+  "The response curve uses unbounded Gaussian local-quadratic smoothing rather than the cited local-linear construction, and requires a caller-supplied bandwidth rather than implementing data-driven bandwidth selection or undersmoothing.",
+  "The simultaneous band is a fixed-grid Rademacher multiplier band over stored local-fit influence residuals. It does not refit nuisances, reselect the bandwidth, or reproduce the cited wild-bootstrap procedure.",
+  "Coverage applies only to the requested finite grid; no continuum supremum, smoothing-bias correction, bandwidth uncertainty, or nuisance-selection uncertainty is represented.",
 ]
 
 upstream_implementations_observed = []

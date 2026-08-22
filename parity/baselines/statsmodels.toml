@@ -1,0 +1,5 @@
+# Pinned external baseline (oracle pin only). Capability inventory lives in domain TOMLs.
+project = "statsmodels"
+version = "0.14.4"
+metadata_sha256 = "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"
+notes = "Black-box reference for the external-oracle capability rows that cite statsmodels, including conditional effects and multiplicity correction. Each frozen fixture records its exact dependency set and installed-metadata hash."

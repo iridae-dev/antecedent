@@ -13,13 +13,15 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalRng, CausalSchemaBuilder, ConditionalEffectQuery,
-    ExecutionContext, Intervention, InterventionalDistributionQuery, MeasurementSpec,
-    PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value, ValueType, VariableId,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value,
+    ValueType, VariableId,
 };
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -660,6 +662,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
@@ -689,6 +692,7 @@ fn prepared_distribution_reestimate_matches_fresh() {
     let second_dist = second.distribution.as_ref().expect("second distribution payload");
     assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
+    assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
@@ -766,4 +770,246 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
         }
         other => panic!("expected Support::Refused, got {other:?}"),
     }
+}
+
+#[test]
+fn prepared_temporal_mediation_reuses_identification() {
+    // Known-truth pin: statsmodels oracle for the exact DGP below (three
+    // independently fitted OLS models + Sobel product), n=320. Reproducing
+    // the oracle's data-generating process here (not an arbitrary series)
+    // is what makes the fixture a genuine known-truth check rather than a
+    // name mentioned in an unrelated file.
+    let pin = include_str!("../../../conformance/estimate/temporal_mediation_grid/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let reference = &expected["reference"];
+    let expected_mediated = reference["mediated"].as_f64().unwrap();
+
+    let n = 320usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    // Matches conformance/estimate/temporal_mediation_grid/expected.json's
+    // "data" block exactly: treatment/mediator/outcome formulas, n=320.
+    let mut t = vec![0.0; n];
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for (i, slot) in t.iter_mut().enumerate() {
+        *slot = (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos();
+    }
+    for i in 1..n {
+        m[i] = 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin();
+        y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut g = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut g, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    let q = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    );
+    let ctx = ExecutionContext::for_tests(7);
+    let study = Study::series(data.clone())
+        .graph(g)
+        .query(CausalQuery::Mediation(q))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate_series(&data, &ctx).unwrap();
+    assert!(
+        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "prepared temporal mediation missing exec.identify.cached"
+    );
+    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    // Known-truth check: contrast is Mediated, so `estimate.ate` is the
+    // path-product a*b*delta the statsmodels oracle also reports.
+    assert!(
+        (click.estimate.ate - expected_mediated).abs() < 1e-6,
+        "mediated estimate {} vs statsmodels oracle {}",
+        click.estimate.ate,
+        expected_mediated
+    );
+}
+
+#[test]
+fn prepared_pag_ate_runs_identify_per_click() {
+    // Known-truth pin: clean-room generalized-adjustment oracle. The PAG built
+    // below (Z->T, Z->Y, T->Y) is exactly the fixture's "observed_confounder"
+    // case, so we can assert the identifier's status and adjustment set
+    // against the recorded oracle rather than just naming the fixture.
+    let pin = include_str!("../../../conformance/identify/generalized_adjustment/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let case = expected["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "observed_confounder")
+        .unwrap();
+    assert_eq!(case["status"], "identified");
+    let expected_adjustment_set = case["adjustment_set"].as_array().unwrap();
+    assert_eq!(expected_adjustment_set.len(), 1);
+    assert_eq!(expected_adjustment_set[0], "Z");
+
+    let (data, _, query) = confounded_scm(80, 3);
+    let mut pag = Pag::with_variables(3);
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+
+    // variable 2 is "z" (the confounder) per confounded_scm's schema order;
+    // confirm the identifier's envelope agrees with the oracle before using
+    // prepare()/estimate() below.
+    let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&pag, &query)
+        .unwrap();
+    assert_eq!(envelope.status, antecedent_core::IdentificationStatus::NonparametricallyIdentified);
+    let invariant = envelope.invariant.as_ref().unwrap();
+    assert_eq!(invariant.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(pag)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+}
+
+#[test]
+fn prepared_admg_ate_runs_identify_per_click() {
+    // Frozen pinned-baseline identify() oracle for the frontdoor case (t -> m -> y with
+    // U -> t, U -> y, i.e. t <-> y in the ADMG projection below). The oracle
+    // pins identified/front-door status on this graph, not a numeric ATE.
+    let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    assert_eq!(expected["case"], "identifiable_frontdoor");
+    assert_eq!(expected["expected_status_family"], "identified");
+    assert!(
+        expected["reference"]["outputs"]["estimand"]
+            .as_str()
+            .unwrap()
+            .contains("Estimand name: frontdoor"),
+        "oracle must certify the front-door estimand for this graph"
+    );
+
+    let (admg, nodes) = antecedent_identify::oracle_dot::admg_from_oracle_dot(
+        expected["graph_dot"].as_str().unwrap(),
+    );
+    let t_id = nodes.id(expected["treatment"].as_str().unwrap());
+    let y_id = nodes.id(expected["outcome"].as_str().unwrap());
+    let m_id = nodes.id("m");
+
+    let n = 300usize;
+    let mut t = Vec::with_capacity(n);
+    let mut m = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    for i in 0..n {
+        let ui = u32::from(i % 5 < 2);
+        let ti = u32::from(i % 3 == 0);
+        let mi = (ti + ui) % 2;
+        let yi = (mi + ui) % 2;
+        t.push(f64::from(ti));
+        m.push(f64::from(mi));
+        y.push(f64::from(yi));
+    }
+    let mut b = CausalSchemaBuilder::new();
+    for name in nodes.observed() {
+        b.add_variable(
+            name.as_str(),
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(t_id, Arc::from(t), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(m_id, Arc::from(m), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(y_id, Arc::from(y), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let query = AverageEffectQuery::binary_ate(t_id, y_id);
+
+    // Confirm our own general-ID algorithm agrees with the pinned external
+    // status on the ADMG projected from the frozen oracle DOT.
+    let prepared_admg = antecedent_identify::IdIdentifier::new().prepare(&admg).unwrap();
+    let mut workspace = antecedent_identify::IdentificationWorkspace::default();
+    let id_result = antecedent_identify::IdIdentifier::new()
+        .identify_ate(&prepared_admg, &query, &mut workspace)
+        .unwrap();
+    assert_eq!(
+        id_result.status,
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified
+    );
+
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(admg)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!(click.estimate.ate.is_finite());
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
 }

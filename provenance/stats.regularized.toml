@@ -10,6 +10,12 @@ papers = [
  { title = "Regression Shrinkage and Selection via the Lasso", doi = "10.1111/j.2517-6161.1996.tb02080.x", sections = ["L1-penalized least squares objective"] },
 ]
 
+implementation_deviations = [
+ "Lasso solves 0.5*RSS + lambda*L1 by coordinate descent, so its lambda convention is rescaled relative to formulations written as RSS + lambda*L1.",
+ "Lasso optionally centers and RMS-scales predictors and always leaves its explicit intercept unpenalized; ridge leaves only an exactly constant first design column unpenalized.",
+ "Implements fixed-lambda fits only; it does not implement a regularization path, cross-validation, or a paper-derived lambda-selection procedure.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [

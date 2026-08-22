@@ -1,0 +1,5 @@
+# Pinned external baseline (oracle pin only). Capability inventory lives in domain TOMLs.
+project = "causal-learn"
+version = "0.1.4.3"
+metadata_sha256 = "10a42d129ed06faebc72e529e57783556dd777c136303c8fc2512623687601d2"
+notes = "Black-box FCI/GES reference for conformance/discovery/static_oracle_matrix. The frozen fixture records installed-package metadata and public-API outputs; source/tests are not copied."

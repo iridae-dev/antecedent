@@ -2,13 +2,13 @@
 
 **Suite path:** `conformance/identify/general_id_hedge`
 
-Recorded pinned baseline 0.14 `identify_effect` output, frozen for the pending
-general ID / ID-IDC work.
+Recorded pinned baseline 0.14 `identify_effect` output for the bow-arc graph
+`T -> Y`, `T <-> Y`.
 
-**Not currently exercised.** No Rust or Python test loads this fixture. It is a
-recorded oracle awaiting the comparison gate that ships with full general ID, so
-it is not evidence that Antecedent's ID output has been compared against the
-baseline. See the `notes` field in `expected.json`.
+`antecedent-identify::id::tests::hedge_not_identified` parses this fixture,
+checks the frozen baseline's unidentified status and `graph_dot`, then requires
+Antecedent's general-ID implementation to return `NotIdentified` with a hedge
+diagnostic for the same graph.
 
 ## Expected summary
 

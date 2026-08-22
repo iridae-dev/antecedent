@@ -9,9 +9,15 @@ papers = [
  { title = "Learning High-Dimensional Directed Acyclic Graphs with Latent and Selection Variables", doi = "10.1214/11-AOS940", sections = ["RFCI algorithm", "Lemma 3.1 (unshielded-triple local CI)", "Lemma 3.2 (discriminating-path CI check)"] },
 ]
 
+implementation_deviations = [
+ "The initial adjacency search is bounded by max_cond_size, which defaults to 3, rather than searching every conditioning depth required by oracle RFCI.",
+ "Static RFCI reuses LPCMCI-primed R9 and R10 implementations: R9 imposes an additional weakly-minimal-sepset condition and R10 requires globally node-disjoint paths; Zhang R5-R7 are omitted.",
+ "Discriminating-path search is limited to 64 paths of length at most 8 and fails closed when that budget is exceeded.",
+]
+
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/rfci.rs unit tests",
- "conformance/discovery/rfci",
+ "conformance/discovery/rfci (clean-room motif expectations; no upstream RFCI oracle, and the temporary generator was not retained)",
 ]

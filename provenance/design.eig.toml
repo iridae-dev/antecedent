@@ -15,8 +15,10 @@ copied_tests = false
 # - decision_regret_reduction (Bayesian decision-regret reduction) — covered by design.decision.toml
 papers = [
  { title = "On a Measure of the Information Provided by an Experiment", doi = "10.1214/aoms/1177728069", sections = ["Expected reduction in Shannon entropy from an experiment"] },
- { title = "Bayesian Experimental Design: A Review", doi = "10.1214/ss/1177009939", sections = ["Section 3: Shannon-information design criteria (review, catalogs Lindley's criterion)"] },
- { title = "Elements of Information Theory (Cover & Thomas)", doi = "10.1002/047174882X", sections = ["Mutual information / entropy definitions (secondary textbook treatment)"] },
+]
+
+implementation_deviations = [
+ "Uses a synthetic categorical graph-label channel whose candidate reliability is a hand-coded saturating heuristic rather than the experiment-specific likelihood p(y | G, design) required by Lindley expected information gain.",
 ]
 
 upstream_implementations_observed = []

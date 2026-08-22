@@ -35,6 +35,7 @@ id = "bayes.estimate.gcomp"
 status = "done"
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
+limitations = "Agreement is with Antecedent's own frequentist backdoor path on one shared linear DGP; this is not independent validation of Bayesian g-computation, posterior calibration, or robustness to model misspecification."
 notes = "BayesianGComputationAte shares backdoor IR with frequentist path"
 
 [[capabilities]]
@@ -99,10 +100,9 @@ notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/bayesian/dag_posterior"
-limitations = "The fixture is documentation-only (no test reads it; its reference block is self-referential). The executed evidence is the exact-enumeration unit harness in antecedent-discovery."
-notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full); gate evidence: unit harness + conformance/bayesian/dag_posterior"
+evidence_kind = "implementation_exists"
+limitations = "Unit tests exercise enumeration counts, diagnostics, and sampler mechanics, but no independent fixture is consumed for this umbrella capability and no claim of posterior calibration or upstream-package parity is made."
+notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full)"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"

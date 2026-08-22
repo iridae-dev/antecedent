@@ -644,13 +644,38 @@ impl StudyBuilder {
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
-        let support_status = if let Some(cell) = crate::support::support_cell(
-            &query,
-            crate::support::effective_graph_class(&graph, &query),
-            structure,
-            &inference,
-            refute,
-        ) {
+        let graph_class = crate::support::effective_graph_class(&graph, &query);
+        let mut refute_default_downgrade: Option<RefuteSuite> = None;
+        if !self.refute_explicit {
+            let requested =
+                crate::support::support_cell(&query, graph_class, structure, &inference, refute);
+            let without_validation = crate::support::support_cell(
+                &query,
+                graph_class,
+                structure,
+                &inference,
+                RefuteSuite::None,
+            );
+            if requested.is_some_and(|cell| {
+                matches!(
+                    crate::support::classify(cell),
+                    crate::support::CellStatus::NotApplicable { .. }
+                        | crate::support::CellStatus::Refused
+                )
+            }) && without_validation.is_some_and(|cell| {
+                matches!(
+                    crate::support::classify(cell),
+                    crate::support::CellStatus::Licensed
+                        | crate::support::CellStatus::Allowlisted { .. }
+                )
+            }) {
+                refute_default_downgrade = Some(refute);
+                refute = RefuteSuite::None;
+            }
+        }
+        let support_status = if let Some(cell) =
+            crate::support::support_cell(&query, graph_class, structure, &inference, refute)
+        {
             Some(crate::support::refuse_if_not_applicable(cell)?)
         } else {
             None
@@ -664,6 +689,7 @@ impl StudyBuilder {
             support_status,
             query,
             refute,
+            refute_default_downgrade,
             bootstrap_replicates,
             split: self.split,
             identifier: self.identifier,

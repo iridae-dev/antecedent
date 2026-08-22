@@ -26,7 +26,7 @@ def _artifact_with_draws() -> PosteriorArtifact:
         q975=[4.0],
         draws=draws,
         backend_id="conjugate",
-        identification="identified",
+        identification="NonparametricallyIdentified",
         quantity_names=["ate"],
     )
 

@@ -103,9 +103,11 @@ _EXPECTED_ALL = {
 # stage module cannot be silently added there without this set changing too.
 
 _EXPECTED_UNLISTED_BUT_REACHABLE = {
+    "accepted_graph",
     "artifacts",
     "counterfactual",
     "estimators",
+    "ids",
     "inference",
     "interference",
     "intervention",
@@ -113,7 +115,179 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "observation",
     "population",
     "query",
+    "results",
     "transport",
+}
+
+
+# The twelve root-exported stage modules are public surfaces too.  Freezing only
+# the package root would still let a refactor silently add or remove names from
+# ``antecedent.discovery`` (or any sibling) while the advertised 0.9 API freeze
+# continued to pass.  Keep these lists literal: changing one is an API decision.
+_EXPECTED_STAGE_ALL = {
+    "attribution": {
+        "AnomalyScores",
+        "ChangeAttributionResult",
+        "Contribution",
+        "FeatureRelevance",
+        "MechanismChangeDetection",
+        "anomaly_attribution",
+        "attribute_distribution_change",
+        "attribute_distribution_change_robust",
+        "attribute_feature_relevance",
+        "attribute_path_specific",
+        "attribute_paths",
+        "attribute_structure_change",
+        "attribute_unit_change",
+        "mechanism_change_detection",
+        "rank_root_causes",
+    },
+    "data": {
+        "ArrowLoadInfo",
+        "EventFrame",
+        "MultiEnvFrame",
+        "PanelFrame",
+        "event",
+        "load_float64_arrow_c_columns",
+        "load_float64_columns",
+        "multi_env",
+        "panel",
+        "to_f64",
+    },
+    "design": {"DecisionEvaluation", "DesignRanking", "evaluate_decision", "rank_designs"},
+    "discovery": {
+        "CiScreenedPosterior",
+        "DbnPosterior",
+        "DiscoveredLink",
+        "DiscoveryResult",
+        "ExactDagPosterior",
+        "FCI",
+        "GES",
+        "GraphEdge",
+        "GraphPosterior",
+        "JPCMCIPlus",
+        "LPCMCI",
+        "LiNGAM",
+        "NOTEARS",
+        "OrderMcmc",
+        "PC",
+        "PCMCI",
+        "PCMCIPlus",
+        "PcmciDiscoveryResult",
+        "RFCI",
+        "RPCMCI",
+        "RpcmciDiscoverySummary",
+        "StructureMcmc",
+        "cpdag_oriented_edges",
+        "discovery_algorithm",
+        "discovery_to_dag",
+        "graph_posterior_map_dag",
+        "graph_posterior_map_edges",
+        "run_static_discovery",
+        "run_temporal_discovery",
+        "two_regime_half_split",
+    },
+    "errors": {
+        "CausalAttributionError",
+        "CausalCancelledError",
+        "CausalCompileError",
+        "CausalCounterfactualError",
+        "CausalDataError",
+        "CausalDesignError",
+        "CausalDiscoveryError",
+        "CausalEstimateError",
+        "CausalError",
+        "CausalGraphError",
+        "CausalIdentifyError",
+        "CausalModelError",
+        "CausalResourceError",
+        "CausalReviewError",
+        "CausalSerializationError",
+        "CausalStateError",
+        "CausalTypeError",
+        "CausalUnsupportedError",
+        "CausalValidateError",
+        "CausalValueError",
+        "PendingEdge",
+        "ReviewRequired",
+        "build_review_error",
+        "pending_edges",
+    },
+    "estimation": {
+        "AnalysisResult",
+        "ConflictSummaryView",
+        "EffectEnvelope",
+        "EstimateView",
+        "IdentificationView",
+        "IdentifyResult",
+        "MediationEffectsSummary",
+        "MediationView",
+        "PerformanceView",
+        "PhysicalPlanView",
+        "PlanView",
+        "PosteriorView",
+        "PredictiveCheckReport",
+        "PreparedAnalysis",
+        "PriorSensitivityReport",
+        "RefutationReport",
+        "ValidationView",
+        "analyze_many",
+        "identify",
+        "mediation_effects_summary",
+    },
+    "extensibility": {"CiBatchTest", "EffectValidator", "MechanismWrapper", "UtilityFn"},
+    "gcm": {
+        "anomaly_attribution_discovered",
+        "attribute_distribution_change_discovered",
+        "attribute_paths_discovered",
+        "fit_gcm_discovered",
+    },
+    "graph": {
+        "Admg",
+        "Cpdag",
+        "Dag",
+        "Pag",
+        "TemporalCpdag",
+        "TemporalDag",
+        "TemporalPag",
+        "cpdag_oriented_edges",
+        "discovery_to_dag",
+    },
+    "priors": {
+        "BetaHyperparameters",
+        "CompatibilityReport",
+        "ComposedPrior",
+        "ConflictPolicy",
+        "DesignVariable",
+        "EstimandFingerprint",
+        "ExternalPriorSourceSpec",
+        "ExternalPriorWeight",
+        "GammaHyperparameters",
+        "POPULATION_TAG_KEY",
+        "PriorCatalog",
+        "PriorMapping",
+        "PriorSource",
+        "PriorSourceMeta",
+        "TransportPolicy",
+        "beta_from_mean_and_ess",
+        "beta_from_moments",
+        "compose_external_priors",
+        "gamma_from_mean_and_ess",
+        "gamma_from_moments",
+        "populations_from_prior_sources",
+    },
+    "state": {"CancellationToken", "CausalState", "antecedent_state_append"},
+    "validation": {
+        "validate_environment_holdout",
+        "validate_pcmci_alpha_sensitivity",
+        "validate_pcmci_block_bootstrap",
+        "validate_pcmci_ci_sensitivity",
+        "validate_pcmci_false_positive",
+        "validate_pcmci_lag_sensitivity",
+        "validate_pcmci_plus_orientation",
+        "validate_regime_stability",
+        "validate_synthetic_null_calibration",
+    },
 }
 
 
@@ -123,6 +297,12 @@ def test_all_matches_the_documented_root_set():
 
 def test_all_has_no_duplicates():
     assert len(antecedent.__all__) == len(set(antecedent.__all__))
+
+
+def test_api_naming_counts_match_the_frozen_surfaces():
+    text = (Path(__file__).resolve().parents[2] / "docs" / "api_naming.md").read_text()
+    assert f"frozen at {len(antecedent.__all__)} names" in text
+    assert f"**{len(_EXPECTED_UNLISTED_BUT_REACHABLE)}** further modules" in text
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_ALL))
@@ -180,6 +360,14 @@ def test_unlisted_but_reachable_set_matches_init_py():
     the source rather than trusting a second hand-copied list.
     """
     assert _deliberate_unlisted_reachable_imports_from_init_py() == _EXPECTED_UNLISTED_BUT_REACHABLE
+
+
+@pytest.mark.parametrize("module_name", sorted(_EXPECTED_STAGE_ALL))
+def test_stage_module_all_is_frozen(module_name):
+    module = getattr(antecedent, module_name)
+    actual = tuple(module.__all__)
+    assert len(actual) == len(set(actual)), f"antecedent.{module_name}.__all__ has duplicates"
+    assert set(actual) == _EXPECTED_STAGE_ALL[module_name]
 
 
 def test_estimators_module_is_reachable_and_not_root_exported():

@@ -1,5 +1,5 @@
 id = "estimate.identify.general_id.hedge"
 capability_ids = ["estimate.identify.general_id"]
-fixture_dir = "conformance/identify/general_id_hedge" # recorded oracle, unexercised: no consumer until general ID ships
+fixture_dir = "conformance/identify/general_id_hedge" # consumed by antecedent-identify::id::tests::hedge_not_identified
 tolerance_class = "Exact"
 baseline_pin = "parity/baselines/dowhy.toml"

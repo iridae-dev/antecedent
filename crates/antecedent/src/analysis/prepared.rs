@@ -18,13 +18,16 @@ use antecedent_estimate::EstimationWorkspace;
 
 use crate::accepted::GraphClass;
 use crate::error::CausalError;
+use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::TemporalDag;
-use antecedent_identify::{IdentificationResult, TemporalBackdoorIdentifier};
+use antecedent_identify::{
+    IdentificationResult, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
+};
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
@@ -195,7 +198,33 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        let estimator = self.analysis.estimator.as_ref().map_or(DEFAULT_ESTIMATOR, |e| e.as_str());
+        if matches!(self.analysis.inference, InferenceMode::Bayesian(_)) {
+            // Bayesian validation also includes prior/posterior predictive checks
+            // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
+            // frozen physical plan is the only path that constructs those artifacts;
+            // retain the prior point/identification while replacing validation state.
+            let started = Instant::now();
+            let mut analysis = self.analysis.clone();
+            analysis.refute = suite;
+            let validated =
+                analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
+            let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+            let mut out = prior.clone();
+            out.refutations = validated.refutations;
+            out.predictive_checks = validated.predictive_checks;
+            out.posterior = validated.posterior;
+            out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
+            out.performance.wall_time_ns =
+                Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
+            out.diagnostics.push(antecedent_core::Diagnostic::new(
+                "exec.refute.second_click",
+                antecedent_core::DiagnosticKind::Execution,
+                antecedent_core::DiagnosticSeverity::Info,
+                format!("second-click refute suite={}", suite.diagnostic_label()),
+            ));
+            return Ok(out);
+        }
+        let estimator = self.plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
 
         let (data_est, query_est, estimand_est) =
             project_for_ate_estimate(data, query, &prior.estimand)?;
@@ -207,7 +236,7 @@ impl PreparedStudy {
         }
         let mut workspace = EstimationWorkspace::default();
         let started = Instant::now();
-        let reports = run_refuters(
+        let (reports, na_diagnostics) = run_refuters(
             &data_est,
             &estimand_est,
             &query_est,
@@ -225,6 +254,7 @@ impl PreparedStudy {
 
         let mut out = prior.clone();
         out.refutations = reports;
+        out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
@@ -318,6 +348,8 @@ impl Study {
     /// - series temporal [`CausalQuery::Response`] on a supplied [`GraphClass::TemporalDag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
     ///   on a supplied [`GraphClass::TemporalDag`]
+    /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
+    ///   supplied [`GraphClass::TemporalDag`] (static-style cache, not `I(h)`)
     ///
     /// Discovery inputs and review-required compiles are refused.
     ///
@@ -339,12 +371,19 @@ impl Study {
             }
         };
         let mut analysis = self.clone();
-        if matches!(&self.data, DataInput::Tabular(_)) {
-            analysis.identification_cache =
-                self.prepare_static_identification(&plan)?.map(Arc::new);
-        } else {
-            analysis.temporal_identification_cache =
-                self.prepare_temporal_identification()?.map(Arc::new);
+        match (&self.data, &self.query) {
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+                analysis.identification_cache =
+                    self.prepare_temporal_mediation_identification()?.map(Arc::new);
+            }
+            (DataInput::Tabular(_), _) => {
+                analysis.identification_cache =
+                    self.prepare_static_identification(&plan)?.map(Arc::new);
+            }
+            _ => {
+                analysis.temporal_identification_cache =
+                    self.prepare_temporal_identification()?.map(Arc::new);
+            }
         }
         Ok(PreparedStudy { analysis, plan, schema, time_regularity })
     }
@@ -507,6 +546,11 @@ impl Study {
         if self.graph.class() != GraphClass::TemporalDag {
             return Ok(None);
         }
+        // Per-atom identify inside execute_dbn_posterior_bayesian; an empty stub
+        // TemporalDag must not be cached as the identification.
+        if self.graph_posterior.is_some() {
+            return Ok(None);
+        }
         let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
             message: "temporal prepare requires TemporalDag".into(),
         })?;
@@ -545,6 +589,33 @@ impl Study {
             }
             _ => Ok(None),
         }
+    }
+
+    /// Single-shot temporal mediation identification (not per-horizon `I(h)`).
+    ///
+    /// Mirrors `execute_temporal_mediation`'s identify+select step so a prepared
+    /// click reuses [`CachedStaticIdentification`] the same way ConditionalEffect does.
+    fn prepare_temporal_mediation_identification(
+        &self,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{EstimatorId, select_estimand};
+        let CausalQuery::Mediation(query) = &self.query else {
+            return Ok(None);
+        };
+        if self.graph.class() != GraphClass::TemporalDag {
+            return Ok(None);
+        }
+        let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+            message: "temporal mediation prepare requires TemporalDag".into(),
+        })?;
+        let identification = TemporalMediationIdentifier {
+            allow_natural_controlled_alias: true,
+            ..TemporalMediationIdentifier::new()
+        }
+        .identify(graph, query)
+        .map_err(CausalError::from)?;
+        let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
+        Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 }
 
@@ -590,11 +661,14 @@ pub(crate) fn identify_temporal_response_horizons(
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
-        return Err(CausalError::Support {
-            id: crate::support::SupportRefusal::Refused,
-            message: "graph_posterior is not on the prepared handle; identification runs \
-                per-graph inside execute. Use analyze, or accept a single graph.",
-        });
+        return match &analysis.query {
+            CausalQuery::AverageEffect(_) | CausalQuery::TemporalEffect(_) => Ok(()),
+            _ => Err(CausalError::Support {
+                id: crate::support::SupportRefusal::Refused,
+                message: "graph_posterior on the prepared handle is licensed only for \
+                    AverageEffect and TemporalEffect (Pulse / single-step Sustained)",
+            }),
+        };
     }
     match (&analysis.data, &analysis.query) {
         (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => {
@@ -628,6 +702,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
+        (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+            if analysis.graph.class() != GraphClass::TemporalDag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports TemporalMediationEffect only on TemporalDag",
+                });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
                 return Err(CausalError::Unsupported {
@@ -653,7 +734,7 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             return Err(CausalError::Unsupported {
                 message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
                     ConditionalEffect, PathSpecific, Distribution, temporal ResponseCurve, \
-                    or TemporalEffect (Pulse / single-step Sustained)",
+                    TemporalEffect (Pulse / single-step Sustained), or TemporalMediationEffect",
             });
         }
     }

@@ -6,7 +6,13 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Sensitivity to Exogeneity Assumptions in Program Evaluation", doi = "10.1257/000282803321946921", sections = ["Simulated confounder with specified treatment/outcome loadings"] },
+ { title = "Sensitivity to Exogeneity Assumptions in Program Evaluation", doi = "10.1257/000282803321946921", sections = ["Binary-confounder treatment/outcome sensitivity model and observed-covariate benchmarking"] },
+]
+
+implementation_deviations = [
+ "Adds one standard-normal draw directly to both observed treatment and outcome in marginal-SD units, then refits without adding the simulated variable to the adjustment set.",
+ "Uses 20 Monte Carlo perturbations and a repository-defined standardized mean absolute ATE-shift threshold.",
+ "It does not implement Imbens's binary-confounder treatment-assignment/outcome model, partial-R parameterization, observed-covariate benchmarking, or treatment-effect contour analysis.",
 ]
 
 upstream_implementations_observed = []

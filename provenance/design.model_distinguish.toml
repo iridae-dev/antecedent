@@ -5,13 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# DesignObjective::DistinguishModels / ranker.rs::model_distinguish_score: expected
-# absolute log-likelihood gap between candidate models under a proposed design, scaled by
-# an evidence-strength factor. This is the model-discrimination design criterion; Box & Hill
-# (1967) is the classical reference for choosing designs that maximize expected divergence
-# between rival (mechanistic) models' predictive distributions.
+# DesignObjective::DistinguishModels / ranker.rs::model_distinguish_score computes an
+# absolute pairwise log-likelihood gap from one sampled outcome and scales it by the native
+# candidate-reliability heuristic. Box & Hill (1967) supplies the related classical
+# model-discrimination design contract; the departure is recorded below.
 papers = [
  { title = "Discrimination Among Mechanistic Models", doi = "10.1080/00401706.1967.10490441", sections = ["Sequential design criterion for discriminating between rival models"] },
+]
+
+implementation_deviations = [
+ "Scores heuristic candidate reliability times the mean absolute pairwise log-likelihood gap from one sampled draw; Box-Hill uses posterior model probabilities and predictive mean and variance terms to maximize expected symmetric information divergence.",
 ]
 
 upstream_implementations_observed = []

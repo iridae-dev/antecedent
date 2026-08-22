@@ -188,6 +188,9 @@ corpus = "\n".join(
     for p in corpus_files
     if "target" not in p.parts and ".venv" not in p.parts
 )
+test_files = set(root.glob("crates/**/tests/**/*.rs"))
+test_files.update(root.glob("python/tests/**/*.py"))
+rust_src_files = set(root.glob("crates/**/src/**/*.rs"))
 
 def referenced(name: str) -> bool:
     for m in re.finditer(re.escape(name), corpus):
@@ -195,6 +198,38 @@ def referenced(name: str) -> bool:
         after = corpus[m.end()] if m.end() < len(corpus) else ""
         if not re.match(r"[A-Za-z0-9_]", before) and not re.match(r"[A-Za-z0-9_]", after):
             return True
+    return False
+
+# A fixture "referenced" only by a bare `include_str!(...); assert!(!pin.is_empty())`
+# (or Python equivalent) is named but never consumed -- the string literal reads as
+# evidence to a human skimming the row, but nothing is parsed or compared. Rows that
+# claim `internal_known_truth` / `frozen_external_oracle` must do better: the fixture's
+# path must appear in a test that also parses it (`serde_json::from_str`,
+# `serde_json::Value`, `from_str::<...>`, `json.loads`/`json.load`, `tomllib.loads`, or a
+# `load_expected` helper) within a reasonable distance of the mention, in the SAME file.
+# This does not weaken `referenced()` above -- it is an additional, stricter bar that
+# only applies to the two strongest evidence kinds.
+PARSE_MARKERS = re.compile(
+    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
+    r"tomllib\.loads|tomllib\.load\(|load_expected"
+)
+ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
+CONSUMPTION_WINDOW = 800
+
+
+def meaningfully_consumed(name: str) -> bool:
+    for p in test_files | rust_src_files:
+        text = p.read_text(errors="ignore")
+        for m in re.finditer(re.escape(name), text):
+            before = text[m.start() - 1] if m.start() > 0 else ""
+            after = text[m.end()] if m.end() < len(text) else ""
+            if re.match(r"[A-Za-z0-9_]", before) or re.match(r"[A-Za-z0-9_]", after):
+                continue
+            if p in rust_src_files and "#[cfg(test)]" not in text[: m.start()]:
+                continue
+            window = text[max(0, m.start() - CONSUMPTION_WINDOW) : m.end() + CONSUMPTION_WINDOW]
+            if PARSE_MARKERS.search(window) and ASSERT_MARKERS.search(text):
+                return True
     return False
 
 closed_rules = closed_doc.get("closed") or []
@@ -217,8 +252,58 @@ for i, rule in enumerate(closed_rules, 1):
 def is_closed(cell: dict) -> bool:
     return (not is_n_a(cell)) and any(rule_matches(rule, cell) for rule in closed_rules)
 
+# n/a and reason-backed refusals are disjoint. A too-broad n/a must not mask
+# a reason row in legacy-named support_closed.toml.
+if all_queries and graph_classes and structures and inferences and validations:
+    lic_keys_for_overlap = {
+        (
+            row.get("query"),
+            row.get("graph_class"),
+            row.get("structure"),
+            row.get("inference"),
+            row.get("validation"),
+        )
+        for row in (lic_doc.get("cell") or [])
+    }
+    overlap_n = 0
+    for q, g, s, inf, v in product(
+        all_queries, graph_classes, structures, inferences, validations
+    ):
+        cell = {
+            "query": q,
+            "graph_class": g,
+            "structure": s,
+            "inference": inf,
+            "validation": v,
+        }
+        closed_hit = next(
+            (i for i, rule in enumerate(closed_rules, 1) if rule_matches(rule, cell)),
+            None,
+        )
+        if closed_hit is None:
+            continue
+        if is_n_a(cell):
+            overlap_n += 1
+            if overlap_n <= 25:
+                fail.append(
+                    f"parity/support_closed.toml rule #{closed_hit} overlaps n/a cell "
+                    f"{(q, g, s, inf, v)}"
+                )
+        if (q, g, s, inf, v) in lic_keys_for_overlap:
+            fail.append(
+                f"parity/support_closed.toml rule #{closed_hit} overlaps licensed cell "
+                f"{(q, g, s, inf, v)}"
+            )
+    if overlap_n > 25:
+        fail.append(f"... {overlap_n - 25} more n/a/refusal-reason overlaps")
+
 # --- allowlist rules -----------------------------------------------------------
 allowed_rules = allow_doc.get("allowed") or []
+if allowed_rules:
+    fail.append(
+        "parity/support_allowlist.toml: 0.9 requires an empty allowlist; "
+        f"found {len(allowed_rules)} active rule(s)"
+    )
 for i, rule in enumerate(allowed_rules, 1):
     label = f"parity/support_allowlist.toml rule #{i}"
     if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
@@ -243,8 +328,9 @@ def is_allowed(cell: dict) -> bool:
         and any(rule_matches(rule, cell) for rule in allowed_rules)
     )
 
-# An allowed rule must not match any licensed, n/a, or closed cell -- the
-# allowlist is a true partition of the running-but-unlicensed remainder.
+# Retained compatibility rules must not match any licensed, n/a, or
+# reason-backed refused cell. The 0.9 invariant above requires zero rules;
+# these checks remain so a bad legacy entry reports all of its defects.
 if all_queries and graph_classes and structures and inferences and validations:
     lic_keys_for_disjointness = {
         (row.get("query"), row.get("graph_class"), row.get("structure"), row.get("inference"), row.get("validation"))
@@ -263,7 +349,7 @@ if all_queries and graph_classes and structures and inferences and validations:
             elif is_n_a(cell):
                 fail.append(f"{label}: matches an n/a cell {(q, g, s, inf, v)}")
             elif is_closed(cell):
-                fail.append(f"{label}: matches a closed cell {(q, g, s, inf, v)}")
+                fail.append(f"{label}: matches a reason-backed refused cell {(q, g, s, inf, v)}")
 
 # --- licensed cells ----------------------------------------------------------
 cells = lic_doc.get("cell") or []
@@ -306,14 +392,60 @@ for i, row in enumerate(cells, 1):
     if row.get("status") is not None:
         fail.append(f"{label}: status is illegal on a matrix cell")
     fixture = row.get("known_truth_fixture")
-    if not isinstance(fixture, str) or not fixture.strip():
-        fail.append(f"{label}: known_truth_fixture is required")
-    elif not (root / fixture).exists():
-        fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
-    elif not referenced(Path(fixture).name):
-        fail.append(
-            f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
-        )
+    if kind in {"internal_known_truth", "frozen_external_oracle"}:
+        if not isinstance(fixture, str) or not fixture.strip():
+            fail.append(f"{label}: {kind} requires known_truth_fixture")
+        elif not (root / fixture).exists():
+            fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+        elif not referenced(Path(fixture).name):
+            fail.append(
+                f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
+            )
+        elif not meaningfully_consumed(Path(fixture).name):
+            fail.append(
+                f"{label}: known_truth_fixture {fixture!r} is named ({kind!r}) but never "
+                "parsed by a test (e.g. only reachable via a bare include_str!/is_empty "
+                "check) -- parse it and compare a real field, or demote evidence_kind"
+            )
+    elif kind == "internal_cross_check":
+        if fixture is not None:
+            fail.append(
+                f"{label}: internal_cross_check must not name known_truth_fixture; "
+                "that would present contextual data as independent truth evidence"
+            )
+        test_rel = row.get("evidence_test")
+        assertion = row.get("evidence_assertion")
+        if not isinstance(test_rel, str) or not test_rel.strip():
+            fail.append(f"{label}: internal_cross_check requires evidence_test")
+        elif not isinstance(assertion, str) or not assertion.strip():
+            fail.append(f"{label}: internal_cross_check requires evidence_assertion")
+        else:
+            test_path = root / test_rel
+            try:
+                test_path.resolve().relative_to(root.resolve())
+            except ValueError:
+                fail.append(f"{label}: evidence_test must remain inside the repository")
+            else:
+                if not test_path.is_file():
+                    fail.append(f"{label}: evidence_test {test_rel!r} does not exist")
+                elif test_path.suffix not in {".rs", ".py"}:
+                    fail.append(f"{label}: evidence_test must be Rust or Python test code")
+                else:
+                    test_text = test_path.read_text(errors="ignore")
+                    if test_path.suffix == ".rs":
+                        test_pattern = re.compile(
+                            rf"#\[test\][^\n]*\n\s*fn\s+{re.escape(assertion)}\s*\(",
+                            re.M,
+                        )
+                    else:
+                        test_pattern = re.compile(
+                            rf"^\s*def\s+{re.escape(assertion)}\s*\(", re.M
+                        )
+                    if not test_pattern.search(test_text):
+                        fail.append(
+                            f"{label}: evidence_assertion {assertion!r} is not an "
+                            f"executing test function in {test_rel}"
+                        )
     key = (q, g, s, inf, v)
     if key in seen:
         fail.append(f"{label}: duplicate cell {key}")
@@ -328,7 +460,9 @@ for i, row in enumerate(cells, 1):
     if all(cell.values()) and is_n_a(cell):
         fail.append(f"{label}: cell is n/a under support_n_a.toml; cannot license it")
     if all(cell.values()) and is_closed(cell):
-        fail.append(f"{label}: cell is closed under support_closed.toml; cannot license it")
+        fail.append(
+            f"{label}: cell has a refusal reason under support_closed.toml; cannot license it"
+        )
     if all(cell.values()) and is_allowed(cell):
         fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
 
@@ -336,7 +470,7 @@ for i, row in enumerate(cells, 1):
 if all_queries and graph_classes and structures and inferences and validations:
     cartesian = 0
     n_a_count = 0
-    closed_count = 0
+    reason_backed_refused_count = 0
     allowed_count = 0
     for q, g, s, inf, v in product(
         all_queries, graph_classes, structures, inferences, validations
@@ -352,16 +486,16 @@ if all_queries and graph_classes and structures and inferences and validations:
         if is_n_a(cell):
             n_a_count += 1
         elif is_closed(cell):
-            closed_count += 1
+            reason_backed_refused_count += 1
         elif is_allowed(cell):
             allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
     if refused < 0:
         fail.append("licensed + n/a exceeds the cartesian product")
-    if closed_count + allowed_count > refused:
-        fail.append("closed + allowlisted exceed remaining refused cells")
+    if reason_backed_refused_count + allowed_count > refused:
+        fail.append("reason-backed refusals + compatibility entries exceed refused cells")
 else:
-    cartesian = n_a_count = closed_count = allowed_count = refused = 0
+    cartesian = n_a_count = reason_backed_refused_count = allowed_count = refused = 0
     fail.append("axes are incomplete; cannot form a cartesian product")
 
 if fail:
@@ -372,7 +506,8 @@ if fail:
 
 print(
     f"Support matrix OK ({cartesian} cells; {len(cells)} licensed; "
-    f"{n_a_count} n/a; {closed_count} closed; {allowed_count} allowlisted; "
-    f"{refused - closed_count - allowed_count} refused (enforced, no allowlist match))"
+    f"{n_a_count} n/a; {reason_backed_refused_count} refused with reasons; "
+    f"{refused - reason_backed_refused_count - allowed_count} refused without reasons; "
+    f"{allowed_count} active allowed_unlicensed compatibility entries)"
 )
 PY

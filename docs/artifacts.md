@@ -5,6 +5,10 @@ The durable format is **`FormatVersion { major: 0, minor: 4 }`**
 (`antecedent_io::STABLE_FORMAT`). Format 0.4 adds temporal response-query
 fields and dose × horizon response surfaces.
 
+Format 0.4 is the durable-artifact wire freeze for package 1.0.0. A later wire
+change must advance the format and provide migration from prior stable versions;
+the package-version bump itself does not change artifact bytes.
+
 ## Container
 
 See ADR 0002 / 0017:

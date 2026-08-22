@@ -5,6 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+implementation_deviations = [
+ "Searches only singleton, unconditional instruments for a single-treatment, single-outcome AverageEffect query; conditioned instruments and instrumental sets are not implemented.",
+ "The emitted estimand is a Wald ratio, but the recorded assumptions contain only graphical exclusion and do not require the homogeneous linear-effect assumptions needed for an ATE or the monotonicity assumptions needed for a LATE.",
+]
+
 papers = [
  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["7.2 Instrumental variables"] },
  { title = "Instrumental Variables in Causal Inference and Machine Learning: A Survey", doi = "10.48550/arXiv.2212.05778", sections = ["graphical IV criteria"] },
@@ -16,5 +21,4 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic SCMs with unmeasured T-Y confounders",
- "property tests vs path-enumeration d-separation oracle",
 ]
