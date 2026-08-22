@@ -121,8 +121,9 @@ No new estimands. No new identification theories.
   not a lie.
 - Rewrite `docs/capabilities.md` and `docs/comparison.md` against the support
   matrix. Release notes state the matrix, including explicit refusals.
-- Freeze the durable artifact format for 1.0 (package 1.0.0; format may remain
-  0.3 if migration and round trips already cover it).
+- Freeze durable artifact format 0.4 for package 1.0.0. The 0.9 audit found
+  no remaining wire hole: migration and cross-language round trips cover the
+  implemented query and result variants.
 - Confirm every claimed external oracle has a pinned baseline, frozen fixture,
   and consuming conformance test.
 

@@ -76,9 +76,11 @@ print(result.provenance)
 print(result.evidence_status)
 ```
 
-`evidence_status` is the support-matrix cell (`licensed` vs `allowed_unlicensed`).
-A licensed cell can still carry a scientifically untrustworthy number; read
-`support.warnings` before treating the curve as a claim.
+At 0.9 every successful analysis has `evidence_status == "licensed"`.
+`allowed_unlicensed` remains a legacy wire value, but the active allowlist is
+empty and the release gate rejects new entries. A licensed cell can still carry
+a scientifically untrustworthy number; read `support.warnings` before treating
+the curve as a claim.
 
 ## Least-squares Kennedy-DR regularity
 
@@ -226,6 +228,13 @@ artifacts like any other support diagnostic. A non-finite influence is refused
 at export rather than published.
 
 ## Curves, derivatives, and elasticities
+
+The derivative query types below remain public so unsupported requests receive
+a stable typed refusal, but **all derivative analysis cells are refused in
+0.9**. Only `ResponseCurve` and `InterventionResponse` have licensed response
+cells; see the [support matrix](support-matrix.md). The definitions below
+describe implemented response primitives, not a license to run them through
+`analyze()`.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.

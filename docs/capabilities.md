@@ -1,15 +1,31 @@
 # Capabilities
 
-The full inventory of what Antecedent implements, area by area. The
-[README](https://github.com/iridae-dev/antecedent#readme) carries the
-highlights; this page is the reference list. For what is deliberately *not*
-implemented, see [Comparison](comparison.md). The public **license** — which
-query × graph class × inference cells run, and which refuse — is the
-[support matrix](support-matrix.md), not this inventory.
+This page is a readable tour of what exists in Antecedent. The parity manifests
+are the complete implementation inventory; the [support matrix](support-matrix.md)
+is the public **license** for analysis cells. Presence here does not mean every
+query × graph class × structure × inference × validation combination runs.
+For selection guidance and product boundaries, see [Comparison](comparison.md).
 
-## Graphs
+## How to read capability claims
 
-Supported graph classes:
+The matrix has three active runtime states:
+
+* **licensed** — the staged path runs under the row's recorded evidence
+  contract;
+* **n/a** — the coordinate does not denote and is a typed impossibility;
+* **refused** — the coordinate is meaningful, but this release does not
+  license it.
+
+The historical `allowed_unlicensed` wire value remains decodable for
+compatibility, but 0.9 has no active allowlist entries and the release gate
+rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin only
+identification or an effect point, while an internal cross-check may establish
+prepared-vs-fresh consistency without pinning the scientific target. Read each
+row's `limitations`; a shared method name is not a parity claim.
+
+## Graph primitives
+
+Implemented graph representations:
 
 * DAG;
 * ADMG;
@@ -63,7 +79,12 @@ CBOR artifacts.
 * CI-screened graph posterior;
 * DBN posterior.
 
-Posterior graph samples can be propagated into downstream effect analyses.
+Selected posterior graph samples can be propagated into licensed Bayesian
+effect envelopes. Static graph-posterior analysis is limited to
+`AverageEffect` with DAG atoms. Temporal graph-posterior analysis is limited to
+pulse and single-step sustained effects with `TemporalDag` atoms and validation
+`none`. Frequentist mixtures, response mixtures, and ADMG/CPDAG/PAG posterior
+atoms are refused.
 
 ### Conditional independence tests
 
@@ -100,9 +121,9 @@ Implemented identification strategies:
 * front-door identification;
 * instrumental variables;
 * sharp regression discontinuity;
-* ID and IDC for DAGs and ADMGs;
-* hedge certificates;
-* nonparametric path-specific identification;
+* an explicitly scoped, incomplete ID/IDC implementation for DAGs and ADMGs;
+* line-5 hedge node-set diagnostics (not fully validated C-forest certificates);
+* bounded path-specific identification by selected-edge graph reduction;
 * generalized adjustment for partial graphs;
 * unfolded temporal backdoor;
 * temporal mediation;
@@ -115,13 +136,12 @@ Implemented identification strategies:
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
 
-For PAGs, Antecedent uses identification envelopes or explicit graph
-completions. That is an identification primitive, not a licensed
-`ResponseCurve` cell: `analyze` refuses response curves on PAG, CPDAG, and
-ADMG. The public license is the [support matrix](support-matrix.md). Full
-PAG-native ID and IDC are outside the supported scope.
+For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
+explicit graph completions. Licensed PAG analysis is `AverageEffect` only; this
+is not a licensed `ResponseCurve`, path-specific, distribution, or mediation
+surface. Full PAG-native ID and IDC are outside the supported scope.
 General multi-node sID recursion and definitive non-transportability
-certificates are outside the 0.5 transport contract.
+certificates are outside the 0.9 transport contract.
 
 ## Estimation
 
@@ -198,7 +218,8 @@ not demote `evidence_status` or `support.status`. See
 * conjugate Gaussian models;
 * Laplace GLM approximation;
 * HMC GLMs;
-* graph-by-effect posterior envelopes;
+* graph-by-effect posterior envelopes on the exact licensed DAG and
+  `TemporalDag` query families described above;
 * same-design prior transfer;
 * effect-level and mapped prior transfer;
 * prior catalogs and compatibility filtering;
@@ -207,7 +228,8 @@ not demote `evidence_status` or `support.status`. See
 * transport policies across compatible designs.
 
 Unidentified graph-posterior mass is retained rather than silently
-renormalized away.
+renormalized away. Current graph-posterior evidence is an internal
+prepared-vs-fresh cross-check, not a known-truth pin for the mixture effect.
 
 ## Observation, transport, and interference
 
@@ -408,7 +430,9 @@ Invalidation does not automatically rerun an analysis.
 `PreparedStudy` (`Study::prepare`) does not cache identification uniformly
 across graph classes. For `AverageEffect`, an estimate click reuses
 prepare-time identification (`exec.identify.cached`) on `Dag`, `Cpdag`, and
-`Admg` without bidirected edges. `Pag`, bidirected `Admg`, `graph_posterior`
+`Admg` without bidirected edges — this is the engine's caching behaviour, not a
+license: `AverageEffect` on a `Cpdag` is refused, so only the `Dag` and `Admg`
+arms are reachable from a licensed cell. `Pag`, bidirected `Admg`, `graph_posterior`
 structures, and the sharp-RD estimator are not cached: prepare() still
 accepts and freezes them, but each estimate click re-runs identification
 against the frozen graph rather than reusing a stored result. The frozen
@@ -429,7 +453,8 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 ## Artifacts
 
-Versioned artifacts:
+Durable artifact format **0.4** is the 1.0 wire freeze. Versioned artifacts
+include:
 
 * graphs;
 * graph posteriors;

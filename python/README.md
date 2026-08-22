@@ -102,8 +102,8 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 49 names through 0.6; 0.7 adds temporal
-response attachments on existing query types without new root exports.
+The root namespace is frozen at 49 names through 0.9. Temporal response
+attachments use existing query types without adding root exports.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
@@ -126,7 +126,8 @@ Also exposed:
 - `antecedent.population` — `PopulationRegistry` / `target_*` for named predicates and custom-distribution IPW
 - `antecedent.gcm` — `fit_gcm_discovered` / `attribute_*_discovered` discover-then-attribute composition
 - `antecedent.state.CausalState` — incremental state with retained batches, events, suff-stats, particle filter
-- `refute=True|"full"|"placebo"|False` on static `analyze`. Temporal
+- `refute="full"|"placebo"|False` on static `analyze` (`refute=True` is a
+  `TypeError`; leave it unset for the licensed default). Temporal
   `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and
   record that skip on `CausalResponseView.validation`.
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
