@@ -51,18 +51,18 @@ reason = "ConditionalEffect compiles only against a supplied static Dag; Cpdag/A
 queries = ["PathSpecificEffect"]
 graph_classes = ["Admg", "Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
 
 [[closed]]
 queries = ["InterventionalDistribution"]
 graph_classes = ["Admg", "Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above)."
+reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
 
 [[closed]]
 queries = ["InterventionResponse"]
 graph_classes = ["Cpdag", "Admg", "Pag"]
-reason = "InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm."
+reason = "InterventionResponse executes only on a supplied static Dag, the same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response compile arm."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -106,11 +106,11 @@ structures = ["graph_posterior"]
 inferences = ["Frequentist"]
 reason = "Graph-posterior compilation requires Bayesian inference: the combiner this library ships (`execute_graph_posterior_bayesian` / `execute_dbn_posterior_bayesian`) mixes per-atom posterior draws into an envelope. Frequentist model-averaging exists in the literature; this library does not implement a Frequentist combiner."
 
-# -- 2026-08-19: allowlist introduction. The following rules close cells that were
-# probed end-to-end (Study::build/run) and confirmed to either refuse at compile
-# (an identifier/estimator pair the strategy table rejects) or to silently ignore
-# the claimed inference mode. Their siblings that genuinely run land in
-# parity/support_allowlist.toml instead. See adr/0020, 2026-08-19 amendment.
+# -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
+# (Study::build/run) and confirmed either to refuse at compile (an
+# identifier/estimator pair the strategy table rejects) or to silently ignore
+# the claimed inference mode. Former running exceptions were fully disposed in
+# 0.9; parity/support_allowlist.toml is now required to remain empty.
 
 [[closed]]
 queries = ["AverageEffect"]
@@ -166,7 +166,7 @@ queries = ["ResponseCurve", "InterventionResponse"]
 graph_classes = ["TemporalDag"]
 structures = ["explicit", "accepted"]
 inferences = ["Bayesian"]
-reason = "Bayesian temporal response is not licensed in 0.7.0; execute_temporal_response refuses Bayesian inference before estimation."
+reason = "Bayesian temporal response is not licensed; execute_temporal_response refuses Bayesian inference before estimation."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -194,7 +194,7 @@ queries = ["ResponseCurve", "InterventionResponse"]
 graph_classes = ["TemporalCpdag", "TemporalPag"]
 reason = "ResponseCurve/InterventionResponse have no class-aware identifier on TemporalCpdag/TemporalPag; the same gap on static Cpdag/Admg/Pag is already refused."
 
-# -- 0.9.0: named reasons for families that were default-refused without a row.
+# -- 0.9.0: named reasons for refused families that previously had no reason row.
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]

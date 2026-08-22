@@ -1,10 +1,8 @@
-# Named allowlist: cells that are neither licensed nor closed but do genuinely
-# run end-to-end today. Each row is proof-carrying — `reason` states why it runs
-# and why it is not licensed instead (no staged handle / re-identifies per click /
-# no cell-shaped evidence fixture), and `parent` names the licensed or
-# keep-running family it rides. An allowed rule must not match any licensed, n/a,
-# or closed cell (parity/gate_support_matrix.sh enforces the partition).
+# Legacy source for the retained `allowed_unlicensed` compatibility wire value.
+# The 0.9 support contract has exactly three active runtime outcomes: licensed,
+# n/a, or refused. `scripts/gate_support_matrix.sh` therefore rejects every
+# `[[allowed]]` entry in this file.
 #
-# Empty as of 0.9.0: every previously allowlisted running cell is now licensed
-# (Pag/Admg ATE, graph-posterior Bayesian ATE, Pulse DBN posterior none).
-# See adr/0020, 2026-08-19 amendment.
+# Empty as of 0.9.0. Former entries were disposed explicitly: supported families
+# were licensed, typed impossibilities became n/a, and unsupported families now
+# refuse with reasons in the legacy-named `support_closed.toml` reason table.

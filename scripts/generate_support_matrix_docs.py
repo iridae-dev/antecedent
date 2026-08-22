@@ -133,7 +133,7 @@ def main() -> int:
 
     cartesian = 0
     n_a_count = 0
-    closed_count = 0
+    reason_backed_refused_count = 0
     allowed_count = 0
     for q, g, s, inf, v in product(queries, graphs, structures, inferences, validations):
         cartesian += 1
@@ -147,11 +147,11 @@ def main() -> int:
         if is_n_a(cell):
             n_a_count += 1
         elif is_closed(cell):
-            closed_count += 1
+            reason_backed_refused_count += 1
         elif is_allowed(cell):
             allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
-    default_refused = refused - closed_count - allowed_count
+    unreasoned_refused_count = refused - reason_backed_refused_count - allowed_count
 
     def bullets(xs: list[str]) -> str:
         return "\n".join(f"- `{x}`" for x in xs)
@@ -184,17 +184,21 @@ def main() -> int:
     allowed_md_lines = allowed_lines(allowed_rules)
 
     if cells:
+        def md_cell(value: str) -> str:
+            return " ".join(value.split()).replace("|", r"\|")
+
         lic_rows = [
-            "| query | graph | structure | inference | validation | evidence |",
-            "|---|---|---|---|---|---|",
+            "| query | graph | structure | inference | validation | evidence | limitations |",
+            "|---|---|---|---|---|---|---|",
         ]
         for row in cells:
             ev = row.get("evidence_kind", "")
             fix = row.get("known_truth_fixture", "")
             ev_s = f"{ev}" + (f" (`{fix}`)" if fix else "")
+            limitations = md_cell(row.get("limitations", ""))
             lic_rows.append(
                 f"| `{row['query']}` | `{row['graph_class']}` | `{row['structure']}` | "
-                f"`{row['inference']}` | `{row['validation']}` | {ev_s} |"
+                f"`{row['inference']}` | `{row['validation']}` | {ev_s} | {limitations} |"
             )
         licensed_md = "\n".join(lic_rows)
     else:
@@ -218,7 +222,8 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
 validation) is **{cartesian}** cells. That denominator is not a feature count.
-Most of it is typed impossibility, not missing work.
+Of those cells, **{n_a_count}** are typed impossibilities and
+**{cartesian - n_a_count}** are meaningful combinations.
 
 Every cell is in exactly **one of three runtime states**: **licensed** (a
 result), **n/a** (the coordinate does not denote — a typed impossibility),
@@ -227,31 +232,28 @@ cell that is not licensed and not n/a is refused, whether or not a rule
 names a reason for it. `support_closed.toml` does not close anything — it
 is the **reason table** for refused cells, not a fourth state. A refused
 cell either has a documented reason on file or it doesn't; both refuse
-identically at runtime. The allowlist below is a separate, bounded
-carve-out inside the refused set: cells that execute end-to-end without
-being licensed.
+identically at runtime. `allowed_unlicensed` is retained as a compatibility
+wire value, but 0.9 has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | {cartesian} | Axis product, not a coverage score |
 | n/a | {n_a_count} | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
-| Licensed | {len(cells)} | Staged path plus executing known-truth evidence — the strongest contract |
-| Allowlisted (running, unlicensed) | {allowed_count} | Executes end-to-end; a successful number is **not** a licensed claim |
-| Refused — reason on file | {closed_count} | Same runtime outcome as any other refused cell; documented in `support_closed.toml`, including mislabeled-inference laundering |
-| Refused — no reason on file yet | {default_refused} | Same runtime outcome; no rule in `support_closed.toml` names it yet |
+| Licensed | {len(cells)} | Staged path plus the row's recorded evidence contract and limitations |
+| `allowed_unlicensed` compatibility entries | {allowed_count} | Retained wire value; 0.9 requires this count to remain zero |
+| Refused — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — no reason on file yet | {unreasoned_refused_count} | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
 Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
-carry the evidence contract**; {allowed_count} more run without that contract;
-the rest are n/a or refused.
+carry their recorded evidence contracts**; no cells run through the retained
+`allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
-licensed. A cell is exactly one of licensed / n/a / refused; the allowlist
-is a bounded carve-out of cells inside the refused set that still execute.
-Successful studies record `licensed` vs `allowed_unlicensed` on the result
-(`evidence_status` in Python, `StudyResult.support_status` in Rust) so the
-distinction survives dispatch.
+licensed. A cell is exactly one of licensed / n/a / refused.
+`allowed_unlicensed` remains a readable wire value for compatibility with
+older artifacts and clients, but no 0.9 matrix cell can produce it.
 
 ## Axes
 
@@ -287,11 +289,11 @@ row here yet.
 
 {chr(10).join(closed_lines) if closed_lines else "_None._"}
 
-## Allowlisted (running, unlicensed)
+## `allowed_unlicensed` compatibility entries
 
-These cells are neither licensed nor closed but do genuinely run; each row
-below states why it runs and which licensed/keep-running family it rides.
-Every other refused cell fails closed.
+The wire value is retained for compatibility with older artifacts and clients.
+The 0.9 gate requires this list to be empty: every active cell is licensed,
+n/a, or refused.
 
 {chr(10).join(allowed_md_lines) if allowed_md_lines else "_None._"}
 
@@ -307,9 +309,15 @@ Every other refused cell fails closed.
             "cartesian": cartesian,
             "licensed": len(cells),
             "n_a": n_a_count,
-            "closed": closed_count,
+            "reason_backed_refused": reason_backed_refused_count,
             "allowed": allowed_count,
-            "refused": cartesian - n_a_count - closed_count - allowed_count - len(cells),
+            "unreasoned_refused": (
+                cartesian
+                - n_a_count
+                - reason_backed_refused_count
+                - allowed_count
+                - len(cells)
+            ),
         },
         axes,
     )
@@ -320,10 +328,11 @@ Every other refused cell fails closed.
 
 
 def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
-    """One bullet per (query, inference), compact when rows form a product."""
+    """Compact only graph classes with identical rectangular cell products."""
     from itertools import product as iproduct
 
     order_q = list(axes["queries"]) + list(axes.get("stage_queries") or [])
+    order_g = list(axes["graph_classes"])
     order_s = list(axes["structures"])
     order_v = list(axes["validations"])
     order_i = list(axes["inferences"])
@@ -337,23 +346,55 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
             ]
             if not rows:
                 continue
-            graphs = sorted({c["graph_class"] for c in rows})
-            structs = [s for s in order_s if any(c["structure"] == s for c in rows)]
-            vals = [v for v in order_v if any(c["validation"] == v for c in rows)]
-            combos = {(c["structure"], c["validation"]) for c in rows}
-            if combos == set(iproduct(structs, vals)):
+            expected = {
+                (c["graph_class"], c["structure"], c["validation"]) for c in rows
+            }
+            emitted: set[tuple[str, str, str]] = set()
+            profiles: dict[frozenset[tuple[str, str]], list[str]] = {}
+            for graph in order_g:
+                profile = frozenset(
+                    (c["structure"], c["validation"])
+                    for c in rows
+                    if c["graph_class"] == graph
+                )
+                if profile:
+                    profiles.setdefault(profile, []).append(graph)
+
+            for profile, graphs in profiles.items():
+                structs = [s for s in order_s if any(pair[0] == s for pair in profile)]
+                vals = [v for v in order_v if any(pair[1] == v for pair in profile)]
+                rectangular = set(profile) == set(iproduct(structs, vals))
+                if not rectangular:
+                    for graph in graphs:
+                        for structure in structs:
+                            for validation in vals:
+                                key = (graph, structure, validation)
+                                if key not in expected:
+                                    continue
+                                lines.append(
+                                    f"- `{q}` × `{graph}` × `{structure}` × "
+                                    f"`{inf}` × validation `{validation}`"
+                                )
+                                emitted.add(key)
+                    continue
+
                 s_part = " / ".join(f"`{s}`" for s in structs)
                 v_part = " / ".join(f"`{v}`" for v in vals)
                 g_part = " / ".join(f"`{g}`" for g in graphs)
                 lines.append(
                     f"- `{q}` × {g_part} × {s_part} × `{inf}` × validation {v_part}"
                 )
-            else:
-                for c in rows:
-                    lines.append(
-                        f"- `{q}` × `{c['graph_class']}` × `{c['structure']}` × "
-                        f"`{inf}` × validation `{c['validation']}`"
-                    )
+                emitted.update(iproduct(graphs, structs, vals))
+
+            # Focused invariant: compaction must preserve the exact licensed
+            # graph × structure × validation set for this query/inference pair.
+            if emitted != expected:
+                missing = sorted(expected - emitted)
+                extra = sorted(emitted - expected)
+                raise AssertionError(
+                    f"release-note compaction changed {q}/{inf}: "
+                    f"missing={missing}, extra={extra}"
+                )
     return lines
 
 
@@ -381,8 +422,9 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     body_lines = [
         f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
         f"cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
-        f"{counts['allowed']} allowlisted (running, unlicensed); "
-        f"{counts['closed']} closed; {counts['refused']} refused with no allowlist match.",
+        f"{counts['reason_backed_refused']} refused with a reason on file; "
+        f"{counts['unreasoned_refused']} refused without a reason; "
+        f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
         "",
     ] + render_release_licensed(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END

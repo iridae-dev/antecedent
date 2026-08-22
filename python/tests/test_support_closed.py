@@ -24,7 +24,7 @@ _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
 _REASON_INTERVENTION_RESPONSE_OFF_DAG = (
     "refused: InterventionResponse executes only on a supplied static Dag, the same "
-    "requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response "
+    "requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response "
     "compile arm."
 )
 
