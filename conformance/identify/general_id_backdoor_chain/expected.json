@@ -10,7 +10,7 @@
     "baseline_pin": "parity/baselines/dowhy.toml",
     "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
-  "notes": "Pre-recorded identify() oracle for pending general ID / ID-IDC work. Rust gate will compare when estimate.identify.general_id ships.",
+  "notes": "Consumed by antecedent-identify::backdoor::tests::confounding_requires_z and antecedent-identify::id::tests::backdoor_chain_identified, which compare the frozen status, graph, and backdoor estimand family.",
   "reference": {
     "project": "dowhy",
     "available": true,
