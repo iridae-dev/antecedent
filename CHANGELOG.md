@@ -7,12 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.9.0] — unreleased (in progress)
-
-**Status: not shipped.** The 0.9 audit (`TODO.md`) is still open; the entries
-below record work that has landed and been verified on the cut branch, not a
-completed release. Do not treat this section as the 0.9.0 contract until the
-audit closes and the cut is accepted.
+## [0.9.0] — 2026-08-22
 
 Support is now closed-world: every cell that executes is licensed, while typed
 impossibilities and unsupported combinations fail before execution. Of the 2394
@@ -1483,6 +1478,14 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.9.0
+[0.7.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.7.0
+[0.6.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.6.1
+[0.6.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.6.0
+[0.5.2]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.2
+[0.5.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.1
+[0.5.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.5.0
 [0.4.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.1
 [0.4.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.4.0
 [0.3.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.3.0
