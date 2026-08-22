@@ -501,6 +501,9 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
         bootstrap=0,
         seed=7,
     )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         _ATE_DATA,
         discovery=antecedent.discovery.ExactDagPosterior(),
@@ -542,6 +545,9 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
         bootstrap=0,
         seed=11,
     )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         discovery=discovery,

@@ -51,6 +51,7 @@ id = "design_state.incremental_ols"
 status = "done"
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/design_state/incremental_ols_match"
+limitations = "Agreement is with Antecedent's own full recomputation on deterministic data; it establishes incremental/batch consistency, not independent numerical truth or statistical calibration."
 notes = "LinearOlsSuffStats append matches full recompute"
 
 [[capabilities]]
@@ -84,4 +85,5 @@ id = "design_state.rolling_mechanism_diagnostics"
 status = "done"
 evidence_kind = "internal_cross_check"
 known_truth_fixture = "conformance/design_state/rolling_mechanism_diag_match"
+limitations = "Agreement is with Antecedent's own batch recomputation; it does not independently validate the diagnostic's statistical interpretation or calibration."
 notes = "RollingMechanismDiagnostics bounded-window OLS + residual/CUSUM summaries under SuffStatStore; AppendData invalidates without clear; ReplaceData clears"

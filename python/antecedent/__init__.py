@@ -42,10 +42,11 @@ from typing import NoReturn
 # module was compiled without optimizations.
 from . import _native as _native_module
 
-# `artifacts` belongs to the "reachable but deliberately outside `__all__`"
-# family described in the comment below; isort's alphabetical import
-# ordering just happens to place it ahead of the `__all__`-exported block
-# rather than next to its siblings.
+# These explicit self-alias imports belong to the "reachable but deliberately
+# outside `__all__`" family described below. Isort's alphabetical ordering
+# places the first pair ahead of the `__all__`-exported module block rather
+# than next to their siblings.
+from . import accepted_graph as accepted_graph
 from . import artifacts as artifacts
 from . import (
     attribution,
@@ -72,6 +73,7 @@ from . import (
 # (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
 from . import estimators as estimators
+from . import ids as ids
 from . import inference as inference
 from . import interference as interference
 from . import intervention as intervention
@@ -79,6 +81,7 @@ from . import model as model
 from . import observation as observation
 from . import population as population
 from . import query as query
+from . import results as results
 from . import transport as transport
 from ._analyze import analyze
 from ._native import (

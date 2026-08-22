@@ -1,12 +1,12 @@
-# Security, licensing, unsafe-code, and dependency review 
+# Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-07-21 
-Scope: workspace crates + `python` extension (package version **0.7.1**, the last version this review was actually run against)
+Date: 2026-08-22
+Scope: workspace crates + `python` extension (package version **0.9.0**)
 ADR: [0017](../adr/0017-release-prep.md)
 
-**0.9.0 note:** this review has not been re-run against 0.9.0. Bumping the
-version string here does not constitute a new pass; nothing below should be
-read as covering 0.8.x or 0.9.0 changes.
+This review was re-run against the 0.9.0 cut, including the workspace unsafe-
+code policy, the current lockfile's advisory/license/source rules, default
+feature linkage, and workflow permissions/action pins.
 
 ## Unsafe code policy
 
@@ -25,7 +25,8 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 - Project: `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`, ADR 0008).
 - Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
   locally (`cargo deny check`) — not part of CI.
-- Default features must remain wheel-distributable without system BLAS (ADR 0001 / ).
+- Default features must remain wheel-distributable without system BLAS
+  ([ADR 0001](../adr/0001-linear-algebra-backend.md)).
 
 ## Dependency notes
 
@@ -34,11 +35,14 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 | `faer` | Default linear algebra | Pure Rust; no system BLAS in default wheels |
 | `paste` (transitive via `gemm`) | faer build-time macro | Unmaintained (`RUSTSEC-2024-0436`); ignored in `deny.toml` with reason — no runtime use; revisit when faer drops it |
 | `arrow-array` / `arrow-schema` / `arrow-buffer` | Tabular / IPC sections | Feature-gated where needed; no algorithm duplication in Python |
-| `pyo3` 0.29 / `numpy` 0.29 | Python boundary | Upgraded in to clear `RUSTSEC-2025-0020` and `RUSTSEC-2026-0177` |
-| `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums per |
+| `pyo3` 0.29 / `numpy` 0.29 | Python boundary | Current 0.9 bindings; the lockfile passes the advisory policy in `deny.toml` |
+| `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums under the format-0.4 artifact contract |
 | `thiserror` | Error types | No runtime concerns |
 
-Unmaintained / yanked crates: `cargo deny check` locally (`yanked = "warn"` in `deny.toml`).
+`cargo deny check` passed on 2026-08-22: advisories, bans, licenses, and
+sources were all `ok`. Its configured warning-level duplicate dependency and
+unused license-allowance reports remain non-failing maintenance signals;
+`yanked = "warn"` is unchanged in `deny.toml`.
 
 ## Wheel purity
 

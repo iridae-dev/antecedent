@@ -6,15 +6,18 @@ A causal inference engine in Rust with a first-class Python API, built for **cau
 inference under structural uncertainty** — including continuous causal responses,
 not only binary contrasts.
 
-* **One engine, whole workflow.** Discovery, identification, estimation, Bayesian
+* **One engine, explicit contracts.** Discovery, identification, estimation, Bayesian
   inference, interventions, counterfactuals, attribution, validation, and experimental
-  design share one API and one set of guarantees. Assumptions are not lost at the seams
-  between libraries.
+  design share one API. The support matrix says which analysis combinations are licensed;
+  implemented primitives outside those cells do not inherit a blanket guarantee.
 * **Structure is evidence, not ground truth.** A CPDAG, a PAG, a posterior over graphs —
-  the uncertainty propagates through estimation rather than being resolved by assumption.
+  selected licensed effect paths preserve that uncertainty rather than silently treating a
+  learned structure as ground truth. This is not available for every query family.
 * **Responses are first-class.** Mean curves, derivatives, elasticities, and Jacobians
   keep structural identification, empirical support, and uncertainty kind as separate
-  axes. Observation, transport, and interference stay explicit stage contracts.
+  axes at their native APIs. Derivative query types are importable but have no licensed
+  `analyze` cell in 0.9; observation, transport, and interference remain explicit stage
+  contracts.
 * **Temporal and online.** Temporal graphs with their own semantics, PCMCI-family
   discovery, temporal identification and estimation, and incremental `CausalState` for
   streaming.
@@ -35,7 +38,7 @@ More Rust and Python examples in [`examples/`](examples/).
 
 ## Capabilities
 
-Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
+Maintained inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
 
 * **Graphs.** DAG, ADMG, CPDAG, PAG and temporal variants; d-/m-separation, latent
   projection, Markov-equivalence operations. Static and temporal semantics stay distinct.
@@ -43,7 +46,8 @@ Full inventory in [docs/capabilities.md](docs/capabilities.md). The highlights:
 * **Discovery.** PC, FCI, RFCI, GES, DirectLiNGAM, NOTEARS; the temporal PCMCI family
   (PCMCI, PCMCI+, LPCMCI, J-PCMCI+, regime-specific RPCMCI); Bayesian structure posteriors
   that propagate downstream; stability validators.
-* **Identification.** Backdoor, front-door, IV, sharp RD, ID/IDC on DAGs and ADMGs,
+* **Identification.** Backdoor, front-door, IV, sharp RD, an explicitly incomplete ID/IDC
+  subset on DAGs and ADMGs,
   generalized adjustment for partial graphs, temporal strategies, pairwise backdoor for
   continuous-response functionals, sharp binary-IV Balke–Pearl ATE bounds, and a sound
   certified subset of single-source selection-diagram transport. Every query comes back
@@ -101,29 +105,24 @@ aspirations.
   upstream implementation consulted, and whether it was referenced directly or used only as
   a black-box comparator. Current upstream comparisons are black-box only.
   [`provenance/`](provenance/)
-* **Conformance.** Implementations are output-verified on documented fixtures against
-  reference libraries — DoWhy, scikit-learn, Tigramite where applicable, and for 0.5
-  response work `bpbounds`, a supported `causaleffect` transport subset, and the Kennedy
-  shared linear contract — with no unexplained divergence permitted.
+* **Conformance.** Selected outputs are checked on frozen, scoped fixtures. Pinned external
+  producers include DoWhy, Tigramite, causal-learn, lingam, statsmodels, `bpbounds`, and a
+  supported `causaleffect` transport subset; other clean-room fixtures test internal known
+  truths. A fixture match is evidence for the fields and cases asserted by its consuming
+  test, not whole-method parity or proof of correctness.
   [`conformance/`](conformance/)
-* **Parity.** Applicable public behaviour stays in parity across the Rust and Python APIs.
+* **Parity.** Named cross-language contracts are checked across the Rust and Python APIs;
+  this is capability parity, not identical surface syntax or proof that every public path is
+  paired.
   [`parity/`](parity/)
 
-As of 0.7.0:
-
-| | |
-|---|---|
-| Rust tests | 1562 |
-| Python tests | 783 |
-| Coverage floor | 85%, enforced in CI |
-| Conformance fixtures | 137 documented cases |
-| Platforms | CPython 3.11–3.14 on Linux, macOS, Windows; Rust 1.85+ |
-
-Every commit runs both test suites, both lint gates, CodeQL, and the domain gates covering
-conformance fixtures and cross-language parity. Scheduled and release gates also cover
-response calibration, causal-artifact round-trips, and whether nominal 95% intervals
-actually cover 95%, whether null p-values are actually uniform, and discovery
-false-positive rates.
+Pull requests and main-branch pushes run both test suites, linting, CodeQL, and the domain
+gates covering conformance fixtures and cross-language parity. Release gates include
+response-calibration and causal-artifact round-trip checks; the broader statistical suite
+runs weekly (and can be dispatched before a release). It checks interval coverage against
+declared finite-Monte-Carlo tolerances, null p-value calibration, and discovery
+false-positive rates on specified simulated designs. Those checks do not certify universal
+calibration.
 
 This establishes algorithmic lineage, agreement on reference cases, and consistent
 cross-language behaviour. It does not validate your causal assumptions, and implies no
