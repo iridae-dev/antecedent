@@ -333,7 +333,7 @@ def handle_response(
         if isinstance(query, InterventionResponse):
             raise CausalUnsupportedError(
                 "refused: InterventionResponse executes only on a supplied static Dag, the "
-                "same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no "
+                "same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no "
                 "Response compile arm."
             )
         raise CausalUnsupportedError(

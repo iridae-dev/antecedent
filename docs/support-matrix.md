@@ -12,7 +12,8 @@ See [ADR 0020](../adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
 validation) is **2394** cells. That denominator is not a feature count.
-Most of it is typed impossibility, not missing work.
+Of those cells, **988** are typed impossibilities and
+**1406** are meaningful combinations.
 
 Every cell is in exactly **one of three runtime states**: **licensed** (a
 result), **n/a** (the coordinate does not denote — a typed impossibility),
@@ -21,31 +22,28 @@ cell that is not licensed and not n/a is refused, whether or not a rule
 names a reason for it. `support_closed.toml` does not close anything — it
 is the **reason table** for refused cells, not a fourth state. A refused
 cell either has a documented reason on file or it doesn't; both refuse
-identically at runtime. The allowlist below is a separate, bounded
-carve-out inside the refused set: cells that execute end-to-end without
-being licensed.
+identically at runtime. `allowed_unlicensed` is retained as a compatibility
+wire value, but 0.9 has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
 | Cartesian product | 2394 | Axis product, not a coverage score |
 | n/a | 988 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 1406 | Combinations that could in principle be a claim |
-| Licensed | 77 | Staged path plus executing known-truth evidence — the strongest contract |
-| Allowlisted (running, unlicensed) | 0 | Executes end-to-end; a successful number is **not** a licensed claim |
-| Refused — reason on file | 1329 | Same runtime outcome as any other refused cell; documented in `support_closed.toml`, including mislabeled-inference laundering |
+| Licensed | 77 | Staged path plus the row's recorded evidence contract and limitations |
+| `allowed_unlicensed` compatibility entries | 0 | Retained wire value; 0.9 requires this count to remain zero |
+| Refused — reason on file | 1329 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
 | Refused — no reason on file yet | 0 | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
 Do not read "77 / 2394" as coverage. Read: **77 cells
-carry the evidence contract**; 0 more run without that contract;
-the rest are n/a or refused.
+carry their recorded evidence contracts**; no cells run through the retained
+`allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
-licensed. A cell is exactly one of licensed / n/a / refused; the allowlist
-is a bounded carve-out of cells inside the refused set that still execute.
-Successful studies record `licensed` vs `allowed_unlicensed` on the result
-(`evidence_status` in Python, `StudyResult.support_status` in Rust) so the
-distinction survives dispatch.
+licensed. A cell is exactly one of licensed / n/a / refused.
+`allowed_unlicensed` remains a readable wire value for compatibility with
+older artifacts and clients, but no 0.9 matrix cell can produce it.
 
 ## Axes
 
@@ -112,9 +110,9 @@ row here yet.
 - queries ∈ {MediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — MediationEffect is not on the staged handle.
 - queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.
 - queries ∈ {ConditionalEffect} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — ConditionalEffect compiles only against a supplied static Dag; Cpdag/Admg/Pag have no ConditionalEffect compile arm.
-- queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).
-- queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).
-- queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm.
+- queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).
+- queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).
+- queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Cpdag, Admg, Pag} — InterventionResponse executes only on a supplied static Dag, the same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response compile arm.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} — TemporalMediationEffect compiles only against a supplied TemporalDag; compile.rs has no Mediation arm for TemporalCpdag/TemporalPag.
 - queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Frequentist} — Graph-posterior compilation requires Bayesian inference: the combiner this library ships (`execute_graph_posterior_bayesian` / `execute_dbn_posterior_bayesian`) mixes per-atom posterior draws into an envelope. Frequentist model-averaging exists in the literature; this library does not implement a Frequentist combiner.
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect, ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Frequentist} — Graph-posterior compilation requires Bayesian inference: the combiner this library ships (`execute_graph_posterior_bayesian` / `execute_dbn_posterior_bayesian`) mixes per-atom posterior draws into an envelope. Frequentist model-averaging exists in the literature; this library does not implement a Frequentist combiner.
@@ -125,7 +123,7 @@ row here yet.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Bayesian} — PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.
-- queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Bayesian temporal response is not licensed in 0.7.0; execute_temporal_response refuses Bayesian inference before estimation.
+- queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — Bayesian temporal response is not licensed; execute_temporal_response refuses Bayesian inference before estimation.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} — execute_temporal_mediation (analysis/execute/temporal_path.rs) hardcodes EstimatorId::TemporalMediation regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical mediation estimate and estimand.method), so this cell cannot return an honest Bayesian number.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run.
 - queries ∈ {ResponseCurve, InterventionResponse} ∧ structures ∈ {graph_posterior} — Graph-posterior response is a contract choice, not typed impossibility: the ATE envelope (retained unidentified mass) is the same object a curve arm would use. This cut does not license a response mixture.
@@ -139,92 +137,92 @@ row here yet.
 - queries ∈ {TemporalMediationEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalDag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope.
 
-## Allowlisted (running, unlicensed)
+## `allowed_unlicensed` compatibility entries
 
-These cells are neither licensed nor closed but do genuinely run; each row
-below states why it runs and which licensed/keep-running family it rides.
-Every other refused cell fails closed.
+The wire value is retained for compatibility with older artifacts and clients.
+The 0.9 gate requires this list to be empty: every active cell is licensed,
+n/a, or refused.
 
 _None._
 
 ## Licensed cells
 
-| query | graph | structure | inference | validation | evidence |
-|---|---|---|---|---|---|
-| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
-| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
-| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/validate/refuters`) |
-| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
-| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) |
-| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/validate/refuters`) |
-| `ResponseCurve` | `Dag` | `explicit` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
-| `ResponseCurve` | `Dag` | `accepted` | `Frequentist` | `none` | internal_cross_check (`conformance/response/two_point_curve_average_effect`) |
-| `ResponseCurve` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `ResponseCurve` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) |
-| `PathSpecificEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/path_specific_natural`) |
-| `InterventionResponse` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
-| `InterventionResponse` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) |
-| `InterventionResponse` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `InterventionResponse` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) |
-| `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/id_hedge`) |
-| `TemporalMediationEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) |
-| `TemporalMediationEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) |
-| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/shared_functional_ate`) |
-| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) |
-| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
-| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
-| `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
-| `SustainedEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) |
+| query | graph | structure | inference | validation | evidence | limitations |
+|---|---|---|---|---|---|---|
+| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) | The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) | Cheap suite is overlap + E-value; the fixture pins the ATE point. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `AverageEffect` | `Dag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/validate/refuters`) | Evidence pins the placebo + random-common-cause refuters on the default linear estimator. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) | The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/estimate/linear_gaussian_ate`) | Cheap suite is overlap + E-value; the fixture pins the ATE point. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `AverageEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/validate/refuters`) | Evidence pins the placebo + random-common-cause refuters on the default linear estimator. The estimator is not a matrix axis; IPW / IV / front-door / rd.sharp ride this cell with their own parity fixtures in parity/estimate.toml (rd.sharp requires rd_config; fixture conformance/estimate/rd_sharp). |
+| `ResponseCurve` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/two_point_curve_average_effect`) | The two-point curve contrast and AverageEffect are each compared to the fixture's analytic linear-SCM truth, and are cross-checked against each other. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives. |
+| `ResponseCurve` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/two_point_curve_average_effect`) | Accepted Dag uses the same two-point analytic linear-SCM truth check as explicit Dag. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves ride this cell with separate evidence in conformance/response/observation_primitives. |
+| `ResponseCurve` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. No nonlinear, multi-step, Bayesian, graph-posterior, or equivalence-class surface is claimed. |
+| `ResponseCurve` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | TemporalResponseSpec is required. The accepted-structure axis runs the same temporal backdoor and g-computation path as explicit TemporalDag. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support. |
+| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | The Bayesian posterior mean is compared directly to the fixture's structural ATE and additionally cross-checked against frequentist linear adjustment. Backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate. |
+| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | The fixture directly pins the Bayesian ATE mean to structural truth. Cheap is overlap + E-value plus prior/posterior PPC; those validation numbers are not pinned by this fixture. |
+| `AverageEffect` | `Dag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | The fixture directly pins the Bayesian ATE mean to structural truth. Full adds PPC and prior-sensitivity; those validation numbers are not pinned by this fixture. |
+| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) | Prepared handle only, on an explicit Dag; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator). |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/context/conditional_effect`) | Prepared handle only; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator). The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the AverageEffect explicit/accepted cells share theirs. |
+| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) | Cheap suite is overlap + E-value; the fixture pins the conditional-effect point. |
+| `ConditionalEffect` | `Dag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) | Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers. |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/context/conditional_effect`) | Cheap suite is overlap + E-value; the fixture pins the conditional-effect point. |
+| `ConditionalEffect` | `Dag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/context/conditional_effect`) | Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers. |
+| `PathSpecificEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/context/path_specific_natural`) | Prepared handle only, on an explicit Dag; identifier is PathSpecificNatural and estimator is FunctionalEffect, both fixed (no alternative identifier/estimator on this cell). |
+| `InterventionResponse` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) | response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. The fixture pins a hard Set intervention; the g-computation strategy is shared across all supported intervention kinds (see response.rs::intervention_response), so this is the representative cell. |
+| `InterventionResponse` | `Dag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/intervention_response`) | response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the ResponseCurve explicit/accepted cells share theirs. |
+| `InterventionResponse` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on temporal_dose_horizon; multi-step, nested, and multi-variable Sequence policies are refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support. |
+| `InterventionResponse` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on temporal_dose_horizon via shared adjustment machinery. Identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast 2 are additionally pinned on temporal_confounded_pulse. Prepared TemporalEffect identification reuse is required. Point-estimate agreement does not extend to SEs: TemporalResponseEstimator hardcodes zero bootstrap replicates, while this path carries the Study's configured bootstrap_replicates. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares temporal_dose_horizon, with identification and the structural estimate additionally pinned on temporal_confounded_pulse. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | BayesianTemporalGcomp on the lag-aligned design; fixture n=400 pins the effect mean. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian pulse mean, not those numbers. |
+| `PulseEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | Full adds PPC / prior-sensitivity; the fixture pins the Bayesian pulse mean, not those checks. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | Accepted-structure axis shares the explicit TemporalDag Bayesian pulse path; fixture n=400 pins the effect mean. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian pulse mean, not those numbers. |
+| `PulseEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_pulse`) | Full adds PPC / prior-sensitivity; the fixture pins the Bayesian pulse mean, not those checks. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Licensed form is the single-step window (from == until) at -treatment_lag; multi-step Sustained remains estimator-refused. Projection matches Pulse at the same offset on temporal_dose_horizon; identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast are additionally pinned on temporal_confounded_pulse. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Accepted-structure axis shares the explicit TemporalDag single-step Sustained path. Primary pin is temporal_dose_horizon; identification and the structural estimate are additionally pinned on temporal_confounded_pulse. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/response/temporal_dose_horizon`) | Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Dedicated lag-2 single-step Sustained fixture pins the Bayesian effect mean on the staged path; multi-step windows remain refused. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean, not those checks. |
+| `SustainedEffect` | `TemporalDag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Accepted structure shares the explicit TemporalDag Bayesian path; the dedicated lag-2 single-step Sustained fixture pins the staged effect mean. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated accepted-structure Sustained case pins the Bayesian mean, not those checks. |
+| `SustainedEffect` | `TemporalDag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/temporal_sustained`) | Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated accepted-structure lag-2 Sustained case pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values. |
+| `InterventionalDistribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/interventional_distribution`) | The consumed FunctionalDistribution fixture pins the interventional mean on a confounded binary count table; atom-by-atom probabilities are not separately pinned. General ID/IDC certificate behavior is covered by conformance/identify/id_hedge. Prepared handle only, on an explicit Dag. |
+| `TemporalMediationEffect` | `TemporalDag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) | Prepare caches one TemporalMediationIdentifier result (not per-horizon I(h)). cheap/full are refused (empty refutations). Bayesian is refused. |
+| `TemporalMediationEffect` | `TemporalDag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/temporal_mediation_grid`) | Accepted-structure axis shares the explicit TemporalDag mediation path. Prepare caches one identification result. cheap/full and Bayesian are refused. |
+| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag and additionally cross-checks frequentist linear adjustment. Backend posteriors are pinned separately. |
+| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag. Cheap is overlap + E-value plus prior/posterior PPC; those validation numbers are not pinned by this fixture. |
+| `AverageEffect` | `Dag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/bayesian/shared_functional_ate`) | Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag. Full adds PPC and prior-sensitivity; those validation numbers are not pinned by this fixture. |
+| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Fixture pins generalized-adjustment identification, not the mass-weighted estimate. Study::prepare() accepts Pag; prepare_static_identification returns None (identify-per-run on refresh). |
+| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Cheap suite is overlap + E-value; the fixture pins identification, not those numbers. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Full adds the ATE-shaped refuter suite; the fixture pins identification, not the refuter numbers. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Accepted-structure axis shares execute_pag. Fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) | execute_pag_bayesian mixes identified completions; the fixture pins generalized-adjustment identification, not the posterior mean. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `explicit` | `Bayesian` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) | execute_pag_bayesian skips the PPC suite for the multi-graph PAG envelope (diagnostic refute.bayesian.ppc.skipped) and does not run prior-sensitivity; effect refuters run on the mixture mean instead. The fixture pins identification, not the refuter/PPC numbers. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Accepted-structure axis shares execute_pag_bayesian. Fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `cheap` | internal_known_truth (`conformance/identify/generalized_adjustment`) | Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. |
+| `AverageEffect` | `Pag` | `accepted` | `Bayesian` | `full` | internal_known_truth (`conformance/identify/generalized_adjustment`) | execute_pag_bayesian skips the PPC suite for the multi-graph PAG envelope (diagnostic refute.bayesian.ppc.skipped) and does not run prior-sensitivity; effect refuters run on the mixture mean instead. The fixture pins identification, not the refuter/PPC numbers. Identify-per-run on refresh. |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Fixture pins general-ID identification on a front-door-shaped bidirected ADMG, not the FunctionalEffect number. Study::prepare() accepts Admg; prepare_static_identification returns None when bidirected (identify-per-run). Bayesian is refused. |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused. |
+| `AverageEffect` | `Admg` | `explicit` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused. |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `none` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Accepted-structure axis shares execute_admg. Fixture pins identification. Identify-per-run on refresh. Bayesian is refused. |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `cheap` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused. |
+| `AverageEffect` | `Admg` | `accepted` | `Frequentist` | `full` | internal_known_truth (`conformance/identify/general_id_frontdoor`) | Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused. |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) | conformance/bayesian/dag_posterior pins discovery skeleton/orientation/lag-edge posterior mass on chain/collider/DBN SCMs; no test parses it to check the mixture ATE this cell computes, so this is not a known-truth pin. Evidence is an internal cross-check: prepare_graph_posterior_ate_runs_identify_per_click asserts prepared-then-click ATE equals a fresh run() on the same graph-posterior study. Identification runs per atom inside execute; priors do not upgrade ID. Prepare compiles the plan and freezes the WeightedGraphSamples input; estimate re-identifies per atom. |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `cheap` | internal_cross_check (`conformance/bayesian/dag_posterior`) | conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's overlap/E-value numbers, and no test parses it against this cell. Cheap suite is overlap + E-value on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh. |
+| `AverageEffect` | `Dag` | `graph_posterior` | `Bayesian` | `full` | internal_cross_check (`conformance/bayesian/dag_posterior`) | conformance/bayesian/dag_posterior pins discovery posterior mass, not the mixture's refuter/PPC numbers, and no test parses it against this cell. Full adds PPC / prior-sensitivity on the mixture; evidence is the same prepared-vs-fresh internal cross-check as the none cell. Per-atom identify on refresh. |
+| `PulseEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) | conformance/bayesian/dag_posterior's dbn_lag1_fixture pins DBN lag-edge posterior mass; no test in this corpus parses it and compares against execute_dbn_posterior_bayesian's mixed temporal effect, so this is not a known-truth pin here. execute_dbn_posterior_bayesian mixes per-atom temporal effects; evidence is an internal cross-check (prepared-then-click ATE equals a fresh run()). cheap/full are refused (empty refutations). Per-atom identify on refresh. |
+| `SustainedEffect` | `TemporalDag` | `graph_posterior` | `Bayesian` | `none` | internal_cross_check (`conformance/bayesian/dag_posterior`) | Same execute_dbn_posterior_bayesian path as Pulse DBN none; licensed form is single-step Sustained. conformance/bayesian/dag_posterior's dbn_lag1_fixture is not parsed against this cell, so evidence is the same internal cross-check (prepared-then-click ATE equals a fresh run()), not a known-truth pin. cheap/full are refused (empty refutations). Per-atom identify on refresh. |

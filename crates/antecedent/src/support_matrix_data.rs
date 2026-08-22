@@ -131,7 +131,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit"]),
         inferences: None,
         validations: None,
-        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).",
+        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).",
     },
     NaRule {
         queries: Some(&["InterventionalDistribution"]),
@@ -139,7 +139,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit"]),
         inferences: None,
         validations: None,
-        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already closed above).",
+        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).",
     },
     NaRule {
         queries: Some(&["InterventionResponse"]),
@@ -147,7 +147,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: None,
         inferences: None,
         validations: None,
-        reason: "InterventionResponse executes only on a supplied static Dag, the same requirement ResponseCurve is closed on above; Cpdag/Admg/Pag have no Response compile arm.",
+        reason: "InterventionResponse executes only on a supplied static Dag, the same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response compile arm.",
     },
     NaRule {
         queries: Some(&["TemporalMediationEffect"]),
@@ -235,7 +235,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit", "accepted"]),
         inferences: Some(&["Bayesian"]),
         validations: None,
-        reason: "Bayesian temporal response is not licensed in 0.7.0; execute_temporal_response refuses Bayesian inference before estimation.",
+        reason: "Bayesian temporal response is not licensed; execute_temporal_response refuses Bayesian inference before estimation.",
     },
     NaRule {
         queries: Some(&["TemporalMediationEffect"]),

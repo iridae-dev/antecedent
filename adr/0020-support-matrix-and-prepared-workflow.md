@@ -123,7 +123,7 @@ A cell is now exactly one of:
 
 Any `refused` cell not matched by the allowlist now fails closed with a
 single shared, static message
-(`crates/antecedent/src/support.rs::UNLICENSED_AND_NOT_ALLOWED`) — the
+(`crates/antecedent/src/support.rs`, the constant now named `UNLICENSED`) — the
 unnamed fifth bucket no longer exists. Nothing that ran before this
 amendment stopped running: every cell a caller could actually reach and
 that returned an honest number is on the allowlist; the closed additions
@@ -145,3 +145,17 @@ means empirical dose-range support on response views). Allowlisted
 executions also emit diagnostic `support.allowed_unlicensed`.
 
 The distinction is part of the result, not only of dispatch.
+
+## Amendment (2026-08-22): the allowlist is empty at 0.9
+
+The 0.9 audit disposed of every `allowed_unlicensed` entry: supported
+families were licensed, typed impossibilities became n/a, and the rest now
+refuse with a reason in the legacy-named `parity/support_closed.toml`.
+`scripts/gate_support_matrix.sh` therefore rejects any `[[allowed]]` rule,
+so the 2026-08-19 partition clause above is enforced by emptiness rather
+than by disjointness.
+
+`CellStatus::Allowlisted`, `allowed_reason`, `allowed_parent`, and the
+`allowed_unlicensed` wire value are retained so older artifacts and clients
+still decode, but no 0.9 matrix cell can produce that status. Every
+successful analysis reports `evidence_status == "licensed"`.

@@ -74,9 +74,9 @@ structure = "explicit"
 inference = "Frequentist"
 validation = "none"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
+limitations = "The two-point curve contrast and AverageEffect are each compared to the fixture's analytic linear-SCM truth, and are cross-checked against each other. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives."
 
 [[cell]]
 query = "ResponseCurve"
@@ -85,9 +85,9 @@ structure = "accepted"
 inference = "Frequentist"
 validation = "none"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives (parity/response.toml rows estimate.observation_km_ipcw / estimate.observation_selected)."
+limitations = "Accepted Dag uses the same two-point analytic linear-SCM truth check as explicit Dag. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves ride this cell with separate evidence in conformance/response/observation_primitives."
 
 [[cell]]
 query = "ResponseCurve"
@@ -118,9 +118,9 @@ structure = "explicit"
 inference = "Bayesian"
 validation = "none"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
+limitations = "The Bayesian posterior mean is compared directly to the fixture's structural ATE and additionally cross-checked against frequentist linear adjustment. Backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
 
 [[cell]]
 query = "AverageEffect"
@@ -129,9 +129,9 @@ structure = "explicit"
 inference = "Bayesian"
 validation = "cheap"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "execute_bayesian runs PPC (prior + posterior predictive checks) under any non-None refute suite, so Cheap here is overlap + E-value plus PPC, not overlap + E-value alone; the fixture pins the Bayesian ATE mean, not those refuter/PPC numbers."
+limitations = "The fixture directly pins the Bayesian ATE mean to structural truth. Cheap is overlap + E-value plus prior/posterior PPC; those validation numbers are not pinned by this fixture."
 
 [[cell]]
 query = "AverageEffect"
@@ -140,9 +140,9 @@ structure = "explicit"
 inference = "Bayesian"
 validation = "full"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "Full adds PPC / prior-sensitivity on top of BayesianGComputationAte; the fixture pins the ATE mean, not those checks."
+limitations = "The fixture directly pins the Bayesian ATE mean to structural truth. Full adds PPC and prior-sensitivity; those validation numbers are not pinned by this fixture."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -252,7 +252,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on temporal_dose_horizon; multi-step, nested, and multi-variable Sequence policies fail closed. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support."
+limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), and a single-step one-variable Sequence on temporal_dose_horizon; multi-step, nested, and multi-variable Sequence policies are refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support."
 
 [[cell]]
 query = "InterventionResponse"
@@ -537,8 +537,8 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/identify/id_hedge"
-limitations = "The fixture pins identification (ID/IDC certificates), not the estimator; the estimation layer is FunctionalDistribution and is not separately known-truth pinned on this cell. Prepared handle only, on an explicit Dag."
+known_truth_fixture = "conformance/estimate/interventional_distribution"
+limitations = "The consumed FunctionalDistribution fixture pins the interventional mean on a confounded binary count table; atom-by-atom probabilities are not separately pinned. General ID/IDC certificate behavior is covered by conformance/identify/id_hedge. Prepared handle only, on an explicit Dag."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -549,7 +549,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "Prepare caches one TemporalMediationIdentifier result (not per-horizon I(h)). cheap/full are refused (empty refutations). Bayesian is closed."
+limitations = "Prepare caches one TemporalMediationIdentifier result (not per-horizon I(h)). cheap/full are refused (empty refutations). Bayesian is refused."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -560,7 +560,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "Accepted-structure axis shares the explicit TemporalDag mediation path. Prepare caches one identification result. cheap/full are refused; Bayesian is closed."
+limitations = "Accepted-structure axis shares the explicit TemporalDag mediation path. Prepare caches one identification result. cheap/full and Bayesian are refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -569,9 +569,9 @@ structure = "accepted"
 inference = "Bayesian"
 validation = "none"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "BayesianGComputationAte shares the backdoor IR with the frequentist path; backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate."
+limitations = "Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag and additionally cross-checks frequentist linear adjustment. Backend posteriors are pinned separately."
 
 [[cell]]
 query = "AverageEffect"
@@ -580,9 +580,9 @@ structure = "accepted"
 inference = "Bayesian"
 validation = "cheap"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "execute_bayesian runs PPC (prior + posterior predictive checks) under any non-None refute suite, so Cheap here is overlap + E-value plus PPC, not overlap + E-value alone; the fixture pins the Bayesian ATE mean, not those refuter/PPC numbers."
+limitations = "Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag. Cheap is overlap + E-value plus prior/posterior PPC; those validation numbers are not pinned by this fixture."
 
 [[cell]]
 query = "AverageEffect"
@@ -591,9 +591,9 @@ structure = "accepted"
 inference = "Bayesian"
 validation = "full"
 staged = true
-evidence_kind = "internal_cross_check"
+evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-limitations = "Full adds PPC / prior-sensitivity on top of BayesianGComputationAte; the fixture pins the ATE mean, not those checks."
+limitations = "Accepted Dag uses the same direct structural-ATE posterior-mean check as explicit Dag. Full adds PPC and prior-sensitivity; those validation numbers are not pinned by this fixture."
 
 [[cell]]
 query = "AverageEffect"
@@ -736,7 +736,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Fixture pins general-ID identification on a front-door-shaped bidirected ADMG, not the FunctionalEffect number. Study::prepare() accepts Admg; prepare_static_identification returns None when bidirected (identify-per-run). Bayesian is closed."
+limitations = "Fixture pins general-ID identification on a front-door-shaped bidirected ADMG, not the FunctionalEffect number. Study::prepare() accepts Admg; prepare_static_identification returns None when bidirected (identify-per-run). Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -747,7 +747,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -758,7 +758,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -769,7 +769,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Accepted-structure axis shares execute_admg. Fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+limitations = "Accepted-structure axis shares execute_admg. Fixture pins identification. Identify-per-run on refresh. Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -780,7 +780,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+limitations = "Cheap suite is overlap + E-value; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"
@@ -791,7 +791,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is closed."
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins identification. Identify-per-run on refresh. Bayesian is refused."
 
 [[cell]]
 query = "AverageEffect"

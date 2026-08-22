@@ -1,14 +1,16 @@
 //! Public support-matrix lookup.
 //!
-//! Axes, n/a predicates, licensed cells, closed rules, and the allowlist are
-//! generated from `parity/support_*.toml`. Runtime states are three: licensed
+//! Axes, n/a predicates, licensed cells, refusal-reason rules, and the legacy
+//! allowlist source are generated from `parity/support_*.toml`. Runtime states
+//! are three: licensed
 //! (`parity/support_licensed.toml`), n/a (`parity/support_n_a.toml`, typed
 //! impossibility, [`SupportRefusal::NotApplicable`]), or not licensed
 //! ([`SupportRefusal::Refused`]). `parity/support_closed.toml` is the reason
-//! table for refused cells, not a fourth state. Allowlisted cells
-//! (`parity/support_allowlist.toml`) still run while unlicensed. Any refused
-//! cell without a closed reason uses the shared unlicensed message — the fifth
-//! bucket ("default-refused, still runs") no longer exists.
+//! table for refused cells, not a fourth state; its filename is retained for
+//! compatibility. `allowed_unlicensed` is also retained as a wire value for
+//! older artifacts and clients, but the 0.9 gate requires
+//! `parity/support_allowlist.toml` to have zero active entries. Any refused
+//! cell without a reason uses the shared default-refusal message.
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
@@ -125,14 +127,17 @@ pub enum CellStatus {
         /// Why the cell is typed-impossible.
         reason: &'static str,
     },
-    /// Named running allowlist: the cell executes, but it is not a licensed claim.
+    /// Retained `allowed_unlicensed` compatibility status.
+    ///
+    /// No 0.9 matrix cell may produce this status; the variant remains for wire
+    /// compatibility with older artifacts and clients.
     Allowlisted {
-        /// Why this cell runs without a license.
+        /// Historical reason this cell ran without a license.
         reason: &'static str,
-        /// Licensed or keep-running family this row rides.
+        /// Historical licensed or keep-running family this row rode.
         parent: &'static str,
     },
-    /// Default: in the product, not licensed, not n/a, not allowlisted.
+    /// Default: in the product, not licensed, and not n/a.
     Refused,
 }
 
@@ -148,7 +153,7 @@ impl CellStatus {
         }
     }
 
-    /// Allowlist `reason`, when this status is [`Self::Allowlisted`].
+    /// Historical compatibility `reason`, when this status is [`Self::Allowlisted`].
     #[must_use]
     pub const fn allowlist_reason(self) -> Option<&'static str> {
         match self {
@@ -157,7 +162,7 @@ impl CellStatus {
         }
     }
 
-    /// Allowlist `parent`, when this status is [`Self::Allowlisted`].
+    /// Historical compatibility `parent`, when this status is [`Self::Allowlisted`].
     #[must_use]
     pub const fn allowlist_parent(self) -> Option<&'static str> {
         match self {
@@ -220,7 +225,7 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             // cannot dodge the matrix: one active step rides the Pulse cell
             // (the engine estimates it as a rule-tagged pulse), any longer
             // schedule is a sustained intervention and hits the Sustained
-            // closure. Mirrors `refuse_multi_step_schedule` in
+            // refusal. Mirrors `refuse_multi_step_schedule` in
             // antecedent-estimate, which already refuses multi-step Dynamic.
             TemporalPolicy::Dynamic { active_at, .. } => {
                 if active_at.len() == 1 {
@@ -327,7 +332,7 @@ pub fn support_cell(
 ///   `AverageEffect` for the same reason as the ADMG case: it is the only
 ///   query `compile.rs` wires for `GraphClass::Cpdag` — `CausalQuery::Response`
 ///   on a Cpdag hits the same compile-time wildcard refusal as above, which is
-///   exactly why `ResponseCurve` stays closed on Cpdag (`support_closed.toml`)
+///   exactly why `ResponseCurve` stays refused on Cpdag (`support_closed.toml`)
 ///   even though a fully-oriented Cpdag would otherwise look Dag-shaped.
 /// - **`TemporalCpdag` / `TemporalPag`, under `TemporalEffect`**: the identical
 ///   accept-time invariant (`accepted.rs`) guarantees these are always
@@ -378,7 +383,7 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
     }
 }
 
-fn closed_reason(cell: SupportCell) -> Option<&'static str> {
+fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     for rule in CLOSED_RULES {
         if axis_in(rule.queries, cell.query)
             && axis_in(rule.graph_classes, cell.graph_class)
@@ -392,15 +397,17 @@ fn closed_reason(cell: SupportCell) -> Option<&'static str> {
     None
 }
 
-/// Why `cell` is on the named running-but-unlicensed allowlist
-/// (`parity/support_allowlist.toml`), if it is.
+/// Historical reason for an `allowed_unlicensed` compatibility entry, if any.
+///
+/// The 0.9 gate requires `parity/support_allowlist.toml` to remain empty.
 #[must_use]
 pub fn allowed_reason(cell: SupportCell) -> Option<&'static str> {
     allowed_rule(cell).map(|rule| rule.reason)
 }
 
-/// The licensed or keep-running family `cell`'s allowlist row rides, if it is
-/// on the allowlist (`parity/support_allowlist.toml`'s `parent` field).
+/// Historical parent family for an `allowed_unlicensed` compatibility entry.
+///
+/// The 0.9 gate requires `parity/support_allowlist.toml` to remain empty.
 #[must_use]
 pub fn allowed_parent(cell: SupportCell) -> Option<&'static str> {
     allowed_rule(cell).map(|rule| rule.parent)
@@ -420,33 +427,32 @@ fn allowed_rule(cell: SupportCell) -> Option<&'static crate::support_matrix_data
 /// coordinates vary at runtime — the caller's [`CausalError::Support`] already
 /// carries the offending cell in its own context — so this stays a fixed,
 /// shared string rather than one formatted per cell.
-const UNLICENSED_AND_NOT_ALLOWED: &str = "cell is neither licensed (parity/support_licensed.toml) nor on the named \
-     running allowlist (parity/support_allowlist.toml); it is refused.";
+const UNLICENSED: &str =
+    "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.";
 
-/// Refuse n/a cells, enforced closed holes, and any refused cell not on the
-/// named running allowlist. Licensed and allowlisted cells pass.
+/// Refuse n/a cells and every unlicensed meaningful cell. Licensed cells pass.
+///
+/// The `allowed_unlicensed` branch is retained for wire compatibility, but the
+/// 0.9 gate requires zero active allowlist entries.
 ///
 /// # Errors
 ///
-/// [`CausalError::Support`] when the cell is n/a, matches
-/// `parity/support_closed.toml`, or is refused and not matched by
-/// `parity/support_allowlist.toml`.
+/// [`CausalError::Support`] when the cell is n/a or refused. A refusal uses the
+/// reason from legacy-named `parity/support_closed.toml` when one matches,
+/// otherwise it uses the shared default-refusal message.
 pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
         CellStatus::Refused => {
-            if let Some(reason) = closed_reason(cell) {
+            if let Some(reason) = refusal_reason(cell) {
                 return Err(CausalError::Support { id: SupportRefusal::Refused, message: reason });
             }
             if let Some(rule) = allowed_rule(cell) {
                 return Ok(CellStatus::Allowlisted { reason: rule.reason, parent: rule.parent });
             }
-            Err(CausalError::Support {
-                id: SupportRefusal::Refused,
-                message: UNLICENSED_AND_NOT_ALLOWED,
-            })
+            Err(CausalError::Support { id: SupportRefusal::Refused, message: UNLICENSED })
         }
         CellStatus::Licensed => Ok(CellStatus::Licensed),
         CellStatus::Allowlisted { .. } => {
@@ -763,7 +769,7 @@ mod tests {
     }
 
     /// End-to-end: `Study::build` itself refuses a graph-posterior study run under
-    /// `InferenceMode::Frequentist`, with the new closed-rule id, before `run()` would
+    /// `InferenceMode::Frequentist`, with the reason-backed refusal id, before `run()` would
     /// otherwise reach `compile_graph_posterior`'s own free-form `Unsupported`.
     #[test]
     #[allow(clippy::many_single_char_names)]
@@ -836,7 +842,7 @@ mod tests {
     }
 
     /// End-to-end off-Dag static case: `Study::build` refuses a `ConditionalEffect`
-    /// query on a supplied Cpdag with the new closed-rule id.
+    /// query on a supplied Cpdag with a reason-backed refusal id.
     #[test]
     #[allow(clippy::many_single_char_names)]
     fn build_refuses_conditional_effect_on_cpdag() {
@@ -1040,7 +1046,7 @@ mod tests {
 
     /// The Cpdag collapse is scoped to `AverageEffect` for the same reason as the
     /// ADMG collapse: `compile.rs` wires no other query against `GraphClass::Cpdag`.
-    /// This is exactly why `ResponseCurve` stays closed on Cpdag even for a
+    /// This is exactly why `ResponseCurve` stays refused on Cpdag even for a
     /// fully-oriented one (`support_closed.toml`'s Pag/Cpdag/Admg rule) — the
     /// collapse must not un-close it.
     #[test]
@@ -1134,13 +1140,13 @@ mod tests {
         assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Pag);
     }
 
-    // -- allowlist -----------------------------------------------------------
+    // -- retained allowlist compatibility ----------------------------------
 
     /// One concrete [`SupportCell`] that satisfies `rule`, using the rule's own
     /// first listed value on each constrained axis and a harmless default
     /// (`Dag` / `explicit` / `Frequentist` / `none`) on every unconstrained one.
     /// Every `ALLOWED_RULES` entry constrains `queries`, so this always picks a
-    /// real query; disjointness from licensed / n/a / closed cells is enforced by
+    /// real query; disjointness from licensed / n/a / reason-backed refused cells is enforced by
     /// `scripts/gate_support_matrix.sh`, not re-derived here.
     fn representative_cell(rule: &crate::support_matrix_data::AllowedRule) -> SupportCell {
         SupportCell {
@@ -1156,8 +1162,8 @@ mod tests {
         }
     }
 
-    /// Every remaining `parity/support_allowlist.toml` row fires. Empty is
-    /// allowed: 0.9 licensed the last running families.
+    /// Every retained `parity/support_allowlist.toml` compatibility row would
+    /// fire. The 0.9 gate requires this loop to have zero entries.
     #[test]
     fn every_allowlist_rule_fires_on_its_representative_cell() {
         use crate::support_matrix_data::ALLOWED_RULES;
@@ -1172,7 +1178,7 @@ mod tests {
             assert_eq!(allowed_reason(cell), Some(rule.reason), "{cell:?}");
             assert_eq!(allowed_parent(cell), Some(rule.parent), "{cell:?}");
             assert!(!rule.parent.is_empty(), "rule parent must be non-empty: {}", rule.reason);
-            // Allowlisted cells still run, and the pass-through is not `Refused`.
+            // A retained compatibility entry would still pass through.
             let passed = refuse_if_not_applicable(cell).unwrap();
             assert_eq!(passed.as_str(), "allowed_unlicensed", "{cell:?}");
             assert_eq!(passed.allowlist_reason(), Some(rule.reason), "{cell:?}");
@@ -1208,7 +1214,7 @@ mod tests {
     /// End-to-end: a now-enforced refused cell (`AverageEffect` on a bidirected
     /// `Admg` under Bayesian inference — verified dead: `parity/support_closed.toml`
     /// closes it, never returned a number before this change either) reports the
-    /// stable closed-rule error, not a free-form `Unsupported`.
+    /// stable reason-backed refusal, not a free-form `Unsupported`.
     #[test]
     fn build_refuses_admg_bayesian_with_closed_rule_error() {
         let mut admg = Admg::with_variables(2);
@@ -1229,7 +1235,7 @@ mod tests {
         assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }), "{err}");
         assert!(
             err.to_string().starts_with("refused: General ID"),
-            "expected the closed-rule message, got: {err}"
+            "expected the reason-backed refusal message, got: {err}"
         );
     }
 
@@ -1242,7 +1248,7 @@ mod tests {
         for v in ["cheap", "full"] {
             let c = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
             assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
-            let reason = closed_reason(c).expect("named closed reason");
+            let reason = refusal_reason(c).expect("named refusal reason");
             assert!(reason.contains("empty refutations"), "{c:?}: {reason}");
         }
     }
