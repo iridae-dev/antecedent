@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — unreleased (in progress)
+
+**Status: not shipped.** The 0.9 audit (`TODO.md`) is still open; the entries
+below record work that has landed and been verified on the cut branch, not a
+completed release. Do not treat this section as the 0.9.0 contract until the
+audit closes and the cut is accepted.
+
+Support is now closed-world: every cell that executes is licensed, while typed
+impossibilities and unsupported combinations fail before execution. Of the 2394
+coordinates in the matrix, 77 are licensed, 988 are not applicable, and the
+remaining 1329 carry a written refusal reason.
+Workspace and Python package versions are **0.9.0**.
+
+### Added
+
+- Prepared-analysis entry points for PAG/ADMG ATE, graph-posterior ATE,
+  temporal pulse/sustained effects, DBN-posterior temporal effects, and
+  temporal mediation. These configurations accept `prepare()` but do not cache
+  identification: PAG envelopes, bidirected ADMGs, and graph posteriors
+  re-identify on every click. Caching them is 1.x optimization work.
+- Bayesian validation on prepared analyses, including prior and posterior
+  predictive checks on second-click refutation for single-graph Dag studies.
+  The multi-graph PAG envelope runs effect refuters on the mixture mean and
+  records `refute.bayesian.ppc.skipped` rather than running a PPC suite.
+
+### Changed
+
+- Emptied the allowlist: the `allowed_unlicensed` support state remains on the
+  wire but now classifies zero cells, and the support-matrix gate enforces that
+  it stays empty. Former exceptions are classified explicitly as not applicable
+  or refused.
+- Expanded the licensed matrix to 77 cells, including validation riders for
+  supported frequentist and Bayesian analyses.
+
+### Fixed
+
+- Propagated requested refutation suites through distribution, path-specific,
+  discovery, and temporal effect entry points; function-valued response
+  queries now reject scalar suites as not applicable.
+- Reject mismatched graph variable names or ordering before PAG, CPDAG, and
+  ADMG analyses consume Arrow data.
+- Reject Bayesian prepared-analysis options that cannot be applied instead of
+  silently ignoring prior transfer or mapping.
+
 ## [0.7.1] — 2026-08-21
 
 Patch on 0.7.0. No public API rename. Licensed cells are unchanged.

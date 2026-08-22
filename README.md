@@ -144,7 +144,7 @@ cargo add antecedent          # Rust 1.85+
 ```
 
 Wheels are on PyPI and attached to each GitHub Release. No other language bindings are
-provided. This branch is package version **0.7.1** (crates.io / PyPI publish on tag).
+provided. This branch is package version **0.9.0** (crates.io / PyPI publish on tag).
 
 ## Documentation
 

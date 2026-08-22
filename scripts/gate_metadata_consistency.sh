@@ -66,15 +66,17 @@ else:
                 f"creator ORCIDs differ: CITATION.cff {sorted(cff_orcids)} vs .zenodo.json {sorted(zen_orcids)}"
             )
 
-# A hardcoded version in prose is the drift that started this gate. parity/README.md
-# carried "Package version remains 0.1.0" for five minor releases.
+# A hardcoded version in live prose is the drift that started this gate.
+# parity/README.md carried "Package version remains 0.1.0" for five minor
+# releases. Dated audit artifacts are intentionally excluded: for example,
+# docs/security_review.md must retain the package version that was actually
+# reviewed rather than being rewritten to imply coverage of the current cut.
 for doc in [
     "parity/README.md",
     "docs/development.md",
     "README.md",
     "docs/README.md",
     "docs/index.md",
-    "docs/security_review.md",
 ]:
     text = Path(doc).read_text()
     # Loose gap absorbs "is", "remains", "are kept in sync (currently", and
