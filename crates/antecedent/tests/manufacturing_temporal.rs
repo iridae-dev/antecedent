@@ -397,7 +397,23 @@ fn incomplete_temporal_pag_review_required_structured() {
 
 #[test]
 fn manufacturing_pressure_defect_bayesian() {
-    let (series, g, q) = manufacturing_series(400);
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/manufacturing/temporal_pressure_defect/expected.json"
+    ))
+    .unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).unwrap();
+    let expected_ate = expected["expected_ate"].as_f64().unwrap();
+    let tolerance = expected["ate_abs_tolerance"].as_f64().unwrap();
+    let interval_ns = expected["sampling_interval_ns"].as_u64().unwrap();
+    let treatment_lag = u32::try_from(expected["treatment_lag"].as_u64().unwrap()).unwrap();
+    let horizon_steps = u32::try_from(expected["horizon_steps"].as_u64().unwrap()).unwrap();
+    assert_eq!(expected["treatment"], "pressure");
+    assert_eq!(expected["outcome"], "defect");
+
+    let (series, g, q) = manufacturing_series(n);
+    assert_eq!(series.time_index().regularity, SamplingRegularity::Regular { interval_ns });
+    assert_eq!(q.policy, TemporalPolicy::pulse(-i32::try_from(treatment_lag).unwrap()));
+    assert_eq!(q.horizon_steps, horizon_steps);
     let analysis = Study::series(series)
         .graph(g)
         .temporal_query(q)
@@ -414,7 +430,10 @@ fn manufacturing_pressure_defect_bayesian() {
     let post = result.posterior.as_ref().expect("Bayesian temporal should attach posterior");
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
-    assert!((mean - 0.9).abs() < 0.05, "posterior mean={mean} expected ~0.9");
+    assert!(
+        (mean - expected_ate).abs() < tolerance,
+        "posterior mean={mean} expected ~{expected_ate}"
+    );
     assert!((result.estimate.ate - mean).abs() < 1e-12);
     let p_below = post.probability_below(0.0).unwrap();
     assert!(p_below.is_finite(), "p_below_zero={p_below}");

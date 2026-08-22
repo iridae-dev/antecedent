@@ -16,6 +16,19 @@ use antecedent_identify::{IdentifiedEstimand, TemporalBackdoorIdentifier};
 
 use super::*;
 
+/// The comparison class `conformance/validate/refuters/expected.json` declares.
+///
+/// Both pinned point values below are downstream of the same `faer` least-squares
+/// solve, so they are stable-float quantities rather than bitwise-reproducible
+/// ones; comparing through the declared class keeps the fixture, not a bespoke
+/// epsilon at each call site, the single source of tolerance.
+fn tolerance_class(fixture: &serde_json::Value) -> ToleranceClass {
+    match fixture["tolerance_class"].as_str().unwrap() {
+        "StableFloat" => ToleranceClass::StableFloat,
+        other => panic!("unhandled declared tolerance class `{other}`"),
+    }
+}
+
 fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
     // True ATE = 2; Z confounds T and Y.
     let n = 400usize;
@@ -183,6 +196,9 @@ fn rcc_preserves_ate() {
 
 #[test]
 fn unobserved_common_cause_is_robust_to_mild_confounding() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -203,6 +219,12 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
     let report = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison >= 0.0);
     assert!(report.passed, "{:?}", report.failure_condition);
+    let expected = fixture["expected"]["unobserved_common_cause_std_delta"].as_f64().unwrap();
+    assert!(
+        tolerance_class(&fixture).close(report.comparison, expected),
+        "standardized delta={} expected={expected}",
+        report.comparison
+    );
 }
 
 #[test]
@@ -234,6 +256,9 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
 
 #[test]
 fn data_subset_preserves_ate() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -253,7 +278,8 @@ fn data_subset_preserves_ate() {
     );
     let report = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
-    assert!((report.refuted_ate - original.ate).abs() < 0.3);
+    let max = fixture["expected"]["subset_abs_delta_max"].as_f64().unwrap();
+    assert!((report.refuted_ate - original.ate).abs() < max);
 }
 
 /// A non-default `LinearAdjustmentAte` config (e.g. `se_kind = AnalyticSeKind::Hc1`) set on a
@@ -382,6 +408,9 @@ fn refit_effect_honors_caller_se_kind() {
 
 #[test]
 fn dummy_outcome_near_zero() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -403,11 +432,15 @@ fn dummy_outcome_near_zero() {
     assert!(report.passed, "{:?}", report.failure_condition);
     // comparison is the two-sided p-value of zero under the dummy-outcome distribution.
     assert!(report.comparison >= 0.05, "p={}", report.comparison);
-    assert!(report.refuted_ate.abs() < 0.25, "mean dummy ate={}", report.refuted_ate);
+    let max = fixture["expected"]["dummy_outcome_abs_max"].as_f64().unwrap();
+    assert!(report.refuted_ate.abs() < max, "mean dummy ate={}", report.refuted_ate);
 }
 
 #[test]
 fn bootstrap_refute_contains_original_ate() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -428,12 +461,20 @@ fn bootstrap_refute_contains_original_ate() {
     let mut refuter = BootstrapRefute::new();
     refuter.replicates = 100;
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
+    assert_eq!(
+        report.passed,
+        fixture["expected"]["bootstrap_contains_original"].as_bool().unwrap(),
+        "{:?}",
+        report.failure_condition
+    );
     assert!(report.comparison > 0.0, "expected a non-degenerate CI width");
 }
 
 #[test]
 fn evalue_passes_moderate_threshold_for_nonnull_effect() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -452,6 +493,12 @@ fn evalue_passes_moderate_threshold_for_nonnull_effect() {
         None,
     );
     let report = EValue::new().refute(&problem).unwrap();
+    let expected = fixture["expected"]["evalue_point"].as_f64().unwrap();
+    assert!(
+        tolerance_class(&fixture).close(report.comparison, expected),
+        "e_value={} expected={expected}",
+        report.comparison
+    );
     assert!(report.comparison >= DEFAULT_EVALUE_THRESHOLD, "e_value={}", report.comparison);
     assert!(report.passed, "{:?}", report.failure_condition);
 }

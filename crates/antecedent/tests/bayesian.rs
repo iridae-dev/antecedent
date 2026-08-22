@@ -141,6 +141,7 @@ fn shared_functional_ate() {
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
     assert!((freq_est.ate - true_ate).abs() < 1e-6);
+    assert!((mean - true_ate).abs() < tol, "bayes={mean} truth={true_ate}");
     assert!((mean - freq_est.ate).abs() < tol, "bayes={mean} freq={}", freq_est.ate);
 
     let bytes = encode_causal_posterior_bytes(&post, "shared-functional").unwrap();

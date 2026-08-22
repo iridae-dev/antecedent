@@ -19,7 +19,6 @@
 # Fields: `dir` (fixture directory), `reason` (why no test loads it),
 # `blocked_on` (what has to ship before a consumer can exist).
 
-[[unexercised]]
-dir = "conformance/manufacturing/temporal_pressure_defect"
-reason = "The manufacturing temporal tests (crates/antecedent/tests/manufacturing_temporal.rs) generate their own series via manufacturing_series(n) and never read this fixture; it froze a scenario description nothing consumes."
-blocked_on = "either a test that loads this fixture and checks expected_ate under its SCM, or deletion if the in-test generator is judged the better record"
+# Empty by design. New fixtures must gain an executing consumer in the same
+# change; temporarily recorded oracles belong here only while their blocker is
+# concrete and current.
