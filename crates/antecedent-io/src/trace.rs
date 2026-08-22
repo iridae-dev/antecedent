@@ -2,11 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus,
+    AssumptionStatus, ParametricAssumption, PriorAssumption, VariableId,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::error::IoError;
 
 /// Wire form of an assumption tag .
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,16 +45,25 @@ pub enum AssumptionTagWire {
     ParametricRestriction {
         /// Restriction family id.
         id: String,
+        /// Human-readable restriction description (absent in pre-0.4 payloads).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
     },
     /// Prior / Bayesian restriction (`id=<stable id>`).
     PriorRestriction {
         /// Prior family id.
         id: String,
+        /// Human-readable restriction description (absent in pre-0.4 payloads).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
     },
     /// Custom extension (`id=<stable id>`).
     Custom {
         /// Stable custom id.
         id: String,
+        /// Human-readable assumption description (absent in pre-0.4 payloads).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
     },
 }
 
@@ -128,14 +141,120 @@ fn assumption_to_tag(a: &Assumption) -> AssumptionTagWire {
             AssumptionTagWire::ExclusionRestriction { instrument: instrument.raw() }
         }
         Assumption::Monotonicity => AssumptionTagWire::Monotonicity,
-        Assumption::ParametricRestriction(p) => {
-            AssumptionTagWire::ParametricRestriction { id: p.id.to_string() }
-        }
-        Assumption::PriorRestriction(p) => {
-            AssumptionTagWire::PriorRestriction { id: p.id.to_string() }
-        }
-        Assumption::Custom { id, .. } => AssumptionTagWire::Custom { id: id.to_string() },
+        Assumption::ParametricRestriction(p) => AssumptionTagWire::ParametricRestriction {
+            id: p.id.to_string(),
+            description: Some(p.description.to_string()),
+        },
+        Assumption::PriorRestriction(p) => AssumptionTagWire::PriorRestriction {
+            id: p.id.to_string(),
+            description: Some(p.description.to_string()),
+        },
+        Assumption::Custom { id, description } => AssumptionTagWire::Custom {
+            id: id.to_string(),
+            description: Some(description.to_string()),
+        },
     }
+}
+
+/// Reconstruct an assumption set without dropping source, scope, status, or descriptions.
+///
+/// # Errors
+///
+/// Returns an error for unknown labels or malformed variable scopes.
+pub fn assumptions_from_wire(records: &[AssumptionRecordWire]) -> Result<AssumptionSet, IoError> {
+    let mut set = AssumptionSet::new();
+    for record in records {
+        match &record.assumption {
+            AssumptionTagWire::ParametricRestriction { id, description }
+            | AssumptionTagWire::PriorRestriction { id, description }
+            | AssumptionTagWire::Custom { id, description }
+                if id.trim().is_empty()
+                    || description.as_ref().is_some_and(|value| value.trim().is_empty()) =>
+            {
+                return Err(IoError::Convert(
+                    "named assumptions require a non-blank id and description".into(),
+                ));
+            }
+            _ => {}
+        }
+        let assumption = match &record.assumption {
+            AssumptionTagWire::CausalMarkov => Assumption::CausalMarkov,
+            AssumptionTagWire::Faithfulness => Assumption::Faithfulness,
+            AssumptionTagWire::CausalSufficiency => Assumption::CausalSufficiency,
+            AssumptionTagWire::Consistency => Assumption::Consistency,
+            AssumptionTagWire::Positivity => Assumption::Positivity,
+            AssumptionTagWire::NoInterference => Assumption::NoInterference,
+            AssumptionTagWire::Stationarity => Assumption::Stationarity,
+            AssumptionTagWire::PiecewiseStationarity => Assumption::PiecewiseStationarity,
+            AssumptionTagWire::NoSelectionBias => Assumption::NoSelectionBias,
+            AssumptionTagWire::ExclusionRestriction { instrument } => {
+                Assumption::ExclusionRestriction { instrument: VariableId::from_raw(*instrument) }
+            }
+            AssumptionTagWire::Monotonicity => Assumption::Monotonicity,
+            AssumptionTagWire::ParametricRestriction { id, description } => {
+                Assumption::ParametricRestriction(ParametricAssumption {
+                    id: Arc::from(id.as_str()),
+                    description: Arc::from(description.as_deref().unwrap_or(id)),
+                })
+            }
+            AssumptionTagWire::PriorRestriction { id, description } => {
+                Assumption::PriorRestriction(PriorAssumption {
+                    id: Arc::from(id.as_str()),
+                    description: Arc::from(description.as_deref().unwrap_or(id)),
+                })
+            }
+            AssumptionTagWire::Custom { id, description } => Assumption::Custom {
+                id: Arc::from(id.as_str()),
+                description: Arc::from(description.as_deref().unwrap_or(id)),
+            },
+        };
+        let source = if record.source == "user_declared" {
+            AssumptionSource::UserDeclared
+        } else if record.source == "artifact" {
+            AssumptionSource::Artifact
+        } else if let Some(value) = record.source.strip_prefix("algorithm_default:") {
+            AssumptionSource::AlgorithmDefault { algorithm: Arc::from(value) }
+        } else if let Some(value) = record.source.strip_prefix("derived:") {
+            AssumptionSource::Derived { from: Arc::from(value) }
+        } else {
+            return Err(IoError::Convert(format!("unknown assumption source `{}`", record.source)));
+        };
+        let scope = match record.scope.as_str() {
+            "global" => AssumptionScope::Global,
+            "identification" => AssumptionScope::Identification,
+            "estimation" => AssumptionScope::Estimation,
+            "discovery" => AssumptionScope::Discovery,
+            values if values.starts_with("variables:[") && values.ends_with(']') => {
+                let raw = &values[11..values.len() - 1];
+                let variables = if raw.is_empty() {
+                    Vec::new()
+                } else {
+                    raw.split(',')
+                        .map(|id| {
+                            id.parse::<u32>().map(VariableId::from_raw).map_err(|error| {
+                                IoError::Convert(format!(
+                                    "invalid variable assumption scope `{values}`: {error}"
+                                ))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                AssumptionScope::Variables { variables: variables.into() }
+            }
+            other => {
+                return Err(IoError::Convert(format!("unsupported assumption scope `{other}`")));
+            }
+        };
+        let status = match record.status.as_str() {
+            "declared" => AssumptionStatus::Declared,
+            "supported" => AssumptionStatus::Supported,
+            "contradicted" => AssumptionStatus::Contradicted,
+            "untestable" => AssumptionStatus::Untestable,
+            other => return Err(IoError::Convert(format!("unknown assumption status `{other}`"))),
+        };
+        set.push(AssumptionRecord { assumption, source, scope, status });
+    }
+    Ok(set)
 }
 
 fn source_label(s: &AssumptionSource) -> String {

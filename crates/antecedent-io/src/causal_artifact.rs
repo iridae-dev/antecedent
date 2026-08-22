@@ -74,7 +74,7 @@ impl CausalPayloadWire {
     }
 }
 
-/// Encode one existing causal wire payload as a format-0.3 artifact.
+/// Encode one existing causal wire payload as a format-0.4 artifact.
 ///
 /// # Errors
 ///
@@ -207,7 +207,8 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
                     validate_ids(variables.iter().map(|variable| variable.raw()), variable_count)?;
                 }
             }
-            validate_response_result(wire)?;
+            validate_restricted_identification_basis(&response)?;
+            validate_response_result(wire, variable_count)?;
         }
         CausalPayloadWire::TransportIdentification(wire) => {
             validate_transport_identification_ids(wire, variable_count)?;
@@ -481,16 +482,34 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
     }
 }
 
-fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
+fn validate_response_result(
+    wire: &CausalResponseWire,
+    variable_count: usize,
+) -> Result<(), IoError> {
+    let temporal_horizons = validate_horizon_identification(
+        wire.horizon_identification.as_deref(),
+        wire.identification_status,
+        variable_count,
+    )?;
     let value_len = match &wire.estimate {
         crate::ResponseIdentificationWire::PointIdentified(value) => {
             let length = validate_response_value(value)?;
-            validate_value_for_estimand(value, &wire.estimand, ValueRole::Determinate)?;
+            validate_value_for_estimand(
+                value,
+                &wire.estimand,
+                ValueRole::Determinate,
+                temporal_horizons.as_deref(),
+            )?;
             Some(length)
         }
         crate::ResponseIdentificationWire::PartiallyIdentified(value) => {
             let length = validate_response_value(value)?;
-            validate_value_for_estimand(value, &wire.estimand, ValueRole::IdentifiedSet)?;
+            validate_value_for_estimand(
+                value,
+                &wire.estimand,
+                ValueRole::IdentifiedSet,
+                temporal_horizons.as_deref(),
+            )?;
             Some(length)
         }
         crate::ResponseIdentificationWire::GraphDependent(values) => {
@@ -508,7 +527,12 @@ fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
                     )));
                 }
                 let current = validate_response_value(value)?;
-                validate_value_for_estimand(value, &wire.estimand, ValueRole::Determinate)?;
+                validate_value_for_estimand(
+                    value,
+                    &wire.estimand,
+                    ValueRole::Determinate,
+                    temporal_horizons.as_deref(),
+                )?;
                 if length.replace(current).is_some_and(|previous| previous != current) {
                     return Err(IoError::Convert(
                         "graph-dependent response values must have a common shape".into(),
@@ -550,11 +574,90 @@ fn validate_response_result(wire: &CausalResponseWire) -> Result<(), IoError> {
         ));
     }
     validate_uncertainty(&wire.uncertainty, value_len)?;
-    validate_support(&wire.support, support_dimension(&wire.estimand), value_len)?;
+    validate_support(
+        &wire.support,
+        support_dimension(&wire.estimand, temporal_horizons.is_some()),
+        value_len,
+        temporal_horizons.is_some(),
+    )?;
     if wire.provenance_id.trim().is_empty() {
         return Err(IoError::Convert("response provenance id must be non-blank".into()));
     }
     Ok(())
+}
+
+fn validate_restricted_identification_basis(
+    response: &antecedent_core::CausalResponse,
+) -> Result<(), IoError> {
+    let required = match response.identification_status {
+        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+            Some("parametric")
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => Some("prior"),
+        _ => None,
+    };
+    let Some(required) = required else {
+        return Ok(());
+    };
+    let found = response.assumptions.entries.iter().any(|record| {
+        matches!(record.scope, AssumptionScope::Identification)
+            && matches!(
+                (&record.assumption, required),
+                (Assumption::ParametricRestriction(_), "parametric")
+                    | (Assumption::PriorRestriction(_), "prior")
+            )
+    });
+    if !found {
+        return Err(IoError::Convert(format!(
+            "response identified under {required} restrictions requires an explicit identification-scoped {required} assumption"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_horizon_identification(
+    horizons: Option<&[crate::response_wire::HorizonIdentificationWire]>,
+    outer_status: crate::IdentificationStatusWire,
+    variable_count: usize,
+) -> Result<Option<Vec<u32>>, IoError> {
+    let Some(horizons) = horizons else {
+        return Ok(None);
+    };
+    if horizons.is_empty() {
+        return Err(IoError::Convert(
+            "temporal response horizon identification must not be empty".into(),
+        ));
+    }
+    let mut values = Vec::with_capacity(horizons.len());
+    for horizon in horizons {
+        if horizon.horizon == 0
+            || values.last().is_some_and(|previous| *previous >= horizon.horizon)
+        {
+            return Err(IoError::Convert(
+                "temporal response horizons must be positive and strictly increasing".into(),
+            ));
+        }
+        if horizon.method.trim().is_empty() {
+            return Err(IoError::Convert(
+                "temporal response identification method must be non-blank".into(),
+            ));
+        }
+        if horizon.identification_status != outer_status {
+            return Err(IoError::Convert(
+                "per-horizon identification status must match the response identification status"
+                    .into(),
+            ));
+        }
+        validate_ids(horizon.adjustment.iter().map(|node| node.variable), variable_count)?;
+        let mut adjustment = HashSet::with_capacity(horizon.adjustment.len());
+        if horizon.adjustment.iter().any(|node| !adjustment.insert((node.variable, node.offset))) {
+            return Err(IoError::Convert(
+                "temporal response adjustment nodes must be unique per horizon".into(),
+            ));
+        }
+        values.push(horizon.horizon);
+    }
+    Ok(Some(values))
 }
 
 /// Materialize the declared estimand grid exactly as the estimator does.
@@ -586,6 +689,7 @@ fn validate_value_for_estimand(
     value: &crate::ResponseValueWire,
     estimand: &crate::ResponseFunctionalWire,
     role: ValueRole,
+    temporal_horizons: Option<&[u32]>,
 ) -> Result<(), IoError> {
     use crate::{ResponseFunctionalWire as F, ResponseValueWire as V};
     if matches!(value, V::Envelope(_)) && role != ValueRole::IdentifiedSet {
@@ -593,12 +697,54 @@ fn validate_value_for_estimand(
             "a response envelope is the payload of a partially identified response only".into(),
         ));
     }
-    let matches = match (estimand, value) {
-        (F::MeanCurve { treatment, .. }, V::Surface { grid, dimension: 1, mean }) => {
+    let matches = match (estimand, value, temporal_horizons) {
+        (
+            F::MeanCurve { treatment, .. },
+            V::Surface { grid, dimension: 2, mean },
+            Some(horizons),
+        ) => {
+            let doses = estimand_grid(&treatment.grid)?;
+            let expected = doses
+                .iter()
+                .flat_map(|dose| {
+                    horizons.iter().flat_map(move |horizon| [*dose, f64::from(*horizon)])
+                })
+                .collect::<Vec<_>>();
+            grid == &expected && mean.len() == doses.len().saturating_mul(horizons.len())
+        }
+        (F::MeanCurve { treatment, .. }, V::Envelope(envelope), Some(horizons)) => {
+            let doses = estimand_grid(&treatment.grid)?;
+            let expected = doses
+                .iter()
+                .flat_map(|dose| {
+                    horizons.iter().flat_map(move |horizon| [*dose, f64::from(*horizon)])
+                })
+                .collect::<Vec<_>>();
+            envelope.dimension == 2
+                && envelope.grid == expected
+                && envelope.lower.len() == doses.len().saturating_mul(horizons.len())
+                && envelope.upper.len() == doses.len().saturating_mul(horizons.len())
+        }
+        (
+            F::InterventionResponse { .. },
+            V::Surface { grid, dimension: 1, mean },
+            Some(horizons),
+        ) => {
+            let expected = horizons.iter().map(|horizon| f64::from(*horizon)).collect::<Vec<_>>();
+            grid == &expected && mean.len() == horizons.len()
+        }
+        (F::InterventionResponse { .. }, V::Envelope(envelope), Some(horizons)) => {
+            let expected = horizons.iter().map(|horizon| f64::from(*horizon)).collect::<Vec<_>>();
+            envelope.dimension == 1
+                && envelope.grid == expected
+                && envelope.lower.len() == horizons.len()
+                && envelope.upper.len() == horizons.len()
+        }
+        (F::MeanCurve { treatment, .. }, V::Surface { grid, dimension: 1, mean }, None) => {
             let expected = estimand_grid(&treatment.grid)?;
             grid == &expected && mean.len() == expected.len()
         }
-        (F::MeanCurve { treatment, .. }, V::Envelope(envelope)) => {
+        (F::MeanCurve { treatment, .. }, V::Envelope(envelope), None) => {
             let expected = estimand_grid(&treatment.grid)?;
             envelope.dimension == 1
                 && envelope.grid == expected
@@ -610,6 +756,7 @@ fn validate_value_for_estimand(
             | F::PointDerivative { .. }
             | F::InterventionResponse { .. },
             V::Scalar(_),
+            None,
         ) => true,
         // The identified set of a scalar functional: one coordinate-free interval. This is
         // the shape a bound such as Balke-Pearl produces, and format 0.3 stores it rather
@@ -619,16 +766,18 @@ fn validate_value_for_estimand(
             | F::PointDerivative { .. }
             | F::InterventionResponse { .. },
             V::Envelope(envelope),
+            None,
         ) => envelope.dimension == 0 && envelope.lower.len() == 1,
-        (F::DirectionalDerivative { outcomes, .. }, V::Vector(values)) => {
+        (F::DirectionalDerivative { outcomes, .. }, V::Vector(values), None) => {
             values.len() == outcomes.len()
         }
-        (F::DirectionalDerivative { outcomes, .. }, V::Envelope(envelope)) => {
+        (F::DirectionalDerivative { outcomes, .. }, V::Envelope(envelope), None) => {
             envelope.dimension == 0 && envelope.lower.len() == outcomes.len()
         }
         (
             F::Jacobian { outcomes, treatments, .. },
             V::Jacobian { outcomes: value_outcomes, treatments: value_treatments, .. },
+            None,
         ) => {
             usize::try_from(*value_outcomes).ok() == Some(outcomes.len())
                 && usize::try_from(*value_treatments).ok() == Some(treatments.len())
@@ -647,7 +796,12 @@ fn validate_value_for_estimand(
     Ok(())
 }
 
-fn support_dimension(estimand: &crate::ResponseFunctionalWire) -> usize {
+fn support_dimension(estimand: &crate::ResponseFunctionalWire, temporal: bool) -> usize {
+    if temporal {
+        // Temporal support is always assessed over treatment/evaluation level × horizon,
+        // including intervention paths whose numerical response is indexed by horizon only.
+        return 2;
+    }
     match estimand {
         crate::ResponseFunctionalWire::DirectionalDerivative { treatments, .. }
         | crate::ResponseFunctionalWire::Jacobian { treatments, .. } => treatments.len(),
@@ -720,6 +874,7 @@ fn validate_support(
     support: &crate::SupportReportWire,
     expected_dimension: usize,
     value_len: Option<usize>,
+    temporal: bool,
 ) -> Result<(), IoError> {
     let minima = &support.query_region.minima;
     let maxima = &support.query_region.maxima;
@@ -740,6 +895,16 @@ fn validate_support(
         }
         require_finite(diagnostic.values.iter().copied(), "response support diagnostic")?;
     }
+    if temporal && support.point_status.is_none() {
+        return Err(IoError::Convert(
+            "temporal response support requires per-cell point_status evidence".into(),
+        ));
+    }
+    if !temporal && support.point_status.is_some() {
+        return Err(IoError::Convert(
+            "static response support must not carry temporal point_status evidence".into(),
+        ));
+    }
     if let Some(cells) = &support.point_status {
         match value_len {
             Some(len) if cells.len() == len => {}
@@ -753,6 +918,25 @@ fn validate_support(
                     "response support point_status requires a determinate response value".into(),
                 ));
             }
+        }
+        let supported =
+            cells.iter().filter(|status| **status == crate::SupportStatusWire::Supported).count();
+        let expected = if supported == cells.len() {
+            crate::SupportStatusWire::Supported
+        } else if supported > 0 {
+            crate::SupportStatusWire::Extrapolative
+        } else if cells
+            .iter()
+            .any(|status| *status == crate::SupportStatusWire::OutsideEmpiricalSupport)
+        {
+            crate::SupportStatusWire::OutsideEmpiricalSupport
+        } else {
+            crate::SupportStatusWire::Extrapolative
+        };
+        if support.status != expected {
+            return Err(IoError::Convert(
+                "temporal response support status must summarize its point_status evidence".into(),
+            ));
         }
     }
     Ok(())
@@ -1091,6 +1275,216 @@ mod tests {
         assert_eq!(decode(&artifact).unwrap(), payload);
     }
 
+    fn temporal_mean_curve_response() -> CausalResponseWire {
+        CausalResponseWire {
+            estimand: ResponseFunctionalWire::MeanCurve {
+                outcome: 1,
+                treatment: crate::ContinuousDomainWire {
+                    variable: 0,
+                    grid: crate::GridSpecWire::Values(vec![0.0, 1.0]),
+                },
+            },
+            identification_status: IdentificationStatusWire::NonparametricallyIdentified,
+            estimate: ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+                grid: vec![0.0, 1.0, 0.0, 3.0, 1.0, 1.0, 1.0, 3.0],
+                dimension: 2,
+                mean: vec![1.0, 1.5, 2.0, 2.5],
+            }),
+            uncertainty: ResponseUncertaintyWire::PointwiseBand {
+                level: 0.95,
+                lower: vec![0.5, 1.0, 1.5, 2.0],
+                upper: vec![1.5, 2.0, 2.5, 3.0],
+            },
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0, 1.0], maxima: vec![1.0, 3.0] },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: Some(vec![SupportStatusWire::Supported; 4]),
+            },
+            assumptions: Vec::new(),
+            provenance_id: "estimate.temporal_response.gcomp".into(),
+            horizon_identification: Some(vec![
+                crate::response_wire::HorizonIdentificationWire {
+                    horizon: 1,
+                    identification_status: IdentificationStatusWire::NonparametricallyIdentified,
+                    method: "temporal.backdoor.unfolded".into(),
+                    adjustment: vec![crate::response_wire::HorizonAdjustmentNodeWire {
+                        variable: 0,
+                        offset: -1,
+                    }],
+                },
+                crate::response_wire::HorizonIdentificationWire {
+                    horizon: 3,
+                    identification_status: IdentificationStatusWire::NonparametricallyIdentified,
+                    method: "temporal.backdoor.unfolded".into(),
+                    adjustment: vec![crate::response_wire::HorizonAdjustmentNodeWire {
+                        variable: 0,
+                        offset: -1,
+                    }],
+                },
+            ]),
+        }
+    }
+
+    #[test]
+    fn temporal_response_result_round_trips_with_dose_horizon_geometry() {
+        let payload = CausalPayloadWire::ResponseResult(Box::new(temporal_mean_curve_response()));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "temporal-response",
+        )
+        .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), payload);
+    }
+
+    fn temporal_intervention_response() -> CausalResponseWire {
+        let mut response = temporal_mean_curve_response();
+        response.estimand = ResponseFunctionalWire::InterventionResponse {
+            outcome: 1,
+            interventions: vec![crate::InterventionWire::Soft {
+                variable: 0,
+                mechanism: crate::query_wire::MechanismOverrideWire {
+                    family_id: "additive_shift".into(),
+                    parameters: vec![1.0],
+                },
+            }],
+        };
+        response.estimate =
+            ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+                grid: vec![1.0, 3.0],
+                dimension: 1,
+                mean: vec![1.5, 2.5],
+            });
+        response.uncertainty = ResponseUncertaintyWire::PointwiseBand {
+            level: 0.95,
+            lower: vec![1.0, 2.0],
+            upper: vec![2.0, 3.0],
+        };
+        response.support.point_status = Some(vec![SupportStatusWire::Supported; 2]);
+        response.provenance_id = "estimate.temporal_response.intervention_gcomp".into();
+        response
+    }
+
+    #[test]
+    fn temporal_intervention_response_round_trips_with_horizon_geometry() {
+        let payload = CausalPayloadWire::ResponseResult(Box::new(temporal_intervention_response()));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "temporal-intervention-response",
+        )
+        .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), payload);
+    }
+
+    #[test]
+    fn temporal_intervention_response_rejects_grid_that_disagrees_with_horizons() {
+        let mut response = temporal_intervention_response();
+        let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+            grid, ..
+        }) = &mut response.estimate
+        else {
+            unreachable!()
+        };
+        grid[1] = 2.0;
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("does not match"));
+    }
+
+    #[test]
+    fn temporal_response_rejects_per_horizon_status_that_disagrees_with_outer_status() {
+        let mut response = temporal_mean_curve_response();
+        response.horizon_identification.as_mut().unwrap()[1].identification_status =
+            IdentificationStatusWire::PartiallyIdentified;
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("must match"));
+    }
+
+    #[test]
+    fn temporal_response_rejects_support_summary_that_disagrees_with_cell_evidence() {
+        let mut response = temporal_mean_curve_response();
+        response.support.status = SupportStatusWire::Supported;
+        response.support.point_status = Some(vec![
+            SupportStatusWire::Supported,
+            SupportStatusWire::OutsideEmpiricalSupport,
+            SupportStatusWire::Supported,
+            SupportStatusWire::Supported,
+        ]);
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("summarize"));
+    }
+
+    #[test]
+    fn temporal_response_rejects_horizon_metadata_outside_header() {
+        let mut response = temporal_mean_curve_response();
+        response.horizon_identification.as_mut().unwrap()[0].adjustment[0].variable = 2;
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("outside"));
+    }
+
+    #[test]
+    fn migrated_0_3_temporal_metadata_is_still_validated() {
+        let mut response = temporal_mean_curve_response();
+        response.horizon_identification.as_mut().unwrap()[0].adjustment[0].variable = 2;
+        let mut artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        artifact.manifest.format_version = FormatVersion { major: 0, minor: 3 };
+        artifact.manifest.minimum_reader_version = FormatVersion { major: 0, minor: 3 };
+
+        assert!(decode(&artifact).unwrap_err().to_string().contains("outside"));
+    }
+
+    #[test]
+    fn temporal_response_rejects_grid_that_disagrees_with_horizons() {
+        let mut response = temporal_mean_curve_response();
+        let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+            grid, ..
+        }) = &mut response.estimate
+        else {
+            unreachable!()
+        };
+        grid[3] = 2.0;
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        assert!(decode(&artifact).unwrap_err().to_string().contains("does not match"));
+    }
+
     fn partially_identified_scalar(value: ResponseValueWire) -> CausalResponseWire {
         CausalResponseWire {
             estimand: ResponseFunctionalWire::AverageDerivative {
@@ -1112,6 +1506,49 @@ mod tests {
             provenance_id: "identify.binary_iv_bounds".into(),
             horizon_identification: None,
         }
+    }
+
+    #[test]
+    fn restricted_identification_status_requires_matching_explicit_basis() {
+        for (status, label) in [
+            (IdentificationStatusWire::IdentifiedUnderParametricRestrictions, "parametric"),
+            (IdentificationStatusWire::IdentifiedUnderPriorRestrictions, "prior"),
+        ] {
+            let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+            wire.identification_status = status;
+            wire.estimate =
+                ResponseIdentificationWire::PointIdentified(ResponseValueWire::Scalar(0.0));
+            let artifact = unchecked_artifact(
+                &CausalPayloadWire::ResponseResult(Box::new(wire)),
+                &CausalPayloadHeader {
+                    payload_kind: CausalPayloadKind::ResponseResult,
+                    variable_names: vec!["a".into(), "y".into()],
+                },
+            );
+            assert!(decode(&artifact).unwrap_err().to_string().contains(label));
+        }
+
+        let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+        wire.identification_status =
+            IdentificationStatusWire::IdentifiedUnderParametricRestrictions;
+        wire.estimate = ResponseIdentificationWire::PointIdentified(ResponseValueWire::Scalar(0.0));
+        wire.assumptions = vec![crate::AssumptionRecordWire {
+            assumption: crate::AssumptionTagWire::ParametricRestriction {
+                id: "linear.outcome".into(),
+                description: Some("linear conditional outcome model".into()),
+            },
+            source: "algorithm_default:response.gcomp".into(),
+            scope: "identification".into(),
+            status: "untestable".into(),
+        }];
+        let payload = CausalPayloadWire::ResponseResult(Box::new(wire));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "parametric-response",
+        )
+        .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), payload);
     }
 
     fn scalar_interval(lower: f64, upper: f64) -> ResponseValueWire {

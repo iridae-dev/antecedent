@@ -58,11 +58,14 @@ impl PyCausalState {
         let nrows = u64::try_from(batch.num_rows()).unwrap_or(u64::MAX);
         let bytes = u64::try_from(batch.get_array_memory_size()).unwrap_or(u64::MAX);
         let id_str = format!("b{}", self.next_batch);
-        self.next_batch = self.next_batch.wrapping_add(1);
         let mut owned = Vec::with_capacity(columns.len());
         for col in &columns {
             owned.push(col.as_slice()?.to_vec());
         }
+        // Advance the public batch-id sequence only after every fallible
+        // conversion has succeeded. Rejected appends/replacements must not
+        // consume an id while leaving no corresponding catalog entry.
+        self.next_batch = self.next_batch.wrapping_add(1);
         self.retained.insert(id_str.clone(), RetainedBatch { names, columns: owned });
         Ok((Arc::from(id_str), nrows, bytes))
     }
@@ -129,15 +132,27 @@ impl PyCausalState {
         names: Option<Vec<String>>,
         columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
     ) -> PyResult<u64> {
-        self.retained.clear();
-        self.inner.data_catalog.batches.clear();
+        let replacement = match (names, columns) {
+            (Some(names), Some(columns)) => Some(self.store_batch(names, columns)?),
+            (None, None) => None,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "replace_data requires both names and columns, or neither",
+                ));
+            }
+        };
         let new_ver = self.inner.data_catalog.version.next();
         let ver = self.apply(StateEvent::ReplaceData(new_ver))?;
-        if let (Some(names), Some(columns)) = (names, columns) {
-            let (id, nrows, bytes) = self.store_batch(names, columns)?;
+        if let Some((id, nrows, bytes)) = replacement {
+            // `store_batch` validated and retained the replacement before the
+            // destructive state transition. Keep only that new batch now that
+            // ReplaceData has committed; invalid input leaves the old catalog
+            // and retained columns untouched.
+            self.retained.retain(|batch_id, _| batch_id == id.as_ref());
             // Catalog was cleared by ReplaceData; append the replacement batch.
             return self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }));
         }
+        self.retained.clear();
         Ok(ver)
     }
 

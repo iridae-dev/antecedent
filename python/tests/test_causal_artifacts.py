@@ -6,7 +6,11 @@ import json
 
 import pytest
 from antecedent import artifacts
-from antecedent._native import decode_causal_artifact, encode_causal_artifact
+from antecedent._native import (
+    CausalSerializationError,
+    decode_causal_artifact,
+    encode_causal_artifact,
+)
 
 
 def _response_query(functional: object) -> dict[str, object]:
@@ -196,6 +200,62 @@ def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: obje
         ).payload
         == payload
     )
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        {"pulse": {"at": -1}},
+        {"sustained": {"from": -2, "until": -1}},
+    ],
+)
+def test_every_licensed_temporal_response_policy_crosses_rust_and_python(
+    policy: object,
+) -> None:
+    payload = _response_query(
+        {
+            "mean_curve": {
+                "outcome": 1,
+                "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}},
+            }
+        }
+    )
+    response = payload["response"]
+    assert isinstance(response, dict)
+    response["temporal"] = {
+        "horizons": [1, 3],
+        "policy": policy,
+        "max_history_lag": 2,
+    }
+    decoded = artifacts.loads(
+        artifacts.dumps("query", payload, variable_names=["a", "y"], artifact_id="temporal-query")
+    )
+    assert decoded.payload == payload
+
+
+def test_dynamic_temporal_effect_policy_is_not_accepted_as_response_query() -> None:
+    payload = _response_query(
+        {
+            "mean_curve": {
+                "outcome": 1,
+                "treatment": {"variable": 0, "grid": {"values": [0.0, 1.0]}},
+            }
+        }
+    )
+    response = payload["response"]
+    assert isinstance(response, dict)
+    response["temporal"] = {
+        "horizons": [1, 3],
+        "policy": {"dynamic": {"rule": 7, "active_at": [-2, -1]}},
+        "max_history_lag": 2,
+    }
+    with pytest.raises(Exception, match="must be pulse or sustained"):
+        artifacts.dumps(
+            "query",
+            payload,
+            variable_names=["a", "y"],
+            artifact_id="dynamic-temporal-effect-as-response",
+        )
 
 
 def test_native_encode_causal_artifact_returns_real_bytes() -> None:
@@ -495,6 +555,119 @@ def test_every_response_result_wire_variant_round_trips(
         )
     )
     assert decoded.payload == payload
+
+
+def test_response_assumption_evidence_crosses_rust_and_python_without_loss() -> None:
+    payload = _response_result(
+        estimand={"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}},
+        status="identified_under_parametric_restrictions",
+        estimate={"point_identified": {"scalar": 1.0}},
+        uncertainty="none",
+    )
+    payload["assumptions"] = [
+        {
+            "assumption": {
+                "parametric_restriction": {
+                    "id": "linear.outcome",
+                    "description": "linear conditional outcome model",
+                }
+            },
+            "source": "derived:model-check-7",
+            "scope": "identification",
+            "status": "untestable",
+        }
+    ]
+    decoded = artifacts.loads(
+        artifacts.dumps(
+            "response_result",
+            payload,
+            variable_names=["a", "y"],
+            artifact_id="parametric-response",
+        )
+    )
+    assert decoded.payload == payload
+
+
+def test_temporal_response_result_crosses_rust_and_python() -> None:
+    """The 0.4 result wire retains dose × horizon geometry and I(h) metadata."""
+    payload = _response_result(
+        estimand=_MEAN_CURVE,
+        status="nonparametrically_identified",
+        estimate={
+            "point_identified": {
+                "surface": {
+                    "grid": [0.0, 1.0, 0.0, 3.0, 1.0, 1.0, 1.0, 3.0],
+                    "dimension": 2,
+                    "mean": [1.0, 1.5, 2.0, 2.5],
+                }
+            }
+        },
+        uncertainty={
+            "pointwise_band": {
+                "level": 0.95,
+                "lower": [0.5, 1.0, 1.5, 2.0],
+                "upper": [1.5, 2.0, 2.5, 3.0],
+            }
+        },
+        support_dim=2,
+    )
+    support = payload["support"]
+    assert isinstance(support, dict)
+    support["point_status"] = ["supported"] * 4
+    payload["horizon_identification"] = [
+        {
+            "horizon": horizon,
+            "identification_status": "nonparametrically_identified",
+            "method": "temporal.backdoor.unfolded",
+            "adjustment": [{"variable": 0, "offset": -1}],
+        }
+        for horizon in (1, 3)
+    ]
+
+    decoded = artifacts.loads(
+        artifacts.dumps(
+            "response_result",
+            payload,
+            variable_names=["a", "y"],
+            artifact_id="temporal-response",
+        )
+    )
+    assert decoded.format_version == (0, 4)
+    assert decoded.payload == payload
+
+
+def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> None:
+    payload = _response_result(
+        estimand=_MEAN_CURVE,
+        status="nonparametrically_identified",
+        estimate={
+            "point_identified": {
+                "surface": {
+                    "grid": [0.0, 1.0, 1.0, 1.0],
+                    "dimension": 2,
+                    "mean": [1.0, 2.0],
+                }
+            }
+        },
+        uncertainty="none",
+        support_dim=2,
+    )
+    payload["horizon_identification"] = [
+        {
+            "horizon": 1,
+            "identification_status": "nonparametrically_identified",
+            "method": "temporal.backdoor.unfolded",
+            "adjustment": [{"variable": 2, "offset": -1}],
+        }
+    ]
+
+    with pytest.raises(CausalSerializationError, match="outside causal payload header bounds"):
+        artifacts.dumps(
+            "response_result",
+            payload,
+            variable_names=["a", "y"],
+            artifact_id="invalid-temporal-response",
+        )
 
 
 @pytest.mark.parametrize(

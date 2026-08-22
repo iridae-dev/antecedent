@@ -1,4 +1,4 @@
-//! Python bridge for standalone format-0.3 causal wire artifacts.
+//! Python bridge for standalone format-0.4 causal wire artifacts.
 
 use antecedent_io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, InterferenceEstimateWire,

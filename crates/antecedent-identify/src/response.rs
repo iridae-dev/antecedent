@@ -61,6 +61,11 @@ impl ResponseIdentifier {
         response
             .validate()
             .map_err(|_| IdentificationError::unsupported("invalid continuous-response query"))?;
+        if response.temporal.is_some() {
+            return Err(IdentificationError::unsupported(
+                "static ResponseIdentifier does not identify temporal response queries; use temporal backdoor identification once per horizon",
+            ));
+        }
         require_observation_claim(response)?;
 
         let pairs = response_pairs(&response.functional)?;
@@ -76,6 +81,11 @@ impl ResponseIdentifier {
                 .with_target_population(response.target_population.clone());
             let witness_query = CausalQuery::AverageEffect(witness.clone());
             let result = self.backdoor.identify(prepared, &witness_query, workspace)?;
+            for record in &result.required_assumptions.entries {
+                if !assumptions.entries.contains(record) {
+                    assumptions.push(record.clone());
+                }
+            }
             performance.candidates_examined = performance
                 .candidates_examined
                 .saturating_add(result.performance.candidates_examined);
@@ -227,5 +237,39 @@ mod tests {
         assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
         assert!(matches!(result.query, CausalQuery::Response(_)));
+        assert!(result.required_assumptions.entries.iter().any(|record| {
+            record.assumption == Assumption::CausalMarkov
+                && record.scope == AssumptionScope::Identification
+        }));
+    }
+
+    #[test]
+    fn static_identifier_refuses_temporal_response_attachment() {
+        let dag = Dag::with_variables(2);
+        let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            antecedent_core::TemporalResponseSpec::new(
+                [1u32],
+                antecedent_core::TemporalPolicy::pulse(0),
+                None,
+            )
+            .unwrap(),
+        );
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        let error = identifier
+            .identify(
+                &prepared,
+                &CausalQuery::Response(response),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("temporal response"));
     }
 }

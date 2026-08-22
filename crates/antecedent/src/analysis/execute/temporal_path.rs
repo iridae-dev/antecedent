@@ -302,7 +302,11 @@ impl super::Study {
             aligned.push(entry);
         }
         let first = aligned[0];
-        let identification = first.identification.clone();
+        let (aggregate_status, aggregate_assumptions) =
+            aggregate_temporal_horizon_evidence(aligned.iter().map(|entry| &entry.identification))?;
+        let mut identification = first.identification.clone();
+        identification.status = aggregate_status;
+        identification.required_assumptions = aggregate_assumptions.clone();
         let estimand = first.estimand.clone();
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
@@ -311,16 +315,18 @@ impl super::Study {
         // bootstrap). Do not copy Study bootstrap here — it would look like
         // it affects the curve when FittedHorizon is OLS-only.
         let estimator = TemporalResponseEstimator::new();
-        let response = estimator
-            .estimate(
-                data,
-                &identifications,
-                query,
-                identification.status,
-                identification.required_assumptions.clone(),
-                ctx,
-            )
+        let mut response = estimator
+            .estimate(data, &identifications, query, aggregate_status, aggregate_assumptions, ctx)
             .map_err(CausalError::from)?;
+        // The estimator's public API accepts one aggregate status for callers
+        // that have a homogeneous set of horizon witnesses. This execution path
+        // has the richer per-horizon records, so retain their actual statuses
+        // instead of repeating the first/aggregate label across the surface.
+        if let Some(per_horizon) = response.horizon_identification.as_mut() {
+            for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
+                record.status = entry.identification.status;
+            }
+        }
 
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
@@ -400,6 +406,41 @@ impl super::Study {
     }
 }
 
+fn aggregate_temporal_horizon_evidence<'a>(
+    identifications: impl IntoIterator<Item = &'a IdentificationResult>,
+) -> Result<(IdentificationStatus, antecedent_core::AssumptionSet), CausalError> {
+    let mut aggregate_status = IdentificationStatus::NonparametricallyIdentified;
+    let mut assumptions = antecedent_core::AssumptionSet::new();
+    let mut saw_any = false;
+    for identification in identifications {
+        saw_any = true;
+        match identification.status {
+            IdentificationStatus::NonparametricallyIdentified => {}
+            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+                aggregate_status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+            }
+            status => {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal response requires point identification at every horizon; got {status:?}"
+                    ),
+                });
+            }
+        }
+        for record in &identification.required_assumptions.entries {
+            if !assumptions.entries.contains(record) {
+                assumptions.push(record.clone());
+            }
+        }
+    }
+    if !saw_any {
+        return Err(CausalError::Compile {
+            message: "temporal response requires at least one horizon identification".into(),
+        });
+    }
+    Ok((aggregate_status, assumptions))
+}
+
 fn horizon_adjustment_sets_differ(
     entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
 ) -> bool {
@@ -421,4 +462,66 @@ fn named_adjustment_keys(
         .collect();
     keys.sort();
     keys
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+        AssumptionStatus,
+    };
+
+    use super::*;
+
+    fn horizon_result(
+        status: IdentificationStatus,
+        evidence: &'static str,
+    ) -> IdentificationResult {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut assumptions = AssumptionSet::new();
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from(evidence),
+                description: Arc::from("horizon-specific evidence"),
+            },
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("test.temporal_horizon"),
+            },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        IdentificationResult::from_parts(
+            status,
+            CausalQuery::AverageEffect(query),
+            Vec::new(),
+            CausalExprArena::new(),
+            DerivationTrace::default(),
+            assumptions,
+            Vec::new(),
+            IdentificationPerformanceRecord::default(),
+            None,
+        )
+    }
+
+    #[test]
+    fn temporal_horizon_evidence_is_unioned_and_never_upgraded() {
+        let first =
+            horizon_result(IdentificationStatus::NonparametricallyIdentified, "horizon.one");
+        let second = horizon_result(
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            "horizon.two",
+        );
+        let (status, assumptions) = aggregate_temporal_horizon_evidence([&first, &second]).unwrap();
+        assert_eq!(status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
+        for evidence in ["horizon.one", "horizon.two"] {
+            assert!(assumptions.entries.iter().any(|record| {
+                matches!(&record.assumption, Assumption::Custom { id, .. } if id.as_ref() == evidence)
+            }));
+        }
+
+        let partial = horizon_result(IdentificationStatus::PartiallyIdentified, "horizon.partial");
+        let error = aggregate_temporal_horizon_evidence([&first, &partial]).unwrap_err();
+        assert!(error.to_string().contains("at every horizon"));
+    }
 }

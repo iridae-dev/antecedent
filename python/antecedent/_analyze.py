@@ -342,8 +342,6 @@ def handle_response(
     if getattr(query, "is_temporal", False):
         from .estimation import _lagged_edges, _wrap_prepared_response
 
-        if discovery is not None:
-            raise ValueError("temporal response queries do not yet support discovery=")
         if isinstance(inference, Bayesian):
             raise TypeError("temporal response queries do not support inference=Bayesian(...)")
         if not isinstance(graph, (TemporalDag, list, tuple)):

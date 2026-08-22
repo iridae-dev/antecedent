@@ -73,6 +73,9 @@ impl<G> IdentificationEnvelope<G> {
         let mut unidentified = 0.0;
         let mut all_id = true;
         let mut any_id = false;
+        let mut any_parametric = false;
+        let mut any_prior_restricted = false;
+        let mut any_partial = false;
         let mut invariant: Option<IdentifiedEstimand> = None;
         let mut invariant_conflict = false;
         for c in &cases {
@@ -82,6 +85,16 @@ impl<G> IdentificationEnvelope<G> {
                 | IdentificationStatus::IdentifiedUnderPriorRestrictions
                 | IdentificationStatus::PartiallyIdentified => {
                     any_id = true;
+                    any_parametric |= matches!(
+                        c.result.status,
+                        IdentificationStatus::IdentifiedUnderParametricRestrictions
+                    );
+                    any_prior_restricted |= matches!(
+                        c.result.status,
+                        IdentificationStatus::IdentifiedUnderPriorRestrictions
+                    );
+                    any_partial |=
+                        matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
                     identified += c.weight.0;
                     if let Some(est) = c.result.estimands.first() {
                         match &invariant {
@@ -102,7 +115,15 @@ impl<G> IdentificationEnvelope<G> {
         let status = if cases.is_empty() {
             IdentificationStatus::NotIdentified
         } else if all_id && any_id && !invariant_conflict {
-            IdentificationStatus::NonparametricallyIdentified
+            if any_partial {
+                IdentificationStatus::PartiallyIdentified
+            } else if any_prior_restricted {
+                IdentificationStatus::IdentifiedUnderPriorRestrictions
+            } else if any_parametric {
+                IdentificationStatus::IdentifiedUnderParametricRestrictions
+            } else {
+                IdentificationStatus::NonparametricallyIdentified
+            }
         } else if any_id && unidentified > 0.0 {
             IdentificationStatus::GraphDependent
         } else if any_id {
@@ -258,6 +279,39 @@ mod tests {
             env.critical_graph_features.iter().any(|f| f.kind.as_ref() == "unidentified_mass"),
             "features={:?}",
             env.critical_graph_features
+        );
+    }
+
+    #[test]
+    fn aggregate_status_never_upgrades_restricted_identification() {
+        let parametric = vec![GraphIdentificationCase {
+            graph: 0u32,
+            result: dummy_result(IdentificationStatus::IdentifiedUnderParametricRestrictions),
+            weight: ProbabilityMass(1.0),
+        }];
+        assert_eq!(
+            IdentificationEnvelope::from_cases(parametric).status,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+        );
+
+        let prior_restricted = vec![GraphIdentificationCase {
+            graph: 0u32,
+            result: dummy_result(IdentificationStatus::IdentifiedUnderPriorRestrictions),
+            weight: ProbabilityMass(1.0),
+        }];
+        assert_eq!(
+            IdentificationEnvelope::from_cases(prior_restricted).status,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions
+        );
+
+        let partial = vec![GraphIdentificationCase {
+            graph: 0u32,
+            result: dummy_result(IdentificationStatus::PartiallyIdentified),
+            weight: ProbabilityMass(1.0),
+        }];
+        assert_eq!(
+            IdentificationEnvelope::from_cases(partial).status,
+            IdentificationStatus::PartiallyIdentified
         );
     }
 }

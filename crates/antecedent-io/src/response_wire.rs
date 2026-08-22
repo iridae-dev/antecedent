@@ -9,19 +9,18 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting,
-    GridSpec, HorizonIdentification, IdentificationStatus, ObservationAssumption, ObservationSpec,
-    ParametricAssumption, PriorAssumption, ResponseEnvelope, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
-    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
+    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
+    HorizonIdentification, IdentificationStatus, ObservationAssumption, ObservationSpec,
+    ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, TemporalNodeKey, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::analysis_wire::{DiagnosticWire, diagnostic_from_wire, diagnostic_to_wire};
 use crate::error::IoError;
 use crate::query_wire::{InterventionWire, TargetPopulationWire};
-use crate::trace::{AssumptionRecordWire, AssumptionTagWire, assumptions_to_wire};
+use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
 
 /// Evaluation grid on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -970,94 +969,11 @@ fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
     })
 }
 
-fn assumptions_from_wire(records: &[AssumptionRecordWire]) -> Result<AssumptionSet, IoError> {
-    let mut set = AssumptionSet::new();
-    for record in records {
-        let assumption = match &record.assumption {
-            AssumptionTagWire::CausalMarkov => Assumption::CausalMarkov,
-            AssumptionTagWire::Faithfulness => Assumption::Faithfulness,
-            AssumptionTagWire::CausalSufficiency => Assumption::CausalSufficiency,
-            AssumptionTagWire::Consistency => Assumption::Consistency,
-            AssumptionTagWire::Positivity => Assumption::Positivity,
-            AssumptionTagWire::NoInterference => Assumption::NoInterference,
-            AssumptionTagWire::Stationarity => Assumption::Stationarity,
-            AssumptionTagWire::PiecewiseStationarity => Assumption::PiecewiseStationarity,
-            AssumptionTagWire::NoSelectionBias => Assumption::NoSelectionBias,
-            AssumptionTagWire::ExclusionRestriction { instrument } => {
-                Assumption::ExclusionRestriction { instrument: VariableId::from_raw(*instrument) }
-            }
-            AssumptionTagWire::Monotonicity => Assumption::Monotonicity,
-            AssumptionTagWire::ParametricRestriction { id } => {
-                Assumption::ParametricRestriction(ParametricAssumption {
-                    id: Arc::from(id.as_str()),
-                    description: Arc::from(id.as_str()),
-                })
-            }
-            AssumptionTagWire::PriorRestriction { id } => {
-                Assumption::PriorRestriction(PriorAssumption {
-                    id: Arc::from(id.as_str()),
-                    description: Arc::from(id.as_str()),
-                })
-            }
-            AssumptionTagWire::Custom { id } => Assumption::Custom {
-                id: Arc::from(id.as_str()),
-                description: Arc::from(id.as_str()),
-            },
-        };
-        let source = if record.source == "user_declared" {
-            AssumptionSource::UserDeclared
-        } else if record.source == "artifact" {
-            AssumptionSource::Artifact
-        } else if let Some(v) = record.source.strip_prefix("algorithm_default:") {
-            AssumptionSource::AlgorithmDefault { algorithm: Arc::from(v) }
-        } else if let Some(v) = record.source.strip_prefix("derived:") {
-            AssumptionSource::Derived { from: Arc::from(v) }
-        } else {
-            return Err(IoError::Convert(format!("unknown assumption source `{}`", record.source)));
-        };
-        let scope = match record.scope.as_str() {
-            "global" => AssumptionScope::Global,
-            "identification" => AssumptionScope::Identification,
-            "estimation" => AssumptionScope::Estimation,
-            "discovery" => AssumptionScope::Discovery,
-            values if values.starts_with("variables:[") && values.ends_with(']') => {
-                let raw = &values[11..values.len() - 1];
-                let variables = if raw.is_empty() {
-                    Vec::new()
-                } else {
-                    raw.split(',')
-                        .map(|id| {
-                            id.parse::<u32>().map(VariableId::from_raw).map_err(|e| {
-                                IoError::Convert(format!(
-                                    "invalid variable assumption scope `{values}`: {e}"
-                                ))
-                            })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?
-                };
-                AssumptionScope::Variables { variables: variables.into() }
-            }
-            other => {
-                return Err(IoError::Convert(format!("unsupported assumption scope `{other}`")));
-            }
-        };
-        let status = match record.status.as_str() {
-            "declared" => AssumptionStatus::Declared,
-            "supported" => AssumptionStatus::Supported,
-            "contradicted" => AssumptionStatus::Contradicted,
-            "untestable" => AssumptionStatus::Untestable,
-            other => return Err(IoError::Convert(format!("unknown assumption status `{other}`"))),
-        };
-        set.push(AssumptionRecord { assumption, source, scope, status });
-    }
-    Ok(set)
-}
-
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-        Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, Value,
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+        AssumptionStatus, Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, Value,
     };
 
     use super::*;
