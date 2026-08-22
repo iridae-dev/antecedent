@@ -129,7 +129,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **0.7.1**).
+Workspace and Python package version are kept in sync (currently **0.9.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.

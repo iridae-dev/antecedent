@@ -1,8 +1,12 @@
 # Security, licensing, unsafe-code, and dependency review 
 
 Date: 2026-07-21 
-Scope: workspace crates + `python` extension (package version **0.7.1**) 
+Scope: workspace crates + `python` extension (package version **0.7.1**, the last version this review was actually run against)
 ADR: [0017](../adr/0017-release-prep.md)
+
+**0.9.0 note:** this review has not been re-run against 0.9.0. Bumping the
+version string here does not constitute a new pass; nothing below should be
+read as covering 0.8.x or 0.9.0 changes.
 
 ## Unsafe code policy
 
