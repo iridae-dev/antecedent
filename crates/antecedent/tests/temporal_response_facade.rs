@@ -1,6 +1,7 @@
 //! End-to-end temporal-response facade conformance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 
@@ -8,9 +9,9 @@ use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     InterventionSequence, Lag, MeasurementSpec, MechanismOverride, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseValue, RoleHint, SequencedIntervention,
-    SmallRoleSet, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
-    TemporalResponseSpec, Value, ValueType, VariableId,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, RoleHint,
+    SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation, TemporalEffectQuery,
+    TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -277,6 +278,165 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
     assert!(
         sustained_click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared Sustained must reuse identification"
+    );
+}
+
+fn noisy_pulse_series(n: usize) -> (TimeSeriesData, TemporalDag) {
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut rng = 0x00C0_FFEE_u64;
+    let mut gauss = || {
+        rng = rng.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        let u = ((rng >> 11) as f64) / ((1u64 << 53) as f64);
+        rng = rng.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        let v = ((rng >> 11) as f64) / ((1u64 << 53) as f64);
+        (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
+    };
+    for i in 1..n {
+        t[i] = 0.4 * gauss();
+        y[i] = 0.8 * t[i - 1] + 0.35 * gauss();
+    }
+    let mut builder = CausalSchemaBuilder::new();
+    builder
+        .add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    builder
+        .add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    let schema = builder.build().unwrap();
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    (series, graph)
+}
+
+fn pointwise_halfwidths(result: &antecedent::result::StudyResult) -> Vec<f64> {
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+        &result.response.as_ref().expect("response").uncertainty
+    else {
+        panic!("expected pointwise band on temporal surface");
+    };
+    lower.iter().zip(upper.iter()).map(|(lo, hi)| (hi - lo) * 0.5).collect()
+}
+
+#[test]
+fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
+    let (series, graph) = noisy_pulse_series(200);
+    let ctx = ExecutionContext::for_tests(29);
+    let pulse = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let sustained =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0)
+            .with_policy(TemporalPolicy::sustained(-1, -1))
+            .with_horizon_steps(1);
+    let surface_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap());
+
+    let run_pulse = |reps: u32| {
+        Study::series(series.clone())
+            .graph(graph.clone())
+            .temporal_query(pulse.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(reps)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let run_sustained = |reps: u32| {
+        Study::series(series.clone())
+            .graph(graph.clone())
+            .temporal_query(sustained.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(reps)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let run_surface = |reps: u32| {
+        Study::series(series.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Response(surface_query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(reps)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+
+    let pulse_analytic = run_pulse(0);
+    let pulse_boot = run_pulse(40);
+    let se_pulse_a = pulse_analytic.estimate.se_analytic;
+    let se_pulse_b = pulse_boot.estimate.se_bootstrap.expect("pulse bootstrap SE");
+    assert!(se_pulse_a.is_finite() && se_pulse_a > 0.0, "analytic pulse se={se_pulse_a}");
+    assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
+    assert!(
+        (se_pulse_a - se_pulse_b).abs() > 1e-8,
+        "Pulse must use Study bootstrap when replicates > 0 (analytic={se_pulse_a}, boot={se_pulse_b})"
+    );
+
+    let se_sustained_b = run_sustained(40).estimate.se_bootstrap.expect("sustained bootstrap SE");
+    assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
+    let pulse_sustained_ratio = se_pulse_b / se_sustained_b;
+    assert!(
+        (0.25..=4.0).contains(&pulse_sustained_ratio),
+        "Pulse and single-step Sustained SEs must be comparable (pulse={se_pulse_b}, sustained={se_sustained_b})"
+    );
+
+    let hw_a = pointwise_halfwidths(&run_surface(0));
+    let hw_b = pointwise_halfwidths(&run_surface(40));
+    assert!(hw_a.iter().all(|w| w.is_finite() && *w > 0.0), "analytic surface bands={hw_a:?}");
+    assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
+    assert!(
+        hw_a.iter().zip(&hw_b).any(|(a, b)| (a - b).abs() > 1e-8),
+        "surface SEs must follow Study bootstrap (analytic={hw_a:?}, boot={hw_b:?})"
+    );
+    let z = 1.959_963_984_540_054;
+    let surface_se = hw_b.iter().copied().fold(0.0_f64, f64::max) / z;
+    let ratio = se_pulse_b / surface_se;
+    assert!(
+        (0.25..=4.0).contains(&ratio),
+        "Pulse SE and dose×horizon surface SE must be comparable (pulse={se_pulse_b}, surface={surface_se})"
     );
 }
 

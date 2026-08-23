@@ -24,7 +24,7 @@ use antecedent_core::{
     SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
     TemporalEffectQuery, TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::{TemporalIndexer, TimeSeriesData};
+use antecedent_data::{ResamplingPlan, TemporalIndexer, TimeSeriesData, fill_resample_index_batch};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind,
@@ -35,7 +35,13 @@ use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::temporal_adjustment::TemporalLinearAdjustment;
-use crate::util::range;
+use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, range, sample_std};
+
+/// Resample stream base for the per-horizon coefficient bootstrap.
+///
+/// Fixed rather than per-horizon so every horizon resamples the same rows: the surface is
+/// read across horizons, and common random numbers keep those pointwise SEs comparable.
+const HORIZON_BOOTSTRAP_STREAM: u64 = 0x7E50_u64;
 
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
@@ -45,9 +51,44 @@ const TREATMENT_COL: usize = 1;
 type HorizonTreatmentRange = (f64, f64);
 
 /// What [`TemporalResponseEstimator::run_per_horizon`] returns: the caller's
-/// per-horizon payloads alongside the lag-aligned treatment range and the
-/// identification record retained for each requested horizon.
-type PerHorizonRun<T> = (Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>);
+/// per-horizon payloads alongside the lag-aligned treatment range, the
+/// identification record retained for each requested horizon, and where the
+/// pointwise SEs actually came from.
+type PerHorizonRun<T> =
+    (Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>, SeProvenance);
+
+/// Where a surface's pointwise SEs came from, so the band can say so.
+///
+/// A requested bootstrap that degenerates to the analytic SE, or one truncated by
+/// cancellation, is reported rather than passed off as a completed bootstrap.
+#[derive(Clone, Copy, Debug, Default)]
+struct SeProvenance {
+    /// Horizons where a bootstrap was requested but yielded no usable draws.
+    fell_back: usize,
+    /// Horizons whose bootstrap was cut short by cooperative cancellation.
+    cancelled: usize,
+}
+
+impl SeProvenance {
+    /// Warning describing a degraded bootstrap, or `None` when SEs are as requested.
+    fn warning(self, replicates: u32) -> Option<Diagnostic> {
+        if replicates == 0 || (self.fell_back == 0 && self.cancelled == 0) {
+            return None;
+        }
+        let Self { fell_back, cancelled } = self;
+        Some(Diagnostic::new(
+            "estimate.temporal_response.bootstrap_degraded",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "requested {replicates} bootstrap replicates for the response surface: \
+                 {fell_back} horizon(s) reported the analytic OLS linear-functional SE \
+                 instead (too few resamples survived), {cancelled} horizon(s) were \
+                 truncated by cancellation"
+            ),
+        ))
+    }
+}
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
@@ -214,16 +255,17 @@ impl TemporalResponseEstimator {
         let mut upper = Vec::with_capacity(mean.capacity());
 
         // Layout: value[d * n_horizons + h] — dose major, then horizon.
-        let (per_horizon, horizon_ranges, horizon_identification) = self.run_per_horizon(
-            data,
-            identifications,
-            treatment,
-            outcome,
-            temporal,
-            identification_status,
-            ctx,
-            |fitted| doses.iter().map(|&dose| fitted.mean_and_se_at(dose)).collect::<Vec<_>>(),
-        )?;
+        let (per_horizon, horizon_ranges, horizon_identification, se_provenance) = self
+            .run_per_horizon(
+                data,
+                identifications,
+                treatment,
+                outcome,
+                temporal,
+                identification_status,
+                ctx,
+                |fitted| doses.iter().map(|&dose| fitted.mean_and_se_at(dose)).collect::<Vec<_>>(),
+            )?;
 
         let z = normal_ppf(0.975);
         for d_idx in 0..doses.len() {
@@ -234,6 +276,9 @@ impl TemporalResponseEstimator {
                 upper.push(yhat + z * se);
             }
         }
+
+        let mut support = mean_curve_support(doses, temporal, &horizon_ranges);
+        support.warnings.extend(se_provenance.warning(self.inner.bootstrap_replicates));
 
         Ok(CausalResponse {
             estimand: ResponseFunctional::MeanCurve {
@@ -254,7 +299,7 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
             },
-            support: mean_curve_support(doses, temporal, &horizon_ranges),
+            support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
             horizon_identification: Some(Arc::from(horizon_identification)),
@@ -278,20 +323,21 @@ impl TemporalResponseEstimator {
         // mu_hat(d) = beta_t * d + base_mean, with base_mean independent of d. So
         // averaging g-comp at observed A_i + delta over i collapses exactly to a
         // single evaluation at Abar + delta — an O(n) loop is not needed.
-        let (per_horizon, horizon_ranges, horizon_identification) = self.run_per_horizon(
-            data,
-            identifications,
-            treatment,
-            outcome,
-            temporal,
-            identification_status,
-            ctx,
-            |fitted| {
-                let eval_at = level.unwrap_or_else(|| fitted.treatment_mean() + shift);
-                let (yhat, se) = fitted.mean_and_se_at(eval_at);
-                (eval_at, yhat, se)
-            },
-        )?;
+        let (per_horizon, horizon_ranges, horizon_identification, se_provenance) = self
+            .run_per_horizon(
+                data,
+                identifications,
+                treatment,
+                outcome,
+                temporal,
+                identification_status,
+                ctx,
+                |fitted| {
+                    let eval_at = level.unwrap_or_else(|| fitted.treatment_mean() + shift);
+                    let (yhat, se) = fitted.mean_and_se_at(eval_at);
+                    (eval_at, yhat, se)
+                },
+            )?;
 
         let z = normal_ppf(0.975);
         let mut eval_levels = Vec::with_capacity(per_horizon.len());
@@ -306,6 +352,10 @@ impl TemporalResponseEstimator {
         }
 
         let grid: Vec<f64> = temporal.horizons.iter().map(|h| f64::from(*h)).collect();
+        let mut support =
+            intervention_support(&eval_levels, level, shift, temporal, &horizon_ranges);
+        support.warnings.extend(se_provenance.warning(self.inner.bootstrap_replicates));
+
         Ok(CausalResponse {
             estimand: ResponseFunctional::InterventionResponse {
                 outcome,
@@ -326,7 +376,7 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
             },
-            support: intervention_support(&eval_levels, level, shift, temporal, &horizon_ranges),
+            support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
             horizon_identification: Some(Arc::from(horizon_identification)),
@@ -352,6 +402,7 @@ impl TemporalResponseEstimator {
         let mut results = Vec::with_capacity(temporal.horizons.len());
         let mut horizon_ranges = Vec::with_capacity(temporal.horizons.len());
         let mut horizon_identification = Vec::with_capacity(temporal.horizons.len());
+        let mut se_provenance = SeProvenance::default();
 
         for (i, &horizon) in temporal.horizons.iter().enumerate() {
             let (estimand, indexer) = identifications[i];
@@ -373,10 +424,13 @@ impl TemporalResponseEstimator {
                 indexer,
                 identification_status,
             )?);
+            se_provenance.fell_back +=
+                usize::from(fitted.bootstrap_fell_back(self.inner.bootstrap_replicates));
+            se_provenance.cancelled += usize::from(fitted.bootstrap_cancelled());
             results.push(per_horizon(&fitted));
         }
 
-        Ok((results, horizon_ranges, horizon_identification))
+        Ok((results, horizon_ranges, horizon_identification, se_provenance))
     }
 
     fn fit_horizon(
@@ -408,7 +462,14 @@ impl TemporalResponseEstimator {
         let adj = TemporalLinearAdjustment { inner: self.inner.clone() };
         let prepared =
             adj.prepare(data, estimand, &pulse_query, indexer, None, &ctx.kernel_policy)?;
-        FittedHorizon::fit(prepared, ols_ws)
+        FittedHorizon::fit(prepared, ols_ws, self.inner.bootstrap_replicates, ctx)
+    }
+
+    /// Copy the `Study` bootstrap / replicate count onto the shared OLS machinery.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.inner.bootstrap_replicates = replicates;
+        self
     }
 }
 
@@ -427,12 +488,17 @@ struct FittedHorizon {
     cov: Vec<f64>,
     /// Design column means (length p); index `TREATMENT_COL` is `Abar`.
     column_means: Vec<f64>,
+    /// Bootstrap coefficient draws when `inner.bootstrap_replicates > 0` and enough
+    /// replicates survived; `None` means [`Self::mean_and_se_at`] reports the analytic SE.
+    bootstrap: Option<HorizonBootstrap>,
 }
 
 impl FittedHorizon {
     fn fit(
         prepared: PreparedEstimationProblem,
         ols_ws: &mut LeastSquaresWorkspace,
+        bootstrap_replicates: u32,
+        ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
         let n = prepared.design.nrows;
         let p = prepared.design.ncols;
@@ -448,14 +514,27 @@ impl FittedHorizon {
         )
         .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
-        Ok(Self { prepared, coefs: fit.coefficients, cov, column_means })
+        let bootstrap =
+            bootstrap_horizon_coefs(&prepared, n, p, bootstrap_replicates, ctx, ols_ws)?;
+        Ok(Self { prepared, coefs: fit.coefficients, cov, column_means, bootstrap })
+    }
+
+    /// Whether a bootstrap was requested but produced no usable draws, so
+    /// [`Self::mean_and_se_at`] fell back to the analytic SE.
+    const fn bootstrap_fell_back(&self, replicates: u32) -> bool {
+        replicates > 0 && self.bootstrap.is_none()
+    }
+
+    /// Whether cancellation truncated the bootstrap that produced this horizon's SEs.
+    fn bootstrap_cancelled(&self) -> bool {
+        self.bootstrap.as_ref().is_some_and(|b| b.cancelled)
     }
 
     fn treatment_mean(&self) -> f64 {
         self.column_means[TREATMENT_COL]
     }
 
-    /// `(mu_hat(dose), se(dose))` via the exact linear-functional closed form.
+    /// `(mu_hat(dose), se(dose))` via OLS point estimate and bootstrap or analytic SE.
     fn mean_and_se_at(&self, dose: f64) -> (f64, f64) {
         let p = self.coefs.len();
         let mut cbar = self.column_means.clone();
@@ -464,15 +543,104 @@ impl FittedHorizon {
         for (&coef, &c) in self.coefs.iter().zip(cbar.iter()) {
             mu += coef * c;
         }
-        let mut var = 0.0;
-        for (i, &ci) in cbar.iter().enumerate() {
-            let row = &self.cov[i * p..i * p + p];
-            let row_sum: f64 = row.iter().zip(cbar.iter()).map(|(&cov_ij, &cj)| cov_ij * cj).sum();
-            var += ci * row_sum;
-        }
-        let se = var.max(0.0).sqrt();
+        let se = if let Some(boots) = &self.bootstrap {
+            let mus: Vec<f64> = boots
+                .coefs
+                .iter()
+                .map(|beta| beta.iter().zip(cbar.iter()).map(|(&b, &c)| b * c).sum::<f64>())
+                .collect();
+            sample_std(&mus)
+        } else {
+            let mut var = 0.0;
+            for (i, &ci) in cbar.iter().enumerate() {
+                let row = &self.cov[i * p..i * p + p];
+                let row_sum: f64 =
+                    row.iter().zip(cbar.iter()).map(|(&cov_ij, &cj)| cov_ij * cj).sum();
+                var += ci * row_sum;
+            }
+            var.max(0.0).sqrt()
+        };
         (mu, se)
     }
+}
+
+/// Retained bootstrap coefficient draws for one horizon.
+///
+/// The surface evaluates `cbar(a)'β` at many doses, so the whole coefficient vector is
+/// kept per replicate rather than collapsing to a single SE the way [`crate::util::bootstrap_se`]
+/// does. Failure accounting matches that helper: too few survivors, or more than
+/// [`BOOTSTRAP_MAX_FAILURE_FRAC`] soft failures, means no bootstrap SE is reported.
+struct HorizonBootstrap {
+    coefs: Vec<Vec<f64>>,
+    cancelled: bool,
+}
+
+/// IID bootstrap coefficient draws for one horizon's OLS fit.
+///
+/// Returns `Ok(None)` when no bootstrap was requested, when cancellation stopped the loop
+/// before two replicates survived, or when singular resamples pushed the failure fraction
+/// past the crate-wide threshold. Callers fall back to the analytic linear-functional SE
+/// and must say so — a silently-analytic SE reported as a bootstrap SE is a lie about the
+/// uncertainty's provenance.
+fn bootstrap_horizon_coefs(
+    prepared: &PreparedEstimationProblem,
+    n: usize,
+    p: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+    ols_ws: &mut LeastSquaresWorkspace,
+) -> Result<Option<HorizonBootstrap>, EstimationError> {
+    if replicates == 0 || n == 0 {
+        return Ok(None);
+    }
+    let n_rep = replicates as usize;
+    let mut indexes = vec![0u32; n * n_rep];
+    fill_resample_index_batch(
+        ResamplingPlan::IidBootstrap,
+        n,
+        n_rep,
+        None,
+        ctx,
+        HORIZON_BOOTSTRAP_STREAM,
+        &mut indexes,
+    )
+    .map_err(EstimationError::from)?;
+    let mut x_boot = vec![0.0; n * p];
+    let mut y_boot = vec![0.0; n];
+    let mut coefs = Vec::with_capacity(n_rep);
+    let mut cancelled = false;
+    for r in 0..n_rep {
+        if ctx.cancellation.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+        let sl = &indexes[r * n..(r + 1) * n];
+        for (i, &src) in sl.iter().enumerate() {
+            let src = src as usize;
+            y_boot[i] = prepared.design.outcome[src];
+            for c in 0..p {
+                x_boot[c * n + i] = prepared.design.matrix[c * n + src];
+            }
+        }
+        if let Ok(fit) = FaerBackend.least_squares(&x_boot, n, p, &y_boot, ols_ws) {
+            coefs.push(fit.coefficients);
+        }
+        if let Some(progress) = &ctx.progress {
+            progress.report((r + 1) as f64 / n_rep as f64, "bootstrap");
+        }
+    }
+    if coefs.len() < 2 {
+        return Ok(None);
+    }
+    // Unattempted replicates after cancellation are not failures (mirrors
+    // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
+    if !cancelled {
+        let failed = replicates.saturating_sub(u32::try_from(coefs.len()).unwrap_or(u32::MAX));
+        if f64::from(failed) / f64::from(replicates) > BOOTSTRAP_MAX_FAILURE_FRAC {
+            return Ok(None);
+        }
+    }
+    Ok(Some(HorizonBootstrap { coefs, cancelled }))
 }
 
 fn design_column_means(design: &CompiledDesign) -> Vec<f64> {
@@ -1572,5 +1740,55 @@ mod tests {
         // The union envelope would have classified `dose` as supported.
         assert!(dose >= short_range.0 && dose <= short_range.1);
         assert!(dose < long_range.0 || dose > long_range.1);
+    }
+
+    #[test]
+    fn bootstrap_se_differs_from_analytic_ols_se() {
+        let (data, graph) = synthetic_series(240);
+        let (estimand, indexer) = identify(&graph, 3);
+        let temporal =
+            TemporalResponseSpec::new(vec![3u32], TemporalPolicy::pulse(0), None).unwrap();
+        let mut ols_ws = LeastSquaresWorkspace::default();
+        let analytic = TemporalResponseEstimator::new()
+            .fit_horizon(
+                &data,
+                &estimand,
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &temporal,
+                3,
+                &indexer,
+                &ExecutionContext::for_tests(13),
+                &mut ols_ws,
+            )
+            .unwrap();
+        let boot = TemporalResponseEstimator::new()
+            .with_bootstrap_replicates(40)
+            .fit_horizon(
+                &data,
+                &estimand,
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &temporal,
+                3,
+                &indexer,
+                &ExecutionContext::for_tests(13),
+                &mut ols_ws,
+            )
+            .unwrap();
+        let (_, se_a) = analytic.mean_and_se_at(1.0);
+        let (_, se_b) = boot.mean_and_se_at(1.0);
+        assert!(se_a.is_finite() && se_a > 0.0, "analytic se={se_a}");
+        assert!(se_b.is_finite() && se_b > 0.0, "bootstrap se={se_b}");
+        assert!(
+            (se_a - se_b).abs() > 1e-6,
+            "Study bootstrap must change the surface SE (analytic={se_a}, bootstrap={se_b})"
+        );
+        let (mu_a, _) = analytic.mean_and_se_at(1.0);
+        let (mu_b, _) = boot.mean_and_se_at(1.0);
+        assert!(
+            (mu_a - mu_b).abs() < 1e-12,
+            "point estimate must stay full-sample OLS (analytic={mu_a}, boot={mu_b})"
+        );
     }
 }

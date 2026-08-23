@@ -3,7 +3,7 @@
 Intentions from the 0.5 causal-response release through 1.0 and after.
 This is not a working checklist for an in-flight cut.
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ## How to read this
 
@@ -132,10 +132,30 @@ No new estimands. No new identification theories.
 
 ---
 
+## 0.9.1 — Matrix sentences
+
+Cutting as **0.9.1**. The paragraph below is the 0.9.1 intent; it is not an
+open checklist.
+
+Patch on tagged 0.9.0. 0.9.0’s limitations are honest; some axis names
+were not. **Implement what those licensed rows already say** — do not
+demote the axis. `full` runs PPC / prior-sensitivity on PAG and
+graph-posterior ATE; `ObservationSpec != Complete` consumes
+`observation_primitives`; temporal Pulse / Sustained / dose×horizon
+share the Study bootstrap SE contract; Bayesian panel uses hierarchical
+unit effects; licensed Bayesian Pulse / single-step Sustained have a
+coverage case in `scripts/gate_calibration.sh`.
+
+Working checklist: [TODO.md](TODO.md) (local). Known-truth mixture pins
+and identification caching wait for 1.1.
+
+---
+
 ## 1.0 — Contract freeze
 
-The version bump. The public API, support matrix, artifact format, and
-scientific refusals do not move except by a later major.
+The version bump of the 0.9.1 matrix. The public API, support matrix,
+artifact format, and scientific refusals do not move except by a later
+major.
 
 1.0 ships when:
 
@@ -157,10 +177,17 @@ Minors add cells to the frozen matrix without new query kinds or new
 identification theories: another licensed observation mechanism under the
 existing vocabulary, another graph class for an existing query, another pinned
 oracle, a documented EconML handoff (Antecedent names the adjustment set and
-identification status; EconML estimates heterogeneity).
+identification status; EconML estimates heterogeneity). After 1.4 the remaining
+weight is temporal and Bayesian licensing — policies, incomplete temporal
+graphs, and Bayesian cells for queries the staged handle already runs —
+then composition of those cells (discovery → accept → analyze, frozen
+plans, design ranking, refusals that point at the next licensed neighbor)
+without adding query kinds.
 
 A 1.x item that needs a new query type, a new graph semantics, a new
 identification theory, or a new language runtime is not 1.x.
+
+Working checklist: [TODO.md](TODO.md).
 
 ---
 

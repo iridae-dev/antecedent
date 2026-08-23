@@ -255,6 +255,7 @@ impl super::Study {
         let keep = identified_envelope_keys(&graphs);
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
+        let mut atoms = Vec::new();
         for (key, _estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
@@ -267,6 +268,8 @@ impl super::Study {
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+            let weight = identified_weight_for_key(&graphs, key);
+            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -297,7 +300,7 @@ impl super::Study {
         }
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = match self.refute {
+        let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
                 let (reports, na_diagnostics) = run_refuters(
@@ -317,15 +320,17 @@ impl super::Study {
                 reports
             }
         };
-        if matches!(self.refute, RefuteSuite::Full) {
-            // PPC suite needs a single-graph fit context; skip with diagnostic when envelope-only.
-            diagnostics.push(Diagnostic::new(
-                "refute.bayesian.ppc.skipped",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Bayesian PPC suite skipped for multi-graph PAG envelope; effect refuters ran on mixture mean",
-            ));
-        }
+        let predictive_checks = run_envelope_bayesian_full_validation(
+            self.refute,
+            &cfg,
+            &est,
+            &atoms,
+            &mut posterior,
+            estimate.ate,
+            ctx,
+            &mut refutations,
+            &mut diagnostics,
+        )?;
 
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -352,6 +357,7 @@ impl super::Study {
                 )),
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
+                predictive_checks,
                 ..Default::default()
             },
         }))
@@ -559,6 +565,7 @@ impl super::Study {
         let keep = identified_envelope_keys(&graphs);
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
+        let mut atoms = Vec::new();
         for (key, _estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
@@ -570,6 +577,8 @@ impl super::Study {
             est.prior.clone_from(&envelope_prior);
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+            let weight = identified_weight_for_key(&graphs, key);
+            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -603,7 +612,7 @@ impl super::Study {
         }
 
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = match self.refute {
+        let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
                 let (reports, na_diagnostics) = run_refuters(
@@ -623,6 +632,17 @@ impl super::Study {
                 reports
             }
         };
+        let predictive_checks = run_envelope_bayesian_full_validation(
+            self.refute,
+            &cfg,
+            &est,
+            &atoms,
+            &mut posterior,
+            estimate.ate,
+            ctx,
+            &mut refutations,
+            &mut diagnostics,
+        )?;
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
@@ -652,6 +672,7 @@ impl super::Study {
                 )),
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
+                predictive_checks,
                 ..Default::default()
             },
         }))
