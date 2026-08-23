@@ -37,7 +37,8 @@ impl super::Study {
         let (estimate, mut posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
                 let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                bprep.unit_ids = Some(cluster_ids.clone());
                 let (resolved_prior, conflict_summary) =
                     resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
                 bayes.inner.prior = resolved_prior;
@@ -57,7 +58,7 @@ impl super::Study {
                 )
             }
             InferenceMode::Frequentist => {
-                estimator.inner.cluster_ids = Some(cluster_ids);
+                estimator.inner.cluster_ids = Some(cluster_ids.clone());
                 estimator.inner.panel_times = Some(panel_times);
                 estimator.inner.se_kind = AnalyticSeKind::PanelClusterHac { lag: max_lag };
                 let mut workspace = EstimationWorkspace::default();
@@ -107,7 +108,8 @@ impl super::Study {
         // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
         if matches!(self.refute, RefuteSuite::Full) {
             if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
-                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                bprep.unit_ids = Some(cluster_ids.clone());
                 posterior = Some(apply_temporal_prior_sensitivity(
                     cfg,
                     &bprep,

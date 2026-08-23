@@ -11,7 +11,8 @@
 use std::sync::Arc;
 
 use antecedent::estimate::{identify_static_query, select_estimand};
-use antecedent::{EstimatorId, IdentifierId, RefuteSuite, Study};
+use antecedent::validate::PredictiveCheckKind;
+use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
     ConditionalEffectQuery, CounterfactualQuery, ExecutionContext, IdentificationStatus,
@@ -83,6 +84,48 @@ fn pag_ate_via_generalized_adjustment() {
     assert!(result.estimate.ate.is_finite());
     assert!((result.estimate.ate - 2.0).abs() < 0.2);
     assert!(!matches!(result.identification.status, IdentificationStatus::NotIdentified));
+}
+
+#[test]
+fn pag_bayesian_full_runs_mixture_ppc_and_prior_sensitivity() {
+    let (data, _) = chain_table(80);
+    let mut pag = Pag::with_variables(2);
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let result = Study::tabular(data)
+        .graph(pag)
+        .query(q)
+        .identifier(IdentifierId::GeneralizedAdjustment)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .refute(RefuteSuite::Full)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(2))
+        .unwrap();
+    assert!(
+        result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Prior),
+        "PAG Bayesian full must attach mixture-weighted prior PPC, got {:?}",
+        result.predictive_checks
+    );
+    assert!(
+        result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Posterior),
+        "PAG Bayesian full must attach mixture-weighted posterior PPC"
+    );
+    assert!(
+        result.refutations.iter().any(|r| r.refuter.contains("prior_sensitivity")),
+        "PAG Bayesian full must run prior-sensitivity, got {:?}",
+        result.refutations
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.bayesian.ppc.envelope"),
+        "expected envelope PPC diagnostic, got {:?}",
+        result.diagnostics
+    );
+    assert!(
+        result.diagnostics.iter().all(|d| d.code.as_ref() != "refute.bayesian.ppc.skipped"),
+        "refute.bayesian.ppc.skipped must be retired"
+    );
 }
 
 #[test]

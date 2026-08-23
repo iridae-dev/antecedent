@@ -30,7 +30,10 @@ use antecedent_prob::{
     PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
     PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec, sample_gaussian_mvn,
 };
-use antecedent_stats::{CompiledDesign, DesignColumnRole, GlmFamily};
+use antecedent_stats::{
+    CompiledDesign, DenseLinearAlgebra, DesignColumnRole, FaerBackend, GlmFamily,
+    LeastSquaresWorkspace,
+};
 
 use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
@@ -588,6 +591,7 @@ impl BayesianGComputationAte {
             control,
             overlap: self.overlap,
             coef_names: Some(coef_names),
+            unit_ids: None,
         })
     }
 
@@ -605,6 +609,7 @@ impl BayesianGComputationAte {
             control: prep.control,
             overlap: prep.overlap,
             coef_names: None,
+            unit_ids: None,
         }
     }
 
@@ -715,11 +720,31 @@ impl BayesianGComputationAte {
             seed: self.seed,
             ..BayesFitOptions::default()
         };
+        if let Some(ids) = problem.unit_ids.as_deref() {
+            if ids.len() != problem.design.nrows {
+                return Err(EstimationError::data_msg(
+                    "unit_ids length must match the design row count",
+                ));
+            }
+        }
+        let whitened = problem.unit_ids.as_deref().and_then(|ids| {
+            random_intercept_gls_whiten(
+                &problem.design.matrix,
+                &problem.design.outcome,
+                problem.design.nrows,
+                problem.design.ncols,
+                ids,
+            )
+        });
+        let (x_fit, y_fit) = match &whitened {
+            Some((x, y)) => (x.as_slice(), y.as_slice()),
+            None => (problem.design.matrix.as_ref(), problem.design.outcome.as_ref()),
+        };
         let design_ref = BayesDesignRef {
-            x_colmajor: &problem.design.matrix,
+            x_colmajor: x_fit,
             nrows: problem.design.nrows,
             ncols: problem.design.ncols,
-            y: &problem.design.outcome,
+            y: y_fit,
             weights: None,
             offsets: None,
         };
@@ -1060,6 +1085,86 @@ fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Ar
     }
 }
 
+/// Compound-symmetry GLS whitening for a random intercept (coefficient fit only).
+///
+/// Returns `None` when unit ids are unusable (length mismatch, <2 units, all
+/// singleton units, or non-finite MOM variance components). The transform
+/// `v*_ij = v_ij - (1 - 1/√μ_i) v̄_i` with `μ_i = 1 + n_i τ²/σ²` yields
+/// residual variance σ² I, so the conjugate Gaussian residual model is unchanged.
+/// G-computation must keep the original design matrix.
+fn random_intercept_gls_whiten(
+    x: &[f64],
+    y: &[f64],
+    n: usize,
+    p: usize,
+    unit_ids: &[u32],
+) -> Option<(Vec<f64>, Vec<f64>)> {
+    if unit_ids.len() != n || y.len() < n || n < 4 || p == 0 || x.len() < n * p {
+        return None;
+    }
+    let mut groups: std::collections::BTreeMap<u32, Vec<usize>> = std::collections::BTreeMap::new();
+    for (i, &id) in unit_ids.iter().enumerate() {
+        groups.entry(id).or_default().push(i);
+    }
+    let g = groups.len();
+    if g < 2 || groups.values().all(|rows| rows.len() < 2) {
+        return None;
+    }
+    let mut ols_ws = LeastSquaresWorkspace::default();
+    let ols = FaerBackend.least_squares(x, n, p, y, &mut ols_ws).ok()?;
+    let mut unit_mean_resid = Vec::with_capacity(g);
+    let mut within_ss = 0.0;
+    let mut df_within = 0.0;
+    for rows in groups.values() {
+        let n_i = rows.len() as f64;
+        let mean_e = rows.iter().map(|&i| ols.residuals[i]).sum::<f64>() / n_i;
+        unit_mean_resid.push((rows.len(), mean_e));
+        for &i in rows {
+            let d = ols.residuals[i] - mean_e;
+            within_ss += d * d;
+        }
+        df_within += n_i - 1.0;
+    }
+    if df_within < 1.0 {
+        return None;
+    }
+    let sigma2 = within_ss / df_within;
+    if !sigma2.is_finite() || sigma2 <= 1e-18 {
+        return None;
+    }
+    let grand = unit_mean_resid.iter().map(|&(n_i, m)| n_i as f64 * m).sum::<f64>() / n as f64;
+    let ssb =
+        unit_mean_resid.iter().map(|&(n_i, m)| n_i as f64 * (m - grand) * (m - grand)).sum::<f64>();
+    let msb = ssb / (g as f64 - 1.0);
+    let sum_n2: f64 = unit_mean_resid.iter().map(|&(n_i, _)| (n_i * n_i) as f64).sum();
+    let n0 = (n as f64 - sum_n2 / n as f64) / (g as f64 - 1.0);
+    if !n0.is_finite() || n0 <= 0.0 {
+        return None;
+    }
+    let tau2 = ((msb - sigma2) / n0).max(0.0);
+    if tau2 <= 0.0 {
+        return None;
+    }
+    let mut y_star = y.to_vec();
+    let mut x_star = x.to_vec();
+    for rows in groups.values() {
+        let n_i = rows.len() as f64;
+        let mu = 1.0 + n_i * tau2 / sigma2;
+        let lambda = 1.0 - 1.0 / mu.sqrt();
+        let ybar = rows.iter().map(|&i| y[i]).sum::<f64>() / n_i;
+        for &i in rows {
+            y_star[i] = y[i] - lambda * ybar;
+        }
+        for c in 0..p {
+            let xbar = rows.iter().map(|&i| x[c * n + i]).sum::<f64>() / n_i;
+            for &i in rows {
+                x_star[c * n + i] = x[c * n + i] - lambda * xbar;
+            }
+        }
+    }
+    Some((x_star, y_star))
+}
+
 /// Prepared Bayesian g-comp problem.
 #[derive(Clone, Debug)]
 pub struct PreparedBayesianProblem {
@@ -1077,6 +1182,8 @@ pub struct PreparedBayesianProblem {
     pub overlap: OverlapPolicy,
     /// Optional durable coefficient names aligned to design columns.
     pub coef_names: Option<Arc<[Arc<str>]>>,
+    /// Optional unit / cluster ids aligned to design rows (panel Bayesian GLS).
+    pub unit_ids: Option<Vec<u32>>,
 }
 
 /// Workspace for Bayesian g-comp.
@@ -1659,6 +1766,588 @@ mod tests {
         let mean = post.summaries.mean[eq];
         assert!((mean - 0.8).abs() < 0.05, "bayesian temporal pulse mean={mean}");
         assert!(post.probability_below(0.0).unwrap().is_finite());
+    }
+
+    #[test]
+    fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
+        use crate::adjustment::LinearAdjustmentAte;
+        use antecedent_core::AverageEffectQuery;
+
+        let n_units = 40usize;
+        let t_len = 8usize;
+        let n = n_units * t_len;
+        let mut t = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut z = Vec::with_capacity(n);
+        let mut unit_ids = Vec::with_capacity(n);
+        for u in 0..n_units {
+            let a = if u % 2 == 0 { 1.0 } else { 0.0 };
+            let unit_eff = 1.6 * ((u as f64) * 0.31).sin();
+            for k in 0..t_len {
+                t.push(a);
+                z.push(0.0);
+                y.push(2.0 * a + unit_eff + 0.15 * ((k + 1) as f64).sin());
+                unit_ids.push(u as u32);
+            }
+        }
+        let (data, treatment, outcome, _z) = {
+            // Reuse column layout T,Y,Z via a local table.
+            let mut b = CausalSchemaBuilder::new();
+            b.add_variable(
+                "T",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            b.add_variable(
+                "Y",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            b.add_variable(
+                "Z",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            let schema = b.build().unwrap();
+            let validity = ValidityBitmap::all_valid(n);
+            let cols = vec![
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                        .unwrap(),
+                ),
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity.clone())
+                        .unwrap(),
+                ),
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(2), Arc::from(z), validity).unwrap(),
+                ),
+            ];
+            let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+            (
+                TabularData::new(storage),
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+            )
+        };
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([] as [VariableId; 0]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(treatment, outcome);
+        let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = freq.prepare(&data, &estimand, &query).unwrap();
+        let stacked = BayesianGComputationAte::from_prepared_estimation(&prep);
+        let mut hierarchical = stacked.clone();
+        hierarchical.unit_ids = Some(unit_ids);
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 400,
+            seed: 11,
+            prior_scale: 10.0,
+            ..BayesianGComputationAte::new()
+        };
+        let mut ws = BayesianGCompWorkspace::default();
+        let ctx = ExecutionContext::for_tests(4);
+        let post_s = bayes
+            .fit(&stacked, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+        let post_h = bayes
+            .fit(&hierarchical, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+        let eq = post_s.effect_column().unwrap();
+        let sd_s = post_s.summaries.sd[eq];
+        let sd_h = post_h.summaries.sd[eq];
+        assert!(sd_s.is_finite() && sd_h.is_finite(), "sd stacked={sd_s} hierarchical={sd_h}");
+        let pin: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/panel_hierarchical_vs_stacked/expected.json"
+        ))
+        .unwrap();
+        let min_ratio = pin["min_posterior_sd_ratio_hierarchical_over_stacked"].as_f64().unwrap();
+        assert!(
+            sd_h > sd_s * min_ratio,
+            "hierarchical posterior must be wider than stacked iid (stacked={sd_s}, hierarchical={sd_h}, min_ratio={min_ratio})"
+        );
+    }
+
+    #[test]
+    fn unit_ids_length_mismatch_is_an_error() {
+        use crate::adjustment::LinearAdjustmentAte;
+        use antecedent_core::AverageEffectQuery;
+
+        let n = 40usize;
+        let t = [0.0, 1.0].repeat(n / 2);
+        let y: Vec<f64> = t.iter().map(|&a| 2.0 * a).collect();
+        let z = vec![0.0; n];
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "T",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(z), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([] as [VariableId; 0]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = freq.prepare(&data, &estimand, &query).unwrap();
+        let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+        bprep.unit_ids = Some(vec![0, 1]);
+        let bayes = BayesianGComputationAte::conjugate();
+        let mut ws = BayesianGCompWorkspace::default();
+        let err = bayes
+            .fit(
+                &bprep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("unit_ids"),
+            "length mismatch must fail closed, got {err}"
+        );
+    }
+
+    /// Seeded standard-normal draws for the calibration DGPs: Box-Muller over an LCG.
+    ///
+    /// Test-local on purpose — the calibration cases need a stream that is reproducible
+    /// from a plain `u64` without pulling in the execution context's RNG plumbing.
+    fn box_muller_lcg(seed: u64) -> impl FnMut() -> f64 {
+        const LCG_MUL: u64 = 6_364_136_223_846_793_005;
+        const TWO_POW_53: f64 = (1u64 << 53) as f64;
+        let mut state = seed;
+        let mut next_unit = move || {
+            state = state.wrapping_mul(LCG_MUL).wrapping_add(1);
+            ((state >> 11) as f64) / TWO_POW_53
+        };
+        move || {
+            let u = next_unit();
+            let v = next_unit();
+            (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
+        }
+    }
+
+    fn noisy_lag1_pulse_series(n: usize, seed: u64) -> antecedent_data::TimeSeriesData {
+        use antecedent_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut gauss = box_muller_lcg(seed);
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            x[t] = 0.4 * gauss();
+            y[t] = 0.8 * x[t - 1] + 0.35 * gauss();
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap()
+    }
+
+    fn pulse_graph() -> antecedent_graph::TemporalDag {
+        use antecedent_core::Lag;
+        use antecedent_graph::{TemporalDag, ensure_lagged};
+        let mut g = TemporalDag::empty();
+        let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(x1, y0).unwrap();
+        g
+    }
+
+    fn interval_covers(post: &CausalPosterior, truth: f64, level: f64) -> bool {
+        let eq = post.effect_column().unwrap();
+        let col = post.draws.column(eq).unwrap();
+        let mut v = col.to_vec();
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let lo_p = (1.0 - level) / 2.0;
+        let hi_p = 1.0 - lo_p;
+        // `q` is a probability and `last >= 0`, so the rounded product is a valid
+        // index; the clamp makes that explicit for the boundary levels.
+        #[allow(clippy::cast_sign_loss)]
+        let at = |q: f64| {
+            let last = (v.len() - 1) as f64;
+            v[(last * q).round().clamp(0.0, last) as usize]
+        };
+        truth >= at(lo_p) && truth <= at(hi_p)
+    }
+
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn bayesian_pulse_conjugate_nominal_90_coverage() {
+        use crate::temporal_adjustment::TemporalLinearAdjustment;
+        use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
+        use antecedent_graph::ensure_lagged;
+        use antecedent_identify::TemporalBackdoorIdentifier;
+
+        let n_sim = 80u32;
+        let n = 160usize;
+        let mut covered = 0u32;
+        let g = pulse_graph();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let temporal = TemporalLinearAdjustment::new();
+        let bayes = BayesianTemporalGcomp {
+            inner: BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 240,
+                seed: 21,
+                prior_scale: 8.0,
+                ..BayesianGComputationAte::new()
+            },
+        };
+        for s in 0..n_sim {
+            let data = noisy_lag1_pulse_series(n, 9_000 + u64::from(s));
+            let prep = temporal
+                .prepare(
+                    &data,
+                    estimand,
+                    &q,
+                    &id_res.indexer,
+                    None,
+                    &ExecutionContext::for_tests(1).kernel_policy,
+                )
+                .unwrap();
+            let bprep = BayesianTemporalGcomp::from_prepared_estimation(&prep);
+            let mut ws = BayesianGCompWorkspace::default();
+            let post = bayes
+                .fit(
+                    &bprep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap();
+            if interval_covers(&post, 0.8, 0.9) {
+                covered += 1;
+            }
+        }
+        let rate = f64::from(covered) / f64::from(n_sim);
+        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
+        let lo = (0.9 - 4.0 * se).max(0.70);
+        let hi = (0.9 + 4.0 * se).min(1.0);
+        assert!(
+            rate >= lo && rate <= hi,
+            "bayesian pulse 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
+        );
+        let _ = ensure_lagged;
+    }
+
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
+        use crate::temporal_adjustment::TemporalLinearAdjustment;
+        use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
+        use antecedent_identify::TemporalBackdoorIdentifier;
+
+        let n_sim = 80u32;
+        let n = 160usize;
+        let mut covered = 0u32;
+        let g = pulse_graph();
+        let q = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            -1,
+            1.0,
+        )
+        .with_policy(TemporalPolicy::sustained(-1, -1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let temporal = TemporalLinearAdjustment::new();
+        let bayes = BayesianTemporalGcomp {
+            inner: BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 240,
+                seed: 22,
+                prior_scale: 8.0,
+                ..BayesianGComputationAte::new()
+            },
+        };
+        for s in 0..n_sim {
+            let data = noisy_lag1_pulse_series(n, 11_000 + u64::from(s));
+            let prep = temporal
+                .prepare(
+                    &data,
+                    estimand,
+                    &q,
+                    &id_res.indexer,
+                    None,
+                    &ExecutionContext::for_tests(1).kernel_policy,
+                )
+                .unwrap();
+            let bprep = BayesianTemporalGcomp::from_prepared_estimation(&prep);
+            let mut ws = BayesianGCompWorkspace::default();
+            let post = bayes
+                .fit(
+                    &bprep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap();
+            if interval_covers(&post, 0.8, 0.9) {
+                covered += 1;
+            }
+        }
+        let rate = f64::from(covered) / f64::from(n_sim);
+        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
+        let lo = (0.9 - 4.0 * se).max(0.70);
+        let hi = (0.9 + 4.0 * se).min(1.0);
+        assert!(
+            rate >= lo && rate <= hi,
+            "bayesian sustained 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
+        );
+    }
+
+    fn noisy_lag1_pulse_series_with_unit(
+        n: usize,
+        seed: u64,
+        unit_eff: f64,
+        treat: f64,
+    ) -> antecedent_data::TimeSeriesData {
+        let mut gauss = box_muller_lcg(seed);
+        let x = vec![treat; n];
+        let mut y = vec![0.0; n];
+        // Treatment is constant within unit. Stacked iid treats T repeats as
+        // independent looks at the same contrast; random-intercept GLS must widen.
+        for t in 1..n {
+            y[t] = 0.8 * x[t - 1] + unit_eff + 0.35 * gauss();
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        antecedent_data::TimeSeriesData::try_new(
+            storage,
+            antecedent_data::TimeIndex {
+                regularity: antecedent_data::SamplingRegularity::Regular { interval_ns: 1 },
+                length: n,
+            },
+        )
+        .unwrap()
+    }
+
+    fn unit_effect_lag1_panel(
+        n_units: usize,
+        t_len: usize,
+        seed: u64,
+    ) -> antecedent_data::PanelData {
+        use antecedent_data::{PanelData, PanelUnit};
+        let units: Vec<PanelUnit> = (0..n_units)
+            .map(|u| {
+                let unit_eff = 1.4 * ((u as f64) * 0.37).sin();
+                PanelUnit {
+                    unit_id: u as u32,
+                    series: noisy_lag1_pulse_series_with_unit(
+                        t_len,
+                        seed.wrapping_add(u as u64 * 19),
+                        unit_eff,
+                        if u % 2 == 0 { 1.0 } else { 0.0 },
+                    ),
+                }
+            })
+            .collect();
+        PanelData::try_new(Arc::from(units)).unwrap()
+    }
+
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn bayesian_panel_hierarchical_nominal_90_coverage() {
+        use crate::temporal_adjustment::TemporalLinearAdjustment;
+        use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
+        use antecedent_identify::TemporalBackdoorIdentifier;
+
+        let n_sim = 60u32;
+        let n_units = 24usize;
+        let t_len = 40usize;
+        let mut covered = 0u32;
+        let g = pulse_graph();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let temporal = TemporalLinearAdjustment::new();
+        let bayes = BayesianTemporalGcomp {
+            inner: BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 200,
+                seed: 23,
+                prior_scale: 8.0,
+                ..BayesianGComputationAte::new()
+            },
+        };
+        for s in 0..n_sim {
+            let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + u64::from(s));
+            let (prep, cluster_ids, _) = temporal
+                .prepare_panel(
+                    &panel,
+                    estimand,
+                    &q,
+                    &id_res.indexer,
+                    None,
+                    &ExecutionContext::for_tests(1).kernel_policy,
+                )
+                .unwrap();
+            let mut bprep = BayesianTemporalGcomp::from_prepared_estimation(&prep);
+            bprep.unit_ids = Some(cluster_ids);
+            let mut ws = BayesianGCompWorkspace::default();
+            let post = bayes
+                .fit(
+                    &bprep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap();
+            if interval_covers(&post, 0.8, 0.9) {
+                covered += 1;
+            }
+        }
+        let rate = f64::from(covered) / f64::from(n_sim);
+        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
+        let lo = (0.9 - 4.0 * se).max(0.70);
+        let hi = (0.9 + 4.0 * se).min(1.0);
+        assert!(
+            rate >= lo && rate <= hi,
+            "bayesian panel hierarchical 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
+        );
     }
 
     #[test]

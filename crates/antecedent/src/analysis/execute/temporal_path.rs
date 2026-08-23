@@ -311,10 +311,11 @@ impl super::Study {
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
 
-        // Surface SEs are analytic (`TemporalResponseEstimator::new` zeros
-        // bootstrap). Do not copy Study bootstrap here — it would look like
-        // it affects the curve when FittedHorizon is OLS-only.
-        let estimator = TemporalResponseEstimator::new();
+        // Surface SEs follow the Study bootstrap / replicate contract so Pulse,
+        // single-step Sustained, and the dose × horizon surface report comparable
+        // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
+        let mut estimator = TemporalResponseEstimator::new();
+        estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
         let mut response = estimator
             .estimate(data, &identifications, query, aggregate_status, aggregate_assumptions, ctx)
             .map_err(CausalError::from)?;
