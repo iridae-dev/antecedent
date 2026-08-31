@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.9.1] — 2026-08-23
+## [0.9.1] — 2026-08-31
 
 Patch on 0.9.0. Several licensed rows named a capability the code did not run;
 this cut implements what those rows say rather than demoting the axis. No cells

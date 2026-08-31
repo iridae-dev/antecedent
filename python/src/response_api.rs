@@ -906,6 +906,14 @@ fn analyze_temporal_response(
         let mut builder = Study::series(series);
         builder =
             if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
+        // Response queries are analytic on the facade: `analyze()` refuses `bootstrap=`
+        // for them (see `_analyze.py`), and the static response path is analytic too.
+        // Since 0.9.1 the temporal surface honors the builder's `bootstrap_replicates`
+        // (default 50), so pin it to 0 here — otherwise this public path would silently
+        // return seed-dependent bootstrap bands that disagree with the analytic
+        // conformance pin and the `Study`-level surface test. Explicit bootstrap stays a
+        // core `Study` knob; the facade does not yet expose it.
+        builder = builder.bootstrap_replicates(0);
         let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
