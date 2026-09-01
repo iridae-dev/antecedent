@@ -32,9 +32,9 @@ pub(super) use antecedent_estimate::{
     CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate,
     EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
     FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
-    OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
-    TemporalMediationEstimate, TemporalMediationEstimator, TemporalResponseEstimator,
-    aggregate_effect_envelope, nonidentified_with_prior,
+    OverlapPolicy, PreparedBayesianProblem, RdWorkspace, SharpRegressionDiscontinuity,
+    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
+    TemporalResponseEstimator, aggregate_effect_envelope, nonidentified_with_prior,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
@@ -49,8 +49,8 @@ pub(super) use antecedent_prob::{
     GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples,
 };
 pub(super) use antecedent_validate::{
-    BayesianSuiteContext, PosteriorPredictiveCheck, PriorPredictiveCheck, TemporalRefitContext,
-    ValidationSuite, ValidatorId, stack_panel_tabular, with_conflict_summary,
+    BayesianSuiteContext, PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck,
+    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular, with_conflict_summary,
     with_prior_sensitivity,
 };
 
@@ -394,7 +394,26 @@ mod identify_only_tests {
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             assert_eq!(click.refutations.len(), fresh.refutations.len());
             assert_eq!(click.predictive_checks.len(), fresh.predictive_checks.len());
-            assert!(click.predictive_checks.is_empty());
+            match suite {
+                RefuteSuite::None => {
+                    assert!(click.predictive_checks.is_empty(), "validation none must not run PPC");
+                }
+                RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                    assert!(
+                        click
+                            .predictive_checks
+                            .iter()
+                            .any(|c| { c.kind == antecedent_validate::PredictiveCheckKind::Prior }),
+                        "graph-posterior {suite:?} must attach mixture-weighted prior PPC"
+                    );
+                    assert!(
+                        click.predictive_checks.iter().any(|c| {
+                            c.kind == antecedent_validate::PredictiveCheckKind::Posterior
+                        }),
+                        "graph-posterior {suite:?} must attach mixture-weighted posterior PPC"
+                    );
+                }
+            }
             report_counts.push(click.refutations.len());
         }
         assert_eq!(report_counts[0], 0, "validation none must emit no reports");

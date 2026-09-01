@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-08-31
+
+Patch on 0.9.0. Several licensed rows named a capability the code did not run;
+this cut implements what those rows say rather than demoting the axis. No cells
+added or removed, no new query kinds, no new identification theories. See the
+[release notes](docs/release-notes/v0.9.1.md).
+
+### Fixed
+
+- Bayesian PAG and graph-posterior ATE now run mixture-weighted prior and
+  posterior predictive checks per identified completion (diagnostic
+  `refute.bayesian.ppc.envelope`), and prior-sensitivity under
+  `validation=full`; the `refute.bayesian.ppc.skipped` diagnostic is retired.
+- Licensed `ResponseCurve` runs with `ObservationSpec != Complete` consume
+  `conformance/response/observation_primitives` in CI;
+  `scripts/gate_evidence_reachability.sh` fails if that fixture is cited
+  without an executing test that constructs a non-`Complete` `ObservationSpec`.
+- `TemporalResponseEstimator` honors the Study bootstrap contract, so Pulse,
+  single-step Sustained, and the dose × horizon surface report comparable SEs.
+  A requested bootstrap that degenerates or is cancelled falls back to the
+  analytic SE and says so via `estimate.temporal_response.bootstrap_degraded`
+  instead of reporting an analytic SE as a bootstrap SE.
+- Bayesian panel g-computation uses random-intercept GLS so repeated measures
+  no longer enter the likelihood as independent rows. Mismatched unit ids fail
+  closed.
+- Mixture-weighted predictive dispersion uses the law of total variance, so
+  disagreement between completions widens the envelope instead of being
+  averaged away.
+- Weekly `scripts/gate_calibration.sh` covers Bayesian Pulse, single-step
+  Sustained, and hierarchical panel intervals on known DGPs.
+
 ## [0.9.0] — 2026-08-22
 
 Support is now closed-world: every cell that executes is licensed, while typed
@@ -1478,7 +1509,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.9.0
 [0.7.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.7.0
 [0.6.1]: https://github.com/iridae-dev/antecedent/releases/tag/v0.6.1

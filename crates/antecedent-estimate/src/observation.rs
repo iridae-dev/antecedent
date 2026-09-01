@@ -1034,4 +1034,30 @@ mod tests {
         assert_eq!(selected_adjusted.weights, vec![1.0; 4]);
         assert_eq!(right_adjusted.weights, vec![1.0; 4]);
     }
+
+    #[test]
+    fn selected_aipw_pseudo_values_match_observation_primitives_fixture() {
+        let pin: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/response/observation_primitives/expected.json"
+        ))
+        .unwrap();
+        let sel = &pin["selected_outcome"];
+        let nums = |key: &str| -> Vec<f64> {
+            sel[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap_or(f64::NAN)).collect()
+        };
+        let mu = nums("outcome_regression");
+        let got = selected_outcome_pseudo_values(
+            &nums("observed"),
+            &nums("indicator"),
+            &nums("probabilities"),
+            Some(mu.as_slice()),
+        )
+        .unwrap();
+        let expected = nums("expected_aipw_pseudo_values");
+        let atol = pin["tolerance"]["atol"].as_f64().unwrap_or(1e-12);
+        assert!(
+            got.iter().zip(&expected).all(|(a, b)| (a - b).abs() <= atol),
+            "ObservationMechanismEstimator primitives must consume observation_primitives, got {got:?} expected {expected:?}"
+        );
+    }
 }
