@@ -106,6 +106,67 @@ impl PredictiveCheckReport {
             replicates: self.n_sims,
         }
     }
+
+    /// Mixture-weighted aggregation of per-atom predictive checks of the same kind.
+    ///
+    /// Weights are graph-posterior mass. Location, dispersion statistics, and tail
+    /// probabilities are weighted means; `n_sims` is the maximum across atoms.
+    ///
+    /// `predictive_sd` is the SD of the *mixture* predictive distribution, so it uses
+    /// the law of total variance — `sqrt(Σw σ² + Σw (μ − μ̄)²)`, the within-atom spread
+    /// plus the spread between atom centers. A plain weighted mean of the per-atom SDs
+    /// would drop the second term and report an envelope narrower than any completion
+    /// disagreement justifies.
+    ///
+    /// Atoms with non-positive weight, and atoms whose `kind` differs from the first
+    /// contributing atom, are dropped. Returns `None` when nothing contributes.
+    #[must_use]
+    pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
+        let kind = items.iter().find(|(w, _)| *w > 0.0)?.1.kind;
+        let mut w_sum = 0.0;
+        let mut observed = 0.0;
+        let mut predictive_mean = 0.0;
+        let mut predictive_second = 0.0;
+        let mut p_value = 0.0;
+        let mut observed_dispersion = 0.0;
+        let mut predictive_dispersion_mean = 0.0;
+        let mut dispersion_p_value = 0.0;
+        let mut n_sims = 0u32;
+        for (w, report) in items {
+            if *w <= 0.0 || report.kind != kind {
+                continue;
+            }
+            w_sum += *w;
+            observed += *w * report.observed;
+            predictive_mean += *w * report.predictive_mean;
+            predictive_second += *w
+                * report
+                    .predictive_sd
+                    .mul_add(report.predictive_sd, report.predictive_mean * report.predictive_mean);
+            p_value += *w * report.p_value;
+            observed_dispersion += *w * report.observed_dispersion;
+            predictive_dispersion_mean += *w * report.predictive_dispersion_mean;
+            dispersion_p_value += *w * report.dispersion_p_value;
+            n_sims = n_sims.max(report.n_sims);
+        }
+        if w_sum <= 0.0 {
+            return None;
+        }
+        let predictive_mean = predictive_mean / w_sum;
+        let predictive_sd =
+            (predictive_second / w_sum - predictive_mean * predictive_mean).max(0.0).sqrt();
+        Some(Self {
+            kind,
+            observed: observed / w_sum,
+            predictive_mean,
+            predictive_sd,
+            p_value: p_value / w_sum,
+            observed_dispersion: observed_dispersion / w_sum,
+            predictive_dispersion_mean: predictive_dispersion_mean / w_sum,
+            dispersion_p_value: dispersion_p_value / w_sum,
+            n_sims,
+        })
+    }
 }
 
 /// Prior vs posterior predictive.
@@ -628,6 +689,62 @@ mod tests {
     use antecedent_expr::{ExprId, IdentifiedEstimand};
     use antecedent_identify::IdentificationStatus;
     use antecedent_prob::{ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec};
+
+    fn report(kind: PredictiveCheckKind, mean: f64, sd: f64) -> PredictiveCheckReport {
+        PredictiveCheckReport {
+            kind,
+            observed: mean,
+            predictive_mean: mean,
+            predictive_sd: sd,
+            p_value: 0.4,
+            observed_dispersion: 1.0,
+            predictive_dispersion_mean: 1.0,
+            dispersion_p_value: 0.4,
+            n_sims: 200,
+        }
+    }
+
+    #[test]
+    fn mixture_predictive_sd_includes_between_atom_spread() {
+        // Two completions that disagree on location but are individually tight.
+        // A weighted mean of the SDs would report 1.0 and hide the disagreement.
+        let a = report(PredictiveCheckKind::Posterior, 0.0, 1.0);
+        let b = report(PredictiveCheckKind::Posterior, 4.0, 1.0);
+        let mixed = PredictiveCheckReport::mixture_weighted(&[(0.5, &a), (0.5, &b)]).unwrap();
+        assert!((mixed.predictive_mean - 2.0).abs() < 1e-12, "mean={}", mixed.predictive_mean);
+        // sqrt(1 + 2^2) = sqrt(5): within-atom variance plus between-atom variance.
+        let expected = 5.0f64.sqrt();
+        assert!(
+            (mixed.predictive_sd - expected).abs() < 1e-12,
+            "mixture sd must use total variance, got {} expected {expected}",
+            mixed.predictive_sd
+        );
+        assert_eq!(mixed.n_sims, 200);
+    }
+
+    #[test]
+    fn mixture_weighted_ignores_zero_weight_and_mismatched_kinds() {
+        // A zero-weight leading atom must not decide the mixture's kind.
+        let ignored = report(PredictiveCheckKind::Prior, 100.0, 50.0);
+        let a = report(PredictiveCheckKind::Posterior, 1.0, 1.0);
+        let other_kind = report(PredictiveCheckKind::Prior, 100.0, 50.0);
+        let mixed = PredictiveCheckReport::mixture_weighted(&[
+            (0.0, &ignored),
+            (1.0, &a),
+            (1.0, &other_kind),
+        ])
+        .unwrap();
+        assert_eq!(mixed.kind, PredictiveCheckKind::Posterior);
+        assert!((mixed.predictive_mean - 1.0).abs() < 1e-12, "mean={}", mixed.predictive_mean);
+        assert!((mixed.predictive_sd - 1.0).abs() < 1e-12, "sd={}", mixed.predictive_sd);
+    }
+
+    #[test]
+    fn mixture_weighted_is_none_without_positive_weight() {
+        let a = report(PredictiveCheckKind::Posterior, 1.0, 1.0);
+        assert!(PredictiveCheckReport::mixture_weighted(&[]).is_none());
+        assert!(PredictiveCheckReport::mixture_weighted(&[(0.0, &a)]).is_none());
+    }
 
     fn toy() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
         let n = 60usize;

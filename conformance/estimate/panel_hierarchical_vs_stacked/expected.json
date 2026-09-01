@@ -1,0 +1,5 @@
+{
+  "min_posterior_sd_ratio_hierarchical_over_stacked": 1.15,
+  "dgp": "Repeated measures with an additive unit intercept (static ATE or lag-1 Pulse). Stacked conjugate g-comp treats within-unit rows as iid; random-intercept GLS must report a wider effect posterior SD.",
+  "tolerance": {"atol": 1e-12}
+}

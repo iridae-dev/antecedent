@@ -294,6 +294,172 @@ pub(super) fn identified_envelope_keys(
         .collect()
 }
 
+/// Per-atom Bayesian fit retained so envelope `full` can run PPC / prior-sensitivity.
+pub(super) struct EnvelopeAtomFit {
+    pub key: u64,
+    pub prep: PreparedBayesianProblem,
+    pub posterior: CausalPosterior,
+    pub status: IdentificationStatus,
+    pub weight: f64,
+}
+
+pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
+    graphs
+        .graph_keys
+        .iter()
+        .zip(graphs.weights.iter())
+        .zip(graphs.identified.iter())
+        .filter(|((k, _), flag)| **k == key && **flag == GraphIdentFlag::Identified)
+        .map(|((_, w), _)| *w)
+        .sum()
+}
+
+fn mix_prior_sensitivity_summaries(
+    items: &[(f64, &antecedent_prob::PriorSensitivitySummary)],
+) -> Option<antecedent_prob::PriorSensitivitySummary> {
+    let first = items.first()?.1;
+    let n = first.effect_means.len();
+    if n == 0 || items.iter().any(|(_, s)| s.effect_means.len() != n) {
+        return None;
+    }
+    let mut w_sum = 0.0;
+    let mut means = vec![0.0; n];
+    let mut second = vec![0.0; n];
+    for (w, s) in items {
+        if *w <= 0.0 {
+            continue;
+        }
+        w_sum += *w;
+        for i in 0..n {
+            let m = s.effect_means[i];
+            let sd = s.effect_sds.get(i).copied().unwrap_or(0.0);
+            means[i] += *w * m;
+            second[i] += *w * (sd * sd + m * m);
+        }
+    }
+    if w_sum <= 0.0 {
+        return None;
+    }
+    let mut sds = vec![0.0; n];
+    for i in 0..n {
+        means[i] /= w_sum;
+        sds[i] = (second[i] / w_sum - means[i] * means[i]).max(0.0).sqrt();
+    }
+    Some(antecedent_prob::PriorSensitivitySummary {
+        prior_scales: Arc::clone(&first.prior_scales),
+        alphas: Arc::clone(&first.alphas),
+        effect_means: Arc::from(means),
+        effect_sds: Arc::from(sds),
+    })
+}
+
+/// Run PPC (and, under `full`, prior-sensitivity) on identified envelope atoms.
+///
+/// Aggregation is mixture-weighted by graph-posterior mass. Records the method as a
+/// diagnostic so `full` means the same thing on PAG / graph-posterior as on a single DAG.
+pub(super) fn run_envelope_bayesian_full_validation(
+    refute: RefuteSuite,
+    cfg: &crate::inference::BayesianConfig,
+    est: &BayesianGComputationAte,
+    atoms: &[EnvelopeAtomFit],
+    mixture_posterior: &mut CausalPosterior,
+    estimate_ate: f64,
+    ctx: &ExecutionContext,
+    refutations: &mut Vec<antecedent_validate::RefutationReport>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<Vec<PredictiveCheckReport>, CausalError> {
+    const PPC_ALPHA: f64 = 0.05;
+    fn borrow(items: &[(f64, PredictiveCheckReport)]) -> Vec<(f64, &PredictiveCheckReport)> {
+        items.iter().map(|(w, r)| (*w, r)).collect()
+    }
+
+    let mut predictive_checks = Vec::new();
+    if matches!(refute, RefuteSuite::None) || atoms.is_empty() {
+        return Ok(predictive_checks);
+    }
+    let mut prior_items = Vec::with_capacity(atoms.len());
+    let mut post_items = Vec::with_capacity(atoms.len());
+    for atom in atoms {
+        let ppc_prior = est
+            .prior
+            .clone()
+            .unwrap_or_else(|| PriorSet::weakly_informative(atom.prep.design.ncols));
+        let prior_rep = PriorPredictiveCheck {
+            n_sims: 200,
+            seed: ctx.rng.master_seed(),
+            ..PriorPredictiveCheck::new()
+        }
+        .check_with_prior(&atom.prep, &ppc_prior, ctx)
+        .map_err(CausalError::from)?;
+        let post_rep = PosteriorPredictiveCheck::new()
+            .check(&atom.prep, &atom.posterior)
+            .map_err(CausalError::from)?;
+        prior_items.push((atom.weight, prior_rep));
+        post_items.push((atom.weight, post_rep));
+    }
+    for mixed in [
+        PredictiveCheckReport::mixture_weighted(&borrow(&prior_items)),
+        PredictiveCheckReport::mixture_weighted(&borrow(&post_items)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        refutations.push(mixed.to_refutation_report(estimate_ate, PPC_ALPHA));
+        predictive_checks.push(mixed);
+    }
+
+    if matches!(refute, RefuteSuite::Full) {
+        let mut ws = BayesianGCompWorkspace::default();
+        let mut owned = Vec::with_capacity(atoms.len());
+        // The grid descriptor is the same for every atom (it depends only on `cfg`),
+        // so keep the first one rather than paying for a second full evaluation.
+        let mut grid = None;
+        for atom in atoms {
+            let (summary, sens) = evaluate_bayesian_prior_sensitivity(
+                cfg,
+                est,
+                &atom.prep,
+                atom.status,
+                &atom.posterior,
+                &mut ws,
+                ctx,
+            )?;
+            owned.push((atom.weight, summary));
+            grid.get_or_insert(sens);
+        }
+        let sens_items: Vec<_> = owned.iter().map(|(w, s)| (*w, s)).collect();
+        if let (Some(mixed), Some(sens)) =
+            (mix_prior_sensitivity_summaries(&sens_items), grid.as_ref())
+        {
+            refutations.push(sens.to_report(&mixed, estimate_ate));
+            *mixture_posterior = with_prior_sensitivity(mixture_posterior.clone(), mixed);
+        }
+    }
+
+    let atom_keys: String = atoms
+        .iter()
+        .map(|atom| format!("{:x}", atom.key))
+        .collect::<Vec<_>>()
+        .join(",");
+    diagnostics.push(Diagnostic::new(
+        "refute.bayesian.ppc.envelope",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        if matches!(refute, RefuteSuite::Full) {
+            format!(
+                "PPC and prior-sensitivity evaluated per identified completion [{atom_keys}]; \
+                 reports are mixture-weighted by graph posterior mass"
+            )
+        } else {
+            format!(
+                "PPC evaluated per identified completion [{atom_keys}]; reports are \
+                 mixture-weighted by graph posterior mass"
+            )
+        },
+    ));
+    Ok(predictive_checks)
+}
+
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
 ///
 /// The estimate itself is computed elsewhere (by the fitted parametric SCM, not by evaluating

@@ -45,11 +45,12 @@ not computed by slicing a surface the response estimator produced. The two
 paths agree numerically as a two-point contrast on the shared known-truth
 fixture (`conformance/response/temporal_dose_horizon`); this is observed
 equivalence via shared adjustment machinery, not derivation by projection,
-and it is not a second estimand family. Point-estimate agreement does not
-extend to uncertainty: `TemporalResponseEstimator::new()` hardcodes zero
-bootstrap replicates, while the Pulse/Sustained path carries whatever
-`bootstrap_replicates` the `Study` was configured with, so standard errors
-can diverge between the two paths even when point estimates match.
+and it is not a second estimand family. Pulse, single-step Sustained, and
+the dose × horizon surface share the `Study` bootstrap / replicate
+contract: `TemporalResponseEstimator` copies `bootstrap_replicates` from
+the study. When replicates are positive, surface pointwise SEs are the
+bootstrap SD of the g-computed level `cbar(a)'β*`; when they are zero,
+the analytic OLS linear-functional SE is used.
 
 ### Identification
 

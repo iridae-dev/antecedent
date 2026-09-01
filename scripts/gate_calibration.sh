@@ -23,6 +23,10 @@ run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
 run_ignored antecedent-estimate wald_iv_hc1_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 
+run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
+
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
