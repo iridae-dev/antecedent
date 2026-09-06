@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-06
+
+Compatible evidence and prepared-execution upgrade for the frozen 1.0
+surface. The licensed set remains 77 of 1406 meaningful coordinates; no query
+kind, graph semantics, identification theory, refusal, or artifact format
+changes. See the [release notes](docs/release-notes/v1.1.0.md).
+
+### Added
+
+- Added frozen known-truth mixtures for Bayesian DAG-posterior ATE and
+  TemporalDag-posterior Pulse / single-step Sustained effects. The fixtures pin
+  the effect among identified atoms while retaining unidentified posterior
+  mass, and are consumed by staged fresh and prepared execution.
+- Added numeric conformance pins for Frequentist and seeded conjugate Bayesian
+  PAG ATE envelopes across explicit/accepted structure and all licensed
+  validation levels.
+- Added a frozen front-door functional pin for Frequentist ADMG ATE across
+  explicit/accepted structure and all licensed validation levels.
+
+### Changed
+
+- `Study::prepare` now stores the generalized-adjustment PAG envelope and the
+  general-ID result/functional for bidirected ADMGs. Prepared estimate and
+  same-schema refresh clicks reuse them and emit `exec.identify.cached`.
+- Static graph-posterior and temporal DBN-posterior preparation now freezes
+  per-atom identification, selected estimands, weights, and identified status;
+  the DBN cache also retains each identified atom's unfolding indexer.
+  Unidentified atoms remain unidentified and keep their weight.
+- DBN-posterior execution now keys cached atoms by posterior position as well
+  as the public contemporaneous mask, so lag-distinct atoms cannot overwrite
+  one another. Mixture weighting and fit-failure demotion retain the correct
+  atom identity in either posterior order.
+- A changed graph or query still requires a new prepared handle, preventing
+  structural caches from crossing analysis coordinates. Fresh one-shot runs
+  continue to identify normally and do not claim cache reuse.
+- Workspace crates and the Python package are versioned **1.1.0**.
+
 ## [1.0.0] — 2026-09-06
 
 The contract freeze: the version bump of the 0.9.1 matrix, with no code
@@ -1526,7 +1563,9 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/iridae-dev/antecedent/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...v1.0.0
 [0.9.1]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.9.0
 [0.7.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.7.0
