@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **1.0.0**.
+explicit stage contracts. Package version **1.1.0**.
 
 | Doc | Contents |
 |-----|----------|
@@ -19,6 +19,7 @@ explicit stage contracts. Package version **1.0.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [1.1.0 release notes](release-notes/v1.1.0.md) | Known-truth mixture pins, numeric PAG/ADMG pins, prepared identification caches |
 | [1.0.0 release notes](release-notes/v1.0.0.md) | Contract freeze: version bump of the 0.9.1 matrix |
 | [0.9.1 release notes](release-notes/v0.9.1.md) | Patch: envelope PPC, temporal bootstrap contract, panel GLS |
 | [0.9.0 release notes](release-notes/v0.9.0.md) | Closed-world support matrix; prepared-analysis parity |
@@ -29,7 +30,7 @@ explicit stage contracts. Package version **1.0.0**.
 | [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |
 | [0.5.1 release notes](release-notes/v0.5.1.md) | Honesty gates and row diagnostics |
 | [0.5.0 release notes](release-notes/v0.5.0.md) | Causal-response release |
-| [Roadmap](../ROADMAP.md) | Post-0.5 path to 1.0 and after |
+| [Roadmap](../ROADMAP.md) | Shipped contract cuts, compatible 1.x work, and later research scope |
 
 Decisions: [adr/](../adr/README.md).
 
