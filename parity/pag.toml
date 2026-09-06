@@ -48,7 +48,7 @@ id = "pag.identify.generalized_adjustment"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
-notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope"
+notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope; the mass-weighted PAG ATE and conjugate envelope mean the envelope returns are pinned by conformance/estimate/pag_ate_envelope (1.1)"
 
 [[capabilities]]
 id = "pag.discovery.lpcmci"
