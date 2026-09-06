@@ -25,6 +25,19 @@ changes. See the [release notes](docs/release-notes/v1.1.0.md).
   validation levels.
 - Added a frozen front-door functional pin for Frequentist ADMG ATE across
   explicit/accepted structure and all licensed validation levels.
+- Python: `antecedent.discovery.GraphPosterior.from_atoms(...)` builds a
+  posterior from explicit atoms (known-truth fixtures and replay), the handle
+  exposes `lag_masks` and `algorithm`, and `analyze(discovery=...)` /
+  `PreparedAnalysis.prepare(discovery=...)` accept a constructed
+  `GraphPosterior`. The 49 frozen root names and the stage-module name sets
+  are unchanged.
+- Progress sinks receive an `identify.compute` label exactly when
+  identification is computed (fresh runs, `prepare`, and the sharp-RD click)
+  and never when a prepared click reuses its cache. The Rust suites record it
+  to prove reuse on every cached path rather than trusting the
+  `exec.identify.cached` flag.
+- Bayesian PAG results carry the same `identify.pag.envelope` completion-mass
+  diagnostic as the Frequentist arm.
 
 ### Changed
 
@@ -35,14 +48,35 @@ changes. See the [release notes](docs/release-notes/v1.1.0.md).
   per-atom identification, selected estimands, weights, and identified status;
   the DBN cache also retains each identified atom's unfolding indexer.
   Unidentified atoms remain unidentified and keep their weight.
-- DBN-posterior execution now keys cached atoms by posterior position as well
-  as the public contemporaneous mask, so lag-distinct atoms cannot overwrite
+- DBN-posterior execution now keys cached atoms by posterior position instead
+  of the public contemporaneous mask, so lag-distinct atoms cannot overwrite
   one another. Mixture weighting and fit-failure demotion retain the correct
-  atom identity in either posterior order.
+  atom identity in either posterior order. The public `GraphPosterior`
+  representation is unchanged.
 - A changed graph or query still requires a new prepared handle, preventing
   structural caches from crossing analysis coordinates. Fresh one-shot runs
   continue to identify normally and do not claim cache reuse.
 - Workspace crates and the Python package are versioned **1.1.0**.
+
+### Fixed
+
+- A `GraphPosterior` supplied through `discovery=` is bound to the data
+  schema: a table whose columns are reordered or differ in count is refused
+  instead of silently running a permuted structure.
+- `analyze(discovery=GraphPosterior(...))` refuses `identifier=`,
+  `estimator=`, `estimator_config=`, `validators=`, `population_registry=`,
+  `return_posterior_artifact=`, and Bayesian prior transfer or mapping instead
+  of dropping them silently, matching the prepared handle.
+- A posterior replayed through `discovery=` keeps its producer's algorithm
+  tag and convergence verdict instead of being relabelled as a converged
+  `from_atoms` posterior.
+- `GraphPosterior.from_atoms` validates its atoms: masks must be DAGs within
+  the variable count, weights must sum to one, and lag masks require
+  `max_lag` within the 64-bit packing.
+- A DBN posterior paired with a static `AverageEffect` is refused with a typed
+  error instead of identifying on contemporaneous masks alone; a graph
+  posterior on the prepared handle likewise requires tabular data for
+  `AverageEffect` and series data for temporal effects.
 
 ## [1.0.0] — 2026-09-06
 

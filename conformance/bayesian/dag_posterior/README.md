@@ -9,5 +9,6 @@ SEMs. Facade composition: `discovery=ExactDagPosterior|OrderMcmc|StructureMcmc|C
 Exercised by `antecedent-discovery` unit tests:
 `exact_enumeration`, `structure_mcmc`, `order_mcmc`, `ci_screened_posterior`,
 `dbn_posterior`; facade: `bayesian_exact_dag_posterior_effect_envelope`,
-`manufacturing_dbn_posterior_bayesian_envelope`, Python
+`manufacturing_dbn_posterior_discovered_prepare_reuses_identification`,
+`manufacturing_dbn_envelope_composed_prior_conflict`, Python
 `test_graph_posterior_analyze`.

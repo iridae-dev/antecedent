@@ -449,9 +449,11 @@ Invalidation does not automatically rerun an analysis.
 
 `PreparedStudy` (`Study::prepare`) caches identification across the licensed
 prepared paths. For `AverageEffect`, an estimate click reuses prepare-time
-identification (`exec.identify.cached`) on `Dag`, `Cpdag`, `Pag`, and `Admg`,
+identification (`exec.identify.cached`) on `Dag`, `Pag`, and `Admg`,
 including the generalized-adjustment PAG envelope and general-ID bidirected
-ADMG functional. Static graph posteriors freeze each weighted atom's
+ADMG functional; the same engine behaviour applies to `Cpdag`, but that is
+not a license, since `AverageEffect` on a `Cpdag` is refused. Static graph
+posteriors freeze each weighted atom's
 identified/unidentified status, result, and estimand; temporal DBN posteriors
 also freeze each identified atom's finite-unfolding indexer. Unidentified
 atoms remain unidentified and keep their original weight. Temporal response
@@ -459,7 +461,9 @@ and mediation paths retain their existing query-native caches. This is an
 execution property, not a license: refused coordinates remain refused.
 
 The sharp-RD estimator remains the deliberate identify-per-click exception.
-Prepared graph and query identity are immutable; a changed graph or query
+Progress sinks receive an `identify.compute` label exactly when identification
+is computed, so a prepared click's reuse is observable rather than merely
+flagged. Prepared graph and query identity are immutable; a changed graph or query
 requires a new prepare cycle, so no cache can cross coordinate boundaries. A
 same-schema data refresh may reuse structural identification but still
 re-estimates from the replacement data.

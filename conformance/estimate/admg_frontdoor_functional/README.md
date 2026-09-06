@@ -11,5 +11,7 @@ For the table, `P(T=1)=0.5`, `P(M=1|T=0)=0.2`, and
 
 `[0.2*g(0) + 0.8*g(1)] - [0.8*g(0) + 0.2*g(1)] = 0.3`.
 
-`python/tests/test_pag_admg_numeric_pins.py` pins that number for explicit and
-accepted ADMGs through every licensed Frequentist validation level.
+`crates/antecedent/tests/pag_admg_numeric_pins.rs` and
+`python/tests/test_pag_admg_numeric_pins.py` pin that number for explicit and
+accepted ADMGs through every licensed Frequentist validation level; the Rust
+test also pins prepared estimate and same-schema refresh reuse.
