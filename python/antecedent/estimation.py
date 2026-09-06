@@ -875,10 +875,11 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
 
 
 class PreparedAnalysis:
-    """Compile-once / re-estimate-many handle for licensed static DAG cells.
+    """Compile-once / re-estimate-many handle for licensed analysis cells.
 
-    **Frozen at prepare:** schema (names, types, order); graph; query identity;
-    identifier; observation / transport / interference assumptions.
+    **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
+    or licensed graph-posterior atoms and weights; query identity; identifier;
+    observation / transport / interference assumptions.
 
     **Estimate click:** same-schema data; seeds / threads. Does not re-identify
     or recompile the logical plan.
@@ -945,12 +946,15 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
     ) -> PreparedAnalysis:
-        """Compile a durable plan for a licensed DAG or temporal-response cell.
+        """Compile a durable plan for a licensed analysis cell.
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``,
         ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``, and
         ``TemporalMediationEffect`` on an explicit graph (or accepted wrapper).
+        ``AverageEffect`` also prepares on a ``Pag`` or bidirected ``Admg``; the
+        generalized-adjustment envelope or general-ID result is frozen at
+        prepare and reused by every estimate click (``exec.identify.cached``).
         Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
         prepare on a ``TemporalDag`` or lagged edge list. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
