@@ -147,8 +147,7 @@ share the Study bootstrap SE contract; Bayesian panel uses hierarchical
 unit effects; licensed Bayesian Pulse / single-step Sustained have a
 coverage case in `scripts/gate_calibration.sh`.
 
-Working checklist: [TODO.md](TODO.md) (local). Known-truth mixture pins
-and identification caching wait for 1.1.
+Known-truth mixture pins and identification caching wait for 1.1.
 
 ---
 
@@ -172,6 +171,26 @@ completed.
 
 ---
 
+## 1.1 — Stronger evidence on frozen families
+
+Building as **1.1.0**. This compatible minor adds no query kind, graph
+semantics, identification theory, support cell, or artifact change. It
+strengthens already-licensed families in three places:
+
+- static DAG-posterior ATE and temporal DBN-posterior pulse / single-step
+  sustained effects consume frozen known-truth mixtures, retaining
+  unidentified posterior mass;
+- PAG ATE and front-door ADMG ATE fixtures pin the numeric estimates already
+  returned after their identification envelopes;
+- prepared PAG, bidirected ADMG, graph-posterior, and DBN-posterior analyses
+  cache their identification products and expose reuse with
+  `exec.identify.cached`.
+
+Prepared-vs-fresh equality remains a useful execution invariant, but it no
+longer stands in for known-truth mixture evidence.
+
+---
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new
@@ -187,8 +206,6 @@ without adding query kinds.
 
 A 1.x item that needs a new query type, a new graph semantics, a new
 identification theory, or a new language runtime is not 1.x.
-
-Working checklist: [TODO.md](TODO.md).
 
 ---
 

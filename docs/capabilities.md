@@ -245,8 +245,11 @@ not demote `evidence_status` or `support.status`. See
 * transport policies across compatible designs.
 
 Unidentified graph-posterior mass is retained rather than silently
-renormalized away. Current graph-posterior evidence is an internal
-prepared-vs-fresh cross-check, not a known-truth pin for the mixture effect.
+renormalized away. Static DAG-posterior ATE and temporal DBN-posterior pulse /
+single-step sustained paths consume frozen known-truth mixture fixtures: the
+identified atoms pin the conditional effect, unidentified mass stays visible,
+and priors do not upgrade structural identification. Prepared-vs-fresh
+equality remains an additional execution invariant rather than the license.
 
 ## Observation, transport, and interference
 
@@ -444,17 +447,22 @@ Available components:
 
 Invalidation does not automatically rerun an analysis.
 
-`PreparedStudy` (`Study::prepare`) does not cache identification uniformly
-across graph classes. For `AverageEffect`, an estimate click reuses
-prepare-time identification (`exec.identify.cached`) on `Dag`, `Cpdag`, and
-`Admg` without bidirected edges — this is the engine's caching behaviour, not a
-license: `AverageEffect` on a `Cpdag` is refused, so only the `Dag` and `Admg`
-arms are reachable from a licensed cell. `Pag`, bidirected `Admg`, `graph_posterior`
-structures, and the sharp-RD estimator are not cached: prepare() still
-accepts and freezes them, but each estimate click re-runs identification
-against the frozen graph rather than reusing a stored result. The frozen
-graph, query, and identifier never change across clicks either way — only
-whether the identification step itself is skipped or repeated.
+`PreparedStudy` (`Study::prepare`) caches identification across the licensed
+prepared paths. For `AverageEffect`, an estimate click reuses prepare-time
+identification (`exec.identify.cached`) on `Dag`, `Cpdag`, `Pag`, and `Admg`,
+including the generalized-adjustment PAG envelope and general-ID bidirected
+ADMG functional. Static graph posteriors freeze each weighted atom's
+identified/unidentified status, result, and estimand; temporal DBN posteriors
+also freeze each identified atom's finite-unfolding indexer. Unidentified
+atoms remain unidentified and keep their original weight. Temporal response
+and mediation paths retain their existing query-native caches. This is an
+execution property, not a license: refused coordinates remain refused.
+
+The sharp-RD estimator remains the deliberate identify-per-click exception.
+Prepared graph and query identity are immutable; a changed graph or query
+requires a new prepare cycle, so no cache can cross coordinate boundaries. A
+same-schema data refresh may reuse structural identification but still
+re-estimates from the replacement data.
 
 ## Data support
 
