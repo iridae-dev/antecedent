@@ -2330,7 +2330,11 @@ fn analyze_ate_graph_posterior(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
-    let gp = posterior.borrow().to_rust()?;
+    let gp = {
+        let posterior = posterior.borrow();
+        posterior.require_bound_to(&names)?;
+        posterior.to_rust()?
+    };
     let suite = suite_from_refute(refute.as_ref())?;
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let inference = inference.to_string();

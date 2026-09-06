@@ -124,6 +124,16 @@ pub(crate) fn build_graph_posterior_identification_cache(
         DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
     };
 
+    // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
+    // static effect on them alone would drop every lagged confounder. That is
+    // a different coordinate (temporal Pulse / Sustained), so fail closed.
+    if posterior.lag_masks.is_some() || posterior.max_lag.is_some() {
+        return Err(CausalError::Unsupported {
+            message: "static AverageEffect over a graph posterior requires static DAG atoms; \
+                      this posterior carries DBN lag structure, so it needs a temporal \
+                      Pulse / single-step Sustained query",
+        });
+    }
     let mut weights = Vec::with_capacity(posterior.n_graphs);
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);

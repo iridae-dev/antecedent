@@ -1889,7 +1889,11 @@ fn analyze_temporal_graph_posterior(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
-    let gp = posterior.borrow().to_rust()?;
+    let gp = {
+        let posterior = posterior.borrow();
+        posterior.require_bound_to(&names)?;
+        posterior.to_rust()?
+    };
     let suite = suite_from_refute(refute.as_ref())?;
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
