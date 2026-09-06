@@ -436,11 +436,8 @@ pub(super) fn run_envelope_bayesian_full_validation(
         }
     }
 
-    let atom_keys: String = atoms
-        .iter()
-        .map(|atom| format!("{:x}", atom.key))
-        .collect::<Vec<_>>()
-        .join(",");
+    let atom_keys: String =
+        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
     diagnostics.push(Diagnostic::new(
         "refute.bayesian.ppc.envelope",
         DiagnosticKind::Scientific,
@@ -685,12 +682,16 @@ impl super::Study {
         } else {
             let mut diagnostics = args.identification.diagnostics.clone();
             diagnostics.push(overlap_diagnostic(args.estimate.overlap));
-            if args.identify_cached {
-                diagnostics.push(identify_cached_diagnostic());
-            }
             diagnostics.extend(args.extra_diagnostics);
             diagnostics
         };
+        // Envelope routes supply their own diagnostic seed, but a prepared
+        // envelope still must expose cache reuse just like a single-graph path.
+        if args.identify_cached
+            && diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached")
+        {
+            diagnostics.push(identify_cached_diagnostic());
+        }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)

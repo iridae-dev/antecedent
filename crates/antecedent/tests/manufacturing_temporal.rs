@@ -9,17 +9,21 @@
 use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
+use antecedent::discovery::GraphPosterior;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-    TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag, MeasurementSpec, RoleHint,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
+use antecedent_discovery::{mask_is_dag, temporal_dag_from_dbn_masks};
 use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_identify::{IdentificationError, TemporalBackdoorIdentifier};
+use antecedent_prob::InferenceDiagnostics;
 
 fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
@@ -156,112 +160,152 @@ fn white_noise_pulse_series(
     (series, g, q)
 }
 
-#[test]
-fn manufacturing_dbn_posterior_bayesian_envelope() {
-    use antecedent::discovery::{
-        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
-    };
-
-    // White-noise treatment so BIC mass lands on the lag edge (not AR loops
-    // that hit temporal backdoor history caps).
-    let (series, _g, q) = white_noise_pulse_series(400, 42);
-    let ctx = ExecutionContext::for_tests(11);
-    // Discovery is now standalone (no `.discover_dbn_posterior(..)` builder method):
-    // run it explicitly and feed the resulting `GraphPosterior` in via `.graph_posterior(..)`.
-    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-    let schedule = GraphMcmcSchedule {
-        n_chains: 2,
-        n_warmup: 40,
-        n_draws: 60,
-        ..GraphMcmcSchedule::default()
-    };
-    let gp = discover_dbn_posterior(
-        &series,
-        &vars,
-        &BayesianDiscoverParams::default(),
+fn known_truth_dbn_posterior(
+    pin: &serde_json::Value,
+    weights: &[f64],
+    query: &TemporalEffectQuery,
+) -> GraphPosterior {
+    // Atom 0 is the valid lag-one effect graph. Atom 1 is also a valid DBN
+    // and adds pressure_{t-1} -> pressure_t. Stationarity extends that AR
+    // ancestry through every finite history boundary; TemporalBackdoor must
+    // return NotCertified at its cap and retain the atom's posterior weight
+    // as unidentified rather than letting the parameter prior upgrade it.
+    let valid_contemporaneous = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let noncertified_contemporaneous =
+        pin["unidentified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let pressure_lag1_to_defect = pin["identified_atom"]["lag_mask"].as_u64().unwrap();
+    let pressure_ar_and_lag1_effect = pin["unidentified_atom"]["lag_mask"].as_u64().unwrap();
+    assert!(mask_is_dag(valid_contemporaneous, 2));
+    assert!(mask_is_dag(noncertified_contemporaneous, 2));
+    assert_eq!(pin["unidentified_atom"]["identification_error"], "NotCertified");
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let noncertified_graph = temporal_dag_from_dbn_masks(
+        valid_contemporaneous,
+        pressure_ar_and_lag1_effect,
+        2,
         1,
-        false,
-        &schedule,
-        &ctx,
+        &variables,
     )
     .unwrap();
+    let error = TemporalBackdoorIdentifier::new()
+        .identify_temporal(&noncertified_graph, query)
+        .unwrap_err();
+    assert!(
+        matches!(error, IdentificationError::NotCertified { .. }),
+        "autoregressive DBN atom must remain unidentified, got {error:?}"
+    );
+
+    let contemporaneous_marginals = vec![0.0; 4];
+    let lagged_marginals: Vec<f64> = pin["lagged_edge_marginals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    assert_eq!(lagged_marginals, [weights[1], 1.0, 0.0, 0.0]);
+    GraphPosterior::new(
+        2,
+        weights.to_vec(),
+        vec![valid_contemporaneous, noncertified_contemporaneous],
+        contemporaneous_marginals.clone(),
+        contemporaneous_marginals,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, lagged_marginals)
+    .unwrap()
+    .with_lag_masks(vec![pressure_lag1_to_defect, pressure_ar_and_lag1_effect])
+    .unwrap()
+    .with_algorithm("known_truth_fixture")
+}
+
+fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_effect"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let seed = pin["seed"].as_u64().unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let identified_mass = pin["identified_mass"].as_f64().unwrap();
+    let effect_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    assert!((weights[0] - identified_mass).abs() < 1e-12);
+    assert!((weights[1] - unidentified_truth).abs() < 1e-12);
+    assert!((pin["identified_atom"]["weight"].as_f64().unwrap() - weights[0]).abs() < 1e-12);
+    assert!((pin["unidentified_atom"]["weight"].as_f64().unwrap() - weights[1]).abs() < 1e-12);
+    assert!((pin["identified_atom"]["effect"].as_f64().unwrap() - effect_truth).abs() < 1e-12);
+    match policy {
+        TemporalPolicy::Pulse { at } => {
+            assert_eq!(at, i32::try_from(pin["pulse_at"].as_i64().unwrap()).unwrap());
+        }
+        TemporalPolicy::Sustained { from, until } => {
+            assert_eq!(from, i32::try_from(pin["sustained_from"].as_i64().unwrap()).unwrap());
+            assert_eq!(until, i32::try_from(pin["sustained_until"].as_i64().unwrap()).unwrap());
+            assert_eq!(from, until, "only the licensed single-step Sustained form is pinned");
+        }
+        _ => panic!("known-truth DBN fixture covers Pulse and single-step Sustained only"),
+    }
+
+    let (series, _g, q) = white_noise_pulse_series(n, seed);
+    let q = q.with_policy(policy);
+    let gp = known_truth_dbn_posterior(pin, &weights, &q);
+
+    let ctx = ExecutionContext::for_tests(11);
     let analysis = Study::series(series.clone())
         .graph_posterior(gp)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
+            BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
         ))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let result = analysis.run(&ctx).unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
     let prepared = analysis.prepare(&ctx).unwrap();
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
-    let post = result.posterior.as_ref().expect("DBN mixture posterior");
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(
+        fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        0,
+        "fresh DBN-posterior execution must identify its atoms"
+    );
+    assert_eq!(
+        click.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1,
+        "prepared DBN-posterior execution must consume its cache exactly once"
+    );
+    let post = fresh.posterior.as_ref().expect("DBN mixture posterior");
     let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
-    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
-    assert!((0.0..=1.0).contains(&post.unidentified_mass));
+    assert_eq!(post.identification, IdentificationStatus::GraphDependent);
+    assert_eq!(click_post.identification, IdentificationStatus::GraphDependent);
+    assert!((post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert!((click_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
     let eq = post.effect_column().unwrap();
     let click_eq = click_post.effect_column().unwrap();
     assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
-    assert!(post.summaries.mean[eq].is_finite());
-    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
+    assert!(
+        (post.summaries.mean[eq] - effect_truth).abs() < tolerance,
+        "posterior mean={} truth={effect_truth}",
+        post.summaries.mean[eq]
+    );
+}
+
+#[test]
+fn manufacturing_dbn_posterior_bayesian_envelope() {
+    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::pulse(-1));
 }
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
-    use antecedent::discovery::{
-        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
-    };
-    use antecedent_core::TemporalPolicy;
-
-    let (series, _g, q) = white_noise_pulse_series(400, 42);
-    let q = q.with_policy(TemporalPolicy::sustained(-1, -1));
-    let ctx = ExecutionContext::for_tests(11);
-    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-    let schedule = GraphMcmcSchedule {
-        n_chains: 2,
-        n_warmup: 40,
-        n_draws: 60,
-        ..GraphMcmcSchedule::default()
-    };
-    let gp = discover_dbn_posterior(
-        &series,
-        &vars,
-        &BayesianDiscoverParams::default(),
-        1,
-        false,
-        &schedule,
-        &ctx,
-    )
-    .unwrap();
-    let analysis = Study::series(series.clone())
-        .graph_posterior(gp)
-        .temporal_query(q)
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
-        ))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    let result = analysis.run(&ctx).unwrap();
-    let prepared = analysis.prepare(&ctx).unwrap();
-    let click = prepared.estimate_series(&series, &ctx).unwrap();
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-12);
-    let post = result.posterior.as_ref().expect("DBN mixture posterior");
-    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
-    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
-    assert!((0.0..=1.0).contains(&post.unidentified_mass));
-    let eq = post.effect_column().unwrap();
-    let click_eq = click_post.effect_column().unwrap();
-    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
-    assert!(post.summaries.mean[eq].is_finite());
-    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
+    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1));
 }
 
 #[test]
