@@ -10,10 +10,16 @@ feature linkage, and workflow permissions/action pins. 0.9.1 is a behavior
 patch: it adds no dependencies, changes no lockfile entry beyond the workspace
 version bump, and introduces no `unsafe` block, so the 0.9.0 findings carry
 forward unchanged. 1.0.0 is the version stamp of that 0.9.1 tree. The 1.1.0
-diff adds prepared-identification caches and conformance fixtures, but no
-dependency, unsafe-code, FFI, artifact-decoding, or workflow change. Its
-lockfile diff is limited to workspace package versions, so the existing
-threat boundary and scoped unsafe findings continue to apply.
+diff adds prepared-identification caches, conformance fixtures, and four
+additive PyO3 entry points for supplying a constructed graph posterior
+(`GraphPosterior.from_atoms`, `analyze_ate_graph_posterior`,
+`analyze_temporal_graph_posterior`, and a `posterior=` argument on the
+prepared graph-posterior constructors). Those entry points validate atom
+masks, weights, and lag packing and bind the posterior to the data schema
+before it reaches the engine. There is no dependency, unsafe-code,
+artifact-decoding, or workflow change, and the lockfile diff is limited to
+workspace package versions, so the existing threat boundary and scoped unsafe
+findings continue to apply.
 
 ## Unsafe code policy
 

@@ -23,9 +23,9 @@ single-step Sustained both have effect 0.9, conditional on the identified atom,
 and both retain 0.3 unidentified mass.
 
 The consuming tests construct the posterior atoms directly, then execute both
-`Study::run()` and `Study::prepare()` followed by the appropriate prepared
-estimate method.  Thus the fixture pins the structural mixture, not a discovery
-smoke envelope or agreement between two Antecedent paths.
+`Study::run()` and `Study::prepare()` followed by the prepared estimate and
+same-schema refresh methods.  Thus the fixture pins the structural mixture, not
+a discovery smoke envelope or agreement between two Antecedent paths.
 
 ## Expected summary
 

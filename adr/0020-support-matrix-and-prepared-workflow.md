@@ -169,7 +169,9 @@ per-atom identification at prepare time. DBN atoms also retain their finite
 unfolding indexers. Estimate and same-schema refresh clicks reuse those
 products and emit `exec.identify.cached`; unidentified posterior atoms keep
 their original mass. Sharp RD remains the deliberate identify-per-click
-exception.
+exception. Progress sinks receive `identify.compute` exactly when
+identification is computed, so reuse is verified by the suites rather than
+asserted by a flag.
 
 Graph and query identity remain frozen on the handle. Changing either creates
 a new study and requires a new prepare, so the cache cannot cross structural
