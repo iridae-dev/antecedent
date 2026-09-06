@@ -1,0 +1,57 @@
+{
+  "static_average_effect": {
+    "dgp": "Y = 2*T + 2*Z + epsilon; epsilon has zero mean within every (T,Z) cell",
+    "n": 320,
+    "posterior_weights": [
+      0.5,
+      0.3,
+      0.2
+    ],
+    "identified_atom_effects": [
+      3.0,
+      2.0
+    ],
+    "identified_weighted_sum": 2.1,
+    "identified_mass": 0.8,
+    "expected_effect_given_identified": 2.625,
+    "expected_unidentified_mass": 0.2,
+    "effect_abs_tolerance": 0.06,
+    "unidentified_atom": "valid reverse-causal DAG Y -> T; no admissible backdoor adjustment"
+  },
+  "temporal_effect": {
+    "dgp": "defect_t = 0.9 * pressure_{t-1}",
+    "n": 400,
+    "seed": 42,
+    "posterior_weights": [
+      0.7,
+      0.3
+    ],
+    "identified_atom": {
+      "weight": 0.7,
+      "contemporaneous_mask": 0,
+      "lag_mask": 2,
+      "effect": 0.9
+    },
+    "identified_mass": 0.7,
+    "expected_effect_given_identified": 0.9,
+    "expected_unidentified_mass": 0.3,
+    "effect_abs_tolerance": 0.05,
+    "pulse_at": -1,
+    "sustained_from": -1,
+    "sustained_until": -1,
+    "unidentified_atom": {
+      "weight": 0.3,
+      "contemporaneous_mask": 0,
+      "lag_mask": 3,
+      "structure": "valid autoregressive DBN adds pressure_{t-1} -> pressure_t",
+      "identification_error": "NotCertified"
+    },
+    "lagged_edge_marginals": [
+      0.3,
+      1.0,
+      0.0,
+      0.0
+    ]
+  },
+  "tolerance_class": "PosteriorDistribution"
+}
