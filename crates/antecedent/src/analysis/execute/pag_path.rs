@@ -34,7 +34,7 @@ impl super::Study {
         }
 
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_admg(identifier_id, admg, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
@@ -120,6 +120,7 @@ impl super::Study {
             if let Some(cache) = self.pag_identification_cache.as_deref() {
                 (cache.envelope.clone(), cache.identification.clone(), true)
             } else {
+                report_identify_compute(ctx);
                 let envelope = identify_pag(identifier_id, pag, query)?;
                 let identification = envelope_to_identification_result(&envelope, query);
                 (envelope, identification, false)
@@ -145,18 +146,7 @@ impl super::Study {
             });
         }
 
-        let mut diagnostics = Vec::new();
-        diagnostics.push(Diagnostic::new(
-            "identify.pag.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}",
-                envelope.identified_weight.0,
-                envelope.unidentified_weight.0,
-                envelope.cases.len()
-            ),
-        ));
+        let mut diagnostics = vec![pag_envelope_diagnostic(&envelope)];
 
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_pag_bayesian(
@@ -306,6 +296,7 @@ impl super::Study {
             ctx.rng.master_seed(),
         );
         let estimate = effect_from_posterior(&posterior)?;
+        let envelope_diagnostic = pag_envelope_diagnostic(envelope);
         let estimand = envelope.invariant.clone().unwrap_or_else(|| {
             IdentifiedEstimand::backdoor(
                 "pag.nonidentified",
@@ -314,6 +305,7 @@ impl super::Study {
             )
         });
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(envelope_diagnostic);
         diagnostics.push(Diagnostic::new(
             "estimate.pag.nonidentified_prior",
             DiagnosticKind::Scientific,
@@ -352,4 +344,20 @@ impl super::Study {
             },
         }))
     }
+}
+
+/// Completion-mass summary every PAG arm (Frequentist, Bayesian, non-identified
+/// prior) reports, so the envelope a fixture pins is observable on each.
+pub(super) fn pag_envelope_diagnostic(envelope: &IdentificationEnvelope<Pag>) -> Diagnostic {
+    Diagnostic::new(
+        "identify.pag.envelope",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}",
+            envelope.identified_weight.0,
+            envelope.unidentified_weight.0,
+            envelope.cases.len()
+        ),
+    )
 }

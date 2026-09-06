@@ -25,6 +25,33 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::{IdentificationError, TemporalBackdoorIdentifier};
 use antecedent_prob::InferenceDiagnostics;
 
+/// Records every progress label so a test can prove identification was
+/// computed exactly where the contract says (fresh run, prepare) and never on
+/// a prepared estimate or refresh click.
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl antecedent_core::ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn recording_ctx(seed: u64) -> (ExecutionContext, Arc<RecordingProgress>) {
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(seed);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
+    (ctx, sink)
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
+fn cached_count(result: &antecedent::StudyResult) -> usize {
+    result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
 fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
@@ -180,7 +207,7 @@ fn known_truth_dbn_posterior(
     assert_eq!(pin["unidentified_atom"]["identification_error"], "NotCertified");
     let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let noncertified_graph = temporal_dag_from_dbn_masks(
-        valid_contemporaneous,
+        noncertified_contemporaneous,
         pressure_ar_and_lag1_effect,
         2,
         1,
@@ -256,7 +283,7 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
     let q = q.with_policy(policy);
     let gp = known_truth_dbn_posterior(pin, &weights, &q);
 
-    let ctx = ExecutionContext::for_tests(11);
+    let (ctx, sink) = recording_ctx(11);
     let analysis = Study::series(series.clone())
         .graph_posterior(gp)
         .temporal_query(q)
@@ -268,29 +295,35 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
         .build()
         .unwrap();
     let fresh = analysis.clone().run(&ctx).unwrap();
-    let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "fresh DBN-posterior execution identifies");
+    let mut prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
     let click = prepared.estimate_series(&series, &ctx).unwrap();
+    let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+    assert_eq!(
+        identify_computations(&sink),
+        2,
+        "prepared estimate and refresh clicks must reuse the frozen atom identification"
+    );
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert_eq!(
-        fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
-        0,
-        "fresh DBN-posterior execution must identify its atoms"
-    );
-    assert_eq!(
-        click.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
-        1,
-        "prepared DBN-posterior execution must consume its cache exactly once"
-    );
+    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert_eq!(cached_count(&fresh), 0, "fresh DBN-posterior execution must identify its atoms");
+    assert_eq!(cached_count(&click), 1, "prepared execution must consume its cache exactly once");
+    assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse identification");
     let post = fresh.posterior.as_ref().expect("DBN mixture posterior");
     let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    let refreshed_post = refreshed.posterior.as_ref().expect("refreshed DBN mixture posterior");
     assert_eq!(post.identification, IdentificationStatus::GraphDependent);
     assert_eq!(click_post.identification, IdentificationStatus::GraphDependent);
     assert!((post.unidentified_mass - unidentified_truth).abs() < 1e-12);
     assert!((click_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert!((refreshed_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
     let eq = post.effect_column().unwrap();
     let click_eq = click_post.effect_column().unwrap();
+    let refreshed_eq = refreshed_post.effect_column().unwrap();
     assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
+    assert!((refreshed_post.summaries.mean[refreshed_eq] - post.summaries.mean[eq]).abs() < 1e-12);
     assert!(
         (post.summaries.mean[eq] - effect_truth).abs() < tolerance,
         "posterior mean={} truth={effect_truth}",
@@ -306,6 +339,70 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 #[test]
 fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
     assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1));
+}
+
+#[test]
+fn manufacturing_dbn_posterior_discovered_prepare_reuses_identification() {
+    use antecedent::discovery::{
+        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
+    };
+
+    // A discovered posterior carries many atoms whose contemporaneous masks
+    // repeat across lag structures; the prepared path must key them without
+    // collision and must not re-identify on estimate or refresh clicks.
+    let (series, _g, q) = white_noise_pulse_series(400, 42);
+    let (ctx, sink) = recording_ctx(11);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let schedule = GraphMcmcSchedule {
+        n_chains: 2,
+        n_warmup: 40,
+        n_draws: 60,
+        ..GraphMcmcSchedule::default()
+    };
+    let gp = discover_dbn_posterior(
+        &series,
+        &vars,
+        &BayesianDiscoverParams::default(),
+        1,
+        false,
+        &schedule,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(identify_computations(&sink), 0, "structure discovery is not identification");
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let mut prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2, "clicks must not re-identify discovered atoms");
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(cached_count(&fresh), 0);
+    assert_eq!(cached_count(&click), 1);
+    assert_eq!(cached_count(&refreshed), 1);
+    let post = fresh.posterior.as_ref().expect("DBN mixture posterior");
+    let click_post = click.posterior.as_ref().expect("prepared DBN mixture posterior");
+    let refreshed_post = refreshed.posterior.as_ref().expect("refreshed DBN mixture posterior");
+    assert!((0.0..=1.0).contains(&post.unidentified_mass));
+    assert!((click_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
+    assert!((refreshed_post.unidentified_mass - post.unidentified_mass).abs() < 1e-12);
+    let eq = post.effect_column().unwrap();
+    let click_eq = click_post.effect_column().unwrap();
+    let refreshed_eq = refreshed_post.effect_column().unwrap();
+    assert!((click_post.summaries.mean[click_eq] - post.summaries.mean[eq]).abs() < 1e-12);
+    assert!((refreshed_post.summaries.mean[refreshed_eq] - post.summaries.mean[eq]).abs() < 1e-12);
+    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
 }
 
 #[test]

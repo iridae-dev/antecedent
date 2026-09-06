@@ -227,14 +227,32 @@ fn prepared_refresh_rejects_schema_mismatch() {
     let _ = other;
 }
 
+/// Records progress labels; `identify.compute` fires only when identification
+/// is actually computed, so a prepared click can be shown to skip it.
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl antecedent_core::ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
 #[test]
 fn prepared_second_shot_cheaper_than_full_run() {
     let (data, dag, query) = confounded_scm(800, 31);
-    let ctx = ExecutionContext::for_tests(1);
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
 
     let t0 = Instant::now();
     let analysis = build_analysis(data.clone(), dag.clone(), query.clone());
     let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
     let _ = prepared.estimate(&data, &ctx).unwrap();
     let prepare_plus_first = t0.elapsed();
 
@@ -255,6 +273,11 @@ fn prepared_second_shot_cheaper_than_full_run() {
     assert!(
         third.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared second shot did not hit the identification cache"
+    );
+    assert_eq!(
+        identify_computations(&sink),
+        1,
+        "three prepared clicks must not compute identification again"
     );
 }
 

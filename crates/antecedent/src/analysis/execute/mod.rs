@@ -361,6 +361,38 @@ mod identify_only_tests {
         .unwrap()
     }
 
+    /// Records progress labels so the test can prove identification is computed
+    /// on fresh runs and prepare only, never on a prepared estimate/refresh click.
+    #[derive(Default)]
+    struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+    impl antecedent_core::ProgressSink for RecordingProgress {
+        fn report(&self, _fraction: f64, stage: &str) {
+            self.0.lock().unwrap().push(stage.to_owned());
+        }
+    }
+
+    fn recording_ctx(seed: u64) -> (ExecutionContext, std::sync::Arc<RecordingProgress>) {
+        let sink = std::sync::Arc::new(RecordingProgress::default());
+        let mut ctx = ExecutionContext::for_tests(seed);
+        ctx.progress =
+            Some(std::sync::Arc::clone(&sink) as std::sync::Arc<dyn antecedent_core::ProgressSink>);
+        (ctx, sink)
+    }
+
+    fn identify_computations(sink: &RecordingProgress) -> usize {
+        sink.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|stage| stage.as_str() == super::super::stage::PROGRESS_IDENTIFY_COMPUTE)
+            .count()
+    }
+
+    fn cached_count(result: &StudyResult) -> usize {
+        result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+    }
+
     fn assert_identify_only_refused(err: &CausalError, message: &'static str) {
         assert!(
             matches!(
@@ -475,7 +507,7 @@ mod identify_only_tests {
             .unwrap()
             .with_algorithm("known_truth_fixture");
             let data = known_truth_graph_mixture_data(n);
-            let ctx = ExecutionContext::for_tests(1);
+            let (ctx, sink) = recording_ctx(1);
             let study = Study::tabular(data.clone())
                 .graph_posterior(gp)
                 .query(ate())
@@ -486,40 +518,53 @@ mod identify_only_tests {
                 .build()
                 .unwrap();
             let fresh = study.clone().run(&ctx).unwrap();
-            let prepared = study.prepare(&ctx).unwrap();
+            assert_eq!(identify_computations(&sink), 1, "a fresh run identifies its atoms once");
+            let mut prepared = study.prepare(&ctx).unwrap();
+            assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
             let click = prepared.estimate(&data, &ctx).unwrap();
+            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            assert_eq!(
+                identify_computations(&sink),
+                2,
+                "prepared estimate and refresh clicks must not re-identify"
+            );
             assert!(
                 (click.estimate.ate - mixture_truth).abs() < tolerance,
                 "{suite:?} mixture mean={} truth={mixture_truth}",
                 click.estimate.ate
             );
             assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+            assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             let click_post = click.posterior.as_ref().expect("prepared graph mixture posterior");
             let fresh_post = fresh.posterior.as_ref().expect("fresh graph mixture posterior");
+            let refreshed_post =
+                refreshed.posterior.as_ref().expect("refreshed graph mixture posterior");
             assert_eq!(click_post.identification, IdentificationStatus::GraphDependent);
             assert!((click_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
             assert!((fresh_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+            assert!((refreshed_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
             assert_eq!(
-                fresh
-                    .diagnostics
-                    .iter()
-                    .filter(|d| d.code.as_ref() == "exec.identify.cached")
-                    .count(),
+                cached_count(&fresh),
                 0,
                 "fresh graph-posterior execution must identify its atoms"
             );
             assert_eq!(
-                click
-                    .diagnostics
-                    .iter()
-                    .filter(|d| d.code.as_ref() == "exec.identify.cached")
-                    .count(),
+                cached_count(&click),
                 1,
                 "prepared graph-posterior execution must consume its cache exactly once"
             );
+            assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse the cache");
             assert_eq!(click.refutations.len(), fresh.refutations.len());
             assert_eq!(click.predictive_checks.len(), fresh.predictive_checks.len());
+            if matches!(suite, RefuteSuite::Full) {
+                assert!(
+                    click_post.prior_sensitivity.is_some(),
+                    "full validation must attach mixture-weighted prior sensitivity"
+                );
+            } else {
+                assert!(click_post.prior_sensitivity.is_none());
+            }
             match suite {
                 RefuteSuite::None => {
                     assert!(click.predictive_checks.is_empty(), "validation none must not run PPC");
@@ -545,8 +590,8 @@ mod identify_only_tests {
         assert_eq!(report_counts[0], 0, "validation none must emit no reports");
         assert!(report_counts[1] > 0, "cheap validation must execute a refuter");
         assert!(
-            report_counts[2] >= report_counts[1],
-            "full validation must include at least the cheap reports"
+            report_counts[2] > report_counts[1],
+            "full validation must add prior-sensitivity reports beyond the cheap suite"
         );
     }
 

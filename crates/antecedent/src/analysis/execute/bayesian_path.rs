@@ -21,7 +21,7 @@ impl super::Study {
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
                 let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
                 Ok((identification, estimand))
@@ -288,6 +288,7 @@ impl super::Study {
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(super::pag_path::pag_envelope_diagnostic(envelope));
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
