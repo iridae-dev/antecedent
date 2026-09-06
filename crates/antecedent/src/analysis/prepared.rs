@@ -134,6 +134,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
                       Pulse / single-step Sustained query",
         });
     }
+    super::execute::report_identify_compute(ctx);
     let mut weights = Vec::with_capacity(posterior.n_graphs);
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
@@ -213,6 +214,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
     let max_lag = posterior
         .max_lag
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
+    super::execute::report_identify_compute(ctx);
     let mut weights = Vec::with_capacity(posterior.n_graphs);
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
@@ -668,6 +670,16 @@ impl Study {
         }
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        // The posterior builders report `identify.compute` themselves; the
+        // single-graph, PAG, and temporal caches identify above without a
+        // progress hook, so report once here when one of them was built. A
+        // sharp-RD prepare builds no cache and reports nothing: its clicks do.
+        if analysis.identification_cache.is_some()
+            || analysis.pag_identification_cache.is_some()
+            || analysis.temporal_identification_cache.is_some()
+        {
+            super::execute::report_identify_compute(ctx);
         }
         Ok(PreparedStudy { analysis, plan, schema, time_regularity })
     }

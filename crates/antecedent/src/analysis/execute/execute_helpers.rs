@@ -180,14 +180,28 @@ pub(super) struct IdentifiedExecuteExtras {
 }
 
 pub(super) fn identification_from_cache_or(
+    ctx: &ExecutionContext,
     cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
     if let Some(cache) = cache {
         return Ok((cache.identification.clone(), cache.estimand.clone(), true));
     }
+    report_identify_compute(ctx);
     let (identification, estimand) = live()?;
     Ok((identification, estimand, false))
+}
+
+/// Tell the progress sink that identification is being computed rather than
+/// served from a prepared cache.
+///
+/// Every compute path (single-graph, PAG envelope, bidirected ADMG, graph and
+/// DBN posterior builders, sharp RD) reports this exactly when it identifies,
+/// so `exec.identify.cached` on a prepared click is verifiable, not a flag.
+pub(crate) fn report_identify_compute(ctx: &ExecutionContext) {
+    if let Some(progress) = &ctx.progress {
+        progress.report(0.0, crate::analysis::stage::PROGRESS_IDENTIFY_COMPUTE);
+    }
 }
 
 pub(super) fn nan_effect() -> EffectEstimate {

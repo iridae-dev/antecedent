@@ -21,6 +21,33 @@ const OUTCOME: VariableId = VariableId::from_raw(1);
 const CONFOUNDER: VariableId = VariableId::from_raw(2);
 const N_SAMPLES: usize = 320;
 
+/// Records every progress label so a test can prove identification was
+/// computed exactly where the contract says (fresh run, prepare) and never on
+/// a prepared estimate or refresh click.
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl antecedent_core::ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn recording_ctx(seed: u64) -> (ExecutionContext, Arc<RecordingProgress>) {
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(seed);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
+    (ctx, sink)
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
+fn cached_count(result: &antecedent::StudyResult) -> usize {
+    result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
 fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalEffectQuery) {
     let mut schema = CausalSchemaBuilder::new();
     schema
@@ -185,10 +212,19 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         (vec![unadjusted, adjusted], weights.to_vec()),
         (vec![adjusted, unadjusted], vec![weights[1], weights[0]]),
     ] {
+        let (ctx, sink) = recording_ctx(73);
         let analysis = study(&series, &query, dbn_posterior(&lag_masks, &atom_weights));
         let fresh = analysis.clone().run(&ctx).unwrap();
-        let prepared = analysis.prepare(&ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 1, "a fresh run identifies its atoms once");
+        let mut prepared = analysis.prepare(&ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
         let click = prepared.estimate_series(&series, &ctx).unwrap();
+        let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+        assert_eq!(
+            identify_computations(&sink),
+            2,
+            "estimate and same-schema refresh clicks must not re-identify"
+        );
         let expected = weights[0] * unadjusted_mean + weights[1] * adjusted_mean;
         let fresh_mean = posterior_mean(&fresh);
         let click_mean = posterior_mean(&click);
@@ -197,24 +233,13 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
             "mixture mean={fresh_mean}, expected={expected}"
         );
         assert!((click_mean - fresh_mean).abs() < 1e-12);
-        assert!(fresh.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
-        assert!(click.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
-        assert_eq!(
-            fresh
-                .diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
-                .count(),
-            0
-        );
-        assert_eq!(
-            click
-                .diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
-                .count(),
-            1
-        );
+        assert!((posterior_mean(&refreshed) - click_mean).abs() < 1e-12);
+        for result in [&fresh, &click, &refreshed] {
+            assert!(result.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
+        }
+        assert_eq!(cached_count(&fresh), 0);
+        assert_eq!(cached_count(&click), 1);
+        assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse identification");
     }
 }
 
@@ -239,20 +264,24 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
         (vec![unadjusted, adjusted], vec![retained_weight, failed_weight]),
         (vec![adjusted, unadjusted], vec![failed_weight, retained_weight]),
     ] {
+        let (ctx, sink) = recording_ctx(73);
         let analysis = study(&series, &query, dbn_posterior(&lag_masks, &atom_weights));
         let fresh = analysis.clone().run(&ctx).unwrap();
-        let prepared = analysis.prepare(&ctx).unwrap();
+        let mut prepared = analysis.prepare(&ctx).unwrap();
         let click = prepared.estimate_series(&series, &ctx).unwrap();
-        assert!((posterior_mean(&fresh) - retained_mean).abs() < 1e-12);
-        assert!((posterior_mean(&click) - retained_mean).abs() < 1e-12);
-        assert!(fresh.estimand.adjustment_set.is_empty());
-        assert!(click.estimand.adjustment_set.is_empty());
-        assert!(
-            (fresh.posterior.as_ref().unwrap().unidentified_mass - failed_weight).abs() < 1e-12
-        );
-        assert!(
-            (click.posterior.as_ref().unwrap().unidentified_mass - failed_weight).abs() < 1e-12
-        );
+        let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 2, "only the fresh run and prepare identify");
+        for result in [&fresh, &click, &refreshed] {
+            assert!((posterior_mean(result) - retained_mean).abs() < 1e-12);
+            assert!(result.estimand.adjustment_set.is_empty());
+            assert!(
+                (result.posterior.as_ref().unwrap().unidentified_mass - failed_weight).abs()
+                    < 1e-12
+            );
+        }
+        assert_eq!(cached_count(&fresh), 0);
+        assert_eq!(cached_count(&click), 1);
+        assert_eq!(cached_count(&refreshed), 1);
     }
 }
 

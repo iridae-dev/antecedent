@@ -4,6 +4,8 @@
 
 #![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
 
+use std::sync::Arc;
+
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -107,8 +109,47 @@ fn query_from_pin(pin: &serde_json::Value) -> AverageEffectQuery {
     )
 }
 
+/// Records every progress label so a test can prove identification was
+/// computed exactly where the contract says (fresh run, prepare) and never on
+/// a prepared estimate or refresh click.
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl antecedent_core::ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn recording_ctx(seed: u64) -> (ExecutionContext, Arc<RecordingProgress>) {
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(seed);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
+    (ctx, sink)
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
 fn cached_count(result: &antecedent::StudyResult) -> usize {
     result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
+fn assert_pag_envelope_diagnostic(result: &antecedent::StudyResult, pin: &serde_json::Value) {
+    let identification = &pin["identification"];
+    let expected = format!(
+        "identified_mass={}, unidentified_mass={}, cases={}",
+        identification["identified_mass"].as_f64().unwrap(),
+        identification["unidentified_mass"].as_f64().unwrap(),
+        identification["completion_count"].as_u64().unwrap()
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| {
+            d.code.as_ref() == "identify.pag.envelope" && d.message.contains(&expected)
+        }),
+        "PAG envelope diagnostic must report the pinned completion masses ({expected})"
+    );
 }
 
 fn assert_validation_presence(
@@ -159,14 +200,34 @@ fn assert_prepared_reuse(
 }
 
 fn run_prepared(
-    study: Study,
+    study: &Study,
     data: &TabularData,
-    ctx: &ExecutionContext,
+    seed: u64,
+    expected_identifier: &str,
+    expected_estimator: &str,
 ) -> (antecedent::StudyResult, antecedent::StudyResult, antecedent::StudyResult) {
-    let fresh = study.clone().run(ctx).unwrap();
-    let mut prepared: PreparedStudy = study.prepare(ctx).unwrap();
-    let click = prepared.estimate(data, ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), ctx).unwrap();
+    let (ctx, sink) = recording_ctx(seed);
+    let fresh = study.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "a fresh run identifies exactly once");
+    let mut prepared: PreparedStudy = study.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2, "prepare identifies exactly once");
+    assert_eq!(
+        prepared.plan().logical.record.identifier.as_deref(),
+        Some(expected_identifier),
+        "prepared plan must record the pinned identifier"
+    );
+    assert_eq!(
+        prepared.plan().logical.record.estimator.as_deref(),
+        Some(expected_estimator),
+        "prepared plan must record the pinned estimator"
+    );
+    let click = prepared.estimate(data, &ctx).unwrap();
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert_eq!(
+        identify_computations(&sink),
+        2,
+        "estimate and refresh clicks must reuse the prepared identification"
+    );
     (fresh, click, refreshed)
 }
 
@@ -176,15 +237,19 @@ fn pag_ate_envelope_numeric_pin() {
     let data = expand_contingency(&pin);
     let pag = pag_from_pin(&pin);
     let query = query_from_pin(&pin);
-    let ctx = ExecutionContext::for_tests(1);
     let freq = &pin["frequentist"];
     let bayes = &pin["bayesian"];
+    let identifier = pin["identification"]["identifier"].as_str().unwrap();
+    let freq_estimator = freq["estimator"].as_str().unwrap();
+    let bayes_estimator = bayes["estimator"].as_str().unwrap();
+    let bayes_seed = bayes["seed"].as_u64().unwrap();
     let freq_ate = freq["expected_ate"].as_f64().unwrap();
     let freq_tol = freq["absolute_tolerance"].as_f64().unwrap();
     let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
     let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
     let unidentified = pin["identification"]["unidentified_mass"].as_f64().unwrap();
     assert_eq!(pin["identification"]["status"], "PartiallyIdentified");
+    assert_eq!(bayes["backend"], "conjugate");
 
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -200,9 +265,13 @@ fn pag_ate_envelope_numeric_pin() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            let (fresh, click, refreshed) = run_prepared(freq_study, &data, &ctx);
+            let (fresh, click, refreshed) =
+                run_prepared(&freq_study, &data, bayes_seed, identifier, freq_estimator);
             assert_eq!(format!("{:?}", fresh.identification.status), "PartiallyIdentified");
-            assert_validation_presence(&click, suite, false);
+            for result in [&fresh, &click, &refreshed] {
+                assert_validation_presence(result, suite, false);
+                assert_pag_envelope_diagnostic(result, &pin);
+            }
             assert_prepared_reuse(&fresh, &click, &refreshed, freq_ate, freq_tol);
 
             let mut bayes_builder = Study::tabular(data.clone());
@@ -222,12 +291,22 @@ fn pag_ate_envelope_numeric_pin() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            let (fresh, click, refreshed) = run_prepared(bayes_study, &data, &ctx);
-            assert_validation_presence(&click, suite, true);
+            let (fresh, click, refreshed) =
+                run_prepared(&bayes_study, &data, bayes_seed, identifier, bayes_estimator);
             assert_prepared_reuse(&fresh, &click, &refreshed, bayes_ate, bayes_tol);
             for result in [&fresh, &click, &refreshed] {
+                assert_validation_presence(result, suite, true);
+                assert_pag_envelope_diagnostic(result, &pin);
                 let posterior = result.posterior.as_ref().expect("PAG Bayesian envelope");
                 assert!((posterior.unidentified_mass - unidentified).abs() < 1e-15);
+                if matches!(suite, RefuteSuite::Full) {
+                    assert!(
+                        posterior.prior_sensitivity.is_some(),
+                        "Bayesian full validation must attach prior sensitivity"
+                    );
+                } else {
+                    assert!(posterior.prior_sensitivity.is_none());
+                }
             }
         }
     }
@@ -239,7 +318,8 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
     let data = expand_contingency(&pin);
     let admg = admg_from_pin(&pin);
     let query = query_from_pin(&pin);
-    let ctx = ExecutionContext::for_tests(1);
+    let identifier = pin["identification"]["identifier"].as_str().unwrap();
+    let estimator = pin["frequentist"]["estimator"].as_str().unwrap();
     let expected = pin["frequentist"]["expected_ate"].as_f64().unwrap();
     let tolerance = pin["frequentist"]["absolute_tolerance"].as_f64().unwrap();
     assert_eq!(pin["identification"]["status"], "NonparametricallyIdentified");
@@ -254,11 +334,13 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
             };
             let study =
                 builder.query(query.clone()).refute(suite).bootstrap_replicates(0).build().unwrap();
-            let (fresh, click, refreshed) = run_prepared(study, &data, &ctx);
+            let (fresh, click, refreshed) = run_prepared(&study, &data, 1, identifier, estimator);
             assert_eq!(format!("{:?}", fresh.identification.status), "NonparametricallyIdentified");
-            assert_validation_presence(&click, suite, false);
+            for result in [&fresh, &click, &refreshed] {
+                assert_validation_presence(result, suite, false);
+                assert!(result.posterior.is_none());
+            }
             assert_prepared_reuse(&fresh, &click, &refreshed, expected, tolerance);
-            assert!(fresh.posterior.is_none());
         }
     }
 }
