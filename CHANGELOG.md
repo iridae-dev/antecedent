@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-06
+
+The contract freeze: the version bump of the 0.9.1 matrix, with no code
+changes. The public API (49 frozen root names and the stage-module surfaces),
+the licensed support matrix (77 licensed of 1406 meaningful cells), durable
+artifact format 0.4, and the scientific refusals do not move except by a later
+major version. 1.x minors may add compatible cells under the existing query
+kinds, graph classes, and identification theories. See the
+[release notes](docs/release-notes/v1.0.0.md).
+
+0.9.1 is carried onto main by this release without its own tag or package
+publish, as with 0.7.1.
+
+### Changed
+
+- Workspace and Python package versions are **1.0.0**. No other change.
+
 ## [0.9.1] — 2026-08-31
 
 Patch on 0.9.0. Several licensed rows named a capability the code did not run;
