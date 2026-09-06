@@ -900,10 +900,13 @@ impl PyPreparedAnalysis {
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
-        let supplied = match posterior {
-            Some(bound) => Some(bound.borrow().to_rust()?),
-            None => None,
-        };
+        let supplied = posterior
+            .map(|bound| {
+                let posterior = bound.borrow();
+                posterior.require_bound_to(&names)?;
+                posterior.to_rust()
+            })
+            .transpose()?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
@@ -917,18 +920,12 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let gp = match supplied {
-                Some(gp) => gp,
-                None => {
-                    let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
-                    discover_exact_dag_posterior(
-                        &data,
-                        &vars,
-                        &BayesianDiscoverParams::default(),
-                        &ctx,
-                    )
+            let gp = if let Some(gp) = supplied {
+                gp
+            } else {
+                let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+                discover_exact_dag_posterior(&data, &vars, &BayesianDiscoverParams::default(), &ctx)
                     .map_err(py_err)?
-                }
             };
             let mut builder = Study::tabular(data)
                 .graph_posterior(gp)
@@ -994,10 +991,13 @@ impl PyPreparedAnalysis {
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
-        let supplied = match posterior {
-            Some(bound) => Some(bound.borrow().to_rust()?),
-            None => None,
-        };
+        let supplied = posterior
+            .map(|bound| {
+                let posterior = bound.borrow();
+                posterior.require_bound_to(&names)?;
+                posterior.to_rust()
+            })
+            .transpose()?;
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
         detach_catch(py, move || {
@@ -1019,23 +1019,22 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let gp = match supplied {
-                Some(gp) => gp,
-                None => {
-                    let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
-                    let schedule =
-                        GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-                    discover_dbn_posterior(
-                        &series,
-                        &vars,
-                        &BayesianDiscoverParams::default(),
-                        max_lag,
-                        force_mcmc,
-                        &schedule,
-                        &ctx,
-                    )
-                    .map_err(py_err)?
-                }
+            let gp = if let Some(gp) = supplied {
+                gp
+            } else {
+                let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+                let schedule =
+                    GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+                discover_dbn_posterior(
+                    &series,
+                    &vars,
+                    &BayesianDiscoverParams::default(),
+                    max_lag,
+                    force_mcmc,
+                    &schedule,
+                    &ctx,
+                )
+                .map_err(py_err)?
             };
             let mut builder = Study::series(series)
                 .graph_posterior(gp)

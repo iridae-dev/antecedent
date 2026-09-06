@@ -869,6 +869,12 @@ def handle_supplied_graph_posterior(
     *,
     discovery: GraphPosterior,
     inference: Frequentist | Bayesian,
+    identifier: str | None,
+    estimator: str | None,
+    estimator_config: Mapping[str, Any] | None,
+    validators: Sequence[Any] | None,
+    population_registry: Any | None,
+    return_posterior_artifact: bool,
     refute: bool | str,
     seed: int,
     bootstrap: int | None,
@@ -880,7 +886,35 @@ def handle_supplied_graph_posterior(
         raise TypeError(
             "graph-posterior discovery requires inference=Bayesian(...) for effect mixture"
         )
+    # The supplied-posterior path selects its identifier and estimator per
+    # atom and runs the frozen atoms as given. Refuse the options it cannot
+    # honour rather than dropping them silently, mirroring PreparedAnalysis.
+    dropped = [
+        name
+        for name, value in (
+            ("identifier", identifier),
+            ("estimator", estimator),
+            ("estimator_config", estimator_config),
+            ("validators", validators),
+            ("population_registry", population_registry),
+        )
+        if value is not None
+    ]
+    if return_posterior_artifact:
+        dropped.append("return_posterior_artifact")
+    if dropped:
+        raise CausalUnsupportedError(
+            "analyze(discovery=GraphPosterior(...)) selects its identifier and estimator "
+            f"per posterior atom and does not support {', '.join(dropped)}; drop them or "
+            "run discovery inside analyze(discovery=ExactDagPosterior()/DbnPosterior(...))"
+        )
     bayes_kw = _bayesian_inference_kwargs(inference)
+    unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
+    if unsupported:
+        raise CausalUnsupportedError(
+            "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
+            f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
+        )
     names, columns = ingest_columns(data)
     bootstrap_n = 0 if bootstrap is None else bootstrap
     common = {
@@ -1970,6 +2004,12 @@ def analyze(
             query,
             discovery=discovery,
             inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            estimator_config=estimator_config,
+            validators=validators,
+            population_registry=population_registry,
+            return_posterior_artifact=return_posterior_artifact,
             refute=resolved_refute,
             seed=seed,
             bootstrap=bootstrap,

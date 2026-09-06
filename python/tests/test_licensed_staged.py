@@ -581,3 +581,87 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
     # 1.1: prepare freezes per-atom DBN identification; only the click reuses it.
     assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_prepared_exact_dag_posterior_discovery_reuses_identification():
+    # Real-discovery arm of the prepared graph-posterior handle: discovery runs
+    # once at prepare, identification is frozen per atom, and only the click
+    # reports cache reuse.
+    fresh = antecedent.analyze(
+        _ATE_DATA,
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=_ATE,
+        inference=_BAYES,
+        refute=False,
+        bootstrap=0,
+        seed=7,
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        _ATE_DATA,
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=_ATE,
+        inference=_BAYES,
+        refute=False,
+        seed=7,
+        latency="interactive",
+    )
+    click = prepared.estimate(_ATE_DATA, seed=7)
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_prepared_dbn_posterior_discovery_reuses_identification():
+    n = 400
+    rng = np.random.default_rng(42)
+    pressure = rng.normal(size=n).astype(np.float64)
+    defect = np.zeros(n, dtype=np.float64)
+    for t in range(1, n):
+        defect[t] = 0.9 * pressure[t - 1]
+    data = {"pressure": pressure, "defect": defect}
+    query = antecedent.PulseEffect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    discovery = antecedent.discovery.DbnPosterior(max_lag=1)
+    inference = antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate")
+    fresh = antecedent.analyze(
+        data,
+        discovery=discovery,
+        query=query,
+        inference=inference,
+        refute=False,
+        bootstrap=0,
+        seed=11,
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=discovery,
+        query=query,
+        inference=inference,
+        refute=False,
+        seed=11,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=11)
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert 0.0 <= fresh.posterior.unidentified_mass <= 1.0
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)

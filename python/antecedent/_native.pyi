@@ -408,6 +408,7 @@ class GraphPosterior:
     lagged_edge_marginals: list[float] | None
     max_lag: int | None
     lag_masks: list[int] | None
+    algorithm: str | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod

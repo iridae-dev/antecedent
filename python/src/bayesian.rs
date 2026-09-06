@@ -11,7 +11,7 @@ use antecedent::discovery::{
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
-use antecedent_discovery::has_edge;
+use antecedent_discovery::{has_edge, mask_is_dag, n_directed_edges};
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
@@ -53,7 +53,15 @@ pub struct PyGraphPosterior {
     max_lag: Option<u32>,
     #[pyo3(get)]
     lag_masks: Option<Vec<u64>>,
+    /// Structure-learning algorithm that produced the atoms (`None` if untagged).
+    #[pyo3(get)]
+    algorithm: Option<String>,
+    /// Backend identifier carried from the producing diagnostics.
+    backend_id: String,
 }
+
+/// Width of the packed adjacency / lag masks.
+const MASK_BITS: usize = u64::BITS as usize;
 
 impl PyGraphPosterior {
     fn from_rust(names: Vec<String>, post: RustGraphPosterior) -> Self {
@@ -71,10 +79,19 @@ impl PyGraphPosterior {
             lagged_edge_marginals: post.lagged_edge_marginals.as_ref().map(|v| v.as_ref().to_vec()),
             max_lag: post.max_lag,
             lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
+            algorithm: post.algorithm.as_deref().map(str::to_owned),
+            backend_id: post.diagnostics.backend_id.to_string(),
         }
     }
 
+    /// Rebuild the engine posterior for a study that consumes this handle.
+    ///
+    /// Replay keeps the producer's convergence verdict and algorithm tag, so a
+    /// non-converged MCMC posterior is not relabelled as analytic truth and the
+    /// plan record names the real structure-learning algorithm.
     pub(crate) fn to_rust(&self) -> PyResult<RustGraphPosterior> {
+        let mut diagnostics = InferenceDiagnostics::analytic(self.backend_id.as_str());
+        diagnostics.converged = self.converged;
         let mut post = RustGraphPosterior::new(
             self.n_vars,
             self.weights.clone(),
@@ -82,7 +99,7 @@ impl PyGraphPosterior {
             self.edge_marginals.clone(),
             self.orientation_marginals.clone(),
             self.ess,
-            InferenceDiagnostics::analytic("from_atoms"),
+            diagnostics,
             self.rejected_invalid,
         )
         .map_err(py_msg)?;
@@ -92,7 +109,23 @@ impl PyGraphPosterior {
         if let Some(lag_masks) = &self.lag_masks {
             post = post.with_lag_masks(lag_masks.clone()).map_err(py_msg)?;
         }
-        Ok(post.with_algorithm("from_atoms"))
+        Ok(match &self.algorithm {
+            Some(algorithm) => post.with_algorithm(algorithm.as_str()),
+            None => post,
+        })
+    }
+
+    /// Refuse a posterior whose variable order does not match the data columns.
+    ///
+    /// Atom masks are positional, so a reordered table would silently permute the
+    /// structure; this mirrors the column-order check applied to supplied graphs.
+    pub(crate) fn require_bound_to(&self, names: &[String]) -> PyResult<()> {
+        if self.names != names || self.n_vars != names.len() {
+            return Err(PyValueError::new_err(
+                "GraphPosterior variable names must match data column names and order",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -162,7 +195,52 @@ impl PyGraphPosterior {
         if adjacency.len() != weights.len() {
             return Err(PyValueError::new_err("adjacency/weights length mismatch"));
         }
+        if n_vars == 0 {
+            return Err(PyValueError::new_err("from_atoms requires at least one variable"));
+        }
+        let edge_bits = n_directed_edges(n_vars);
+        if edge_bits > MASK_BITS {
+            return Err(PyValueError::new_err(
+                "from_atoms supports at most 8 variables (64-bit adjacency masks)",
+            ));
+        }
+        for (index, mask) in adjacency.iter().enumerate() {
+            if edge_bits < MASK_BITS && (mask >> edge_bits) != 0 {
+                return Err(PyValueError::new_err(format!(
+                    "adjacency atom {index} sets edge bits beyond {n_vars} variables"
+                )));
+            }
+            if !mask_is_dag(*mask, n_vars) {
+                return Err(PyValueError::new_err(format!("adjacency atom {index} is not a DAG")));
+            }
+        }
+        // `ess` and the default marginals below assume normalized mass; the
+        // engine constructor only rejects non-positive totals.
+        let total: f64 = weights.iter().sum();
+        if total.is_finite() && (total - 1.0).abs() > 1e-9 {
+            return Err(PyValueError::new_err(format!(
+                "posterior weights must sum to 1 (got {total}); normalize the atoms first"
+            )));
+        }
         let cell = n_vars.saturating_mul(n_vars);
+        if lag_masks.is_some() && max_lag.is_none() {
+            return Err(PyValueError::new_err("lag_masks require max_lag"));
+        }
+        if let (Some(masks), Some(lag)) = (&lag_masks, max_lag) {
+            let lag_bits = usize::try_from(lag).map_err(py_msg)?.saturating_mul(cell);
+            if lag == 0 || lag_bits > MASK_BITS {
+                return Err(PyValueError::new_err(
+                    "lag_masks require 1 <= max_lag and max_lag * n_vars^2 <= 64 bits",
+                ));
+            }
+            for (index, mask) in masks.iter().enumerate() {
+                if lag_bits < MASK_BITS && (mask >> lag_bits) != 0 {
+                    return Err(PyValueError::new_err(format!(
+                        "lag mask atom {index} sets bits beyond max_lag={lag} and {n_vars} variables"
+                    )));
+                }
+            }
+        }
         let edge_marginals = edge_marginals.unwrap_or_else(|| {
             let mut marginals = vec![0.0; cell];
             for (weight, mask) in weights.iter().zip(&adjacency) {
