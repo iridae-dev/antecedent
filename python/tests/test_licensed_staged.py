@@ -517,6 +517,9 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
+    # 1.1: prepare freezes per-atom identification; only the click reuses it.
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
 def test_licensed_dbn_posterior_prepare_matches_analyze():
@@ -561,3 +564,6 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
+    # 1.1: prepare freezes per-atom DBN identification; only the click reuses it.
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
