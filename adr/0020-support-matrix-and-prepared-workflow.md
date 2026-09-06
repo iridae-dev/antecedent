@@ -159,3 +159,20 @@ than by disjointness.
 `allowed_unlicensed` wire value are retained so older artifacts and clients
 still decode, but no 0.9 matrix cell can produce that status. Every
 successful analysis reports `evidence_status == "licensed"`.
+
+## Amendment (2026-09-06): prepared envelopes identify once
+
+The original prepared-workflow rule now applies to every licensed prepared
+envelope. Antecedent 1.1 stores generalized-adjustment PAG envelopes,
+bidirected-ADMG general-ID functionals, and static/DBN graph-posterior
+per-atom identification at prepare time. DBN atoms also retain their finite
+unfolding indexers. Estimate and same-schema refresh clicks reuse those
+products and emit `exec.identify.cached`; unidentified posterior atoms keep
+their original mass. Sharp RD remains the deliberate identify-per-click
+exception.
+
+Graph and query identity remain frozen on the handle. Changing either creates
+a new study and requires a new prepare, so the cache cannot cross structural
+or estimand coordinates. Prepared-vs-fresh equality remains an execution
+invariant, while known-truth fixtures independently license the graph-mixture
+effect values.

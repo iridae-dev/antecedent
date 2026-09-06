@@ -42,4 +42,5 @@ upstream_implementations_observed = []
 test_sources = [
  "in-crate unit tests (crates/antecedent-estimate/src/envelope.rs): preserves unidentified mass by default, refuses renormalization that would discard positive unidentified mass, and checks interactive-subsample mass accounting",
  "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and aggregate mean; constant per-graph draws do not distinguish barycentric aggregation from a BMA mixture)",
+ "conformance/bayesian/known_truth_mixtures (frozen analytic DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures consumed from the staged path: identified atoms pin E[tau | identified], a structurally unidentified atom keeps its posterior weight as unidentified_mass, and the parameter prior does not upgrade it)",
 ]
