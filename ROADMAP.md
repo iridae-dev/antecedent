@@ -3,7 +3,7 @@
 Intentions from the 0.5 causal-response release through 1.0 and after.
 This is not a working checklist for an in-flight cut.
 
-Last updated: 2026-08-23
+Last updated: 2026-09-06
 
 ## How to read this
 
@@ -112,7 +112,7 @@ two-point temporal contrasts. 0.7 makes time a response, not a contrast.
 
 ## 0.9 — Audit and freeze
 
-Cutting as **0.9.0**. The bullets below are the 0.9 intent; they are not an
+Shipped as **0.9.0**. The bullets below are the 0.9 intent; they are not an
 open checklist.
 
 No new estimands. No new identification theories.
@@ -134,7 +134,8 @@ No new estimands. No new identification theories.
 
 ## 0.9.1 — Matrix sentences
 
-Cutting as **0.9.1**. The paragraph below is the 0.9.1 intent; it is not an
+Shipped as **0.9.1** — merged to main untagged and carried out by the 1.0.0
+cut, as with 0.7.1. The paragraph below is the 0.9.1 intent; it is not an
 open checklist.
 
 Patch on tagged 0.9.0. 0.9.0’s limitations are honest; some axis names
@@ -153,9 +154,9 @@ and identification caching wait for 1.1.
 
 ## 1.0 — Contract freeze
 
-The version bump of the 0.9.1 matrix. The public API, support matrix,
-artifact format, and scientific refusals do not move except by a later
-major.
+Shipped as **1.0.0**. The version bump of the 0.9.1 matrix. The public API,
+support matrix, artifact format, and scientific refusals do not move except
+by a later major.
 
 1.0 ships when:
 

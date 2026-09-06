@@ -55,7 +55,7 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **0.9.1**. This release consolidates the public surface, evidence contracts, artifact format, and refusal boundaries on the path to 1.0. The [roadmap](ROADMAP.md) describes that compatibility boundary and the project’s deliberate non-goals.
+The current package version is **1.0.0**. This release freezes the public surface, evidence contracts, artifact format, and refusal boundaries: none of them move except by a later major version. The [roadmap](ROADMAP.md) describes that compatibility boundary and the project’s deliberate non-goals.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·
