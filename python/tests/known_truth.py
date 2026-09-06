@@ -1,0 +1,78 @@
+"""Shared known-truth mixture fixtures for the 1.1 honesty-pass tests."""
+
+from __future__ import annotations
+
+import json
+import pathlib
+from typing import Any
+
+import antecedent
+import numpy as np
+
+_ROOT = pathlib.Path(__file__).resolve().parents[2]
+PIN = json.loads((_ROOT / "conformance/bayesian/known_truth_mixtures/expected.json").read_text())
+STATIC = PIN["static_average_effect"]
+TEMPORAL = PIN["temporal_effect"]
+BAYES = antecedent.Bayesian(backend="conjugate", n_draws=256, prior_scale=1_000_000.0)
+
+
+def set_edge(mask: int, n: int, src: int, dst: int) -> int:
+    bit = src * (n - 1) + (dst if dst < src else dst - 1)
+    return mask | (1 << bit)
+
+
+def static_data(n: int) -> dict[str, np.ndarray]:
+    assert n % 16 == 0
+    treatment: list[float] = []
+    outcome: list[float] = []
+    confounder: list[float] = []
+    for _ in range(n // 16):
+        for z, t, count in ((0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)):
+            for row in range(count):
+                epsilon = -0.2 if row % 2 == 0 else 0.2
+                treatment.append(t)
+                confounder.append(z)
+                outcome.append(2.0 * t + 2.0 * z + epsilon)
+    return {
+        "t": np.asarray(treatment, dtype=np.float64),
+        "y": np.asarray(outcome, dtype=np.float64),
+        "z": np.asarray(confounder, dtype=np.float64),
+    }
+
+
+def white_noise_pulse_series(n: int, seed: int) -> dict[str, np.ndarray]:
+    pressure = np.empty(n, dtype=np.float64)
+    defect = np.zeros(n, dtype=np.float64)
+    state = seed
+    for t in range(n):
+        state = (state * 6_364_136_223_846_793_005 + 1) & 0xFFFFFFFFFFFFFFFF
+        u = (state >> 33) / float(1 << 31)
+        pressure[t] = u * 2.0 - 1.0
+        if t > 0:
+            defect[t] = 0.9 * pressure[t - 1]
+    return {"pressure": pressure, "defect": defect}
+
+
+def static_posterior() -> Any:
+    weights = [float(w) for w in STATIC["posterior_weights"]]
+    direct = set_edge(0, 3, 0, 1)
+    adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1), 3, 2, 0), 3, 2, 1)
+    unidentified = set_edge(0, 3, 1, 0)
+    return antecedent.discovery.GraphPosterior.from_atoms(
+        ["t", "y", "z"],
+        weights,
+        [direct, adjusted, unidentified],
+    )
+
+
+def temporal_posterior() -> Any:
+    identified = TEMPORAL["identified_atom"]
+    unidentified = TEMPORAL["unidentified_atom"]
+    return antecedent.discovery.GraphPosterior.from_atoms(
+        ["pressure", "defect"],
+        [float(w) for w in TEMPORAL["posterior_weights"]],
+        [int(identified["contemporaneous_mask"]), int(unidentified["contemporaneous_mask"])],
+        lagged_edge_marginals=[float(v) for v in TEMPORAL["lagged_edge_marginals"]],
+        lag_masks=[int(identified["lag_mask"]), int(unidentified["lag_mask"])],
+        max_lag=1,
+    )

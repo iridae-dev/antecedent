@@ -38,6 +38,7 @@ from .discovery import (
     CiScreenedPosterior,
     DbnPosterior,
     ExactDagPosterior,
+    GraphPosterior,
     LiNGAM,
     OrderMcmc,
     StructureMcmc,
@@ -958,8 +959,9 @@ class PreparedAnalysis:
         Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
         prepare on a ``TemporalDag`` or lagged edge list. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
-        ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` compiles the
-        licensed graph-posterior cells (Bayesian AverageEffect / Pulse / Sustained).
+        ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
+        ``GraphPosterior`` compiles the licensed graph-posterior cells
+        (Bayesian AverageEffect / Pulse / Sustained).
         """
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
@@ -1383,7 +1385,9 @@ class PreparedAnalysis:
         inference_mode, bayes_kw = _prepared_bayesian_args(inference)
         n_draws = int(bayes_kw.get("n_draws", 1000))
         prior_scale = float(bayes_kw.get("prior_scale", 10.0))
-        if isinstance(discovery, ExactDagPosterior) and isinstance(query, AverageEffect):
+        if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
+            query, AverageEffect
+        ):
             native = _NativePreparedAnalysis.prepare_graph_posterior_ate(
                 names,
                 columns,
@@ -1398,9 +1402,10 @@ class PreparedAnalysis:
                 seed=seed,
                 bootstrap=bootstrap if bootstrap is not None else 0,
                 threads=threads,
+                posterior=discovery if isinstance(discovery, GraphPosterior) else None,
             )
             return cls(native, kind="average", query=query)
-        if isinstance(discovery, DbnPosterior) and isinstance(
+        if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, (PulseEffect, SustainedEffect)
         ):
             if refute not in (False, "none", Refute.NONE):
@@ -1410,30 +1415,49 @@ class PreparedAnalysis:
                     "cheap and full do not run the ATE refuter suite on the DBN envelope. "
                     "Use refute='none'."
                 )
-            native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
-                names,
-                columns,
-                query.treatment,
-                query.outcome,
-                policy=query.kind,
-                treatment_lag=query.treatment_lag,
-                horizon_steps=query.horizon_steps,
-                active_level=query.active_level,
-                max_lag=discovery.max_lag,
-                force_mcmc=discovery.force_mcmc,
-                n_chains=discovery.n_chains,
-                n_warmup=discovery.n_warmup,
-                mcmc_draws=discovery.n_draws,
-                inference=inference_mode,
-                n_draws=n_draws,
-                prior_scale=prior_scale,
-                seed=seed,
-                threads=threads,
-            )
+            if isinstance(discovery, GraphPosterior):
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.outcome,
+                    policy=query.kind,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    seed=seed,
+                    threads=threads,
+                    posterior=discovery,
+                )
+            else:
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.outcome,
+                    policy=query.kind,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    max_lag=discovery.max_lag,
+                    force_mcmc=discovery.force_mcmc,
+                    n_chains=discovery.n_chains,
+                    n_warmup=discovery.n_warmup,
+                    mcmc_draws=discovery.n_draws,
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    seed=seed,
+                    threads=threads,
+                )
             return cls(native, kind="average", query=query)
         raise CausalTypeError(
             "PreparedAnalysis.prepare(discovery=) is licensed for ExactDagPosterior "
-            "(AverageEffect) and DbnPosterior (PulseEffect / SustainedEffect)"
+            "or GraphPosterior (AverageEffect) and DbnPosterior or GraphPosterior "
+            "(PulseEffect / SustainedEffect)"
         )
 
     @classmethod

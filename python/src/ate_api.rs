@@ -2294,7 +2294,73 @@ fn identify_ate(
     })
 }
 
-/// Temporal linear mediation (treatment → mediator → outcome).
+/// Average effect from a supplied graph posterior (known-truth / replay atoms).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    posterior,
+    treatment,
+    outcome,
+    *,
+    control_level=0.0,
+    active_level=1.0,
+    inference="conjugate",
+    n_draws=1000,
+    prior_scale=10.0,
+    refute=None,
+    seed=1,
+    bootstrap=0,
+    threads=1,
+))]
+fn analyze_ate_graph_posterior(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    posterior: Bound<'_, crate::bayesian::PyGraphPosterior>,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    inference: &str,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let gp = posterior.borrow().to_rust()?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let inference = inference.to_string();
+    detach_catch(py, move || {
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        let builder = Study::tabular(data)
+            .graph_posterior(gp)
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        run_static_ate_from_builder(
+            &names,
+            builder,
+            Some(&inference),
+            n_draws,
+            prior_scale,
+            None,
+            None,
+            None,
+            seed,
+            threads,
+            None,
+            None,
+            false,
+            None,
+        )
+    })
+}
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
@@ -2307,6 +2373,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_admg_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_many, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;

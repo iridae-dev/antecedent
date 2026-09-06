@@ -19,7 +19,7 @@
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
-mod bayesian;
+pub(crate) mod bayesian;
 mod bounds_api;
 mod callbacks;
 mod design_api;
