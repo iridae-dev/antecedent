@@ -33,8 +33,12 @@ impl super::Study {
             });
         }
 
-        let identification = identify_admg(identifier_id, admg, query)?;
-        let estimand = select_estimand(&identification, estimator_id)?;
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(self.identification_cache.as_deref(), || {
+                let identification = identify_admg(identifier_id, admg, query)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
         let est = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
@@ -75,7 +79,7 @@ impl super::Study {
             estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics,
             refutations,
             distribution: None,
@@ -112,15 +116,29 @@ impl super::Study {
             .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
-        let envelope = identify_pag(identifier_id, pag, query)?;
+        let (envelope, identification, identify_cached) =
+            if let Some(cache) = self.pag_identification_cache.as_deref() {
+                (cache.envelope.clone(), cache.identification.clone(), true)
+            } else {
+                let envelope = identify_pag(identifier_id, pag, query)?;
+                let identification = envelope_to_identification_result(&envelope, query);
+                (envelope, identification, false)
+            };
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
             if matches!(self.inference, InferenceMode::Bayesian(_))
                 || matches!(estimator_id, EstimatorId::BayesianGcomp)
             {
-                return self
-                    .execute_pag_nonidentified_prior(query, physical, ctx, &envelope, started);
+                return self.execute_pag_nonidentified_prior(
+                    query,
+                    physical,
+                    ctx,
+                    &envelope,
+                    identification,
+                    identify_cached,
+                    started,
+                );
             }
             return Err(CausalError::Compile {
                 message: "PAG effect not identified (no identified mass in envelope)".into(),
@@ -140,8 +158,6 @@ impl super::Study {
             ),
         ));
 
-        let identification = envelope_to_identification_result(&envelope, query);
-
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_pag_bayesian(
                 data,
@@ -150,6 +166,7 @@ impl super::Study {
                 ctx,
                 &envelope,
                 identification,
+                identify_cached,
                 started,
             );
         }
@@ -243,7 +260,7 @@ impl super::Study {
             estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -266,6 +283,8 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
         envelope: &IdentificationEnvelope<Pag>,
+        identification: IdentificationResult,
+        identify_cached: bool,
         started: Instant,
     ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
@@ -287,7 +306,6 @@ impl super::Study {
             ctx.rng.master_seed(),
         );
         let estimate = effect_from_posterior(&posterior)?;
-        let identification = envelope_to_identification_result(envelope, query);
         let estimand = envelope.invariant.clone().unwrap_or_else(|| {
             IdentifiedEstimand::backdoor(
                 "pag.nonidentified",
@@ -314,7 +332,7 @@ impl super::Study {
             estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
             distribution: None,

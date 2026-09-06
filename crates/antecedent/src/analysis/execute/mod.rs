@@ -24,9 +24,7 @@ pub(super) use antecedent_core::{
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
 };
-pub(super) use antecedent_discovery::{
-    GraphPosterior, dag_from_adjacency_mask, temporal_dag_from_dbn_masks,
-};
+pub(super) use antecedent_discovery::GraphPosterior;
 pub(super) use antecedent_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate,
@@ -133,15 +131,24 @@ pub struct Study {
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
-    /// Prepare-time identification for the static ATE path, set only by
-    /// [`Study::prepare`]. Identification depends solely on
+    /// Prepare-time identification for the static ATE path (including the
+    /// general-ID result and functional estimand of a bidirected ADMG), set
+    /// only by [`Study::prepare`]. Identification depends solely on
     /// (identifier, graph, query, rd) — all frozen at prepare — so reusing it
     /// per estimate click is exact; `None` (every builder-constructed study)
-    /// keeps the identify-per-run behavior.
+    /// identifies on each run.
     pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
+    /// Prepare-time generalized-adjustment envelope for a supplied PAG.
+    pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
     /// Prepare-time temporal-backdoor identification + indexer for temporal response.
     pub(crate) temporal_identification_cache:
         Option<Arc<super::prepared::CachedTemporalIdentification>>,
+    /// Prepare-time per-atom identification and weights for a static graph posterior.
+    pub(crate) graph_posterior_identification_cache:
+        Option<Arc<super::prepared::CachedGraphPosteriorIdentification>>,
+    /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
+    pub(crate) dbn_posterior_identification_cache:
+        Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
 }
 
 impl std::fmt::Debug for Study {
@@ -169,9 +176,18 @@ impl std::fmt::Debug for Study {
             .field("latency_mode", &self.latency_mode)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
             .field("identification_cache_is_some", &self.identification_cache.is_some())
+            .field("pag_identification_cache_is_some", &self.pag_identification_cache.is_some())
             .field(
                 "temporal_identification_cache_is_some",
                 &self.temporal_identification_cache.is_some(),
+            )
+            .field(
+                "graph_posterior_identification_cache_is_some",
+                &self.graph_posterior_identification_cache.is_some(),
+            )
+            .field(
+                "dbn_posterior_identification_cache_is_some",
+                &self.dbn_posterior_identification_cache.is_some(),
             )
             .finish()
     }
@@ -301,6 +317,7 @@ mod identify_only_tests {
         VariableId,
     };
     use antecedent_data::TabularData;
+    use antecedent_discovery::{mask_is_dag, set_edge};
     use antecedent_graph::{Admg, DenseNodeId, Pag};
     use antecedent_prob::InferenceDiagnostics;
 
@@ -314,6 +331,34 @@ mod identify_only_tests {
 
     fn ate() -> AverageEffectQuery {
         AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+    }
+
+    fn known_truth_graph_mixture_data(n: usize) -> TabularData {
+        // Sixteen rows per block give the exact joint distribution
+        // P(T=1 | Z=0)=1/4 and P(T=1 | Z=1)=3/4.  Hence the unadjusted
+        // contrast is 2 + 2*(3/4 - 1/4) = 3, while adjustment for Z
+        // recovers the structural coefficient 2.  Pairing +/- residuals
+        // within every cell keeps both population regressions exact.
+        assert_eq!(n % 16, 0);
+        let mut treatment = Vec::with_capacity(n);
+        let mut outcome = Vec::with_capacity(n);
+        let mut confounder = Vec::with_capacity(n);
+        for _ in 0..(n / 16) {
+            for (z, t, count) in [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)] {
+                for row in 0..count {
+                    let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
+                    treatment.push(t);
+                    confounder.push(z);
+                    outcome.push(2.0 * t + 2.0 * z + epsilon);
+                }
+            }
+        }
+        TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("z", confounder.as_slice()),
+        ])
+        .unwrap()
     }
 
     fn assert_identify_only_refused(err: &CausalError, message: &'static str) {
@@ -359,39 +404,120 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn prepare_graph_posterior_ate_runs_identify_per_click() {
-        // This is deliberately an internal cross-check, not known-truth evidence:
-        // it compares two Antecedent execution modes over a hand-built posterior.
-        // Cover each licensed validation coordinate so the matrix cannot infer
-        // cheap/full support from a validation-none test.
+    fn graph_posterior_ate_known_truth_mixture() {
+        // Analytic, independently specified fixture: atom 0 estimates the
+        // unadjusted effect 3, atom 1 adjusts for Z and estimates 2, and atom
+        // 2 is the reverse-causal Y -> T DAG, for which the licensed
+        // backdoor identifier has no admissible adjustment; its 0.2 posterior
+        // weight must remain unidentified.
+        // The envelope contract reports E[tau | identified] while retaining
+        // that 0.2 separately: (0.5*3 + 0.3*2) / 0.8 = 2.625.
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../conformance/bayesian/known_truth_mixtures/expected.json"
+        ))
+        .unwrap();
+        let pin = &expected["static_average_effect"];
+        let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+        let weights: Vec<f64> = pin["posterior_weights"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect();
+        let atom_effects: Vec<f64> = pin["identified_atom_effects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect();
+        let identified_mass = pin["identified_mass"].as_f64().unwrap();
+        let weighted_sum = pin["identified_weighted_sum"].as_f64().unwrap();
+        let mixture_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+        let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+        let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+        assert!(
+            (weights[0] * atom_effects[0] + weights[1] * atom_effects[1] - weighted_sum).abs()
+                < 1e-12
+        );
+        assert!((weighted_sum / identified_mass - mixture_truth).abs() < 1e-12);
+        assert!((weights[2] - unidentified_truth).abs() < 1e-12);
+
+        let direct = set_edge(0, 3, 0, 1, true); // T -> Y; no adjustment.
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true); // Z -> T, Z -> Y, T -> Y.
+        let unidentified = set_edge(0, 3, 1, 0, true); // Y -> T; no admissible adjustment.
+        assert!(mask_is_dag(direct, 3));
+        assert!(mask_is_dag(adjusted, 3));
+        assert!(mask_is_dag(unidentified, 3));
+
+        // Keep marginals consistent with the three frozen atoms even though
+        // effect execution consumes their masks and weights directly.
+        let mut marginals = vec![0.0; 9];
+        marginals[1] = weights[0] + weights[1]; // T -> Y in both identified atoms.
+        marginals[3] = weights[2]; // Y -> T only in the unidentified atom.
+        marginals[6] = weights[1]; // Z -> T only in the adjusted atom.
+        marginals[7] = weights[1]; // Z -> Y only in the adjusted atom.
+
+        // Cover each licensed validation coordinate so cheap/full support is
+        // demonstrated by the same known-truth staged mixture, not inferred
+        // from a validation-none run.
         let mut report_counts = Vec::new();
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
             let gp = GraphPosterior::new(
-                2,
-                vec![1.0],
-                vec![0u64],
-                vec![0.0; 4],
-                vec![0.0; 4],
-                1.0,
-                InferenceDiagnostics::analytic("test"),
+                3,
+                weights.clone(),
+                vec![direct, adjusted, unidentified],
+                marginals.clone(),
+                marginals.clone(),
+                1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+                InferenceDiagnostics::analytic("known_truth_mixtures"),
                 0,
             )
-            .unwrap();
-            let data = toy_data();
+            .unwrap()
+            .with_algorithm("known_truth_fixture");
+            let data = known_truth_graph_mixture_data(n);
             let ctx = ExecutionContext::for_tests(1);
             let study = Study::tabular(data.clone())
                 .graph_posterior(gp)
                 .query(ate())
                 .refute(suite)
-                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
+                ))
                 .build()
                 .unwrap();
             let fresh = study.clone().run(&ctx).unwrap();
             let prepared = study.prepare(&ctx).unwrap();
             let click = prepared.estimate(&data, &ctx).unwrap();
-            assert!(click.estimate.ate.is_finite());
+            assert!(
+                (click.estimate.ate - mixture_truth).abs() < tolerance,
+                "{suite:?} mixture mean={} truth={mixture_truth}",
+                click.estimate.ate
+            );
             assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+            let click_post = click.posterior.as_ref().expect("prepared graph mixture posterior");
+            let fresh_post = fresh.posterior.as_ref().expect("fresh graph mixture posterior");
+            assert_eq!(click_post.identification, IdentificationStatus::GraphDependent);
+            assert!((click_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+            assert!((fresh_post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+            assert_eq!(
+                fresh
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.code.as_ref() == "exec.identify.cached")
+                    .count(),
+                0,
+                "fresh graph-posterior execution must identify its atoms"
+            );
+            assert_eq!(
+                click
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.code.as_ref() == "exec.identify.cached")
+                    .count(),
+                1,
+                "prepared graph-posterior execution must consume its cache exactly once"
+            );
             assert_eq!(click.refutations.len(), fresh.refutations.len());
             assert_eq!(click.predictive_checks.len(), fresh.predictive_checks.len());
             match suite {
