@@ -11,6 +11,8 @@ use antecedent::discovery::{
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
+use antecedent_discovery::has_edge;
+use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
@@ -18,7 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::{
-    columns_to_batch, detach_catch, py_err, py_execution_context, series_from_batch,
+    columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
     tabular_from_batch,
 };
 
@@ -49,6 +51,8 @@ pub struct PyGraphPosterior {
     lagged_edge_marginals: Option<Vec<f64>>,
     #[pyo3(get)]
     max_lag: Option<u32>,
+    #[pyo3(get)]
+    lag_masks: Option<Vec<u64>>,
 }
 
 impl PyGraphPosterior {
@@ -66,7 +70,29 @@ impl PyGraphPosterior {
             converged: post.diagnostics.converged,
             lagged_edge_marginals: post.lagged_edge_marginals.as_ref().map(|v| v.as_ref().to_vec()),
             max_lag: post.max_lag,
+            lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
         }
+    }
+
+    pub(crate) fn to_rust(&self) -> PyResult<RustGraphPosterior> {
+        let mut post = RustGraphPosterior::new(
+            self.n_vars,
+            self.weights.clone(),
+            self.adjacency.clone(),
+            self.edge_marginals.clone(),
+            self.orientation_marginals.clone(),
+            self.ess,
+            InferenceDiagnostics::analytic("from_atoms"),
+            self.rejected_invalid,
+        )
+        .map_err(py_msg)?;
+        if let (Some(lagged), Some(max_lag)) = (&self.lagged_edge_marginals, self.max_lag) {
+            post = post.with_lagged_marginals(max_lag, lagged.clone()).map_err(py_msg)?;
+        }
+        if let Some(lag_masks) = &self.lag_masks {
+            post = post.with_lag_masks(lag_masks.clone()).map_err(py_msg)?;
+        }
+        Ok(post.with_algorithm("from_atoms"))
     }
 }
 
@@ -104,6 +130,80 @@ impl PyGraphPosterior {
             "GraphPosterior(n_vars={}, n_graphs={}, ess={:.3}, converged={})",
             self.n_vars, self.n_graphs, self.ess, self.converged
         )
+    }
+
+    /// Build a posterior from explicit atoms (known-truth fixtures / replay).
+    #[classmethod]
+    #[pyo3(signature = (
+        names,
+        weights,
+        adjacency,
+        *,
+        edge_marginals=None,
+        orientation_marginals=None,
+        lagged_edge_marginals=None,
+        lag_masks=None,
+        max_lag=None,
+        ess=None,
+    ))]
+    fn from_atoms(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        names: Vec<String>,
+        weights: Vec<f64>,
+        adjacency: Vec<u64>,
+        edge_marginals: Option<Vec<f64>>,
+        orientation_marginals: Option<Vec<f64>>,
+        lagged_edge_marginals: Option<Vec<f64>>,
+        lag_masks: Option<Vec<u64>>,
+        max_lag: Option<u32>,
+        ess: Option<f64>,
+    ) -> PyResult<Self> {
+        let n_vars = names.len();
+        if adjacency.len() != weights.len() {
+            return Err(PyValueError::new_err("adjacency/weights length mismatch"));
+        }
+        let cell = n_vars.saturating_mul(n_vars);
+        let edge_marginals = edge_marginals.unwrap_or_else(|| {
+            let mut marginals = vec![0.0; cell];
+            for (weight, mask) in weights.iter().zip(&adjacency) {
+                for from in 0..n_vars {
+                    for to in 0..n_vars {
+                        if from != to && has_edge(*mask, n_vars, from, to) {
+                            marginals[from * n_vars + to] += *weight;
+                        }
+                    }
+                }
+            }
+            marginals
+        });
+        let orientation_marginals = orientation_marginals.unwrap_or_else(|| edge_marginals.clone());
+        let ess = ess.unwrap_or_else(|| 1.0 / weights.iter().map(|w| w * w).sum::<f64>());
+        let mut post = RustGraphPosterior::new(
+            n_vars,
+            weights,
+            adjacency,
+            edge_marginals,
+            orientation_marginals,
+            ess,
+            InferenceDiagnostics::analytic("from_atoms"),
+            0,
+        )
+        .map_err(py_msg)?;
+        match (lagged_edge_marginals, max_lag) {
+            (Some(lagged), Some(lag)) => {
+                post = post.with_lagged_marginals(lag, lagged).map_err(py_msg)?;
+            }
+            (None, None) => {}
+            _ => {
+                return Err(PyValueError::new_err(
+                    "lagged_edge_marginals and max_lag must be supplied together",
+                ));
+            }
+        }
+        if let Some(lag_masks) = lag_masks {
+            post = post.with_lag_masks(lag_masks).map_err(py_msg)?;
+        }
+        Ok(Self::from_rust(names, post.with_algorithm("from_atoms")))
     }
 }
 

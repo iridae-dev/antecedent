@@ -109,6 +109,22 @@ def _assert_common_cell_contract(
         not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
     )
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
+    if validation_suite is None:
+        assert not fresh.validation.reports
+        assert not click.validation.reports
+        assert fresh.validation.prior_predictive is None
+        assert click.validation.prior_predictive is None
+    else:
+        assert fresh.validation.ran and click.validation.ran
+        assert fresh.validation.reports and click.validation.reports
+        if estimator == "bayesian.gcomp":
+            assert fresh.validation.prior_predictive is not None
+            assert fresh.validation.posterior_predictive is not None
+            assert click.validation.prior_predictive is not None
+            assert click.validation.posterior_predictive is not None
+            if validation_suite == "validation.full":
+                assert fresh.validation.prior_sensitivity is not None
+                assert click.validation.prior_sensitivity is not None
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -238,6 +254,29 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
         tolerance=float(section["absolute_tolerance"]),
     )
     assert fresh.posterior is click.posterior is None
+
+
+def test_pag_same_schema_refresh_reuses_identification() -> None:
+    data = _expand_contingency(_PAG_PIN)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=_pag(accepted=False),
+        query=_query(_PAG_PIN),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=1)
+    refreshed = prepared.refresh(data, seed=1)
+    expected = float(_PAG_PIN["frequentist"]["expected_ate"])
+    tolerance = float(_PAG_PIN["frequentist"]["absolute_tolerance"])
+    assert click.ate == pytest.approx(expected, abs=tolerance)
+    assert refreshed.ate == pytest.approx(expected, abs=tolerance)
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
+    assert any(
+        diagnostic.startswith("exec.identify.cached") for diagnostic in refreshed.diagnostics
+    )
 
 
 def test_numeric_pin_laws_match_their_recorded_functionals() -> None:

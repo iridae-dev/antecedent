@@ -40,6 +40,9 @@ from ._native import (
     analyze_ate_discover as _analyze_ate_discover,
 )
 from ._native import (
+    analyze_ate_graph_posterior as _analyze_ate_graph_posterior,
+)
+from ._native import (
     analyze_ate_pag as _analyze_ate_pag,
 )
 from ._native import (
@@ -70,6 +73,9 @@ from ._native import (
     analyze_temporal_discover as _analyze_temporal_discover,
 )
 from ._native import (
+    analyze_temporal_graph_posterior as _analyze_temporal_graph_posterior,
+)
+from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
 )
 from ._native import (
@@ -89,6 +95,7 @@ from .discovery import (
     CiScreenedPosterior,
     DbnPosterior,
     ExactDagPosterior,
+    GraphPosterior,
     JPCMCIPlus,
     LiNGAM,
     OrderMcmc,
@@ -303,7 +310,7 @@ def handle_response(
     from .results.response import SupportStatus, UncertaintyKind
 
     if discovery is not None:
-        if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
+        if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
             raise CausalUnsupportedError(
                 "refused: Graph-posterior response is a contract choice, not typed "
                 "impossibility: the ATE envelope (retained unidentified mass) is the "
@@ -854,6 +861,68 @@ def handle_path_specific(
         refute=refute if refute_requested else False,
     )
     return _wrap_ate(raw)
+
+
+def handle_supplied_graph_posterior(
+    data: Any,
+    query: AverageEffect | PulseEffect | SustainedEffect,
+    *,
+    discovery: GraphPosterior,
+    inference: Frequentist | Bayesian,
+    refute: bool | str,
+    seed: int,
+    bootstrap: int | None,
+    threads: int,
+) -> Any:
+    from .estimation import _bayesian_inference_kwargs, _wrap_ate
+
+    if not isinstance(inference, Bayesian):
+        raise TypeError(
+            "graph-posterior discovery requires inference=Bayesian(...) for effect mixture"
+        )
+    bayes_kw = _bayesian_inference_kwargs(inference)
+    names, columns = ingest_columns(data)
+    bootstrap_n = 0 if bootstrap is None else bootstrap
+    common = {
+        "inference": bayes_kw["inference"],
+        "n_draws": bayes_kw["n_draws"],
+        "prior_scale": bayes_kw["prior_scale"],
+        "refute": refute,
+        "seed": seed,
+        "bootstrap": bootstrap_n,
+        "threads": threads,
+    }
+    if isinstance(query, AverageEffect):
+        return _wrap_ate(
+            _analyze_ate_graph_posterior(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                **common,
+            )
+        )
+    if isinstance(query, (PulseEffect, SustainedEffect)):
+        return _wrap_ate(
+            _analyze_temporal_graph_posterior(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.outcome,
+                policy=query.kind,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                **common,
+            )
+        )
+    raise TypeError(
+        "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
+    )
 
 
 def handle_static_ate_discover(
@@ -1766,6 +1835,7 @@ def analyze(
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
+        Graph-posterior cells also accept a constructed ``GraphPosterior``.
         One-shot script convenience — discovery runs at compile time. For
         interactive / spreadsheet estimate clicks, discover once into
         :class:`antecedent.AcceptedGraph` (or hold a reviewed graph) and pass
@@ -1890,6 +1960,22 @@ def analyze(
     # "requires AverageEffect" error, ahead of ever reaching the temporal-pulse
     # handler below. This sequence mirrors the original isinstance ladder
     # exactly (including that quirk) rather than keying purely on `kind`.
+    if isinstance(discovery, GraphPosterior):
+        if not isinstance(query, (AverageEffect, PulseEffect, SustainedEffect)):
+            raise TypeError(
+                "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
+            )
+        return handle_supplied_graph_posterior(
+            data,
+            query,
+            discovery=discovery,
+            inference=inference,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
+
     if discovery is not None and isinstance(
         discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY
     ):

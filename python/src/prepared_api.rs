@@ -880,6 +880,7 @@ impl PyPreparedAnalysis {
         seed=1,
         bootstrap=0,
         threads=1,
+        posterior=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_graph_posterior_ate(
@@ -897,14 +898,18 @@ impl PyPreparedAnalysis {
         seed: u64,
         bootstrap: u32,
         threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
+        let supplied = match posterior {
+            Some(bound) => Some(bound.borrow().to_rust()?),
+            None => None,
+        };
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -912,13 +917,19 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let gp = discover_exact_dag_posterior(
-                &data,
-                &vars,
-                &BayesianDiscoverParams::default(),
-                &ctx,
-            )
-            .map_err(py_err)?;
+            let gp = match supplied {
+                Some(gp) => gp,
+                None => {
+                    let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+                    discover_exact_dag_posterior(
+                        &data,
+                        &vars,
+                        &BayesianDiscoverParams::default(),
+                        &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+            };
             let mut builder = Study::tabular(data)
                 .graph_posterior(gp)
                 .query(query)
@@ -958,6 +969,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         seed=1,
         threads=1,
+        posterior=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_dbn_posterior_temporal(
@@ -980,7 +992,12 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         seed: u64,
         threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
+        let supplied = match posterior {
+            Some(bound) => Some(bound.borrow().to_rust()?),
+            None => None,
+        };
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
         detach_catch(py, move || {
@@ -995,7 +1012,6 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 active_level,
             )?;
-            let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -1003,17 +1019,24 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-            let gp = discover_dbn_posterior(
-                &series,
-                &vars,
-                &BayesianDiscoverParams::default(),
-                max_lag,
-                force_mcmc,
-                &schedule,
-                &ctx,
-            )
-            .map_err(py_err)?;
+            let gp = match supplied {
+                Some(gp) => gp,
+                None => {
+                    let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+                    let schedule =
+                        GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+                    discover_dbn_posterior(
+                        &series,
+                        &vars,
+                        &BayesianDiscoverParams::default(),
+                        max_lag,
+                        force_mcmc,
+                        &schedule,
+                        &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+            };
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .temporal_query(q)
