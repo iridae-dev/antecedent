@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-08-23
-Scope: workspace crates + `python` extension (package version **0.9.1**)
+Date: 2026-09-06
+Scope: workspace crates + `python` extension (package version **1.0.0**)
 ADR: [0017](../adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -9,7 +9,10 @@ code policy, the current lockfile's advisory/license/source rules, default
 feature linkage, and workflow permissions/action pins. 0.9.1 is a behavior
 patch: it adds no dependencies, changes no lockfile entry beyond the workspace
 version bump, and introduces no `unsafe` block, so the 0.9.0 findings carry
-forward unchanged.
+forward unchanged. 1.0.0 is the version stamp of that 0.9.1 tree — no code,
+dependency, or workflow changes beyond the version bump (`cargo deny check`
+re-run clean: advisories, bans, licenses, sources) — so the findings carry
+forward again.
 
 ## Unsafe code policy
 
