@@ -49,7 +49,14 @@ impl super::Study {
         if let Some(options) = &self.response_options {
             response_estimator.options = options.clone();
         }
-        let response = if query.observation == ObservationSpec::Complete {
+        let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                return Err(CausalError::Unsupported { message: "Bayesian response prior transfer requires a response-specific mapping; only explicit coefficient or isotropic priors are supported" });
+            }
+            let mut bayes = bayesian_gcomp(cfg, ctx);
+            bayes.prior.clone_from(&cfg.prior);
+            response_estimator.estimate_bayesian(data, query, identification.status, identification.required_assumptions.clone(), &bayes, ctx)
+        } else if query.observation == ObservationSpec::Complete {
             response_estimator.estimate_identified(
                 data,
                 query,

@@ -248,7 +248,7 @@ fn known_truth_dbn_posterior(
     .with_algorithm("known_truth_fixture")
 }
 
-fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
+fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: RefuteSuite) {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
     ))
@@ -290,7 +290,7 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
         ))
-        .refute(RefuteSuite::None)
+        .refute(suite)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
@@ -329,16 +329,27 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
         "posterior mean={} truth={effect_truth}",
         post.summaries.mean[eq]
     );
+    if suite != RefuteSuite::None {
+        assert!(!click.refutations.is_empty());
+        assert!(!click.predictive_checks.is_empty());
+    }
+    if suite == RefuteSuite::Full {
+        assert!(click_post.prior_sensitivity.is_some());
+    }
 }
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_envelope() {
-    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::pulse(-1));
+    for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+        assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::pulse(-1), suite);
+    }
 }
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
-    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1));
+    for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+        assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1), suite);
+    }
 }
 
 #[test]

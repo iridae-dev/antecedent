@@ -896,8 +896,15 @@ impl Study {
                 let id_res = TemporalBackdoorIdentifier::new()
                     .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
-                let estimand =
-                    select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
+                let estimand = select_estimand(
+                    &id_res.result,
+                    if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                    {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                )?;
                 Ok(Some(CachedTemporalIdentification {
                     by_horizon: Arc::from([CachedTemporalHorizonIdentification {
                         horizon: query.horizon_steps,
