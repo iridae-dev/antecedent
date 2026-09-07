@@ -33,7 +33,7 @@ impl super::Study {
         // only (identifier, graph, query, rd), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let rd =
                     self.rd.map(|c| SharpRdConfig::new(c.running_variable, c.cutoff, c.bandwidth));
                 let identification = identify_static_query_with_rd(
@@ -280,7 +280,7 @@ impl super::Study {
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let cq = CausalQuery::Distribution(query.clone());
                 let identification = identify_static_query(identifier_id, graph, &cq)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
@@ -380,7 +380,7 @@ impl super::Study {
         // only (identifier, graph, query), all frozen there, so reuse is exact
         // and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let cq = CausalQuery::PathSpecific(query.clone());
                 let identification = identify_static_query(identifier_id, graph, &cq)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
@@ -439,6 +439,9 @@ impl super::Study {
         let rd = self.rd.ok_or_else(|| CausalError::Compile {
             message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
         })?;
+        // Sharp RD is the documented identify-per-click exception: prepare()
+        // stores no cache for it, so every click computes identification.
+        report_identify_compute(ctx);
         let identification = SharpRdIdentifier::new(SharpRdConfig::new(
             rd.running_variable,
             rd.cutoff,
@@ -510,7 +513,7 @@ impl super::Study {
         // only (identifier, graph, query.inner), all frozen there, so reuse is
         // exact and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, &query.inner)?;
                 let estimand =
                     select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;

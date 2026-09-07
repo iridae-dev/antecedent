@@ -23,4 +23,5 @@ test_sources = [
  "frozen clean-room ID status cases for back-door, front-door, and hedge graphs (conformance/identify/id_hedge)",
  "consumed DoWhy 0.14 identify() status/estimand-family oracles (conformance/identify/general_id_backdoor_chain, conformance/identify/general_id_frontdoor, conformance/identify/general_id_hedge)",
  "inline unit tests (crates/antecedent-identify/src/id.rs)",
+ "conformance/estimate/admg_frontdoor_functional (frozen binary front-door law on the general_id_frontdoor ADMG: pins the FunctionalEffect number returned after general ID, on fresh and prepared paths)",
 ]

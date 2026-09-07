@@ -210,7 +210,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = TemporalMediationIdentifier {
                     allow_natural_controlled_alias: true,
                     ..TemporalMediationIdentifier::new()

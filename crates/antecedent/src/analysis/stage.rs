@@ -17,6 +17,11 @@ pub const STAGE_IDENTIFY: &str = "identify";
 pub const STAGE_ESTIMATE_POINT: &str = "estimate_point";
 pub const STAGE_UNCERTAINTY: &str = "uncertainty";
 pub const STAGE_VALIDATE: &str = "validate";
+/// Progress label reported only when identification is computed (fresh runs
+/// and `prepare`), never when a prepared click reuses its frozen cache. A
+/// recording `ProgressSink` can therefore prove that `exec.identify.cached`
+/// means identification was skipped, not merely flagged.
+pub(crate) const PROGRESS_IDENTIFY_COMPUTE: &str = "identify.compute";
 
 /// Intermediate stage payload emitted before the final [`crate::StudyResult`].
 ///

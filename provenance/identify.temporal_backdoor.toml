@@ -24,4 +24,5 @@ test_sources = [
  "conformance/response/temporal_confounded_pulse/expected.json",
  "independently generated synthetic lagged SCMs with known parents",
  "manufacturing-style pressure→defect temporal example",
+ "conformance/bayesian/known_truth_mixtures (a stationary autoregressive DBN atom reaches the finite-history certification cap and is retained as unidentified posterior mass rather than certified)",
 ]

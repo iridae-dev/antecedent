@@ -492,6 +492,101 @@ def test_admg_analyze_refuses_column_order_mismatch():
 
 
 def test_licensed_graph_posterior_prepare_matches_analyze():
+    from known_truth import BAYES, STATIC, static_data, static_posterior
+
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        seed=1,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=1)
+    expected = float(STATIC["expected_effect_given_identified"])
+    tolerance = float(STATIC["effect_abs_tolerance"])
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert click.ate == pytest.approx(expected, abs=tolerance)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        float(STATIC["expected_unidentified_mass"]), abs=1e-12
+    )
+    # 1.1: prepare freezes per-atom identification; only the click reuses it.
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_licensed_dbn_posterior_prepare_matches_analyze():
+    from known_truth import BAYES, TEMPORAL, temporal_posterior, white_noise_pulse_series
+
+    data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+    posterior = temporal_posterior()
+    query = antecedent.PulseEffect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        bootstrap=0,
+        seed=11,
+    )
+    # CodeQL resolves this facade call to the PyO3 class with the same name even
+    # though the Python wrapper's signature explicitly accepts discovery=.
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        seed=11,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=11)
+    expected = float(TEMPORAL["expected_effect_given_identified"])
+    tolerance = float(TEMPORAL["effect_abs_tolerance"])
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert click.ate == pytest.approx(expected, abs=tolerance)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        float(TEMPORAL["expected_unidentified_mass"]), abs=1e-12
+    )
+    # 1.1: prepare freezes per-atom DBN identification; only the click reuses it.
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_prepared_exact_dag_posterior_discovery_reuses_identification():
+    # Real-discovery arm of the prepared graph-posterior handle: discovery runs
+    # once at prepare, identification is frozen per atom, and only the click
+    # reports cache reuse.
     fresh = antecedent.analyze(
         _ATE_DATA,
         discovery=antecedent.discovery.ExactDagPosterior(),
@@ -501,8 +596,6 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
         bootstrap=0,
         seed=7,
     )
-    # CodeQL resolves this facade call to the PyO3 class with the same name even
-    # though the Python wrapper's signature explicitly accepts discovery=.
     # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         _ATE_DATA,
@@ -517,9 +610,15 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
-def test_licensed_dbn_posterior_prepare_matches_analyze():
+def test_prepared_dbn_posterior_discovery_reuses_identification():
     n = 400
     rng = np.random.default_rng(42)
     pressure = rng.normal(size=n).astype(np.float64)
@@ -545,8 +644,6 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
         bootstrap=0,
         seed=11,
     )
-    # CodeQL resolves this facade call to the PyO3 class with the same name even
-    # though the Python wrapper's signature explicitly accepts discovery=.
     # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -561,3 +658,10 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is not None and click.posterior is not None
+    assert 0.0 <= fresh.posterior.unidentified_mass <= 1.0
+    assert click.posterior.unidentified_mass == pytest.approx(
+        fresh.posterior.unidentified_mass, abs=1e-12
+    )
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)

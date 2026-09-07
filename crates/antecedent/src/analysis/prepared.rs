@@ -10,10 +10,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use antecedent_core::{
-    CausalQuery, CausalSchema, ExecutionContext, Intervention, TargetPopulation,
-    TemporalEffectQuery, TemporalResponseSpec, Value,
+    AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention,
+    TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData, TemporalIndexer, TimeSeriesData};
+use antecedent_discovery::{GraphPosterior, dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
 use antecedent_estimate::EstimationWorkspace;
 
 use crate::accepted::GraphClass;
@@ -24,10 +25,12 @@ use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_graph::TemporalDag;
+use antecedent_graph::{Pag, TemporalDag};
 use antecedent_identify::{
-    IdentificationResult, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
+    IdentificationEnvelope, IdentificationResult, IdentificationStatus, TemporalBackdoorIdentifier,
+    TemporalMediationIdentifier,
 };
+use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
@@ -46,6 +49,256 @@ pub struct CachedStaticIdentification {
     pub identification: IdentificationResult,
     /// Estimand selected for the prepared estimator.
     pub estimand: IdentifiedEstimand,
+}
+
+/// Prepare-time generalized-adjustment envelope for a supplied PAG.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedPagIdentification {
+    /// Per-completion identification results and their probability mass.
+    pub envelope: IdentificationEnvelope<Pag>,
+    /// Public aggregate identification result derived from [`Self::envelope`].
+    pub identification: IdentificationResult,
+}
+
+/// One identified atom in a prepared static graph posterior.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedGraphPosteriorAtomIdentification {
+    /// Opaque graph key retained by the posterior envelope.
+    pub key: u64,
+    /// Per-atom selected estimand.
+    pub estimand: IdentifiedEstimand,
+    /// Full per-atom identification result.
+    pub identification: IdentificationResult,
+}
+
+/// Prepare-time identification for every atom in a static graph posterior.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedGraphPosteriorIdentification {
+    /// Frozen weights, graph keys, and identified/unidentified flags.
+    pub graphs: WeightedGraphSamples,
+    /// Identified atoms, in posterior order. Unidentified atoms remain in
+    /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
+    pub atoms: Arc<[CachedGraphPosteriorAtomIdentification]>,
+}
+
+/// One identified atom in a prepared DBN graph posterior.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedDbnPosteriorAtomIdentification {
+    /// Collision-free, position-derived key used by the effect envelope.
+    ///
+    /// [`GraphPosterior::graph_keys`] default to contemporaneous adjacency
+    /// masks, which are not unique for DBN atoms that differ only in lagged
+    /// edges. The execution key is therefore local to this frozen cache.
+    pub key: u64,
+    /// Per-atom selected estimand.
+    pub estimand: IdentifiedEstimand,
+    /// Full temporal per-atom identification result.
+    pub identification: IdentificationResult,
+    /// Finite-unfolding indexer produced with [`Self::identification`].
+    pub indexer: TemporalIndexer,
+}
+
+/// Prepare-time identification for every atom in a DBN graph posterior.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedDbnPosteriorIdentification {
+    /// Frozen weights, graph keys, and identified/unidentified flags.
+    pub graphs: WeightedGraphSamples,
+    /// Identified atoms, in posterior order. Unidentified atoms remain in
+    /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
+    pub atoms: Arc<[CachedDbnPosteriorAtomIdentification]>,
+}
+
+/// Identify every atom in a static graph posterior and retain its original mass.
+///
+/// This is shared by fresh execution and [`Study::prepare`]. Calling it for a
+/// fresh run performs identification; prepared estimate clicks clone the result
+/// stored on the handle instead.
+pub(crate) fn build_graph_posterior_identification_cache(
+    posterior: &GraphPosterior,
+    query: &AverageEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<CachedGraphPosteriorIdentification, CausalError> {
+    use std::collections::HashMap;
+
+    use crate::strategy_table::{
+        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
+    };
+
+    // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
+    // static effect on them alone would drop every lagged confounder. That is
+    // a different coordinate (temporal Pulse / Sustained), so fail closed.
+    if posterior.lag_masks.is_some() || posterior.max_lag.is_some() {
+        return Err(CausalError::Unsupported {
+            message: "static AverageEffect over a graph posterior requires static DAG atoms; \
+                      this posterior carries DBN lag structure, so it needs a temporal \
+                      Pulse / single-step Sustained query",
+        });
+    }
+    super::execute::report_identify_compute(ctx);
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
+        HashMap::new();
+
+    for i in 0..posterior.n_graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        let mask = posterior.adjacency[i];
+        let key = posterior.graph_keys[i];
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        let resolved = if let Some(hit) = by_mask.get(&mask) {
+            hit.clone()
+        } else {
+            let value =
+                (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
+                    let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
+                        return Ok(None);
+                    };
+                    let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query)
+                    else {
+                        return Ok(None);
+                    };
+                    if !identification_status_ok_for_posterior_atom(identification.status)
+                        || identification.estimands.is_empty()
+                    {
+                        return Ok(None);
+                    }
+                    let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                    Ok(Some((estimand, identification)))
+                })()?;
+            by_mask.insert(mask, value.clone());
+            value
+        };
+        if let Some((estimand, identification)) = resolved {
+            flags.push(GraphIdentFlag::Identified);
+            atoms.push(CachedGraphPosteriorAtomIdentification { key, estimand, identification });
+        } else {
+            flags.push(GraphIdentFlag::Unidentified);
+        }
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
+
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    Ok(CachedGraphPosteriorIdentification { graphs, atoms: Arc::from(atoms) })
+}
+
+/// Identify every atom in a DBN posterior and retain its original mass.
+///
+/// The temporal indexer is part of the cached identification product: rebuilding
+/// it from refreshed data would silently couple identification to the estimate
+/// click even though graph and query are frozen.
+pub(crate) fn build_dbn_posterior_identification_cache(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &TemporalEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<CachedDbnPosteriorIdentification, CausalError> {
+    use crate::strategy_table::{EstimatorId, select_estimand};
+
+    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "DBN posterior missing per-atom lag masks".into(),
+    })?;
+    let max_lag = posterior
+        .max_lag
+        .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
+    super::execute::report_identify_compute(ctx);
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+
+    for i in 0..posterior.n_graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        // A DBN atom is the pair (contemporaneous mask, lag mask), but the
+        // public GraphPosterior constructor keys atoms by contemporaneous mask
+        // alone. Use posterior position as a collision-free execution key so
+        // lag-distinct atoms keep distinct fits, flags, and weights inside the
+        // effect envelope. This key is internal and does not alter the public
+        // GraphPosterior representation.
+        let key = dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        let Ok(graph) = temporal_dag_from_dbn_masks(
+            posterior.adjacency[i],
+            lag_masks[i],
+            posterior.n_vars,
+            max_lag,
+            variables,
+        ) else {
+            flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        };
+        let Ok(temporal) = TemporalBackdoorIdentifier::new().identify_temporal(&graph, query)
+        else {
+            flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        };
+        let identification = temporal.result;
+        if !identification_status_ok_for_posterior_atom(identification.status)
+            || identification.estimands.is_empty()
+        {
+            flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        }
+        let Ok(estimand) = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)
+        else {
+            flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        };
+        flags.push(GraphIdentFlag::Identified);
+        atoms.push(CachedDbnPosteriorAtomIdentification {
+            key,
+            estimand,
+            identification,
+            indexer: temporal.indexer,
+        });
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
+
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms) })
+}
+
+fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
+    u64::try_from(index).map_err(|_| CausalError::Compile {
+        message: "DBN posterior has too many atoms for envelope keys".into(),
+    })
+}
+
+fn identification_status_ok_for_posterior_atom(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::PartiallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    )
 }
 
 /// Prepare-time identification products for one temporal horizon.
@@ -88,9 +341,10 @@ impl CachedTemporalIdentification {
 /// Created via [`Study::prepare`]. Discovery / review-required graphs are refused —
 /// prepare is for the interactive estimate click path on an already-accepted artifact.
 ///
-/// **Frozen at prepare:** schema (names, types, order); graph / `AcceptedGraph`;
-/// query identity; identifier; observation / transport / interference
-/// assumptions; target-population bindings.
+/// **Frozen at prepare:** schema (names, types, order); graph / `AcceptedGraph`
+/// or supplied graph-posterior atoms and weights; query identity; identifier;
+/// observation / transport / interference assumptions; target-population
+/// bindings.
 ///
 /// **Estimate click:** same-schema data; estimator numeric knobs, latency,
 /// seeds, bootstrap; `ExecutionContext` budget / cancellation. Does not
@@ -344,10 +598,13 @@ impl Study {
     ///
     /// Supports:
     /// - tabular [`CausalQuery::AverageEffect`] on a supplied static graph
+    /// - tabular [`CausalQuery::AverageEffect`] on a supplied DAG graph posterior
     /// - tabular [`CausalQuery::Response`] on a supplied [`GraphClass::Dag`]
     /// - series temporal [`CausalQuery::Response`] on a supplied [`GraphClass::TemporalDag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
     ///   on a supplied [`GraphClass::TemporalDag`]
+    /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
+    ///   on a supplied DBN graph posterior
     /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
     ///   supplied [`GraphClass::TemporalDag`] (static-style cache, not `I(h)`)
     ///
@@ -371,19 +628,60 @@ impl Study {
             }
         };
         let mut analysis = self.clone();
-        match (&self.data, &self.query) {
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+        match (&self.data, &self.query, self.graph_posterior.as_ref()) {
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(query), Some(posterior)) => {
+                analysis.graph_posterior_identification_cache = Some(Arc::new(
+                    build_graph_posterior_identification_cache(posterior, query, ctx)?,
+                ));
+            }
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::TemporalEffect(query),
+                Some(posterior),
+            ) => {
+                let variables: Vec<_> =
+                    data.schema().variables().iter().map(|variable| variable.id).collect();
+                analysis.dbn_posterior_identification_cache = Some(Arc::new(
+                    build_dbn_posterior_identification_cache(posterior, &variables, query, ctx)?,
+                ));
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
                 analysis.identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
             }
-            (DataInput::Tabular(_), _) => {
+            (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
+                analysis.pag_identification_cache =
+                    self.prepare_pag_identification(&plan)?.map(Arc::new);
             }
-            _ => {
+            (_, _, None) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_identification()?.map(Arc::new);
             }
+            (_, _, Some(_)) => {
+                // `ensure_prepared_supported` already refuses this coordinate; a
+                // library must still answer with a typed refusal, never a panic.
+                return Err(CausalError::Support {
+                    id: crate::support::SupportRefusal::Refused,
+                    message: "graph_posterior on the prepared handle is licensed only for \
+                        tabular AverageEffect and series TemporalEffect (Pulse / single-step \
+                        Sustained)",
+                });
+            }
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        // The posterior builders report `identify.compute` themselves; the
+        // single-graph, PAG, and temporal caches identify above without a
+        // progress hook, so report once here when one of them was built. A
+        // sharp-RD prepare builds no cache and reports nothing: its clicks do.
+        if analysis.identification_cache.is_some()
+            || analysis.pag_identification_cache.is_some()
+            || analysis.temporal_identification_cache.is_some()
+        {
+            super::execute::report_identify_compute(ctx);
         }
         Ok(PreparedStudy { analysis, plan, schema, time_regularity })
     }
@@ -391,9 +689,8 @@ impl Study {
     /// Compute the static-path identification once at prepare time.
     ///
     /// Mirrors `execute_static`'s (and, for `bayesian.gcomp`, `execute_bayesian`'s)
-    /// stage-1 inputs exactly. Configurations that dispatch elsewhere (sharp RD,
-    /// bidirected ADMGs, PAG envelopes, graph posteriors) return `None` and keep
-    /// their identify-per-run behavior.
+    /// stage-1 inputs exactly. Sharp RD and PAG envelopes dispatch to separate
+    /// preparation paths. Graph posteriors use their per-atom caches.
     fn prepare_static_identification(
         &self,
         plan: &PhysicalExecutionPlan,
@@ -409,11 +706,20 @@ impl Study {
         if matches!(estimator_id, EstimatorId::RdSharp) {
             return Ok(None);
         }
-        if self.graph_posterior.is_some() {
-            return Ok(None);
-        }
         match &self.query {
             CausalQuery::AverageEffect(query) => {
+                if self.graph.class() == GraphClass::Admg
+                    && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
+                {
+                    use crate::strategy_table::identify_admg;
+
+                    let admg = self.graph.as_admg().ok_or_else(|| CausalError::Compile {
+                        message: "ADMG prepare missing supplied graph".into(),
+                    })?;
+                    let identification = identify_admg(identifier_id, admg, query)?;
+                    let estimand = select_estimand(&identification, estimator_id)?;
+                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
+                }
                 let graph = match self.graph.class() {
                     GraphClass::Dag => self.graph.as_dag().cloned(),
                     GraphClass::Cpdag | GraphClass::Admg => plan.static_graph().cloned(),
@@ -422,11 +728,6 @@ impl Study {
                 let Some(graph) = graph else {
                     return Ok(None);
                 };
-                if self.graph.class() == GraphClass::Admg
-                    && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
-                {
-                    return Ok(None);
-                }
                 // `execute_bayesian` never consults `self.rd` (it calls
                 // `identify_static`, which is `identify_static_query_with_rd`
                 // with `rd: None`); mirror that exactly so the cached
@@ -538,17 +839,36 @@ impl Study {
         }
     }
 
+    /// Compute the generalized-adjustment envelope once for a supplied PAG.
+    fn prepare_pag_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<CachedPagIdentification>, CausalError> {
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
+
+        let CausalQuery::AverageEffect(query) = &self.query else {
+            return Ok(None);
+        };
+        if self.graph.class() != GraphClass::Pag {
+            return Ok(None);
+        }
+        let pag = plan.static_pag().ok_or_else(|| CausalError::Compile {
+            message: "PAG prepare missing resolved static PAG".into(),
+        })?;
+        let identifier =
+            plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let envelope = identify_pag(identifier_id, pag, query)?;
+        let identification = super::execute::envelope_to_identification_result(&envelope, query);
+        Ok(Some(CachedPagIdentification { envelope, identification }))
+    }
+
     /// Identify once per requested horizon at prepare for temporal response or TemporalEffect.
     fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
         use crate::strategy_table::{EstimatorId, select_estimand};
         if self.graph.class() != GraphClass::TemporalDag {
-            return Ok(None);
-        }
-        // Per-atom identify inside execute_dbn_posterior_bayesian; an empty stub
-        // TemporalDag must not be cached as the identification.
-        if self.graph_posterior.is_some() {
             return Ok(None);
         }
         let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
@@ -661,12 +981,16 @@ pub(crate) fn identify_temporal_response_horizons(
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
-        return match &analysis.query {
-            CausalQuery::AverageEffect(_) | CausalQuery::TemporalEffect(_) => Ok(()),
+        return match (&analysis.data, &analysis.query) {
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_))
+            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
+                Ok(())
+            }
             _ => Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: "graph_posterior on the prepared handle is licensed only for \
-                    AverageEffect and TemporalEffect (Pulse / single-step Sustained)",
+                    tabular AverageEffect and series TemporalEffect (Pulse / single-step \
+                    Sustained)",
             }),
         };
     }

@@ -1186,8 +1186,8 @@ mod tests {
         }
     }
 
-    /// End-to-end: a PAG ATE study is licensed (identify-per-run; generalized
-    /// adjustment pin), under Frequentist none.
+    /// End-to-end: a PAG ATE study is licensed (generalized-adjustment envelope),
+    /// under Frequentist none. Prepared-cache reuse is covered separately.
     #[test]
     fn build_pag_ate_is_licensed() {
         let mut pag = Pag::with_variables(2);

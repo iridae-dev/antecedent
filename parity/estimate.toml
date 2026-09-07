@@ -99,7 +99,7 @@ external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
 limitations = "Frozen external status/estimand-family/graph_dot comparisons cover backdoor, front-door, and bow-arc hedge graphs; clean-room conformance/identify/id_hedge separately pins the hedge certificate. Symbolic-expression prose is not compared byte-for-byte."
 owner = "identify"
-notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect; python_facade=full for PathSpecific/Interventional with discovery= (MAP for graph posteriors; incomplete CPDAG/PAG fail closed)"
+notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect; python_facade=full for PathSpecific/Interventional with discovery= (MAP for graph posteriors; incomplete CPDAG/PAG fail closed); the front-door FunctionalEffect number on the frozen ADMG law is pinned by conformance/estimate/admg_frontdoor_functional (1.1)"
 
 [[capabilities]]
 id = "estimate.identify.estimand"

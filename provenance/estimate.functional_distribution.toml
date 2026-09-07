@@ -28,4 +28,5 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/estimate/functional_plugin (clean-room known-truth fixture for one backdoor interventional mean; does not exercise IDC or general ID expressions)",
  "in-crate unit tests (crates/antecedent-estimate/src/functional_distribution.rs): plug-in matches known interventional mean, bootstrap SE finiteness, no-bootstrap replicate-count invariant",
+ "conformance/estimate/admg_frontdoor_functional (frozen binary front-door ADMG law: the plug-in front-door functional equals the analytic 0.3 through the staged Frequentist ATE path, explicit and accepted, at every licensed validation level)",
 ]

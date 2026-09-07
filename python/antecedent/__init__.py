@@ -202,7 +202,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "1.0.0"
+        __version__ = "1.1.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

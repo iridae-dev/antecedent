@@ -359,7 +359,7 @@ fn estimate_rd_sharp_recovers_jump() {
     let (data, query) = rd_scm(3000, 25);
     // Synthetic empty DAG; RD path does not use graph identification.
     let graph = Dag::with_variables(3);
-    let analysis = Study::tabular(data)
+    let analysis = Study::tabular(data.clone())
         .graph(graph)
         .query(query)
         .identifier(IdentifierId::RdSharp)
@@ -371,4 +371,14 @@ fn estimate_rd_sharp_recovers_jump() {
     let ctx = ExecutionContext::for_tests(26);
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
+
+    // Sharp RD is the documented identify-per-click exception on the prepared
+    // handle: prepare() stores no identification cache for it.
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(
+        !click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "sharp RD must not claim identification reuse"
+    );
+    assert_recovers(&click, &expected);
 }

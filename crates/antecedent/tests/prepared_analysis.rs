@@ -227,14 +227,32 @@ fn prepared_refresh_rejects_schema_mismatch() {
     let _ = other;
 }
 
+/// Records progress labels; `identify.compute` fires only when identification
+/// is actually computed, so a prepared click can be shown to skip it.
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl antecedent_core::ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
 #[test]
 fn prepared_second_shot_cheaper_than_full_run() {
     let (data, dag, query) = confounded_scm(800, 31);
-    let ctx = ExecutionContext::for_tests(1);
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
 
     let t0 = Instant::now();
     let analysis = build_analysis(data.clone(), dag.clone(), query.clone());
     let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
     let _ = prepared.estimate(&data, &ctx).unwrap();
     let prepare_plus_first = t0.elapsed();
 
@@ -255,6 +273,11 @@ fn prepared_second_shot_cheaper_than_full_run() {
     assert!(
         third.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared second shot did not hit the identification cache"
+    );
+    assert_eq!(
+        identify_computations(&sink),
+        1,
+        "three prepared clicks must not compute identification again"
     );
 }
 
@@ -871,7 +894,7 @@ fn prepared_temporal_mediation_reuses_identification() {
 }
 
 #[test]
-fn prepared_pag_ate_runs_identify_per_click() {
+fn prepared_pag_ate_reuses_identification_envelope() {
     // Known-truth pin: clean-room generalized-adjustment oracle. The PAG built
     // below (Z->T, Z->Y, T->Y) is exactly the fixture's "observed_confounder"
     // case, so we can assert the identifier's status and adjustment set
@@ -907,22 +930,74 @@ fn prepared_pag_ate_runs_identify_per_click() {
 
     let ctx = ExecutionContext::for_tests(1);
     let study = Study::tabular(data.clone())
-        .graph(pag)
-        .query(query)
+        .graph(pag.clone())
+        .query(query.clone())
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
     let fresh = study.clone().run(&ctx).unwrap();
     let prepared = study.prepare(&ctx).unwrap();
-    let click = prepared.estimate(&data, &ctx).unwrap();
-    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(
+        fresh
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+            .count(),
+        0
+    );
+    for click in [&first, &second] {
+        assert_eq!(
+            click
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+                .count(),
+            1,
+            "prepared PAG click must report its generalized-adjustment cache exactly once"
+        );
+        assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    }
+
+    // The Bayesian/accepted coordinate takes the same cached envelope through
+    // its custom mixture diagnostics path.
+    let bayesian = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(pag))
+        .query(query)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let bayesian_fresh = bayesian.clone().run(&ctx).unwrap();
+    let bayesian_prepared = bayesian.prepare(&ctx).unwrap();
+    assert_eq!(bayesian_prepared.structure_source(), antecedent::StructureSource::Accepted);
+    let bayesian_click = bayesian_prepared.estimate(&data, &ctx).unwrap();
+    assert!((bayesian_click.estimate.ate - bayesian_fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(
+        bayesian_fresh
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+            .count(),
+        0
+    );
+    assert_eq!(
+        bayesian_click
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+            .count(),
+        1
+    );
 }
 
 #[test]
-fn prepared_admg_ate_runs_identify_per_click() {
+#[allow(clippy::too_many_lines)]
+fn prepared_admg_ate_reuses_general_id_result() {
     // Frozen pinned-baseline identify() oracle for the frontdoor case (t -> m -> y with
     // U -> t, U -> y, i.e. t <-> y in the ADMG projection below). The oracle
     // pins identified/front-door status on this graph, not a numeric ATE.
@@ -999,17 +1074,56 @@ fn prepared_admg_ate_runs_identify_per_click() {
 
     let ctx = ExecutionContext::for_tests(1);
     let study = Study::tabular(data.clone())
-        .graph(admg)
-        .query(query)
+        .graph(admg.clone())
+        .query(query.clone())
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
     let fresh = study.clone().run(&ctx).unwrap();
     let prepared = study.prepare(&ctx).unwrap();
-    let click = prepared.estimate(&data, &ctx).unwrap();
-    assert!(click.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
-    assert!(click.estimate.ate.is_finite());
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(
+        fresh
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+            .count(),
+        0
+    );
+    for click in [&first, &second] {
+        assert_eq!(
+            click
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+                .count(),
+            1,
+            "prepared bidirected ADMG click must report its general-ID cache exactly once"
+        );
+        assert!(click.estimate.ate.is_finite());
+        assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    }
+
+    let accepted = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(admg))
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let accepted_prepared = accepted.prepare(&ctx).unwrap();
+    assert_eq!(accepted_prepared.structure_source(), antecedent::StructureSource::Accepted);
+    let accepted_click = accepted_prepared.estimate(&data, &ctx).unwrap();
+    assert!((accepted_click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(
+        accepted_click
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
+            .count(),
+        1
+    );
 }

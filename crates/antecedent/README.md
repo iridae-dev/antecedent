@@ -12,7 +12,7 @@ default, and uncertainty about the causal graph (equivalence classes, graph
 posteriors) is carried through to the effect instead of being resolved by fiat.
 
 ```toml
-antecedent = "1.0"
+antecedent = "1.1"
 ```
 
 The entry point is `Study::tabular()` (or `::series` / `::series_multi` /
@@ -52,5 +52,6 @@ Supporting libraries are **`antecedent-*`** crates on crates.io and are
 
 See the [workspace root README](https://github.com/iridae-dev/antecedent#readme),
 [docs/capabilities.md](https://github.com/iridae-dev/antecedent/blob/main/docs/capabilities.md),
-and `CHANGELOG.md`. Pre-1.0: minor versions may introduce breaking changes
-(see [ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md)).
+and `CHANGELOG.md`. The 1.x line preserves the 1.0 public contract while
+adding compatible evidence and support cells (see
+[ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md)).

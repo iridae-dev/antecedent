@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "case": "binary_frontdoor_functional",
+  "columns": ["t", "m", "y"],
+  "query": {
+    "treatment": "t",
+    "outcome": "y",
+    "control_level": 0.0,
+    "active_level": 1.0
+  },
+  "graph": {
+    "class": "Admg",
+    "directed_edges": [["t", "m"], ["m", "y"]],
+    "bidirected_edges": [["t", "y"]]
+  },
+  "contingency_table": [
+    {"t": 0.0, "m": 0.0, "y": 0.0, "count": 360},
+    {"t": 0.0, "m": 0.0, "y": 1.0, "count": 40},
+    {"t": 0.0, "m": 1.0, "y": 0.0, "count": 40},
+    {"t": 0.0, "m": 1.0, "y": 1.0, "count": 60},
+    {"t": 1.0, "m": 0.0, "y": 0.0, "count": 70},
+    {"t": 1.0, "m": 0.0, "y": 1.0, "count": 30},
+    {"t": 1.0, "m": 1.0, "y": 0.0, "count": 80},
+    {"t": 1.0, "m": 1.0, "y": 1.0, "count": 320}
+  ],
+  "identification": {
+    "identifier": "general.id",
+    "status": "NonparametricallyIdentified"
+  },
+  "frequentist": {
+    "estimator": "functional.effect",
+    "expected_ate": 0.3,
+    "absolute_tolerance": 1e-12,
+    "tolerance_class": "StableFloat"
+  }
+}

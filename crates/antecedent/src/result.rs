@@ -66,7 +66,8 @@ pub struct StudyResult {
     ///
     /// `licensed` and `allowed_unlicensed` both yield a successful study.
     /// Downstream consumers must not treat a number as licensed unless this is
-    /// [`CellStatus::Licensed`]. `None` when the query is not on the public axis.
+    /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
+    /// the public axis.
     pub support_status: Option<crate::support::CellStatus>,
     /// Performance record.
     pub performance: ExecutionPerformanceRecord,

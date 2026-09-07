@@ -407,8 +407,24 @@ class GraphPosterior:
     converged: bool
     lagged_edge_marginals: list[float] | None
     max_lag: int | None
+    lag_masks: list[int] | None
+    algorithm: str | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
+    @classmethod
+    def from_atoms(
+        cls,
+        names: list[str],
+        weights: list[float],
+        adjacency: list[int],
+        *,
+        edge_marginals: list[float] | None = None,
+        orientation_marginals: list[float] | None = None,
+        lagged_edge_marginals: list[float] | None = None,
+        lag_masks: list[int] | None = None,
+        max_lag: int | None = None,
+        ess: float | None = None,
+    ) -> GraphPosterior: ...
 
 class MediationEffectsSummary:
     total: float
@@ -619,6 +635,7 @@ class PreparedAnalysis:
         seed: int = 1,
         bootstrap: int = 0,
         threads: int = 1,
+        posterior: GraphPosterior | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_dbn_posterior_temporal(
@@ -641,6 +658,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         seed: int = 1,
         threads: int = 1,
+        posterior: GraphPosterior | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_conditional(
@@ -1518,6 +1536,25 @@ def analyze_ate_discover(
     bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
+def analyze_ate_graph_posterior(
+    names: list[str],
+    columns: Sequence[Any],
+    posterior: GraphPosterior,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    inference: str = "conjugate",
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
+) -> AteAnalysisResult: ...
 def analyze_temporal_discover(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1556,6 +1593,27 @@ def analyze_temporal_discover(
     n_warmup: int = 100,
     mcmc_draws: int = 200,
     force_mcmc: bool = False,
+) -> AnalysisResult: ...
+def analyze_temporal_graph_posterior(
+    names: list[str],
+    columns: Sequence[Any],
+    posterior: GraphPosterior,
+    treatment: str,
+    outcome: str,
+    *,
+    policy: str = "pulse",
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    inference: str = "conjugate",
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
 ) -> AnalysisResult: ...
 def discover_pcmci(
     names: list[str],
