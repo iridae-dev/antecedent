@@ -40,6 +40,48 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
+/// Posterior mean and equal-tail interval of a linear response level.
+/// `weights` is a design-row average after the intervention overlay.
+#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
+pub(crate) fn linear_response_summary(
+    posterior: &CausalPosterior,
+    weights: &[f64],
+    level: f64,
+) -> Result<(f64, f64, f64, f64), EstimationError> {
+    let mut values = vec![0.0; posterior.draws.n_draws];
+    for (index, &weight) in weights.iter().enumerate() {
+        let column = posterior
+            .draws
+            .schema
+            .quantities
+            .iter()
+            .position(|q| {
+                matches!(q,
+            PosteriorQuantityKind::Coefficient { index: i, .. } if *i == index)
+            })
+            .ok_or_else(|| EstimationError::stats_msg("response posterior missing coefficient"))?;
+        for (value, &coefficient) in values.iter_mut().zip(posterior.draws.column(column)?) {
+            *value += weight * coefficient;
+        }
+    }
+    if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
+        return Err(EstimationError::stats_msg(
+            "response posterior needs at least two finite draws",
+        ));
+    }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let sd =
+        (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
+    values.sort_by(f64::total_cmp);
+    let quantile = |p: f64| {
+        let x = p * (values.len() - 1) as f64;
+        let lo = x.floor() as usize;
+        let hi = x.ceil() as usize;
+        values[lo] + (values[hi] - values[lo]) * (x - lo as f64)
+    };
+    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
+}
+
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
 /// is reachable on typical Gaussian GLMs.
 const HMC_MIN_DRAWS: usize = 3_000;
@@ -593,6 +635,63 @@ impl BayesianGComputationAte {
             coef_names: Some(coef_names),
             unit_ids: None,
         })
+    }
+
+    /// Prepare a Gaussian conditional effect with one modifier. Centering the
+    /// interaction at the observed modifier mean makes the treatment coefficient
+    /// exactly the population-average contrast for every posterior draw.
+    pub fn prepare_conditional(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &antecedent_core::ConditionalEffectQuery,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
+        query.validate()?;
+        if self.likelihood != BayesLikelihood::GaussianIdentity {
+            return Err(EstimationError::unsupported(
+                "Bayesian conditional effects require GaussianIdentity",
+            ));
+        }
+        let q = &query.inner;
+        if q.effect_modifiers.len() != 1 {
+            return Err(EstimationError::unsupported(
+                "Bayesian conditional effects require one modifier",
+            ));
+        }
+        let modifier = q.effect_modifiers[0];
+        let mut base_query = q.clone();
+        base_query.effect_modifiers = Arc::from([]);
+        let mut prep = self.prepare(data, estimand, &base_query)?;
+        let mut ids = vec![q.treatment, q.outcome, modifier];
+        ids.extend_from_slice(&estimand.adjustment_set);
+        let mask = data.complete_case_mask(&ids)?;
+        let t = data.float64_masked(q.treatment, &mask)?;
+        let y = data.float64_masked(q.outcome, &mask)?;
+        let w = data.float64_masked(modifier, &mask)?;
+        if t.len() < 8 {
+            return Err(EstimationError::data_msg("too few conditional complete rows"));
+        }
+        let mean = w.iter().sum::<f64>() / w.len() as f64;
+        let interaction: Vec<_> = t.iter().zip(&w).map(|(t, w)| t * (w - mean)).collect();
+        let mut covs = vec![(modifier, w), (modifier, interaction)];
+        for &id in estimand.adjustment_set.iter().filter(|&&id| id != modifier) {
+            covs.push((id, data.float64_masked(id, &mask)?));
+        }
+        let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        let rows: Vec<_> =
+            mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+        prep.design = CompiledDesign::linear_adjustment(&t, &refs, &y, &rows)?;
+        let mut names: Vec<Arc<str>> = vec![
+            Arc::from("intercept"),
+            Arc::from("treatment_at_mean_modifier"),
+            Arc::from("modifier"),
+            Arc::from("treatment_centered_modifier"),
+        ];
+        names.extend(
+            covs.iter().skip(2).map(|(id, _)| Arc::from(format!("adjustment_{}", id.raw()))),
+        );
+        prep.coef_names = Some(Arc::from(names));
+        Ok(prep)
     }
 
     /// Adapt a frequentist prepared design (e.g. lag-aligned temporal) for Bayesian fit.

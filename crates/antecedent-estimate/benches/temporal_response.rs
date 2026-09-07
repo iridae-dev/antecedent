@@ -160,6 +160,7 @@ fn intervention_shift_series(
     (data, query, estimand, id_res.indexer)
 }
 
+#[allow(clippy::too_many_lines)]
 fn bench_temporal_response(c: &mut Criterion) {
     // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise.
     const MULTI_HORIZON_BUDGET: Duration = Duration::from_millis(25);
@@ -170,6 +171,86 @@ fn bench_temporal_response(c: &mut Criterion) {
     const INTERVENTION_SHIFT_BUDGET: Duration = Duration::from_millis(200);
 
     let est = TemporalResponseEstimator::new();
+    for bayesian in [false, true] {
+        let name = if bayesian {
+            "sustained_window_n800_draws512"
+        } else {
+            "sustained_window_n800_bootstrap20"
+        };
+        c.bench_function(name, |b| {
+            let (data, _, _, _) = series(800);
+            let mut graph = TemporalDag::empty();
+            let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+            let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+            let y =
+                ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+            graph.insert_directed(t1, y).unwrap();
+            graph.insert_directed(t2, y).unwrap();
+            let query = TemporalEffectQuery::sustained(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                -1,
+                1.0,
+            )
+            .with_policy(TemporalPolicy::sustained(-2, -1));
+            let identification =
+                TemporalBackdoorIdentifier::new().identify_temporal(&graph, &query).unwrap();
+            let est = antecedent_estimate::BayesianGComputationAte::conjugate().with_n_draws(512);
+            let ctx = ExecutionContext::for_tests(12);
+            b.iter(|| {
+                let (effect, posterior) =
+                    antecedent_estimate::temporal_sequential::estimate_sustained_window(
+                        &data,
+                        &graph,
+                        &identification.indexer,
+                        &identification.result.estimands[0],
+                        &query,
+                        identification.result.status,
+                        identification.result.required_assumptions.clone(),
+                        if bayesian { 0 } else { 20 },
+                        bayesian.then_some(&est),
+                        &ctx,
+                    )
+                    .unwrap();
+                assert!(effect.ate.is_finite());
+                if let Some(post) = posterior {
+                    assert_eq!(post.draws.values.len(), 512);
+                }
+                black_box(effect);
+            });
+        });
+    }
+
+    c.bench_function("bayesian_temporal_response_n800_draws512_grid4", |b| {
+        let (data, mut query, estimand, indexer) = series(800);
+        query.temporal =
+            Some(TemporalResponseSpec::new([8_u32], TemporalPolicy::pulse(0), None).unwrap());
+        let bayes = antecedent_estimate::BayesianGComputationAte::conjugate().with_n_draws(512);
+        let ctx = ExecutionContext::for_tests(12);
+        b.iter(|| {
+            let response = est
+                .estimate_bayesian(
+                    &data,
+                    &[(&estimand, &indexer)],
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &bayes,
+                    &ctx,
+                )
+                .unwrap();
+            if let antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Surface { grid, mean, .. },
+            ) = &response.estimate
+            {
+                assert_eq!(grid.len(), 8); // four dose/horizon pairs, no row × grid expansion
+                assert_eq!(mean.len(), 4);
+            } else {
+                panic!("expected dose/horizon surface");
+            }
+            black_box(response);
+        });
+    });
 
     c.bench_function("temporal_response_multi_horizon_n800", |b| {
         let (data, query, estimand, indexer) = series(800);

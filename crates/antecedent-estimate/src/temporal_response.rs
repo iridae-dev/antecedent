@@ -234,6 +234,171 @@ impl TemporalResponseEstimator {
         Ok(response)
     }
 
+    /// Bayesian Gaussian linear-additive response on the identified unfolded
+    /// design at each horizon. Intervals are pointwise posterior quantiles.
+    #[allow(clippy::too_many_lines)]
+    pub fn estimate_bayesian(
+        &self,
+        data: &TimeSeriesData,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
+        query: &ResponseQuery,
+        identification_status: IdentificationStatus,
+        mut assumptions: AssumptionSet,
+        estimator: &crate::BayesianGComputationAte,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, EstimationError> {
+        query.validate()?;
+        if query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != TargetPopulation::AllObserved
+            || estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
+        {
+            return Err(EstimationError::unsupported(
+                "Bayesian temporal response requires complete observations, AllObserved, and GaussianIdentity",
+            ));
+        }
+        if !matches!(
+            identification_status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        ) {
+            return Err(EstimationError::unsupported(
+                "Bayesian temporal response requires point identification at every horizon",
+            ));
+        }
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported("missing temporal response specification")
+        })?;
+        if identifications.len() != temporal.horizons.len() {
+            return Err(EstimationError::unsupported("one identification required per horizon"));
+        }
+        let (outcome, treatment, doses, intervention) = match &query.functional {
+            ResponseFunctional::MeanCurve { outcome, treatment } => {
+                (*outcome, treatment.variable, treatment.grid.values()?, None)
+            }
+            ResponseFunctional::InterventionResponse { outcome, interventions } => {
+                let (t, level, shift) = resolve_temporal_intervention(interventions)?;
+                (*outcome, t, Vec::new(), Some((level, shift)))
+            }
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "Bayesian temporal response supports only curves and intervention responses",
+                ));
+            }
+        };
+        let mut rows = Vec::new();
+        let mut ranges = Vec::new();
+        let mut horizons = Vec::new();
+        let mut levels = Vec::new();
+        for (h, (&horizon_steps, &(estimand, indexer))) in
+            temporal.horizons.iter().zip(identifications).enumerate()
+        {
+            let pulse = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, Value::f64(0.0)),
+                active: Intervention::set(treatment, Value::f64(1.0)),
+                horizon_steps,
+                max_history_lag: temporal.max_history_lag,
+                target_population: TargetPopulation::AllObserved,
+            };
+            let prep = TemporalLinearAdjustment::new().prepare(
+                data,
+                estimand,
+                &pulse,
+                indexer,
+                None,
+                &ctx.kernel_policy,
+            )?;
+            let n = prep.design.nrows;
+            let t = &prep.design.matrix[n..2 * n];
+            ranges.push((
+                t.iter().copied().fold(f64::INFINITY, f64::min),
+                t.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            ));
+            horizons.push(horizon_identification_of(
+                horizon_steps,
+                estimand,
+                indexer,
+                identification_status,
+            )?);
+            let mut est = estimator.clone();
+            est.seed = est.seed.wrapping_add(h as u64);
+            let bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+            let posterior = est.fit(
+                &bprep,
+                identification_status,
+                &mut crate::BayesianGCompWorkspace::default(),
+                ctx,
+            )?;
+            if h == 0 {
+                assumptions.entries.extend(posterior.assumptions.entries.clone());
+            }
+            let mut weights = design_column_means(&prep.design);
+            let grid = if let Some((level, shift)) = intervention {
+                vec![level.unwrap_or(weights[1] + shift)]
+            } else {
+                doses.clone()
+            };
+            if intervention.is_some() {
+                levels.push(grid[0]);
+            }
+            let mut row = Vec::new();
+            for dose in grid {
+                weights[1] = dose;
+                row.push(crate::bayesian::linear_response_summary(&posterior, &weights, 0.95)?);
+            }
+            rows.push(row);
+        }
+        let mut mean = Vec::new();
+        let mut lower = Vec::new();
+        let mut upper = Vec::new();
+        for d in 0..if intervention.is_some() { 1 } else { doses.len() } {
+            for row in &rows {
+                let (m, lo, hi, _) = row[d];
+                mean.push(m);
+                lower.push(lo);
+                upper.push(hi);
+            }
+        }
+        let (grid, dimension, support) = if let Some((level, shift)) = intervention {
+            (
+                temporal.horizons.iter().map(|&h| f64::from(h)).collect(),
+                1,
+                intervention_support(&levels, level, shift, temporal, &ranges),
+            )
+        } else {
+            (
+                flatten_dose_horizon_grid(&doses, &temporal.horizons),
+                2,
+                mean_curve_support(&doses, temporal, &ranges),
+            )
+        };
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
+                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon; pointwise posterior intervals conditional on observed adjustment distribution; independent residual likelihood; no joint dose-horizon band") }),
+            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
+        });
+        Ok(CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status,
+            estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: Arc::from(grid),
+                dimension,
+                mean: Arc::from(mean),
+            }),
+            uncertainty: ResponseUncertainty::PointwiseBand {
+                level: 0.95,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+            },
+            support,
+            assumptions,
+            provenance_id: Arc::from("estimate.response.temporal.bayesian"),
+            horizon_identification: Some(Arc::from(horizons)),
+        })
+    }
+
     fn estimate_mean_curve(
         &self,
         data: &TimeSeriesData,
@@ -896,7 +1061,7 @@ fn assemble_temporal_support(
     }
 }
 
-fn resolve_temporal_intervention(
+pub(crate) fn resolve_temporal_intervention(
     interventions: &[Intervention],
 ) -> Result<(VariableId, Option<f64>, f64), EstimationError> {
     if interventions.is_empty() {
