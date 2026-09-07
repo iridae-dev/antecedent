@@ -489,6 +489,7 @@ impl StudyBuilder {
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
         if matches!(mode, InferenceMode::Bayesian(_))
+            && self.estimator_spec.is_none()
             && !matches!(self.query, Some(CausalQuery::TemporalEffect(_)))
         {
             self.estimator = Some(EstimatorId::BayesianGcomp);
@@ -645,6 +646,47 @@ impl StudyBuilder {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
         let graph_class = crate::support::effective_graph_class(&graph, &query);
+        if let Some(spec) = &self.estimator_spec {
+            let bayesian = matches!(inference, InferenceMode::Bayesian(_));
+            let expected = match &query {
+                CausalQuery::ConditionalEffect(_) => Some(if bayesian {
+                    EstimatorId::BayesianConditional
+                } else {
+                    EstimatorId::ConditionalLinearAdjustment
+                }),
+                CausalQuery::Response(q) => Some(if q.temporal.is_some() {
+                    if bayesian {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    }
+                } else if bayesian {
+                    EstimatorId::ResponseBayesian
+                } else {
+                    EstimatorId::default_for_response(&q.functional)
+                }),
+                CausalQuery::Mediation(_) if graph_class == GraphClass::TemporalDag => {
+                    Some(if bayesian {
+                        EstimatorId::BayesianTemporalMediation
+                    } else {
+                        EstimatorId::TemporalMediation
+                    })
+                }
+                _ => None,
+            };
+            if let Some(expected) = expected {
+                if spec.id() != expected {
+                    return Err(CausalError::Compile {
+                        message: format!(
+                            "query and inference require estimator {}; got {}",
+                            expected.as_str(),
+                            spec.id().as_str()
+                        ),
+                    });
+                }
+            }
+        }
+
         let mut refute_default_downgrade: Option<RefuteSuite> = None;
         if !self.refute_explicit {
             let requested =

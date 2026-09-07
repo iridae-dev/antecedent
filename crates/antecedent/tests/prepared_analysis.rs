@@ -796,6 +796,7 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn prepared_temporal_mediation_reuses_identification() {
     // Known-truth pin: statsmodels oracle for the exact DGP below (three
     // independently fitted OLS models + Sobel product), n=320. Reproducing
@@ -868,8 +869,8 @@ fn prepared_temporal_mediation_reuses_identification() {
     );
     let ctx = ExecutionContext::for_tests(7);
     let study = Study::series(data.clone())
-        .graph(g)
-        .query(CausalQuery::Mediation(q))
+        .graph(g.clone())
+        .query(CausalQuery::Mediation(q.clone()))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
@@ -891,6 +892,82 @@ fn prepared_temporal_mediation_reuses_identification() {
         click.estimate.ate,
         expected_mediated
     );
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+            let builder = Study::series(data.clone());
+            let builder = if accepted {
+                builder.graph(AcceptedGraph::temporal_dag(g.clone()))
+            } else {
+                builder.graph(g.clone())
+            };
+            let result = builder
+                .query(q.clone())
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate_series(&data, &ctx)
+                .unwrap();
+            assert!((result.estimate.ate - expected_mediated).abs() < 1e-6);
+            assert_eq!(result.refutations.len(), if suite == RefuteSuite::Full { 3 } else { 2 });
+            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("mediation.")));
+            assert!(
+                result
+                    .refutations
+                    .iter()
+                    .any(|r| r.refuter.as_ref() == "mediation.placebo_mediator"
+                        && r.refuted_ate.abs() < 0.05)
+            );
+        }
+    }
+
+    let bayes_pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/temporal_mediation/expected.json"
+    ))
+    .unwrap();
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let builder = Study::series(data.clone());
+            let builder = if accepted {
+                builder.graph(AcceptedGraph::temporal_dag(g.clone()))
+            } else {
+                builder.graph(g.clone())
+            };
+            let result = builder
+                .query(q.clone())
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(2048)))
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate_series(&data, &ctx)
+                .unwrap();
+            let post = result.posterior.as_ref().unwrap();
+            assert!(
+                (result.estimate.ate - bayes_pin["mediated"].as_f64().unwrap()).abs()
+                    < bayes_pin["tolerance"].as_f64().unwrap()
+            );
+            assert_ne!(result.estimate.ate.to_bits(), click.estimate.ate.to_bits());
+            for ((total, direct), indirect) in post
+                .draws
+                .column(1)
+                .unwrap()
+                .iter()
+                .zip(post.draws.column(2).unwrap())
+                .zip(post.draws.column(3).unwrap())
+            {
+                assert!((total - direct - indirect).abs() < 1e-12);
+            }
+            if suite != RefuteSuite::None {
+                assert_eq!(result.predictive_checks.len(), 4);
+            }
+            if suite == RefuteSuite::Full {
+                assert!(post.prior_sensitivity.is_some());
+            }
+        }
+    }
 }
 
 #[test]
@@ -1126,4 +1203,117 @@ fn prepared_admg_ate_reuses_general_id_result() {
             .count(),
         1
     );
+}
+
+#[test]
+fn functional_validation_staged_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/functional_validation/expected.json"
+    ))
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let (data, dag, query) = path_specific_fixture();
+            let builder = Study::tabular(data.clone());
+            let builder =
+                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+            let prepared = builder
+                .query(CausalQuery::PathSpecific(query))
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            assert!(
+                (result.estimate.ate - pin["path_effect"].as_f64().unwrap()).abs()
+                    < pin["tolerance"].as_f64().unwrap()
+            );
+            let count = match suite {
+                RefuteSuite::None => 0,
+                RefuteSuite::Cheap => pin["cheap_path_reports"].as_u64().unwrap(),
+                _ => pin["full_path_reports"].as_u64().unwrap(),
+            };
+            assert_eq!(result.refutations.len() as u64, count);
+            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.") && r.passed));
+            let (data, dag, query) = distribution_fixture();
+            let builder = Study::tabular(data.clone());
+            let builder =
+                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+            let prepared = builder
+                .query(CausalQuery::Distribution(query))
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            assert!(
+                (result.distribution.as_ref().unwrap().mean
+                    - pin["distribution_mean"].as_f64().unwrap())
+                .abs()
+                    < pin["tolerance"].as_f64().unwrap()
+            );
+            let count = match suite {
+                RefuteSuite::None => 0,
+                RefuteSuite::Cheap => pin["cheap_distribution_reports"].as_u64().unwrap(),
+                _ => pin["full_distribution_reports"].as_u64().unwrap(),
+            };
+            assert_eq!(result.refutations.len() as u64, count);
+            assert!(
+                result
+                    .refutations
+                    .iter()
+                    .all(|r| r.refuter.starts_with("distribution.") && r.passed)
+            );
+        }
+    }
+}
+
+#[test]
+fn bayesian_conditional_staged_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/conditional_effect/expected.json"
+    ))
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(12);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let (data, dag, query) = conditional_effect_fixture();
+            let frequentist = Study::tabular(data.clone())
+                .graph(dag.clone())
+                .query(query.clone())
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap();
+            let builder = Study::tabular(data.clone());
+            let builder =
+                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+            let result = builder
+                .query(query)
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(512)))
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate(&data, &ctx)
+                .unwrap();
+            assert!(
+                (result.estimate.ate - pin["effect"].as_f64().unwrap()).abs()
+                    < pin["tolerance"].as_f64().unwrap()
+            );
+            assert_ne!(result.estimate.ate.to_bits(), frequentist.estimate.ate.to_bits());
+            assert!(result.posterior.is_some());
+            if suite != RefuteSuite::None {
+                assert!(!result.predictive_checks.is_empty());
+            }
+            if suite == RefuteSuite::Full {
+                assert!(result.posterior.unwrap().prior_sensitivity.is_some());
+            }
+        }
+    }
 }

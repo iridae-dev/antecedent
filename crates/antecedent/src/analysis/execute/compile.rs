@@ -97,7 +97,15 @@ impl super::Study {
                     DataInput::Event(_) => DataClassification::Event,
                     _ => DataClassification::Temporal,
                 };
-                compile_logical_temporal_effect_classified(data, graph, q, self.split, false, class)
+                let mut plan = compile_logical_temporal_effect_classified(
+                    data, graph, q, self.split, false, class,
+                )?;
+                if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+                }
+                Ok(plan)
             }
             (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
@@ -108,7 +116,12 @@ impl super::Study {
                     .graph
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                compile_logical_temporal_response(data, graph, q, false)
+                let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
+                }
+                Ok(plan)
             }
             (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
                 let DataInput::MultiEnv(multi) = &self.data else { unreachable!() };
@@ -201,7 +214,12 @@ impl super::Study {
                 )?;
                 plan.record.plan_id = Arc::from("temporal_mediation");
                 plan.record.identifier = Some(Arc::from("temporal.mediation"));
-                plan.record.estimator = Some(Arc::from("temporal.mediation"));
+                plan.record.estimator =
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        "temporal.mediation.bayesian"
+                    } else {
+                        "temporal.mediation"
+                    }));
                 plan.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
