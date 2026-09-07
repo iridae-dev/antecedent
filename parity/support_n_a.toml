@@ -33,6 +33,5 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 queries = ["ResponseCurve", "InterventionResponse"]
 graph_classes = ["Dag", "TemporalDag"]
 structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued estimand has no such state."

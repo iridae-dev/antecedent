@@ -153,7 +153,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Prepared handle only, on an explicit Dag; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator)."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -164,7 +164,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Prepared handle only; ConditionalLinearAdjustment is the only estimator (there is no alternative conditional-effect estimator). The structure axis does not change the estimand, so this cell shares the explicit-Dag fixture, mirroring how the AverageEffect explicit/accepted cells share theirs."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -175,7 +175,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the conditional-effect point."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -186,7 +186,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -197,7 +197,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Cheap suite is overlap + E-value; the fixture pins the conditional-effect point."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -208,7 +208,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Full adds the ATE-shaped refuter suite on query.inner; the fixture pins the conditional-effect point, not the refuter numbers."
+limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap/full use applicable scalar effect refuters. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -219,7 +219,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/path_specific_natural"
-limitations = "Prepared handle only, on an explicit Dag; identifier is PathSpecificNatural and estimator is FunctionalEffect, both fixed (no alternative identifier/estimator on this cell)."
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
 
 [[cell]]
 query = "InterventionResponse"
@@ -406,7 +406,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Licensed form is the single-step window (from == until) at -treatment_lag; multi-step Sustained remains estimator-refused. Projection matches Pulse at the same offset on temporal_dose_horizon; identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast are additionally pinned on temporal_confounded_pulse."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist shared moving-block bootstrap; Bayesian conjugate/Laplace independent Gaussian mechanisms. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -417,7 +417,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Accepted-structure axis shares the explicit TemporalDag single-step Sustained path. Primary pin is temporal_dose_horizon; identification and the structural estimate are additionally pinned on temporal_confounded_pulse."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist shared moving-block bootstrap; Bayesian conjugate/Laplace independent Gaussian mechanisms. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -428,7 +428,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -439,7 +439,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -450,7 +450,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). Licensed form remains the single-step window. The fixture pins the projection, not the E-value number."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -461,7 +461,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Full adds the ATE-shaped refuter suite; licensed form remains the single-step window. The fixture pins the projection, not the refuter numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -472,7 +472,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Dedicated lag-2 single-step Sustained fixture pins the Bayesian effect mean on the staged path; multi-step windows remain refused."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist shared moving-block bootstrap; Bayesian conjugate/Laplace independent Gaussian mechanisms. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -483,7 +483,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean, not those checks."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -494,7 +494,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated lag-2 single-step Sustained fixture pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -505,7 +505,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Accepted structure shares the explicit TemporalDag Bayesian path; the dedicated lag-2 single-step Sustained fixture pins the staged effect mean."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist shared moving-block bootstrap; Bayesian conjugate/Laplace independent Gaussian mechanisms. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -516,7 +516,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Cheap runs sensitivity.evalue plus prior/posterior PPC; OverlapRefuter is a diagnosed per-run skip on the temporal-unfolded design. The dedicated accepted-structure Sustained case pins the Bayesian mean, not those checks."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "SustainedEffect"
@@ -527,7 +527,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Full adds the ATE-shaped refuter suite, PPC, and prior sensitivity. The dedicated accepted-structure lag-2 Sustained case pins the Bayesian mean and verifies refuter/PPC presence, not their numeric values."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Applicable temporal effect refuters run, with Bayesian PPC and full prior sensitivity when applicable."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -538,7 +538,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/interventional_distribution"
-limitations = "The consumed FunctionalDistribution fixture pins the interventional mean on a confounded binary count table; atom-by-atom probabilities are not separately pinned. General ID/IDC certificate behavior is covered by conformance/identify/id_hedge. Prepared handle only, on an explicit Dag."
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -549,7 +549,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "Prepare caches one TemporalMediationIdentifier result (not per-horizon I(h)). cheap/full are refused (empty refutations). Bayesian is refused."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -560,7 +560,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "Accepted-structure axis shares the explicit TemporalDag mediation path. Prepare caches one identification result. cheap/full and Bayesian are refused."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "AverageEffect"
@@ -857,3 +857,421 @@ known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_sustained_envelope"
 limitations = "Frozen structural mixture pins the single-step Sustained effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full remain refused because this path returns no refutations."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Discrete natural path functional on a supplied or accepted Dag; selected path and cross-world identification assumptions remain frozen. Cheap refits twenty 80-percent subsets; full adds twenty 50-percent subsets. These are path-contrast stability diagnostics, not ATE refuters or calibrated causal-validity tests; sparse CPT failures refuse. Evidence: functional_validation and docs/v1.2-evidence.md."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Finite discrete CPT evaluator on a supplied or accepted Dag. Cheap checks per-stratum normalization and full-table total-variation stability over twenty 80-percent subsets; full adds twenty 50-percent subsets. Descriptive mean TV threshold 0.1 is not a calibrated test. Analysis masks are honored. No scalar-mean surrogate or continuous density claim."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/conditional_effect"
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap/full use applicable effect refuters plus actual PPC; full adds prior sensitivity."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and full prior sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and full prior sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and full prior sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and full prior sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_mediation"
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable; full adds contiguous-window stability. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition; cheap/full add mechanism PPC, full adds contrast prior sensitivity. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."

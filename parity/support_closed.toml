@@ -29,8 +29,14 @@ reason = "ResponseCurve is licensed only on a static Dag or a temporal TemporalD
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
-structures = ["graph_posterior", "accepted"]
-reason = "Path and distribution queries are licensed only as explicit Dag cells; accepted and graph-posterior structures are not staged."
+structures = ["graph_posterior"]
+reason = "Graph-posterior path and distribution mixtures are not staged."
+
+[[closed]]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+structures = ["accepted"]
+reason = "Accepted path and distribution queries require a Dag."
 
 [[closed]]
 queries = ["MediationEffect"]
@@ -122,13 +128,6 @@ reason = "General ID (identifier general.id, the only identifier compile.rs wire
 [[closed]]
 queries = ["ConditionalEffect"]
 graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "execute_conditional (analysis/execute/static_path.rs) hardcodes EstimatorId::ConditionalLinearAdjustment regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical ate and estimand.method), so this cell cannot return an honest Bayesian number."
-
-[[closed]]
-queries = ["ConditionalEffect"]
-graph_classes = ["Dag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "compile_graph_posterior (analysis/execute/bayesian_path.rs) wires only AverageEffect and TemporalEffect queries against a graph posterior; ConditionalEffect hits its wildcard Unsupported arm, confirmed via Study::build/run."
@@ -141,39 +140,11 @@ inferences = ["Bayesian"]
 reason = "Distribution requires identifier general.id (or auto) paired with estimator functional.distribution; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
 
 [[closed]]
-queries = ["InterventionResponse"]
-graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
-
-[[closed]]
 queries = ["PathSpecificEffect"]
 graph_classes = ["Dag"]
 structures = ["explicit"]
 inferences = ["Bayesian"]
 reason = "PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
-
-[[closed]]
-queries = ["ResponseCurve"]
-graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "Response requires identifier response.backdoor paired with a response.* estimator; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
-
-[[closed]]
-queries = ["ResponseCurve", "InterventionResponse"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "Bayesian temporal response is not licensed; execute_temporal_response refuses Bayesian inference before estimation."
-
-[[closed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "execute_temporal_mediation (analysis/execute/temporal_path.rs) hardcodes EstimatorId::TemporalMediation regardless of inference mode; a Bayesian-labeled study silently returns the identical Frequentist estimate (confirmed: Frequentist and Bayesian runs on the same fixture produce a bit-identical mediation estimate and estimand.method), so this cell cannot return an honest Bayesian number."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -230,22 +201,14 @@ reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/Te
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
-graph_classes = ["Dag", "Cpdag", "Admg", "Pag"]
+graph_classes = ["Cpdag", "Admg", "Pag"]
 validations = ["cheap", "full"]
-reason = "execute_path_specific and execute_distribution return empty refutations; cheap and full do not run a path-specific or distribution refuter suite."
+reason = "Query-native functional validation requires a Dag."
+
 
 [[closed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["explicit", "accepted"]
-inferences = ["Frequentist"]
-validations = ["cheap", "full"]
-reason = "execute_temporal_mediation hardcodes empty refutations; cheap and full do not run a mediation refuter suite."
-
-[[closed]]
-queries = ["PulseEffect", "SustainedEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["graph_posterior"]
+queries = ["PathSpecificEffect", "InterventionalDistribution"]
+graph_classes = ["Dag"]
+structures = ["accepted"]
 inferences = ["Bayesian"]
-validations = ["cheap", "full"]
-reason = "execute_dbn_posterior_bayesian always returns empty refutations; cheap and full do not run the ATE refuter suite on the DBN envelope."
+reason = "Identified discrete path and distribution functionals have no Bayesian evaluator; accepted structure does not supply a posterior estimator."

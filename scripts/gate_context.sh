@@ -31,6 +31,9 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
+    "validate.functional": "crates/antecedent-validate/src/functional.rs",
+    "validate.temporal_mediation": "crates/antecedent/tests/prepared_analysis.rs",
+
     "context.panel_data": "crates/antecedent-data/src/panel.rs",
     "context.context_graph": "crates/antecedent-graph/src/cpdag.rs",
     "context.jpcmci_plus": "crates/antecedent/tests/context_effects.rs",
@@ -110,6 +113,7 @@ cargo test -p antecedent-discovery --test jpcmci_plus_oracle_matrix
 cargo test -p antecedent-discovery --test rpcmci_fixed_regime_oracle
 cargo test -p antecedent-estimate --lib
 cargo test -p antecedent-identify --lib temporal_mediation::
+cargo test -p antecedent-validate --lib functional::
 cargo test -p antecedent --test context_effects
 
 echo "== criterion smoke (regime + mediation) =="
