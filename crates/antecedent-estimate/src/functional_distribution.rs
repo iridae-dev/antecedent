@@ -955,7 +955,9 @@ fn discrete_column(
     match view {
         ColumnView::Float64(c) => {
             for i in 0..n {
-                if !validity.is_valid(i) {
+                if !validity.is_valid(i)
+                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
+                {
                     values.push(None);
                     continue;
                 }
@@ -968,7 +970,9 @@ fn discrete_column(
         }
         ColumnView::Int64(c) => {
             for i in 0..n {
-                if !validity.is_valid(i) {
+                if !validity.is_valid(i)
+                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
+                {
                     values.push(None);
                     continue;
                 }
@@ -981,7 +985,9 @@ fn discrete_column(
         }
         ColumnView::Categorical(c) => {
             for i in 0..n {
-                if !validity.is_valid(i) {
+                if !validity.is_valid(i)
+                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
+                {
                     values.push(None);
                     continue;
                 }

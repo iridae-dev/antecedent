@@ -13,6 +13,9 @@ use thiserror::Error;
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ValidationError {
+    /// Execution was cancelled before a complete validation report was available.
+    #[error("validation cancelled")]
+    Cancelled,
     /// Data transformation failed.
     #[error(transparent)]
     Data(#[from] DataError),
