@@ -109,3 +109,21 @@ known_truth_fixture = "conformance/response/temporal_dose_horizon"
 limitations = "Known-truth execution covers a hard Set policy on temporal_dose_horizon. Soft constant/additive-shift equivalence is analytic for that zero-mean linear fixture. Per-horizon support for a Set path is additionally pinned on temporal_horizon_support."
 python_facade = "full"
 notes = "The temporal facade fixture checks the hard Set(1) horizon path against the same closed-form [3,4] projection as the dose surface. temporal_horizon_support pins that a Set(5) path is supported at h=1 and outside empirical support at h=8. No external oracle is claimed."
+
+[[capabilities]]
+id = "estimate.response.bayesian"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+python_facade = "full"
+limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+
+[[capabilities]]
+id = "estimate.response.temporal.bayesian"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/response_surfaces"
+python_facade = "full"
+limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."

@@ -1,0 +1,10 @@
+feature_id = "estimate.bayesian_temporal_mediation"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
+upstream_implementations_observed = []
+implementation_deviations = ["HMC composition is refused pending derived-contrast chain diagnostics; conjugate and Laplace mechanism composition are available.", "Independently fit Gaussian mediator and outcome mechanisms on common lag-aligned complete rows, then multiply independent mechanism draws. Direct, mediated and total quantities are retained per draw.", "One mediator, lag-one treatment, no treatment-mediator interaction, independent innovations and mechanism priors. Natural and controlled effects coincide only under these linear assumptions. Shared external coefficient-prior transfer is refused.", "Posterior mechanism diagnostics are conditional on observed regressors; no serially correlated innovation likelihood or general mediation model is claimed."]
+test_sources = ["conformance/bayesian/temporal_mediation", "python/tests/test_release_12.py"]
