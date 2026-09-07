@@ -3,7 +3,7 @@
 Intentions from the 0.5 causal-response release through 1.0 and after.
 This is not a working checklist for an in-flight cut.
 
-Last updated: 2026-09-06
+Last updated: 2026-09-07
 
 ## How to read this
 
@@ -147,7 +147,8 @@ share the Study bootstrap SE contract; Bayesian panel uses hierarchical
 unit effects; licensed Bayesian Pulse / single-step Sustained have a
 coverage case in `scripts/gate_calibration.sh`.
 
-Known-truth mixture pins and identification caching wait for 1.1.
+Known-truth mixture pins and prepared-identification caching were deferred to
+1.1.0, where they shipped.
 
 ---
 
@@ -173,7 +174,7 @@ completed.
 
 ## 1.1 — Stronger evidence on frozen families
 
-Building as **1.1.0**. This compatible minor adds no query kind, graph
+Shipped as **1.1.0**. This compatible minor adds no query kind, graph
 semantics, identification theory, support cell, or artifact change. It
 strengthens already-licensed families in three places:
 

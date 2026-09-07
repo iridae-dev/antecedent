@@ -144,16 +144,14 @@ pub(crate) fn build_graph_posterior_identification_cache(
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
-            for j in i..posterior.n_graphs {
-                keys.push(posterior.graph_keys[j]);
-                weights.push(posterior.weights[j]);
-                flags.push(GraphIdentFlag::Unidentified);
-            }
-            break;
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
             #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         let mask = posterior.adjacency[i];
         let key = posterior.graph_keys[i];
@@ -189,6 +187,9 @@ pub(crate) fn build_graph_posterior_identification_cache(
             flags.push(GraphIdentFlag::Unidentified);
         }
     }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
 
     let graphs = WeightedGraphSamples::new(weights, flags, keys)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
@@ -222,16 +223,14 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
-            for j in i..posterior.n_graphs {
-                keys.push(dbn_envelope_key(j)?);
-                weights.push(posterior.weights[j]);
-                flags.push(GraphIdentFlag::Unidentified);
-            }
-            break;
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
             #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
         // A DBN atom is the pair (contemporaneous mask, lag mask), but the
         // public GraphPosterior constructor keys atoms by contemporaneous mask
@@ -276,6 +275,9 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             identification,
             indexer: temporal.indexer,
         });
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
     }
 
     let graphs = WeightedGraphSamples::new(weights, flags, keys)

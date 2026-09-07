@@ -33,11 +33,30 @@ impl antecedent_core::ProgressSink for RecordingProgress {
     }
 }
 
+struct CancelOnEnvelopeIdentify {
+    token: antecedent_core::CancellationToken,
+}
+
+impl antecedent_core::ProgressSink for CancelOnEnvelopeIdentify {
+    fn report(&self, _fraction: f64, stage: &str) {
+        if stage == "envelope.identify" {
+            self.token.cancel();
+        }
+    }
+}
+
 fn recording_ctx(seed: u64) -> (ExecutionContext, Arc<RecordingProgress>) {
     let sink = Arc::new(RecordingProgress::default());
     let mut ctx = ExecutionContext::for_tests(seed);
     ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
     (ctx, sink)
+}
+
+fn cancel_on_envelope_identify_ctx(seed: u64) -> ExecutionContext {
+    let mut ctx = ExecutionContext::for_tests(seed);
+    let token = ctx.cancellation.clone();
+    ctx.progress = Some(Arc::new(CancelOnEnvelopeIdentify { token }));
+    ctx
 }
 
 fn identify_computations(sink: &RecordingProgress) -> usize {
@@ -310,5 +329,24 @@ fn dbn_posterior_with_a_static_query_is_refused_rather_than_panicking() {
     assert!(
         matches!(error, CausalError::Support { .. } | CausalError::Unsupported { .. }),
         "expected a typed support refusal, got {error:?}"
+    );
+}
+
+#[test]
+fn fresh_dbn_posterior_cancelled_during_identification_returns_typed_error() {
+    let treatment_to_outcome = 1_u64 << 1;
+    let (series, query) = confounded_series(true);
+    let ctx = cancel_on_envelope_identify_ctx(79);
+    let error = study(
+        &series,
+        &query,
+        dbn_posterior(&[treatment_to_outcome, treatment_to_outcome], &[0.5, 0.5]),
+    )
+    .run(&ctx)
+    .expect_err("identification cancellation must not become unidentified mass");
+
+    assert!(
+        matches!(error, CausalError::Cancelled { stage } if stage == "identify"),
+        "expected identify-stage cancellation, got {error:?}"
     );
 }

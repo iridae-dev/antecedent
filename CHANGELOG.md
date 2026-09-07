@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] — 2026-09-06
+## [1.1.0] — 2026-09-07
 
 Compatible evidence and prepared-execution upgrade for the frozen 1.0
 surface. The licensed set remains 77 of 1406 meaningful coordinates; no query
@@ -67,6 +67,17 @@ changes. See the [release notes](docs/release-notes/v1.1.0.md).
   `estimator=`, `estimator_config=`, `validators=`, `population_registry=`,
   `return_posterior_artifact=`, and Bayesian prior transfer or mapping instead
   of dropping them silently, matching the prepared handle.
+- Live `analyze(discovery=Config(...))` routes refuse `cancel=`, `on_progress=`,
+  and `on_stage=` rather than silently dropping them on native discovery entry
+  points. Supplied `GraphPosterior` replay now honours cancellation and progress
+  callbacks, and explicitly refuses `on_stage=` until posterior envelopes emit
+  progressive stage events.
+- Cancelling fresh static graph-posterior or DBN-posterior identification now
+  raises a typed identify-stage cancellation instead of returning a normal
+  result that relabels unfinished atom mass as unidentified.
+- Interactive static graph-posterior envelopes now anchor their public estimand
+  and identification metadata to the first retained atom that contributed
+  draws, rather than an identified atom excluded by subsampling.
 - A posterior replayed through `discovery=` keeps its producer's algorithm
   tag and convergence verdict instead of being relabelled as a converged
   `from_atoms` posterior.

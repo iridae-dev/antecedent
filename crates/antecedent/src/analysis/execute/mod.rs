@@ -372,6 +372,18 @@ mod identify_only_tests {
         }
     }
 
+    struct CancelOnEnvelopeIdentify {
+        token: antecedent_core::CancellationToken,
+    }
+
+    impl antecedent_core::ProgressSink for CancelOnEnvelopeIdentify {
+        fn report(&self, _fraction: f64, stage: &str) {
+            if stage == "envelope.identify" {
+                self.token.cancel();
+            }
+        }
+    }
+
     fn recording_ctx(seed: u64) -> (ExecutionContext, std::sync::Arc<RecordingProgress>) {
         let sink = std::sync::Arc::new(RecordingProgress::default());
         let mut ctx = ExecutionContext::for_tests(seed);
@@ -387,6 +399,13 @@ mod identify_only_tests {
             .iter()
             .filter(|stage| stage.as_str() == super::super::stage::PROGRESS_IDENTIFY_COMPUTE)
             .count()
+    }
+
+    fn cancel_on_envelope_identify_ctx(seed: u64) -> ExecutionContext {
+        let mut ctx = ExecutionContext::for_tests(seed);
+        let token = ctx.cancellation.clone();
+        ctx.progress = Some(std::sync::Arc::new(CancelOnEnvelopeIdentify { token }));
+        ctx
     }
 
     fn cached_count(result: &StudyResult) -> usize {
@@ -592,6 +611,38 @@ mod identify_only_tests {
         assert!(
             report_counts[2] > report_counts[1],
             "full validation must add prior-sensitivity reports beyond the cheap suite"
+        );
+    }
+
+    #[test]
+    fn fresh_graph_posterior_cancelled_during_identification_returns_typed_error() {
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let gp = GraphPosterior::new(
+            3,
+            vec![0.5, 0.5],
+            vec![direct, adjusted],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            2.0,
+            InferenceDiagnostics::analytic("cancel_during_identification"),
+            0,
+        )
+        .unwrap();
+        let ctx = cancel_on_envelope_identify_ctx(17);
+        let error = Study::tabular(known_truth_graph_mixture_data(16))
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .expect_err("identification cancellation must not become unidentified mass");
+
+        assert!(
+            matches!(error, CausalError::Cancelled { stage } if stage == super::super::stage::STAGE_IDENTIFY),
+            "expected identify-stage cancellation, got {error:?}"
         );
     }
 
