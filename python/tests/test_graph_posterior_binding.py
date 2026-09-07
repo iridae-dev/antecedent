@@ -151,7 +151,8 @@ def test_discovery_routes_refuse_execution_controls(route, option):
         discovery = antecedent.discovery.PC()
         query = _ATE
         inference = antecedent.Frequentist()
-    elif route == "temporal":
+    else:
+        assert route == "temporal"
         data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
         discovery = antecedent.discovery.PCMCI(max_lag=1)
         query = _PULSE
