@@ -40,6 +40,9 @@ from ._native import (
     analyze_ate_discover as _analyze_ate_discover,
 )
 from ._native import (
+    analyze_ate_graph_posterior as _analyze_ate_graph_posterior,
+)
+from ._native import (
     analyze_ate_pag as _analyze_ate_pag,
 )
 from ._native import (
@@ -70,6 +73,9 @@ from ._native import (
     analyze_temporal_discover as _analyze_temporal_discover,
 )
 from ._native import (
+    analyze_temporal_graph_posterior as _analyze_temporal_graph_posterior,
+)
+from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
 )
 from ._native import (
@@ -89,6 +95,7 @@ from .discovery import (
     CiScreenedPosterior,
     DbnPosterior,
     ExactDagPosterior,
+    GraphPosterior,
     JPCMCIPlus,
     LiNGAM,
     OrderMcmc,
@@ -303,7 +310,7 @@ def handle_response(
     from .results.response import SupportStatus, UncertaintyKind
 
     if discovery is not None:
-        if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY):
+        if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
             raise CausalUnsupportedError(
                 "refused: Graph-posterior response is a contract choice, not typed "
                 "impossibility: the ATE envelope (retained unidentified mass) is the "
@@ -854,6 +861,106 @@ def handle_path_specific(
         refute=refute if refute_requested else False,
     )
     return _wrap_ate(raw)
+
+
+def handle_supplied_graph_posterior(
+    data: Any,
+    query: AverageEffect | PulseEffect | SustainedEffect,
+    *,
+    discovery: GraphPosterior,
+    inference: Frequentist | Bayesian,
+    identifier: str | None,
+    estimator: str | None,
+    estimator_config: Mapping[str, Any] | None,
+    validators: Sequence[Any] | None,
+    population_registry: Any | None,
+    return_posterior_artifact: bool,
+    refute: bool | str,
+    seed: int,
+    bootstrap: int | None,
+    threads: int,
+    cancel: Any | None,
+    on_progress: Any | None,
+) -> Any:
+    from .estimation import _bayesian_inference_kwargs, _wrap_ate
+
+    if not isinstance(inference, Bayesian):
+        raise TypeError(
+            "graph-posterior discovery requires inference=Bayesian(...) for effect mixture"
+        )
+    # The supplied-posterior path selects its identifier and estimator per
+    # atom and runs the frozen atoms as given. Refuse the options it cannot
+    # honour rather than dropping them silently, mirroring PreparedAnalysis.
+    dropped = [
+        name
+        for name, value in (
+            ("identifier", identifier),
+            ("estimator", estimator),
+            ("estimator_config", estimator_config),
+            ("validators", validators),
+            ("population_registry", population_registry),
+        )
+        if value is not None
+    ]
+    if return_posterior_artifact:
+        dropped.append("return_posterior_artifact")
+    if dropped:
+        raise CausalUnsupportedError(
+            "analyze(discovery=GraphPosterior(...)) selects its identifier and estimator "
+            f"per posterior atom and does not support {', '.join(dropped)}; drop them or "
+            "run discovery inside analyze(discovery=ExactDagPosterior()/DbnPosterior(...))"
+        )
+    bayes_kw = _bayesian_inference_kwargs(inference)
+    unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
+    if unsupported:
+        raise CausalUnsupportedError(
+            "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
+            f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
+        )
+    names, columns = ingest_columns(data)
+    bootstrap_n = 0 if bootstrap is None else bootstrap
+    common = {
+        "inference": bayes_kw["inference"],
+        "n_draws": bayes_kw["n_draws"],
+        "prior_scale": bayes_kw["prior_scale"],
+        "refute": refute,
+        "seed": seed,
+        "bootstrap": bootstrap_n,
+        "threads": threads,
+        "cancel": cancel,
+        "on_progress": on_progress,
+    }
+    if isinstance(query, AverageEffect):
+        return _wrap_ate(
+            _analyze_ate_graph_posterior(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                **common,
+            )
+        )
+    if isinstance(query, (PulseEffect, SustainedEffect)):
+        return _wrap_ate(
+            _analyze_temporal_graph_posterior(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.outcome,
+                policy=query.kind,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                **common,
+            )
+        )
+    raise TypeError(
+        "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
+    )
 
 
 def handle_static_ate_discover(
@@ -1766,12 +1873,19 @@ def analyze(
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
+        Graph-posterior cells also accept a constructed ``GraphPosterior``.
         One-shot script convenience — discovery runs at compile time. For
         interactive / spreadsheet estimate clicks, discover once into
         :class:`antecedent.AcceptedGraph` (or hold a reviewed graph) and pass
         ``graph=`` with ``latency="interactive"`` instead. Combining
         ``discovery=`` with ``latency="interactive"`` raises
         :class:`CausalUnsupportedError`.
+        Live discovery strategies refuse ``cancel=``, ``on_progress=``, and
+        ``on_stage=`` because their native entry points do not yet implement
+        those controls end to end. A supplied ``GraphPosterior`` is a replay
+        path: it supports cancellation and progress but refuses ``on_stage=``.
+        Otherwise, discover first and pass the reviewed graph via ``graph=``
+        when execution controls are required.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         Maps to known-equivalent bootstrap / refute / draws; explicit
@@ -1784,12 +1898,17 @@ def analyze(
         ``TypeError`` (it carried no information beyond "unset" and was easy
         to confuse with an explicit choice).
     cancel:
-        Optional ``CancellationToken`` from ``antecedent._native``.
+        Optional ``CancellationToken`` from ``antecedent._native``. Refused
+        with live discovery strategies; supported on compatible ``graph=``
+        and supplied-``GraphPosterior`` paths.
     on_progress:
-        Optional ``(fraction: float, stage: str) -> None`` callback.
+        Optional ``(fraction: float, stage: str) -> None`` callback. Refused
+        with live discovery strategies; supported on compatible ``graph=``
+        and supplied-``GraphPosterior`` paths.
     on_stage:
         Optional ``(stage: str, payload: dict) -> None`` progressive stage
-        callback (identify → estimate_point → uncertainty → validate).
+        callback (identify → estimate_point → uncertainty → validate). Refused
+        with every ``discovery=`` path; supported on compatible ``graph=`` paths.
     return_posterior_artifact:
         When ``True`` and inference is Bayesian, attach full posterior draw
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
@@ -1853,6 +1972,24 @@ def analyze(
             "analyze(graph=..., latency='interactive')"
         )
 
+    if discovery is not None:
+        controls = (
+            (("on_stage", on_stage),)
+            if isinstance(discovery, GraphPosterior)
+            else (
+                ("cancel", cancel),
+                ("on_progress", on_progress),
+                ("on_stage", on_stage),
+            )
+        )
+        unsupported_controls = [name for name, value in controls if value is not None]
+        if unsupported_controls:
+            raise CausalUnsupportedError(
+                "analyze(discovery=...) does not support execution controls "
+                f"{', '.join(unsupported_controls)}; discover first and pass the reviewed "
+                "structure via graph= when cancellation or callbacks are required"
+            )
+
     kind = getattr(query, "kind", "")
     if structure_accepted and kind in {"path_specific", "distribution"}:
         raise CausalUnsupportedError(
@@ -1890,6 +2027,30 @@ def analyze(
     # "requires AverageEffect" error, ahead of ever reaching the temporal-pulse
     # handler below. This sequence mirrors the original isinstance ladder
     # exactly (including that quirk) rather than keying purely on `kind`.
+    if isinstance(discovery, GraphPosterior):
+        if not isinstance(query, (AverageEffect, PulseEffect, SustainedEffect)):
+            raise TypeError(
+                "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
+            )
+        return handle_supplied_graph_posterior(
+            data,
+            query,
+            discovery=discovery,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            estimator_config=estimator_config,
+            validators=validators,
+            population_registry=population_registry,
+            return_posterior_artifact=return_posterior_artifact,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            cancel=cancel,
+            on_progress=on_progress,
+        )
+
     if discovery is not None and isinstance(
         discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY
     ):

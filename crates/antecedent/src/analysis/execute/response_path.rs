@@ -10,7 +10,7 @@ impl super::Study {
         graph: &Dag,
         query: &ResponseQuery,
         physical: &PhysicalExecutionPlan,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier =
@@ -21,7 +21,7 @@ impl super::Study {
         let estimator_id: EstimatorId = estimator.parse()?;
 
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static_query(
                     identifier_id,
                     graph,

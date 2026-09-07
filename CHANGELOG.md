@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-07
+
+Compatible evidence and prepared-execution upgrade for the frozen 1.0
+surface. The licensed set remains 77 of 1406 meaningful coordinates; no query
+kind, graph semantics, identification theory, refusal, or artifact format
+changes. See the [release notes](docs/release-notes/v1.1.0.md).
+
+### Added
+
+- Added frozen known-truth mixtures for Bayesian DAG-posterior ATE and
+  TemporalDag-posterior Pulse / single-step Sustained effects. The fixtures pin
+  the effect among identified atoms while retaining unidentified posterior
+  mass, and are consumed by staged fresh and prepared execution.
+- Added numeric conformance pins for Frequentist and seeded conjugate Bayesian
+  PAG ATE envelopes across explicit/accepted structure and all licensed
+  validation levels.
+- Added a frozen front-door functional pin for Frequentist ADMG ATE across
+  explicit/accepted structure and all licensed validation levels.
+- Python: `antecedent.discovery.GraphPosterior.from_atoms(...)` builds a
+  posterior from explicit atoms (known-truth fixtures and replay), the handle
+  exposes `lag_masks` and `algorithm`, and `analyze(discovery=...)` /
+  `PreparedAnalysis.prepare(discovery=...)` accept a constructed
+  `GraphPosterior`. The 49 frozen root names and the stage-module name sets
+  are unchanged.
+- Progress sinks receive an `identify.compute` label exactly when
+  identification is computed (fresh runs, `prepare`, and the sharp-RD click)
+  and never when a prepared click reuses its cache. The Rust suites record it
+  to prove reuse on every cached path rather than trusting the
+  `exec.identify.cached` flag.
+- Bayesian PAG results carry the same `identify.pag.envelope` completion-mass
+  diagnostic as the Frequentist arm.
+
+### Changed
+
+- `Study::prepare` now stores the generalized-adjustment PAG envelope and the
+  general-ID result/functional for bidirected ADMGs. Prepared estimate and
+  same-schema refresh clicks reuse them and emit `exec.identify.cached`.
+- Static graph-posterior and temporal DBN-posterior preparation now freezes
+  per-atom identification, selected estimands, weights, and identified status;
+  the DBN cache also retains each identified atom's unfolding indexer.
+  Unidentified atoms remain unidentified and keep their weight.
+- DBN-posterior execution now keys cached atoms by posterior position instead
+  of the public contemporaneous mask, so lag-distinct atoms cannot overwrite
+  one another. Mixture weighting and fit-failure demotion retain the correct
+  atom identity in either posterior order. The public `GraphPosterior`
+  representation is unchanged.
+- A changed graph or query still requires a new prepared handle, preventing
+  structural caches from crossing analysis coordinates. Fresh one-shot runs
+  continue to identify normally and do not claim cache reuse.
+- Workspace crates and the Python package are versioned **1.1.0**.
+
+### Fixed
+
+- A `GraphPosterior` supplied through `discovery=` is bound to the data
+  schema: a table whose columns are reordered or differ in count is refused
+  instead of silently running a permuted structure.
+- `analyze(discovery=GraphPosterior(...))` refuses `identifier=`,
+  `estimator=`, `estimator_config=`, `validators=`, `population_registry=`,
+  `return_posterior_artifact=`, and Bayesian prior transfer or mapping instead
+  of dropping them silently, matching the prepared handle.
+- Live `analyze(discovery=Config(...))` routes refuse `cancel=`, `on_progress=`,
+  and `on_stage=` rather than silently dropping them on native discovery entry
+  points. Supplied `GraphPosterior` replay now honours cancellation and progress
+  callbacks, and explicitly refuses `on_stage=` until posterior envelopes emit
+  progressive stage events.
+- Cancelling fresh static graph-posterior or DBN-posterior identification now
+  raises a typed identify-stage cancellation instead of returning a normal
+  result that relabels unfinished atom mass as unidentified.
+- Interactive static graph-posterior envelopes now anchor their public estimand
+  and identification metadata to the first retained atom that contributed
+  draws, rather than an identified atom excluded by subsampling.
+- A posterior replayed through `discovery=` keeps its producer's algorithm
+  tag and convergence verdict instead of being relabelled as a converged
+  `from_atoms` posterior.
+- `GraphPosterior.from_atoms` validates its atoms: masks must be DAGs within
+  the variable count, weights must sum to one, and lag masks require
+  `max_lag` within the 64-bit packing.
+- A DBN posterior paired with a static `AverageEffect` is refused with a typed
+  error instead of identifying on contemporaneous masks alone; a graph
+  posterior on the prepared handle likewise requires tabular data for
+  `AverageEffect` and series data for temporal effects.
+
 ## [1.0.0] — 2026-09-06
 
 The contract freeze: the version bump of the 0.9.1 matrix, with no code
@@ -1526,7 +1608,9 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/iridae-dev/antecedent/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...v1.0.0
 [0.9.1]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.9.0
 [0.7.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.7.0

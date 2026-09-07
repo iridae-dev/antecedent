@@ -20,4 +20,5 @@ test_sources = [
  "IdentificationEnvelope unidentified mass",
  "PAG completion envelope",
  "frozen status and adjustment-set cases from a clean-room MAG-enumeration harness (conformance/identify/generalized_adjustment)",
+ "conformance/estimate/pag_ate_envelope (frozen three-completion PAG law: pins the mass-weighted Frequentist ATE and the seeded conjugate Bayesian envelope mean that the completion envelope returns, on fresh and prepared paths)",
 ]

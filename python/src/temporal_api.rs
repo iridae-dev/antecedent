@@ -1849,6 +1849,92 @@ fn analyze_temporal_mediation(
     })
 }
 
+/// Pulse/Sustained effect from a supplied DBN graph posterior.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    posterior,
+    treatment,
+    outcome,
+    *,
+    policy="pulse",
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    inference="conjugate",
+    n_draws=1000,
+    prior_scale=10.0,
+    refute=None,
+    seed=1,
+    bootstrap=0,
+    threads=1,
+    cancel=None,
+    on_progress=None,
+))]
+fn analyze_temporal_graph_posterior(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    posterior: Bound<'_, crate::bayesian::PyGraphPosterior>,
+    treatment: String,
+    outcome: String,
+    policy: &str,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    inference: &str,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
+) -> PyResult<AnalysisResult> {
+    let gp = {
+        let posterior = posterior.borrow();
+        posterior.require_bound_to(&names)?;
+        posterior.to_rust()?
+    };
+    let suite = suite_from_refute(refute.as_ref())?;
+    let cancel_token = cancel.map(|token| token.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let policy = policy.to_ascii_lowercase();
+    let inference = inference.to_string();
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        let mut builder = Study::series(series)
+            .graph_posterior(gp)
+            .temporal_query(q)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context_ext(
+            seed,
+            threads,
+            cancel_token,
+            progress,
+            Some(PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        analysis_result_from_run(&names, result)
+    })
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_pag, m)?)?;
@@ -1856,6 +1942,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_panel, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_panel_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;

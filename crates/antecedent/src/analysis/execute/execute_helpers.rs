@@ -180,14 +180,28 @@ pub(super) struct IdentifiedExecuteExtras {
 }
 
 pub(super) fn identification_from_cache_or(
+    ctx: &ExecutionContext,
     cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
     if let Some(cache) = cache {
         return Ok((cache.identification.clone(), cache.estimand.clone(), true));
     }
+    report_identify_compute(ctx);
     let (identification, estimand) = live()?;
     Ok((identification, estimand, false))
+}
+
+/// Tell the progress sink that identification is being computed rather than
+/// served from a prepared cache.
+///
+/// Every compute path (single-graph, PAG envelope, bidirected ADMG, graph and
+/// DBN posterior builders, sharp RD) reports this exactly when it identifies,
+/// so `exec.identify.cached` on a prepared click is verifiable, not a flag.
+pub(crate) fn report_identify_compute(ctx: &ExecutionContext) {
+    if let Some(progress) = &ctx.progress {
+        progress.report(0.0, crate::analysis::stage::PROGRESS_IDENTIFY_COMPUTE);
+    }
 }
 
 pub(super) fn nan_effect() -> EffectEstimate {
@@ -436,11 +450,8 @@ pub(super) fn run_envelope_bayesian_full_validation(
         }
     }
 
-    let atom_keys: String = atoms
-        .iter()
-        .map(|atom| format!("{:x}", atom.key))
-        .collect::<Vec<_>>()
-        .join(",");
+    let atom_keys: String =
+        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
     diagnostics.push(Diagnostic::new(
         "refute.bayesian.ppc.envelope",
         DiagnosticKind::Scientific,
@@ -685,12 +696,16 @@ impl super::Study {
         } else {
             let mut diagnostics = args.identification.diagnostics.clone();
             diagnostics.push(overlap_diagnostic(args.estimate.overlap));
-            if args.identify_cached {
-                diagnostics.push(identify_cached_diagnostic());
-            }
             diagnostics.extend(args.extra_diagnostics);
             diagnostics
         };
+        // Envelope routes supply their own diagnostic seed, but a prepared
+        // envelope still must expose cache reuse just like a single-graph path.
+        if args.identify_cached
+            && diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached")
+        {
+            diagnostics.push(identify_cached_diagnostic());
+        }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)

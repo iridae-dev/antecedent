@@ -50,7 +50,7 @@ id = "bayes.estimate.graph_envelopes"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/graph_effect_envelope"
-notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by default"
+notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by default; staged DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures are pinned by conformance/bayesian/known_truth_mixtures (1.1)"
 
 [[capabilities]]
 id = "bayes.validate.ppc"

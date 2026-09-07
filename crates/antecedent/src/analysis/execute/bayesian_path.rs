@@ -21,7 +21,7 @@ impl super::Study {
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
                 let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
                 Ok((identification, estimand))
@@ -195,6 +195,7 @@ impl super::Study {
         ctx: &ExecutionContext,
         envelope: &IdentificationEnvelope<Pag>,
         identification: IdentificationResult,
+        identify_cached: bool,
         started: Instant,
     ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
@@ -287,6 +288,7 @@ impl super::Study {
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(super::pag_path::pag_envelope_diagnostic(envelope));
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
@@ -341,7 +343,7 @@ impl super::Study {
             estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -473,72 +475,31 @@ impl super::Study {
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
 
-        let mut weights = Vec::with_capacity(gp.n_graphs);
-        let mut flags = Vec::with_capacity(gp.n_graphs);
-        let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut fit_atoms = Vec::new();
-        let mut ident_cache: std::collections::HashMap<
-            u64,
-            Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
-        > = std::collections::HashMap::new();
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut primary_identification: Option<IdentificationResult> = None;
+        let (identified, identify_cached) =
+            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_graph_posterior_identification_cache(
+                        gp, query, ctx,
+                    )?,
+                    false,
+                )
+            };
+        let graphs = identified.graphs.clone();
+        let fit_atoms: Vec<_> = identified
+            .atoms
+            .iter()
+            .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.clone()))
+            .collect();
+        // Interactive subsampling can demote the first structurally identified
+        // atom before estimation. Keep the shared prior anchored to that
+        // original first atom below, but anchor the public estimand and
+        // identification to the first atom that actually contributes draws.
+        let mut primary_estimand = None;
+        let mut primary_identification = None;
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
-
-        for i in 0..gp.n_graphs {
-            if ctx.cancellation.is_cancelled() {
-                for j in i..gp.n_graphs {
-                    keys.push(gp.graph_keys[j]);
-                    weights.push(gp.weights[j]);
-                    flags.push(GraphIdentFlag::Unidentified);
-                }
-                break;
-            }
-            if let Some(p) = &ctx.progress {
-                #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
-            }
-            let mask = gp.adjacency[i];
-            let key = gp.graph_keys[i];
-            keys.push(key);
-            weights.push(gp.weights[i]);
-            let cached = if let Some(hit) = ident_cache.get(&mask) {
-                hit.clone()
-            } else {
-                let resolved = (|| -> Result<
-                    Option<(IdentifiedEstimand, IdentificationStatus, IdentificationResult)>,
-                    CausalError,
-                > {
-                    let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
-                        return Ok(None);
-                    };
-                    let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query)
-                    else {
-                        return Ok(None);
-                    };
-                    if !identification_status_ok_for_case(identification.status)
-                        || identification.estimands.is_empty()
-                    {
-                        return Ok(None);
-                    }
-                    let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
-                    Ok(Some((estimand, identification.status, identification)))
-                })()?;
-                ident_cache.insert(mask, resolved.clone());
-                resolved
-            };
-            if let Some((estimand, status, identification)) = cached {
-                flags.push(GraphIdentFlag::Identified);
-                if primary_estimand.is_none() {
-                    primary_estimand = Some(estimand.clone());
-                    primary_identification = Some(identification);
-                }
-                fit_atoms.push((key, estimand, status));
-            } else {
-                flags.push(GraphIdentFlag::Unidentified);
-            }
-        }
 
         // Prepare once before Interactive subsample (0.6.0 eligibility), stash
         // so kept atoms are not prepared a second time. Keys may collide when
@@ -553,8 +514,6 @@ impl super::Study {
             }
             prepared.entry(*key).or_insert(prep);
         }
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
         let graphs = maybe_interactive_subsample_graphs(
             self.latency_mode,
@@ -566,7 +525,7 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, _estimand, status) in fit_atoms {
+        for (key, estimand, identification) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
@@ -575,10 +534,21 @@ impl super::Study {
                 continue;
             };
             est.prior.clone_from(&envelope_prior);
-            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            let posterior =
+                est.fit(&prep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+            if primary_estimand.is_none() {
+                primary_estimand = Some(estimand);
+                primary_identification = Some(identification.clone());
+            }
             let weight = identified_weight_for_key(&graphs, key);
-            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
+            atoms.push(EnvelopeAtomFit {
+                key,
+                prep,
+                posterior,
+                status: identification.status,
+                weight,
+            });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -655,7 +625,7 @@ impl super::Study {
             estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -706,73 +676,37 @@ impl super::Study {
                 });
             }
         };
-        let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
-            message: "DBN posterior missing per-atom lag masks".into(),
-        })?;
-        let max_lag = gp.max_lag.ok_or_else(|| CausalError::Compile {
-            message: "DBN posterior missing max_lag".into(),
-        })?;
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
         let mut bayes = bayesian_temporal_gcomp(&cfg, ctx);
 
-        let mut weights = Vec::with_capacity(gp.n_graphs);
-        let mut flags = Vec::with_capacity(gp.n_graphs);
-        let mut keys = Vec::with_capacity(gp.n_graphs);
-        let mut fit_atoms = Vec::new();
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut primary_identification: Option<IdentificationResult> = None;
+        let (identified, identify_cached) =
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_dbn_posterior_identification_cache(
+                        gp, &vars, query, ctx,
+                    )?,
+                    false,
+                )
+            };
+        let keys = identified.graphs.graph_keys.to_vec();
+        let mut flags = identified.graphs.identified.to_vec();
+        let fit_atoms: Vec<_> = identified
+            .atoms
+            .iter()
+            .map(|atom| {
+                (atom.key, atom.estimand.clone(), atom.identification.clone(), atom.indexer.clone())
+            })
+            .collect();
+        // The first structurally identified atom can still fail soft estimation
+        // and be demoted below. Anchor the public result on the first atom that
+        // actually contributes draws, not on a discarded fit.
+        let mut primary_estimand = None;
+        let mut primary_identification = None;
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
-
-        for i in 0..gp.n_graphs {
-            if ctx.cancellation.is_cancelled() {
-                for j in i..gp.n_graphs {
-                    keys.push(gp.graph_keys[j]);
-                    weights.push(gp.weights[j]);
-                    flags.push(GraphIdentFlag::Unidentified);
-                }
-                break;
-            }
-            if let Some(p) = &ctx.progress {
-                #[allow(clippy::cast_precision_loss)]
-                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope.identify");
-            }
-            let cmask = gp.adjacency[i];
-            let lmask = lag_masks[i];
-            let key = gp.graph_keys[i];
-            keys.push(key);
-            weights.push(gp.weights[i]);
-            let Ok(tdag) = temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars)
-            else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            };
-            let Ok(id_res) = TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query)
-            else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            };
-            let identification = id_res.result;
-            if !identification_status_ok_for_case(identification.status)
-                || identification.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            let Ok(estimand) =
-                select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)
-            else {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            };
-            flags.push(GraphIdentFlag::Identified);
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                primary_identification = Some(identification.clone());
-            }
-            fit_atoms.push((key, estimand, identification, id_res.indexer));
-        }
 
         // Soft prepare+fit before Interactive subsample (0.6.0): demote failures
         // so stratified selection only chooses among atoms that already produced
@@ -809,7 +743,13 @@ impl super::Study {
                 continue;
             };
             match envelope_draws_from_posterior(key, &posterior) {
-                Ok(draws) => per_graph.push(draws),
+                Ok(draws) => {
+                    if primary_estimand.is_none() {
+                        primary_estimand = Some(estimand);
+                        primary_identification = Some(identification);
+                    }
+                    per_graph.push(draws);
+                }
                 Err(_) => {
                     if let Some(idx) = keys.iter().position(|&k| k == key) {
                         flags[idx] = GraphIdentFlag::Unidentified;
@@ -818,8 +758,12 @@ impl super::Study {
             }
         }
 
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let graphs = WeightedGraphSamples::new(
+            Arc::clone(&identified.graphs.weights),
+            flags,
+            Arc::clone(&identified.graphs.graph_keys),
+        )
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
         let (graphs, per_graph) = maybe_interactive_envelope_subsample(
             self.latency_mode,
@@ -868,7 +812,7 @@ impl super::Study {
             estimator_id: EstimatorId::BayesianGcomp,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
             distribution: None,

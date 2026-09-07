@@ -239,3 +239,44 @@ fn interactive_envelope_prior_anchors_to_first_identified_before_subsample() {
     );
     assert!(mean_z_first.is_finite() && mean_w_first.is_finite());
 }
+
+#[test]
+fn interactive_envelope_public_estimand_anchors_to_first_contributing_atom() {
+    let data = toy_table(80);
+    let z_mask = z_confounder_mask();
+    let w_mask = w_confounder_mask();
+    let mut masks = vec![z_mask];
+    masks.extend(std::iter::repeat_n(w_mask, N_ID - 1));
+    let seed = (0u64..10_000)
+        .find(|&s| first_identified_dropped(s, &masks))
+        .expect("need a seed that drops the first identified atom under Interactive subsample");
+
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let analysis = Study::tabular(data.clone())
+        .graph_posterior(graph_posterior(masks))
+        .query(query)
+        .inference(InferenceMode::Bayesian(composed_cfg(&data)))
+        .latency_mode(LatencyMode::Interactive)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(seed);
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+
+    for result in [&fresh, &click] {
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.envelope.interactive_subsample")
+        );
+        assert_eq!(
+            result.estimand.adjustment_set.as_ref(),
+            &[VariableId::from_raw(3)],
+            "the public estimand must describe the retained W-adjusted atom, not the dropped Z-adjusted atom"
+        );
+    }
+}
