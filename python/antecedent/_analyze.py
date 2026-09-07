@@ -797,8 +797,8 @@ def handle_distribution(
     del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
-            "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells; accepted and graph-posterior structures are not staged."
+            "refused: Graph-posterior path and distribution mixtures are not staged. "
+            "For a reviewed discovered Dag, pass graph=AcceptedGraph(...)."
         )
     else:
         edges = _static_edges(graph)
@@ -838,8 +838,8 @@ def handle_path_specific(
     del accept_discovered
     if discovery is not None:
         raise CausalUnsupportedError(
-            "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells; accepted and graph-posterior structures are not staged."
+            "refused: Graph-posterior path and distribution mixtures are not staged. "
+            "For a reviewed discovered Dag, pass graph=AcceptedGraph(...)."
         )
     else:
         edges = _static_edges(graph)
@@ -1991,11 +1991,87 @@ def analyze(
             )
 
     kind = getattr(query, "kind", "")
-    if structure_accepted and kind in {"path_specific", "distribution"}:
-        raise CausalUnsupportedError(
-            "refused: Path and distribution queries are licensed only as explicit "
-            "Dag cells; accepted and graph-posterior structures are not staged."
+    # New 1.2 coordinates share the staged Rust execution path, including the
+    # frozen structure axis, validation reports and posterior serialization.
+    use_prepared = (
+        kind in {"path_specific", "distribution", "temporal_mediation"}
+        or (
+            isinstance(inference, Bayesian)
+            and kind in {"conditional", "response_curve", "intervention_response"}
         )
+        or (kind == "sustained" and getattr(query, "window", None) is not None)
+    )
+    if use_prepared and discovery is None:
+        assert isinstance(
+            query,
+            (
+                ConditionalEffect,
+                TemporalMediationEffect,
+                PathSpecificEffect,
+                InterventionalDistribution,
+                ResponseCurve,
+                InterventionResponse,
+                SustainedEffect,
+            ),
+        )
+        if graph is None:
+            raise ValueError("this query requires graph=")
+        from .estimation import PreparedAnalysis
+
+        unsupported = [
+            name
+            for name, value in (
+                ("cancel", cancel),
+                ("on_progress", on_progress),
+                ("on_stage", on_stage),
+                ("validators", validators),
+                ("estimator_config", estimator_config),
+            )
+            if value is not None
+        ]
+        if unsupported:
+            raise CausalUnsupportedError(
+                "this staged query path does not support " + ", ".join(unsupported)
+            )
+        is_response = kind in {"response_curve", "intervention_response"}
+        if is_response and bootstrap_requested:
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+            )
+        suite = (
+            "none"
+            if is_response and not refute_requested
+            else "cheap"
+            if resolved_refute is True
+            else resolved_refute
+        )
+        prepared = PreparedAnalysis.prepare(
+            data,
+            query=query,
+            graph=AcceptedGraph(graph) if structure_accepted else graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            refute=suite,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            latency=latency,
+        )
+        result = prepared.estimate(data, seed=seed, threads=threads)
+        if return_posterior_artifact:
+            from dataclasses import replace
+
+            from .results import AnalysisResult
+
+            if not isinstance(result, AnalysisResult) or result.posterior is None:
+                raise CausalUnsupportedError(
+                    "return_posterior_artifact requires a scalar posterior; use PreparedAnalysis.export_artifact for responses"
+                )
+            result = replace(
+                result, posterior=replace(result.posterior, artifact=prepared.export_artifact())
+            )
+        return result
 
     if kind and kind in _KIND_HANDLER_KEYS:
         return _dispatch_kind(

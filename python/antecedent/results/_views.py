@@ -418,11 +418,7 @@ class AnalysisResult:
 
     @property
     def effect(self) -> float:
-        """Primary scalar effect (mediation total when present, else estimate ATE/mean)."""
-        if self.mediation is not None and self.mediation.total is not None:
-            return float(self.mediation.total)
-        if self.estimate.mediation is not None and self.estimate.mediation.total is not None:
-            return float(self.estimate.mediation.total)
+        """Primary requested contrast, including direct/mediated/total mediation."""
         return self.estimate.ate
 
     @property

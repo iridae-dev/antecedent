@@ -9,10 +9,7 @@ pytest.importorskip("antecedent")
 import antecedent
 from antecedent.errors import CausalUnsupportedError
 
-_PATH_DIST_REFUSED = (
-    "refused: Path and distribution queries are licensed only as explicit Dag "
-    "cells; accepted and graph-posterior structures are not staged."
-)
+_PATH_DIST_REFUSED = "refused: Graph-posterior path and distribution mixtures are not staged."
 
 
 def _discrete_chain():
