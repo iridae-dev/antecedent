@@ -1,6 +1,6 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-06
+Date: 2026-09-07
 Scope: workspace crates + `python` extension (package version **1.1.0**)
 ADR: [0017](../adr/0017-release-prep.md)
 
@@ -52,7 +52,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 | `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums under the format-0.4 artifact contract |
 | `thiserror` | Error types | No runtime concerns |
 
-`cargo deny check` passed on 2026-09-06: advisories, bans, licenses, and
+`cargo deny check` passed on 2026-09-07: advisories, bans, licenses, and
 sources were all `ok`. Its configured warning-level duplicate dependency and
 unused license-allowance reports remain non-failing maintenance signals;
 `yanked = "warn"` is unchanged in `deny.toml`.

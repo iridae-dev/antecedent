@@ -1869,6 +1869,8 @@ fn analyze_temporal_mediation(
     seed=1,
     bootstrap=0,
     threads=1,
+    cancel=None,
+    on_progress=None,
 ))]
 fn analyze_temporal_graph_posterior(
     py: Python<'_>,
@@ -1888,6 +1890,8 @@ fn analyze_temporal_graph_posterior(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     let gp = {
         let posterior = posterior.borrow();
@@ -1895,6 +1899,8 @@ fn analyze_temporal_graph_posterior(
         posterior.to_rust()?
     };
     let suite = suite_from_refute(refute.as_ref())?;
+    let cancel_token = cancel.map(|token| token.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     let inference = inference.to_string();
@@ -1917,7 +1923,15 @@ fn analyze_temporal_graph_posterior(
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
         let analysis = builder.build().map_err(py_err)?;
-        run_temporal_analysis(&names, analysis, seed, threads)
+        let ctx = py_execution_context_ext(
+            seed,
+            threads,
+            cancel_token,
+            progress,
+            Some(PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        analysis_result_from_run(&names, result)
     })
 }
 

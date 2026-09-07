@@ -1552,6 +1552,8 @@ def analyze_ate_graph_posterior(
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_temporal_discover(
     names: list[str],
@@ -1610,6 +1612,8 @@ def analyze_temporal_graph_posterior(
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
 ) -> AnalysisResult: ...
 def discover_pcmci(
     names: list[str],

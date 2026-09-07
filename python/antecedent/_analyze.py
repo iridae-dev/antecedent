@@ -879,6 +879,8 @@ def handle_supplied_graph_posterior(
     seed: int,
     bootstrap: int | None,
     threads: int,
+    cancel: Any | None,
+    on_progress: Any | None,
 ) -> Any:
     from .estimation import _bayesian_inference_kwargs, _wrap_ate
 
@@ -925,6 +927,8 @@ def handle_supplied_graph_posterior(
         "seed": seed,
         "bootstrap": bootstrap_n,
         "threads": threads,
+        "cancel": cancel,
+        "on_progress": on_progress,
     }
     if isinstance(query, AverageEffect):
         return _wrap_ate(
@@ -1876,6 +1880,12 @@ def analyze(
         ``graph=`` with ``latency="interactive"`` instead. Combining
         ``discovery=`` with ``latency="interactive"`` raises
         :class:`CausalUnsupportedError`.
+        Live discovery strategies refuse ``cancel=``, ``on_progress=``, and
+        ``on_stage=`` because their native entry points do not yet implement
+        those controls end to end. A supplied ``GraphPosterior`` is a replay
+        path: it supports cancellation and progress but refuses ``on_stage=``.
+        Otherwise, discover first and pass the reviewed graph via ``graph=``
+        when execution controls are required.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         Maps to known-equivalent bootstrap / refute / draws; explicit
@@ -1888,12 +1898,17 @@ def analyze(
         ``TypeError`` (it carried no information beyond "unset" and was easy
         to confuse with an explicit choice).
     cancel:
-        Optional ``CancellationToken`` from ``antecedent._native``.
+        Optional ``CancellationToken`` from ``antecedent._native``. Refused
+        with live discovery strategies; supported on compatible ``graph=``
+        and supplied-``GraphPosterior`` paths.
     on_progress:
-        Optional ``(fraction: float, stage: str) -> None`` callback.
+        Optional ``(fraction: float, stage: str) -> None`` callback. Refused
+        with live discovery strategies; supported on compatible ``graph=``
+        and supplied-``GraphPosterior`` paths.
     on_stage:
         Optional ``(stage: str, payload: dict) -> None`` progressive stage
-        callback (identify → estimate_point → uncertainty → validate).
+        callback (identify → estimate_point → uncertainty → validate). Refused
+        with every ``discovery=`` path; supported on compatible ``graph=`` paths.
     return_posterior_artifact:
         When ``True`` and inference is Bayesian, attach full posterior draw
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
@@ -1957,6 +1972,24 @@ def analyze(
             "analyze(graph=..., latency='interactive')"
         )
 
+    if discovery is not None:
+        controls = (
+            (("on_stage", on_stage),)
+            if isinstance(discovery, GraphPosterior)
+            else (
+                ("cancel", cancel),
+                ("on_progress", on_progress),
+                ("on_stage", on_stage),
+            )
+        )
+        unsupported_controls = [name for name, value in controls if value is not None]
+        if unsupported_controls:
+            raise CausalUnsupportedError(
+                "analyze(discovery=...) does not support execution controls "
+                f"{', '.join(unsupported_controls)}; discover first and pass the reviewed "
+                "structure via graph= when cancellation or callbacks are required"
+            )
+
     kind = getattr(query, "kind", "")
     if structure_accepted and kind in {"path_specific", "distribution"}:
         raise CausalUnsupportedError(
@@ -2014,6 +2047,8 @@ def analyze(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            cancel=cancel,
+            on_progress=on_progress,
         )
 
     if discovery is not None and isinstance(

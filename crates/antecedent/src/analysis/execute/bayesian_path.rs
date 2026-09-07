@@ -490,11 +490,14 @@ impl super::Study {
         let fit_atoms: Vec<_> = identified
             .atoms
             .iter()
-            .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.status))
+            .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.clone()))
             .collect();
-        let primary_estimand = identified.atoms.first().map(|atom| atom.estimand.clone());
-        let primary_identification =
-            identified.atoms.first().map(|atom| atom.identification.clone());
+        // Interactive subsampling can demote the first structurally identified
+        // atom before estimation. Keep the shared prior anchored to that
+        // original first atom below, but anchor the public estimand and
+        // identification to the first atom that actually contributes draws.
+        let mut primary_estimand = None;
+        let mut primary_identification = None;
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
@@ -522,7 +525,7 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, _estimand, status) in fit_atoms {
+        for (key, estimand, identification) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
@@ -531,10 +534,21 @@ impl super::Study {
                 continue;
             };
             est.prior.clone_from(&envelope_prior);
-            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            let posterior =
+                est.fit(&prep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
+            if primary_estimand.is_none() {
+                primary_estimand = Some(estimand);
+                primary_identification = Some(identification.clone());
+            }
             let weight = identified_weight_for_key(&graphs, key);
-            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
+            atoms.push(EnvelopeAtomFit {
+                key,
+                prep,
+                posterior,
+                status: identification.status,
+                weight,
+            });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,

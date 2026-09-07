@@ -2312,6 +2312,8 @@ fn identify_ate(
     seed=1,
     bootstrap=0,
     threads=1,
+    cancel=None,
+    on_progress=None,
 ))]
 fn analyze_ate_graph_posterior(
     py: Python<'_>,
@@ -2329,6 +2331,8 @@ fn analyze_ate_graph_posterior(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AteAnalysisResult> {
     let gp = {
         let posterior = posterior.borrow();
@@ -2336,6 +2340,8 @@ fn analyze_ate_graph_posterior(
         posterior.to_rust()?
     };
     let suite = suite_from_refute(refute.as_ref())?;
+    let cancel_token = cancel.map(|token| token.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let inference = inference.to_string();
     detach_catch(py, move || {
@@ -2358,8 +2364,8 @@ fn analyze_ate_graph_posterior(
             None,
             seed,
             threads,
-            None,
-            None,
+            cancel_token,
+            progress,
             false,
             None,
         )

@@ -143,6 +143,97 @@ def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
         )
 
 
+@pytest.mark.parametrize("route", ["static", "temporal"])
+@pytest.mark.parametrize("option", ["cancel", "on_progress", "on_stage"])
+def test_discovery_routes_refuse_execution_controls(route, option):
+    if route == "static":
+        data = static_data(int(STATIC["n"]))
+        discovery = antecedent.discovery.PC()
+        query = _ATE
+        inference = antecedent.Frequentist()
+    elif route == "temporal":
+        data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+        discovery = antecedent.discovery.PCMCI(max_lag=1)
+        query = _PULSE
+        inference = antecedent.Frequentist()
+    value = antecedent.state.CancellationToken() if option == "cancel" else (lambda *_args: None)
+    with pytest.raises(CausalUnsupportedError, match=option):
+        antecedent.analyze(
+            data,
+            discovery=discovery,
+            query=query,
+            inference=inference,
+            refute=False,
+            **{option: value},
+        )
+
+
+def test_supplied_posterior_refuses_stage_callback():
+    with pytest.raises(CausalUnsupportedError, match="on_stage"):
+        antecedent.analyze(
+            static_data(int(STATIC["n"])),
+            discovery=static_posterior(),
+            query=_ATE,
+            inference=BAYES,
+            refute=False,
+            on_stage=lambda *_args: None,
+        )
+
+
+@pytest.mark.parametrize("temporal", [False, True], ids=["static", "dbn"])
+def test_supplied_posterior_honours_cancellation(temporal):
+    token = antecedent.state.CancellationToken()
+    token.cancel()
+    if temporal:
+        data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+        posterior = temporal_posterior()
+        query = _PULSE
+    else:
+        data = static_data(int(STATIC["n"]))
+        posterior = static_posterior()
+        query = _ATE
+
+    with pytest.raises(antecedent.errors.CausalCancelledError, match="identify"):
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            cancel=token,
+        )
+
+
+@pytest.mark.parametrize("temporal", [False, True], ids=["static", "dbn"])
+def test_supplied_posterior_forwards_progress_callback(temporal):
+    seen: list[tuple[float, str]] = []
+
+    def on_progress(fraction: float, stage: str) -> None:
+        seen.append((fraction, stage))
+
+    if temporal:
+        data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+        posterior = temporal_posterior()
+        query = _PULSE
+    else:
+        data = static_data(int(STATIC["n"]))
+        posterior = static_posterior()
+        query = _ATE
+
+    result = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        on_progress=on_progress,
+    )
+
+    assert np.isfinite(result.ate)
+    assert any(stage == "identify.compute" for _, stage in seen)
+    assert any(stage == "envelope.identify" for _, stage in seen)
+
+
 def test_supplied_posterior_refuses_prior_transfer():
     data = static_data(int(STATIC["n"]))
     transfer = antecedent.Bayesian(backend="conjugate", n_draws=32, prior_from=b"\x00")
