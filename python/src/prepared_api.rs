@@ -526,6 +526,9 @@ impl PyPreparedAnalysis {
         *,
         identifier=None,
         estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
         seed=1,
         threads=1,
         latency=None,
@@ -542,6 +545,9 @@ impl PyPreparedAnalysis {
         grid: Vec<f64>,
         identifier: Option<String>,
         estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
         seed: u64,
         threads: u32,
         latency: Option<String>,
@@ -588,6 +594,12 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -618,6 +630,9 @@ impl PyPreparedAnalysis {
         policy=crate::temporal_license::DEFAULT_POLICY,
         treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
         seed=1,
         threads=1,
         accepted=false,
@@ -638,6 +653,9 @@ impl PyPreparedAnalysis {
         policy: &str,
         treatment_lag: u32,
         max_history_lag: Option<u32>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
         seed: u64,
         threads: u32,
         accepted: bool,
@@ -679,12 +697,15 @@ impl PyPreparedAnalysis {
             } else {
                 builder.graph(dag)
             };
-            let analysis = builder
-                .query(query)
-                .refute(antecedent::RefuteSuite::None)
-                .bootstrap_replicates(0)
-                .build()
-                .map_err(py_err)?;
+            builder =
+                builder.query(query).refute(antecedent::RefuteSuite::None).bootstrap_replicates(0);
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -707,6 +728,7 @@ impl PyPreparedAnalysis {
         outcome,
         *,
         policy="pulse",
+        window=None,
         treatment_lag=1,
         horizon_steps=1,
         active_level=1.0,
@@ -728,6 +750,7 @@ impl PyPreparedAnalysis {
         treatment: String,
         outcome: String,
         policy: &str,
+        window: Option<(i32, i32)>,
         treatment_lag: u32,
         horizon_steps: u32,
         active_level: f64,
@@ -748,7 +771,7 @@ impl PyPreparedAnalysis {
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
             let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-            let q = crate::temporal_api::temporal_query_from_policy(
+            let mut q = crate::temporal_api::temporal_query_from_policy(
                 &policy,
                 t_id,
                 y_id,
@@ -756,6 +779,12 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 active_level,
             )?;
+            if let Some((from, until)) = window {
+                if policy != "sustained" {
+                    return Err(PyValueError::new_err("window requires policy='sustained'"));
+                }
+                q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+            }
             let mut builder = Study::series(series);
             builder = if accepted {
                 builder.graph(antecedent::AcceptedGraph::from(dag))
@@ -796,6 +825,10 @@ impl PyPreparedAnalysis {
         contrast="mediated",
         control_level=0.0,
         active_level=1.0,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
         seed=1,
         bootstrap=0,
         threads=1,
@@ -813,6 +846,10 @@ impl PyPreparedAnalysis {
         contrast: &str,
         control_level: f64,
         active_level: f64,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
         threads: u32,
@@ -820,6 +857,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let contrast = contrast.to_string();
+        let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
@@ -845,12 +883,17 @@ impl PyPreparedAnalysis {
             } else {
                 builder.graph(dag)
             };
-            let analysis = builder
+            builder = builder
                 .query(CausalQuery::Mediation(q))
-                .refute(antecedent::RefuteSuite::None)
-                .bootstrap_replicates(bootstrap)
-                .build()
-                .map_err(py_err)?;
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -964,6 +1007,7 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        refute=None,
         seed=1,
         threads=1,
         posterior=None,
@@ -987,6 +1031,7 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
@@ -1000,6 +1045,7 @@ impl PyPreparedAnalysis {
             .transpose()?;
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
+        let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
@@ -1039,7 +1085,7 @@ impl PyPreparedAnalysis {
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .temporal_query(q)
-                .refute(antecedent::RefuteSuite::None)
+                .refute(suite)
                 .bootstrap_replicates(0);
             builder = crate::temporal_api::apply_temporal_inference(
                 builder,
@@ -1073,6 +1119,9 @@ impl PyPreparedAnalysis {
         intervention_kinds,
         intervention_parameters,
         *,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
         seed=1,
         threads=1,
         latency=None,
@@ -1088,6 +1137,9 @@ impl PyPreparedAnalysis {
         treatments: Vec<String>,
         intervention_kinds: Vec<String>,
         intervention_parameters: Vec<Vec<f64>>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
         seed: u64,
         threads: u32,
         latency: Option<String>,
@@ -1132,6 +1184,12 @@ impl PyPreparedAnalysis {
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -1158,6 +1216,9 @@ impl PyPreparedAnalysis {
         control_level=0.0,
         active_level=1.0,
         refute=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
         seed=1,
         bootstrap=50,
         threads=1,
@@ -1176,6 +1237,9 @@ impl PyPreparedAnalysis {
         control_level: f64,
         active_level: f64,
         refute: Option<Bound<'_, PyAny>>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
         seed: u64,
         bootstrap: u32,
         threads: u32,
@@ -1213,6 +1277,12 @@ impl PyPreparedAnalysis {
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -1240,6 +1310,7 @@ impl PyPreparedAnalysis {
         path_nodes=None,
         max_paths=64,
         max_len=16,
+        refute=None,
         seed=1,
         bootstrap=50,
         threads=1,
@@ -1259,6 +1330,7 @@ impl PyPreparedAnalysis {
         path_nodes: Option<Vec<String>>,
         max_paths: usize,
         max_len: usize,
+        refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
         threads: u32,
@@ -1275,6 +1347,7 @@ impl PyPreparedAnalysis {
             })?),
         };
 
+        let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -1299,7 +1372,7 @@ impl PyPreparedAnalysis {
             .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect)
-            .refute(antecedent::RefuteSuite::None)
+            .refute(suite)
             .bootstrap_replicates(bootstrap);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
@@ -1327,6 +1400,7 @@ impl PyPreparedAnalysis {
         interventions,
         *,
         conditioning=None,
+        refute=None,
         seed=1,
         threads=1,
         latency=None,
@@ -1341,6 +1415,7 @@ impl PyPreparedAnalysis {
         outcome: String,
         interventions: std::collections::HashMap<String, f64>,
         conditioning: Option<Vec<String>>,
+        refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         threads: u32,
         latency: Option<String>,
@@ -1356,6 +1431,7 @@ impl PyPreparedAnalysis {
             })?),
         };
 
+        let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let mut ivs = Vec::with_capacity(interventions.len());
@@ -1380,7 +1456,7 @@ impl PyPreparedAnalysis {
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution)
-            .refute(antecedent::RefuteSuite::None);
+            .refute(suite);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -1515,6 +1591,57 @@ impl PyPreparedAnalysis {
         require_prepared_names(&self.names, &names, "refresh")?;
         let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
         self.finish_response_refresh(py, data, seed, threads)
+    }
+
+    /// Export the retained full posterior or response without refitting.
+    #[pyo3(signature = (*, artifact_id="prepared-result", payload="result"))]
+    fn export_artifact<'py>(
+        &self,
+        py: Python<'py>,
+        artifact_id: &str,
+        payload: &str,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("estimate before exporting an artifact"))?;
+        let bytes = if payload == "query" {
+            let query = antecedent_io::CausalPayloadWire::Query(Box::new(
+                antecedent_io::causal_query_to_wire(&result.identification.query)
+                    .map_err(py_err)?,
+            ));
+            let artifact = antecedent_io::encode_causal_payload_artifact(
+                &query,
+                self.names.clone(),
+                artifact_id,
+            )
+            .map_err(py_err)?;
+            let mut bytes = Vec::new();
+            artifact.write_to(&mut bytes).map_err(py_err)?;
+            bytes
+        } else if payload != "result" {
+            return Err(PyValueError::new_err("payload must be 'query' or 'result'"));
+        } else if let Some(post) = &result.posterior {
+            antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
+        } else if let Some(response) = &result.response {
+            let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
+                antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
+            ));
+            let artifact = antecedent_io::encode_causal_payload_artifact(
+                &payload,
+                self.names.clone(),
+                artifact_id,
+            )
+            .map_err(py_err)?;
+            let mut bytes = Vec::new();
+            artifact.write_to(&mut bytes).map_err(py_err)?;
+            bytes
+        } else {
+            return Err(PyValueError::new_err(
+                "retained result has no posterior or response artifact payload",
+            ));
+        };
+        Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
     /// Second-click refute against the last estimate (same schema data).

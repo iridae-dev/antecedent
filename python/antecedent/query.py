@@ -143,12 +143,12 @@ class PulseEffect:
 
 @dataclass(frozen=True, slots=True)
 class SustainedEffect:
-    """Temporal sustained intervention effect (single-step licensed form).
+    """Temporal sustained intervention effect.
 
-    ``treatment_lag`` selects the active offset ``-treatment_lag``. The licensed
-    public mapping is the single-step window at that offset (equivalent to a
-    pulse at the same lag under the linear temporal adjustment estimator).
-    Multi-step sustained schedules remain unsupported.
+    By default the intervention is at ``-treatment_lag``. ``window=(from_, until)``
+    replaces that default with inclusive signed time offsets. Multi-step windows
+    use sequential Gaussian g-computation on an explicit or accepted TemporalDag,
+    with ``refute="none"``; the outcome is at ``horizon_steps - 1``.
     """
 
     treatment: str
@@ -157,7 +157,15 @@ class SustainedEffect:
     active_level: float = 1.0
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     horizon_steps: int = 1
+    window: tuple[int, int] | None = None
     kind: Literal["sustained"] = field(default="sustained", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.window is not None:
+            if len(self.window) != 2 or any(type(x) is not int for x in self.window):
+                raise ValueError("window must be a pair of integer offsets")
+            if self.window[0] > self.window[1]:
+                raise ValueError("window must have from <= until")
 
 
 @dataclass(frozen=True, slots=True)

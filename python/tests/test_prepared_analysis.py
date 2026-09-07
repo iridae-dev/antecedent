@@ -141,11 +141,8 @@ def test_prepared_response_curve_cheap_refute_at_prepare_is_not_applicable():
         )
 
 
-def test_prepared_temporal_mediation_cheap_refute_is_refused():
-    """Staged TemporalMediationEffect must agree with ``analyze()``:
-    ``execute_temporal_mediation`` hardcodes empty refutations, so cheap/full
-    are a written refusal (``refused:``), not a typed impossibility and not a
-    bespoke ``CausalTypeError``."""
+def test_prepared_temporal_mediation_cheap_refute_runs():
+    """The staged path executes a native mediator/RCC suite."""
     n = 80
     t = np.zeros(n)
     m = np.zeros(n)
@@ -157,7 +154,8 @@ def test_prepared_temporal_mediation_cheap_refute_is_refused():
     data = {"t": t, "m": m, "y": y}
     edges = [("t", 1, "t", 0), ("t", 1, "m", 0), ("m", 0, "y", 0)]
     query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="refused:"):
-        antecedent.estimation.PreparedAnalysis.prepare(
-            data, graph=edges, query=query, refute="cheap", seed=1
-        )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data, graph=edges, query=query, refute="cheap", seed=1, latency=None
+    )
+    result = prepared.estimate(data)
+    assert len(result.validation.reports) == 2
