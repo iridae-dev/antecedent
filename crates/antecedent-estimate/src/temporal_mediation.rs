@@ -107,6 +107,19 @@ impl TemporalMediationEstimator {
         query: &MediationQuery,
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
+        self.estimate_with_extras(data, estimand, query, &[], ctx)
+    }
+
+    /// Refit the mediation contrast with additional contemporaneous covariates
+    /// in both mechanism regressions (used by mediation-native sensitivity checks).
+    pub fn estimate_with_extras(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        extra: &[antecedent_core::VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<TemporalMediationEstimate, EstimationError> {
         query.validate()?;
         if matches!(
             query.contrast,
@@ -140,12 +153,15 @@ impl TemporalMediationEstimator {
             ));
         }
 
-        let cols = Arc::from([
+        let mut cols = vec![
             LaggedColumn { variable: query.treatment, lag: Lag::from_raw(1) },
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
-        ]);
-        let plan = data.plan_lagged_sample(1, cols).map_err(EstimationError::from)?;
+        ];
+        cols.extend(
+            extra.iter().map(|&variable| LaggedColumn { variable, lag: Lag::CONTEMPORANEOUS }),
+        );
+        let plan = data.plan_lagged_sample(1, Arc::from(cols)).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
         let prep =
             plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?;
@@ -157,12 +173,13 @@ impl TemporalMediationEstimator {
             return Err(EstimationError::data_msg("insufficient effective samples for mediation"));
         }
 
+        let extras: Vec<_> = (0..extra.len()).map(|i| prep.column(3 + i)).collect();
         // Stage 1: M ~ [1, T] → a = β_T
-        let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m)?;
+        let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m, &extras)?;
         // Stage 2: Y ~ [1, T, M] → c' = β_T (direct), b = β_M
-        let (c_prime, b, design_b, sigma2_b) = ols_three_col(self.backend, t, m, y)?;
+        let (c_prime, b, design_b, sigma2_b) = ols_three_col(self.backend, t, m, y, &extras)?;
         // Reduced form: Y ~ [1, T] → c = total
-        let (c, _intercept_y, design_c, sigma2_c) = ols_two_col(self.backend, t, y)?;
+        let (c, _intercept_y, design_c, sigma2_c) = ols_two_col(self.backend, t, y, &extras)?;
 
         let total = c * delta;
         let direct = c_prime * delta;
@@ -176,17 +193,17 @@ impl TemporalMediationEstimator {
 
         let se_analytic = match query.contrast {
             MediationContrast::Total => {
-                let var_c = coefficient_variance(&design_c, n, 2, 1, sigma2_c);
+                let var_c = coefficient_variance(&design_c, n, 2 + extra.len(), 1, sigma2_c);
                 (var_c * delta * delta).max(0.0).sqrt()
             }
             MediationContrast::Direct | MediationContrast::NaturalDirect => {
-                let var_cp = coefficient_variance(&design_b, n, 3, 1, sigma2_b);
+                let var_cp = coefficient_variance(&design_b, n, 3 + extra.len(), 1, sigma2_b);
                 (var_cp * delta * delta).max(0.0).sqrt()
             }
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
                 if self.allow_iid_sobel_se {
-                    let var_a = coefficient_variance(&design_a, n, 2, 1, sigma2_a);
-                    let var_b = coefficient_variance(&design_b, n, 3, 2, sigma2_b);
+                    let var_a = coefficient_variance(&design_a, n, 2 + extra.len(), 1, sigma2_a);
+                    let var_b = coefficient_variance(&design_b, n, 3 + extra.len(), 2, sigma2_b);
                     // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
                     // Valid only under iid rows (`allow_iid_sobel_se`).
                     let var_ab = b * b * var_a + a * a * var_b;
@@ -237,6 +254,7 @@ fn ols_two_col(
     backend: FaerBackend,
     x: &[f64],
     y: &[f64],
+    extra: &[&[f64]],
 ) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
     let n = x.len();
     let mut design = vec![0.0; n * 2];
@@ -244,8 +262,11 @@ fn ols_two_col(
         design[i] = 1.0;
         design[n + i] = x[i];
     }
-    let coef = ols_fit(backend, &design, 2, y)?;
-    let sigma2 = ols_sigma2(&design, n, 2, y, &coef);
+    for column in extra {
+        design.extend_from_slice(column);
+    }
+    let coef = ols_fit(backend, &design, 2 + extra.len(), y)?;
+    let sigma2 = ols_sigma2(&design, n, 2 + extra.len(), y, &coef);
     Ok((coef[1], coef[0], design, sigma2))
 }
 
@@ -255,6 +276,7 @@ fn ols_three_col(
     t: &[f64],
     m: &[f64],
     y: &[f64],
+    extra: &[&[f64]],
 ) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
     let n = t.len();
     let mut design = vec![0.0; n * 3];
@@ -263,8 +285,11 @@ fn ols_three_col(
         design[n + i] = t[i];
         design[2 * n + i] = m[i];
     }
-    let coef = ols_fit(backend, &design, 3, y)?;
-    let sigma2 = ols_sigma2(&design, n, 3, y, &coef);
+    for column in extra {
+        design.extend_from_slice(column);
+    }
+    let coef = ols_fit(backend, &design, 3 + extra.len(), y)?;
+    let sigma2 = ols_sigma2(&design, n, 3 + extra.len(), y, &coef);
     Ok((coef[1], coef[2], design, sigma2))
 }
 

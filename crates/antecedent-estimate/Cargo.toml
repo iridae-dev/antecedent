@@ -17,6 +17,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+antecedent-graph = { version = "1.1.0", path = "../antecedent-graph" }
 antecedent-core = { version = "1.1.0", path = "../antecedent-core" }
 antecedent-data = { version = "1.1.0", path = "../antecedent-data" }
 antecedent-expr = { version = "1.1.0", path = "../antecedent-expr" }
@@ -27,7 +28,6 @@ antecedent-stats = { version = "1.1.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-antecedent-graph = { version = "1.1.0", path = "../antecedent-graph" }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 
