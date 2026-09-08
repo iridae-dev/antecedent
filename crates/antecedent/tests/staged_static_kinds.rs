@@ -88,11 +88,11 @@ fn static_kinds_known_truth() {
     let query = CounterfactualQuery::new(
         VariableId::from_raw(2),
         Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(active))]),
-    );
+    )
+    .with_control_level(control);
     let study = Study::tabular(data.clone())
         .graph(dag)
         .query(CausalQuery::Counterfactual(query))
-        .counterfactual_control(control)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()

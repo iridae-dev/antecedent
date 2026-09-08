@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   static mediation, and counterfactuals now have named closed reasons (0
   refused cells without a reason). Discovery and Bayesian Python entry points
   raise those reasons instead of claiming the kinds are unstaged.
+- Counterfactual ITE control is stored on `CounterfactualQuery` (default hard
+  set of the treatment to zero). `StudyBuilder::counterfactual_control` is gone.
 
 The [release notes](docs/release-notes/v1.3.0.md) specify licensed forms and
 unsupported extensions; these additions make no external-package parity claim.

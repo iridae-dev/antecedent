@@ -630,7 +630,6 @@ impl PyPreparedAnalysis {
             };
             let study = builder
                 .query(query)
-                .counterfactual_control(control_level)
                 .refute(suite)
                 .bootstrap_replicates(bootstrap)
                 .build()
@@ -1832,10 +1831,9 @@ impl PyPreparedAnalysis {
         } else if result.mediation.is_some() || result.counterfactual.is_some() {
             let (control_level, active_level) = match self.inner.query() {
                 CausalQuery::Mediation(q) => (hard_value(&q.control), hard_value(&q.active)),
-                CausalQuery::Counterfactual(q) => (
-                    Some(self.inner.counterfactual_control_level()),
-                    q.interventions.first().and_then(hard_value),
-                ),
+                CausalQuery::Counterfactual(q) => {
+                    (hard_value(&q.control), q.interventions.first().and_then(hard_value))
+                }
                 _ => unreachable!(),
             };
             let wire = antecedent_io::StaticResultWire {
@@ -2038,12 +2036,13 @@ fn static_kind_query(
             q.active = Intervention::set(t, Value::f64(active));
             Ok(CausalQuery::Mediation(q))
         }
-        "counterfactual" => {
-            Ok(CausalQuery::Counterfactual(antecedent_core::CounterfactualQuery::new(
+        "counterfactual" => Ok(CausalQuery::Counterfactual(
+            antecedent_core::CounterfactualQuery::new(
                 y,
                 Arc::from([Intervention::set(t, Value::f64(active))]),
-            )))
-        }
+            )
+            .with_control(Intervention::set(t, Value::f64(control))),
+        )),
         _ => Err(PyValueError::new_err("unsupported static staged kind")),
     }
 }

@@ -1159,10 +1159,16 @@ fn is_supplied_static_graph(class: GraphClass) -> bool {
 }
 
 impl PreparedStudy {
-    /// Control intervention level frozen for a counterfactual ITE.
+    /// Control intervention level frozen on a counterfactual ITE query.
     #[must_use]
     pub fn counterfactual_control_level(&self) -> f64 {
-        self.analysis.counterfactual_control
+        match self.query() {
+            CausalQuery::Counterfactual(q) => match &q.control {
+                Intervention::Set { value, .. } => value.as_f64().unwrap_or(0.0),
+                _ => 0.0,
+            },
+            _ => 0.0,
+        }
     }
 }
 
