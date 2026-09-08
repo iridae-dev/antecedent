@@ -1,0 +1,38 @@
+{
+  "fixture_id": "validate.static_mediation",
+  "seed": 13,
+  "atol": 1e-08,
+  "source": "Deterministic native regression pin; structural truth is independently pinned in expected.json",
+  "reports": [
+    {
+      "refuter": "mediation.static.placebo_mediator",
+      "original_ate": 0.0,
+      "refuted_ate": 0.0008430944973230492,
+      "comparison": 0.8616779424377792,
+      "informative": true,
+      "passed": true,
+      "failure_condition": null,
+      "replicates": 20
+    },
+    {
+      "refuter": "mediation.static.random_common_cause",
+      "original_ate": 4.782395787369055,
+      "refuted_ate": 4.782438815484255,
+      "comparison": 0.9921367133466595,
+      "informative": true,
+      "passed": true,
+      "failure_condition": null,
+      "replicates": 20
+    },
+    {
+      "refuter": "mediation.static.subset",
+      "original_ate": 4.782395787369055,
+      "refuted_ate": 4.788862728570213,
+      "comparison": 0.904010105993539,
+      "informative": true,
+      "passed": true,
+      "failure_condition": null,
+      "replicates": 20
+    }
+  ]
+}

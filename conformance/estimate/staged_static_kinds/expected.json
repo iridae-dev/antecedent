@@ -1,0 +1,11 @@
+{
+  "fixture_id": "estimate.staged_static_kinds",
+  "dgp": "A=sin(.71*i); M=2*A+cos(1.13*i); Y=3*A+4*M+.1*sin(.31*i)",
+  "control": 0.2,
+  "active": 0.8,
+  "direct": 1.8,
+  "indirect": 4.8,
+  "total": 6.6,
+  "counterfactual_mean": 6.6,
+  "tolerance": 0.03
+}
