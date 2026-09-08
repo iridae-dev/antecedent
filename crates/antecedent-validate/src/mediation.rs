@@ -157,3 +157,87 @@ fn report(id: &str, target: f64, values: &[f64]) -> RefutationReport {
         20,
     )
 }
+
+/// Static mediation-native suite. Cheap tests a placebo mediator, an exogenous
+/// random nuisance, and binary mediator range overlap. Full adds random subsets.
+/// All numeric refits use the same static DAG estimator as the licensed cell.
+///
+/// # Errors
+/// Invalid refit data, regression failure, or cancellation.
+#[allow(clippy::float_cmp)] // Exact binary treatment levels define the two groups.
+pub fn refute_static_mediation(
+    data: &TabularData,
+    graph: &antecedent_graph::Dag,
+    query: &MediationQuery,
+    original: &TemporalMediationEstimate,
+    full: bool,
+    ctx: &ExecutionContext,
+) -> Result<Vec<RefutationReport>, ValidationError> {
+    use antecedent_estimate::estimate_static_mediation;
+    let mut placebo_query = query.clone();
+    placebo_query.contrast = MediationContrast::NaturalIndirect;
+    let mut placebo = Vec::new();
+    let mut rcc = Vec::new();
+    let mut subset = Vec::new();
+    for rep in 0..20_u64 {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ValidationError::Cancelled);
+        }
+        let mut replaced = data.clone();
+        let mut noise = vec![0.0; data.row_count()];
+        for (j, &mediator) in query.mediators.iter().enumerate() {
+            fill_gaussian(&mut noise, ctx, 0x1300_2000 + rep * 100 + j as u64);
+            replaced = with_replaced_float(&replaced, mediator, Arc::from(noise.clone()))?;
+        }
+        let fit = |d: &TabularData, q: &MediationQuery, extra: &[antecedent_core::VariableId]| {
+            estimate_static_mediation(
+                d,
+                graph,
+                q,
+                original.effect.assumptions.clone(),
+                0,
+                extra,
+                ctx,
+            )
+        };
+        placebo.push(fit(&replaced, &placebo_query, &[])?.effect.ate);
+        fill_gaussian(&mut noise, ctx, 0x1300_4000 + rep);
+        let (augmented, id) = with_extra_float(data, "__mediation_rcc", Arc::from(noise))?;
+        rcc.push(fit(&augmented, query, &[id])?.effect.ate);
+        if full {
+            let sub = crate::common::with_row_subset(data, 0.8, ctx, 0x1300_5000 + rep)?;
+            subset.push(fit(&sub, query, &[])?.effect.ate);
+        }
+    }
+    let mut reports = vec![
+        report("mediation.static.placebo_mediator", 0.0, &placebo),
+        report("mediation.static.random_common_cause", original.effect.ate, &rcc),
+    ];
+    if full {
+        reports.push(report("mediation.static.subset", original.effect.ate, &subset));
+    }
+    let treatment = data.float64_values(query.treatment)?;
+    let mut levels: Vec<_> = treatment.iter().copied().filter(|x| x.is_finite()).collect();
+    levels.sort_by(f64::total_cmp);
+    levels.dedup();
+    if levels.len() == 2 {
+        let mut overlap = true;
+        for &m in query.mediators.iter() {
+            let mediator = data.float64_values(m)?;
+            let mut ranges = [(f64::INFINITY, f64::NEG_INFINITY); 2];
+            for (&t, &m) in treatment.iter().zip(&mediator) {
+                if !t.is_finite() || !m.is_finite() {
+                    continue;
+                }
+                let g = usize::from(t == levels[1]);
+                ranges[g].0 = ranges[g].0.min(m);
+                ranges[g].1 = ranges[g].1.max(m);
+            }
+            overlap &= ranges[0].0.max(ranges[1].0) <= ranges[0].1.min(ranges[1].1);
+        }
+        reports.push(RefutationReport::new("mediation.static.mediator_overlap",1.0,
+            if overlap {1.0} else {0.0},1.0,false,overlap,
+            Some(Arc::from("Empirical mediator range overlap is necessary, not proof of conditional positivity.")),0));
+    }
+    Ok(reports)
+}
