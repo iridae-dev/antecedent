@@ -536,6 +536,15 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     return kw
 
 
+def _prepared_inference_kwargs(inference: Frequentist | Bayesian | None) -> dict[str, Any]:
+    if isinstance(inference, Bayesian):
+        mode, options = _prepared_bayesian_args(inference)
+        return {"inference": mode, **options}
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("inference must be Frequentist or Bayesian")
+    return {"inference": "frequentist"}
+
+
 def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
     """Return prepared-native Bayesian arguments, refusing silently dropped options."""
     kw = _bayesian_inference_kwargs(inference)
@@ -963,6 +972,25 @@ class PreparedAnalysis:
         ``GraphPosterior`` compiles the licensed graph-posterior cells
         (Bayesian AverageEffect / Pulse / Sustained).
         """
+        if isinstance(query, (ResponseCurve, InterventionResponse)):
+            from .observation import Complete
+            from .population import coerce_target_population
+
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis responses require complete observations; "
+                    "observation correction is not composed on this staged path"
+                )
+            if query.observation_assumptions:
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis complete responses do not accept observation_assumptions"
+                )
+            if query.target_population is not None and coerce_target_population(
+                query.target_population
+            ) != {"kind": "all"}:
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis responses require the AllObserved target population"
+                )
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
@@ -1026,6 +1054,7 @@ class PreparedAnalysis:
                 query.treatment,
                 query.outcome,
                 policy=query.kind,
+                window=getattr(query, "window", None),
                 treatment_lag=query.treatment_lag,
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
@@ -1045,16 +1074,6 @@ class PreparedAnalysis:
                     "PreparedAnalysis TemporalMediationEffect uses the fixed temporal "
                     "mediation estimator; custom identifier=/estimator= are not supported"
                 )
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError(
-                    "PreparedAnalysis TemporalMediationEffect supports Frequentist only"
-                )
-            if refute not in (False, "none", Refute.NONE):
-                raise CausalUnsupportedError(
-                    "refused: PreparedAnalysis TemporalMediationEffect cheap/full is not "
-                    "licensed; execute_temporal_mediation hardcodes empty refutations, so "
-                    "cheap and full do not run a mediation refuter suite. Use refute='none'."
-                )
             lagged = _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
             native = _NativePreparedAnalysis.prepare_temporal_mediation(
                 names,
@@ -1066,6 +1085,8 @@ class PreparedAnalysis:
                 contrast=query.contrast,
                 control_level=query.control_level,
                 active_level=query.active_level,
+                **_prepared_inference_kwargs(inference),
+                refute=coerce_refute(refute),
                 seed=seed,
                 bootstrap=0 if bootstrap is None else bootstrap,
                 threads=threads,
@@ -1080,9 +1101,14 @@ class PreparedAnalysis:
                     f"temporal response requires identifier='temporal.backdoor.unfolded'; "
                     f"got {identifier!r}"
                 )
-            if estimator not in (None, "temporal.response.gcomp"):
+            expected_estimator = (
+                "response.temporal.bayesian"
+                if isinstance(inference, Bayesian)
+                else "temporal.response.gcomp"
+            )
+            if estimator not in (None, expected_estimator):
                 raise CausalValueError(
-                    f"temporal response requires estimator='temporal.response.gcomp'; "
+                    f"temporal response requires estimator={expected_estimator!r}; "
                     f"got {estimator!r}"
                 )
             return cls._prepare_temporal(
@@ -1158,9 +1184,17 @@ class PreparedAnalysis:
             return cls(native, kind="average", query=query)
         edges = _static_edges(graph)
         if isinstance(query, ConditionalEffect):
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError(
-                    "PreparedAnalysis ConditionalEffect supports Frequentist only"
+            expected_estimator = (
+                "conditional.bayesian"
+                if isinstance(inference, Bayesian)
+                else "conditional.linear.adjustment"
+            )
+            if identifier not in (None, "backdoor.adjustment") or estimator not in (
+                None,
+                expected_estimator,
+            ):
+                raise CausalUnsupportedError(
+                    f"ConditionalEffect requires backdoor.adjustment and {expected_estimator}"
                 )
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
@@ -1174,6 +1208,7 @@ class PreparedAnalysis:
                 control_level=query.control_level,
                 active_level=query.active_level,
                 refute=refute,
+                **_prepared_inference_kwargs(inference),
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -1185,12 +1220,6 @@ class PreparedAnalysis:
             if inference is not None and not isinstance(inference, Frequentist):
                 raise CausalTypeError(
                     "PreparedAnalysis PathSpecificEffect supports Frequentist only"
-                )
-            if refute not in (False, "none", Refute.NONE):
-                raise CausalUnsupportedError(
-                    "refused: PreparedAnalysis PathSpecificEffect cheap/full is not licensed; "
-                    "execute_path_specific returns empty refutations, so cheap and full do not "
-                    "run a path-specific refuter suite. Use refute='none'."
                 )
             resolved_bootstrap, _ = _resolve_latency_budget(latency, bootstrap, False)
             native = _NativePreparedAnalysis.prepare_path_specific(
@@ -1204,6 +1233,7 @@ class PreparedAnalysis:
                 path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
                 max_paths=query.max_paths,
                 max_len=query.max_len,
+                refute=coerce_refute(refute),
                 seed=seed,
                 bootstrap=resolved_bootstrap,
                 threads=threads,
@@ -1216,12 +1246,6 @@ class PreparedAnalysis:
                 raise CausalTypeError(
                     "PreparedAnalysis InterventionalDistribution supports Frequentist only"
                 )
-            if refute not in (False, "none", Refute.NONE):
-                raise CausalUnsupportedError(
-                    "refused: PreparedAnalysis InterventionalDistribution cheap/full is not "
-                    "licensed; execute_distribution returns empty refutations, so cheap and "
-                    "full do not run a distribution refuter suite. Use refute='none'."
-                )
             native = _NativePreparedAnalysis.prepare_distribution(
                 names,
                 columns,
@@ -1229,6 +1253,7 @@ class PreparedAnalysis:
                 query.outcome,
                 dict(query.interventions),
                 conditioning=list(query.conditioning) or None,
+                refute=coerce_refute(refute),
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -1236,13 +1261,9 @@ class PreparedAnalysis:
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, ResponseCurve):
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError("PreparedAnalysis ResponseCurve supports Frequentist only")
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
-                    "not_applicable: PreparedAnalysis ResponseCurve cheap/full does not "
-                    "denote; cheap and full name the ATE-shaped scalar refuter suite and a "
-                    "function-valued estimand has no such state. Use refute='none'."
+                    "not_applicable: response curves require refute='none'"
                 )
             native = _NativePreparedAnalysis.prepare_response(
                 names,
@@ -1253,6 +1274,7 @@ class PreparedAnalysis:
                 list(query.grid),
                 identifier=identifier,
                 estimator=estimator,
+                **_prepared_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -1260,9 +1282,17 @@ class PreparedAnalysis:
             )
             return cls(native, kind="response_curve", query=query)
         if isinstance(query, InterventionResponse):
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError(
-                    "PreparedAnalysis InterventionResponse supports Frequentist only"
+            expected_estimator = (
+                "response.bayesian"
+                if isinstance(inference, Bayesian)
+                else "response.intervention_gcomp"
+            )
+            if identifier not in (None, "response.backdoor") or estimator not in (
+                None,
+                expected_estimator,
+            ):
+                raise CausalUnsupportedError(
+                    f"InterventionResponse requires response.backdoor and {expected_estimator}"
                 )
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
@@ -1315,6 +1345,7 @@ class PreparedAnalysis:
                 treatments,
                 intervention_kinds,
                 intervention_parameters,
+                **_prepared_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -1408,13 +1439,8 @@ class PreparedAnalysis:
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, (PulseEffect, SustainedEffect)
         ):
-            if refute not in (False, "none", Refute.NONE):
-                raise CausalUnsupportedError(
-                    "refused: PreparedAnalysis DbnPosterior cheap/full is not licensed; "
-                    "execute_dbn_posterior_bayesian always returns empty refutations, so "
-                    "cheap and full do not run the ATE refuter suite on the DBN envelope. "
-                    "Use refute='none'."
-                )
+            if getattr(query, "window", None) is not None:
+                raise CausalUnsupportedError("DBN posterior multi-step windows are not licensed")
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
                     names,
@@ -1428,6 +1454,7 @@ class PreparedAnalysis:
                     inference=inference_mode,
                     n_draws=n_draws,
                     prior_scale=prior_scale,
+                    refute=refute,
                     seed=seed,
                     threads=threads,
                     posterior=discovery,
@@ -1450,6 +1477,7 @@ class PreparedAnalysis:
                     inference=inference_mode,
                     n_draws=n_draws,
                     prior_scale=prior_scale,
+                    refute=refute,
                     seed=seed,
                     threads=threads,
                 )
@@ -1474,8 +1502,6 @@ class PreparedAnalysis:
         threads: int,
         structure_accepted: bool,
     ) -> PreparedAnalysis:
-        if inference is not None and not isinstance(inference, Frequentist):
-            raise CausalTypeError("PreparedAnalysis temporal response supports Frequentist only")
         if refute not in (False, "none", Refute.NONE):
             raise CausalUnsupportedError(
                 "not_applicable: PreparedAnalysis temporal ResponseCurve/InterventionResponse "
@@ -1514,6 +1540,7 @@ class PreparedAnalysis:
                 policy=query.policy,
                 treatment_lag=query.treatment_lag,
                 max_history_lag=query.max_history_lag,
+                **_prepared_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 accepted=structure_accepted,
@@ -1533,11 +1560,30 @@ class PreparedAnalysis:
             policy=query.policy,
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
+            **_prepared_inference_kwargs(inference),
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
         )
         return cls(native, kind="response_curve", query=query)
+
+    def export_artifact(
+        self,
+        *,
+        artifact_id: str = "prepared-result",
+        payload: Literal["query", "result"] = "result",
+    ) -> bytes:
+        """Export the last full posterior/response, or its query, without refitting.
+
+        ``payload="query"`` also supports functional path/distribution queries.
+
+        Decode Bayesian scalar results with ``inference.decode_posterior_artifact``;
+        decode response results with ``artifacts.loads``. Posterior artifacts retain
+        draws, quantity names, identification and backend metadata. Response
+        artifacts also retain support and assumptions; retain the analysis result
+        separately for posterior assumptions and validation reports.
+        """
+        return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
     @property
     def structure_source(self) -> str:

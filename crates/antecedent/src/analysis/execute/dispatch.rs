@@ -4,6 +4,21 @@ use super::*;
 
 impl super::Study {
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
+        let family = match self.query {
+            CausalQuery::PathSpecific(_) => Some("path"),
+            CausalQuery::Distribution(_) => Some("distribution"),
+            CausalQuery::Mediation(_) if self.graph.class() == GraphClass::TemporalDag => {
+                Some("temporal.mediation")
+            }
+            _ => None,
+        };
+        if let Some(family) = family {
+            return match self.refute {
+                RefuteSuite::None => None,
+                RefuteSuite::Full => Some(Arc::from(format!("{family}.full"))),
+                _ => Some(Arc::from(format!("{family}.cheap"))),
+            };
+        }
         self.refute.validation_suite_id().map(Arc::from)
     }
 
@@ -144,9 +159,16 @@ impl super::Study {
 
     /// Resolve identifier/estimator for ConditionalEffect.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(
-            DEFAULT_CONDITIONAL_IDENTIFIER_ID,
-            DEFAULT_CONDITIONAL_ESTIMATOR_ID,
+        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianConditional
+        } else {
+            DEFAULT_CONDITIONAL_ESTIMATOR_ID
+        };
+        (
+            Arc::from(self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID).as_str()),
+            Arc::from(
+                self.estimator_spec.as_ref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
+            ),
         )
     }
 
@@ -160,6 +182,17 @@ impl super::Study {
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            return (
+                Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
+                Arc::from(
+                    self.estimator_spec
+                        .as_ref()
+                        .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
+                        .as_str(),
+                ),
+            );
+        }
         self.resolve_id_est_pair(
             DEFAULT_RESPONSE_IDENTIFIER_ID,
             EstimatorId::default_for_response(&query.functional),

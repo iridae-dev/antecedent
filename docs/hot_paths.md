@@ -5,15 +5,15 @@ allocation/memory contracts, and owning crates.
 
 | Hot path | Owner crate | Bench | Baseline | Allocation / memory contract |
 |----------|-------------|-------|----------|------------------------------|
-| Sample gather | `antecedent-kernels` | `gather` | [gather.md](../benches/baselines/gather.md) | Dispatch entry; no per-index heap |
-| Kernel reductions | `antecedent-kernels` | `reductions` | [kernel_reductions.md](../benches/baselines/kernel_reductions.md) | Reuse out/table buffers; scalar↔portable differential |
-| Graph reachability | `antecedent-graph` | `traversal` | [graph_traversal.md](../benches/baselines/graph_traversal.md) | Reusable `GraphWorkspace` |
-| d-separation | `antecedent-graph` | `dseparation` | [dseparation.md](../benches/baselines/dseparation.md) | Batch / witness APIs; workspace reuse |
-| Adjustment search | `antecedent-identify` | `adjustment` | [adjustment.md](../benches/baselines/adjustment.md) | Minimal-set enumeration budgets |
-| Partial correlation batch | `antecedent-kernels` / `antecedent-stats` | `partial_correlation` | [partial_correlation.md](../benches/baselines/partial_correlation.md) | Reusable `ParCorrWorkspace` |
-| PCMCI discovery | `antecedent-discovery` | `pcmci` | [pcmci.md](../benches/baselines/pcmci.md) | LaggedFrame + DiscoveryWorkspace; no per-CI plan rebuild |
-| CI / orientation | `antecedent-stats` / `antecedent-discovery` | `ci_framework`, `orientation` | [ci_orientation.md](../benches/baselines/ci_orientation.md) | Batch CI; mask complete-case |
-| Propensity bootstrap | `antecedent-estimate` | `propensity_bootstrap` | [propensity.md](../benches/baselines/propensity.md) | Workspace buffer reuse across replicates |
+| Sample gather | `antecedent-kernels` | `gather` | [gather.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/gather.md) | Dispatch entry; no per-index heap |
+| Kernel reductions | `antecedent-kernels` | `reductions` | [kernel_reductions.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/kernel_reductions.md) | Reuse out/table buffers; scalar↔portable differential |
+| Graph reachability | `antecedent-graph` | `traversal` | [graph_traversal.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/graph_traversal.md) | Reusable `GraphWorkspace` |
+| d-separation | `antecedent-graph` | `dseparation` | [dseparation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/dseparation.md) | Batch / witness APIs; workspace reuse |
+| Adjustment search | `antecedent-identify` | `adjustment` | [adjustment.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/adjustment.md) | Minimal-set enumeration budgets |
+| Partial correlation batch | `antecedent-kernels` / `antecedent-stats` | `partial_correlation` | [partial_correlation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/partial_correlation.md) | Reusable `ParCorrWorkspace` |
+| PCMCI discovery | `antecedent-discovery` | `pcmci` | [pcmci.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/pcmci.md) | LaggedFrame + DiscoveryWorkspace; no per-CI plan rebuild |
+| CI / orientation | `antecedent-stats` / `antecedent-discovery` | `ci_framework`, `orientation` | [ci_orientation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/ci_orientation.md) | Batch CI; mask complete-case |
+| Propensity bootstrap | `antecedent-estimate` | `propensity_bootstrap` | [propensity.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/propensity.md) | Workspace buffer reuse across replicates |
 | Progressive estimate execute | `causal` | (conformance) `latency_tiers` | — | StageClock + ProgressSink + `StageResultSink` payloads; effort on `ExecutionPerformanceRecord` |
 | Cancel mid-bootstrap | `antecedent-estimate` / `causal` | (conformance) `latency_tiers::cancel_mid_bootstrap_yields_partial_not_silent_full` | — | Soft partial SE; `cancelled` flag; no silent full result |
 | Adaptive bootstrap | `antecedent-estimate` / `causal` | (conformance) `latency_tiers::adaptive_bootstrap_pin_stable_count_and_se` | — | SE relative early-stop; `early_stopped` + actual `bootstrap_replicates_ok` |
@@ -26,20 +26,22 @@ allocation/memory contracts, and owning crates.
 | Post-ID column projection | `antecedent-data` / `causal` | (conformance) `projection_wide` | — | Wide sheet → gather T/Y/Z only; ATE matches; `exec.project.columns` diagnostic |
 | Batch multi-query | `causal` / Python | (conformance) `batch_analysis`, `test_analyze_many` | — | One table ingest, N AverageEffect queries; match solo ATE |
 | Refute second click | `causal` / Python | (conformance) `refute_second_click`, `test_prepared_refute_second_click` | — | Prepared estimate then `refute(suite)`; ATE frozen; validation replaced |
-| Matching index | `antecedent-stats` | `matching` | [matching.md](../benches/baselines/matching.md) | Exact path ≤ 10k; retain index on compatible fits |
-| m-separation / PAG orient | `antecedent-graph` / `antecedent-discovery` | `mseparation`, `pag_orientation` | [pag.md](../benches/baselines/pag.md) | Sparse + stress fixtures |
-| RPCMCI / temporal mediation | `antecedent-discovery` / `antecedent-estimate` | `rpcmci`, `temporal_mediation` | [regime_mediation.md](../benches/baselines/regime_mediation.md) | Multi-env plans must not clone sibling series |
-| Shapley attribution | `antecedent-attribution` | `shapley` | [shapley.md](../benches/baselines/shapley.md) | Coalition cache; exact size gates |
-| Design ranking / state append | `antecedent-design` / `antecedent-state` | `design_rank`, `state_append` | [design_state.md](../benches/baselines/design_state.md) | MonteCarloBudget; CacheBudget refuse |
-| Laplace GLM fit | `antecedent-prob` | `laplace_glm` | [laplace_glm.md](../benches/baselines/laplace_glm.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench) |
-| HMC GLM fit | `antecedent-prob` | `hmc` | [hmc.md](../benches/baselines/hmc.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench); `--test` smoke is not a publication gate |
-| MCMC diagnostics | `antecedent-prob` | `mcmc_stats` | [mcmc_stats.md](../benches/baselines/mcmc_stats.md) | Per-statistic Geyer / rank-normalized R̂ (no FFT) |
-| GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](../benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
-| Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](../benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
-| Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
-| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
-| Temporal dose × horizon response | `antecedent-estimate` / `causal` | `temporal_response` | [temporal_response.md](../benches/baselines/temporal_response.md) | Prepare-once identification/indexer; multi-horizon estimate reuses fitted lag design across doses |
-| Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
+| Matching index | `antecedent-stats` | `matching` | [matching.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/matching.md) | Exact path ≤ 10k; retain index on compatible fits |
+| m-separation / PAG orient | `antecedent-graph` / `antecedent-discovery` | `mseparation`, `pag_orientation` | [pag.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/pag.md) | Sparse + stress fixtures |
+| RPCMCI / temporal mediation | `antecedent-discovery` / `antecedent-estimate` | `rpcmci`, `temporal_mediation` | [regime_mediation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/regime_mediation.md) | Multi-env plans must not clone sibling series |
+| Shapley attribution | `antecedent-attribution` | `shapley` | [shapley.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/shapley.md) | Coalition cache; exact size gates |
+| Design ranking / state append | `antecedent-design` / `antecedent-state` | `design_rank`, `state_append` | [design_state.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/design_state.md) | MonteCarloBudget; CacheBudget refuse |
+| Laplace GLM fit | `antecedent-prob` | `laplace_glm` | [laplace_glm.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/laplace_glm.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench) |
+| HMC GLM fit | `antecedent-prob` | `hmc` | [hmc.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/hmc.md) | `LaplaceWorkspace` grow-only reuse (asserted in bench); `--test` smoke is not a publication gate |
+| MCMC diagnostics | `antecedent-prob` | `mcmc_stats` | [mcmc_stats.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/mcmc_stats.md) | Per-statistic Geyer / rank-normalized R̂ (no FFT) |
+| GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
+| Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
+| Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
+| Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
+| Temporal dose × horizon response | `antecedent-estimate` / `causal` | `temporal_response` | [temporal_response.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/temporal_response.md) | Prepare-once identification/indexer; multi-horizon estimate reuses fitted lag design across doses |
+| Bayesian temporal response / sustained window | `antecedent-estimate` | `temporal_response` | [temporal_response.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/temporal_response.md) | Retain grid-sized response summaries or draw-sized window effects; shared moving-block resamples across mechanisms; prepared identification outside fit |
+| Bayesian temporal mediation | `antecedent-estimate` | `temporal_mediation` | [regime_mediation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/regime_mediation.md) | Two prepared designs and reusable posterior workspace; composed output retains four quantities per draw |
+| Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
 ## Smoke commands
 

@@ -192,6 +192,15 @@ longer stands in for known-truth mixture evidence.
 
 ---
 
+## 1.2 — Compatible estimators and validation
+
+Implemented on the `1.2.0` branch. The existing query kinds gain native
+path/distribution and temporal-mediation validation, DBN mixture validation,
+Bayesian conditional/mediation/response estimators, accepted-DAG functional
+queries, and multi-step sustained-window g-computation. See the
+[evidence ledger](docs/v1.2-evidence.md) for exact forms and limits.
+Graph-posterior response and multi-step graph-posterior windows remain refused.
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new

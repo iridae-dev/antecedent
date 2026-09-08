@@ -22,7 +22,8 @@ pub(super) use antecedent_core::{
     ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
-    DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
+    DiscoveryEstimationSplit, PanelData, TableView, TabularData, TemporalIndexer, TimeIndex,
+    TimeSeriesData,
 };
 pub(super) use antecedent_discovery::GraphPosterior;
 pub(super) use antecedent_estimate::{
@@ -89,7 +90,8 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, run_refuters, validator_not_applicable_diagnostics,
+    push_conflict_diagnostics, refute_outcomes, run_refuters, validator_not_applicable_diagnostic,
+    validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -138,6 +140,8 @@ pub struct Study {
     /// per estimate click is exact; `None` (every builder-constructed study)
     /// identifies on each run.
     pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
+    /// Frozen graph-derived mediation adjustment, including temporal lags.
+    pub(crate) mediation_adjustment_cache: Option<Arc<[antecedent_data::LaggedColumn]>>,
     /// Prepare-time generalized-adjustment envelope for a supplied PAG.
     pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
     /// Prepare-time temporal-backdoor identification + indexer for temporal response.
@@ -176,6 +180,7 @@ impl std::fmt::Debug for Study {
             .field("latency_mode", &self.latency_mode)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
             .field("identification_cache_is_some", &self.identification_cache.is_some())
+            .field("mediation_adjustment_cache", &self.mediation_adjustment_cache)
             .field("pag_identification_cache_is_some", &self.pag_identification_cache.is_some())
             .field(
                 "temporal_identification_cache_is_some",
@@ -602,6 +607,13 @@ mod identify_only_tests {
                         }),
                         "graph-posterior {suite:?} must attach mixture-weighted posterior PPC"
                     );
+                    assert!(
+                        click
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
+                        "graph-posterior {suite:?} must mix effect refuters across atoms"
+                    );
                 }
             }
             report_counts.push(click.refutations.len());
@@ -611,6 +623,64 @@ mod identify_only_tests {
         assert!(
             report_counts[2] > report_counts[1],
             "full validation must add prior-sensitivity reports beyond the cheap suite"
+        );
+    }
+
+    fn cheap_overlap_comparison(gp: GraphPosterior, n: usize) -> f64 {
+        let result = Study::tabular(known_truth_graph_mixture_data(n))
+            .graph_posterior(gp)
+            .query(ate())
+            .refute(RefuteSuite::Cheap)
+            .inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
+            ))
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(3))
+            .unwrap();
+        result
+            .refutations
+            .iter()
+            .find(|r| r.refuter.as_ref() == "overlap.assessment")
+            .expect("cheap suite must emit overlap.assessment")
+            .comparison
+    }
+
+    #[test]
+    fn graph_posterior_overlap_mixes_distinct_adjustment_atoms() {
+        // Atom 0 is unadjusted T→Y; atom 1 adjusts for Z. First-atom validation
+        // would report only the empty-Z overlap. Mixing must move the comparison.
+        let n = 64;
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0, 3, 1, 0, true);
+        let mix = GraphPosterior::new(
+            3,
+            vec![0.5, 0.3, 0.2],
+            vec![direct, adjusted, unidentified],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("overlap_mixture"),
+            0,
+        )
+        .unwrap();
+        let first_only = GraphPosterior::new(
+            3,
+            vec![1.0],
+            vec![direct],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("overlap_first_atom"),
+            0,
+        )
+        .unwrap();
+        let mixed = cheap_overlap_comparison(mix, n);
+        let first = cheap_overlap_comparison(first_only, n);
+        assert!(
+            (mixed - first).abs() > 1e-9,
+            "mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
         );
     }
 

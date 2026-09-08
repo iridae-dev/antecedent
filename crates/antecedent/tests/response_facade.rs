@@ -301,6 +301,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/two_point_curve_average_effect/expected.json"
@@ -332,6 +333,59 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
             GridSpec::Values(vec![control, active].into()),
         ),
     });
+
+    let bayes_pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/response_surfaces/expected.json"
+    ))
+    .unwrap();
+    for accepted in [false, true] {
+        for intervention in [false, true] {
+            let query = if intervention {
+                ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                    outcome: VariableId::from_raw(1),
+                    interventions: Arc::from([Intervention::set(
+                        VariableId::from_raw(0),
+                        Value::f64(active),
+                    )]),
+                })
+            } else {
+                curve_query.clone()
+            };
+            let builder = Study::tabular(data.clone());
+            let builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::dag(graph.clone()))
+            } else {
+                builder.graph(graph.clone())
+            };
+            let study = builder
+                .query(query)
+                .inference(antecedent::InferenceMode::Bayesian(
+                    antecedent::BayesianConfig::conjugate().n_draws(4096),
+                ))
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap();
+            let result = study
+                .prepare(&ExecutionContext::for_tests(51))
+                .unwrap()
+                .estimate(&data, &ExecutionContext::for_tests(51))
+                .unwrap();
+            let response = result.response.unwrap();
+            assert_eq!(response.provenance_id.as_ref(), "estimate.response.bayesian");
+            let values = match response.estimate {
+                ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                    mean, ..
+                }) => mean.to_vec(),
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(mean)) => vec![mean],
+                _ => panic!("response shape"),
+            };
+            let truth = if intervention { vec![2.0] } else { vec![0.0, 2.0] };
+            for (value, truth) in values.iter().zip(truth) {
+                assert!((value - truth).abs() < bayes_pin["static_tolerance"].as_f64().unwrap());
+            }
+            assert!(!matches!(response.uncertainty, ResponseUncertainty::None));
+        }
+    }
     let curve = Study::tabular(data.clone())
         .graph(graph.clone())
         .query(CausalQuery::Response(curve_query))

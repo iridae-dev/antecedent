@@ -248,7 +248,7 @@ fn known_truth_dbn_posterior(
     .with_algorithm("known_truth_fixture")
 }
 
-fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
+fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: RefuteSuite) {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
     ))
@@ -290,7 +290,7 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
         ))
-        .refute(RefuteSuite::None)
+        .refute(suite)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
@@ -329,16 +329,37 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy) {
         "posterior mean={} truth={effect_truth}",
         post.summaries.mean[eq]
     );
+    if suite != RefuteSuite::None {
+        assert!(!click.refutations.is_empty());
+        assert!(!click.predictive_checks.is_empty());
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
+            "DBN cheap/full must mix effect refuters across contributing atoms"
+        );
+        assert!(
+            click
+                .diagnostics
+                .iter()
+                .all(|d| d.code.as_ref() != "refute.dbn_posterior.effect_reference")
+        );
+    }
+    if suite == RefuteSuite::Full {
+        assert!(click_post.prior_sensitivity.is_some());
+    }
 }
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_envelope() {
-    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::pulse(-1));
+    for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+        assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::pulse(-1), suite);
+    }
 }
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
-    assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1));
+    for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+        assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1), suite);
+    }
 }
 
 #[test]
@@ -747,8 +768,9 @@ fn dose_horizon_pulse_query() -> TemporalEffectQuery {
         .with_horizon_steps(1)
 }
 
-/// Single-step Sustained window at `-treatment_lag`, the only licensed Sustained
-/// form (multi-step remains estimator-refused per `parity/support_licensed.toml`).
+/// Single-step Sustained window at `-treatment_lag`. Multi-step windows are a
+/// licensed form on validation=none (`temporal.sequential.gcomp`); this helper
+/// keeps the single-step coordinate used by the dose-horizon pins.
 fn dose_horizon_sustained_query() -> TemporalEffectQuery {
     let mut q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
@@ -800,10 +822,9 @@ fn assert_dose_horizon_ate(result: &antecedent::result::StudyResult) {
 /// `RefuteSuite::Cheap` on a temporal-unfolded design actually runs exactly one
 /// refuter: `OverlapRefuter` is `NotApplicable` here (`ValidatorId::Overlap` in
 /// `crates/antecedent-validate/src/suite.rs` refuses when `problem.temporal.is_some()`),
-/// so only E-value is left in `result.refutations`. `parity/support_licensed.toml`'s
-/// "Cheap suite is overlap + E-value" limitations text for these cells describes the
-/// suite's *configuration*, not what actually executes at this coordinate — that's the
-/// finding this test pins. The Overlap skip itself is not lost: `result.diagnostics`
+/// so only E-value is left in `result.refutations`. Pulse/Sustained cheap limitations
+/// in `parity/support_licensed.toml` record that executed set, not the static ATE
+/// cheap-suite configuration. The Overlap skip itself is not lost: `result.diagnostics`
 /// carries a `refute.validator.not_applicable` entry for it (see
 /// `assert_cheap_temporal_overlap_skip_diagnostic`) — a per-run skip, not the support
 /// matrix's permanent `not_applicable`.

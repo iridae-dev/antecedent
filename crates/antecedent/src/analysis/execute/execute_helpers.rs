@@ -308,13 +308,15 @@ pub(super) fn identified_envelope_keys(
         .collect()
 }
 
-/// Per-atom Bayesian fit retained so envelope `full` can run PPC / prior-sensitivity.
+/// Per-atom Bayesian fit retained so envelope validation can mix across structures.
 pub(super) struct EnvelopeAtomFit {
     pub key: u64,
     pub prep: PreparedBayesianProblem,
     pub posterior: CausalPosterior,
     pub status: IdentificationStatus,
     pub weight: f64,
+    pub estimand: IdentifiedEstimand,
+    pub indexer: Option<TemporalIndexer>,
 }
 
 pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
@@ -469,6 +471,116 @@ pub(super) fn run_envelope_bayesian_full_validation(
         },
     ));
     Ok(predictive_checks)
+}
+
+/// Run cheap/full effect refuters on every contributing envelope atom and mix.
+///
+/// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
+/// against the mixture effect. Reports of the same refuter id are mixed by
+/// posterior mass. Validators that are `NotApplicable` on every contributing
+/// atom surface once; a check that applies to only a subset mixes that subset.
+pub(super) fn run_envelope_effect_refuters(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    estimate: &EffectEstimate,
+    atoms: &[EnvelopeAtomFit],
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+    suite: RefuteSuite,
+    estimator: &str,
+    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
+    temporal_query: Option<&TemporalEffectQuery>,
+    split: Option<&DiscoveryEstimationSplit>,
+    time_index: Option<&TimeIndex>,
+) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    if matches!(suite, RefuteSuite::None) && custom.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let mut order = Vec::new();
+    let mut by_refuter: std::collections::HashMap<
+        Arc<str>,
+        Vec<(f64, antecedent_validate::RefutationReport)>,
+    > = std::collections::HashMap::new();
+    let mut na_weight: std::collections::HashMap<
+        antecedent_validate::ValidatorId,
+        (f64, Arc<str>),
+    > = std::collections::HashMap::new();
+    let mut contributing = 0.0;
+    let mut diagnostics = Vec::new();
+    for atom in atoms {
+        if atom.weight <= 0.0 {
+            continue;
+        }
+        contributing += atom.weight;
+        let temporal = match (atom.indexer.as_ref(), temporal_query) {
+            (Some(indexer), Some(tq)) => Some(TemporalRefitContext {
+                indexer,
+                temporal_query: tq,
+                split,
+                kernel_policy: &ctx.kernel_policy,
+                time_index,
+                panel: None,
+            }),
+            _ => None,
+        };
+        let outcomes = refute_outcomes(
+            data,
+            &atom.estimand,
+            query,
+            estimate,
+            workspace,
+            None,
+            ctx,
+            suite,
+            estimator,
+            custom,
+            temporal,
+        )?;
+        for report in ValidationSuite::reports_only(&outcomes) {
+            let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
+                order.push(Arc::clone(&report.refuter));
+                Vec::new()
+            });
+            bucket.push((atom.weight, report));
+        }
+        for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
+            na_weight.entry(validator).and_modify(|(w, _)| *w += atom.weight).or_insert((
+                atom.weight,
+                reason,
+            ));
+        }
+    }
+    let mut reports = Vec::with_capacity(order.len());
+    for id in order {
+        let Some(items) = by_refuter.get(&id) else {
+            continue;
+        };
+        let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
+            items.iter().map(|(w, r)| (*w, r)).collect();
+        if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
+            reports.push(mixed);
+        }
+    }
+    if contributing > 0.0 {
+        for (validator, (weight, reason)) in na_weight {
+            if weight / contributing >= 1.0 - 1e-12 {
+                diagnostics.push(validator_not_applicable_diagnostic(validator, &reason));
+            }
+        }
+    }
+    let atom_keys: String =
+        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
+    diagnostics.push(Diagnostic::new(
+        "refute.envelope.effect_mixture",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "effect refuters evaluated each contributing graph atom [{atom_keys}] against the \
+             mixture effect; reports mix by posterior mass and pass only if every contributing \
+             atom passes"
+        ),
+    ));
+    Ok((reports, diagnostics))
 }
 
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.

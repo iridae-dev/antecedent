@@ -180,7 +180,7 @@ def test_path_distribution_literals_match_support_closed_toml():
         rule
         for rule in rules
         if set(rule.get("queries", [])) == {"PathSpecificEffect", "InterventionalDistribution"}
-        and set(rule.get("structures", [])) == {"graph_posterior", "accepted"}
+        and set(rule.get("structures", [])) == {"graph_posterior"}
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
@@ -188,7 +188,52 @@ def test_path_distribution_literals_match_support_closed_toml():
     # The literal is wrapped across two adjacent string fragments; normalize.
     collapsed = source.replace('"\n            "', "")
     count = collapsed.count(f"refused: {reason}")
-    assert count >= 3, (
+    assert count >= 2, (
         f"expected the TOML reason to appear at the three hand-rolled sites; "
         f"found {count}: {reason!r}"
     )
+
+
+def _handle_response_kwargs(**overrides):
+    kwargs = dict(
+        graph=_DAG,
+        discovery=None,
+        inference=antecedent.Frequentist(),
+        identifier=None,
+        estimator=None,
+        estimator_config=None,
+        validators=None,
+        refute_requested=False,
+        refute=False,
+        bootstrap_requested=False,
+        seed=1,
+        threads=1,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_handle_response_bayesian_curve_uses_staged_path():
+    """Leftover handler must not TypeError licensed Bayesian ResponseCurve."""
+    from antecedent._analyze import handle_response
+
+    result = handle_response(
+        _DATA,
+        _CURVE,
+        **_handle_response_kwargs(inference=antecedent.Bayesian(backend="conjugate", n_draws=256)),
+    )
+    assert result.response is not None
+    assert np.isfinite(result.response.values).all()
+
+
+def test_handle_response_bayesian_derivative_still_unsupported():
+    from antecedent._analyze import handle_response
+
+    with pytest.raises(TypeError, match="derivative and jacobian response queries"):
+        handle_response(
+            _DATA,
+            antecedent.AverageDerivative("t", "y"),
+            **_handle_response_kwargs(
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=32)
+            ),
+        )

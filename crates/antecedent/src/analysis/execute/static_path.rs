@@ -330,6 +330,21 @@ impl super::Study {
         let cancelled = estimate.bootstrap_cancelled;
         let early_stopped = estimate.bootstrap_early_stopped;
 
+        let refutations = if self.refute == RefuteSuite::None {
+            Vec::new()
+        } else {
+            antecedent_validate::functional::refute_distribution(
+                data,
+                query,
+                &identification,
+                &estimand,
+                &dist,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )
+            .map_err(CausalError::from)?
+        };
+
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -341,7 +356,7 @@ impl super::Study {
             outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
+            refutations,
             distribution: Some(dist),
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -405,6 +420,21 @@ impl super::Study {
         let mut ws = FunctionalDistributionWorkspace::default();
         let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
 
+        let refutations = if self.refute == RefuteSuite::None {
+            Vec::new()
+        } else {
+            antecedent_validate::functional::refute_path(
+                data,
+                query,
+                &identification,
+                &estimand,
+                estimate.ate,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )
+            .map_err(CausalError::from)?
+        };
+
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -416,7 +446,7 @@ impl super::Study {
             outcome: query.outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
+            refutations,
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -506,6 +536,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            return self.execute_bayesian(data, graph, &query.inner, physical, ctx);
+        }
         let started = Instant::now();
         let (identifier, _) = self.resolve_conditional_pair();
         let identifier_id: IdentifierId = identifier.parse()?;

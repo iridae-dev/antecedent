@@ -122,7 +122,14 @@ pub fn compile_logical_static_response(
         }
         ResponseFunctional::InterventionResponse { .. } => EstimatorId::ResponseInterventionGcomp,
     };
-    if estimator != expected {
+    if estimator != expected
+        && !(estimator == EstimatorId::ResponseBayesian
+            && matches!(
+                input.query.functional,
+                ResponseFunctional::MeanCurve { .. }
+                    | ResponseFunctional::InterventionResponse { .. }
+            ))
+    {
         return Err(CausalError::Compile {
             message: format!(
                 "response functional requires estimator {:?}; got {:?}",

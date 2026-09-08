@@ -1,0 +1,10 @@
+feature_id = "estimate.response.temporal.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
+upstream_implementations_observed = []
+implementation_deviations = ["Independent per-horizon Gaussian regressions on the identified lag-aligned adjustment designs. Posterior means and pointwise intervals are projected to a dose-by-horizon surface.", "Single-step pulse or sustained policy, complete observations, additive linear mechanisms and independent innovations conditional on regressors. No joint horizon posterior, simultaneous band, multi-step response surface or graph-posterior response claim."]
+test_sources = ["conformance/bayesian/response_surfaces", "python/tests/test_release_12.py"]

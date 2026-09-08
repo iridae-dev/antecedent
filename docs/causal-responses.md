@@ -1,6 +1,6 @@
 # Causal responses
 
-Antecedent 0.5 treats a continuous causal response as more than a collection of
+Antecedent treats a continuous causal response as more than a collection of
 binary contrasts. The scalar Python constructors retain the established
 positional convention:
 
@@ -50,7 +50,7 @@ A response result deliberately keeps four judgments separate:
    object; they do not change `evidence_status`, which is the support-matrix
    cell.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
-   one grid point at a time. The Rust estimator can instead request a fixed-grid
+   one grid point at a time. The Frequentist Kennedy-DR estimator can instead request a fixed-grid
    simultaneous band with `response_options(...)`; Python uses
    `estimator_config={"bandwidth": ..., "simultaneous_replicates": ...}`.
    The explicit bandwidth is required: Antecedent does not silently invent an
@@ -76,7 +76,7 @@ print(result.provenance)
 print(result.evidence_status)
 ```
 
-At 0.9 every successful analysis has `evidence_status == "licensed"`.
+In 1.2 every successful analysis has `evidence_status == "licensed"`.
 `allowed_unlicensed` remains a legacy wire value, but the active allowlist is
 empty and the release gate rejects new entries. A licensed cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
@@ -90,7 +90,7 @@ finite residual moments. It does not inherit Kennedy et al.'s rates for
 heavy-tailed outcomes, and the influence sandwich is not a Cauchy-resistant
 interval.
 
-Every mean-curve result reports `response.outcome_tail_ratio`:
+Every Kennedy-DR mean-curve result reports `response.outcome_tail_ratio`:
 `max |Y - median| / (1.4826 MAD)` of the retained outcome, followed by the
 warning bound (20). Gaussian samples stay near sqrt(2 log n) (about 5 at a
 million rows). Above the bound the result emits
@@ -127,31 +127,54 @@ When the accepted graph is a DAG, this is the same response identification and
 estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
-A `Pag` with unresolved marks has a different contract. For `ResponseCurve`
-only, Antecedent streams a bounded set of compatible MAG completions, applies
-generalized adjustment in each completion, and estimates the curve in every
-identified case. `result.envelope` contains pointwise lower/upper identified
-bounds plus normalized `identified_mass` and `unidentified_mass`; unidentified
-completions are never discarded or renormalized away. Those bounds are the
-pointwise min/max of completion-specific **point** curves: they encode structural
-uncertainty across the examined class, not within-completion sampling
-uncertainty, and are not a confidence band. A capped enumeration is
-reported separately through `enumeration_capped`; in that case `mass_scope` is
-`"examined_completions"`, so the normalized fractions are never presented as
-full-class probability mass. Per-completion adjustment-search truncation remains
-separate in `truncated_completions`. Derivatives and graph-
-posterior mixtures over curves remain outside this PAG path.
+PAG response queries remain refused by the support matrix, including accepted
+PAGs. Completion-based response primitives exist below the analysis API; they
+do not license a PAG curve through `analyze()` or `PreparedAnalysis`. Response
+mixtures over graph posteriors are also outside 1.2.
 
-## Validate a curve without pretending it is an ATE
+## Validation on a function-valued response
 
-`refute="cheap"` (and the other non-empty refutation spellings) runs only checks
-that have function-valued meaning. `result.validation` records the existing
-support/overlap status and a deterministic ten-replicate 80% row-subset curve
-refit diagnostic. The subset statistic is the maximum absolute shift between
-the full-data curve (or PAG envelope) and the mean subset result; it is reported
-without inventing a universal pass threshold. Scalar ATE refuters—placebo
-treatment, dummy outcome, random common cause, and scalar sensitivity—appear as
-an explicit `skipped` check.
+Response queries license validation `none` only. Leave the query's default
+unchanged or pass `refute="none"`. Requesting `cheap`, `full`, or another scalar
+refuter suite raises `CausalUnsupportedError`; these suite names do not denote
+function-valued validation. The returned support diagnostics still describe
+empirical treatment support. They do not establish exchangeability, positivity,
+or model correctness.
+
+## Bayesian responses in 1.2
+
+Use the prepared workflow to estimate a Gaussian response posterior:
+
+```python
+from antecedent.estimation import PreparedAnalysis
+
+prepared = PreparedAnalysis.prepare(
+    data,
+    graph=dag,
+    query=query,
+    inference=antecedent.Bayesian(backend="conjugate", n_draws=2048),
+    refute="none",
+)
+result = prepared.estimate(data)
+response_bytes = prepared.export_artifact()
+query_bytes = prepared.export_artifact(payload="query")
+```
+
+Explicit and accepted DAGs and TemporalDAGs are licensed for `ResponseCurve`
+and `InterventionResponse` under the documented Gaussian additive forms.
+Static responses use `response.bayesian`; temporal responses use
+`response.temporal.bayesian` and retain identification and support per horizon.
+These posterior intervals are pointwise, with no joint horizon posterior or
+simultaneous-band claim. Kennedy-DR regularity and row-influence diagnostics
+below describe the Frequentist estimator, not these Bayesian posteriors.
+
+Prepared responses require complete observations and the AllObserved empirical
+population. Unsupported observation mechanisms, observation assumptions, or
+population specifications are refused explicitly. Observation-adjusted
+Frequentist curves use the separate path described under
+[Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
+responses, graph-posterior response mixtures, and multi-step temporal response
+policies remain refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 
 ## Row-diagnostic export contract
 
@@ -231,7 +254,7 @@ at export rather than published.
 
 The derivative query types below remain public so unsupported requests receive
 a stable typed refusal, but **all derivative analysis cells are refused in
-0.9**. Only `ResponseCurve` and `InterventionResponse` have licensed response
+1.2**. Only `ResponseCurve` and `InterventionResponse` have licensed response
 cells; see the [support matrix](support-matrix.md). The definitions below
 describe implemented response primitives, not a license to run them through
 `analyze()`.
@@ -265,8 +288,8 @@ query = antecedent.InterventionResponse(
 result = antecedent.analyze(data, graph=dag, query=query)
 ```
 
-`Set`, `Shift`, `Bernoulli`, `Gaussian`, and `Categorical` evaluate plug-in mean
-responses. A sequence of specifications requests a joint intervention. The
+Under Frequentist inference, `Set`, `Shift`, `Bernoulli`, `Gaussian`, and
+`Categorical` evaluate plug-in mean responses. A sequence of specifications requests a joint intervention. The
 estimator fits an additive outcome model and averages predictions under the
 requested policy; stochastic laws use fixed-seed independent-coordinate
 inverse-CDF Monte Carlo integration. Its canonical strategy is
@@ -317,5 +340,5 @@ combinations fail closed rather than returning the response of the observed
 proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](../examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](../examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb).

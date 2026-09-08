@@ -1,0 +1,10 @@
+feature_id = "estimate.response.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "Bayesian Data Analysis", sections = ["Gaussian regression; posterior functionals"] }]
+upstream_implementations_observed = []
+implementation_deviations = ["Linear additive Gaussian regression with posterior coefficient projection at each intervention level, standardized over fixed observed covariates. Supports one treatment and complete observations.", "Pointwise equal-tail credible intervals only, with empirical support diagnostics. No doubly robust, nonlinear, superpopulation-covariate, simultaneous-band, derivative or stochastic-policy claim. This is a separate response.bayesian estimator, not Kennedy DR with a Bayesian label."]
+test_sources = ["conformance/bayesian/response_surfaces", "python/tests/test_release_12.py"]

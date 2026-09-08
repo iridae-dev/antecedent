@@ -16,10 +16,7 @@ _REASON_DERIVATIVE = (
 _REASON_RESPONSE_PAG = (
     "refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
 )
-_REASON_PATH_DIST = (
-    "refused: Path and distribution queries are licensed only as explicit "
-    "Dag cells; accepted and graph-posterior structures are not staged."
-)
+_REASON_PATH_DIST = "refused: Graph-posterior path and distribution mixtures are not staged."
 _REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
 _REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
 _REASON_INTERVENTION_RESPONSE_OFF_DAG = (
@@ -62,12 +59,6 @@ _REFUSED = [
         "path_specific_exact_dag_posterior",
         antecedent.PathSpecificEffect("t", "y"),
         {"discovery": antecedent.discovery.ExactDagPosterior()},
-        _REASON_PATH_DIST,
-    ),
-    (
-        "interventional_distribution_accepted",
-        antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        {"graph": _ACCEPTED},
         _REASON_PATH_DIST,
     ),
     (
@@ -240,10 +231,9 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
     (parity/support_closed.toml, 2026-08-19 addition): general ID is the only
     identifier compile.rs wires for a bidirected ADMG, and it is not compatible
     with the bayesian.gcomp estimator that inference=Bayesian selects. Reachable
-    from Python (unlike ConditionalEffect/TemporalMediationEffect x Bayesian,
-    which _analyze.py itself pre-empts with a TypeError before reaching native
-    code) because AverageEffect x Admg passes a bare Admg graph straight through
-    to native support-matrix consultation."""
+    from Python because AverageEffect x Admg passes a bare Admg graph straight
+    through to native support-matrix consultation. Licensed ConditionalEffect /
+    TemporalMediationEffect Bayesian cells now take the staged prepare path."""
     n = 300
     u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
     t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
@@ -267,35 +257,39 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
     assert msg.startswith("refused: General ID"), msg
 
 
-def test_path_specific_cheap_refute_is_refused():
+def test_path_specific_cheap_refute_runs_native_suite():
     t = np.array([0.0, 1.0] * 40)
     m = t.copy()
     y = t.copy()
     data = {"t": t, "m": m, "y": y}
     dag = antecedent.Dag.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")])
-    with pytest.raises(CausalUnsupportedError, match="empty refutations"):
-        antecedent.analyze(
-            data,
-            graph=dag,
-            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-            refute="cheap",
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        graph=dag,
+        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        refute="cheap",
+        bootstrap=0,
+        seed=1,
+    )
+
+    assert result.ate == pytest.approx(1.0)
+    assert len(result.validation.reports) == 1
 
 
-def test_distribution_full_refute_is_refused():
+def test_distribution_full_refute_runs_native_suite():
     t = np.array([0.0, 1.0] * 40)
     y = t.copy()
     z = np.zeros(80)
     data = {"t": t, "y": y, "z": z}
     dag = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    with pytest.raises(CausalUnsupportedError, match="empty refutations"):
-        antecedent.analyze(
-            data,
-            graph=dag,
-            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-            refute="full",
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        graph=dag,
+        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+        refute="full",
+        bootstrap=0,
+        seed=1,
+    )
+
+    assert result.ate == pytest.approx(1.0)
+    assert len(result.validation.reports) == 3

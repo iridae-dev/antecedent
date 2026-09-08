@@ -43,7 +43,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -57,7 +57,7 @@ categories = ["science", "mathematics"]
 [workspace.dependencies]
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 ciborium = "0.2"
 blake3 = "1"
 zstd = "0.13"

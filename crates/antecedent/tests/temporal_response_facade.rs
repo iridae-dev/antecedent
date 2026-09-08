@@ -775,3 +775,98 @@ fn temporal_dose_horizon_bands_match_fixture() {
     // dose=0 horizon=1: index 0 — band width must be strictly positive (regression guard).
     assert!(upper[0] - lower[0] > 0.0, "dose=0 band width must be positive");
 }
+
+#[test]
+fn bayesian_temporal_response_and_sustained_window_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/response_surfaces/expected.json"
+    ))
+    .unwrap();
+    let (series, graph) = temporal_fixture_series();
+    let ctx = ExecutionContext::for_tests(31);
+    for accepted in [false, true] {
+        for intervention in [false, true] {
+            let functional = if intervention {
+                ResponseFunctional::InterventionResponse {
+                    outcome: VariableId::from_raw(1),
+                    interventions: Arc::from([Intervention::set(
+                        VariableId::from_raw(0),
+                        Value::f64(1.0),
+                    )]),
+                }
+            } else {
+                ResponseFunctional::MeanCurve {
+                    outcome: VariableId::from_raw(1),
+                    treatment: ContinuousDomain::new(
+                        VariableId::from_raw(0),
+                        GridSpec::Values(Arc::from([0.0, 1.0])),
+                    ),
+                }
+            };
+            let query = ResponseQuery::new(functional).with_temporal(temporal_spec(&fixture()));
+            let builder = Study::series(series.clone());
+            let builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+            } else {
+                builder.graph(graph.clone())
+            };
+            let result = builder
+                .query(query)
+                .inference(antecedent::InferenceMode::Bayesian(
+                    antecedent::BayesianConfig::conjugate().n_draws(4096),
+                ))
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate_series(&series, &ctx)
+                .unwrap();
+            let expected: Vec<_> = pin["temporal_mean"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            assert_surface(
+                &result,
+                if intervention { &expected[2..] } else { &expected },
+                pin["temporal_tolerance"].as_f64().unwrap(),
+                "estimate.response.temporal.bayesian",
+            );
+        }
+        for bayesian in [false, true] {
+            let query =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                    .with_policy(TemporalPolicy::sustained(-2, -1));
+            let builder = Study::series(series.clone());
+            let builder = if accepted {
+                builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+            } else {
+                builder.graph(graph.clone())
+            };
+            let builder = if bayesian {
+                builder.inference(antecedent::InferenceMode::Bayesian(
+                    antecedent::BayesianConfig::conjugate().n_draws(2048),
+                ))
+            } else {
+                builder
+            };
+            let result = builder
+                .query(query)
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(20)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate_series(&series, &ctx)
+                .unwrap();
+            assert!(
+                (result.estimate.ate - pin["window_effect"].as_f64().unwrap()).abs()
+                    < pin["window_tolerance"].as_f64().unwrap()
+            );
+            assert_eq!(result.posterior.is_some(), bayesian);
+        }
+    }
+}

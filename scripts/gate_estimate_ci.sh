@@ -33,6 +33,8 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
+    "estimate.temporal_sequential": "crates/antecedent/tests/temporal_response_facade.rs",
+
     # Estimate inventory
     "estimate.identify.efficient_backdoor": "conformance/estimate/efficient_backdoor",
     "estimate.glm": "conformance/estimate/glm_adjustment",

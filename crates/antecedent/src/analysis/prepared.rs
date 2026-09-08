@@ -370,6 +370,12 @@ pub struct PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Borrow the caller's frozen query, with original variable ids and query kind.
+    #[must_use]
+    pub fn query(&self) -> &CausalQuery {
+        &self.analysis.query
+    }
+
     /// Borrow the frozen schema fingerprint.
     #[must_use]
     pub fn schema(&self) -> &CausalSchema {
@@ -645,9 +651,13 @@ impl Study {
                     build_dbn_posterior_identification_cache(posterior, &variables, query, ctx)?,
                 ));
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query), None) => {
                 analysis.identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
+                if let Some(graph) = self.graph.as_temporal_dag() {
+                    analysis.mediation_adjustment_cache =
+                        Some(self.mediation_adjustment(graph, query)?);
+                }
             }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
@@ -771,10 +781,8 @@ impl Study {
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::ConditionalEffect(query) => {
-                // Mirrors `execute_conditional`: identifier is builder-selected or
-                // defaults to backdoor adjustment; the estimator is always
-                // `ConditionalLinearAdjustment` regardless of any configured
-                // estimator (there is no alternative conditional-effect estimator).
+                // Mirrors execute_conditional / execute_bayesian: identifier is
+                // builder-selected or defaults to backdoor; estimator follows inference.
                 use crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER;
                 let Some(graph) = self.graph.as_dag().cloned() else {
                     return Ok(None);
@@ -787,8 +795,12 @@ impl Study {
                     .unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER);
                 let identifier_id: IdentifierId = identifier.parse()?;
                 let identification = identify_static(identifier_id, &graph, &query.inner)?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
+                let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    EstimatorId::BayesianConditional
+                } else {
+                    EstimatorId::ConditionalLinearAdjustment
+                };
+                let estimand = select_estimand(&identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::PathSpecific(query) => {
@@ -889,15 +901,26 @@ impl Study {
                     outcome,
                     temporal,
                     &query.target_population,
-                    EstimatorId::TemporalResponseGcomp,
+                    if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian
+                    } else {
+                        EstimatorId::TemporalResponseGcomp
+                    },
                 )?))
             }
             CausalQuery::TemporalEffect(query) => {
                 let id_res = TemporalBackdoorIdentifier::new()
                     .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
-                let estimand =
-                    select_estimand(&id_res.result, EstimatorId::TemporalLinearAdjustment)?;
+                let estimand = select_estimand(
+                    &id_res.result,
+                    if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                    {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                )?;
                 Ok(Some(CachedTemporalIdentification {
                     by_horizon: Arc::from([CachedTemporalHorizonIdentification {
                         horizon: query.horizon_steps,
@@ -934,7 +957,12 @@ impl Study {
         }
         .identify(graph, query)
         .map_err(CausalError::from)?;
-        let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
+        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianTemporalMediation
+        } else {
+            EstimatorId::TemporalMediation
+        };
+        let estimand = select_estimand(&identification, estimator_id)?;
         Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 }

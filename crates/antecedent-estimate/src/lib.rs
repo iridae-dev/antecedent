@@ -18,6 +18,7 @@
 pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
+pub mod bayesian_mediation;
 pub mod conditional;
 pub mod design_compile;
 pub mod envelope;
@@ -40,6 +41,7 @@ pub mod se;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
 pub mod temporal_response;
+pub mod temporal_sequential;
 pub mod transport;
 pub mod util;
 
