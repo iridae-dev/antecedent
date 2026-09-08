@@ -1166,3 +1166,218 @@ fn sensitivity_gram_matches_data_pass_when_treatment_has_invalids() {
         );
     }
 }
+
+fn routing_problem(
+    treatment: Vec<f64>,
+    outcome_valid: Option<Vec<bool>>,
+) -> (TabularData, IdentifiedEstimand, AverageEffectQuery, antecedent_estimate::EffectEstimate) {
+    let n = treatment.len();
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * treatment[i] + 0.01 * i as f64).collect();
+    let z: Vec<f64> = (0..n).map(|i| (i % 5) as f64).collect();
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "t",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "z",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::Context),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let y_validity = match outcome_valid {
+        None => ValidityBitmap::all_valid(n),
+        Some(flags) => {
+            let mut bytes = vec![0u8; n.div_ceil(8)];
+            for (i, keep) in flags.iter().enumerate() {
+                if *keep {
+                    bytes[i / 8] |= 1 << (i % 8);
+                }
+            }
+            ValidityBitmap::from_bytes(bytes, n).unwrap()
+        }
+    };
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(treatment),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), y_validity).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let original = antecedent_estimate::EffectEstimate::new(
+        2.0,
+        0.1,
+        AssumptionSet::new(),
+        antecedent_estimate::OverlapPolicy::ExplicitOverride,
+    );
+    (data, estimand, query, original)
+}
+
+fn assert_treatment_route(
+    name: &str,
+    treatment: Vec<f64>,
+    outcome_valid: Option<Vec<bool>>,
+    binary: bool,
+) {
+    let (data, estimand, query, original) = routing_problem(treatment, outcome_valid);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    assert_eq!(
+        crate::common::binary_treatment(&problem).unwrap(),
+        binary,
+        "{name}: binary_treatment mismatch"
+    );
+    let overlap = OverlapRefuter::new()
+        .refute(&problem)
+        .unwrap_or_else(|err| panic!("{name}: overlap refute failed ({err})"));
+    if binary {
+        assert_eq!(overlap.refuter.as_ref(), "overlap.assessment", "{name}");
+    } else {
+        assert_eq!(overlap.refuter.as_ref(), "overlap.continuous_support", "{name}");
+    }
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(4);
+    let outcomes = ValidationSuite::new()
+        .with(ValidatorId::Riesz)
+        .run(&problem, &mut ws, &ctx)
+        .unwrap_or_else(|err| panic!("{name}: Riesz suite failed ({err})"));
+    let riesz_na = ValidationSuite::not_applicable_only(&outcomes)
+        .iter()
+        .any(|(id, _)| *id == ValidatorId::Riesz);
+    assert_eq!(riesz_na, !binary, "{name}: Riesz NA={riesz_na} expected for binary={binary}");
+}
+
+#[test]
+fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
+    let pass = RefutationReport::new("overlap.assessment", 2.0, 0.1, 0.2, true, true, None, 4);
+    let fail = RefutationReport::new(
+        "overlap.assessment",
+        2.0,
+        0.4,
+        0.8,
+        true,
+        false,
+        Some(Arc::from("bad overlap")),
+        2,
+    );
+    let mixed = RefutationReport::mixture_weighted(&[(0.5, &pass), (0.3, &fail)]).unwrap();
+    assert_eq!(mixed.refuter.as_ref(), "overlap.assessment");
+    assert!((mixed.comparison - (0.5 * 0.2 + 0.3 * 0.8) / 0.8).abs() < 1e-12);
+    assert!((mixed.refuted_ate - (0.5 * 0.1 + 0.3 * 0.4) / 0.8).abs() < 1e-12);
+    assert!(!mixed.passed, "mixture must fail if any contributing atom fails");
+    assert_eq!(mixed.replicates, 4);
+    assert!(RefutationReport::mixture_weighted(&[(0.0, &pass)]).is_none());
+    let only_pass = RefutationReport::mixture_weighted(&[(0.5, &pass), (0.0, &fail)]).unwrap();
+    assert!(only_pass.passed);
+}
+
+#[test]
+fn average_effect_treatment_routing_matrix() {
+    let n = 40;
+    let two_valued: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    assert_treatment_route("two-valued 0/1", two_valued, None, true);
+
+    let continuous: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    assert_treatment_route("continuous", continuous, None, false);
+
+    let integer_dose: Vec<f64> = (0..n).map(|i| (i % 4) as f64).collect();
+    assert_treatment_route("integer dosage", integer_dose, None, false);
+
+    let categorical: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+    assert_treatment_route("categorical >2", categorical, None, false);
+
+    let non_unit_two_valued: Vec<f64> =
+        (0..n).map(|i| if i % 2 == 0 { 2.0 } else { 5.0 }).collect();
+    assert_treatment_route("two-valued non-unit", non_unit_two_valued, None, false);
+
+    let degenerate: Vec<f64> = vec![1.0; n];
+    let (data, estimand, query, original) = routing_problem(degenerate, None);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    assert!(crate::common::binary_treatment(&problem).unwrap());
+    let overlap = match OverlapRefuter::new().refute(&problem) {
+        Ok(report) => report,
+        Err(err) => {
+            assert!(
+                crate::common::binary_treatment(&problem).unwrap(),
+                "one-level treatment must stay binary even if overlap GLM fails ({err})"
+            );
+            return;
+        }
+    };
+    assert_eq!(
+        overlap.refuter.as_ref(),
+        "overlap.assessment",
+        "one-level 0/1 treatment stays on the binary overlap path, got {}",
+        overlap.refuter
+    );
+
+    let mut mixed = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect::<Vec<_>>();
+    mixed[3] = 2.5;
+    let mut valid = vec![true; n];
+    valid[3] = false;
+    assert_treatment_route("complete-case remaining binary", mixed, Some(valid), true);
+
+    let all_missing = vec![false; n];
+    let empty_cases: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    let (data, estimand, query, original) = routing_problem(empty_cases, Some(all_missing));
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    assert!(
+        !crate::common::binary_treatment(&problem).unwrap(),
+        "empty complete-case remainder must not vacuously enter the binary path"
+    );
+}

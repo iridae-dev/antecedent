@@ -817,7 +817,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Cheap additionally runs the applicable overlap/E-value suite on the mixture plus mixture-weighted PPC; validator values are not numerically pinned."
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Cheap runs the applicable overlap/E-value suite on every contributing atom against the mixture effect and mixes those reports by posterior mass, plus mixture-weighted PPC; validator values are not numerically pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -830,7 +830,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Full includes the cheap reports and mixture-weighted PPC / prior-sensitivity; validator values are not numerically pinned."
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Full runs the effect-refuter suite on every contributing atom against the mixture effect, mixes those reports by posterior mass, and adds mixture-weighted PPC / prior-sensitivity; validator values are not numerically pinned."
 
 [[cell]]
 query = "PulseEffect"
@@ -843,7 +843,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_envelope"
-limitations = "Frozen structural mixture pins the lag-one Pulse effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately: first-atom effect refuters plus PPC on cheap; full adds prior-sensitivity aggregating contributing atoms."
+limitations = "Frozen structural mixture pins the lag-one Pulse effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately: effect refuters run on every contributing atom against the mixture mean and mix by posterior mass, plus PPC on cheap; full adds prior-sensitivity aggregating contributing atoms."
 
 [[cell]]
 query = "SustainedEffect"
@@ -856,7 +856,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_sustained_envelope"
-limitations = "Frozen structural mixture pins the single-step Sustained effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately: first-atom effect refuters plus PPC on cheap; full adds prior-sensitivity aggregating contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Frozen structural mixture pins the single-step Sustained effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately: effect refuters run on every contributing atom against the mixture mean and mix by posterior mass, plus PPC on cheap; full adds prior-sensitivity aggregating contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -1087,7 +1087,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
 
 [[cell]]
 query = "PulseEffect"
@@ -1098,7 +1098,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
 
 [[cell]]
 query = "SustainedEffect"
@@ -1109,7 +1109,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
 
 [[cell]]
 query = "SustainedEffect"
@@ -1120,7 +1120,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters compare the mixture mean on the first contributing atom design; these are reference-design checks, not per-perturbation graph-mixture refits. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
 
 [[cell]]
 query = "TemporalMediationEffect"

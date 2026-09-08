@@ -332,6 +332,16 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
     if suite != RefuteSuite::None {
         assert!(!click.refutations.is_empty());
         assert!(!click.predictive_checks.is_empty());
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
+            "DBN cheap/full must mix effect refuters across contributing atoms"
+        );
+        assert!(
+            click
+                .diagnostics
+                .iter()
+                .all(|d| d.code.as_ref() != "refute.dbn_posterior.effect_reference")
+        );
     }
     if suite == RefuteSuite::Full {
         assert!(click_post.prior_sensitivity.is_some());

@@ -6,5 +6,5 @@ copied_comments = false
 copied_tests = false
 papers = []
 upstream_implementations_observed = []
-implementation_deviations = ["Applicable temporal effect refuters compare to the graph-mixture effect on the first contributing atom design. This is a reference-design robustness diagnostic, not graph-mixture uncertainty recomputation for every perturbation.", "Prior and posterior predictive checks and full prior-sensitivity refit all contributing atom designs with their normalized weights. Unidentified mass stays separate; failed atoms and interactive subsampling cannot anchor refuters on an excluded graph."]
+implementation_deviations = ["Applicable temporal effect refuters run on every contributing atom design against the mixture effect and mix by posterior mass. Unidentified mass stays separate; failed atoms and interactive subsampling cannot contribute refuter mass.", "Prior and posterior predictive checks and full prior-sensitivity refit all contributing atom designs with their normalized weights. Unidentified mass stays separate; failed atoms and interactive subsampling cannot anchor refuters on an excluded graph."]
 test_sources = ["conformance/bayesian/known_truth_mixtures", "python/tests/test_release_12.py"]

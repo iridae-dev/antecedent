@@ -220,9 +220,7 @@ def test_handle_response_bayesian_curve_uses_staged_path():
     result = handle_response(
         _DATA,
         _CURVE,
-        **_handle_response_kwargs(
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=256)
-        ),
+        **_handle_response_kwargs(inference=antecedent.Bayesian(backend="conjugate", n_draws=256)),
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
