@@ -57,6 +57,18 @@ use `load_section` to decompress into owned bytes.
 | response payload | CBOR `CausalResponseWire`, including estimand, identification payload, uncertainty, empirical support, assumptions, and provenance id |
 | `other("causal_payload")` | `causal_payload.header` (payload kind plus variable names) and `causal_payload.body` (the existing canonical query/result wire type) |
 
+### Format 0.4 static mediation and counterfactual results
+
+The `static_result` causal payload stores the original identification query and
+derivation, requested contrast, optional sampling standard error, estimation
+assumptions, empirical support diagnostics and native refutation reports.
+Mediation stores total/direct/indirect values; counterfactuals store unit ITEs,
+their mean and both intervention levels. Counterfactual sampling errors remain
+absent. Family/payload mismatches and invalid numerical values refuse on load.
+`PreparedAnalysis.export_artifact()` produces this payload after estimation;
+`artifacts.loads` / `artifacts.dumps` round-trip it. Derivatives and observation
+curves continue using `response_result` with their existing four-axis wire.
+
 ### Format 0.4 temporal response
 
 `ResponseQueryWire.temporal` is optional. Its absence means the existing
