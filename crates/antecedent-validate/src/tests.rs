@@ -259,6 +259,93 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
 }
 
 #[test]
+fn continuous_overlap_comparison_is_unsupported_mass() {
+    let n = 400usize;
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "t",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "z",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::Context),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
+    // T tracks Z almost perfectly, so doses 0 and 1 lie outside the residual
+    // interval on most rows. comparison must be unsupported mass (near 1),
+    // matching binary overlap.assessment — not the supported fraction (near 0).
+    let t: Vec<f64> = z.iter().map(|&z| z + 0.01).collect();
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + z[i]).collect();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TabularData::new(storage);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let original = antecedent_estimate::EffectEstimate::new(
+        2.0,
+        0.1,
+        AssumptionSet::new(),
+        antecedent_estimate::OverlapPolicy::ExplicitOverride,
+    );
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let support = OverlapRefuter::new().refute(&problem).unwrap();
+    assert_eq!(support.refuter.as_ref(), "overlap.continuous_support");
+    assert!(!support.passed);
+    assert!(
+        support.comparison > 0.5,
+        "comparison={} (expected unsupported mass, not supported fraction)",
+        support.comparison
+    );
+    let rule = OverlapRuleRefuter::new().refute(&problem).unwrap();
+    assert_eq!(rule.refuter.as_ref(), "overlap.continuous_rule");
+    assert!(rule.comparison > 0.5, "comparison={}", rule.comparison);
+}
+
+#[test]
 fn data_subset_preserves_ate() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
