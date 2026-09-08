@@ -213,13 +213,15 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         VariableId::from_raw(1),
         [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
     );
-    let err = Study::tabular(data.clone())
+    let result = Study::tabular(data.clone())
         .graph(g.clone())
         .query(CausalQuery::Counterfactual(cf))
         .refute(RefuteSuite::None)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().starts_with("refused:"), "{err}");
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap();
+    assert!(result.counterfactual.is_some());
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)
@@ -290,8 +292,10 @@ fn static_mediation_natural_rejected() {
         .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
         .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    assert!(err.to_string().starts_with("refused:"), "{err}");
+    assert!(err.to_string().contains("identif"), "{err}");
 }
 
 #[test]

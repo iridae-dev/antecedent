@@ -446,6 +446,36 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
+        if let CausalQuery::Mediation(query) = &self.analysis.query {
+            if prior.treatment != query.treatment
+                || prior.outcome != query.outcome
+                || prior.identification.query != self.analysis.query
+            {
+                return Err(CausalError::Compile {
+                    message: "refute prior does not match mediation query".into(),
+                });
+            }
+            let graph = self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
+                message: "static mediation refute requires Dag",
+            })?;
+            let mediation = prior.mediation.as_ref().ok_or(CausalError::Unsupported {
+                message: "refute requires prior mediation result",
+            })?;
+            let mut result = prior.clone();
+            result.refutations = if suite == RefuteSuite::None {
+                Vec::new()
+            } else {
+                antecedent_validate::mediation::refute_static_mediation(
+                    data,
+                    graph,
+                    query,
+                    mediation,
+                    suite == RefuteSuite::Full,
+                    ctx,
+                )?
+            };
+            return Ok(result);
+        }
         let CausalQuery::AverageEffect(query) = &self.analysis.query else {
             return Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
@@ -709,6 +739,16 @@ impl Study {
             DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
             identify_static_query_with_rd, select_estimand,
         };
+        if matches!(self.query, CausalQuery::Counterfactual(_)) {
+            let graph = self
+                .graph
+                .as_dag()
+                .ok_or(CausalError::Unsupported { message: "counterfactual requires Dag" })?;
+            let identification =
+                identify_static_query(IdentifierId::GcmParametric, graph, &self.query)?;
+            let estimand = identification.estimands[0].clone();
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
         let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
         let identifier_id: IdentifierId = identifier.parse()?;
@@ -778,6 +818,17 @@ impl Study {
                         message: "response identifier returned no estimand".into(),
                     }
                 })?;
+                Ok(Some(CachedStaticIdentification { identification, estimand }))
+            }
+            CausalQuery::Mediation(query) if self.graph.class() == GraphClass::Dag => {
+                let graph = self.graph.as_dag().expect("Dag");
+                let identification = identify_static_query(
+                    IdentifierId::PathSpecificNatural,
+                    graph,
+                    &CausalQuery::Mediation(query.clone()),
+                )?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::ConditionalEffect(query) => {
@@ -1061,6 +1112,16 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
+        (DataInput::Tabular(_), CausalQuery::Counterfactual(_)) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported { message: "counterfactual requires Dag" });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported { message: "static mediation requires Dag" });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
                 return Err(CausalError::Unsupported {
@@ -1095,6 +1156,14 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
 
 fn is_supplied_static_graph(class: GraphClass) -> bool {
     matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
+}
+
+impl PreparedStudy {
+    /// Control intervention level frozen for a counterfactual ITE.
+    #[must_use]
+    pub fn counterfactual_control_level(&self) -> f64 {
+        self.analysis.counterfactual_control
+    }
 }
 
 #[cfg(test)]

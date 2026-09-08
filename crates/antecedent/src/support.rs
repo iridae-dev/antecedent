@@ -591,12 +591,12 @@ mod tests {
     #[test]
     fn closed_derivative_and_counterfactual_are_enforced() {
         let err =
-            refuse_if_not_applicable(cell("Elasticity", "Dag", "explicit", "Frequentist", "none"))
+            refuse_if_not_applicable(cell("Elasticity", "Pag", "explicit", "Frequentist", "none"))
                 .unwrap_err();
         assert!(err.to_string().starts_with("refused:"), "{err}");
         let err = refuse_if_not_applicable(cell(
             "Counterfactual",
-            "Dag",
+            "Pag",
             "explicit",
             "Frequentist",
             "none",
@@ -633,7 +633,7 @@ mod tests {
     fn closed_mediation_is_enforced() {
         let err = refuse_if_not_applicable(cell(
             "MediationEffect",
-            "Dag",
+            "Pag",
             "explicit",
             "Frequentist",
             "none",
@@ -642,7 +642,7 @@ mod tests {
         assert!(err.to_string().starts_with("refused:"), "{err}");
         for query in ["TransportQuery", "InterferenceQuery"] {
             let err =
-                refuse_if_not_applicable(cell(query, "Dag", "explicit", "Frequentist", "none"))
+                refuse_if_not_applicable(cell(query, "Pag", "explicit", "Frequentist", "none"))
                     .unwrap_err();
             assert!(err.to_string().starts_with("refused:"), "{query}: {err}");
         }

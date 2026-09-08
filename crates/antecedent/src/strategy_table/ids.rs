@@ -22,6 +22,7 @@ const IDENTIFIER_NAMES: &[&str] = &[
     "general.id",
     "path_specific.natural",
     "response.backdoor",
+    "gcm.parametric",
     "auto",
 ];
 
@@ -44,6 +45,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "temporal.sequential.gcomp",
     "functional.distribution",
     "functional.effect",
+    "mediation.linear",
     "conditional.linear.adjustment",
     "temporal.mediation",
     "response.temporal.bayesian",
@@ -80,6 +82,8 @@ pub enum IdentifierId {
     PathSpecificNatural,
     /// Pairwise backdoor identification for response functionals.
     ResponseBackdoor,
+    /// Structural-mechanism identification for staged counterfactuals.
+    GcmParametric,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -143,6 +147,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: true,
             provenance: ("identify.path_specific", "identify.path_specific"),
         },
+        IdentifierId::GcmParametric => IdentifierData {
+            name: "gcm.parametric",
+            is_dag_only: true,
+            provenance: ("counterfactual.aap", "counterfactual.aap"),
+        },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
             is_dag_only: true,
@@ -169,6 +178,7 @@ impl IdentifierId {
         Self::GeneralId,
         Self::PathSpecificNatural,
         Self::ResponseBackdoor,
+        Self::GcmParametric,
         Self::Auto,
     ];
 
@@ -205,6 +215,7 @@ impl FromStr for IdentifierId {
             "general.id" => Ok(Self::GeneralId),
             "path_specific.natural" => Ok(Self::PathSpecificNatural),
             "response.backdoor" => Ok(Self::ResponseBackdoor),
+            "gcm.parametric" => Ok(Self::GcmParametric),
             "auto" => Ok(Self::Auto),
             other => Err(UnknownStrategy {
                 kind: "identifier",
@@ -259,6 +270,8 @@ pub enum EstimatorId {
     FunctionalDistribution,
     /// Discrete plug-in evaluation of an identified scalar functional (ATE / path NE).
     FunctionalEffect,
+    /// Static linear structural mediation.
+    StaticMediationLinear,
     /// Conditional linear adjustment (effect modifiers).
     ConditionalLinearAdjustment,
     /// Temporal linear mediation (path-product).
@@ -416,6 +429,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "functional.distribution",
             provenance: ("estimate.functional_distribution", "estimate.functional_distribution"),
         },
+        EstimatorId::StaticMediationLinear => EstimatorData {
+            name: "mediation.linear",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer.mediation",
+            provenance: ("estimate.mediation.linear", "estimate.mediation.linear"),
+        },
         EstimatorId::FunctionalEffect => EstimatorData {
             name: "functional.effect",
             parallel_task_dimension: "bootstrap.replicate",
@@ -514,6 +533,7 @@ impl EstimatorId {
         Self::TemporalSequentialGcomp,
         Self::FunctionalDistribution,
         Self::FunctionalEffect,
+        Self::StaticMediationLinear,
         Self::ConditionalLinearAdjustment,
         Self::TemporalMediation,
         Self::TemporalResponseBayesian,
@@ -572,6 +592,7 @@ impl FromStr for EstimatorId {
             "temporal.sequential.gcomp" => Ok(Self::TemporalSequentialGcomp),
             "functional.distribution" => Ok(Self::FunctionalDistribution),
             "functional.effect" => Ok(Self::FunctionalEffect),
+            "mediation.linear" => Ok(Self::StaticMediationLinear),
             "conditional.linear.adjustment" => Ok(Self::ConditionalLinearAdjustment),
             "temporal.mediation" => Ok(Self::TemporalMediation),
             "response.temporal.bayesian" => Ok(Self::TemporalResponseBayesian),
@@ -850,6 +871,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
             method.is_temporal_mediation() || matches!(method, EstimandMethod::FrontDoor)
         }
         EstimatorId::FunctionalDistribution => matches!(method, EstimandMethod::GeneralId),
+        EstimatorId::StaticMediationLinear => matches!(method, EstimandMethod::PathSpecificNatural),
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }

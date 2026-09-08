@@ -17,8 +17,8 @@ pub(super) use std::time::Instant;
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, ObservationSpec,
-    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec, PopulationRegistry,
+    ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
@@ -126,6 +126,9 @@ pub struct Study {
     pub(crate) estimator: Option<EstimatorId>,
     pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
     pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
+    pub(crate) counterfactual_control: f64,
+    pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
     pub(crate) rd: Option<RdConfig>,
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
@@ -172,6 +175,9 @@ impl std::fmt::Debug for Study {
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
             .field("response_options", &self.response_options)
+            .field("counterfactual_control", &self.counterfactual_control)
+            .field("observation_options", &self.observation_options)
+            .field("observation_delayed_entry", &self.observation_delayed_entry)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("overlap_policy", &self.overlap_policy)
