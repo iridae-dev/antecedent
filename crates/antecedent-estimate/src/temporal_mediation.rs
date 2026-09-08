@@ -120,6 +120,20 @@ impl TemporalMediationEstimator {
         extra: &[antecedent_core::VariableId],
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
+        self.estimate_with_adjustment(data, estimand, query, &[], extra, ctx)
+    }
+
+    /// Fit with graph-derived lagged baseline covariates and optional RCC columns.
+    #[allow(clippy::too_many_arguments)] // Keep existing estimator entry points source-compatible.
+    pub fn estimate_with_adjustment(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        adjustment: &[LaggedColumn],
+        extra: &[antecedent_core::VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<TemporalMediationEstimate, EstimationError> {
         query.validate()?;
         if matches!(
             query.contrast,
@@ -158,10 +172,13 @@ impl TemporalMediationEstimator {
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
         ];
+        cols.extend_from_slice(adjustment);
         cols.extend(
             extra.iter().map(|&variable| LaggedColumn { variable, lag: Lag::CONTEMPORANEOUS }),
         );
-        let plan = data.plan_lagged_sample(1, Arc::from(cols)).map_err(EstimationError::from)?;
+        let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
+        let plan =
+            data.plan_lagged_sample(max_lag, Arc::from(cols)).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
         let prep =
             plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?;
@@ -173,7 +190,8 @@ impl TemporalMediationEstimator {
             return Err(EstimationError::data_msg("insufficient effective samples for mediation"));
         }
 
-        let extras: Vec<_> = (0..extra.len()).map(|i| prep.column(3 + i)).collect();
+        let n_extra = adjustment.len() + extra.len();
+        let extras: Vec<_> = (0..n_extra).map(|i| prep.column(3 + i)).collect();
         // Stage 1: M ~ [1, T] → a = β_T
         let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m, &extras)?;
         // Stage 2: Y ~ [1, T, M] → c' = β_T (direct), b = β_M
@@ -193,17 +211,17 @@ impl TemporalMediationEstimator {
 
         let se_analytic = match query.contrast {
             MediationContrast::Total => {
-                let var_c = coefficient_variance(&design_c, n, 2 + extra.len(), 1, sigma2_c);
+                let var_c = coefficient_variance(&design_c, n, 2 + n_extra, 1, sigma2_c);
                 (var_c * delta * delta).max(0.0).sqrt()
             }
             MediationContrast::Direct | MediationContrast::NaturalDirect => {
-                let var_cp = coefficient_variance(&design_b, n, 3 + extra.len(), 1, sigma2_b);
+                let var_cp = coefficient_variance(&design_b, n, 3 + n_extra, 1, sigma2_b);
                 (var_cp * delta * delta).max(0.0).sqrt()
             }
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
                 if self.allow_iid_sobel_se {
-                    let var_a = coefficient_variance(&design_a, n, 2 + extra.len(), 1, sigma2_a);
-                    let var_b = coefficient_variance(&design_b, n, 3 + extra.len(), 2, sigma2_b);
+                    let var_a = coefficient_variance(&design_a, n, 2 + n_extra, 1, sigma2_a);
+                    let var_b = coefficient_variance(&design_b, n, 3 + n_extra, 2, sigma2_b);
                     // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
                     // Valid only under iid rows (`allow_iid_sobel_se`).
                     let var_ab = b * b * var_a + a * a * var_b;

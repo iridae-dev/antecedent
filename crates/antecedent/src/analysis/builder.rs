@@ -746,6 +746,7 @@ impl StudyBuilder {
             latency_mode,
             stage_sink: self.stage_sink,
             identification_cache: None,
+            mediation_adjustment_cache: None,
             pag_identification_cache: None,
             temporal_identification_cache: None,
             graph_posterior_identification_cache: None,

@@ -32,7 +32,8 @@ use crate::{
 /// unfolded DAG. Propagate the active-minus-control difference in topological
 /// order, overwriting **every** treatment-time node in the sustained window.
 /// Frequentist uncertainty uses a shared moving-block row bootstrap across all
-/// equations. Bayesian uncertainty uses independent Gaussian mechanism priors.
+/// equations. Bayesian uncertainty uses independent Gaussian priors across
+/// stationary mechanisms, sharing each coefficient draw across its time copies.
 pub fn estimate_sustained_window(
     data: &TimeSeriesData,
     graph: &TemporalDag,
@@ -142,6 +143,13 @@ pub fn estimate_sustained_window(
     for &i in &order {
         parents[i] =
             dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
+        // Stable coefficient positions across time copies, independent of dense
+        // node order in the unfolding.
+        let child = indexer.key_of(i as u32).expect("unfolded node");
+        parents[i].sort_by_key(|&p| {
+            let parent = indexer.key_of(p as u32).expect("unfolded parent");
+            (parent.variable.raw(), child.offset - parent.offset)
+        });
         if intervention[i] || parents[i].is_empty() {
             continue;
         }
@@ -200,11 +208,58 @@ pub fn estimate_sustained_window(
     };
     if let Some(estimator) = bayesian {
         let mut mechanism_posts = vec![None; dag.node_count()];
+        let mut mechanism_of = vec![0; dag.node_count()];
+        let mut mechanisms: Vec<(VariableId, Vec<LaggedColumn>, usize)> = Vec::new();
         let mut count = usize::MAX;
         for &i in &order {
-            if let Some(design) = &designs[i] {
+            if designs[i].is_some() {
+                let child = indexer.key_of(i as u32).expect("unfolded node");
+                let parent_columns: Vec<_> = parents[i]
+                    .iter()
+                    .map(|&p| {
+                        let parent = indexer.key_of(p as u32).expect("unfolded parent");
+                        LaggedColumn {
+                            variable: parent.variable,
+                            lag: Lag::from_raw(
+                                u32::try_from(child.offset - parent.offset).expect("causal lag"),
+                            ),
+                        }
+                    })
+                    .collect();
+                if let Some((_, columns, owner)) =
+                    mechanisms.iter().find(|(v, _, _)| *v == child.variable)
+                {
+                    if columns != &parent_columns {
+                        return Err(EstimationError::unsupported(
+                            "stationary mechanism has inconsistent unfolded parents",
+                        ));
+                    }
+                    mechanism_of[i] = *owner;
+                    continue;
+                }
+                // Fit each stationary mechanism once on its unique observed
+                // time-series rows. Overlapping unfolded windows must not
+                // multiply the likelihood or create independent copies of beta.
+                let mut columns = parent_columns.clone();
+                columns.push(LaggedColumn { variable: child.variable, lag: Lag::CONTEMPORANEOUS });
+                let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
+                let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
+                let mut workspace = LaggedSampleWorkspace::default();
+                let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+                let covs: Vec<_> = parent_columns
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .map(|(j, c)| (c.variable, sample.column(j)))
+                    .collect();
+                let design = CompiledDesign::linear_adjustment(
+                    sample.column(0),
+                    &covs,
+                    sample.column(parent_columns.len()),
+                    &[],
+                )?;
                 let prep = PreparedBayesianProblem {
-                    design: design.clone(),
+                    design,
                     method: estimand.method.clone(),
                     adjustment_set: Arc::from([]),
                     active: 1.0,
@@ -214,10 +269,12 @@ pub fn estimate_sustained_window(
                     unit_ids: None,
                 };
                 let mut est = estimator.clone();
-                est.seed = est.seed.wrapping_add(i as u64);
+                est.seed = est.seed.wrapping_add(u64::from(child.variable.raw()));
                 let post = est.fit(&prep, status, &mut BayesianGCompWorkspace::default(), ctx)?;
                 count = count.min(post.draws.n_draws);
                 mechanism_posts[i] = Some(post);
+                mechanism_of[i] = i;
+                mechanisms.push((child.variable, parent_columns, i));
             }
         }
         let mut posterior = mechanism_posts.iter().flatten().next().cloned().ok_or_else(|| {
@@ -227,7 +284,8 @@ pub fn estimate_sustained_window(
         for draw in 0..count {
             let mut coefficients = vec![Vec::new(); dag.node_count()];
             for &i in &order {
-                if let Some(post) = &mechanism_posts[i] {
+                if designs[i].is_some() {
+                    let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
                     for index in 0..designs[i].as_ref().expect("fitted design").ncols {
                         let col = post.draws.schema.quantities.iter().position(|q| matches!(q, PosteriorQuantityKind::Coefficient { index: j, .. } if *j == index)).ok_or_else(|| EstimationError::stats_msg("missing sequential coefficient"))?;
                         coefficients[i].push(post.draws.column(col)?[draw]);

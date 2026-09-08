@@ -370,6 +370,12 @@ pub struct PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Borrow the caller's frozen query, with original variable ids and query kind.
+    #[must_use]
+    pub fn query(&self) -> &CausalQuery {
+        &self.analysis.query
+    }
+
     /// Borrow the frozen schema fingerprint.
     #[must_use]
     pub fn schema(&self) -> &CausalSchema {
@@ -645,9 +651,13 @@ impl Study {
                     build_dbn_posterior_identification_cache(posterior, &variables, query, ctx)?,
                 ));
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query), None) => {
                 analysis.identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
+                if let Some(graph) = self.graph.as_temporal_dag() {
+                    analysis.mediation_adjustment_cache =
+                        Some(self.mediation_adjustment(graph, query)?);
+                }
             }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =

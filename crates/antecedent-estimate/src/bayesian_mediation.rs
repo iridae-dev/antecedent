@@ -26,6 +26,17 @@ pub fn prepare_temporal_mediation(
     query: &MediationQuery,
     ctx: &ExecutionContext,
 ) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
+    prepare_temporal_mediation_adjusted(data, estimand, query, &[], ctx)
+}
+
+/// Prepare both mechanisms with the same graph-derived baseline covariates.
+pub fn prepare_temporal_mediation_adjusted(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &MediationQuery,
+    adjustment: &[LaggedColumn],
+    ctx: &ExecutionContext,
+) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
     query.validate()?;
     if !estimand.method_kind().is_ok_and(antecedent_expr::EstimandMethod::is_temporal_mediation)
         || estimand.mediators.len() != 1
@@ -35,14 +46,14 @@ pub fn prepare_temporal_mediation(
         ));
     }
     let mediator = estimand.mediators[0];
-    let plan = data.plan_lagged_sample(
-        1,
-        Arc::from([
-            LaggedColumn { variable: query.treatment, lag: Lag::from_raw(1) },
-            LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
-            LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
-        ]),
-    )?;
+    let mut columns = vec![
+        LaggedColumn { variable: query.treatment, lag: Lag::from_raw(1) },
+        LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
+        LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
+    ];
+    columns.extend_from_slice(adjustment);
+    let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
+    let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
     let mut workspace = LaggedSampleWorkspace::default();
     let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
     let active = crate::adjustment::intervention_f64(&query.active)?;
@@ -64,7 +75,14 @@ pub fn prepare_temporal_mediation(
             unit_ids: None,
         })
     };
-    Ok([build(sample.column(1), &[])?, build(sample.column(2), &[(mediator, sample.column(1))])?])
+    let covs: Vec<_> = adjustment
+        .iter()
+        .enumerate()
+        .map(|(i, column)| (column.variable, sample.column(3 + i)))
+        .collect();
+    let mut outcome_covs = vec![(mediator, sample.column(1))];
+    outcome_covs.extend_from_slice(&covs);
+    Ok([build(sample.column(1), &covs)?, build(sample.column(2), &outcome_covs)?])
 }
 
 /// Compose independent mediator/outcome mechanism draws into a posterior over
