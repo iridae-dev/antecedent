@@ -15,7 +15,19 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 1.2 matrix licenses these families (structure and validation qualifiers are
+The 1.3 matrix licenses the 1.2 families plus:
+
+- Frequentist `PointDerivative` / `Elasticity` / `SemiElasticity` /
+  `AverageDerivative` / `DirectionalDerivative` / `ResponseJacobian` on
+  explicit or accepted DAGs at validation `none`;
+- static `MediationEffect` on explicit or accepted DAGs with validation
+  `none` / `cheap` / `full`;
+- `Counterfactual` on an explicit DAG at validation `none`;
+- selected AIPW, marginal KM, and conditional Cox IPCW observation pairs on
+  licensed Frequentist `ResponseCurve` cells, as published in the
+  [observation pair contract](observation-contract.md).
+
+The 1.2 matrix licensed these families (structure and validation qualifiers are
 part of the claim, not implementation detail):
 
 - Frequentist `AverageEffect` on explicit or accepted DAGs, ADMGs, and PAGs,
@@ -44,7 +56,8 @@ mediation requires one mediator with treatment at lag one and mediator/outcome
 contemporaneous, adjusting for observed baseline parents. Multi-step sustained
 uses sequential g-computation; Bayesian time copies share stationary mechanism
 draws. These restrictions are part of each licensed form; see the
-[1.2 evidence ledger](v1.2-evidence.md).
+[1.2 evidence ledger](v1.2-evidence.md) and
+[1.3 evidence ledger](v1.3-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior × Bayesian` with validation

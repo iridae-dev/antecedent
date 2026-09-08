@@ -1,6 +1,6 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-07
+Date: 2026-09-08
 Scope: workspace crates + `python` extension (package version **1.3.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
