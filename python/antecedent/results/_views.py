@@ -415,6 +415,9 @@ class AnalysisResult:
     allowlist_parent: str | None = None
     _raw: Any = None
     _prepared: Any = None
+    unit_effects: list[float] | None = None
+    assumptions: list[str] | None = None
+    support: list[str] | None = None
 
     @property
     def effect(self) -> float:

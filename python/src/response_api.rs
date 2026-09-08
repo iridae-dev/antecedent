@@ -5,16 +5,14 @@ use std::sync::Arc;
 use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
+    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
     IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
     SupportStatus, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
-use antecedent_identify::{
-    GeneralizedAdjustmentIdentifier, IdentificationWorkspace, ResponseIdentifier,
-};
+use antecedent_identify::GeneralizedAdjustmentIdentifier;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -157,71 +155,31 @@ fn analyze_response(
             scale,
             weighting,
         )?;
-        let query = ResponseQuery::new(functional);
-        // `analyze_response` never routes through `StudyBuilder`, so it must
-        // consult the matrix itself. Pass the caller's `refute=` suite: cheap/full
-        // on a function-valued estimand are n/a (`parity/support_n_a.toml`).
-        let structure =
-            if accepted { StructureSource::Accepted } else { StructureSource::Explicit };
-        let causal_query = CausalQuery::Response(query.clone());
-        let evidence = if let Some(cell) = support_cell(
-            &causal_query,
-            GraphClass::Dag,
-            structure,
-            &InferenceMode::Frequentist,
-            suite,
-        ) {
-            Some(refuse_if_not_applicable(cell).map_err(py_err)?)
-        } else {
-            None
+        let query = CausalQuery::Response(ResponseQuery::new(functional));
+        let options = antecedent_estimate::ContinuousResponseOptions {
+            bandwidth,
+            simultaneous_replicates,
+            confidence_level,
+            multiplier_seed,
+            export_row_diagnostics,
+            ..Default::default()
         };
-        let identifier = ResponseIdentifier::new();
-        let prepared = identifier
-            .prepare_with_assumptions(&dag, AssumptionSet::new())
-            .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-        let identification = identifier
-            .identify(&prepared, &causal_query, &mut IdentificationWorkspace::default())
-            .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-        if identification.status != IdentificationStatus::NonparametricallyIdentified {
-            return Err(PyValueError::new_err(
-                "continuous response is not identified by backdoor adjustment",
-            ));
-        }
-        let first = identification
-            .estimands
-            .first()
-            .ok_or_else(|| PyValueError::new_err("response identification returned no estimand"))?;
-        if identification
-            .estimands
-            .iter()
-            .any(|estimand| estimand.adjustment_set != first.adjustment_set)
-        {
-            return Err(PyValueError::new_err(
-                "multi-response estimation currently requires one common adjustment set",
-            ));
-        }
-        let adjustment_set = first
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect();
-        let mut estimator = ContinuousResponseEstimator::new(Arc::clone(&first.adjustment_set));
-        estimator.options.bandwidth = bandwidth;
-        estimator.options.simultaneous_replicates = simultaneous_replicates;
-        estimator.options.confidence_level = confidence_level;
-        estimator.options.multiplier_seed = multiplier_seed;
-        estimator.options.export_row_diagnostics = export_row_diagnostics;
-        let response = estimator
-            .estimate_identified(
-                &data,
-                &query,
-                identification.status,
-                identification.required_assumptions,
-            )
+        let builder = if accepted {
+            Study::tabular(data.clone()).graph(AcceptedGraph::from(dag))
+        } else {
+            Study::tabular(data.clone()).graph(dag)
+        };
+        let study = builder
+            .query(query)
+            .response_options(options)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
             .map_err(py_err)?;
-        response_result(response, treatments, outcomes, adjustment_set, &names, evidence)
+        let ctx = py_execution_context(1, 1);
+        let prepared = study.prepare(&ctx).map_err(py_err)?;
+        let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
+        crate::prepared_api::response_from_study(&names, &result)
     })
 }
 
@@ -579,7 +537,7 @@ fn intervention_from_parts(
     }
 }
 
-fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
+pub(crate) fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
     match value {
         "identity" => Ok(DerivativeScale::Identity),
         "log_treatment" => Ok(DerivativeScale::LogTreatment),
@@ -589,7 +547,7 @@ fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
     }
 }
 
-fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
+pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
     match value {
         "observed" => Ok(DerivativeWeighting::Observed),
         _ => Err(PyValueError::new_err("the current ADE estimator supports weighting='observed'")),

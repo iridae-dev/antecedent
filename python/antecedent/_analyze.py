@@ -696,6 +696,7 @@ def handle_response(
             query.treatment,
             query.outcome,
             list(query.grid),
+            accepted=structure_accepted,
             **observation_kwargs,
         )
     elif isinstance(graph, Pag):
@@ -2072,7 +2073,8 @@ def analyze(
     # New 1.2 coordinates share the staged Rust execution path, including the
     # frozen structure axis, validation reports and posterior serialization.
     use_prepared = (
-        kind in {"path_specific", "distribution", "temporal_mediation"}
+        kind
+        in {"path_specific", "distribution", "temporal_mediation", "mediation", "counterfactual"}
         or (
             isinstance(inference, Bayesian)
             and kind in {"conditional", "response_curve", "intervention_response"}
@@ -2083,6 +2085,8 @@ def analyze(
         assert isinstance(
             query,
             (
+                MediationEffect,
+                Counterfactual,
                 ConditionalEffect,
                 TemporalMediationEffect,
                 PathSpecificEffect,
@@ -2118,11 +2122,13 @@ def analyze(
             )
         suite = (
             "none"
-            if is_response and not refute_requested
+            if (is_response or kind == "counterfactual") and not refute_requested
             else "cheap"
             if resolved_refute is True
             else resolved_refute
         )
+        if kind == "counterfactual" and bootstrap_requested and bootstrap:
+            raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
         prepared = PreparedAnalysis.prepare(
             data,
             query=query,
@@ -2132,7 +2138,7 @@ def analyze(
             estimator=estimator,
             refute=suite,
             seed=seed,
-            bootstrap=bootstrap,
+            bootstrap=0 if kind == "counterfactual" else bootstrap,
             threads=threads,
             latency=latency,
         )

@@ -22,6 +22,7 @@ from ._native import (
 PayloadKind = Literal[
     "query",
     "response_result",
+    "static_result",
     "transport_identification",
     "transport_estimate",
     "interference_estimate",
