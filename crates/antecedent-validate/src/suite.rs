@@ -308,9 +308,13 @@ impl ValidationSuite {
                         OverlapRuleRefuter::new().refute_with_propensity(problem, propensity)?,
                     )
                 }
-                ValidatorId::Riesz if problem.temporal.is_none() => ValidationOutcome::Report(
-                    RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
-                ),
+                ValidatorId::Riesz
+                    if problem.temporal.is_none() && crate::common::binary_treatment(problem)? =>
+                {
+                    ValidationOutcome::Report(
+                        RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
+                    )
+                }
                 _ => self.run_one(id, problem, workspace, ctx)?,
             };
             out.push(outcome);
@@ -581,6 +585,12 @@ impl ValidationSuite {
                     return Ok(na(
                         id,
                         "RieszSensitivity not applicable to temporal unfolded designs",
+                    ));
+                }
+                if !crate::common::binary_treatment(problem)? {
+                    return Ok(na(
+                        id,
+                        "RieszSensitivity requires binary treatment; continuous support is assessed by the overlap validators",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(

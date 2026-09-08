@@ -66,6 +66,15 @@ impl OverlapRuleRefuter {
         propensity: &mut antecedent_stats::PropensityWorkspace,
     ) -> Result<RefutationReport, ValidationError> {
         let eps = self.rule_eps.clamp(1e-6, 0.49);
+        let continuous = crate::OverlapRefuter {
+            eps,
+            min_ess_fraction: self.min_retained_fraction,
+            glm_options: self.glm_options,
+        };
+        if let Some(mut report) = continuous.continuous_report(problem)? {
+            report.refuter = Arc::from("overlap.continuous_rule");
+            return Ok(report);
+        }
         let report = match &problem.original.overlap_report {
             Some(r) => r.clone(),
             None => self.diagnostic_report(problem, eps, propensity)?,

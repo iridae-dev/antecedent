@@ -395,6 +395,17 @@ pub(crate) struct DiagnosticPropensityColumns {
     pub outcome: Option<Vec<f64>>,
 }
 
+/// Whether the complete treatment sample satisfies the binary 0/1 contract.
+#[allow(clippy::float_cmp)]
+pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
+    let mut ids = vec![problem.treatment(), problem.outcome()];
+    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let mask = problem.data.complete_case_mask(&ids)?;
+    let treatment = problem.data.float64_masked(problem.treatment(), &mask)?;
+    Ok(treatment.iter().all(|&value| value == 0.0 || value == 1.0))
+}
+
 /// Diagnostic-only logistic propensity on treatment + adjustment covariates.
 ///
 /// Used by overlap / Riesz validators when the original estimate has no propensity report.
