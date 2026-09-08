@@ -201,6 +201,17 @@ queries, and multi-step sustained-window g-computation. See the
 [evidence ledger](docs/v1.2-evidence.md) for exact forms and limits.
 Graph-posterior response and multi-step graph-posterior windows remain refused.
 
+## 1.3 — Existing kinds on the staged handle
+
+Implemented on the `1.3.0` branch. Frequentist explicit/accepted DAG
+derivatives, conditional Cox IPCW observation pairs, static natural
+mediation with a native cheap/full suite, and explicit-DAG unit
+counterfactuals now run identify → prepare → estimate. See the
+[evidence ledger](docs/v1.3-evidence.md) and
+[observation pair contract](docs/observation-contract.md). Bayesian and
+partial-graph versions of these families remain refused; transport and
+interference stay stage APIs.
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new

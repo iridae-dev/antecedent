@@ -197,10 +197,12 @@ bands rather than reusing invalid complete-data intervals. Interval censoring
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 One-shot `discovery=` on response queries fails closed; discover and accept
 the structure before estimating a response.
-The list above is inventory. Derivative cells are refused by `analyze`.
-`ResponseCurve` and `InterventionResponse` are licensed on `Dag` and
-`TemporalDag` under Frequentist and Bayesian inference with validation `none`
-(see the [support matrix](support-matrix.md)). Bayesian responses require the
+The list above is inventory. Derivative cells are licensed on explicit or
+accepted Frequentist DAGs at validation `none`; Bayesian and partial-graph
+derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
+licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
+with validation `none` (see the [support matrix](support-matrix.md)). Bayesian
+responses require the
 documented Gaussian additive models, complete observations and AllObserved
 population, with pointwise posterior intervals. TemporalCPDAG/PAG response and
 graph-posterior response mixtures remain refused. The public license is that

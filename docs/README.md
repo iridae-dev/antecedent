@@ -7,6 +7,7 @@ explicit stage contracts. Package version **1.3.0**.
 | Doc | Contents |
 |-----|----------|
 | [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
+| [Observation contract](observation-contract.md) | Licensed ResponseCurve observation-spec × assumption pairs |
 | [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |
 | [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
 | [Support matrix](support-matrix.md) | Licensed / n/a / refused cells (generated) |
@@ -19,7 +20,9 @@ explicit stage contracts. Package version **1.3.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
-| [1.3.0 release notes](release-notes/v1.3.0.md) | New compatible cells, query-native validation, and posterior evidence |
+| [1.3.0 release notes](release-notes/v1.3.0.md) | Staged derivatives, observation pairs, static mediation, unit counterfactuals |
+| [1.3 evidence ledger](v1.3-evidence.md) | Derivative, observation, mediation, and counterfactual pins |
+| [1.2.0 release notes](release-notes/v1.2.0.md) | Query-native validation, Bayesian estimators, and sequential sustained windows |
 | [1.1.0 release notes](release-notes/v1.1.0.md) | Known-truth mixture pins, numeric PAG/ADMG pins, prepared identification caches |
 | [1.0.0 release notes](release-notes/v1.0.0.md) | Contract freeze: version bump of the 0.9.1 matrix |
 | [0.9.1 release notes](release-notes/v0.9.1.md) | Patch: envelope PPC, temporal bootstrap contract, panel GLS |

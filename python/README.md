@@ -139,6 +139,14 @@ Also exposed:
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
 
+In 1.3, `antecedent.estimation.PreparedAnalysis` also stages Frequentist DAG
+derivatives, static natural mediation, explicit-DAG unit counterfactuals, and
+the published observation-pair contract (selected AIPW, marginal KM, conditional
+Cox IPCW). Derivative cheap/full stay n/a; counterfactual sampling uncertainty
+is unavailable. See the
+[1.3 evidence ledger](https://github.com/iridae-dev/antecedent/blob/main/docs/v1.3-evidence.md)
+and the 1.2 ledger below for earlier Bayesian and sequential forms.
+
 In 1.2, `antecedent.estimation.PreparedAnalysis` also supports the licensed
 Bayesian conditional, temporal-mediation and response forms, and multi-step
 `SustainedEffect(..., window=(-2, -1))`. Choose the validation suite when

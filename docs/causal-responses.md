@@ -76,7 +76,7 @@ print(result.provenance)
 print(result.evidence_status)
 ```
 
-In 1.2 every successful analysis has `evidence_status == "licensed"`.
+In 1.3 every successful analysis has `evidence_status == "licensed"`.
 `allowed_unlicensed` remains a legacy wire value, but the active allowlist is
 empty and the release gate rejects new entries. A licensed cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
@@ -174,7 +174,7 @@ population specifications are refused explicitly. Observation-adjusted
 Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses, graph-posterior response mixtures, and multi-step temporal response
-policies remain refused. See the [1.2 evidence ledger](v1.2-evidence.md).
+policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md).
 
 ## Row-diagnostic export contract
 

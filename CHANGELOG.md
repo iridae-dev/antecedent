@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cached identification, four result axes, static result artifacts, numerical
   fixtures and prepared-handle benchmarks. See [release evidence](docs/v1.3-evidence.md).
 
+### Fixed
+
+- Remaining Dag refusals for Bayesian/accepted/graph-posterior derivatives,
+  static mediation, and counterfactuals now have named closed reasons (0
+  refused cells without a reason). Discovery and Bayesian Python entry points
+  raise those reasons instead of claiming the kinds are unstaged.
+
+The [release notes](docs/release-notes/v1.3.0.md) specify licensed forms and
+unsupported extensions; these additions make no external-package parity claim.
+
 ## [1.2.0] — 2026-09-07
 
 ### Added
@@ -1666,7 +1676,9 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/iridae-dev/antecedent/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/iridae-dev/antecedent/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...v1.0.0
 [0.9.1]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...v0.9.1
