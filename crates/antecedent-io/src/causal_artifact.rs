@@ -420,10 +420,13 @@ fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<
             validate_intervention_ids(control, variable_count)?;
             validate_intervention_ids(active, variable_count)
         }
-        Q::Counterfactual { outcomes, interventions, .. } => {
+        Q::Counterfactual { outcomes, interventions, control, .. } => {
             validate_ids(outcomes.iter().copied(), variable_count)?;
             for intervention in interventions {
                 validate_intervention_ids(intervention, variable_count)?;
+            }
+            if let Some(control) = control {
+                validate_intervention_ids(control, variable_count)?;
             }
             Ok(())
         }

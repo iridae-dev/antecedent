@@ -13,13 +13,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let (treatment, active, _) = binary_cf_interventions(query)?;
-        let control = self.counterfactual_control;
-        if !control.is_finite() {
-            return Err(CausalError::Unsupported {
-                message: "counterfactual control must be finite",
-            });
-        }
+        let (treatment, active, control) = binary_cf_interventions(query)?;
         let outcome = query.outcomes[0];
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {

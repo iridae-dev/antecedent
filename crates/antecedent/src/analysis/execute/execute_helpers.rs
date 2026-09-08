@@ -671,7 +671,27 @@ pub(super) fn binary_cf_interventions(
     let active = value.as_f64().ok_or_else(|| CausalError::Compile {
         message: "counterfactual intervention value must be f64".into(),
     })?;
-    Ok((*variable, active, 0.0))
+    let Intervention::Set { variable: control_var, value: control_value } = &query.control else {
+        return Err(CausalError::Unsupported {
+            message: "Study counterfactual path requires a hard Set control intervention",
+        });
+    };
+    if control_var != variable {
+        return Err(CausalError::Compile {
+            message: format!(
+                "counterfactual control targets {control_var:?}, expected {variable:?}"
+            ),
+        });
+    }
+    let control = control_value.as_f64().ok_or_else(|| CausalError::Compile {
+        message: "counterfactual control value must be f64".into(),
+    })?;
+    if !control.is_finite() {
+        return Err(CausalError::Unsupported {
+            message: "counterfactual control must be finite",
+        });
+    }
+    Ok((*variable, active, control))
 }
 
 pub(super) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {

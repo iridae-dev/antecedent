@@ -244,7 +244,6 @@ pub struct StudyBuilder {
     estimator_spec: Option<EstimatorSpec>,
     /// Numerical/inference options for response-family estimators.
     response_options: Option<ContinuousResponseOptions>,
-    counterfactual_control: f64,
     observation_options: antecedent_estimate::ObservationEstimatorOptions,
     observation_delayed_entry: Option<antecedent_core::VariableId>,
     rd: Option<RdConfig>,
@@ -282,7 +281,6 @@ impl std::fmt::Debug for StudyBuilder {
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
             .field("response_options", &self.response_options)
-            .field("counterfactual_control", &self.counterfactual_control)
             .field("observation_options", &self.observation_options)
             .field("observation_delayed_entry", &self.observation_delayed_entry)
             .field("rd", &self.rd)
@@ -315,7 +313,6 @@ impl StudyBuilder {
             estimator: None,
             estimator_spec: None,
             response_options: None,
-            counterfactual_control: 0.0,
             observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
             observation_delayed_entry: None,
             rd: None,
@@ -487,13 +484,6 @@ impl StudyBuilder {
     #[must_use]
     pub fn response_options(mut self, options: ContinuousResponseOptions) -> Self {
         self.response_options = Some(options);
-        self
-    }
-
-    /// Control world for the single-treatment counterfactual ITE (default zero).
-    #[must_use]
-    pub fn counterfactual_control(mut self, value: f64) -> Self {
-        self.counterfactual_control = value;
         self
     }
 
@@ -771,7 +761,6 @@ impl StudyBuilder {
             estimator: self.estimator,
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
-            counterfactual_control: self.counterfactual_control,
             observation_options: self.observation_options,
             observation_delayed_entry: self.observation_delayed_entry,
             rd: self.rd,
