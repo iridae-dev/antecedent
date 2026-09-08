@@ -39,6 +39,8 @@ allocation/memory contracts, and owning crates.
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](../benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
 | Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
 | Temporal dose × horizon response | `antecedent-estimate` / `causal` | `temporal_response` | [temporal_response.md](../benches/baselines/temporal_response.md) | Prepare-once identification/indexer; multi-horizon estimate reuses fitted lag design across doses |
+| Bayesian temporal response / sustained window | `antecedent-estimate` | `temporal_response` | [temporal_response.md](../benches/baselines/temporal_response.md) | Retain grid-sized response summaries or draw-sized window effects; shared moving-block resamples across mechanisms; prepared identification outside fit |
+| Bayesian temporal mediation | `antecedent-estimate` | `temporal_mediation` | [regime_mediation.md](../benches/baselines/regime_mediation.md) | Two prepared designs and reusable posterior workspace; composed output retains four quantities per draw |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](../benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 
 ## Smoke commands
