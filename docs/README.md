@@ -31,9 +31,9 @@ explicit stage contracts. Package version **1.2.0**.
 | [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |
 | [0.5.1 release notes](release-notes/v0.5.1.md) | Honesty gates and row diagnostics |
 | [0.5.0 release notes](release-notes/v0.5.0.md) | Causal-response release |
-| [Roadmap](../ROADMAP.md) | Shipped contract cuts, compatible 1.x work, and later research scope |
+| [Roadmap](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md) | Shipped contract cuts, compatible 1.x work, and later research scope |
 
-Decisions: [adr/](../adr/README.md).
+Decisions: [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md).
 
 ## How docs are published
 

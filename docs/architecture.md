@@ -94,7 +94,7 @@ separate top-level modules.
 |-------|----------|
 | Artifact wire format | [artifacts.md](artifacts.md) |
 | Hot-path benches / budgets | [hot_paths.md](hot_paths.md) |
-| Capability inventories | [parity/](../parity/README.md) |
-| ADRs | [adr/](../adr/README.md) |
+| Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
+| ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](conformance/README.md) |
 | Security / unsafe / license review | [security_review.md](security_review.md) |

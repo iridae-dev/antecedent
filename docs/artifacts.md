@@ -88,6 +88,21 @@ does not define or maintain a parallel JSON schema. Response, transport, and
 interference query/result artifacts therefore migrate and validate through the
 same format-0.4 reader as Rust artifacts.
 
+## Exporting prepared results in 1.2
+
+`PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
+posterior or response result without refitting. Use
+`export_artifact(payload="query")` for the frozen original query, including its
+query kind and original schema variable IDs rather than an identification-time
+rewrite. Conditional queries and temporal pulse/sustained policies therefore
+retain their original meaning across the language boundary.
+
+A scalar posterior artifact retains draws, quantity names, identification
+status, mixture mass and backend summaries. It does not retain the complete
+analysis assumption or validation ledger; keep the analysis result alongside
+it. Response artifacts retain response-specific assumptions, identification,
+uncertainty and support. These exports use the existing format 0.4.
+
 ## Migration
 
 `antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept

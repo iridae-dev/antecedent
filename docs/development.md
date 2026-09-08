@@ -6,16 +6,21 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 ## CI vs local gates
 
-GitHub Actions CI (`ci.yml`) runs two relevant jobs on every PR:
+GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 - **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
   crates.io publish dry-run when manifests change).
 - **`gates`** — `scripts/gate_release.sh`, which runs the parity-manifest schema
-  check, the provenance schema/path check, and the ten feature gates.
+  check, provenance and metadata checks, support-matrix and evidence checks,
+  feature gates, artifact tests, and Criterion benchmark smokes.
+- **`python-lint`** — Ruff, mypy, and pytest with an 85% coverage floor after
+  building the native extension.
+- **`python-wheels`** — builds and tests the supported wheel matrix.
 
-CI does **not** run `gate_calibration.sh` or the Criterion bench smokes per PR.
+CI does **not** run `gate_calibration.sh` per PR. Criterion benchmark smokes
+do run through `gate_release.sh`; they check execution, not timing regressions.
 The statistical calibration suite runs weekly via
-[`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
+[`.github/workflows/calibration.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/calibration.yml)
 (`schedule` + `workflow_dispatch`); `cargo deny` runs inside `gate_release.sh`
 only when `cargo-deny` is on PATH, which it is not in CI.
 
@@ -33,12 +38,16 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
+bash scripts/gate_response_calibration.sh
+bash scripts/gate_causal_artifacts.sh
+bash scripts/gate_estimate_reuse.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
+bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
-bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
+bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
@@ -47,12 +56,12 @@ command when black-box comparison applies.
 
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
-## Python lint / types (local)
+## Python lint / types
 
 `scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
 `python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
-**local / pre-merge** gate for Python and PyO3 binding changes — it is **not**
-part of the wheel-matrix CI job.
+local equivalent of the checks in the separate CI `python-lint` job; the
+wheel-matrix job does not run lint or type checks.
 
 ```bash
 cd python
@@ -89,7 +98,7 @@ unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
 | Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
 | Calibration | Coverage / Type I / null FPR (`gate_calibration.sh`) |
 | Cross-language | Python bindings exercise the same semantics |
-| Criterion benches | Designated hot paths; local `gate_release` / bench smokes |
+| Criterion benches | Designated hot paths; release gate locally and in CI |
 | Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
 
 Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
@@ -123,7 +132,8 @@ and exchange adapters may land later without reshaping core types.
 
 ## Unsafe / deps
 
-Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD) and thin IO mmap.
+Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
+`antecedent-data` buffer/Arrow FFI adapters, and thin IO mmap.
 New `unsafe` needs justification in review. Dependency and license policy:
 [security_review.md](security_review.md), ADR 0008.
 
@@ -157,19 +167,19 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 0.7.0
+bash scripts/set_version.sh 1.2.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -m "chore: bump version to 0.7.0"
+git commit -m "chore: bump version to 1.2.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.7.0
-git push origin v0.7.0
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.2.0
+git push origin v1.2.0
 ```
 
-Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
+Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
 builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
 Release, and publishes to public PyPI via trusted publishing (`id-token: write`).
 Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
@@ -196,7 +206,7 @@ bash scripts/publish_crates.sh
 bash scripts/publish_crates.sh --execute
 ```
 
-Tag workflow [`.github/workflows/publish-crates.yml`](../.github/workflows/publish-crates.yml)
+Tag workflow [`.github/workflows/publish-crates.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-crates.yml)
 runs on `v*` tags (and `workflow_dispatch`) separately from the Python
 `publish-release.yml` wheel pipeline. Set repository secret `CRATES_IO_TOKEN`.
 
@@ -214,4 +224,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v0.7.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.2.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

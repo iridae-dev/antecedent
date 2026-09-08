@@ -30,15 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prepared Python responses refuse unsupported observation and target-population
   specifications instead of silently treating them as complete/all-observed.
 - Continuous conditional-effect validation assesses conditional residual support
-  instead of attempting a binary propensity fit.
+  instead of attempting a binary propensity fit. Both overlap diagnostics report
+  unsupported mass in `comparison`, matching the binary reports' direction.
 - Prepared query exports retain the original query kind and template variable IDs.
-
 - Discrete functional estimation now respects analysis masks, so native
   subset refuters actually refit the retained rows.
 - Python primary mediation effect reports the requested contrast, rather than
   always returning total mediation.
 - JSON artifact parsing preserves exact floating-point round trips.
 - DBN validation anchors on an atom that survives interactive subsampling.
+- Documentation now reflects the 1.2 licensed forms, observation refusals,
+  artifact limits and CI checks. Release navigation, published-site links and
+  Markdown formatting are corrected, with an executable Bayesian response example.
 
 The [release notes](docs/release-notes/v1.2.0.md) specify licensed forms and
 unsupported extensions; these additions make no external-package parity claim.
