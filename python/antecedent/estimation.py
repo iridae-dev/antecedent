@@ -972,6 +972,25 @@ class PreparedAnalysis:
         ``GraphPosterior`` compiles the licensed graph-posterior cells
         (Bayesian AverageEffect / Pulse / Sustained).
         """
+        if isinstance(query, (ResponseCurve, InterventionResponse)):
+            from .observation import Complete
+            from .population import coerce_target_population
+
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis responses require complete observations; "
+                    "observation correction is not composed on this staged path"
+                )
+            if query.observation_assumptions:
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis complete responses do not accept observation_assumptions"
+                )
+            if query.target_population is not None and coerce_target_population(
+                query.target_population
+            ) != {"kind": "all"}:
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis responses require the AllObserved target population"
+                )
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
