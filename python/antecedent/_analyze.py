@@ -162,6 +162,44 @@ class EstimatorConfigLike(Protocol):
 _TEMPORAL_DISCOVERY = (PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI)
 
 
+def _staged_prepared_result(
+    data: Any,
+    query: Any,
+    *,
+    graph: Any,
+    inference: Frequentist | Bayesian,
+    refute: bool | str,
+    seed: int,
+    bootstrap: int | None,
+    threads: int,
+    structure_accepted: bool = False,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    validators: Sequence[Any] | None = None,
+    latency: Latency | None = None,
+) -> Any:
+    """Run a licensed 1.2 cell through prepare → estimate, not a Frequentist sidecar."""
+    if validators is not None:
+        raise CausalUnsupportedError("this staged query path does not support validators")
+    from .accepted_graph import AcceptedGraph
+    from .estimation import PreparedAnalysis
+
+    prepared = PreparedAnalysis.prepare(
+        data,
+        query=query,
+        graph=AcceptedGraph(graph) if structure_accepted else graph,
+        inference=inference,
+        identifier=identifier,
+        estimator=estimator,
+        refute=refute,
+        seed=seed,
+        bootstrap=bootstrap,
+        threads=threads,
+        latency=latency,
+    )
+    return prepared.estimate(data, seed=seed, threads=threads)
+
+
 def handle_conditional(
     data: Any,
     query: ConditionalEffect,
@@ -178,10 +216,21 @@ def handle_conditional(
 ) -> Any:
     from .estimation import _static_edges, _wrap_ate
 
-    if isinstance(inference, Bayesian):
-        raise TypeError("ConditionalEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
+    if isinstance(inference, Bayesian):
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            refute=refute,
+            validators=validators,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
     names, columns = ingest_columns(data)
     edges = _static_edges(graph)
     raw = _analyze_conditional(
@@ -210,16 +259,26 @@ def handle_temporal_mediation(
     graph: Any,
     discovery: Any,
     inference: Frequentist | Bayesian,
+    refute: bool | str = False,
     seed: int,
     bootstrap: int | None,
     threads: int,
 ) -> Any:
     from .estimation import _lagged_edges, _wrap_temporal
 
-    if isinstance(inference, Bayesian):
-        raise TypeError("TemporalMediationEffect does not support inference=Bayesian(...)")
     if discovery is not None:
         raise ValueError("TemporalMediationEffect does not support discovery=")
+    if isinstance(inference, Bayesian):
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
     names, columns = ingest_columns(data)
     lagged = _lagged_edges(graph)
     raw = _analyze_temporal_mediation(
@@ -319,7 +378,28 @@ def handle_response(
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
-        raise TypeError("response queries do not yet support inference=Bayesian(...)")
+        if not isinstance(query, (ResponseCurve, InterventionResponse)):
+            raise TypeError(
+                "derivative and jacobian response queries do not yet support inference=Bayesian(...)"
+            )
+        if bootstrap_requested:
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+            )
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            validators=validators,
+            refute="none" if not refute_requested else refute,
+            seed=seed,
+            bootstrap=None,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
     # Derivative cells (AverageDerivative/DirectionalDerivative/Elasticity/PointDerivative/
     # ResponseJacobian/SemiElasticity) used to be refused right here with a hand-typed
     # literal duplicating parity/support_closed.toml. That duplication was a drift risk:
@@ -349,8 +429,6 @@ def handle_response(
     if getattr(query, "is_temporal", False):
         from .estimation import _lagged_edges, _wrap_prepared_response
 
-        if isinstance(inference, Bayesian):
-            raise TypeError("temporal response queries do not support inference=Bayesian(...)")
         if not isinstance(graph, (TemporalDag, list, tuple)):
             raise TypeError(
                 "temporal response requires a TemporalDag or lagged edge list; "
@@ -1747,7 +1825,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
     ),
     "temporal_mediation": (
         handle_temporal_mediation,
-        ("graph", "discovery", "inference", "seed", "bootstrap", "threads"),
+        ("graph", "discovery", "inference", "refute", "seed", "bootstrap", "threads"),
     ),
     "mediation": (
         handle_mediation,

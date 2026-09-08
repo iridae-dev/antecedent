@@ -99,7 +99,7 @@ impl super::Study {
                 None,
                 ctx,
                 self.refute,
-                "bayesian.gcomp",
+                estimator_id.as_str(),
                 &self.custom_validators,
                 None,
             )?,
