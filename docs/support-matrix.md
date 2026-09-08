@@ -32,8 +32,8 @@ wire value, but 0.9 has no active allowlist entries.
 | Meaningful remainder | 1342 | Combinations that could in principle be a claim |
 | Licensed | 134 | Staged path plus the row's recorded evidence contract and limitations |
 | `allowed_unlicensed` compatibility entries | 0 | Retained wire value; 0.9 requires this count to remain zero |
-| Refused — reason on file | 1155 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
-| Refused — no reason on file yet | 53 | Same runtime outcome; no rule in `support_closed.toml` names it yet |
+| Refused — reason on file | 1208 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — no reason on file yet | 0 | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
 Do not read "134 / 2394" as coverage. Read: **134 cells
 carry their recorded evidence contracts**; no cells run through the retained
@@ -136,6 +136,12 @@ row here yet.
 - queries ∈ {PulseEffect, SustainedEffect} ∧ graph_classes ∈ {TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/TemporalPag posterior atoms are not mixed into a temporal envelope.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Cpdag, Admg, Pag} ∧ validations ∈ {cheap, full} — Query-native functional validation requires a Dag.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {accepted} ∧ inferences ∈ {Bayesian} — Identified discrete path and distribution functionals have no Bayesian evaluator; accepted structure does not supply a posterior estimator.
+- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {none} — Licensed derivative cells are Frequentist explicit or accepted Dag at validation none; Bayesian derivatives remain 1.7 work.
+- queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist explicit or accepted Dag at validation none.
+- queries ∈ {MediationEffect} ∧ graph_classes ∈ {Dag} ∧ inferences ∈ {Bayesian} — Static natural mediation is Frequentist; a Bayesian mediation estimator is 1.7 work.
+- queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {accepted, graph_posterior} — Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused.
+- queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag} ∧ inferences ∈ {Bayesian} — Counterfactuals are Frequentist abduction-action-prediction; a posterior over mechanisms is 1.7 work.
+- queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag} ∧ validations ∈ {cheap, full} — Counterfactual cheap/full are not licensed; there is no native ITE refuter suite and ATE refuters do not apply.
 
 ## `allowed_unlicensed` compatibility entries
 
