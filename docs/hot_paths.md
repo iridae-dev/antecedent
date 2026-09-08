@@ -69,3 +69,10 @@ cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
 
 Absolute timings in baseline files are machine-class references (Apple M1).
 Unexplained regressions beyond documented budgets block merge.
+
+## 1.3 staged execution
+
+Cached derivative estimation and refitted GCM unit counterfactual execution are
+measured in `antecedent/benches/staged_handle.rs`.
+[Baseline](../benches/baselines/staged_handle.md). Preparation is excluded from
+these timings; supplied-data estimation remains inside each iteration.
