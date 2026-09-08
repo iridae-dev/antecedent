@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Temporal mediation estimates and native refuters adjust for graph-derived
+  observed baseline parents in both mechanism regressions.
+- Bayesian sustained windows share stationary mechanism coefficient draws
+  across time copies, preserving their covariance without duplicating data.
+- Prepared Python responses refuse unsupported observation and target-population
+  specifications instead of silently treating them as complete/all-observed.
+- Continuous conditional-effect validation assesses conditional residual support
+  instead of attempting a binary propensity fit.
+- Prepared query exports retain the original query kind and template variable IDs.
+
 - Discrete functional estimation now respects analysis masks, so native
   subset refuters actually refit the retained rows.
 - Python primary mediation effect reports the requested contrast, rather than

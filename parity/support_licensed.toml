@@ -472,7 +472,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace compose independent Gaussian mechanism posteriors. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -505,7 +505,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace compose independent Gaussian mechanism posteriors. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
 
 [[cell]]
 query = "SustainedEffect"
@@ -549,7 +549,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -560,7 +560,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
 query = "AverageEffect"
@@ -977,7 +977,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is overlap + E-value plus PPC; full adds prior sensitivity."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -988,7 +988,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is overlap + E-value plus PPC."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -999,7 +999,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full is overlap + E-value plus PPC and prior sensitivity."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1010,7 +1010,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is overlap + E-value plus PPC; full adds prior sensitivity."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1021,7 +1021,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is overlap + E-value plus PPC."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1032,7 +1032,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full is overlap + E-value plus PPC and prior sensitivity."
+limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1043,7 +1043,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1054,7 +1054,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1065,7 +1065,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1076,7 +1076,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "PulseEffect"
@@ -1131,7 +1131,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1142,7 +1142,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1153,7 +1153,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1164,7 +1164,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1175,7 +1175,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1186,7 +1186,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
 query = "ResponseCurve"

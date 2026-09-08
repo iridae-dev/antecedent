@@ -40,7 +40,10 @@ def check_moments(mean, variance, expected):
 
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("scale", [0.1, 10.0])
-@pytest.mark.parametrize("family", ["conditional", "mediation", "window", "response"])
+@pytest.mark.parametrize(
+    "family",
+    ["conditional", "mediation", "window", "response", "stationary_window", "confounded_mediation"],
+)
 def test_posterior_moments_and_artifact(accepted, scale, family):
     source = {k: np.array(v) for k, v in FIXTURE["data"].items()}
     if family == "conditional":
@@ -51,6 +54,21 @@ def test_posterior_moments_and_artifact(accepted, scale, family):
         data = {"t": source["t"], "m": source["m"], "y": source["o"]}
         graph = [("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)]
         query = ac.TemporalMediationEffect("t", "m", "y")
+    elif family == "confounded_mediation":
+        data = {"z": source["z"], "t": source["tc"], "m": source["mc"], "y": source["oc"]}
+        graph = [
+            ("z", 0, "t", 0),
+            ("z", 1, "m", 0),
+            ("z", 1, "y", 0),
+            ("t", 1, "m", 0),
+            ("t", 1, "y", 0),
+            ("m", 0, "y", 0),
+        ]
+        query = ac.TemporalMediationEffect("t", "m", "y")
+    elif family == "stationary_window":
+        data = {"t": source["t"], "m": source["m"], "y": source["u"]}
+        graph = [("t", 1, "m", 0), ("m", 1, "y", 0), ("m", 2, "y", 0)]
+        query = ac.SustainedEffect("t", "y", window=(-3, -2))
     elif family == "window":
         data = {"t": source["t"], "y": source["s"]}
         graph = [("t", 1, "y", 0), ("t", 2, "y", 0)]
@@ -109,15 +127,15 @@ def test_posterior_moments_and_artifact(accepted, scale, family):
         assert list(again.quantity_names) == list(art.quantity_names)
         effect_index = list(art.quantity_names).index(
             "mediation"
-            if family == "mediation"
+            if family in {"mediation", "confounded_mediation"}
             else "sustained_window"
-            if family == "window"
+            if family in {"window", "stationary_window"}
             else "ate"
         )
         check_moments(art.mean[effect_index], art.sd[effect_index] ** 2, expected)
         assert result.posterior is not None
         assert art.mean[effect_index] == result.posterior.effect_mean
-        if family == "mediation":
+        if family in {"mediation", "confounded_mediation"}:
             draws = np.asarray(art.draws).reshape((-1, art.n_draws))
             assert np.allclose(draws[1], draws[2] + draws[3], rtol=0, atol=1e-14)
 
@@ -311,9 +329,7 @@ def test_composed_hmc_refuses_without_derived_chain_diagnostics(window):
         refute="none",
         latency=None,
     )
-    with pytest.raises(
-        ac.errors.CausalEstimateError, match="derived-contrast chain diagnostics"
-    ):
+    with pytest.raises(ac.errors.CausalEstimateError, match="derived-contrast chain diagnostics"):
         prepared.estimate(data)
 
 
@@ -345,3 +361,189 @@ def test_path_functional_and_query_artifact(accepted, suite):
         )
         == artifact
     )
+
+
+@pytest.mark.parametrize("temporal", [False, True])
+@pytest.mark.parametrize("intervention", [False, True])
+@pytest.mark.parametrize("entry", ["prepare", "analyze"])
+@pytest.mark.parametrize("field", ["observation", "assumptions", "population"])
+def test_bayesian_response_preserves_or_refuses_observation_contract(
+    temporal, intervention, entry, field
+):
+    from antecedent import observation, population
+
+    t = np.linspace(-2, 2, 120)
+    data = {
+        "t": t,
+        "y": np.minimum(1 + t, 1.5),
+        "event": (t < 0.5).astype(float),
+        "c": np.full(len(t), 1.5),
+    }
+    options = {"horizons": [1]} if temporal else {}
+    if field == "observation":
+        options["observation"] = observation.RightCensored("y", "y", "c", "event")
+    elif field == "assumptions":
+        options["observation_assumptions"] = [observation.IndependentGiven([])]
+    else:
+        options["target_population"] = population.Treated()
+    query = (
+        ac.InterventionResponse("y", intervention=ac.intervention.Set("t", 1), **options)
+        if intervention
+        else ac.ResponseCurve("t", "y", grid=[0, 1], **options)
+    )
+    graph = [("t", 1, "y", 0)] if temporal else [("t", "y")]
+    call = PreparedAnalysis.prepare if entry == "prepare" else ac.analyze
+    with pytest.raises(
+        ac.errors.CausalUnsupportedError, match="observations|observation_assumptions|AllObserved"
+    ):
+        call(data, query=query, graph=graph, inference=ac.Bayesian(), refute="none")
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+@pytest.mark.parametrize("suite", ["none", "cheap", "full"])
+@pytest.mark.parametrize("bayesian", [False, True])
+def test_mediation_graph_confounder_adjusts_estimate_and_refuters(accepted, suite, bayesian):
+    rng = np.random.default_rng(120)
+    n = 4000
+    z = rng.normal(size=n)
+    t = z + rng.normal(size=n)
+    m = np.r_[0, t[:-1]] + 10 * np.r_[0, z[:-1]] + rng.normal(size=n)
+    y = 2 * m + 0.25 * np.r_[0, t[:-1]] + 5 * np.r_[0, z[:-1]] + rng.normal(size=n)
+    data = {"z": z, "t": t, "m": m, "y": y}
+    graph = [
+        ("z", 0, "t", 0),
+        ("z", 1, "m", 0),
+        ("z", 1, "y", 0),
+        ("t", 1, "m", 0),
+        ("t", 1, "y", 0),
+        ("m", 0, "y", 0),
+    ]
+    prepared = prepare(
+        data,
+        graph,
+        ac.TemporalMediationEffect("t", "m", "y"),
+        accepted=accepted,
+        suite=suite,
+        bayesian=bayesian,
+    )
+    result = prepared.estimate(data, seed=120)
+    assert result.ate == pytest.approx(2.0, abs=0.15)
+    if suite != "none":
+        reports = {report.refuter: report for report in result.validation.reports}
+        assert reports["mediation.random_common_cause"].refuted_ate == pytest.approx(
+            result.ate, abs=0.02
+        )
+        if suite == "full":
+            assert reports["mediation.contiguous_window"].refuted_ate == pytest.approx(2.0, abs=0.2)
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+@pytest.mark.parametrize("suite", ["cheap", "full"])
+@pytest.mark.parametrize("supported", [False, True])
+def test_continuous_conditional_validation_checks_conditional_support(accepted, suite, supported):
+    rng = np.random.default_rng(1218)
+    w = rng.normal(size=1000)
+    t = rng.normal(size=1000) if supported else w + rng.normal(scale=0.01, size=1000)
+    y = 2 * t + 0.5 * w + 0.5 * t * w + rng.normal(size=1000)
+    data = {"t": t, "w": w, "y": y}
+    graph = [("w", "t"), ("w", "y"), ("t", "y")]
+    prepared = prepare(
+        data, graph, ac.ConditionalEffect("t", "y", "w"), accepted=accepted, suite=suite
+    )
+    result = prepared.estimate(data)
+    reports = {report.refuter: report for report in result.validation.reports}
+    support = reports["overlap.continuous_support"]
+    assert support.informative
+    assert support.passed == supported
+    # Same polarity as binary overlap.assessment: comparison is unsupported mass.
+    assert (support.comparison <= 0.5) == supported
+    assert "posterior_predictive" in reports
+    if suite == "full":
+        assert result.validation.prior_sensitivity is not None
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+@pytest.mark.parametrize("family", ["conditional", "pulse", "sustained"])
+def test_query_export_preserves_outer_kind_and_original_variable_ids(accepted, family):
+    rng = np.random.default_rng(22)
+    t, w = rng.normal(size=(2, 300))
+    if family == "conditional":
+        data = {"t": t, "w": w, "y": 2 * t + 0.5 * t * w + rng.normal(size=300)}
+        graph = [("t", "y"), ("w", "y")]
+        query = ac.ConditionalEffect("t", "y", "w")
+    else:
+        data = {"t": t, "y": 2 * np.r_[0, t[:-1]] + 3 * np.r_[0, 0, t[:-2]] + rng.normal(size=300)}
+        graph = [("t", 1, "y", 0), ("t", 2, "y", 0)]
+        query = (
+            ac.PulseEffect("t", "y")
+            if family == "pulse"
+            else ac.SustainedEffect("t", "y", window=(-2, -1))
+        )
+    prepared = prepare(data, graph, query, accepted=accepted)
+    prepared.estimate(data)
+    artifact = artifacts.loads(prepared.export_artifact(payload="query"))
+    payload = artifact.payload
+    if family == "conditional":
+        assert set(payload) == {"conditional_effect"}
+        q = payload["conditional_effect"]["inner"]["average_effect"]
+        assert q["effect_modifiers"] == [1]
+        assert q["treatment"] == 0 and q["outcome"] == 2
+    else:
+        q = payload["temporal_effect"]
+        assert q["treatment"] == 0 and q["outcome"] == 1
+        assert q["policy"] == (
+            {"pulse": {"at": -1}} if family == "pulse" else {"sustained": {"from": -2, "until": -1}}
+        )
+        assert q["horizon_steps"] == 1
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+def test_prepared_response_accepts_explicit_complete_all_observed(accepted):
+    from antecedent import observation, population
+
+    source = {k: np.asarray(v) for k, v in FIXTURE["data"].items()}
+    data = {"t": source["t"], "y": source["r"]}
+    query = ac.ResponseCurve(
+        "t",
+        "y",
+        grid=[0, 1],
+        observation=observation.Complete(),
+        target_population=population.AllRows(),
+    )
+    p = prepare(data, [("t", "y")], query, accepted=accepted)
+    p.estimate(data)
+    q = artifacts.loads(p.export_artifact(payload="query")).payload["response"]
+    assert q["observation"] == "complete"
+    assert q["target_population"] == "all_observed"
+
+
+@pytest.mark.parametrize("backend", ["conjugate", "laplace"])
+def test_stationary_sustained_intervals_cover_shared_mechanism_truth(backend):
+    # Independent Gaussian innovations, one stationary a in two causal paths.
+    # The old independent-time-copy fit covered only 83% at the nominal 95% level.
+    graph = [("t", 1, "m", 0), ("m", 1, "y", 0), ("m", 2, "y", 0)]
+    covered, points, sds = [], [], []
+    for seed in range(200):
+        rng = np.random.default_rng(1400 + seed)
+        n = 300
+        t = rng.normal(size=n)
+        m = np.r_[0, t[:-1]] + rng.normal(size=n)
+        y = np.r_[0, m[:-1]] + np.r_[0, 0, m[:-2]] + rng.normal(scale=0.01, size=n)
+        data = {"t": t, "m": m, "y": y}
+        p = PreparedAnalysis.prepare(
+            data,
+            query=ac.SustainedEffect("t", "y", window=(-3, -2)),
+            graph=graph,
+            inference=ac.Bayesian(backend=backend, n_draws=4096),
+            refute="none",
+            latency=None,
+        )
+        result = p.estimate(data, seed=123)
+        draws = np.asarray(decode_posterior_artifact(p.export_artifact()).draws)
+        lower, upper = np.quantile(draws, [0.025, 0.975])
+        covered.append(lower <= 2 <= upper)
+        points.append(result.ate)
+        sds.append(result.posterior.effect_sd)
+    # A finite Monte Carlo gate, not a blanket coverage guarantee.
+    assert 0.91 <= np.mean(covered) <= 0.995
+    assert np.mean(sds) == pytest.approx(np.std(points, ddof=1), rel=0.15)
