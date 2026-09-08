@@ -305,3 +305,40 @@ def test_static_mediation_recanting_witness_refuses():
     query = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_indirect")
     with pytest.raises(ac.CausalError):
         PreparedAnalysis.prepare(data, graph=graph, query=query)
+
+
+def test_v13_named_refusals():
+    data, dag = fixture()
+    cf = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
+    med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
+    with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
+        ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+        ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(), refute="none")
+    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.7"):
+        ac.analyze(data, graph=dag, query=cf, inference=ac.Bayesian(), refute="none")
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.PointDerivative("a", "y", at=0.5),
+            inference=ac.Bayesian(),
+            estimator_config={"bandwidth": 0.35},
+            refute="none",
+        )
+    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
+        ac.analyze(
+            data,
+            query=cf,
+            discovery=ac.discovery.ExactDagPosterior(),
+            inference=ac.Bayesian(),
+            refute="none",
+        )
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+        ac.analyze(
+            data,
+            query=med,
+            discovery=ac.discovery.ExactDagPosterior(),
+            inference=ac.Bayesian(),
+            refute="none",
+        )

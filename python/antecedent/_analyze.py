@@ -379,8 +379,9 @@ def handle_response(
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         if not isinstance(query, (ResponseCurve, InterventionResponse)):
-            raise TypeError(
-                "derivative and jacobian response queries do not yet support inference=Bayesian(...)"
+            raise CausalUnsupportedError(
+                "refused: Licensed derivative cells are Frequentist explicit or accepted "
+                "Dag at validation none; Bayesian derivatives remain 1.7 work."
             )
         if bootstrap_requested:
             raise CausalUnsupportedError(
@@ -839,8 +840,13 @@ def handle_mediation(
     bootstrap: int | None,
     threads: int,
 ) -> Any:
-    del data, query, graph, discovery, refute, seed, bootstrap, threads
-    raise CausalUnsupportedError("refused: MediationEffect is not on the staged handle.")
+    del data, query, graph, refute, seed, bootstrap, threads
+    if discovery is not None:
+        raise CausalUnsupportedError(
+            "refused: Static natural mediation is Frequentist; a Bayesian mediation "
+            "estimator is 1.7 work."
+        )
+    raise CausalUnsupportedError("refused: MediationEffect requires a supplied static Dag.")
 
 
 def handle_counterfactual(
@@ -852,8 +858,13 @@ def handle_counterfactual(
     seed: int,
     threads: int,
 ) -> Any:
-    del data, query, graph, discovery, seed, threads
-    raise CausalUnsupportedError("refused: Counterfactual is not on the staged handle.")
+    del data, query, graph, seed, threads
+    if discovery is not None:
+        raise CausalUnsupportedError(
+            "refused: Staged counterfactuals require an explicit Dag; accepted and "
+            "graph-posterior structures are refused."
+        )
+    raise CausalUnsupportedError("refused: Counterfactual requires a supplied static Dag.")
 
 
 def handle_distribution(
@@ -2070,7 +2081,7 @@ def analyze(
             )
 
     kind = getattr(query, "kind", "")
-    # New 1.2 coordinates share the staged Rust execution path, including the
+    # 1.2/1.3 coordinates share the staged Rust execution path, including the
     # frozen structure axis, validation reports and posterior serialization.
     use_prepared = (
         kind
