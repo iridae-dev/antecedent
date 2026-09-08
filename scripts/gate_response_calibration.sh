@@ -13,4 +13,9 @@ cargo test -p antecedent --test response_facade \
   two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract
 cargo test -p antecedent --test temporal_response_facade
 
+cargo test -p antecedent-stats --lib cox_ipcw
+cargo test -p antecedent --test staged_derivatives
+cargo test -p antecedent --test staged_static_kinds
+cargo test -p antecedent --test conditional_ipcw
+
 echo "gate_response_calibration: ok"

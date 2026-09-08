@@ -6,8 +6,8 @@
 
 [[closed]]
 queries = ["Counterfactual"]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
-reason = "Counterfactual is not on the staged handle."
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "Counterfactual requires a supplied static Dag."
 
 [[closed]]
 queries = [
@@ -18,8 +18,9 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
 ]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
-reason = "Derivative cells are not licensed; only ResponseCurve (static Dag or temporal TemporalDag) is staged."
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "Derivatives require a supplied static Dag."
+
 
 [[closed]]
 queries = ["ResponseCurve"]
@@ -40,8 +41,8 @@ reason = "Accepted path and distribution queries require a Dag."
 
 [[closed]]
 queries = ["MediationEffect"]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
-reason = "MediationEffect is not on the staged handle."
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "MediationEffect requires a supplied static Dag."
 
 [[closed]]
 queries = ["TransportQuery", "InterferenceQuery"]

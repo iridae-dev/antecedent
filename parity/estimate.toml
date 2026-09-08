@@ -364,3 +364,33 @@ known_truth_fixture = "conformance/bayesian/release_12_moments"
 python_facade = "full"
 limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+
+[[capabilities]]
+id = "estimate.mediation.linear"
+group = "staged_static_kinds"
+description = "Static natural mediation and structural counterfactuals on the prepared handle"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+owner = "estimate"
+notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable."
+
+[[capabilities]]
+id = "validate.static_mediation"
+group = "staged_static_kinds"
+description = "Static natural mediation and structural counterfactuals on the prepared handle"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+owner = "estimate"
+notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable."
+
+[[capabilities]]
+id = "identify.gcm_parametric"
+group = "staged_static_kinds"
+description = "Static natural mediation and structural counterfactuals on the prepared handle"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+owner = "estimate"
+notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable."

@@ -76,7 +76,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "The two-point curve contrast and AverageEffect are each compared to the fixture's analytic linear-SCM truth, and are cross-checked against each other. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves (ObservationSpec != Complete) ride this cell; their evidence is conformance/response/observation_primitives."
+limitations = "The two-point curve contrast and AverageEffect are each compared to the fixture's analytic linear-SCM truth, and are cross-checked against each other. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation pairs are explicitly constrained by docs/observation-contract.md: selected AIPW with OutcomeIndependentGiven(Z), marginal right/left KM with IndependentGiven([]), conditional right/left Cox with IndependentGiven(Z). Fixtures: conformance/response/observation_pairs and conformance/response/conditional_ipcw. Conditional delayed entry, interval/truncation MLE and joint observation/curve bands are unavailable."
 
 [[cell]]
 query = "ResponseCurve"
@@ -87,7 +87,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/two_point_curve_average_effect"
-limitations = "Accepted Dag uses the same two-point analytic linear-SCM truth check as explicit Dag. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation-mechanism curves ride this cell with separate evidence in conformance/response/observation_primitives."
+limitations = "Accepted Dag uses the same two-point analytic linear-SCM truth check as explicit Dag. This is a shared correctly specified linear contract, not nonlinear response-curve validation. Observation pairs follow docs/observation-contract.md with consuming evidence in conformance/response/observation_pairs and conformance/response/conditional_ipcw. Only selected AIPW, marginal KM and conditional Cox IPCW are licensed; no conditional delayed entry, interval/truncation MLE or joint observation/curve bands."
 
 [[cell]]
 query = "ResponseCurve"
@@ -1275,3 +1275,212 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "Elasticity"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "Elasticity"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."

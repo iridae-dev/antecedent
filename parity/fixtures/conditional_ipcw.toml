@@ -1,0 +1,6 @@
+id = "response.conditional_ipcw"
+capability_ids = ["estimate.observation_cox_ipcw"]
+fixture_dir = "conformance/response/conditional_ipcw"
+tolerance_class = "StableFloat"
+generator = "conformance/response/conditional_ipcw/generate.R"
+baseline_pin = "parity/baselines/survival.toml"

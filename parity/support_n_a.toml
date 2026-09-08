@@ -35,3 +35,10 @@ graph_classes = ["Dag", "TemporalDag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued estimand has no such state."
+
+[[n_a]]
+queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "Derivative-native validation is not implemented; ATE refuters do not apply."
