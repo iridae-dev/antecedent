@@ -663,6 +663,27 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
 }
 
 #[test]
+fn prepared_conditional_bayesian_records_bayesian_estimator() {
+    let (data, dag, query) = conditional_effect_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let analysis = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::ConditionalEffect(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("conditional.bayesian"),);
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    assert!(click.posterior.is_some());
+    assert_eq!(click.logical_plan.estimator.as_deref(), Some("conditional.bayesian"));
+    assert_eq!(click.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
+    assert_cached_only_on_prepared(&fresh, &[&click]);
+}
+
+#[test]
 fn prepared_path_specific_reestimate_matches_fresh() {
     let (data, dag, query) = path_specific_fixture();
     let ctx = ExecutionContext::for_tests(1);

@@ -1,11 +1,6 @@
-//! Per-run validator skips (`ValidationOutcome::NotApplicable`) must be visible to the
-//! caller as diagnostics, not silently dropped by `ValidationSuite::reports_only`.
-//!
-//! See `crates/antecedent-validate/src/suite.rs` (`ValidationSuite::not_applicable_only`)
-//! and `crates/antecedent/src/analysis/helpers.rs` (`validator_not_applicable_diagnostic`).
-//! `manufacturing_temporal.rs` pins the temporal case (`OverlapRefuter` skipped on a
-//! temporal-unfolded design under `RefuteSuite::Cheap`); this file pins a non-temporal
-//! case.
+//! Effect-suite applicability: ConditionalEffect Placebo/RCC run on the licensed
+//! interaction-model scalar. Per-run `NotApplicable` skips remain pinned for temporal
+//! overlap in `manufacturing_temporal.rs`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -23,14 +18,9 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 
-/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`, whose
-/// estimator id is `"conditional.linear.adjustment"` — not `"linear.adjustment.ate"` —
-/// so `ValidationSuite::run_one`'s `linear_ok` gate is false here and `Placebo` /
-/// `RandomCommonCause` are each `NotApplicable` for this run (see
-/// `crates/antecedent-validate/src/suite.rs`). Neither is a support-matrix refusal: the
-/// same two validators run and pass on an unconditional ATE over the identical data
-/// (`facade_gaps.rs::conditional_effect_via_causal_analysis` runs this estimator
-/// successfully; only the refuters are gated).
+/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`. The licensed
+/// number is the interaction-model scalar at Ē[W], so Placebo / RCC refit that model
+/// rather than skipping because the estimator id is not `linear.adjustment.ate`.
 fn conditional_query_fixture(n: usize) -> (TabularData, Dag, ConditionalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "y", "w"] {
@@ -73,7 +63,7 @@ fn conditional_query_fixture(n: usize) -> (TabularData, Dag, ConditionalEffectQu
 }
 
 #[test]
-fn conditional_effect_placebo_and_rcc_skip_surfaces_as_diagnostics() {
+fn conditional_effect_placebo_and_rcc_run_on_interaction_scalar() {
     let (data, g, cq) = conditional_query_fixture(120);
     let analysis = Study::tabular(data)
         .graph(g)
@@ -83,46 +73,20 @@ fn conditional_effect_placebo_and_rcc_skip_surfaces_as_diagnostics() {
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
     assert!(result.estimate.ate.is_finite());
-
-    // Both requested validators were NotApplicable this run, so the caller-visible
-    // refutation list is empty...
+    let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     assert!(
-        result.refutations.is_empty(),
-        "expected no refutation reports (both validators NotApplicable); got {:?}",
-        result.refutations.iter().map(|r| r.refuter.as_ref()).collect::<Vec<_>>()
+        names.iter().any(|n| n.contains("placebo")),
+        "placebo must run on the licensed conditional scalar; got {names:?}"
     );
-
-    // ...but the skip must not be invisible: one `refute.validator.not_applicable`
-    // diagnostic per skipped validator, distinguishable from the support matrix's
-    // permanent `not_applicable` refusal.
-    let skips: Vec<_> = result
-        .diagnostics
-        .iter()
-        .filter(|d| d.code.as_ref() == "refute.validator.not_applicable")
-        .collect();
-    assert_eq!(
-        skips.len(),
-        2,
-        "expected one diagnostic each for Placebo and RandomCommonCause; got {:?}",
+    assert!(
+        names
+            .iter()
+            .any(|n| n.contains("random.common_cause") || n.contains("random_common_cause")),
+        "RCC must run on the licensed conditional scalar; got {names:?}"
+    );
+    assert!(
+        result.diagnostics.iter().all(|d| d.code.as_ref() != "refute.validator.not_applicable"),
+        "Placebo/RCC are applicable here; got {:?}",
         result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
     );
-    let validators: Vec<&str> = skips
-        .iter()
-        .flat_map(|d| d.fields.iter())
-        .filter(|(k, _)| k.as_ref() == "validator")
-        .map(|(_, v)| v.as_ref())
-        .collect();
-    assert!(validators.contains(&"placebo"), "expected a placebo skip diagnostic: {validators:?}");
-    assert!(
-        validators.contains(&"random_common_cause"),
-        "expected a random_common_cause skip diagnostic: {validators:?}"
-    );
-    for d in &skips {
-        assert!(
-            d.message.contains("per-run") && d.message.contains("not a permanent"),
-            "diagnostic message must distinguish this per-run skip from the support \
-             matrix's permanent not_applicable state; got: {}",
-            d.message
-        );
-    }
 }

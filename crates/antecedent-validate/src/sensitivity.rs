@@ -225,6 +225,12 @@ impl SensitivityGram {
         estimator: &LinearAdjustmentAte,
         u: &[f64],
     ) -> Result<Option<Self>, ValidationError> {
+        if !problem.query.effect_modifiers.is_empty() {
+            // Fast path is β_T · Δ on [1, T, Z]; the licensed conditional scalar is
+            // (β_T + β_{T×W} Ē[W]) · Δ. Fall back to the data pass, which refits the
+            // interaction model.
+            return Ok(None);
+        }
         // Data-pass `with_replaced_float` marks T and Y all-valid, so `prepare`
         // can keep rows that were missing on the original T/Y. Compile against
         // that same table or the Gram row set silently disagrees.

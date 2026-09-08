@@ -15,8 +15,8 @@ use antecedent_data::{
 
 use crate::panel_slice::PanelSliceTemplate;
 use antecedent_estimate::{
-    EffectEstimate, EstimationWorkspace, IpwTarget, LinearAdjustmentAte, OverlapPolicy,
-    OverlapReport, TemporalLinearAdjustment,
+    ConditionalLinearAdjustment, EffectEstimate, EstimationWorkspace, IpwTarget,
+    LinearAdjustmentAte, OverlapPolicy, OverlapReport, TemporalLinearAdjustment,
 };
 use antecedent_identify::IdentifiedEstimand;
 use antecedent_kernels::erfc;
@@ -176,7 +176,10 @@ pub(crate) fn with_extra_float(
     data.with_appended_float(name, values).map_err(ValidationError::from)
 }
 
-/// Fit linear adjustment once (no nested bootstrap pools).
+/// Fit the licensed scalar once (no nested bootstrap pools).
+///
+/// Queries with effect modifiers refit [`ConditionalLinearAdjustment`] — the same
+/// interaction model that produced the licensed CATE-at-mean — not main-effects ATE.
 pub(crate) fn fit_once(
     estimator: &LinearAdjustmentAte,
     data: &TabularData,
@@ -185,6 +188,11 @@ pub(crate) fn fit_once(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
+    if !query.effect_modifiers.is_empty() {
+        return ConditionalLinearAdjustment::new()
+            .estimate_ate(data, estimand, query)
+            .map_err(ValidationError::from);
+    }
     let prep = estimator.prepare(data, estimand, query).map_err(ValidationError::from)?;
     estimator
         .fit(&prep, workspace, ctx, antecedent_core::AssumptionSet::new())

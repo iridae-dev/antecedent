@@ -231,10 +231,9 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
     (parity/support_closed.toml, 2026-08-19 addition): general ID is the only
     identifier compile.rs wires for a bidirected ADMG, and it is not compatible
     with the bayesian.gcomp estimator that inference=Bayesian selects. Reachable
-    from Python (unlike ConditionalEffect/TemporalMediationEffect x Bayesian,
-    which _analyze.py itself pre-empts with a TypeError before reaching native
-    code) because AverageEffect x Admg passes a bare Admg graph straight through
-    to native support-matrix consultation."""
+    from Python because AverageEffect x Admg passes a bare Admg graph straight
+    through to native support-matrix consultation. Licensed ConditionalEffect /
+    TemporalMediationEffect Bayesian cells now take the staged prepare path."""
     n = 300
     u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
     t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])

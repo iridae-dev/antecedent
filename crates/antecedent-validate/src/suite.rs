@@ -388,7 +388,12 @@ impl ValidationSuite {
     ) -> Result<ValidationOutcome, ValidationError> {
         let method = problem.estimand.method_kind().ok();
         let static_linear = method == Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
-            && problem.estimator.is_none_or(|e| e == "linear.adjustment.ate");
+            && problem.estimator.is_none_or(|e| {
+                // Conditional's licensed number is the interaction-model scalar at Ē[W].
+                // That is an effect, so the effect suite runs; skipping it because the
+                // estimator id is not `linear.adjustment.ate` is a demotion.
+                matches!(e, "linear.adjustment.ate" | "conditional.linear.adjustment")
+            });
         let temporal_linear = method
             == Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
             && problem.temporal.is_some()

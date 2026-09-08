@@ -1082,14 +1082,14 @@ class PreparedAnalysis:
                     f"temporal response requires identifier='temporal.backdoor.unfolded'; "
                     f"got {identifier!r}"
                 )
-            if estimator not in (
-                None,
+            expected_estimator = (
                 "response.temporal.bayesian"
                 if isinstance(inference, Bayesian)
-                else "temporal.response.gcomp",
-            ):
+                else "temporal.response.gcomp"
+            )
+            if estimator not in (None, expected_estimator):
                 raise CausalValueError(
-                    f"temporal response requires estimator='temporal.response.gcomp'; "
+                    f"temporal response requires estimator={expected_estimator!r}; "
                     f"got {estimator!r}"
                 )
             return cls._prepare_temporal(

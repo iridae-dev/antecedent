@@ -505,7 +505,11 @@ impl super::Study {
                         outcome,
                         temporal,
                         &query.target_population,
-                        EstimatorId::TemporalResponseGcomp,
+                        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                            EstimatorId::TemporalResponseBayesian
+                        } else {
+                            EstimatorId::TemporalResponseGcomp
+                        },
                     )?),
                     false,
                 )
