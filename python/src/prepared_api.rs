@@ -1607,8 +1607,7 @@ impl PyPreparedAnalysis {
             .ok_or_else(|| PyValueError::new_err("estimate before exporting an artifact"))?;
         let bytes = if payload == "query" {
             let query = antecedent_io::CausalPayloadWire::Query(Box::new(
-                antecedent_io::causal_query_to_wire(&result.identification.query)
-                    .map_err(py_err)?,
+                antecedent_io::causal_query_to_wire(self.inner.query()).map_err(py_err)?,
             ));
             let artifact = antecedent_io::encode_causal_payload_artifact(
                 &query,

@@ -191,7 +191,7 @@ def _staged_prepared_result(
         inference=inference,
         identifier=identifier,
         estimator=estimator,
-        refute=refute,
+        refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
