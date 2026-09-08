@@ -228,8 +228,9 @@ def test_handle_response_bayesian_curve_uses_staged_path():
 
 def test_handle_response_bayesian_derivative_still_unsupported():
     from antecedent._analyze import handle_response
+    from antecedent.errors import CausalUnsupportedError
 
-    with pytest.raises(TypeError, match="derivative and jacobian response queries"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
         handle_response(
             _DATA,
             antecedent.AverageDerivative("t", "y"),

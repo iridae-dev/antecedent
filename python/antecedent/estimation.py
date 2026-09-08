@@ -1234,8 +1234,14 @@ class PreparedAnalysis:
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             if inference is not None and not isinstance(inference, Frequentist):
+                if isinstance(query, MediationEffect):
+                    raise CausalUnsupportedError(
+                        "refused: Static natural mediation is Frequentist; a Bayesian "
+                        "mediation estimator is 1.7 work."
+                    )
                 raise CausalUnsupportedError(
-                    "static mediation and counterfactuals require Frequentist"
+                    "refused: Counterfactuals are Frequentist abduction-action-prediction; "
+                    "a posterior over mechanisms is 1.7 work."
                 )
             expected_id = (
                 "path_specific.natural" if isinstance(query, MediationEffect) else "gcm.parametric"
@@ -1248,8 +1254,14 @@ class PreparedAnalysis:
             if isinstance(query, Counterfactual) and (
                 structure_accepted or refute not in (False, "none", Refute.NONE)
             ):
+                if structure_accepted:
+                    raise CausalUnsupportedError(
+                        "refused: Staged counterfactuals require an explicit Dag; accepted "
+                        "and graph-posterior structures are refused."
+                    )
                 raise CausalUnsupportedError(
-                    "counterfactuals require explicit Dag and refute='none'"
+                    "refused: Counterfactual cheap/full are not licensed; there is no "
+                    "native ITE refuter suite and ATE refuters do not apply."
                 )
             if isinstance(query, Counterfactual) and bootstrap:
                 raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
@@ -1367,7 +1379,10 @@ class PreparedAnalysis:
             from .observation import Complete
 
             if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalUnsupportedError("derivatives require Frequentist inference")
+                raise CausalUnsupportedError(
+                    "refused: Licensed derivative cells are Frequentist explicit or "
+                    "accepted Dag at validation none; Bayesian derivatives remain 1.7 work."
+                )
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError("not_applicable: derivatives require refute='none'")
             if getattr(query, "observation", None) is not None and not isinstance(
