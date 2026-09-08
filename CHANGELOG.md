@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-08
+
+### Added
+
+- Staged Frequentist DAG derivative cells, including explicit bandwidth and
+  observed-law Riesz / additive-GAM restrictions.
+- Conditional right/left Cox IPCW, executing R survival parity, and a published
+  observation-pair contract. Joint observation/curve bands remain unavailable.
+- Static natural mediation with native cheap/full validation and unit-level GCM
+  counterfactuals with preserved active/control levels.
+- Cached identification, four result axes, static result artifacts, numerical
+  fixtures and prepared-handle benchmarks. See [release evidence](docs/v1.3-evidence.md).
+
 ## [1.2.0] — 2026-09-07
 
 ### Added

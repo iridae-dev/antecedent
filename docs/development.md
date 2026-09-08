@@ -139,7 +139,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **1.2.0**).
+Workspace and Python package version are kept in sync (currently **1.3.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -167,16 +167,16 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.2.0
+bash scripts/set_version.sh 1.3.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -m "chore: bump version to 1.2.0"
+git commit -m "chore: bump version to 1.3.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.2.0
-git push origin v1.2.0
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.3.0
+git push origin v1.3.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -224,4 +224,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.2.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.3.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

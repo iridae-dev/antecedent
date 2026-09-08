@@ -60,10 +60,10 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.2.0**. This compatible minor adds query-native
+The current package version is **1.3.0**. This compatible minor adds query-native
 validation, Bayesian conditional/mediation/response estimators, accepted-DAG
 functional queries, and sequential sustained-window effects. The
-[1.2.0 release notes](docs/release-notes/v1.2.0.md) and
+[1.3.0 release notes](docs/release-notes/v1.3.0.md) and
 [evidence ledger](docs/v1.2-evidence.md) define the licensed forms,
 assumptions, numerical references, and deliberate non-goals.
 
