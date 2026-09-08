@@ -1,4 +1,4 @@
-//! Effect-suite applicability: ConditionalEffect Placebo/RCC run on the licensed
+//! Effect-suite applicability: `ConditionalEffect` Placebo/RCC run on the licensed
 //! interaction-model scalar. Per-run `NotApplicable` skips remain pinned for temporal
 //! overlap in `manufacturing_temporal.rs`.
 //!

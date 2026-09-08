@@ -138,6 +138,8 @@ pub struct Study {
     /// per estimate click is exact; `None` (every builder-constructed study)
     /// identifies on each run.
     pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
+    /// Frozen graph-derived mediation adjustment, including temporal lags.
+    pub(crate) mediation_adjustment_cache: Option<Arc<[antecedent_data::LaggedColumn]>>,
     /// Prepare-time generalized-adjustment envelope for a supplied PAG.
     pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
     /// Prepare-time temporal-backdoor identification + indexer for temporal response.
@@ -176,6 +178,7 @@ impl std::fmt::Debug for Study {
             .field("latency_mode", &self.latency_mode)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
             .field("identification_cache_is_some", &self.identification_cache.is_some())
+            .field("mediation_adjustment_cache", &self.mediation_adjustment_cache)
             .field("pag_identification_cache_is_some", &self.pag_identification_cache.is_some())
             .field(
                 "temporal_identification_cache_is_some",

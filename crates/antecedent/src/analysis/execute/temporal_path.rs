@@ -3,6 +3,26 @@
 use super::*;
 
 impl super::Study {
+    pub(crate) fn mediation_adjustment(
+        &self,
+        graph: &TemporalDag,
+        query: &antecedent_core::MediationQuery,
+    ) -> Result<Arc<[antecedent_data::LaggedColumn]>, CausalError> {
+        if let Some(adjustment) = &self.mediation_adjustment_cache {
+            return Ok(Arc::clone(adjustment));
+        }
+        let nodes = TemporalMediationIdentifier::adjustment_nodes(graph, query)
+            .map_err(CausalError::from)?;
+        Ok(nodes
+            .iter()
+            .map(|key| antecedent_data::LaggedColumn {
+                variable: key.variable,
+                lag: antecedent_core::Lag::from_raw(key.offset.unsigned_abs()),
+            })
+            .collect::<Vec<_>>()
+            .into())
+    }
+
     pub(super) fn execute_temporal(
         &self,
         data: &TimeSeriesData,
@@ -61,7 +81,7 @@ impl super::Study {
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
                 assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared moving-block row bootstrap, Bayesian intervals use independent Gaussian mechanism posteriors"),
+                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared moving-block row bootstrap, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
                 }),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
                 scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
@@ -288,19 +308,22 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
         require_identified(&identification)?;
-        let mut est = TemporalMediationEstimator::new();
-        est.allow_natural_controlled_alias = true;
-        let mediation = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
+        let adjustment = self.mediation_adjustment(graph, query)?;
+        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let mediation = est
+            .estimate_with_adjustment(data, &estimand, query, &adjustment, &[], ctx)
+            .map_err(CausalError::from)?;
         let estimate = mediation.effect.clone();
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
-            antecedent_validate::mediation::refute_temporal_mediation(
+            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
                 data,
                 &estimand,
                 query,
                 &mediation,
                 self.refute == RefuteSuite::Full,
+                &adjustment,
                 ctx,
             )
             .map_err(CausalError::from)?
@@ -347,7 +370,8 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         use antecedent_estimate::bayesian_mediation::{
-            compose_temporal_mediation, prepare_temporal_mediation, require_gaussian_mediation,
+            compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+            require_gaussian_mediation,
         };
         let started = Instant::now();
         if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
@@ -366,8 +390,10 @@ impl super::Study {
                 let estimand = select_estimand(&id, EstimatorId::BayesianTemporalMediation)?;
                 Ok((id, estimand))
             })?;
+        let adjustment = self.mediation_adjustment(graph, query)?;
         let preparations =
-            prepare_temporal_mediation(data, &estimand, query, ctx).map_err(CausalError::from)?;
+            prepare_temporal_mediation_adjusted(data, &estimand, query, &adjustment, ctx)
+                .map_err(CausalError::from)?;
         let estimator = bayesian_gcomp(cfg, ctx);
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
         let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
@@ -406,12 +432,13 @@ impl super::Study {
         let mut refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
-            antecedent_validate::mediation::refute_temporal_mediation(
+            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
                 data,
                 &estimand,
                 query,
                 &mediation,
                 self.refute == RefuteSuite::Full,
+                &adjustment,
                 ctx,
             )
             .map_err(CausalError::from)?

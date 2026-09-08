@@ -30,6 +30,20 @@ pub fn refute_temporal_mediation(
     full: bool,
     ctx: &ExecutionContext,
 ) -> Result<Vec<RefutationReport>, ValidationError> {
+    refute_temporal_mediation_adjusted(data, estimand, query, original, full, &[], ctx)
+}
+
+/// Run the native suite with the same graph-derived adjustment as the estimate.
+#[allow(clippy::float_cmp, clippy::too_many_arguments)]
+pub fn refute_temporal_mediation_adjusted(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &MediationQuery,
+    original: &TemporalMediationEstimate,
+    full: bool,
+    adjustment: &[LaggedColumn],
+    ctx: &ExecutionContext,
+) -> Result<Vec<RefutationReport>, ValidationError> {
     let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
     let tabular = TabularData::new(data.storage().clone());
     let mediator = *estimand.mediators.first().ok_or(ValidationError::NotApplicable {
@@ -49,12 +63,22 @@ pub fn refute_temporal_mediation(
         let replaced = with_replaced_float(&tabular, mediator, Arc::from(noise.clone()))?;
         let series =
             TimeSeriesData::try_new(replaced.storage().clone(), data.time_index().clone())?;
-        placebo.push(estimator.estimate(&series, estimand, &placebo_query, ctx)?.effect.ate);
+        placebo.push(
+            estimator
+                .estimate_with_adjustment(&series, estimand, &placebo_query, adjustment, &[], ctx)?
+                .effect
+                .ate,
+        );
         let (augmented, id) =
             with_extra_float(&tabular, "__mediation_rcc", Arc::from(noise.clone()))?;
         let series =
             TimeSeriesData::try_new(augmented.storage().clone(), data.time_index().clone())?;
-        rcc.push(estimator.estimate_with_extras(&series, estimand, query, &[id], ctx)?.effect.ate);
+        rcc.push(
+            estimator
+                .estimate_with_adjustment(&series, estimand, query, adjustment, &[id], ctx)?
+                .effect
+                .ate,
+        );
         if full {
             let window = with_contiguous_row_window(&tabular, 0.8, ctx, 0xF015_0000 + replicate)?;
             let index = TimeIndex {
@@ -62,7 +86,12 @@ pub fn refute_temporal_mediation(
                 length: window.row_count(),
             };
             let series = TimeSeriesData::try_new(window.storage().clone(), index)?;
-            subset.push(estimator.estimate(&series, estimand, query, ctx)?.effect.ate);
+            subset.push(
+                estimator
+                    .estimate_with_adjustment(&series, estimand, query, adjustment, &[], ctx)?
+                    .effect
+                    .ate,
+            );
         }
     }
     let mut reports = vec![
@@ -74,14 +103,14 @@ pub fn refute_temporal_mediation(
     }
     // Binary treatment permits a direct empirical mediator-support check. This
     // is a necessary range diagnostic, not a proof of conditional positivity.
-    let plan = data.plan_lagged_sample(
-        1,
-        Arc::from([
-            LaggedColumn { variable: query.treatment, lag: antecedent_core::Lag::from_raw(1) },
-            LaggedColumn { variable: mediator, lag: antecedent_core::Lag::CONTEMPORANEOUS },
-            LaggedColumn { variable: query.outcome, lag: antecedent_core::Lag::CONTEMPORANEOUS },
-        ]),
-    )?;
+    let mut columns = vec![
+        LaggedColumn { variable: query.treatment, lag: antecedent_core::Lag::from_raw(1) },
+        LaggedColumn { variable: mediator, lag: antecedent_core::Lag::CONTEMPORANEOUS },
+        LaggedColumn { variable: query.outcome, lag: antecedent_core::Lag::CONTEMPORANEOUS },
+    ];
+    columns.extend_from_slice(adjustment);
+    let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
+    let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
     let mut workspace = LaggedSampleWorkspace::default();
     let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
     let t = sample.column(0);
