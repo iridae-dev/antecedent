@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-07
+
+### Added
+
+- Query-native path/distribution and temporal-mediation validation; applicable
+  DBN-posterior effect refuters, predictive checks and prior sensitivity.
+- Bayesian conditional, temporal-mediation and static/temporal response
+  estimators, with explicit Gaussian model restrictions.
+- Accepted-DAG path/distribution staged queries and multi-step sustained
+  effects on explicit/accepted TemporalDag, including Bayesian inference.
+- Python sustained `window=(from, until)` and prepared result artifact export.
+- Independent posterior moment references, provenance cards and a
+  [release evidence ledger](docs/v1.2-evidence.md).
+
+### Fixed
+
+- Discrete functional estimation now respects analysis masks, so native
+  subset refuters actually refit the retained rows.
+- Python primary mediation effect reports the requested contrast, rather than
+  always returning total mediation.
+- JSON artifact parsing preserves exact floating-point round trips.
+- DBN validation anchors on an atom that survives interactive subsampling.
+
+The [release notes](docs/release-notes/v1.2.0.md) specify licensed forms and
+unsupported extensions; these additions make no external-package parity claim.
+
 ## [1.1.0] — 2026-09-07
 
 Compatible evidence and prepared-execution upgrade for the frozen 1.0

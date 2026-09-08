@@ -55,12 +55,12 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.1.0**. This compatible minor keeps the 1.0
-surface and refusal boundary intact while strengthening existing licensed
-families with known-truth graph-mixture evidence, pinned PAG/ADMG estimates,
-and prepare-time identification caches. See the
-[1.1.0 release notes](docs/release-notes/v1.1.0.md) and the
-[roadmap](ROADMAP.md) for the compatibility boundary and deliberate non-goals.
+The current package version is **1.2.0**. This compatible minor adds query-native
+validation, Bayesian conditional/mediation/response estimators, accepted-DAG
+functional queries, and sequential sustained-window effects. The
+[1.2.0 release notes](docs/release-notes/v1.2.0.md) and
+[evidence ledger](docs/v1.2-evidence.md) define the licensed forms,
+assumptions, numerical references, and deliberate non-goals.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·
