@@ -12,7 +12,7 @@ Results preserve assumptions, uncertainty, diagnostics, and provenance across sc
 
 Five decision-focused notebooks run without local setup:
 
-| Notebook | |
+| Notebook | Run |
 | --- | --- |
 | [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — see how a naive dashboard can overstate paid-search impact by crediting the campaign for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
 | [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse evidence from a previous campaign without assuming the new campaign is identical, then let current data update or contradict it. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
@@ -34,11 +34,16 @@ The question, structural assumptions, identification status, uncertainty, estima
 - scalar effects, distributions, response curves, and temporal trajectories;
 - structural uncertainty from CPDAGs, PAGs, and graph posteriors;
 - observation mechanisms, transport, interference, and interventions;
-- durable analyses that can be reviewed, reused, and serialized without losing their scientific meaning.
+- durable artifacts with explicit contracts for the scientific fields they retain.
 
 The point is not simply breadth. It is that distinctions established upstream remain meaningful downstream, so unearned certainty cannot creep in at the seams. Most choices in Antecedent come from that and it has become a central organizing principle: a scientific claim must not become stronger merely because context was dropped while moving through discovery, identification, estimation, serialization, or the Rust/Python boundary.
 
 See [**Capabilities**](docs/capabilities.md) for the full inventory and [**Support Matrix**](docs/support-matrix.md) for the analysis combinations licensed in the current release.
+
+Artifact contents depend on the payload. Scalar posterior exports retain draws
+and identification metadata but omit the complete assumption and validation
+ledger; keep the analysis result alongside them. See the
+[artifact contracts](docs/artifacts.md#exporting-prepared-results-in-12).
 
 ## Epistemic Honesty
 
@@ -55,12 +60,12 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.1.0**. This compatible minor keeps the 1.0
-surface and refusal boundary intact while strengthening existing licensed
-families with known-truth graph-mixture evidence, pinned PAG/ADMG estimates,
-and prepare-time identification caches. See the
-[1.1.0 release notes](docs/release-notes/v1.1.0.md) and the
-[roadmap](ROADMAP.md) for the compatibility boundary and deliberate non-goals.
+The current package version is **1.2.0**. This compatible minor adds query-native
+validation, Bayesian conditional/mediation/response estimators, accepted-DAG
+functional queries, and sequential sustained-window effects. The
+[1.2.0 release notes](docs/release-notes/v1.2.0.md) and
+[evidence ledger](docs/v1.2-evidence.md) define the licensed forms,
+assumptions, numerical references, and deliberate non-goals.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·

@@ -517,7 +517,7 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
         )
 
 
-def test_response_refuses_discovery_and_bayesian():
+def test_response_refuses_discovery_and_runs_bayesian():
     data = {"a": np.arange(40.0), "y": np.arange(40.0)}
     query = antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0])
     with pytest.raises(ValueError, match="discovery="):
@@ -527,10 +527,10 @@ def test_response_refuses_discovery_and_bayesian():
             graph=[("a", "y")],
             discovery=antecedent.discovery.PC(alpha=0.05),
         )
-    with pytest.raises(TypeError, match="Bayesian"):
-        antecedent.analyze(
-            data,
-            query=query,
-            graph=[("a", "y")],
-            inference=antecedent.Bayesian(n_draws=8),
-        )
+    result = antecedent.analyze(
+        data,
+        query=query,
+        graph=[("a", "y")],
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
+    )
+    assert np.asarray(result.response.values).flatten() == pytest.approx([1, 2], abs=0.1)

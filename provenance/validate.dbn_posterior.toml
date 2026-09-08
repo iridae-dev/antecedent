@@ -1,0 +1,10 @@
+feature_id = "validate.dbn_posterior"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+upstream_implementations_observed = []
+implementation_deviations = ["Applicable temporal effect refuters run on every contributing atom design against the mixture effect and mix by posterior mass. Unidentified mass stays separate; failed atoms and interactive subsampling cannot contribute refuter mass.", "Prior and posterior predictive checks and full prior-sensitivity refit all contributing atom designs with their normalized weights. Unidentified mass stays separate; failed atoms and interactive subsampling cannot anchor refuters on an excluded graph."]
+test_sources = ["conformance/bayesian/known_truth_mixtures", "python/tests/test_release_12.py"]

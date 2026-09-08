@@ -611,15 +611,9 @@ fn sustained_query() -> TemporalEffectQuery {
         .with_horizon_steps(1)
 }
 
-/// Multi-step `Sustained` (`until > from`) is refused by
-/// `TemporalLinearAdjustment`/`BayesianGComputationAte::from_prepared_estimation`
-/// (`refuse_multi_step_schedule`, `antecedent-estimate/src/temporal_adjustment.rs`):
-/// a single-column regression cannot honor the multi-node contrast a genuine
-/// multi-step Sustained estimand requires. Confirms that limitation still holds
-/// so the single-step-only scope claimed by the fixture/limitations text stays
-/// honest, rather than silently becoming stale if the estimator is ever extended.
+/// Both treatment times are handled by the sequential estimator.
 #[test]
-fn temporal_sustained_multi_step_is_refused() {
+fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
     let (series, g) = sustained_scm_series(400, 0.7);
     let q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0)
@@ -635,12 +629,9 @@ fn temporal_sustained_multi_step_is_refused() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let err = analysis.run(&ExecutionContext::for_tests(42)).unwrap_err();
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("not supported") || msg.contains("single-step") || msg.contains("refus"),
-        "expected a multi-step-refusal error, got: {msg}"
-    );
+    let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
+    assert!((result.estimate.ate - 0.7).abs() < 0.1);
+    assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 
 /// Exercise one of the six licensed `SustainedEffect × TemporalDag × Bayesian`

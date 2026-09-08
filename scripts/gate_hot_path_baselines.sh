@@ -25,7 +25,10 @@ root = Path(".")
 fail: list[str] = []
 
 hot = (root / "docs/hot_paths.md").read_text()
-linked = re.findall(r"\]\(\.\./benches/baselines/([^)]+?\.md)\)", hot)
+linked = re.findall(
+    r"\]\((?:\.\./benches/baselines/|https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/)([^)]+?\.md)\)",
+    hot,
+)
 if not linked:
     fail.append("docs/hot_paths.md has no Baseline links to benches/baselines/*.md")
 

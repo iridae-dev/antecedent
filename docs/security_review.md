@@ -1,8 +1,8 @@
 # Security, licensing, unsafe-code, and dependency review
 
 Date: 2026-09-07
-Scope: workspace crates + `python` extension (package version **1.1.0**)
-ADR: [0017](../adr/0017-release-prep.md)
+Scope: workspace crates + `python` extension (package version **1.2.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
 code policy, the current lockfile's advisory/license/source rules, default
@@ -20,6 +20,16 @@ before it reaches the engine. There is no dependency, unsafe-code,
 artifact-decoding, or workflow change, and the lockfile diff is limited to
 workspace package versions, so the existing threat boundary and scoped unsafe
 findings continue to apply.
+
+
+The 1.2.0 diff adds safe Rust statistical composition and diagnostic code plus
+additive PyO3 prepared arguments and artifact export. `antecedent-estimate`
+now uses the existing workspace `antecedent-graph` crate at runtime for finite
+DAG unfolding; it previously depended on that crate only in tests. The existing `serde_json` dependency enables `float_roundtrip` so decimal
+JSON crossings retain exact binary float values. No external dependency,
+unsafe block, artifact decoder, or workflow permission is added.
+Artifact export uses the existing bounded canonical writers. New provenance
+cards record independent implementations and their statistical restrictions.
 
 ## Unsafe code policy
 
@@ -39,7 +49,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 - Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
   locally (`cargo deny check`) — not part of CI.
 - Default features must remain wheel-distributable without system BLAS
-  ([ADR 0001](../adr/0001-linear-algebra-backend.md)).
+  ([ADR 0001](https://github.com/iridae-dev/antecedent/blob/main/adr/0001-linear-algebra-backend.md)).
 
 ## Dependency notes
 

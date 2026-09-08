@@ -1,0 +1,10 @@
+feature_id = "validate.temporal_mediation"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+upstream_implementations_observed = []
+implementation_deviations = ["Both mechanism regressions and all perturbation refits retain the union of graph-derived baseline parents, with their normalized temporal lags. Treatment-induced intermediate covariates require a larger path model and are refused.", "Independent diagnostic suite: twenty Gaussian placebo-mediator and Gaussian random-common-cause refits. Placebo tests indirect effect against zero; RCC tests the requested contrast; full adds twenty contiguous 80-percent windows.", "Binary treatment additionally checks intersection of empirical mediator ranges. This necessary range check does not prove conditional positivity; continuous treatment has no binary overlap report.", "Replicate comparisons are descriptive robustness diagnostics, not calibrated causal-validity tests. Bayesian validation includes actual mechanism PPCs and full prior-grid refits; frequentist refuters do not themselves resample the Bayesian posterior."]
+test_sources = ["conformance/bayesian/temporal_mediation", "python/tests/test_release_12.py"]

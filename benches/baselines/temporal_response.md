@@ -29,3 +29,26 @@ from ~10 ms to well over the 200 ms budget, while the closed-form path stays
 comfortably within it. This repo already suffered one silent O(n^2) response-curve
 regression (0.5.2, 77× fix); this bench exists so that class of regression on the
 temporal `InterventionResponse` path fails the gate instead of shipping unnoticed.
+
+## 1.2 posterior and sustained-window reference
+
+Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
+10 samples, 1 s warm-up and 1 s measurement. Values are Criterion means and
+95% bootstrap confidence intervals; these short local runs are regression
+references, not portable latency guarantees.
+
+| Case | Mean (95% interval) | Optional local mean gate |
+|------|---------------------|--------------------------|
+| sustained_window_n800_bootstrap20 | 443.4 µs (436.0–450.8 µs) | ≤ **5 ms** |
+| sustained_window_n800_draws512 | 187.6 µs (173.9–210.9 µs) | ≤ **5 ms** |
+| bayesian_temporal_response_n800_draws512_grid4 | 96.5 µs (93.7–100.9 µs) | ≤ **2 ms** |
+
+The window fixture intervenes at both lagged treatment times. Its Frequentist
+fit refits mechanisms on 20 shared moving-block samples; its Bayesian fit
+retains 512 composed effects. The response fixture fits one identified horizon
+and evaluates four doses. Identification/indexer construction is outside the
+timed loops; fitting and posterior composition are inside. Output assertions
+pin 512 effects or four surface means, without retaining a row-by-draw result.
+They do not measure peak working allocation. The optional mean gates use
+`GATE_CRITERION_MEANS=1 bash scripts/gate_hot_path_baselines.sh`; release smokes
+always execute the cases and their shape assertions.

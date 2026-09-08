@@ -169,6 +169,45 @@ pub(crate) fn validator_not_applicable_diagnostics(
         .collect()
 }
 
+/// Run the requested refuter suite, returning raw outcomes (reports and
+/// per-run `NotApplicable` skips) without collapsing them.
+pub(crate) fn refute_outcomes(
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+    estimate: &EffectEstimate,
+    workspace: &mut EstimationWorkspace,
+    propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
+    ctx: &ExecutionContext,
+    suite: RefuteSuite,
+    estimator: &str,
+    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
+    temporal: Option<antecedent_validate::TemporalRefitContext<'_>>,
+) -> Result<Vec<antecedent_validate::ValidationOutcome>, CausalError> {
+    let problem =
+        RefutationProblem::new(data, estimand, query, estimate, Some(estimator), temporal);
+    let mut validation = match suite {
+        RefuteSuite::None => {
+            if custom.is_empty() {
+                return Ok(Vec::new());
+            }
+            ValidationSuite::new()
+        }
+        RefuteSuite::Cheap => ValidationSuite::overlap_and_evalue(),
+        RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
+        RefuteSuite::Full => ValidationSuite::full_effect(),
+    };
+    for v in custom {
+        validation = validation.with_custom(Arc::clone(v));
+    }
+    match propensity {
+        Some(pws) => {
+            validation.run_with_propensity(&problem, workspace, pws, ctx).map_err(CausalError::from)
+        }
+        None => validation.run(&problem, workspace, ctx).map_err(CausalError::from),
+    }
+}
+
 /// Run the requested refuter suite, returning both the produced reports and one
 /// diagnostic per validator that was requested but skipped as `NotApplicable` for this
 /// run (see [`validator_not_applicable_diagnostic`]).
@@ -185,28 +224,10 @@ pub(crate) fn run_refuters(
     custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     temporal: Option<antecedent_validate::TemporalRefitContext<'_>>,
 ) -> Result<(Vec<RefutationReport>, Vec<Diagnostic>), CausalError> {
-    let problem =
-        RefutationProblem::new(data, estimand, query, estimate, Some(estimator), temporal);
-    let mut validation = match suite {
-        RefuteSuite::None => {
-            if custom.is_empty() {
-                return Ok((Vec::new(), Vec::new()));
-            }
-            ValidationSuite::new()
-        }
-        RefuteSuite::Cheap => ValidationSuite::overlap_and_evalue(),
-        RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
-        RefuteSuite::Full => ValidationSuite::full_effect(),
-    };
-    for v in custom {
-        validation = validation.with_custom(Arc::clone(v));
-    }
-    let outcomes = match propensity {
-        Some(pws) => validation
-            .run_with_propensity(&problem, workspace, pws, ctx)
-            .map_err(CausalError::from)?,
-        None => validation.run(&problem, workspace, ctx).map_err(CausalError::from)?,
-    };
+    let outcomes = refute_outcomes(
+        data, estimand, query, estimate, workspace, propensity, ctx, suite, estimator, custom,
+        temporal,
+    )?;
     let diagnostics = validator_not_applicable_diagnostics(&outcomes);
     Ok((ValidationSuite::reports_only(&outcomes), diagnostics))
 }

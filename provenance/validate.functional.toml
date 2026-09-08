@@ -1,0 +1,14 @@
+feature_id = "validate.functional"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+upstream_implementations_observed = []
+implementation_deviations = [
+ "Independent design: refit the frozen identified path functional on Bernoulli row subsets; compare replicate contrast distribution to the full-data contrast.",
+ "Distribution diagnostics check normalization per conditioning stratum and maximum conditional total variation on full probability tables. Mean TV <= 0.1 is a descriptive robustness threshold, not a calibrated hypothesis test.",
+ "Cheap uses twenty 80-percent subsets; full adds twenty 50-percent subsets. Sparse CPT failures propagate rather than manufacturing a successful report.",
+]
+test_sources = ["conformance/estimate/functional_validation", "crates/antecedent/tests/prepared_analysis.rs::functional_validation_staged_known_truth"]

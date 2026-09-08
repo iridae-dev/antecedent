@@ -615,18 +615,16 @@ mod tests {
     }
 
     #[test]
-    fn closed_path_and_distribution_on_accepted_are_enforced() {
+    fn accepted_path_and_distribution_are_licensed() {
         for query in ["PathSpecificEffect", "InterventionalDistribution"] {
-            let status = classify(cell(query, "Dag", "accepted", "Frequentist", "none"));
-            assert_eq!(status, CellStatus::Refused, "{query}");
-            let err =
-                refuse_if_not_applicable(cell(query, "Dag", "accepted", "Frequentist", "none"))
-                    .unwrap_err();
-            assert!(
-                err.to_string().starts_with(
-                    "refused: Path and distribution queries are licensed only as explicit"
-                ),
-                "{query}: {err}"
+            for validation in ["none", "cheap", "full"] {
+                let c = cell(query, "Dag", "accepted", "Frequentist", validation);
+                assert_eq!(classify(c), CellStatus::Licensed);
+                refuse_if_not_applicable(c).unwrap();
+            }
+            assert_eq!(
+                classify(cell(query, "Dag", "graph_posterior", "Frequentist", "none")),
+                CellStatus::Refused
             );
         }
     }
@@ -1240,16 +1238,15 @@ mod tests {
     }
 
     #[test]
-    fn sustained_dbn_posterior_none_is_licensed_and_cheap_full_are_named() {
+    fn sustained_dbn_posterior_all_suites_are_licensed() {
         assert_eq!(
             classify(cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", "none")),
             CellStatus::Licensed
         );
         for v in ["cheap", "full"] {
             let c = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
-            assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
-            let reason = refusal_reason(c).expect("named refusal reason");
-            assert!(reason.contains("empty refutations"), "{c:?}: {reason}");
+            assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+            assert!(refusal_reason(c).is_none());
         }
     }
 }

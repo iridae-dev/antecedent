@@ -308,9 +308,13 @@ impl ValidationSuite {
                         OverlapRuleRefuter::new().refute_with_propensity(problem, propensity)?,
                     )
                 }
-                ValidatorId::Riesz if problem.temporal.is_none() => ValidationOutcome::Report(
-                    RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
-                ),
+                ValidatorId::Riesz
+                    if problem.temporal.is_none() && crate::common::binary_treatment(problem)? =>
+                {
+                    ValidationOutcome::Report(
+                        RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
+                    )
+                }
                 _ => self.run_one(id, problem, workspace, ctx)?,
             };
             out.push(outcome);
@@ -388,7 +392,12 @@ impl ValidationSuite {
     ) -> Result<ValidationOutcome, ValidationError> {
         let method = problem.estimand.method_kind().ok();
         let static_linear = method == Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
-            && problem.estimator.is_none_or(|e| e == "linear.adjustment.ate");
+            && problem.estimator.is_none_or(|e| {
+                // Conditional's licensed number is the interaction-model scalar at Ē[W].
+                // That is an effect, so the effect suite runs; skipping it because the
+                // estimator id is not `linear.adjustment.ate` is a demotion.
+                matches!(e, "linear.adjustment.ate" | "conditional.linear.adjustment")
+            });
         let temporal_linear = method
             == Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
             && problem.temporal.is_some()
@@ -576,6 +585,12 @@ impl ValidationSuite {
                     return Ok(na(
                         id,
                         "RieszSensitivity not applicable to temporal unfolded designs",
+                    ));
+                }
+                if !crate::common::binary_treatment(problem)? {
+                    return Ok(na(
+                        id,
+                        "RieszSensitivity requires binary treatment; continuous support is assessed by the overlap validators",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(

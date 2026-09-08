@@ -31,6 +31,10 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
+    "estimate.bayesian_conditional": "crates/antecedent/tests/prepared_analysis.rs",
+    "estimate.bayesian_temporal_mediation": "python/tests/test_release_12.py",
+    "validate.dbn_posterior": "crates/antecedent/tests/manufacturing_temporal.rs",
+
     "bayes.prob.columnar_posteriors": "crates/antecedent-prob/src/posterior.rs",
     "bayes.prob.priors": "crates/antecedent-prob/src/prior.rs",
     "bayes.backend.conjugate_gaussian": "crates/antecedent/tests/bayesian.rs",
@@ -122,6 +126,7 @@ cargo test -p antecedent-validate --lib bayesian_checks
 cargo test -p antecedent-io --lib posterior
 cargo test -p antecedent-io --lib prior_bank
 cargo test -p antecedent-data --lib resample
+cargo test -p antecedent --test prepared_analysis
 cargo test -p antecedent --test bayesian
 cargo test -p antecedent --test manufacturing_temporal
 

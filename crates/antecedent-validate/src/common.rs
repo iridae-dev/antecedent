@@ -9,14 +9,15 @@ use antecedent_core::{
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_data::{
-    ColumnView, DiscoveryEstimationSplit, Float64Column, OwnedColumn, OwnedColumnarStorage,
-    PanelData, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
+    ColumnView, DataError, DiscoveryEstimationSplit, Float64Column, OwnedColumn,
+    OwnedColumnarStorage, PanelData, TableView, TabularData, TimeIndex, TimeSeriesData,
+    ValidityBitmap,
 };
 
 use crate::panel_slice::PanelSliceTemplate;
 use antecedent_estimate::{
-    EffectEstimate, EstimationWorkspace, IpwTarget, LinearAdjustmentAte, OverlapPolicy,
-    OverlapReport, TemporalLinearAdjustment,
+    ConditionalLinearAdjustment, EffectEstimate, EstimationWorkspace, IpwTarget,
+    LinearAdjustmentAte, OverlapPolicy, OverlapReport, TemporalLinearAdjustment,
 };
 use antecedent_identify::IdentifiedEstimand;
 use antecedent_kernels::erfc;
@@ -100,6 +101,60 @@ impl RefutationReport {
             replicates,
         }
     }
+
+    /// Mixture-weighted aggregation of per-atom reports of the same refuter id.
+    ///
+    /// Weights are graph-posterior mass. Location statistics are weighted means;
+    /// `replicates` is the maximum across atoms. `informative` is true when any
+    /// contributing atom is informative. `passed` is fail-closed: the mixed check
+    /// passes only when every positive-weight contributing atom passed.
+    ///
+    /// Atoms with non-positive weight, and atoms whose `refuter` id differs from
+    /// the first contributing report, are dropped. Returns `None` when nothing
+    /// contributes.
+    #[must_use]
+    pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
+        let first = items.iter().find(|(w, _)| *w > 0.0)?.1;
+        let id = Arc::clone(&first.refuter);
+        let mut w_sum = 0.0;
+        let mut original = 0.0;
+        let mut mixed_ate = 0.0;
+        let mut comparison = 0.0;
+        let mut passed_mass = 0.0;
+        let mut informative = false;
+        let mut replicates = 0_u32;
+        let mut failure = None;
+        for (w, report) in items {
+            if *w <= 0.0 || report.refuter != id {
+                continue;
+            }
+            w_sum += *w;
+            original += *w * report.original_ate;
+            mixed_ate += *w * report.refuted_ate;
+            comparison += *w * report.comparison;
+            if report.passed {
+                passed_mass += *w;
+            } else if failure.is_none() {
+                failure.clone_from(&report.failure_condition);
+            }
+            informative |= report.informative;
+            replicates = replicates.max(report.replicates);
+        }
+        if w_sum <= 0.0 {
+            return None;
+        }
+        let passed = passed_mass / w_sum >= 1.0 - 1e-12;
+        Some(Self {
+            refuter: id,
+            original_ate: original / w_sum,
+            refuted_ate: mixed_ate / w_sum,
+            comparison: comparison / w_sum,
+            informative,
+            passed,
+            failure_condition: if passed { None } else { failure },
+            replicates,
+        })
+    }
 }
 
 /// Inputs shared by effect refuters.
@@ -176,7 +231,10 @@ pub(crate) fn with_extra_float(
     data.with_appended_float(name, values).map_err(ValidationError::from)
 }
 
-/// Fit linear adjustment once (no nested bootstrap pools).
+/// Fit the licensed scalar once (no nested bootstrap pools).
+///
+/// Queries with effect modifiers refit [`ConditionalLinearAdjustment`] — the same
+/// interaction model that produced the licensed CATE-at-mean — not main-effects ATE.
 pub(crate) fn fit_once(
     estimator: &LinearAdjustmentAte,
     data: &TabularData,
@@ -185,6 +243,11 @@ pub(crate) fn fit_once(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
+    if !query.effect_modifiers.is_empty() {
+        return ConditionalLinearAdjustment::new()
+            .estimate_ate(data, estimand, query)
+            .map_err(ValidationError::from);
+    }
     let prep = estimator.prepare(data, estimand, query).map_err(ValidationError::from)?;
     estimator
         .fit(&prep, workspace, ctx, antecedent_core::AssumptionSet::new())
@@ -387,20 +450,43 @@ pub(crate) struct DiagnosticPropensityColumns {
     pub outcome: Option<Vec<f64>>,
 }
 
+/// Whether the complete treatment sample satisfies the binary 0/1 contract.
+///
+/// Classification uses the same complete-case mask as estimation (treatment,
+/// outcome, adjustment, modifiers). An empty remainder is not binary: `all()`
+/// on no rows would otherwise vacuously accept the logistic path.
+#[allow(clippy::float_cmp)]
+pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
+    let mut ids = vec![problem.treatment(), problem.outcome()];
+    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let mask = match problem.data.complete_case_mask(&ids) {
+        Ok(mask) => mask,
+        Err(DataError::EmptySelection { .. }) => return Ok(false),
+        Err(err) => return Err(err.into()),
+    };
+    let treatment = problem.data.float64_masked(problem.treatment(), &mask)?;
+    if treatment.is_empty() {
+        return Ok(false);
+    }
+    Ok(treatment.iter().all(|&value| value == 0.0 || value == 1.0))
+}
+
 /// Diagnostic-only logistic propensity on treatment + adjustment covariates.
 ///
 /// Used by overlap / Riesz validators when the original estimate has no propensity report.
+/// The complete-case mask always matches estimation (treatment, outcome, adjustment,
+/// modifiers) so a non-0/1 treatment value on a row dropped for missing Y cannot
+/// leak into the binary propensity path.
 pub(crate) fn fit_diagnostic_propensity(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
     include_outcome_in_mask: bool,
     propensity: &mut PropensityWorkspace,
 ) -> Result<DiagnosticPropensityColumns, ValidationError> {
-    let mut ids = vec![problem.treatment()];
-    if include_outcome_in_mask {
-        ids.push(problem.outcome());
-    }
+    let mut ids = vec![problem.treatment(), problem.outcome()];
     ids.extend_from_slice(&problem.estimand.adjustment_set);
+    ids.extend_from_slice(&problem.query.effect_modifiers);
     let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     let treatment = problem
         .data

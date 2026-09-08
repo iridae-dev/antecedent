@@ -13,7 +13,7 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalQuery, MediationContrast, MediationQuery, TemporalEffectQuery,
-    TemporalPolicy, VariableId,
+    TemporalNodeKey, TemporalPolicy, VariableId,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{NodeRef, TemporalDag};
@@ -65,6 +65,7 @@ impl TemporalMediationIdentifier {
             ));
         }
         Self::ensure_mediators_intercept(template, query)?;
+        let adjustment = Self::adjustment_nodes(template, query)?;
 
         let method: Arc<str> = match query.contrast {
             MediationContrast::Total => Arc::from("temporal_mediation.total"),
@@ -143,6 +144,8 @@ impl TemporalMediationIdentifier {
         }
 
         let mut derivation = DerivationTrace::default();
+        derivation
+            .push("temporal_mediation.adjustment", format!("baseline parents={adjustment:?}"));
         derivation.push(
             method.as_ref(),
             format!(
@@ -225,6 +228,87 @@ impl TemporalMediationIdentifier {
             });
         }
         Ok(())
+    }
+
+    /// Baseline parents required by both linear mediation regressions.
+    ///
+    /// Edges are normalized to the mediator/outcome time origin. Conditioning
+    /// on the union is valid for the two-equation product only when these
+    /// additional parents are not descendants of the treatment or mediator.
+    /// Treatment-induced intermediate variables require a larger path model.
+    pub fn adjustment_nodes(
+        template: &TemporalDag,
+        query: &MediationQuery,
+    ) -> Result<Vec<TemporalNodeKey>, IdentificationError> {
+        let [mediator] = query.mediators.as_ref() else {
+            return Err(IdentificationError::unsupported(
+                "temporal mediation requires one mediator",
+            ));
+        };
+        let treatment = TemporalNodeKey { variable: query.treatment, offset: -1 };
+        let mediator_key = TemporalNodeKey { variable: *mediator, offset: 0 };
+        let mut adjustment = Vec::new();
+        let mut has_t_m = false;
+        let mut has_m_y = false;
+        let mut history = 1;
+        let mut variable_count =
+            query.treatment.raw().max(query.outcome.raw()).max(mediator.raw()) + 1;
+        for node in template.nodes() {
+            if let NodeRef::Lagged { variable, .. } = node {
+                variable_count = variable_count.max(variable.raw() + 1);
+            }
+        }
+        for edge in template.edges() {
+            let (from, to) = edge.parent_child().expect("directed temporal edge");
+            let (
+                NodeRef::Lagged { variable: source, lag: source_lag },
+                NodeRef::Lagged { variable: target, lag: target_lag },
+            ) = (template.nodes()[from.as_usize()], template.nodes()[to.as_usize()])
+            else {
+                continue;
+            };
+            if target != *mediator && target != query.outcome {
+                continue;
+            }
+            let lag = source_lag.raw() - target_lag.raw();
+            history = history.max(lag);
+            let key = TemporalNodeKey {
+                variable: source,
+                offset: -i32::try_from(lag).map_err(|e| IdentificationError::msg(e.to_string()))?,
+            };
+            has_t_m |= target == *mediator && key == treatment;
+            has_m_y |= target == query.outcome && key == mediator_key;
+            if key != treatment && key != mediator_key && !adjustment.contains(&key) {
+                adjustment.push(key);
+            }
+        }
+        if !has_t_m || !has_m_y {
+            return Err(IdentificationError::unsupported(
+                "temporal mediation requires T at lag one and M/Y contemporaneous",
+            ));
+        }
+        let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
+            .map_err(|e| IdentificationError::msg(e.to_string()))?;
+        let unfolded = template.unfold(indexer)?;
+        let dense = |key| {
+            unfolded
+                .indexer
+                .dense_id(key)
+                .map(antecedent_graph::DenseNodeId::from_raw)
+                .map_err(|e| IdentificationError::msg(e.to_string()))
+        };
+        let t = dense(treatment)?;
+        let m = dense(mediator_key)?;
+        for &key in &adjustment {
+            let z = dense(key)?;
+            if unfolded.dag.reaches(t, z) || unfolded.dag.reaches(m, z) {
+                return Err(IdentificationError::unsupported(
+                    "treatment-induced mediation covariates require a larger path model",
+                ));
+            }
+        }
+        adjustment.sort_by_key(|key| (key.variable.raw(), key.offset));
+        Ok(adjustment)
     }
 }
 

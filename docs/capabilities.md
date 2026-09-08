@@ -17,7 +17,7 @@ The matrix has three active runtime states:
   license it.
 
 The historical `allowed_unlicensed` wire value remains decodable for
-compatibility, but 0.9 has no active allowlist entries and the release gate
+compatibility, but 1.2 has no active allowlist entries and the release gate
 rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin only
 identification or an effect point, while an internal cross-check may establish
 prepared-vs-fresh consistency without pinning the scientific target. Read each
@@ -35,7 +35,7 @@ At analysis level, the licensed query families are `AverageEffect`,
 `TemporalMediationEffect`, only on the exact graph / structure / inference /
 validation rows in the matrix. Root query types outside that list —
 `Counterfactual`, static `MediationEffect`, and all six derivative query types —
-have no licensed `analyze` cell in 0.9. Importability is not a license.
+have no licensed `analyze` cell in 1.2. Importability is not a license.
 
 ## Graph primitives
 
@@ -62,7 +62,7 @@ Graph operations:
 
 Static and temporal graphs have separate semantics. A static graph is not
 interpreted as temporal by default. `Cpdag`, `TemporalCpdag`, and `TemporalPag`
-are implemented graph/interchange types, but 0.9 licenses no analysis cell on
+are implemented graph/interchange types, but 1.2 licenses no analysis cell on
 them. In particular, successful completion to a DAG does not turn an
 incomplete-class cell into a licensed one.
 
@@ -195,12 +195,16 @@ uncertainty kind as separate axes. Pointwise and simultaneous bands are not
 aliases. Observation-adjusted curves omit joint observation/curve uncertainty
 bands rather than reusing invalid complete-data intervals. Interval censoring
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
-Bayesian inference and one-shot `discovery=` on response queries fail closed.
+One-shot `discovery=` on response queries fails closed; discover and accept
+the structure before estimating a response.
 The list above is inventory. Derivative cells are refused by `analyze`.
 `ResponseCurve` and `InterventionResponse` are licensed on `Dag` and
-`TemporalDag` under Frequentist inference (see the
-[support matrix](support-matrix.md)); Bayesian response and TemporalCPDAG/PAG
-response remain unlicensed. The public license is that matrix, not this page.
+`TemporalDag` under Frequentist and Bayesian inference with validation `none`
+(see the [support matrix](support-matrix.md)). Bayesian responses require the
+documented Gaussian additive models, complete observations and AllObserved
+population, with pointwise posterior intervals. TemporalCPDAG/PAG response and
+graph-posterior response mixtures remain refused. The public license is that
+matrix, not this page.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -232,6 +236,12 @@ not demote `evidence_status` or `support.status`. See
 
 * Bayesian g-computation;
 * temporal Bayesian g-computation;
+* Gaussian conditional effects with linear treatment–modifier interactions;
+* Gaussian temporal mediation with observed baseline-parent adjustment and
+  direct/mediated/total posterior decomposition;
+* static and temporal Gaussian response estimation;
+* multi-step sustained sequential g-computation with shared stationary
+  mechanism draws;
 * conjugate Gaussian models;
 * Laplace GLM approximation;
 * HMC GLMs;
@@ -250,6 +260,13 @@ single-step sustained paths consume frozen known-truth mixture fixtures: the
 identified atoms pin the conditional effect, unidentified mass stays visible,
 and priors do not upgrade structural identification. Prepared-vs-fresh
 equality remains an additional execution invariant rather than the license.
+
+Conditional effects, temporal mediation and DBN-posterior pulse/single-step
+sustained effects license query-native `cheap` and `full` validation. Bayesian
+`full` includes posterior predictive checks and prior sensitivity. Multi-step
+sustained effects license validation `none` only. Composed mediation and
+multi-step sustained posteriors support conjugate and Laplace backends; HMC
+composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 
 ## Observation, transport, and interference
 
@@ -347,6 +364,14 @@ Estimate validation:
 * E-values;
 * graph refutation.
 
+The 1.2 functional suites refit path-specific effects on row subsets and compare
+entire interventional-distribution tables, including conditional strata.
+Temporal mediation uses mediator-placebo and contrast-specific stability checks.
+Continuous-treatment conditional overlap reports unsupported mass under a
+descriptive residual-support model; lower `comparison` values mean better
+support. Passing any of these checks does not establish causal identification
+or validate the structural assumptions.
+
 Sensitivity methods:
 
 * linear sensitivity;
@@ -357,6 +382,7 @@ Sensitivity methods:
 Bayesian validation:
 
 * prior predictive checks;
+* posterior predictive checks;
 * prior sensitivity;
 * MCMC diagnostics;
 * simulation-based calibration hooks.

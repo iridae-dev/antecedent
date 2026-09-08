@@ -25,14 +25,44 @@ def test_conditional_effect_recovers_interaction():
     assert abs(result.ate - 3.0) < 0.3
 
 
-def test_conditional_rejects_bayesian():
-    data = {"t": np.zeros(10), "y": np.zeros(10), "w": np.zeros(10)}
-    with pytest.raises(TypeError, match="Bayesian"):
-        antecedent.analyze(
-            data,
-            graph=[("t", "y")],
-            query=antecedent.ConditionalEffect("t", "y", "w"),
-            inference=antecedent.Bayesian(n_draws=8),
-            refute=False,
-            bootstrap=0,
-        )
+def test_conditional_bayesian_consults_prior():
+    rng = np.random.default_rng(12)
+    t, w = rng.normal(size=(2, 100))
+    data = {"t": t, "w": w, "y": 2 * t + 0.5 * t * w + rng.normal(scale=0.2, size=100)}
+    result = antecedent.analyze(
+        data,
+        graph=[("t", "y"), ("w", "y")],
+        query=antecedent.ConditionalEffect("t", "y", "w"),
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
+        refute=False,
+        bootstrap=0,
+        return_posterior_artifact=True,
+    )
+    assert result.posterior is not None
+    assert result.posterior.artifact is not None
+    assert result.ate == pytest.approx(2 + 0.5 * w.mean(), abs=0.1)
+    assert result.estimate.estimator_id == "conditional.bayesian"
+
+
+def test_handle_conditional_bayesian_uses_staged_estimator():
+    """Leftover handler must not TypeError licensed Bayesian ConditionalEffect."""
+    from antecedent._analyze import handle_conditional
+
+    rng = np.random.default_rng(12)
+    t, w = rng.normal(size=(2, 100))
+    data = {"t": t, "w": w, "y": 2 * t + 0.5 * t * w + rng.normal(scale=0.2, size=100)}
+    result = handle_conditional(
+        data,
+        antecedent.ConditionalEffect("t", "y", "w"),
+        graph=antecedent.Dag.from_edges(["t", "y", "w"], [("t", "y"), ("w", "y")]),
+        discovery=None,
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
+        refute=False,
+        validators=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+    )
+    assert result.estimate.estimator_id == "conditional.bayesian"
+    assert result.posterior is not None
+    assert np.isfinite(result.ate)

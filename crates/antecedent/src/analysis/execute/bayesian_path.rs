@@ -15,6 +15,9 @@ impl super::Study {
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let identifier_id: IdentifierId = identifier.parse()?;
+        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let estimator_id =
+            if conditional { EstimatorId::BayesianConditional } else { EstimatorId::BayesianGcomp };
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
         // Prepared handles identify once at prepare time; identification reads
         // only (identifier, graph, query) — rd is never consulted on this path —
@@ -23,7 +26,7 @@ impl super::Study {
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
-                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
             })?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
@@ -45,7 +48,14 @@ impl super::Study {
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
-        let prep = est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
+        let prep = if conditional {
+            let q = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            est.prepare_conditional(&data_est, &estimand_est, &q)
+        } else {
+            est.prepare(&data_est, &estimand_est, &query_est)
+        }
+        .map_err(CausalError::from)?;
         let (resolved_prior, conflict_summary) =
             resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
         est.prior = resolved_prior;
@@ -89,7 +99,7 @@ impl super::Study {
                 None,
                 ctx,
                 self.refute,
-                "bayesian.gcomp",
+                estimator_id.as_str(),
                 &self.custom_validators,
                 None,
             )?,
@@ -165,7 +175,7 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id,
-            estimator_id: EstimatorId::BayesianGcomp,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached,
@@ -257,7 +267,7 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, _estimand, status) in fit_atoms {
+        for (key, estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
@@ -270,7 +280,15 @@ impl super::Study {
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             let weight = identified_weight_for_key(&graphs, key);
-            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
+            atoms.push(EnvelopeAtomFit {
+                key,
+                prep,
+                posterior,
+                status,
+                weight,
+                estimand,
+                indexer: None,
+            });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -305,20 +323,21 @@ impl super::Study {
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let (reports, na_diagnostics) = run_refuters(
+                let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
-                    &estimand,
                     query,
                     &estimate,
+                    &atoms,
                     &mut refute_ws,
-                    None,
                     ctx,
                     self.refute,
                     "bayesian.gcomp",
                     &self.custom_validators,
                     None,
+                    self.split.as_ref(),
+                    None,
                 )?;
-                diagnostics.extend(na_diagnostics);
+                diagnostics.extend(mix_diagnostics);
                 reports
             }
         };
@@ -538,7 +557,7 @@ impl super::Study {
                 est.fit(&prep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
+                primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
             let weight = identified_weight_for_key(&graphs, key);
@@ -548,6 +567,8 @@ impl super::Study {
                 posterior,
                 status: identification.status,
                 weight,
+                estimand,
+                indexer: None,
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -585,20 +606,21 @@ impl super::Study {
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let (reports, na_diagnostics) = run_refuters(
+                let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
-                    &estimand,
                     query,
                     &estimate,
+                    &atoms,
                     &mut refute_ws,
-                    None,
                     ctx,
                     self.refute,
                     "bayesian.gcomp",
                     &self.custom_validators,
                     None,
+                    self.split.as_ref(),
+                    None,
                 )?;
-                diagnostics.extend(na_diagnostics);
+                diagnostics.extend(mix_diagnostics);
                 reports
             }
         };
@@ -703,8 +725,8 @@ impl super::Study {
         // The first structurally identified atom can still fail soft estimation
         // and be demoted below. Anchor the public result on the first atom that
         // actually contributes draws, not on a discarded fit.
-        let mut primary_estimand = None;
-        let mut primary_identification = None;
+        let mut atom_contexts = Vec::new();
+        let mut atoms = Vec::new();
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
@@ -744,11 +766,22 @@ impl super::Study {
             };
             match envelope_draws_from_posterior(key, &posterior) {
                 Ok(draws) => {
-                    if primary_estimand.is_none() {
-                        primary_estimand = Some(estimand);
-                        primary_identification = Some(identification);
-                    }
+                    atom_contexts.push((
+                        key,
+                        estimand.clone(),
+                        identification.clone(),
+                        indexer.clone(),
+                    ));
                     per_graph.push(draws);
+                    atoms.push(EnvelopeAtomFit {
+                        key,
+                        prep: bprep,
+                        posterior,
+                        status: identification.status,
+                        weight: identified_weight_for_key(&identified.graphs, key),
+                        estimand,
+                        indexer: Some(indexer),
+                    });
                 }
                 Err(_) => {
                     if let Some(idx) = keys.iter().position(|&k| k == key) {
@@ -772,6 +805,17 @@ impl super::Study {
             ctx,
             &mut subsample_notes,
         )?;
+        let keep = identified_envelope_keys(&graphs);
+        atoms.retain(|atom| keep.contains(&atom.key));
+        let (_, estimand, identification, _) = atom_contexts
+            .into_iter()
+            .find(|(key, _, _, _)| keep.contains(key))
+            .ok_or_else(|| CausalError::Compile {
+                message: "DBN posterior envelope has no contributing context".into(),
+            })?;
+        for atom in &mut atoms {
+            atom.weight = identified_weight_for_key(&graphs, atom.key);
+        }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -783,13 +827,6 @@ impl super::Study {
             posterior = with_conflict_summary(posterior, summary);
         }
         let estimate = effect_from_posterior(&posterior)?;
-        let identification = primary_identification.ok_or_else(|| CausalError::Compile {
-            message: "DBN posterior envelope: no identified graph atoms".into(),
-        })?;
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "DBN posterior envelope: missing estimand".into(),
-        })?;
-
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
@@ -803,6 +840,35 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
+        let tabular = TabularData::new(data.storage().clone());
+        let ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let (mut refutations, notes) = run_envelope_effect_refuters(
+            &tabular,
+            &ate_query,
+            &estimate,
+            &atoms,
+            &mut EstimationWorkspace::default(),
+            ctx,
+            self.refute,
+            "bayesian.temporal.gcomp",
+            &self.custom_validators,
+            Some(query),
+            self.split.as_ref(),
+            Some(data.time_index()),
+        )?;
+        diagnostics.extend(notes);
+        let predictive_checks = run_envelope_bayesian_full_validation(
+            self.refute,
+            &cfg,
+            &bayes.inner,
+            &atoms,
+            &mut posterior,
+            estimate.ate,
+            ctx,
+            &mut refutations,
+            &mut diagnostics,
+        )?;
+
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -814,7 +880,7 @@ impl super::Study {
             outcome: query.outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
+            refutations,
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -831,6 +897,7 @@ impl super::Study {
                     "estimate.bayesian.temporal.gcomp",
                 )),
                 posterior: Some(posterior),
+                predictive_checks,
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             },

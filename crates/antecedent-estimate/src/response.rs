@@ -236,6 +236,165 @@ impl ContinuousResponseEstimator {
         })
     }
 
+    /// Bayesian Gaussian linear-additive response levels, with posterior
+    /// coefficient uncertainty propagated through every intervention coordinate.
+    /// This estimator is parametric; it makes no doubly robust claim.
+    pub fn estimate_bayesian(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        identification_status: IdentificationStatus,
+        mut assumptions: AssumptionSet,
+        estimator: &crate::BayesianGComputationAte,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<CausalResponse, EstimationError> {
+        self.validate(query, identification_status)?;
+        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
+            || self.options.simultaneous_replicates.is_some()
+            || self.options.export_row_diagnostics
+        {
+            return Err(EstimationError::unsupported(
+                "Bayesian response requires GaussianIdentity, pointwise intervals, and no frequentist row influence export",
+            ));
+        }
+        let mut support_grid = None;
+        let (outcome, treatment, grid, scalar) = match &query.functional {
+            ResponseFunctional::MeanCurve { outcome, treatment } => {
+                (*outcome, treatment.variable, treatment.grid.values()?, false)
+            }
+            ResponseFunctional::InterventionResponse { outcome, interventions } => {
+                if interventions.iter().any(|iv| matches!(iv, Intervention::Sequence(_))) {
+                    return Err(EstimationError::unsupported(
+                        "static Bayesian response does not accept temporal Sequence",
+                    ));
+                }
+                let (t, level, shift) =
+                    crate::temporal_response::resolve_temporal_intervention(interventions)?;
+                let sample = CompleteSample::read(data, *outcome, &[t], &self.adjustment_set)?;
+                if level.is_none() {
+                    let (lo, hi) = range(&sample.treatments);
+                    support_grid = Some(vec![lo + shift, hi + shift]);
+                }
+                let level = level.unwrap_or_else(|| {
+                    sample.treatments.iter().sum::<f64>() / sample.len() as f64 + shift
+                });
+                (*outcome, t, vec![level], true)
+            }
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "Bayesian response supports MeanCurve and InterventionResponse",
+                ));
+            }
+        };
+        let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
+        let n = sample.len();
+        let covs: Vec<_> = self
+            .adjustment_set
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n]))
+            .collect();
+        let design = antecedent_stats::CompiledDesign::linear_adjustment(
+            &sample.treatments,
+            &covs,
+            &sample.outcome,
+            &sample.keep,
+        )?;
+        let prep = crate::PreparedBayesianProblem {
+            design,
+            method: Arc::from("response.backdoor"),
+            adjustment_set: self.adjustment_set.clone(),
+            active: 1.0,
+            control: 0.0,
+            overlap: crate::OverlapPolicy::ExplicitOverride,
+            coef_names: None,
+            unit_ids: None,
+        };
+        let posterior = estimator.fit(
+            &prep,
+            identification_status,
+            &mut crate::BayesianGCompWorkspace::default(),
+            ctx,
+        )?;
+        let mut weights: Vec<_> =
+            prep.design.matrix.chunks(n).map(|c| c.iter().sum::<f64>() / n as f64).collect();
+        let mut means = Vec::new();
+        let mut lower = Vec::new();
+        let mut upper = Vec::new();
+        let mut sds = Vec::new();
+        let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
+        let mut ess = Vec::new();
+        let mut density = Vec::new();
+        for &dose in &grid {
+            weights[1] = dose;
+            let (mean, lo, hi, sd) = crate::bayesian::linear_response_summary(
+                &posterior,
+                &weights,
+                self.options.confidence_level,
+            )?;
+            means.push(mean);
+            lower.push(lo);
+            upper.push(hi);
+            sds.push(sd);
+        }
+        let support_points = support_grid.as_deref().unwrap_or(&grid);
+        for &dose in support_points {
+            let kernels: Vec<_> = sample
+                .treatments
+                .iter()
+                .map(|t| (-0.5 * ((t - dose) / bandwidth).powi(2)).exp())
+                .collect();
+            let sum = kernels.iter().sum::<f64>();
+            ess.push(sum * sum / kernels.iter().map(|k| k * k).sum::<f64>().max(f64::MIN_POSITIVE));
+            density.push(sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()));
+        }
+        let support = support_report(
+            support_points,
+            &sample.treatments,
+            &ess,
+            density,
+            self.options.minimum_local_ess,
+            0,
+        );
+        assumptions.entries.extend(posterior.assumptions.entries);
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from("bayesian.response.linear_additive"), description: Arc::from("Gaussian linear-additive outcome mechanism; empirical covariate distribution held fixed; pointwise posterior credible intervals, without nuisance-distribution or simultaneous coverage claims"),
+            }),
+            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.bayesian") },
+            scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
+        });
+        let value = if scalar {
+            ResponseValue::Scalar(means[0])
+        } else {
+            ResponseValue::Surface { dimension: 1, grid: Arc::from(grid), mean: Arc::from(means) }
+        };
+        let uncertainty = if scalar {
+            ResponseUncertainty::Scalar {
+                standard_error: sds[0],
+                level: self.options.confidence_level,
+                lower: lower[0],
+                upper: upper[0],
+            }
+        } else {
+            ResponseUncertainty::PointwiseBand {
+                level: self.options.confidence_level,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+            }
+        };
+        Ok(CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status,
+            estimate: ResponseIdentification::PointIdentified(value),
+            uncertainty,
+            support,
+            assumptions,
+            provenance_id: Arc::from("estimate.response.bayesian"),
+            horizon_identification: None,
+        })
+    }
+
     fn validate(
         &self,
         query: &ResponseQuery,

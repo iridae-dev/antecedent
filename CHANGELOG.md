@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-07
+
+### Added
+
+- Query-native path/distribution and temporal-mediation validation; applicable
+  DBN-posterior effect refuters, predictive checks and prior sensitivity.
+- Bayesian conditional, temporal-mediation and static/temporal response
+  estimators, with explicit Gaussian model restrictions.
+- Accepted-DAG path/distribution staged queries and multi-step sustained
+  effects on explicit/accepted TemporalDag, including Bayesian inference.
+- Python sustained `window=(from, until)` and prepared result artifact export.
+- Independent posterior moment references, provenance cards and a
+  [release evidence ledger](docs/v1.2-evidence.md).
+
+### Fixed
+
+- Temporal mediation estimates and native refuters adjust for graph-derived
+  observed baseline parents in both mechanism regressions.
+- Bayesian sustained windows share stationary mechanism coefficient draws
+  across time copies, preserving their covariance without duplicating data.
+- Prepared Python responses refuse unsupported observation and target-population
+  specifications instead of silently treating them as complete/all-observed.
+- Continuous conditional-effect validation assesses conditional residual support
+  instead of attempting a binary propensity fit. Both overlap diagnostics report
+  unsupported mass in `comparison`, matching the binary reports' direction.
+- Graph-posterior cheap/full effect refuters run on every contributing atom
+  against the mixture effect and mix by posterior mass, rather than certifying
+  only the first contributing structure.
+- AverageEffect treatment classification uses the estimation complete-case
+  mask, so non-0/1 encodings take continuous-support overlap rather than the
+  binary propensity path, including after missingness filtering.
+- Prepared query exports retain the original query kind and template variable IDs.
+- Discrete functional estimation now respects analysis masks, so native
+  subset refuters actually refit the retained rows.
+- Python primary mediation effect reports the requested contrast, rather than
+  always returning total mediation.
+- JSON artifact parsing preserves exact floating-point round trips.
+- DBN validation anchors on an atom that survives interactive subsampling.
+- Documentation now reflects the 1.2 licensed forms, observation refusals,
+  artifact limits and CI checks. Release navigation, published-site links and
+  Markdown formatting are corrected, with an executable Bayesian response example.
+
+The [release notes](docs/release-notes/v1.2.0.md) specify licensed forms and
+unsupported extensions; these additions make no external-package parity claim.
+
 ## [1.1.0] — 2026-09-07
 
 Compatible evidence and prepared-execution upgrade for the frozen 1.0

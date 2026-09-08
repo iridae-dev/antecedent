@@ -89,6 +89,29 @@ fn bench_mediation(c: &mut Criterion) {
     const STRESS_BUDGET: Duration = Duration::from_millis(40);
 
     let est = TemporalMediationEstimator::new();
+    c.bench_function("bayesian_mediation_n800_draws512", |b| {
+        let (data, query, estimand) = mediated(800);
+        let ctx = ExecutionContext::for_tests(12);
+        let prep = antecedent_estimate::bayesian_mediation::prepare_temporal_mediation(
+            &data, &estimand, &query, &ctx,
+        )
+        .unwrap();
+        let mut workspace = antecedent_estimate::BayesianGCompWorkspace::default();
+        let first = antecedent_estimate::BayesianGComputationAte::conjugate().with_n_draws(512);
+        let mut second = first.clone();
+        second.seed = first.seed.wrapping_add(1);
+        b.iter(|| {
+            let status = antecedent_core::IdentificationStatus::NonparametricallyIdentified;
+            let m = first.fit(&prep[0], status, &mut workspace, &ctx).unwrap();
+            let y = second.fit(&prep[1], status, &mut workspace, &ctx).unwrap();
+            let post = antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
+                &m, &y, &query, status,
+            )
+            .unwrap();
+            assert_eq!(post.draws.values.len(), 512 * 4); // retained payload is O(draws), not O(rows*draws)
+            black_box(post);
+        });
+    });
 
     c.bench_function("mediation_sparse_200", |b| {
         let (data, q, estimand) = mediated(200);

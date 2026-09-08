@@ -26,8 +26,8 @@ catalog.filter(target) → rank(similarity)
 6. With `refute="full"`, the ATE path attaches an **α-multiplier** sensitivity
    grid (not isotropic scales) when an external compose is present.
 
-Python example: [`examples/python/prior_bank_surveys.py`](../examples/python/prior_bank_surveys.py)
-(Rust: [`examples/rust/prior_bank_surveys.rs`](../examples/rust/prior_bank_surveys.rs)).
+Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/prior_bank_surveys.py)
+(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/main/examples/rust/prior_bank_surveys.rs)).
 
 ## Invariants
 

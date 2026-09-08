@@ -12,7 +12,8 @@ papers = [
 
 implementation_deviations = [
  "Combines two repository diagnostics: an eps=0.05 propensity-range plus ESS-fraction gate and a separate fixed [0.1, 0.9] retained-support rule.",
- "Fits a diagnostic-only logistic propensity when the original estimator has no overlap report.",
+ "Fits a diagnostic-only logistic propensity for binary treatment when the original estimator has no overlap report.",
+ "Continuous treatment uses a descriptive linear treatment-location fit on adjustment variables and effect modifiers. The supported fraction counts target rows with both doses inside the central empirical residual interval; eps sets the tail fraction and min_ess_fraction sets the required supported fraction. It does not assert nonparametric positivity or calibrated testing.",
  "The Crump-style rule checks retained mass but does not derive the paper's sample-dependent optimal trimming threshold or re-estimate an effect on the trimmed target population.",
  "The default ESS and retained-fraction pass thresholds are repository policy.",
 ]
@@ -23,4 +24,5 @@ test_sources = [
  "crates/antecedent-validate/src/overlap.rs unit tests",
  "crates/antecedent-validate/src/overlap_rule.rs unit tests",
  "conformance/validate/overlap_graph_refutation",
+ "python/tests/test_release_12.py",
 ]

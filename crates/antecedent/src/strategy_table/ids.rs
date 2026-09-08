@@ -39,11 +39,16 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "iv.2sls",
     "rd.sharp",
     "bayesian.gcomp",
+    "conditional.bayesian",
     "temporal.linear.adjustment",
+    "temporal.sequential.gcomp",
     "functional.distribution",
     "functional.effect",
     "conditional.linear.adjustment",
     "temporal.mediation",
+    "response.temporal.bayesian",
+    "response.bayesian",
+    "temporal.mediation.bayesian",
     "response.kennedy_dr",
     "response.riesz_ade",
     "response.gam_derivative",
@@ -244,8 +249,12 @@ pub enum EstimatorId {
     RdSharp,
     /// Bayesian g-computation.
     BayesianGcomp,
+    /// Bayesian Gaussian interaction model, averaged over observed modifiers.
+    BayesianConditional,
     /// Temporal linear adjustment.
     TemporalLinearAdjustment,
+    /// Sequential g-computation of a sustained treatment window.
+    TemporalSequentialGcomp,
     /// Discrete plug-in evaluation of an identified interventional distribution.
     FunctionalDistribution,
     /// Discrete plug-in evaluation of an identified scalar functional (ATE / path NE).
@@ -254,6 +263,12 @@ pub enum EstimatorId {
     ConditionalLinearAdjustment,
     /// Temporal linear mediation (path-product).
     TemporalMediation,
+    /// Bayesian response.temporal.bayesian estimator.
+    TemporalResponseBayesian,
+    /// Bayesian response.bayesian estimator.
+    ResponseBayesian,
+    /// Bayesian temporal.mediation.bayesian estimator.
+    BayesianTemporalMediation,
     /// Kennedy-style doubly robust continuous response curve / point derivative.
     ResponseKennedyDr,
     /// Riesz-representer average derivative estimator.
@@ -371,11 +386,23 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "rd.local_linear",
             provenance: ("estimate.rd", "estimate.rd_sharp"),
         },
+        EstimatorId::BayesianConditional => EstimatorData {
+            name: "conditional.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.conditional",
+            provenance: ("estimate.bayesian_conditional", "estimate.bayesian_conditional"),
+        },
         EstimatorId::BayesianGcomp => EstimatorData {
             name: "bayesian.gcomp",
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer",
             provenance: ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        },
+        EstimatorId::TemporalSequentialGcomp => EstimatorData {
+            name: "temporal.sequential.gcomp",
+            parallel_task_dimension: "mechanism",
+            kernel_label: "ols.faer.temporal.sequential",
+            provenance: ("estimate.temporal_sequential", "estimate.temporal_sequential"),
         },
         EstimatorId::TemporalLinearAdjustment => EstimatorData {
             name: "temporal.linear.adjustment",
@@ -400,6 +427,30 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "ols.faer.conditional",
             provenance: ("estimate.conditional_linear", "estimate.conditional_linear_adjustment"),
+        },
+        EstimatorId::BayesianTemporalMediation => EstimatorData {
+            name: "temporal.mediation.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.gaussian",
+            provenance: (
+                "estimate.bayesian_temporal_mediation",
+                "estimate.bayesian_temporal_mediation",
+            ),
+        },
+        EstimatorId::ResponseBayesian => EstimatorData {
+            name: "response.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.gaussian",
+            provenance: ("estimate.response.bayesian", "estimate.response.bayesian"),
+        },
+        EstimatorId::TemporalResponseBayesian => EstimatorData {
+            name: "response.temporal.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.gaussian",
+            provenance: (
+                "estimate.response.temporal.bayesian",
+                "estimate.response.temporal.bayesian",
+            ),
         },
         EstimatorId::TemporalMediation => EstimatorData {
             name: "temporal.mediation",
@@ -458,11 +509,16 @@ impl EstimatorId {
         Self::Iv2Sls,
         Self::RdSharp,
         Self::BayesianGcomp,
+        Self::BayesianConditional,
         Self::TemporalLinearAdjustment,
+        Self::TemporalSequentialGcomp,
         Self::FunctionalDistribution,
         Self::FunctionalEffect,
         Self::ConditionalLinearAdjustment,
         Self::TemporalMediation,
+        Self::TemporalResponseBayesian,
+        Self::ResponseBayesian,
+        Self::BayesianTemporalMediation,
         Self::ResponseKennedyDr,
         Self::ResponseRieszAde,
         Self::ResponseGamDerivative,
@@ -511,11 +567,16 @@ impl FromStr for EstimatorId {
             "iv.2sls" => Ok(Self::Iv2Sls),
             "rd.sharp" => Ok(Self::RdSharp),
             "bayesian.gcomp" => Ok(Self::BayesianGcomp),
+            "conditional.bayesian" => Ok(Self::BayesianConditional),
             "temporal.linear.adjustment" => Ok(Self::TemporalLinearAdjustment),
+            "temporal.sequential.gcomp" => Ok(Self::TemporalSequentialGcomp),
             "functional.distribution" => Ok(Self::FunctionalDistribution),
             "functional.effect" => Ok(Self::FunctionalEffect),
             "conditional.linear.adjustment" => Ok(Self::ConditionalLinearAdjustment),
             "temporal.mediation" => Ok(Self::TemporalMediation),
+            "response.temporal.bayesian" => Ok(Self::TemporalResponseBayesian),
+            "response.bayesian" => Ok(Self::ResponseBayesian),
+            "temporal.mediation.bayesian" => Ok(Self::BayesianTemporalMediation),
             "response.kennedy_dr" => Ok(Self::ResponseKennedyDr),
             "response.riesz_ade" => Ok(Self::ResponseRieszAde),
             "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
@@ -600,6 +661,7 @@ pub fn validate_response_pair(
                 | EstimatorId::ResponseRieszAde
                 | EstimatorId::ResponseGamDerivative
                 | EstimatorId::ResponseInterventionGcomp
+                | EstimatorId::ResponseBayesian
         )
     {
         return Err(CausalError::Compile {
@@ -632,6 +694,7 @@ pub fn validate_static_pair(
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
             | EstimatorId::BayesianGcomp
+            | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment
     );
     let supported = match (&identifier, &estimator) {
@@ -764,24 +827,26 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::Aipw
         | EstimatorId::GlmAdjustment
         | EstimatorId::BayesianGcomp
+        | EstimatorId::BayesianConditional
         | EstimatorId::ConditionalLinearAdjustment
         | EstimatorId::ResponseKennedyDr
         | EstimatorId::ResponseRieszAde
         | EstimatorId::ResponseGamDerivative
-        | EstimatorId::ResponseInterventionGcomp => method.is_backdoor_family(),
+        | EstimatorId::ResponseInterventionGcomp
+        | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
-        EstimatorId::TemporalLinearAdjustment => {
+        EstimatorId::TemporalLinearAdjustment | EstimatorId::TemporalSequentialGcomp => {
             matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
         }
-        EstimatorId::TemporalResponseGcomp => {
+        EstimatorId::TemporalResponseGcomp | EstimatorId::TemporalResponseBayesian => {
             matches!(
                 method,
                 EstimandMethod::TemporalBackdoorUnfolded | EstimandMethod::BackdoorAdjustment
             )
         }
-        EstimatorId::TemporalMediation => {
+        EstimatorId::TemporalMediation | EstimatorId::BayesianTemporalMediation => {
             method.is_temporal_mediation() || matches!(method, EstimandMethod::FrontDoor)
         }
         EstimatorId::FunctionalDistribution => matches!(method, EstimandMethod::GeneralId),
