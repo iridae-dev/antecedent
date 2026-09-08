@@ -213,3 +213,58 @@ graph_classes = ["Dag"]
 structures = ["accepted"]
 inferences = ["Bayesian"]
 reason = "Identified discrete path and distribution functionals have no Bayesian evaluator; accepted structure does not supply a posterior estimator."
+
+# -- 1.3.0: remaining Dag coordinates after licensing Frequentist staged cells.
+
+[[closed]]
+queries = [
+  "AverageDerivative",
+  "DirectionalDerivative",
+  "Elasticity",
+  "PointDerivative",
+  "ResponseJacobian",
+  "SemiElasticity",
+]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+validations = ["none"]
+reason = "Licensed derivative cells are Frequentist explicit or accepted Dag at validation none; Bayesian derivatives remain 1.7 work."
+
+[[closed]]
+queries = [
+  "AverageDerivative",
+  "DirectionalDerivative",
+  "Elasticity",
+  "PointDerivative",
+  "ResponseJacobian",
+  "SemiElasticity",
+]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist explicit or accepted Dag at validation none."
+
+[[closed]]
+queries = ["MediationEffect"]
+graph_classes = ["Dag"]
+inferences = ["Bayesian"]
+reason = "Static natural mediation is Frequentist; a Bayesian mediation estimator is 1.7 work."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Dag"]
+structures = ["accepted", "graph_posterior"]
+reason = "Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Dag"]
+inferences = ["Bayesian"]
+reason = "Counterfactuals are Frequentist abduction-action-prediction; a posterior over mechanisms is 1.7 work."
+
+[[closed]]
+queries = ["Counterfactual"]
+graph_classes = ["Dag"]
+validations = ["cheap", "full"]
+reason = "Counterfactual cheap/full are not licensed; there is no native ITE refuter suite and ATE refuters do not apply."
