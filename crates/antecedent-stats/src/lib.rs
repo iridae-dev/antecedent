@@ -8,6 +8,7 @@
 pub mod ci;
 pub mod cluster;
 pub mod covariance;
+mod cox_ipcw;
 pub mod design;
 pub mod divergence;
 pub mod error;
@@ -21,6 +22,7 @@ pub mod linalg;
 pub mod m_estimate;
 pub mod matching;
 pub mod observation;
+pub use cox_ipcw::{CoxIpcwFit, cox_ipcw};
 pub mod propensity;
 pub mod regularized;
 pub mod response;
