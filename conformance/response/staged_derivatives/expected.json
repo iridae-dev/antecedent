@@ -1,0 +1,13 @@
+{
+  "fixture_id": "response.staged_derivatives",
+  "dgp": "A=2+sin(i*.71)+.2*cos(i*.13); B=cos(i*1.13); Y=5+2*A-.5*B; V=1+.25*A+1.5*B",
+  "at": 2.0,
+  "point": 2.0,
+  "elasticity": 0.4444444444444444,
+  "semi_treatment": 4.0,
+  "semi_outcome": 0.2222222222222222,
+  "average": 2.0,
+  "jacobian": [2.0, -0.5, 0.25, 1.5],
+  "directional": [1.0, 3.25],
+  "tolerance": 0.15
+}

@@ -1,0 +1,1 @@
+{"fixture_id":"response.conditional_ipcw_truth","seed":1300,"stream":17,"rows":6000,"values":[4.0,5.0,6.0],"atol":0.3,"contract":"Uniform independent A,Z; Y=5+2A+Z+uniform(-.5,.5); C exponential rate .07 exp(.6A+.5Z). Reverse both times for left censoring. Conditional Cox weighting recovers the mean response; marginal KM does not."}
