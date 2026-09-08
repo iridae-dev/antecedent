@@ -69,6 +69,9 @@ class ArrowLoadInfo:
     column_names: list[str]
 
 class AteAnalysisResult:
+    unit_effects: list[float] | None
+    assumptions: list[str]
+    support_diagnostics: list[str]
     ate: float
     se_analytic: float
     se_bootstrap: float | None
@@ -479,6 +482,62 @@ class AnalysisResult:
 TemporalAnalysisResult = AnalysisResult
 
 class PreparedAnalysis:
+    @staticmethod
+    def prepare_derivative(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        bandwidth: float | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_static_kind(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        kind: str,
+        treatment: str,
+        outcome: str,
+        *,
+        mediators: list[str] = ...,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        refute: Any = None,
+        bootstrap: int = 0,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def identify_existing(
+        names: list[str],
+        edges: list[tuple[str, str]],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        mediators: list[str] = ...,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+    ) -> tuple[str, str, list[str], str]: ...
     @staticmethod
     def prepare(
         names: list[str],
@@ -1413,7 +1472,34 @@ def analyze_observation_response(
     observation_probability_floor: float = 0.01,
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
+    accepted: bool = False,
 ) -> ObservationResponseResult: ...
+def prepare_observation_response(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    grid: list[float],
+    observation_kind: str,
+    latent: str,
+    *,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str,
+    assumption_variables: list[str] = ...,
+    structural_model: str | None = None,
+    delayed_entry: str | None = None,
+    correction: str = "aipw",
+    observation_probability_floor: float = 0.01,
+    censoring_survival_floor: float = 0.01,
+    crossfit_folds: int = 5,
+    accepted: bool = False,
+) -> PreparedAnalysis: ...
 def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
     """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
     ...

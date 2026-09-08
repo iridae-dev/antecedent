@@ -215,7 +215,9 @@ class MediationEffect:
     outcome: str
     _: KW_ONLY
     mediators: Sequence[str]
-    contrast: Literal["total", "direct", "mediated"] = "mediated"
+    contrast: Literal["total", "direct", "mediated", "natural_direct", "natural_indirect"] = (
+        "mediated"
+    )
     control_level: float = 0.0
     active_level: float = 1.0
     kind: Literal["mediation"] = field(default="mediation", init=False, repr=False)

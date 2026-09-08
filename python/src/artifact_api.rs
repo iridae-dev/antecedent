@@ -50,6 +50,9 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
                 antecedent_io::causal_query_to_wire(&domain).map_err(serialization_error)?,
             ))
         }
+        "static_result" => CausalPayloadWire::StaticResult(Box::new(parse::<
+            antecedent_io::StaticResultWire,
+        >(payload_json)?)),
         "response_result" => {
             let wire = parse::<CausalResponseWire>(payload_json)?;
             let domain =
@@ -92,6 +95,7 @@ fn payload_json(payload: &CausalPayloadWire) -> PyResult<String> {
     match payload {
         CausalPayloadWire::Query(value) => json(value),
         CausalPayloadWire::ResponseResult(value) => json(value),
+        CausalPayloadWire::StaticResult(value) => json(value),
         CausalPayloadWire::TransportIdentification(value) => json(value),
         CausalPayloadWire::TransportEstimate(value) => json(value),
         CausalPayloadWire::InterferenceEstimate(value) => json(value),
@@ -128,6 +132,7 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
         payload_kind: match header.payload_kind {
             antecedent_io::CausalPayloadKind::Query => "query",
             antecedent_io::CausalPayloadKind::ResponseResult => "response_result",
+            antecedent_io::CausalPayloadKind::StaticResult => "static_result",
             antecedent_io::CausalPayloadKind::TransportIdentification => "transport_identification",
             antecedent_io::CausalPayloadKind::TransportEstimate => "transport_estimate",
             antecedent_io::CausalPayloadKind::InterferenceEstimate => "interference_estimate",

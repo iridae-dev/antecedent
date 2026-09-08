@@ -747,6 +747,12 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     mediation_total: Option<f64>,
     #[pyo3(get)]
+    unit_effects: Option<Vec<f64>>,
+    #[pyo3(get)]
+    assumptions: Vec<String>,
+    #[pyo3(get)]
+    support_diagnostics: Vec<String>,
+    #[pyo3(get)]
     mediation_direct: Option<f64>,
     #[pyo3(get)]
     mediation_mediated: Option<f64>,
