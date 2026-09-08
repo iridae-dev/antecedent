@@ -103,6 +103,34 @@ pub fn identify_static_query_with_rd(
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
+        IdentifierId::GcmParametric => {
+            let CausalQuery::Counterfactual(q) = query else {
+                return Err(CausalError::Unsupported {
+                    message: "gcm.parametric requires Counterfactual",
+                });
+            };
+            q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            if q.allow_nested || q.outcomes.len() != 1 || q.interventions.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "staged Counterfactual requires one outcome and one hard intervention; nested forms are refused",
+                });
+            }
+            let antecedent_core::Intervention::Set { variable, value } = &q.interventions[0] else {
+                return Err(CausalError::Unsupported {
+                    message: "staged Counterfactual requires Set",
+                });
+            };
+            if value.as_f64().is_none_or(|v| !v.is_finite())
+                || variable.as_usize() >= graph.node_count()
+                || q.outcomes[0].as_usize() >= graph.node_count()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "invalid counterfactual variables or level",
+                });
+            }
+            crate::analysis::parametric_scm_identification(query.clone(), *variable, q.outcomes[0])
+                .0
+        }
         IdentifierId::ResponseBackdoor => {
             let id = ResponseIdentifier::new();
             let prepared =

@@ -114,7 +114,15 @@ pub fn identify(
     structure: &AcceptedGraph,
     query: &CausalQuery,
 ) -> Result<Identification, CausalError> {
-    let strategy = default_strategy(structure.class());
+    let strategy = match (structure.class(), query) {
+        (GraphClass::Dag, CausalQuery::Counterfactual(_)) => IdentifierId::GcmParametric,
+        (GraphClass::Dag, CausalQuery::Response(_)) => IdentifierId::ResponseBackdoor,
+        (GraphClass::Dag, CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_)) => {
+            IdentifierId::PathSpecificNatural
+        }
+        (GraphClass::Dag, CausalQuery::Distribution(_)) => IdentifierId::GeneralId,
+        _ => default_strategy(structure.class()),
+    };
     identify_with(structure, query, strategy)
 }
 
@@ -135,11 +143,45 @@ pub fn identify_with(
     query: &CausalQuery,
     strategy: IdentifierId,
 ) -> Result<Identification, CausalError> {
+    identify_with_source(structure, query, strategy, crate::support::StructureSource::Accepted)
+}
+
+/// Identify a supplied explicit DAG without relabeling it as an accepted-graph cell.
+///
+/// # Errors
+/// Unsupported query coordinate or identification failure.
+pub fn identify_dag(
+    graph: &antecedent_graph::Dag,
+    query: &CausalQuery,
+) -> Result<Identification, CausalError> {
+    let strategy = match query {
+        CausalQuery::Response(_) => IdentifierId::ResponseBackdoor,
+        CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_) => {
+            IdentifierId::PathSpecificNatural
+        }
+        CausalQuery::Counterfactual(_) => IdentifierId::GcmParametric,
+        CausalQuery::Distribution(_) => IdentifierId::GeneralId,
+        _ => DEFAULT_IDENTIFIER_ID,
+    };
+    identify_with_source(
+        &AcceptedGraph::from(graph.clone()),
+        query,
+        strategy,
+        crate::support::StructureSource::Explicit,
+    )
+}
+
+fn identify_with_source(
+    structure: &AcceptedGraph,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    source: crate::support::StructureSource,
+) -> Result<Identification, CausalError> {
     let structure_version = structure.version();
     if let Some(cell) = crate::support::support_cell(
         query,
         crate::support::effective_graph_class(structure, query),
-        crate::support::StructureSource::Accepted,
+        source,
         &crate::inference::InferenceMode::Frequentist,
         crate::analysis::RefuteSuite::None,
     ) {

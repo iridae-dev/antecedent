@@ -599,69 +599,56 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if !matches!(query.contrast, MediationContrast::Total) {
-            return Err(CausalError::Unsupported {
-                message: "static Mediation supports only MediationContrast::Total via front-door",
-            });
-        }
-        let ate = AverageEffectQuery::new(
-            query.treatment,
-            query.outcome,
-            Arc::from([]),
-            query.control.clone(),
-            query.active.clone(),
-            query.target_population.clone(),
-        );
-        let identification = identify_static(IdentifierId::Frontdoor, graph, &ate)?;
-        let estimand = select_estimand(&identification, EstimatorId::FrontDoorTwoStage)?;
-        let mut estimate_ws = StaticEstimateWorkspaces::default();
-        let estimate = estimate_static_effect(
-            &EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage),
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification = identify_static_query(
+                    IdentifierId::PathSpecificNatural,
+                    graph,
+                    &CausalQuery::Mediation(query.clone()),
+                )?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
+                Ok((identification, estimand))
+            })?;
+        let mediation = antecedent_estimate::estimate_static_mediation(
             data,
-            &estimand,
-            &ate,
+            graph,
+            query,
             identification.required_assumptions.clone(),
             self.bootstrap_replicates,
-            self.overlap_policy,
-            self.population_registry.as_ref(),
+            &[],
             ctx,
-            &mut estimate_ws,
         )?;
-        let mediation = TemporalMediationEstimate {
-            effect: estimate.clone(),
-            total: Some(estimate.ate),
-            direct: None,
-            mediated: None,
+        let estimate = mediation.effect.clone();
+        let refutations = if self.refute == RefuteSuite::None {
+            Vec::new()
+        } else {
+            antecedent_validate::mediation::refute_static_mediation(
+                data,
+                graph,
+                query,
+                &mediation,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )?
         };
-        let (refutations, extra_diagnostics) = run_refuters(
-            data,
-            &estimand,
-            &ate,
-            &estimate,
-            &mut estimate_ws.linear,
-            None,
-            ctx,
-            self.refute,
-            "frontdoor.two_stage",
-            &self.custom_validators,
-            None,
-        )?;
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
             estimand,
             estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::FrontDoorTwoStage,
+            identifier_id: IdentifierId::PathSpecificNatural,
+            estimator_id: EstimatorId::StaticMediationLinear,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
-            extra_diagnostics,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
             mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
+            bootstrap_replicates_ok: (self.bootstrap_replicates > 1)
+                .then_some(self.bootstrap_replicates),
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras::default(),

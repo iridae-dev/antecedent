@@ -596,7 +596,7 @@ pub(super) fn run_envelope_effect_refuters(
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
 /// marginalization here to (mis)compute.
-pub(super) fn parametric_scm_identification(
+pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
     treatment: VariableId,
     outcome: VariableId,
@@ -657,7 +657,7 @@ pub(super) fn parametric_scm_identification(
 pub(super) fn binary_cf_interventions(
     query: &antecedent_core::CounterfactualQuery,
 ) -> Result<(VariableId, f64, f64), CausalError> {
-    if query.interventions.len() != 1 {
+    if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
             message: "Study counterfactual path currently supports a single hard \
                  intervention for ITE (use gcm helpers for multi-world predict)",

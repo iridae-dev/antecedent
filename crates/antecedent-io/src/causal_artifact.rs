@@ -34,6 +34,35 @@ pub enum CausalPayloadKind {
     TransportEstimate,
     /// A randomized-interference estimate.
     InterferenceEstimate,
+    /// Static mediation or counterfactual result.
+    StaticResult,
+}
+
+/// Static mediation/counterfactual result with independent result axes.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct StaticResultWire {
+    /// Structural identification, query, and derivation.
+    pub identification: crate::IdentificationResultWire,
+    /// Primary requested contrast.
+    pub estimate: f64,
+    /// Sampling standard error; absent when unavailable.
+    pub standard_error: Option<f64>,
+    /// Declared estimation assumptions, separate from identification.
+    pub assumptions: Vec<crate::AssumptionRecordWire>,
+    /// Empirical support diagnostics (range/overlap), never structural ID.
+    pub support: Vec<crate::DiagnosticWire>,
+    /// All execution/scientific diagnostics.
+    pub diagnostics: Vec<crate::DiagnosticWire>,
+    /// Native validation reports.
+    pub refutations: Vec<crate::RefutationReportWire>,
+    /// Per-unit ITEs for counterfactuals.
+    pub unit_effects: Option<Vec<f64>>,
+    /// Total, natural direct, natural indirect mediation contrasts.
+    pub mediation: Option<[f64; 3]>,
+    /// Control intervention level, including the counterfactual builder override.
+    pub control_level: f64,
+    /// Active intervention level.
+    pub active_level: f64,
 }
 
 /// Small self-describing header; variable names map stable wire ids to language names.
@@ -58,6 +87,8 @@ pub enum CausalPayloadWire {
     TransportEstimate(Box<TransportEffectEstimateWire>),
     /// Interference-estimate wire.
     InterferenceEstimate(Box<InterferenceEstimateWire>),
+    /// Static mediation or counterfactual result.
+    StaticResult(Box<StaticResultWire>),
 }
 
 impl CausalPayloadWire {
@@ -70,6 +101,7 @@ impl CausalPayloadWire {
             Self::TransportIdentification(_) => CausalPayloadKind::TransportIdentification,
             Self::TransportEstimate(_) => CausalPayloadKind::TransportEstimate,
             Self::InterferenceEstimate(_) => CausalPayloadKind::InterferenceEstimate,
+            Self::StaticResult(_) => CausalPayloadKind::StaticResult,
         }
     }
 }
@@ -95,6 +127,7 @@ pub fn encode_causal_payload_artifact(
         CausalPayloadWire::TransportIdentification(value) => to_cbor(value)?,
         CausalPayloadWire::TransportEstimate(value) => to_cbor(value)?,
         CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value)?,
+        CausalPayloadWire::StaticResult(value) => to_cbor(value)?,
     };
     // Descriptors are built from the shared buffers (no header/payload clones);
     // `pack_section_shared` moves each Vec into its section via `Arc`.
@@ -149,6 +182,9 @@ pub fn decode_causal_payload_artifact(
         .ok_or_else(|| IoError::Convert(format!("missing section `{PAYLOAD_SECTION}`")))?;
     let header: CausalPayloadHeader = from_cbor(&header_bytes.data)?;
     let payload = match header.payload_kind {
+        CausalPayloadKind::StaticResult => {
+            CausalPayloadWire::StaticResult(Box::new(from_cbor(&payload_bytes.data)?))
+        }
         CausalPayloadKind::Query => {
             CausalPayloadWire::Query(Box::new(from_cbor(&payload_bytes.data)?))
         }
@@ -187,6 +223,48 @@ fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
 
 fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Result<(), IoError> {
     match payload {
+        CausalPayloadWire::StaticResult(wire) => {
+            validate_query_ids(&wire.identification.query, variable_count)?;
+            let id = crate::identification_from_wire(&wire.identification)?;
+            if !matches!(
+                id.query,
+                antecedent_core::CausalQuery::Mediation(_)
+                    | antecedent_core::CausalQuery::Counterfactual(_)
+            ) {
+                return Err(IoError::Convert(
+                    "static result requires mediation or counterfactual query".into(),
+                ));
+            }
+            let shape_matches = match &id.query {
+                antecedent_core::CausalQuery::Mediation(_) => {
+                    wire.mediation.is_some() && wire.unit_effects.is_none()
+                }
+                antecedent_core::CausalQuery::Counterfactual(_) => {
+                    wire.unit_effects.is_some()
+                        && wire.mediation.is_none()
+                        && wire.standard_error.is_none()
+                }
+                _ => false,
+            };
+            if !shape_matches {
+                return Err(IoError::Convert(
+                    "static result payload does not match query family".into(),
+                ));
+            }
+            crate::trace::assumptions_from_wire(&wire.assumptions)?;
+            if !wire.estimate.is_finite()
+                || !wire.control_level.is_finite()
+                || !wire.active_level.is_finite()
+                || wire.standard_error.is_some_and(|v| !v.is_finite() || v < 0.0)
+                || wire
+                    .unit_effects
+                    .as_ref()
+                    .is_some_and(|v| v.is_empty() || v.iter().any(|x| !x.is_finite()))
+                || wire.mediation.is_some_and(|v| v.iter().any(|x| !x.is_finite()))
+            {
+                return Err(IoError::Convert("static result has invalid numerical values".into()));
+            }
+        }
         CausalPayloadWire::Query(wire) => {
             validate_query_ids(wire, variable_count)?;
             causal_query_from_wire(wire)?
@@ -1112,6 +1190,7 @@ mod tests {
             CausalPayloadWire::TransportIdentification(value) => to_cbor(value).unwrap(),
             CausalPayloadWire::TransportEstimate(value) => to_cbor(value).unwrap(),
             CausalPayloadWire::InterferenceEstimate(value) => to_cbor(value).unwrap(),
+            CausalPayloadWire::StaticResult(value) => to_cbor(value).unwrap(),
         };
         artifact.sections = vec![
             SectionBytes::new(HEADER_SECTION, header_bytes.clone()),

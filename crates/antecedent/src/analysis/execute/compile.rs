@@ -228,24 +228,34 @@ impl super::Study {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                if !matches!(q.contrast, MediationContrast::Total) {
+                if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+                    || self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
+                    || self.estimator_spec.is_some()
+                    || !self.custom_validators.is_empty()
+                    || self.split.is_some()
+                {
                     return Err(CausalError::Unsupported {
-                        message: "static Mediation natural/direct/mediated contrasts require \
-                             temporal data + TemporalDag; only MediationContrast::Total \
-                             (front-door) is supported on a static DAG",
+                        message: "static mediation requires path_specific.natural and mediation.linear without custom estimators, scalar validators, or discovery split",
                     });
                 }
-                let ate = AverageEffectQuery::binary_ate(q.treatment, q.outcome);
-                let mut plan = compile_logical_static_ate(StaticAteCompileInput {
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let path = antecedent_core::PathSpecificEffectQuery {
+                    control: q.control.clone(),
+                    active: q.active.clone(),
+                    path_nodes: Arc::clone(&q.mediators),
+                    target_population: q.target_population.clone(),
+                    ..antecedent_core::PathSpecificEffectQuery::binary(q.treatment, q.outcome)
+                };
+                let mut plan = compile_logical_path_specific(StaticPathSpecificCompileInput {
                     data,
                     graph,
-                    query: &ate,
+                    query: &path,
                     validation_suite: self.validation_suite_id(),
-                    identifier: Arc::from("frontdoor"),
-                    estimator: Arc::from("frontdoor.two_stage"),
+                    identifier: Arc::from("path_specific.natural"),
+                    estimator: Arc::from("functional.effect"),
                 })?;
-                plan.record.plan_id = Arc::from("static_mediation_total");
+                plan.record.plan_id = Arc::from("static_mediation");
+                plan.record.estimator = Some(Arc::from("mediation.linear"));
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
             }

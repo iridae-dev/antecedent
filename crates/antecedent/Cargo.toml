@@ -36,6 +36,7 @@ antecedent-state = { version = "1.2.0", path = "../antecedent-state" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion.workspace = true
 antecedent-kernels = { version = "1.2.0", path = "../antecedent-kernels" }
 serde_json = { workspace = true }
 
@@ -86,3 +87,7 @@ path = "../../examples/rust/prior_bank_surveys.rs"
 [[example]]
 name = "sales_spreadsheet_e2e"
 path = "../../examples/rust/sales_spreadsheet_e2e.rs"
+
+[[bench]]
+name = "staged_handle"
+harness = false
