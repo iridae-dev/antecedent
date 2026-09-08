@@ -7,9 +7,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    IdentificationStatus, ObservationAssumption, ObservationSpec, ResponseFunctional,
-    ResponseQuery, ResponseUncertainty, SupportDiagnostic, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
+    ResponseFunctional, ResponseQuery, ResponseUncertainty, SupportDiagnostic, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -95,9 +96,8 @@ impl ObservationMechanismEstimator {
     ///
     /// Selected outcomes require exactly one explicit
     /// [`ObservationAssumption::OutcomeIndependentGiven`] claim and fit a logistic
-    /// observation model on those variables. Right/left censoring supports only an empty
-    /// conditional-independence set because this implementation uses an unconditional
-    /// Kaplan–Meier censoring distribution. `delayed_entry` is supported for right censoring;
+    /// observation model on those variables. Right/left censoring uses Kaplan–Meier for an
+    /// empty independence set and a log-linear Cox censoring hazard for nonempty sets. `delayed_entry` is supported for right censoring;
     /// left censoring with delayed entry and interval censoring/truncation are refused here.
     ///
     /// Under [`SelectedOutcomeCorrection::Aipw`] both nuisances are cross-fit over
@@ -202,6 +202,32 @@ impl ObservationMechanismEstimator {
                     "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
                 ));
             }
+        }
+        let conditional_censoring = matches!(
+            query.observation,
+            ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. }
+        ) && !censoring_independence(query)?.is_empty();
+        let mut assumptions = assumptions;
+        if conditional_censoring {
+            let conditioning = censoring_independence(query)?;
+            if !conditioning.contains(&treatment)
+                || response_estimator
+                    .adjustment_set
+                    .iter()
+                    .any(|variable| !conditioning.contains(variable))
+            {
+                return Err(EstimationError::unsupported(
+                    "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
+                ));
+            }
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                    id: Arc::from("observation.cox_proportional_hazards"),
+                    description: Arc::from("Conditional censoring uses a proportional-hazards model with log-linear effects of the declared covariates and Breslow ties; correct conditional censoring survival and positivity are required."),
+                }),
+                source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("estimate.observation_cox_ipcw") },
+                scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
+            });
         }
         if response_estimator.options.simultaneous_replicates.is_some() {
             return Err(EstimationError::unsupported(
@@ -437,7 +463,26 @@ impl ObservationMechanismEstimator {
         delayed_entry: Option<VariableId>,
         reverse: bool,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
-        require_unconditional_censoring_independence(query)?;
+        let conditioning = censoring_independence(query)?;
+        if conditioning.iter().any(|v| [observed_id, censoring_id, event_id].contains(v)) {
+            return Err(EstimationError::unsupported(
+                "censoring conditioning cannot include recorded outcome, censoring time, or event indicator",
+            ));
+        }
+        if !conditioning.is_empty() && delayed_entry.is_some() {
+            return Err(EstimationError::unsupported(
+                "conditional Cox IPCW does not support delayed entry",
+            ));
+        }
+        for id in [observed_id, censoring_id, event_id] {
+            if (0..data.row_count())
+                .any(|row| !data.column(id).is_ok_and(|c| c.validity().is_valid(row)))
+            {
+                return Err(EstimationError::unsupported(
+                    "censoring inputs must be completely observed",
+                ));
+            }
+        }
         let observed = data.float64_values(observed_id)?;
         let censoring = data.float64_values(censoring_id)?;
         let event = data.float64_values(event_id)?;
@@ -458,17 +503,35 @@ impl ObservationMechanismEstimator {
         let transformed: Vec<f64> =
             observed.iter().map(|&value| if reverse { -value } else { value }).collect();
         let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
-        let weights = kaplan_meier_ipcw(
-            &transformed,
-            &event,
-            entry_values.as_deref(),
-            self.options.censoring_survival_floor,
-        )?;
+        let weights = if conditioning.is_empty() {
+            kaplan_meier_ipcw(
+                &transformed,
+                &event,
+                entry_values.as_deref(),
+                self.options.censoring_survival_floor,
+            )?
+        } else {
+            let covariates = read_complete_columns(data, conditioning)?;
+            antecedent_stats::cox_ipcw(
+                &transformed,
+                &event,
+                &covariates,
+                conditioning.len(),
+                self.options.censoring_survival_floor,
+            )?
+            .weights
+        };
         let values = observed.iter().zip(&weights).map(|(&y, &w)| y * w).collect();
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
-            method: Arc::from(if reverse {
+            method: Arc::from(if !conditioning.is_empty() {
+                if reverse {
+                    "observation.left_censored.cox_ipcw_sign_reversal.v1"
+                } else {
+                    "observation.right_censored.cox_ipcw.v1"
+                }
+            } else if reverse {
                 "observation.left_censored.km_ipcw_sign_reversal.v1"
             } else if delayed_entry.is_some() {
                 "observation.right_censored.km_ipcw_delayed_entry.v1"
@@ -508,24 +571,19 @@ fn exact_outcome_independence(query: &ResponseQuery) -> Result<&[VariableId], Es
     Ok(first)
 }
 
-fn require_unconditional_censoring_independence(
-    query: &ResponseQuery,
-) -> Result<(), EstimationError> {
+fn censoring_independence(query: &ResponseQuery) -> Result<&[VariableId], EstimationError> {
     if query.observation_assumptions.len() != 1 {
         return Err(EstimationError::unsupported(
-            "Kaplan-Meier IPCW requires exactly one unconditional independence assumption",
+            "IPCW requires exactly one independence assumption",
         ));
     }
     match &query.observation_assumptions[0] {
-        ObservationAssumption::IndependentGiven(vars)
-        | ObservationAssumption::OutcomeIndependentGiven(vars)
-            if vars.is_empty() =>
-        {
-            Ok(())
+        ObservationAssumption::IndependentGiven(vars) => Ok(vars),
+        // Preserve the previously accepted empty outcome-independence spelling.
+        ObservationAssumption::OutcomeIndependentGiven(vars) if vars.is_empty() => Ok(vars),
+        _ => {
+            Err(EstimationError::unsupported("conditional censoring requires IndependentGiven(Z)"))
         }
-        _ => Err(EstimationError::unsupported(
-            "Kaplan-Meier IPCW cannot adjust conditional censoring; the declared set must be empty",
-        )),
     }
 }
 
@@ -536,7 +594,10 @@ fn read_complete_columns(
     let mut values = Vec::with_capacity(data.row_count() * variables.len());
     for &variable in variables {
         let column = data.float64_values(variable)?;
-        if column.iter().any(|value| !value.is_finite()) {
+        if column.iter().any(|value| !value.is_finite())
+            || (0..data.row_count())
+                .any(|row| !data.column(variable).is_ok_and(|c| c.validity().is_valid(row)))
+        {
             return Err(EstimationError::unsupported(
                 "observation-model covariates must be completely observed and finite",
             ));
@@ -934,7 +995,7 @@ mod tests {
     }
 
     #[test]
-    fn conditional_km_claim_fails_closed() {
+    fn conditional_cox_separation_fails_closed() {
         let values = [1.0, 2.0, 3.0, 4.0];
         let event = [0.0, 1.0, 1.0, 1.0];
         let data = TabularData::from_f64_columns([
@@ -957,7 +1018,7 @@ mod tests {
         let error = ObservationMechanismEstimator::default()
             .adjusted_outcome(&data, &query, None)
             .unwrap_err();
-        assert!(error.to_string().contains("cannot adjust conditional censoring"));
+        assert!(error.to_string().contains("Cox"), "{error}");
     }
 
     #[test]

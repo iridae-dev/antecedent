@@ -100,3 +100,6 @@ pub use transport::{
     TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,
 };
 pub use util::BootstrapSeResult;
+
+mod static_mediation;
+pub use static_mediation::estimate_static_mediation;
