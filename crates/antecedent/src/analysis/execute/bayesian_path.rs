@@ -267,7 +267,7 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, _estimand, status) in fit_atoms {
+        for (key, estimand, status) in fit_atoms {
             if !keep.contains(&key) {
                 continue;
             }
@@ -280,7 +280,15 @@ impl super::Study {
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             let weight = identified_weight_for_key(&graphs, key);
-            atoms.push(EnvelopeAtomFit { key, prep, posterior, status, weight });
+            atoms.push(EnvelopeAtomFit {
+                key,
+                prep,
+                posterior,
+                status,
+                weight,
+                estimand,
+                indexer: None,
+            });
         }
         let mut posterior = aggregate_effect_envelope(
             &graphs,
@@ -315,20 +323,21 @@ impl super::Study {
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let (reports, na_diagnostics) = run_refuters(
+                let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
-                    &estimand,
                     query,
                     &estimate,
+                    &atoms,
                     &mut refute_ws,
-                    None,
                     ctx,
                     self.refute,
                     "bayesian.gcomp",
                     &self.custom_validators,
                     None,
+                    self.split.as_ref(),
+                    None,
                 )?;
-                diagnostics.extend(na_diagnostics);
+                diagnostics.extend(mix_diagnostics);
                 reports
             }
         };
@@ -548,7 +557,7 @@ impl super::Study {
                 est.fit(&prep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
+                primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
             let weight = identified_weight_for_key(&graphs, key);
@@ -558,6 +567,8 @@ impl super::Study {
                 posterior,
                 status: identification.status,
                 weight,
+                estimand,
+                indexer: None,
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -595,20 +606,21 @@ impl super::Study {
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let (reports, na_diagnostics) = run_refuters(
+                let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
-                    &estimand,
                     query,
                     &estimate,
+                    &atoms,
                     &mut refute_ws,
-                    None,
                     ctx,
                     self.refute,
                     "bayesian.gcomp",
                     &self.custom_validators,
                     None,
+                    self.split.as_ref(),
+                    None,
                 )?;
-                diagnostics.extend(na_diagnostics);
+                diagnostics.extend(mix_diagnostics);
                 reports
             }
         };
@@ -754,7 +766,12 @@ impl super::Study {
             };
             match envelope_draws_from_posterior(key, &posterior) {
                 Ok(draws) => {
-                    atom_contexts.push((key, estimand, identification.clone(), indexer));
+                    atom_contexts.push((
+                        key,
+                        estimand.clone(),
+                        identification.clone(),
+                        indexer.clone(),
+                    ));
                     per_graph.push(draws);
                     atoms.push(EnvelopeAtomFit {
                         key,
@@ -762,6 +779,8 @@ impl super::Study {
                         posterior,
                         status: identification.status,
                         weight: identified_weight_for_key(&identified.graphs, key),
+                        estimand,
+                        indexer: Some(indexer),
                     });
                 }
                 Err(_) => {
@@ -788,7 +807,7 @@ impl super::Study {
         )?;
         let keep = identified_envelope_keys(&graphs);
         atoms.retain(|atom| keep.contains(&atom.key));
-        let (_, estimand, identification, indexer) = atom_contexts
+        let (_, estimand, identification, _) = atom_contexts
             .into_iter()
             .find(|(key, _, _, _)| keep.contains(key))
             .ok_or_else(|| CausalError::Compile {
@@ -823,33 +842,21 @@ impl super::Study {
 
         let tabular = TabularData::new(data.storage().clone());
         let ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let temporal = TemporalRefitContext {
-            indexer: &indexer,
-            temporal_query: query,
-            split: self.split.as_ref(),
-            kernel_policy: &ctx.kernel_policy,
-            time_index: Some(data.time_index()),
-            panel: None,
-        };
-        let (mut refutations, notes) = run_refuters(
+        let (mut refutations, notes) = run_envelope_effect_refuters(
             &tabular,
-            &estimand,
             &ate_query,
             &estimate,
+            &atoms,
             &mut EstimationWorkspace::default(),
-            None,
             ctx,
             self.refute,
             "bayesian.temporal.gcomp",
             &self.custom_validators,
-            Some(temporal),
+            Some(query),
+            self.split.as_ref(),
+            Some(data.time_index()),
         )?;
         diagnostics.extend(notes);
-        diagnostics.push(Diagnostic::new(
-            "refute.dbn_posterior.effect_reference", DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "effect refuters compare the mixture summary with temporal refits on the first contributing atom; PPC and prior sensitivity aggregate contributing atoms by posterior mass",
-        ));
         let predictive_checks = run_envelope_bayesian_full_validation(
             self.refute,
             &cfg,

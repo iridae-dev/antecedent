@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Continuous conditional-effect validation assesses conditional residual support
   instead of attempting a binary propensity fit. Both overlap diagnostics report
   unsupported mass in `comparison`, matching the binary reports' direction.
+- Graph-posterior cheap/full effect refuters run on every contributing atom
+  against the mixture effect and mix by posterior mass, rather than certifying
+  only the first contributing structure.
+- AverageEffect treatment classification uses the estimation complete-case
+  mask, so non-0/1 encodings take continuous-support overlap rather than the
+  binary propensity path, including after missingness filtering.
 - Prepared query exports retain the original query kind and template variable IDs.
 - Discrete functional estimation now respects analysis masks, so native
   subset refuters actually refit the retained rows.
