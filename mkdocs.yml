@@ -36,6 +36,8 @@ nav:
   - Transport and interference: transport-interference.md
   - Comparison: comparison.md
   - Release notes:
+      - "1.2.0": release-notes/v1.2.0.md
+      - "1.2 evidence and limits": v1.2-evidence.md
       - "1.1.0": release-notes/v1.1.0.md
       - "1.0.0": release-notes/v1.0.0.md
       - "0.9.1": release-notes/v0.9.1.md
@@ -62,3 +64,5 @@ plugins:
   - search
 
 docs_dir: docs
+exclude_docs: |
+  /README.md

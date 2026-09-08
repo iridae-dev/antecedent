@@ -2,7 +2,7 @@
 
 Date: 2026-09-07
 Scope: workspace crates + `python` extension (package version **1.2.0**)
-ADR: [0017](../adr/0017-release-prep.md)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
 code policy, the current lockfile's advisory/license/source rules, default
@@ -49,7 +49,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 - Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
   locally (`cargo deny check`) — not part of CI.
 - Default features must remain wheel-distributable without system BLAS
-  ([ADR 0001](../adr/0001-linear-algebra-backend.md)).
+  ([ADR 0001](https://github.com/iridae-dev/antecedent/blob/main/adr/0001-linear-algebra-backend.md)).
 
 ## Dependency notes
 

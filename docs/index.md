@@ -19,9 +19,10 @@ Rules enforced throughout:
 * **Estimate an effect you can defend.** `analyze()` checks identification
   first, reports the strategy and adjustment set it used, and runs refuters
   against the estimate by default.
-* **Estimate a response, not only a contrast.** Mean curves, derivatives,
-  elasticities, and Jacobians keep structural identification, empirical support,
-  and uncertainty kind as separate axes.
+* **Estimate a response, not only a contrast.** Licensed mean curves keep
+  structural identification, empirical support, and uncertainty kind as separate
+  axes. Derivative, elasticity, and Jacobian primitives remain lower-level
+  inventory; their root analysis queries are refused in 1.2.
 * **Declare how the outcome was observed.** Complete, censored, truncated, and
   selected mechanisms live in `antecedent.observation`; assumptions are never
   inferred from column presence.

@@ -102,7 +102,7 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 49 names through 0.9. Temporal response
+The root namespace remains frozen at 49 names in 1.2. Temporal response
 attachments use existing query types without adding root exports.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
@@ -127,9 +127,9 @@ Also exposed:
 - `antecedent.gcm` — `fit_gcm_discovered` / `attribute_*_discovered` discover-then-attribute composition
 - `antecedent.state.CausalState` — incremental state with retained batches, events, suff-stats, particle filter
 - `refute="full"|"placebo"|False` on static `analyze` (`refute=True` is a
-  `TypeError`; leave it unset for the licensed default). Temporal
-  `ResponseCurve` / `InterventionResponse` skip scalar ATE refuters and
-  record that skip on `CausalResponseView.validation`.
+  `TypeError`; leave it unset for the licensed default). Static and temporal
+  `ResponseCurve` / `InterventionResponse` license validation `none` only;
+  requesting a scalar refuter suite raises `CausalUnsupportedError`.
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
 - Graph interchange on the classes: `Dag.from_dot` / `.to_dot` and the JSON / GML / NetworkX peers
 - Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),
@@ -138,6 +138,17 @@ Also exposed:
   (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
+
+In 1.2, `antecedent.estimation.PreparedAnalysis` also supports the licensed
+Bayesian conditional, temporal-mediation and response forms, and multi-step
+`SustainedEffect(..., window=(-2, -1))`. Choose the validation suite when
+preparing these analyses; second-click `refute()` remains AverageEffect-only.
+`export_artifact()` retains the fitted posterior or response, while
+`export_artifact(payload="query")` retains the original query kind and variable
+IDs. Scalar posterior exports do not include the complete assumption or
+validation ledger; retain the analysis result alongside them. See the
+[1.2 evidence ledger](https://github.com/iridae-dev/antecedent/blob/main/docs/v1.2-evidence.md)
+for model restrictions and evidence.
 
 Typed exceptions (`CausalError` and subclasses) mirror Rust `CausalError` categories.
 The native module `antecedent._native` remains available for advanced FFI use

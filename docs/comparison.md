@@ -15,7 +15,7 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 0.9 matrix licenses these families (structure and validation qualifiers are
+The 1.2 matrix licenses these families (structure and validation qualifiers are
 part of the claim, not implementation detail):
 
 - Frequentist `AverageEffect` on explicit or accepted DAGs, ADMGs, and PAGs,
@@ -23,23 +23,34 @@ part of the claim, not implementation detail):
   three validation values are licensed for those cells;
 - Bayesian graph-posterior `AverageEffect` over DAG atoms, with validation
   `none`, `cheap`, or `full`;
-- Frequentist `ConditionalEffect` on explicit or accepted DAGs with all three
+- Frequentist and Bayesian `ConditionalEffect` on explicit or accepted DAGs with all three
   validation values;
 - Frequentist `PathSpecificEffect` and `InterventionalDistribution` on an
-  explicit DAG with validation `none`;
+  explicit or accepted DAG with validation `none`, `cheap`, or `full`;
 - static and temporal `ResponseCurve` / `InterventionResponse` under
-  Frequentist inference, explicit or accepted structure, and validation
+  Frequentist or Bayesian inference, explicit or accepted DAG or TemporalDag
+  structure, and validation
   `none`;
 - pulse and single-step sustained temporal effects on explicit or accepted
   `TemporalDag` under Frequentist or Bayesian inference with all three
-  validation values, plus the Bayesian DBN-posterior validation-`none` cells;
+  validation values, including Bayesian DBN-posterior cells;
+- multi-step sustained effects on explicit or accepted `TemporalDag` under
+  Frequentist or Bayesian inference, with validation `none` and no split;
 - temporal mediation on explicit or accepted `TemporalDag` under Frequentist
-  inference and validation `none`;
+  or Bayesian inference and validation `none`, `cheap`, or `full`.
+
+The Bayesian additions use the documented Gaussian linear forms. Temporal
+mediation requires one mediator with treatment at lag one and mediator/outcome
+contemporaneous, adjusting for observed baseline parents. Multi-step sustained
+uses sequential g-computation; Bayesian time copies share stationary mechanism
+draws. These restrictions are part of each licensed form; see the
+[1.2 evidence ledger](v1.2-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior × Bayesian` with validation
 `none`/`cheap`/`full`. Temporal graph-posterior support is pulse and
-single-step sustained effect on `TemporalDag` with validation `none`.
+single-step sustained effect on `TemporalDag` with validation `none`, `cheap`,
+or `full`.
 Frequentist graph-posterior combinations, response mixtures, and
 ADMG/CPDAG/PAG posterior atoms are refused. Unidentified atom mass is retained;
 priors do not upgrade identification.
@@ -71,7 +82,7 @@ black-box outputs from pinned external packages:
 
 Each external claim has an immutable record under `parity/baselines`, a frozen
 fixture, and an executing conformance test. See
-[ADR 0009](../adr/0009-parity-baselines.md), the parity manifests, and each
+[ADR 0009](https://github.com/iridae-dev/antecedent/blob/main/adr/0009-parity-baselines.md), the parity manifests, and each
 licensed row's evidence kind and limitations. A shared algorithm name is not
 evidence of equivalent behavior.
 
@@ -130,10 +141,10 @@ The following are current product boundaries or explicit matrix refusals:
 
 - no ML-based CATE estimators or built-in EconML integration;
 - no plotting module;
-- no R, Julia, or JavaScript bindings through 1.0;
+- no R, Julia, or JavaScript bindings in 1.2;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no Bayesian response curves or response mixtures over graph posteriors;
+- no response mixtures over graph posteriors or Bayesian nonlinear responses;
 - no licensed derivative analysis cells;
 - no class-aware temporal effect identification on incomplete
   `TemporalCpdag`/`TemporalPag`;
