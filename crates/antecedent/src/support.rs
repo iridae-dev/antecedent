@@ -14,7 +14,7 @@
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
-use antecedent_graph::{Admg, Dag, Pag, TemporalDag};
+use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
 
 use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
@@ -88,7 +88,7 @@ macro_rules! explicit_graph_input {
     };
 }
 
-explicit_graph_input!(Dag, Admg, Pag, TemporalDag);
+explicit_graph_input!(Dag, Admg, Pag, Cpdag, TemporalDag, TemporalCpdag, TemporalPag);
 
 impl StructureSource {
     /// Matrix axis value.
@@ -321,28 +321,15 @@ pub fn support_cell(
 ///   combination")` because `dispatch.rs`'s Response arm requires a literal
 ///   `self.graph.as_dag()`, which an ADMG-shaped `AcceptedGraph` never
 ///   satisfies — so the collapse must not (and does not) fire there.
-/// - **Cpdag, under `AverageEffect`**: `AcceptedGraph::cpdag` /
-///   `CpdagReview::into_accepted` already refuse any Cpdag carrying
-///   undirected or conflict marks at *construction* time (`accepted.rs`), so
-///   every `GraphClass::Cpdag` this function ever sees is already fully
-///   oriented; `compile.rs`'s lone `GraphClass::Cpdag` arm always completes
-///   it via `try_into_dag`. This re-derives that fact structurally (rather
-///   than trusting the invariant) so a future relaxation of the accept gate
-///   cannot silently misclassify a partially-oriented Cpdag as Dag. Scoped to
-///   `AverageEffect` for the same reason as the ADMG case: it is the only
-///   query `compile.rs` wires for `GraphClass::Cpdag` — `CausalQuery::Response`
-///   on a Cpdag hits the same compile-time wildcard refusal as above, which is
-///   exactly why `ResponseCurve` stays refused on Cpdag (`support_closed.toml`)
-///   even though a fully-oriented Cpdag would otherwise look Dag-shaped.
-/// - **`TemporalCpdag` / `TemporalPag`, under `TemporalEffect`**: the identical
-///   accept-time invariant (`accepted.rs`) guarantees these are always
-///   complete; `compile.rs`'s `TemporalEffect × {TemporalCpdag, TemporalPag}`
-///   arms always complete them to a `TemporalDag` via `try_into_temporal_dag`.
-///   Scoped to `TemporalEffect` because that is the only query `compile.rs`
-///   wires for these two temporal classes — e.g. temporal
-///   `CausalQuery::Mediation` only has a `GraphClass::TemporalDag` arm, so a
-///   TemporalCpdag/TemporalPag stays uncollapsed (and thus not misclassified)
-///   for that query.
+/// - **Cpdag, under `AverageEffect`**: undirected marks are MEC information.
+///   Completing a CPDAG to a DAG is a `Dag` cell only when the *caller*
+///   supplies a `Dag`. A supplied `Cpdag` stays `Cpdag` even when it has a
+///   unique orientation.
+/// - **`TemporalCpdag` / `TemporalPag`, under `TemporalEffect`**: a graph that
+///   `try_into_temporal_dag` completes is the `TemporalDag` coordinate. An
+///   incomplete graph stays `TemporalCpdag` / `TemporalPag` and uses the
+///   class-aware envelope. Scoped to `TemporalEffect` because temporal
+///   `CausalQuery::Mediation` only has a `GraphClass::TemporalDag` arm.
 ///
 /// Not collapsed: a static [`Pag`]'s circle marks are information the
 /// class-aware generalized-adjustment identifier is built to consume, never
@@ -355,10 +342,7 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
             let admg = graph.as_admg().expect("class() == Admg implies as_admg() is Some");
             if admg.has_bidirected() { GraphClass::Admg } else { GraphClass::Dag }
         }
-        (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => {
-            let cpdag = graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
-            if cpdag.try_into_dag().is_ok() { GraphClass::Dag } else { GraphClass::Cpdag }
-        }
+        (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
         (GraphClass::TemporalCpdag, CausalQuery::TemporalEffect(_)) => {
             let cpdag = graph
                 .as_temporal_cpdag()
@@ -576,6 +560,14 @@ mod tests {
             CellStatus::Licensed
         );
         assert_eq!(
+            classify(cell("AverageEffect", "Cpdag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("AverageEffect", "Cpdag", "accepted", "Bayesian", "full")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
             refuse_if_not_applicable(cell(
                 "AverageEffect",
                 "Pag",
@@ -603,15 +595,10 @@ mod tests {
         ))
         .unwrap_err();
         assert!(err.to_string().starts_with("refused:"), "{err}");
-        let err = refuse_if_not_applicable(cell(
-            "ResponseCurve",
-            "Pag",
-            "explicit",
-            "Frequentist",
-            "none",
-        ))
-        .unwrap_err();
-        assert!(err.to_string().starts_with("refused:"), "{err}");
+        assert_eq!(
+            classify(cell("ResponseCurve", "Pag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
     }
 
     #[test]
@@ -717,6 +704,27 @@ mod tests {
     }
 
     #[test]
+    fn licensed_pulse_temporal_class_is_open() {
+        for query in ["PulseEffect", "SustainedEffect"] {
+            for graph in ["TemporalCpdag", "TemporalPag"] {
+                for structure in ["explicit", "accepted"] {
+                    let status = classify(cell(query, graph, structure, "Frequentist", "none"));
+                    assert_eq!(status, CellStatus::Licensed, "{query}/{graph}/{structure}");
+                    refuse_if_not_applicable(cell(query, graph, structure, "Frequentist", "none"))
+                        .unwrap();
+                    let err =
+                        refuse_if_not_applicable(cell(query, graph, structure, "Bayesian", "none"))
+                            .unwrap_err();
+                    assert!(
+                        err.to_string().contains("Frequentist generalized-adjustment"),
+                        "{query}/{graph}: {err}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn licensed_pulse_and_sustained_temporal_dag_are_open() {
         for query in ["PulseEffect", "SustainedEffect"] {
             for structure in ["explicit", "accepted"] {
@@ -738,22 +746,40 @@ mod tests {
 
     #[test]
     fn closed_conditional_effect_off_dag_is_enforced() {
-        for graph in ["Cpdag", "Admg", "Pag"] {
-            let status =
-                classify(cell("ConditionalEffect", graph, "accepted", "Frequentist", "none"));
-            assert_eq!(status, CellStatus::Refused, "{graph}");
-            let err = refuse_if_not_applicable(cell(
-                "ConditionalEffect",
-                graph,
-                "accepted",
-                "Frequentist",
-                "none",
-            ))
-            .unwrap_err();
-            assert!(
-                err.to_string().starts_with("refused: ConditionalEffect compiles only against"),
-                "{graph}: {err}"
-            );
+        let status = classify(cell("ConditionalEffect", "Admg", "accepted", "Frequentist", "none"));
+        assert_eq!(status, CellStatus::Refused, "Admg");
+        let err = refuse_if_not_applicable(cell(
+            "ConditionalEffect",
+            "Admg",
+            "accepted",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(
+            err.to_string().starts_with("refused: ConditionalEffect on Admg has no compile arm"),
+            "Admg: {err}"
+        );
+        for graph in ["Cpdag", "Pag"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                for validation in ["none", "cheap", "full"] {
+                    let status =
+                        classify(cell("ConditionalEffect", graph, "accepted", inference, validation));
+                    assert_eq!(
+                        status,
+                        CellStatus::Licensed,
+                        "{graph}/{inference}/{validation}"
+                    );
+                    refuse_if_not_applicable(cell(
+                        "ConditionalEffect",
+                        graph,
+                        "accepted",
+                        inference,
+                        validation,
+                    ))
+                    .unwrap();
+                }
+            }
         }
     }
 
@@ -778,19 +804,34 @@ mod tests {
 
     #[test]
     fn closed_intervention_response_off_dag_is_enforced() {
-        for graph in ["Cpdag", "Admg", "Pag"] {
-            let err = refuse_if_not_applicable(cell(
-                "InterventionResponse",
-                graph,
-                "explicit",
-                "Frequentist",
-                "none",
-            ))
-            .unwrap_err();
-            assert!(
-                err.to_string().starts_with("refused: InterventionResponse executes only on"),
-                "{graph}: {err}"
-            );
+        let err = refuse_if_not_applicable(cell(
+            "InterventionResponse",
+            "Admg",
+            "explicit",
+            "Frequentist",
+            "none",
+        ))
+        .unwrap_err();
+        assert!(
+            err.to_string().starts_with("refused: Admg response has no functional plug-in"),
+            "{err}"
+        );
+        for graph in ["Cpdag", "Pag"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                assert_eq!(
+                    classify(cell("InterventionResponse", graph, "explicit", inference, "none")),
+                    CellStatus::Licensed,
+                    "{graph}/{inference}"
+                );
+                refuse_if_not_applicable(cell(
+                    "InterventionResponse",
+                    graph,
+                    "explicit",
+                    inference,
+                    "none",
+                ))
+                .unwrap();
+            }
         }
     }
 
@@ -816,12 +857,17 @@ mod tests {
     }
 
     #[test]
-    fn closed_graph_posterior_frequentist_is_enforced() {
+    fn licensed_graph_posterior_frequentist_ate_is_open() {
+        for validation in ["none", "cheap", "full"] {
+            let c = cell("AverageEffect", "Dag", "graph_posterior", "Frequentist", validation);
+            assert_eq!(classify(c), CellStatus::Licensed, "{validation}");
+            refuse_if_not_applicable(c).unwrap();
+        }
         let status =
-            classify(cell("AverageEffect", "Dag", "graph_posterior", "Frequentist", "none"));
+            classify(cell("ConditionalEffect", "Dag", "graph_posterior", "Frequentist", "none"));
         assert_eq!(status, CellStatus::Refused);
         let err = refuse_if_not_applicable(cell(
-            "AverageEffect",
+            "ConditionalEffect",
             "Dag",
             "graph_posterior",
             "Frequentist",
@@ -829,17 +875,17 @@ mod tests {
         ))
         .unwrap_err();
         assert!(
-            err.to_string().starts_with("refused: Graph-posterior compilation requires Bayesian"),
+            err.to_string().starts_with(
+                "refused: Frequentist graph-posterior mixing is licensed only for AverageEffect"
+            ),
             "{err}"
         );
     }
 
-    /// End-to-end: `Study::build` itself refuses a graph-posterior study run under
-    /// `InferenceMode::Frequentist`, with the reason-backed refusal id, before `run()` would
-    /// otherwise reach `compile_graph_posterior`'s own free-form `Unsupported`.
+    /// End-to-end: `Study::build` accepts the licensed Frequentist graph-posterior ATE cell.
     #[test]
     #[allow(clippy::many_single_char_names)]
-    fn build_refuses_graph_posterior_under_frequentist() {
+    fn build_accepts_graph_posterior_under_frequentist() {
         use antecedent_core::{
             CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         };
@@ -894,24 +940,19 @@ mod tests {
         )
         .unwrap();
 
-        let err = crate::analysis::Study::tabular(data)
+        crate::analysis::Study::tabular(data)
             .graph_posterior(gp)
             .query(ate_query())
             .inference(crate::inference::InferenceMode::Frequentist)
             .build()
-            .unwrap_err();
-        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
-        assert!(
-            err.to_string().starts_with("refused: Graph-posterior compilation requires Bayesian"),
-            "{err}"
-        );
+            .expect("AverageEffect × graph_posterior × Frequentist is licensed");
     }
 
-    /// End-to-end off-Dag static case: `Study::build` refuses a `ConditionalEffect`
-    /// query on a supplied Cpdag with a reason-backed refusal id.
+    /// End-to-end class-aware static case: `Study::build` accepts a `ConditionalEffect`
+    /// query on a supplied Cpdag once the cell is licensed.
     #[test]
     #[allow(clippy::many_single_char_names)]
-    fn build_refuses_conditional_effect_on_cpdag() {
+    fn build_accepts_conditional_effect_on_cpdag() {
         use antecedent_core::{
             AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
             ValueType,
@@ -981,16 +1022,11 @@ mod tests {
                 .with_effect_modifiers(vec![VariableId::from_raw(0)]);
         let query = antecedent_core::ConditionalEffectQuery::try_new(inner).unwrap();
 
-        let err = crate::analysis::Study::tabular(data)
+        crate::analysis::Study::tabular(data)
             .graph(AcceptedGraph::cpdag(cpdag).unwrap())
             .query(query)
             .build()
-            .unwrap_err();
-        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }));
-        assert!(
-            err.to_string().starts_with("refused: ConditionalEffect compiles only against"),
-            "{err}"
-        );
+            .expect("ConditionalEffect × Cpdag is licensed");
     }
 
     // -- `effective_graph_class` --------------------------------------------
@@ -1076,50 +1112,32 @@ mod tests {
         assert_eq!(effective_graph_class(&graph, &distribution_query()), GraphClass::Admg);
     }
 
-    /// (c) A fully-oriented Cpdag collapses to Dag under `AverageEffect`, and the
-    /// resulting cell is Licensed.
+    /// A supplied Cpdag stays Cpdag under `AverageEffect`, including when it
+    /// has a unique orientation. Completing it to a `Dag` is a different cell.
     #[test]
-    fn fully_oriented_cpdag_collapses_to_dag_under_average_effect() {
+    fn cpdag_does_not_collapse_under_average_effect() {
         let mut cpdag = Cpdag::with_variables(2);
         cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let graph = AcceptedGraph::cpdag(cpdag).unwrap();
-        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Dag);
-
-        let sc = support_cell(
-            &ate_query(),
-            effective_graph_class(&graph, &ate_query()),
-            StructureSource::Explicit,
-            &InferenceMode::Frequentist,
-            RefuteSuite::None,
-        )
-        .unwrap();
-        assert_eq!(classify(sc), CellStatus::Licensed);
+        let graph = AcceptedGraph::from(cpdag);
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Cpdag);
     }
 
-    /// (c, other half) A partially-oriented Cpdag can never reach
-    /// `effective_graph_class` in the first place: `AcceptedGraph::cpdag` is the
-    /// review gate, and it structurally refuses any Cpdag carrying undirected or
-    /// conflict marks *at construction*, before there is a `GraphClass::Cpdag`
-    /// value to classify. This is the invariant `effective_graph_class`'s Cpdag
-    /// arm documents and re-derives rather than assumes.
+    /// Undirected marks are MEC information: `AcceptedGraph::cpdag` accepts them.
     #[test]
-    fn partially_oriented_cpdag_is_refused_at_the_accept_gate_not_at_classification() {
+    fn undirected_cpdag_is_accepted_and_stays_cpdag() {
         let mut cpdag = Cpdag::with_variables(2);
         cpdag.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let err = AcceptedGraph::cpdag(cpdag).unwrap_err();
-        assert!(matches!(err, CausalError::ReviewRequired { .. }), "{err}");
+        let graph = AcceptedGraph::cpdag(cpdag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &ate_query()), GraphClass::Cpdag);
     }
 
-    /// The Cpdag collapse is scoped to `AverageEffect` for the same reason as the
-    /// ADMG collapse: `compile.rs` wires no other query against `GraphClass::Cpdag`.
-    /// This is exactly why `ResponseCurve` stays refused on Cpdag even for a
-    /// fully-oriented one (`support_closed.toml`'s Pag/Cpdag/Admg rule) — the
-    /// collapse must not un-close it.
+    /// Response / distribution queries on a Cpdag stay Cpdag (and refused):
+    /// there is no compile arm that would license them via collapse.
     #[test]
-    fn cpdag_collapse_does_not_apply_outside_average_effect() {
+    fn cpdag_does_not_collapse_outside_average_effect() {
         let mut cpdag = Cpdag::with_variables(2);
         cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let graph = AcceptedGraph::cpdag(cpdag).unwrap();
+        let graph = AcceptedGraph::from(cpdag);
         assert_eq!(effective_graph_class(&graph, &distribution_query()), GraphClass::Cpdag);
     }
 
@@ -1137,10 +1155,9 @@ mod tests {
         assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
     }
 
-    /// An incomplete `TemporalCpdag` is refused at `AcceptedGraph::temporal_cpdag`
-    /// itself, mirroring the static Cpdag invariant.
+    /// An incomplete `TemporalCpdag` is accepted: undirected marks are the MEC.
     #[test]
-    fn incomplete_temporal_cpdag_is_refused_at_the_accept_gate() {
+    fn incomplete_temporal_cpdag_is_accepted_and_stays_temporal_cpdag() {
         let mut cpdag = TemporalCpdag::empty();
         let a =
             cpdag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
@@ -1148,7 +1165,8 @@ mod tests {
             .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
             .unwrap();
         cpdag.insert_undirected(a, b).unwrap();
-        assert!(AcceptedGraph::temporal_cpdag(cpdag).is_err());
+        let graph = AcceptedGraph::temporal_cpdag(cpdag).unwrap();
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalCpdag);
     }
 
     /// (d) A complete `TemporalPag` (no circle marks) collapses to `TemporalDag` under
@@ -1161,20 +1179,20 @@ mod tests {
         let b =
             pag.add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
         pag.insert_directed(a, b).unwrap();
-        let graph = AcceptedGraph::temporal_pag(pag).unwrap();
+        let graph = AcceptedGraph::temporal_pag(pag);
         assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
     }
 
-    /// A `TemporalPag` with an unresolved circle mark is refused at
-    /// `AcceptedGraph::temporal_pag` itself.
+    /// A `TemporalPag` with a circle mark is accepted: circles are the incomplete class.
     #[test]
-    fn temporal_pag_with_circle_mark_is_refused_at_the_accept_gate() {
+    fn temporal_pag_with_circle_mark_is_accepted_and_stays_temporal_pag() {
         let mut pag = TemporalPag::empty();
         let a = pag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
         let b =
             pag.add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
         pag.insert_circle_arrow(a, b).unwrap();
-        assert!(AcceptedGraph::temporal_pag(pag).is_err());
+        let graph = AcceptedGraph::temporal_pag(pag);
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalPag);
     }
 
     /// The temporal collapse is scoped to `TemporalEffect`: `compile.rs` wires no

@@ -69,6 +69,9 @@ pub struct StudyResult {
     /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
     /// the public axis.
     pub support_status: Option<crate::support::CellStatus>,
+    /// How the caller supplied structure. Graph-posterior mixtures are never a
+    /// single adjustment set, even when every identified atom happens to agree.
+    pub structure_source: crate::support::StructureSource,
     /// Performance record.
     pub performance: ExecutionPerformanceRecord,
     /// Treatment variable.

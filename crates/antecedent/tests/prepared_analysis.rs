@@ -727,9 +727,9 @@ fn prepared_distribution_reestimate_matches_fresh() {
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) now refuses these
 /// three query kinds at `.build()` itself: `parity/support_closed.toml` closes
-/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Cpdag / Admg /
-/// Pag (they are staged Dag-only), so the matrix catches the mismatch before `.prepare()`
-/// would otherwise have to.
+/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Admg
+/// (`ConditionalEffect` on Cpdag/Pag is licensed). The matrix catches the mismatch
+/// before `.prepare()` would otherwise have to.
 #[test]
 fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
     let mut admg = Admg::with_variables(3);

@@ -29,7 +29,10 @@ impl super::Study {
                 if !((!q.is_temporal()
                     && matches!(
                         (&self.data, class),
-                        (DataInput::Tabular(_), GraphClass::Dag)
+                        (
+                            DataInput::Tabular(_),
+                            GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+                        )
                     ))
                     || (q.is_temporal()
                         && matches!(
@@ -38,8 +41,9 @@ impl super::Study {
                         ))) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "static CausalQuery::Response requires tabular data and a Dag; \
-                              temporal response requires series/event data and a TemporalDag",
+                    message: "static CausalQuery::Response requires tabular data and a Dag, \
+                              Cpdag, or Pag; temporal response requires series/event data and \
+                              a TemporalDag",
                 });
             }
             (_, CausalQuery::Distribution(_), class)
@@ -83,7 +87,7 @@ impl super::Study {
             ) => {
                 return Err(CausalError::Compile {
                     message: "static Pag/Cpdag/Admg requires tabular data and an average-effect \
-                              query"
+                              or static response query"
                         .into(),
                 });
             }
@@ -109,11 +113,20 @@ impl super::Study {
         // The temporal path is linear/temporal-backdoor only; refuse an explicitly
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
+            let class_aware = matches!(
+                self.graph.class(),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            ) && self.completed_temporal_dag().is_none();
             if let Some(id) = &self.identifier {
-                if *id != IdentifierId::TemporalBackdoorUnfolded {
+                let ok = if class_aware {
+                    *id == IdentifierId::GeneralizedAdjustment
+                } else {
+                    *id == IdentifierId::TemporalBackdoorUnfolded
+                };
+                if !ok {
                     return Err(CausalError::Compile {
                         message: format!(
-                            "temporal path only supports identifier \"temporal.backdoor.unfolded\"; got {id:?}"
+                            "temporal path identifier {id:?} is not valid for this graph class"
                         ),
                     });
                 }
@@ -150,6 +163,14 @@ impl super::Study {
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
         self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID)
+    }
+
+    /// Incomplete TemporalCpdag/Pag pulse: envelope identifier + temporal linear estimator.
+    pub(super) fn resolve_temporal_class_pair(&self) -> (Arc<str>, Arc<str>) {
+        self.resolve_id_est_pair(
+            DEFAULT_PAG_IDENTIFIER_ID,
+            crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
+        )
     }
 
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
@@ -199,6 +220,40 @@ impl super::Study {
         )
     }
 
+    /// Resolve identifier/estimator for Cpdag/Pag response (generalized adjustment).
+    pub(super) fn resolve_class_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            return (
+                Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
+                Arc::from(
+                    self.estimator_spec
+                        .as_ref()
+                        .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
+                        .as_str(),
+                ),
+            );
+        }
+        self.resolve_id_est_pair(
+            DEFAULT_PAG_IDENTIFIER_ID,
+            EstimatorId::default_for_response(&query.functional),
+        )
+    }
+
+    /// Resolve identifier/estimator for Cpdag/Pag ConditionalEffect.
+    pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
+        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianConditional
+        } else {
+            EstimatorId::ConditionalLinearAdjustment
+        };
+        (
+            Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
+            Arc::from(
+                self.estimator_spec.as_ref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
+            ),
+        )
+    }
+
     /// Resolve identifier/estimator for PathSpecific queries.
     pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
         self.resolve_id_est_pair(DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID)
@@ -241,7 +296,14 @@ impl super::Study {
         if let Some(gp) = &self.graph_posterior {
             return match (data, &self.query) {
                 (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
-                    self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
+                    match &self.inference {
+                        InferenceMode::Frequentist => {
+                            self.execute_graph_posterior_frequentist(data, gp, q, physical, ctx)
+                        }
+                        InferenceMode::Bayesian(_) => {
+                            self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
+                        }
+                    }
                 }
                 (
                     DataInput::Temporal(data) | DataInput::Event(data),
@@ -273,6 +335,13 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                if matches!(
+                    self.graph.class(),
+                    GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                ) && self.completed_temporal_dag().is_none()
+                {
+                    return self.execute_temporal_class(data, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal plan missing resolved graph".into(),
                 })?;
@@ -311,9 +380,14 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
             return match &self.query {
-                CausalQuery::AverageEffect(q) => {
-                    self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
-                }
+                CausalQuery::AverageEffect(q) => match &self.inference {
+                    InferenceMode::Frequentist => {
+                        self.execute_graph_posterior_frequentist(data, gp, q, physical, ctx)
+                    }
+                    InferenceMode::Bayesian(_) => {
+                        self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
+                    }
+                },
                 _ => Err(CausalError::Unsupported {
                     message: "graph-posterior analysis supports tabular average-effect or \
                               temporal-effect queries only",
@@ -337,9 +411,20 @@ impl super::Study {
         match route {
             AnalysisRoute::Response => {
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let graph =
-                    self.require_execute_dag("Response execute requires a supplied static DAG")?;
-                self.execute_response(data, graph, q, physical, ctx)
+                match self.graph.class() {
+                    GraphClass::Dag => {
+                        let graph = self.require_execute_dag(
+                            "Response execute requires a supplied static DAG",
+                        )?;
+                        self.execute_response(data, graph, q, physical, ctx)
+                    }
+                    GraphClass::Cpdag | GraphClass::Pag => {
+                        self.execute_class_response(data, q, physical, ctx)
+                    }
+                    _ => Err(CausalError::Unsupported {
+                        message: "static response execute requires a Dag, Cpdag, or Pag",
+                    }),
+                }
             }
             AnalysisRoute::StaticAte => {
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
@@ -350,10 +435,11 @@ impl super::Study {
                         self.execute_static(data, graph, q, physical, ctx)
                     }
                     GraphClass::Cpdag => {
-                        let graph = physical.static_graph().ok_or(CausalError::Compile {
-                            message: "Ready CPDAG plan missing resolved static DAG".into(),
-                        })?;
-                        self.execute_static(data, graph, q, physical, ctx)
+                        let cpdag = self
+                            .graph
+                            .as_cpdag()
+                            .expect("class() == Cpdag implies as_cpdag() is Some");
+                        self.execute_cpdag(data, cpdag, q, physical, ctx)
                     }
                     GraphClass::Admg => {
                         let admg = self
@@ -398,10 +484,20 @@ impl super::Study {
             }
             AnalysisRoute::Conditional => {
                 let CausalQuery::ConditionalEffect(q) = &self.query else { unreachable!() };
-                let graph = self.require_execute_dag(
-                    "ConditionalEffect execute requires a supplied static DAG",
-                )?;
-                self.execute_conditional(data, graph, q, physical, ctx)
+                match self.graph.class() {
+                    GraphClass::Dag => {
+                        let graph = self.require_execute_dag(
+                            "ConditionalEffect execute requires a supplied static DAG",
+                        )?;
+                        self.execute_conditional(data, graph, q, physical, ctx)
+                    }
+                    GraphClass::Cpdag | GraphClass::Pag => {
+                        self.execute_class_conditional(data, q, physical, ctx)
+                    }
+                    _ => Err(CausalError::Unsupported {
+                        message: "ConditionalEffect execute requires a Dag, Cpdag, or Pag",
+                    }),
+                }
             }
             AnalysisRoute::StaticMediation => {
                 let CausalQuery::Mediation(q) = &self.query else { unreachable!() };

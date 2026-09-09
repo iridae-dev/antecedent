@@ -707,6 +707,36 @@ pub fn validate_response_pair(
     Ok(())
 }
 
+/// Compile-time allowlist for class-aware Cpdag/Pag response (same theory as ATE).
+///
+/// # Errors
+///
+/// Incompatible identifier/estimator pair.
+pub fn validate_class_response_pair(
+    identifier: IdentifierId,
+    estimator: EstimatorId,
+) -> Result<(), CausalError> {
+    if identifier != IdentifierId::GeneralizedAdjustment
+        || !matches!(
+            estimator,
+            EstimatorId::ResponseKennedyDr
+                | EstimatorId::ResponseInterventionGcomp
+                | EstimatorId::ResponseBayesian
+        )
+    {
+        return Err(CausalError::Compile {
+            message: format!(
+                "Cpdag/Pag response requires identifier generalized.adjustment and \
+                 response.kennedy_dr, response.intervention_gcomp, or response.bayesian \
+                 (got {:?} / {:?})",
+                identifier.as_str(),
+                estimator.as_str()
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Compile-time allowlist of identifier/estimator pairs for the static ATE path.
 ///
 /// # Errors
@@ -747,7 +777,9 @@ pub fn validate_static_pair(
             | EstimatorId::DistanceMatching
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
-            | EstimatorId::BayesianGcomp,
+            | EstimatorId::BayesianGcomp
+            | EstimatorId::BayesianConditional
+            | EstimatorId::ConditionalLinearAdjustment,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)

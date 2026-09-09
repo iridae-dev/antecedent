@@ -590,6 +590,234 @@ impl super::Study {
         }))
     }
 
+    /// Cpdag/Pag ConditionalEffect via the same generalized-adjustment envelope as ATE.
+    pub(super) fn execute_class_conditional(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::ConditionalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let (identifier, estimator) = self.resolve_class_conditional_pair();
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        match self.graph.class() {
+            GraphClass::Pag => {
+                let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {
+                    message: "PAG ConditionalEffect execute missing resolved static PAG".into(),
+                })?;
+                let (envelope, identification, identify_cached) =
+                    if let Some(cache) = self.pag_identification_cache.as_deref() {
+                        (cache.envelope.clone(), cache.identification.clone(), true)
+                    } else {
+                        report_identify_compute(ctx);
+                        let envelope = identify_pag(identifier_id, pag, &query.inner)?;
+                        let identification = envelope_to_identification_result_for(
+                            &envelope,
+                            CausalQuery::ConditionalEffect(query.clone()),
+                        );
+                        (envelope, identification, false)
+                    };
+                self.finish_class_conditional(
+                    data,
+                    query,
+                    physical,
+                    ctx,
+                    &envelope,
+                    identification,
+                    identify_cached,
+                    super::pag_path::pag_envelope_diagnostic(&envelope),
+                    identifier_id,
+                    estimator_id,
+                    started,
+                    "pag",
+                )
+            }
+            GraphClass::Cpdag => {
+                let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
+                    message: "CPDAG ConditionalEffect execute missing supplied graph".into(),
+                })?;
+                let (envelope, identification, identify_cached) =
+                    if let Some(cache) = self.cpdag_identification_cache.as_deref() {
+                        (cache.envelope.clone(), cache.identification.clone(), true)
+                    } else {
+                        report_identify_compute(ctx);
+                        let envelope = identify_cpdag(identifier_id, cpdag, &query.inner)?;
+                        let identification = envelope_to_identification_result_for(
+                            &envelope,
+                            CausalQuery::ConditionalEffect(query.clone()),
+                        );
+                        (envelope, identification, false)
+                    };
+                self.finish_class_conditional(
+                    data,
+                    query,
+                    physical,
+                    ctx,
+                    &envelope,
+                    identification,
+                    identify_cached,
+                    super::pag_path::cpdag_envelope_diagnostic(&envelope),
+                    identifier_id,
+                    estimator_id,
+                    started,
+                    "cpdag",
+                )
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "class-aware ConditionalEffect execute requires a Cpdag or Pag",
+            }),
+        }
+    }
+
+    fn finish_class_conditional<G>(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::ConditionalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        envelope: &IdentificationEnvelope<G>,
+        identification: IdentificationResult,
+        identify_cached: bool,
+        envelope_diag: Diagnostic,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+        started: Instant,
+        class_tag: &str,
+    ) -> Result<StudyResult, CausalError> {
+        if matches!(envelope.status, IdentificationStatus::NotIdentified)
+            || envelope.identified_weight.0 <= 0.0
+        {
+            if matches!(self.inference, InferenceMode::Bayesian(_))
+                || matches!(estimator_id, EstimatorId::BayesianConditional)
+            {
+                return self.execute_pag_nonidentified_prior(
+                    &query.inner,
+                    physical,
+                    ctx,
+                    envelope,
+                    identification,
+                    identify_cached,
+                    started,
+                    envelope_diag,
+                    class_tag,
+                );
+            }
+            return Err(CausalError::Compile {
+                message: format!(
+                    "{class_tag} ConditionalEffect not identified (no identified mass in envelope)"
+                ),
+            });
+        }
+        if matches!(self.inference, InferenceMode::Bayesian(_))
+            || matches!(estimator_id, EstimatorId::BayesianConditional)
+        {
+            return self.execute_pag_bayesian(
+                data,
+                &query.inner,
+                physical,
+                ctx,
+                envelope,
+                identification,
+                identify_cached,
+                started,
+                envelope_diag,
+                class_tag,
+            );
+        }
+
+        let mut diagnostics = vec![envelope_diag];
+        let mut weighted_ate = 0.0;
+        let mut se_items = Vec::new();
+        let mut total_w = 0.0;
+        let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut assumptions = antecedent_core::AssumptionSet::default();
+        let mut refute_atoms = Vec::new();
+        let est = ConditionalLinearAdjustment::new();
+        for (i, case) in envelope.cases.iter().enumerate() {
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                continue;
+            }
+            let mut estimand = select_estimand(&case.result, estimator_id)?;
+            if estimand.method.as_ref().starts_with("generalized.adjustment") {
+                estimand.method = Arc::from("backdoor.adjustment");
+            }
+            let estimate = est.estimate(data, &estimand, query, ctx).map_err(CausalError::from)?;
+            let w = case.weight.0;
+            weighted_ate += w * estimate.ate;
+            se_items.push((w, estimate.se_analytic));
+            total_w += w;
+            if primary_estimand.is_none() {
+                primary_estimand = Some(estimand.clone());
+                assumptions = estimate.assumptions.clone();
+            }
+            refute_atoms.push(EnvelopeRefuteAtom {
+                key: i as u64,
+                weight: w,
+                estimand,
+                indexer: None,
+            });
+        }
+        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: format!("{class_tag} ConditionalEffect envelope had no estimable cases"),
+            });
+        }
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: format!("{class_tag} ConditionalEffect envelope missing estimand"),
+        })?;
+        let estimate = EffectEstimate::new(
+            weighted_ate / total_w,
+            mix_weighted_analytic_se(se_items),
+            assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+            data,
+            &query.inner,
+            &estimate,
+            &refute_atoms,
+            &mut refute_ws,
+            ctx,
+            self.refute,
+            estimator_id.as_str(),
+            &self.custom_validators,
+            None,
+            self.split.as_ref(),
+            None,
+        )?;
+        diagnostics.extend(na_diagnostics);
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(envelope_se_omits_between_atom_variance());
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment: query.inner.treatment,
+            outcome: query.inner.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
+        }))
+    }
+
     pub(super) fn execute_static_mediation_total(
         &self,
         data: &TabularData,

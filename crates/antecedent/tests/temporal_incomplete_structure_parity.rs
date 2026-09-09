@@ -1,11 +1,9 @@
-//! End-to-end probe for the `TemporalCpdag`/`TemporalPag` × `accepted` support cell.
+//! End-to-end probe for incompletable `TemporalCpdag`/`TemporalPag` structure.
 //!
-//! `effective_graph_class` collapses an accepted temporal CPDAG/PAG to
-//! `TemporalDag` whenever `try_into_temporal_dag()` succeeds, so this cell is
-//! reached exactly when completion *fails*. 0.9 refuses that coordinate at
-//! `Study::build()` with a named completion reason (`parity/support_closed.toml`),
-//! not the generic unlicensed message and not a number. Successful completion
-//! still collapses to the `TemporalDag` cell.
+//! Incomplete TemporalCpdag/Pag Pulse / single-step Sustained is licensed.
+//! Bidirected / conflict graphs pass the support gate and fail at the
+//! completion sampler. Successful `try_into_temporal_dag` still collapses to
+//! the `TemporalDag` cell. Bayesian incomplete-class cells stay closed.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,7 +18,7 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_graph::{MarkedEdge, TemporalCpdag, TemporalCpdagReview, TemporalPag};
+use antecedent_graph::{MarkedEdge, TemporalCpdag, TemporalPag};
 
 const T: VariableId = VariableId::from_raw(0);
 const Y: VariableId = VariableId::from_raw(1);
@@ -89,31 +87,26 @@ fn incompletable_temporal_pag() -> AcceptedGraph {
     let t1 = pag.add_lagged(T, Lag::from_raw(1)).unwrap();
     let y0 = pag.add_lagged(Y, Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_marked(MarkedEdge::bidirected(t1, y0)).unwrap();
-    AcceptedGraph::temporal_pag(pag).expect("no circle marks remain, so the accept gate admits it")
+    AcceptedGraph::temporal_pag(pag)
 }
 
 /// A temporal CPDAG that reaches `GraphClass::TemporalCpdag` and cannot
 /// complete.
 ///
-/// `AcceptedGraph::temporal_cpdag` counts conflict marks and refuses them, so
-/// this must come through the discovery path: `TemporalCpdagReview::from_cpdag`
-/// sorts edges into pending-directed and pending-undirected and a conflict
-/// (`x-x`) mark is neither, so the review reports `is_complete()` with the
-/// conflict still in the graph, `AcceptedGraph::accept` admits it, and
-/// `try_into_temporal_dag` then refuses that same mark. This is the CPDAG
-/// counterpart of the PAG's bidirected mark.
+/// `AcceptedGraph::temporal_cpdag` and `AcceptedGraph::accept` refuse conflict
+/// marks. `From<TemporalCpdag>` keeps the class so the licensed cell can build;
+/// the completion sampler then refuses the `x-x` mark. Counterpart of the
+/// PAG's bidirected mark.
 fn incompletable_temporal_cpdag() -> AcceptedGraph {
     let mut cpdag = TemporalCpdag::empty();
     let t1 = cpdag.add_lagged(T, Lag::from_raw(1)).unwrap();
     let y0 = cpdag.add_lagged(Y, Lag::CONTEMPORANEOUS).unwrap();
     cpdag.insert_marked(MarkedEdge::conflict(t1, y0)).unwrap();
-    let review = TemporalCpdagReview::from_cpdag(cpdag, "probe.temporal_cpdag");
-    assert!(review.is_complete(), "a conflict mark is on neither pending list");
     assert!(
-        review.graph.try_into_temporal_dag().is_err(),
+        cpdag.try_into_temporal_dag().is_err(),
         "the conflict mark still blocks completion"
     );
-    AcceptedGraph::accept(review).expect("a complete review is accepted")
+    AcceptedGraph::from(cpdag)
 }
 
 fn pulse_query() -> CausalQuery {
@@ -129,25 +122,27 @@ fn single_step_sustained_query() -> CausalQuery {
     CausalQuery::TemporalEffect(q)
 }
 
-/// `build()` must refuse with the named completion reason — not a number,
-/// not the generic unlicensed message.
-fn assert_support_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery, label: &str) {
+/// Bidirected / conflict graphs reach the licensed TemporalCpdag/Pag cell, then
+/// fail at the completion sampler — not a Support refusal and not a number.
+fn assert_identify_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery, label: &str) {
+    let ctx = antecedent_core::ExecutionContext::for_tests(1);
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-        let err = Study::series(series())
+        let study = Study::series(series())
             .graph(graph.clone())
             .query(query.clone())
             .refute(suite)
             .bootstrap_replicates(0)
             .build()
-            .expect_err(&format!("{label}/{suite:?}: incompletable structure must not build"));
-        assert!(
-            matches!(err, CausalError::Support { .. }),
-            "{label}/{suite:?}: expected CausalError::Support, got {err}"
-        );
+            .unwrap_or_else(|e| panic!("{label}/{suite:?}: licensed cell must build: {e}"));
+        let err = study
+            .run(&ctx)
+            .expect_err(&format!("{label}/{suite:?}: incompletable structure must not estimate"));
         let msg = err.to_string();
-        assert!(msg.starts_with("refused:"), "{label}/{suite:?}: {msg}");
         assert!(
-            msg.contains("try_into_temporal_dag") || msg.contains("completion"),
+            msg.contains("bidirected")
+                || msg.contains("conflict")
+                || msg.contains("completion")
+                || msg.contains("refuses"),
             "{label}/{suite:?}: {msg}"
         );
     }
@@ -155,12 +150,12 @@ fn assert_support_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery,
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_support_completion_refusal(&incompletable_temporal_pag(), &pulse_query(), "pulse/pag");
+    assert_identify_completion_refusal(&incompletable_temporal_pag(), &pulse_query(), "pulse/pag");
 }
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_support_completion_refusal(
+    assert_identify_completion_refusal(
         &incompletable_temporal_cpdag(),
         &pulse_query(),
         "pulse/cpdag",
@@ -175,7 +170,7 @@ fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 /// policies of one query family sharing a single arm.
 #[test]
 fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_support_completion_refusal(
+    assert_identify_completion_refusal(
         &incompletable_temporal_pag(),
         &single_step_sustained_query(),
         "sustained/pag",
@@ -184,7 +179,7 @@ fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
 
 #[test]
 fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_support_completion_refusal(
+    assert_identify_completion_refusal(
         &incompletable_temporal_cpdag(),
         &single_step_sustained_query(),
         "sustained/cpdag",
