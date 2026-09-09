@@ -79,6 +79,9 @@ from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
 )
 from ._native import (
+    analyze_temporal_cpdag as _analyze_temporal_cpdag,
+)
+from ._native import (
     analyze_temporal_pag as _analyze_temporal_pag,
 )
 from ._native import analyze_temporal_response as _analyze_temporal_response
@@ -218,7 +221,12 @@ def handle_conditional(
 
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
-    if isinstance(inference, Bayesian):
+    if isinstance(graph, Admg):
+        raise CausalUnsupportedError(
+            "refused: ConditionalEffect on Admg has no compile arm; "
+            "Dag, Cpdag, and Pag are licensed."
+        )
+    if isinstance(graph, (Cpdag, Pag)) or isinstance(inference, Bayesian):
         return _staged_prepared_result(
             data,
             query,
@@ -409,24 +417,34 @@ def handle_response(
     # before running, and raises the identical "refused: ..." text straight from the TOML,
     # so the hand-rolled check here was redundant and has been removed.
     #
-    # The Pag/Admg/Cpdag check below must stay: unlike the derivative check, it is not
-    # just a refusal message, it is the routing gate that decides whether this call
-    # reaches `_analyze_response` at all versus `_analyze_response_pag` a few lines down.
-    # Both literals are asserted against parity/support_closed.toml in
-    # test_response_support_matrix.py so neither can silently drift. `InterventionResponse`
-    # gets its own closed-rule text (parity/support_closed.toml's InterventionResponse ×
-    # [Cpdag, Admg, Pag] rule) rather than reusing the ResponseCurve one below it, since the
-    # ResponseCurve wording would misdescribe an InterventionResponse refusal.
+    # Admg keeps a Python-side refuse: `_static_edges` cannot carry an Admg, and
+    # there is no curve plug-in for licensed general-ID ATE. Cpdag/Pag MeanCurve
+    # and InterventionResponse now take the staged prepare path (same
+    # generalized-adjustment envelope as ATE). Derivatives still refuse here
+    # because a Pag/Admg never reaches native `_analyze_response`. The Admg
+    # literal is pinned against parity/support_closed.toml.
     if isinstance(graph, (Admg, Cpdag, Pag)) and not getattr(query, "is_temporal", False):
-        if isinstance(query, InterventionResponse):
-            raise CausalUnsupportedError(
-                "refused: InterventionResponse executes only on a supplied static Dag, the "
-                "same requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no "
-                "Response compile arm."
+        if isinstance(query, (ResponseCurve, InterventionResponse)):
+            if isinstance(graph, Admg):
+                raise CausalUnsupportedError(
+                    "refused: Admg response has no functional plug-in; licensed general-ID "
+                    "ATE does not estimate a curve."
+                )
+            return _staged_prepared_result(
+                data,
+                query,
+                graph=graph,
+                inference=inference,
+                identifier=identifier,
+                estimator=estimator,
+                validators=validators,
+                refute="none" if not refute_requested else refute,
+                seed=seed,
+                bootstrap=None,
+                threads=threads,
+                structure_accepted=structure_accepted,
             )
-        raise CausalUnsupportedError(
-            "refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
-        )
+        raise CausalUnsupportedError("refused: Derivatives require a supplied static Dag.")
     if getattr(query, "is_temporal", False):
         from .estimation import _lagged_edges, _wrap_prepared_response
 
@@ -974,9 +992,17 @@ def handle_supplied_graph_posterior(
 ) -> Any:
     from .estimation import _bayesian_inference_kwargs, _wrap_ate
 
-    if not isinstance(inference, Bayesian):
+    if isinstance(query, (PulseEffect, SustainedEffect)) and not isinstance(inference, Bayesian):
         raise TypeError(
-            "graph-posterior discovery requires inference=Bayesian(...) for effect mixture"
+            "graph-posterior discovery requires inference=Bayesian(...) for temporal effect mixture"
+        )
+    if isinstance(query, AverageEffect) and not isinstance(inference, (Frequentist, Bayesian)):
+        raise TypeError(
+            "graph-posterior AverageEffect requires inference=Frequentist() or Bayesian(...)"
+        )
+    if not isinstance(query, (AverageEffect, PulseEffect, SustainedEffect)):
+        raise TypeError(
+            "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
         )
     # The supplied-posterior path selects its identifier and estimator per
     # atom and runs the frozen atoms as given. Refuse the options it cannot
@@ -1000,26 +1026,37 @@ def handle_supplied_graph_posterior(
             f"per posterior atom and does not support {', '.join(dropped)}; drop them or "
             "run discovery inside analyze(discovery=ExactDagPosterior()/DbnPosterior(...))"
         )
-    bayes_kw = _bayesian_inference_kwargs(inference)
-    unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
-    if unsupported:
-        raise CausalUnsupportedError(
-            "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
-            f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
-        )
     names, columns = ingest_columns(data)
     bootstrap_n = 0 if bootstrap is None else bootstrap
-    common = {
-        "inference": bayes_kw["inference"],
-        "n_draws": bayes_kw["n_draws"],
-        "prior_scale": bayes_kw["prior_scale"],
-        "refute": refute,
-        "seed": seed,
-        "bootstrap": bootstrap_n,
-        "threads": threads,
-        "cancel": cancel,
-        "on_progress": on_progress,
-    }
+    if isinstance(inference, Bayesian):
+        bayes_kw = _bayesian_inference_kwargs(inference)
+        unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
+        if unsupported:
+            raise CausalUnsupportedError(
+                "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
+                f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
+            )
+        common = {
+            "inference": bayes_kw["inference"],
+            "n_draws": bayes_kw["n_draws"],
+            "prior_scale": bayes_kw["prior_scale"],
+            "refute": refute,
+            "seed": seed,
+            "bootstrap": bootstrap_n,
+            "threads": threads,
+            "cancel": cancel,
+            "on_progress": on_progress,
+        }
+    else:
+        common = {
+            "inference": "frequentist",
+            "refute": refute,
+            "seed": seed,
+            "bootstrap": bootstrap_n,
+            "threads": threads,
+            "cancel": cancel,
+            "on_progress": on_progress,
+        }
     if isinstance(query, AverageEffect):
         return _wrap_ate(
             _analyze_ate_graph_posterior(
@@ -1033,23 +1070,19 @@ def handle_supplied_graph_posterior(
                 **common,
             )
         )
-    if isinstance(query, (PulseEffect, SustainedEffect)):
-        return _wrap_ate(
-            _analyze_temporal_graph_posterior(
-                names,
-                columns,
-                discovery,
-                query.treatment,
-                query.outcome,
-                policy=query.kind,
-                treatment_lag=query.treatment_lag,
-                horizon_steps=query.horizon_steps,
-                active_level=query.active_level,
-                **common,
-            )
+    return _wrap_ate(
+        _analyze_temporal_graph_posterior(
+            names,
+            columns,
+            discovery,
+            query.treatment,
+            query.outcome,
+            policy=query.kind,
+            treatment_lag=query.treatment_lag,
+            horizon_steps=query.horizon_steps,
+            active_level=query.active_level,
+            **common,
         )
-    raise TypeError(
-        "GraphPosterior is licensed for AverageEffect, PulseEffect, and SustainedEffect"
     )
 
 
@@ -1077,7 +1110,11 @@ def handle_static_ate_discover(
 
     if not isinstance(query, AverageEffect):
         raise ValueError(f"discovery={type(discovery).__name__}(...) requires AverageEffect")
-    if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY) and not isinstance(inference, Bayesian):
+    if (
+        isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY)
+        and isinstance(inference, Frequentist)
+        and not isinstance(query, AverageEffect)
+    ):
         raise TypeError(
             "graph-posterior discovery requires inference=Bayesian(...) for effect mixture"
         )
@@ -1088,6 +1125,8 @@ def handle_static_ate_discover(
     bayes_kw: dict[str, Any] = {}
     if isinstance(inference, Bayesian):
         bayes_kw = _bayesian_inference_kwargs(inference)
+    elif isinstance(inference, Frequentist):
+        bayes_kw = {"inference": "frequentist"}
     raw = _analyze_ate_discover(
         names,
         columns,
@@ -1329,6 +1368,7 @@ def handle_temporal_pulse(
     bootstrap: int | None,
     threads: int,
     regimes: Sequence[int] | None,
+    structure_accepted: bool = False,
 ) -> Any:
     from .estimation import (
         _discovery_algorithm,
@@ -1425,16 +1465,29 @@ def handle_temporal_pulse(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            accepted=structure_accepted,
         )
         return _wrap_temporal(raw)
     if isinstance(graph, TemporalCpdag):
-        try:
-            graph = graph.try_into_temporal_dag()
-        except Exception as exc:  # noqa: BLE001 — surface orientation failures
-            raise ValueError(
-                "TemporalCpdag has undirected/conflict marks; orient edges "
-                "(try_into_temporal_dag) before analyze, or use discovery review"
-            ) from exc
+        raw = _analyze_temporal_cpdag(
+            names,
+            columns,
+            graph,
+            query.treatment,
+            query.outcome,
+            treatment_lag=query.treatment_lag,
+            horizon_steps=query.horizon_steps,
+            active_level=query.active_level,
+            policy=policy,
+            **bayes_kw,
+            refute=refute,
+            validators=list(validators) if validators is not None else None,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            accepted=structure_accepted,
+        )
+        return _wrap_temporal(raw)
     lagged = _lagged_edges(graph)
     raw = _analyze_temporal(
         names,
@@ -1957,9 +2010,11 @@ def analyze(
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
         ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
         ``(from, from_lag, to, to_lag)`` are required for temporal queries
-        without ``discovery``. Fully oriented CPDAGs run as DAGs; incomplete
-        CPDAGs require review. ADMGs without bidirected edges coerce to DAGs;
-        ADMGs with latents use general ID + functional effect.
+        without ``discovery``. Incomplete ``Cpdag`` / ``TemporalCpdag`` /
+        ``TemporalPag`` keep their class. Completing those graphs yourself is
+        still the ``Dag`` / ``TemporalDag`` cell. ADMGs without bidirected
+        edges coerce to DAGs; ADMGs with latents use general ID + functional
+        effect.
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
@@ -2287,6 +2342,7 @@ def analyze(
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            structure_accepted=structure_accepted,
             regimes=regimes,
         )
 

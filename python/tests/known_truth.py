@@ -14,6 +14,7 @@ PIN = json.loads((_ROOT / "conformance/bayesian/known_truth_mixtures/expected.js
 STATIC = PIN["static_average_effect"]
 TEMPORAL = PIN["temporal_effect"]
 BAYES = antecedent.Bayesian(backend="conjugate", n_draws=256, prior_scale=1_000_000.0)
+FREQ = antecedent.Frequentist()
 
 
 def set_edge(mask: int, n: int, src: int, dst: int) -> int:

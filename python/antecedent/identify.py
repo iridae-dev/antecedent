@@ -25,20 +25,24 @@ from typing import Any, Literal
 
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
-from .graph import Admg, Dag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageDerivative,
     AverageEffect,
+    ConditionalEffect,
     Counterfactual,
     DirectionalDerivative,
     Elasticity,
+    InterventionResponse,
     MediationEffect,
     PointDerivative,
+    PulseEffect,
     ResponseCurve,
     ResponseJacobian,
     SemiElasticity,
+    SustainedEffect,
 )
 from .results import IdentificationView
 
@@ -57,10 +61,23 @@ class Identification:
     status: str
     method: str
     adjustment_set: list[str]
-    graph: Dag | Admg | Sequence[tuple[str, str]]
+    graph: (
+        Dag
+        | Admg
+        | Cpdag
+        | Pag
+        | TemporalDag
+        | TemporalCpdag
+        | TemporalPag
+        | Sequence[tuple[str, str]]
+    )
     query: (
         AverageEffect
         | ResponseCurve
+        | InterventionResponse
+        | ConditionalEffect
+        | PulseEffect
+        | SustainedEffect
         | PointDerivative
         | Elasticity
         | SemiElasticity
@@ -194,11 +211,113 @@ class Identification:
         return self.estimate(data, refute=refute, seed=seed, threads=threads)
 
 
+_STRUCTURE_GRAPHS = (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)
+
+
+def _uses_structure_identify(graph: object, query: object) -> bool:
+    if isinstance(graph, _STRUCTURE_GRAPHS):
+        return True
+    if isinstance(graph, Dag) and isinstance(
+        query, (ConditionalEffect, PulseEffect, SustainedEffect)
+    ):
+        return True
+    return isinstance(query, (ResponseCurve, InterventionResponse)) and isinstance(
+        graph, (Cpdag, Pag)
+    )
+
+
+def _identify_typed_graph(
+    *,
+    graph: object,
+    supplied: object,
+    query: object,
+    identifier: str | None,
+    names: Sequence[str] | None,
+) -> Identification:
+    from ._native import identify_structure as _identify_structure
+
+    if isinstance(query, AverageEffect):
+        kind = "average_effect"
+        treatment, outcome = query.treatment, query.outcome
+        extra: dict[str, object] = {}
+    elif isinstance(query, ResponseCurve):
+        kind = "response"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {}
+    elif isinstance(query, InterventionResponse):
+        kind = "response"
+        spec = query.intervention
+        if isinstance(spec, Sequence) and not isinstance(spec, (str, bytes)):
+            spec = spec[0]
+        treatment = getattr(spec, "variable", None)
+        if treatment is None:
+            raise TypeError("InterventionResponse identify() needs a treatment variable")
+        outcome = query.outcome
+        extra = {}
+    elif isinstance(query, ConditionalEffect):
+        kind = "conditional"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {"modifier": query.modifier}
+    elif isinstance(query, PulseEffect):
+        kind = "pulse"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "policy": "pulse",
+            "treatment_lag": query.treatment_lag,
+            "horizon_steps": query.horizon_steps,
+            "active_level": query.active_level,
+        }
+    elif isinstance(query, SustainedEffect):
+        kind = "sustained"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "policy": "sustained",
+            "treatment_lag": query.treatment_lag,
+            "horizon_steps": query.horizon_steps,
+            "active_level": query.active_level,
+        }
+    else:
+        raise TypeError(f"typed-graph identify() does not support {type(query).__name__}")
+    status, method, adjustment = _identify_structure(
+        supplied,
+        kind,
+        treatment,
+        outcome,
+        identifier=identifier,
+        **extra,
+    )
+    resolved_names = list(names) if names is not None else None
+    if resolved_names is None and hasattr(supplied, "nodes"):
+        nodes = supplied.nodes()
+        if nodes and isinstance(nodes[0], str):
+            resolved_names = list(nodes)
+    return Identification(
+        status=status,
+        method=method,
+        adjustment_set=list(adjustment),
+        graph=graph,  # type: ignore[arg-type]
+        query=query,  # type: ignore[arg-type]
+        names=resolved_names,
+        identifier=identifier or method,
+    )
+
+
 def identify(
     *,
-    graph: Dag | Admg | Sequence[tuple[str, str]],
+    graph: Dag
+    | Admg
+    | Cpdag
+    | Pag
+    | TemporalDag
+    | TemporalCpdag
+    | TemporalPag
+    | Sequence[tuple[str, str]],
     query: AverageEffect
     | ResponseCurve
+    | InterventionResponse
+    | ConditionalEffect
+    | PulseEffect
+    | SustainedEffect
     | PointDerivative
     | Elasticity
     | SemiElasticity
@@ -224,8 +343,11 @@ def identify(
     ``ResponseCurve`` uses the same pairwise backdoor identification contract
     as the complete-observation response estimator; the original curve query
     is retained so ``.estimate(data)`` executes the requested grid.
-    Staged ``ResponseCurve`` identification currently requires a ``Dag`` (or
-    directed edge list); ``Admg`` is refused on that path.
+    Staged ``ResponseCurve`` identification on a ``Dag`` (or directed edge
+    list) uses pairwise backdoor; ``Admg`` is refused on that path. ``Cpdag``
+    and ``Pag`` response, ``ConditionalEffect`` on ``Dag`` / ``Cpdag`` /
+    ``Pag``, and temporal pulse / sustained on temporal classes use the
+    typed-graph identifier (generalized adjustment or temporal backdoor).
 
     For ``AverageEffect``, accepts an ``Admg`` as well as a ``Dag``. Prefer an
     ``Admg`` whenever a confounder is unmeasured: a ``Dag`` cannot express
@@ -234,6 +356,17 @@ def identify(
     ``Dag.latent_project(observed)`` builds the ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
+    from .accepted_graph import AcceptedGraph as _AcceptedGraph
+
+    supplied = graph.graph if isinstance(graph, _AcceptedGraph) else graph
+    if _uses_structure_identify(supplied, query):
+        return _identify_typed_graph(
+            graph=graph,
+            supplied=supplied,
+            query=query,
+            identifier=identifier_s,
+            names=names,
+        )
     if isinstance(
         query,
         (

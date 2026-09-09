@@ -369,6 +369,7 @@ class PlanView:
     plan_id: str
     modality: str | None = None
     discovery_algorithm: str | None = None
+    structure_source: str | None = None
     graph_review_required: bool = False
     identifier: str | None = None
     estimator: str | None = None

@@ -287,21 +287,21 @@ def test_accepted_discovery_dag_is_an_artifact_first_response_input():
         )
 
 
-def test_pag_mean_curve_preserves_unidentified_completion_mass():
+def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
     rng = np.random.default_rng(171)
     a = rng.normal(size=360)
     y = 2.0 * a + rng.normal(scale=0.3, size=360)
     pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
 
-    with pytest.raises(
-        CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
-    ):
-        antecedent.analyze(
-            {"a": a, "y": y},
-            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-            graph=pag,
-        )
+    result = antecedent.analyze(
+        {"a": a, "y": y},
+        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+        graph=pag,
+    )
+    assert result.response is not None
+    assert np.isfinite(result.response.values).all()
+    assert result.evidence_status == "licensed"
+    assert any("identify.pag.envelope" in diagnostic for diagnostic in result.diagnostics)
 
 
 def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
@@ -461,7 +461,7 @@ def test_response_refuses_admg_with_explicit_error():
     admg = antecedent.Admg.from_edges(["a", "y"], directed=[("a", "y")], bidirected=[])
     with pytest.raises(
         CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
+        match="refused: Admg response has no functional plug-in",
     ):
         antecedent.analyze(
             {"a": np.arange(30.0), "y": np.arange(30.0)},
@@ -470,19 +470,21 @@ def test_response_refuses_admg_with_explicit_error():
         )
 
 
-def test_response_refuses_cpdag_with_explicit_error():
+def test_response_cpdag_mean_curve_is_licensed():
+    rng = np.random.default_rng(174)
+    a = rng.normal(size=240)
+    y = 1.5 * a + rng.normal(scale=0.2, size=240)
     cpdag = antecedent.Cpdag.from_directed_undirected(
-        ["a", "y"], directed=[], undirected=[("a", "y")]
+        ["a", "y"], directed=[("a", "y")], undirected=[]
     )
-    with pytest.raises(
-        CausalUnsupportedError,
-        match="refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment.",
-    ):
-        antecedent.analyze(
-            {"a": np.arange(30.0), "y": np.arange(30.0)},
-            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-            graph=cpdag,
-        )
+    result = antecedent.analyze(
+        {"a": a, "y": y},
+        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+        graph=cpdag,
+    )
+    assert result.response is not None
+    assert np.isfinite(result.response.values).all()
+    assert result.evidence_status == "licensed"
 
 
 def test_elasticity_and_semi_elasticity_analyze_execute():

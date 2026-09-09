@@ -534,6 +534,43 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
+def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
+    from known_truth import FREQ, STATIC, static_data, static_posterior
+
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        seed=1,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=1)
+    expected = float(STATIC["expected_effect_given_identified"])
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert click.ate == pytest.approx(expected, abs=1e-8)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is None and click.posterior is None
+    assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
 def test_licensed_dbn_posterior_prepare_matches_analyze():
     from known_truth import BAYES, TEMPORAL, temporal_posterior, white_noise_pulse_series
 

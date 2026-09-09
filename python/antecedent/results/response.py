@@ -256,6 +256,7 @@ class CausalResponseView:
     evidence_status: str | None = None
     allowlist_reason: str | None = None
     allowlist_parent: str | None = None
+    diagnostics: Sequence[str] = ()
 
     def __repr__(self) -> str:
         if isinstance(self.estimate, (float, int)):

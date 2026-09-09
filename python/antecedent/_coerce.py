@@ -93,15 +93,13 @@ def coerce_graph(value: Any) -> Any:
       undirected/ambiguous marks remain (fully oriented CPDAGs only — same
       rule as ``discovery.cpdag_oriented_edges``).
     - ``TemporalDag`` -> lagged ``(str, int, str, int)`` edge list.
-    - ``TemporalCpdag`` -> coerced to a ``TemporalDag`` via
-      ``try_into_temporal_dag()`` then lagged edges; raises ``ValueError`` with
-      the same message ``_analyze.py`` raises today if that coercion fails.
     - A raw edge list: 2-tuples pass through as static edges, 4-tuples pass
       through as lagged edges.
-    - ``Pag``, ``Admg``, ``TemporalPag`` -> returned unchanged. These have no
-      single canonical edge-list form; native entry points
-      (``analyze_ate_pag`` / ``analyze_ate_admg`` / ``analyze_temporal_pag``)
-      accept the object directly, so there is nothing to normalize.
+    - ``Pag``, ``Admg``, ``TemporalCpdag``, ``TemporalPag`` -> returned
+      unchanged. These have no single canonical edge-list form; native entry
+      points (``analyze_ate_pag`` / ``analyze_ate_admg`` /
+      ``analyze_temporal_cpdag`` / ``analyze_temporal_pag``) accept the object
+      directly, so there is nothing to normalize.
     """
     from .graph import (
         Admg,
@@ -120,16 +118,7 @@ def coerce_graph(value: Any) -> Any:
         return cpdag_oriented_edges(value, require_oriented=True)
     if isinstance(value, TemporalDag):
         return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in value.edges()]
-    if isinstance(value, TemporalCpdag):
-        try:
-            dag = value.try_into_temporal_dag()
-        except Exception as exc:  # noqa: BLE001 — surface orientation failures
-            raise CausalValueError(
-                "TemporalCpdag has undirected/conflict marks; orient edges "
-                "(try_into_temporal_dag) before analyze, or use discovery review"
-            ) from exc
-        return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in dag.edges()]
-    if isinstance(value, (Pag, Admg, TemporalPag)):
+    if isinstance(value, (Pag, Admg, TemporalCpdag, TemporalPag)):
         return value
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         items = list(value)

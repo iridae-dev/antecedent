@@ -101,6 +101,7 @@ class AteAnalysisResult:
     plan_id: str
     modality: str
     discovery_algorithm: str | None
+    structure_source: str
     graph_review_required: bool
     plan_identifier: str | None
     plan_estimator: str | None
@@ -182,6 +183,8 @@ class ResponseAnalysisResult:
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
+    diagnostics: list[str]
+    identifier: str | None
 
 class TransportIdentificationResult:
     transportable: bool
@@ -445,6 +448,7 @@ class AnalysisResult:
     plan_id: str
     modality: str
     discovery_algorithm: str | None
+    structure_source: str
     graph_review_required: bool
     plan_identifier: str | None
     plan_estimator: str | None
@@ -583,6 +587,118 @@ class PreparedAnalysis:
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_cpdag(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Cpdag,
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_pag_response(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Pag,
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        grid: list[float] | None = None,
+        intervention_kinds: list[str] | None = None,
+        intervention_parameters: list[list[float]] | None = None,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_cpdag_conditional(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Cpdag,
+        treatment: str,
+        outcome: str,
+        modifier: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_pag_conditional(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Pag,
+        treatment: str,
+        outcome: str,
+        modifier: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_cpdag_response(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Cpdag,
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        grid: list[float] | None = None,
+        intervention_kinds: list[str] | None = None,
+        intervention_parameters: list[list[float]] | None = None,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_admg(
         names: list[str],
         columns: Sequence[Any],
@@ -651,6 +767,50 @@ class PreparedAnalysis:
         names: list[str],
         columns: Sequence[Any],
         edges: list[tuple[str, int, str, int]],
+        treatment: str,
+        outcome: str,
+        *,
+        policy: str = "pulse",
+        window: tuple[int, int] | None = None,
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        active_level: float = 1.0,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_cpdag_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: TemporalCpdag,
+        treatment: str,
+        outcome: str,
+        *,
+        policy: str = "pulse",
+        window: tuple[int, int] | None = None,
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        active_level: float = 1.0,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_pag_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: TemporalPag,
         treatment: str,
         outcome: str,
         *,
@@ -1203,6 +1363,28 @@ def analyze(
     bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AnalysisResult: ...
+def analyze_temporal_cpdag(
+    names: list[str],
+    columns: Sequence[Any],
+    graph: TemporalCpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str | None = None,
+    validators: list[Callable[..., Any]] | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 0,
+    threads: int = 1,
+    accepted: bool = False,
+) -> AnalysisResult: ...
 def analyze_temporal_pag(
     names: list[str],
     columns: Sequence[Any],
@@ -1223,6 +1405,7 @@ def analyze_temporal_pag(
     seed: int = 1,
     bootstrap: int | None = 0,
     threads: int = 1,
+    accepted: bool = False,
 ) -> AnalysisResult: ...
 def analyze_events(
     names: list[str],
@@ -1581,6 +1764,19 @@ def identify_ate(
     outcome: str,
     *,
     identifier: str | None = None,
+) -> tuple[str, str, list[str]]: ...
+def identify_structure(
+    graph: Dag | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
+    query_kind: str,
+    treatment: str,
+    outcome: str,
+    *,
+    identifier: str | None = None,
+    modifier: str | None = None,
+    policy: str | None = None,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
 ) -> tuple[str, str, list[str]]: ...
 def identify_ate_admg(
     names: list[str],
