@@ -40,7 +40,9 @@ pub mod pag;
 pub mod projection;
 pub mod selection;
 pub mod temporal;
+pub mod temporal_cpdag_completion;
 pub mod temporal_pag;
+pub mod temporal_pag_completion;
 pub mod types;
 pub mod unfold;
 pub mod workspace;
@@ -61,7 +63,11 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use selection::SelectionDiagram;
 pub use temporal::TemporalDag;
+pub use temporal_cpdag_completion::{
+    TemporalCpdagCompletion, TemporalCpdagCompletionSampler, is_temporal_mec_member,
+};
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
+pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSampler};
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,

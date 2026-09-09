@@ -136,6 +136,12 @@ impl TemporalDag {
         &self.children[id.as_usize()]
     }
 
+    /// Parents.
+    #[must_use]
+    pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
+        &self.parents[id.as_usize()]
+    }
+
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
         self.children.iter().enumerate().flat_map(|(i, kids)| {
