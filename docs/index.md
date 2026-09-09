@@ -23,19 +23,26 @@ Rules enforced throughout:
   structural identification, empirical support, and uncertainty kind as separate
   axes. Derivative, elasticity, and Jacobian queries are licensed on
   explicit/accepted Frequentist DAGs; see the [1.3 evidence ledger](v1.3-evidence.md).
+  Class-aware `ResponseCurve` / `InterventionResponse` on `Cpdag` / `Pag` use
+  the same generalized-adjustment envelope as ATE; see the
+  [1.4 evidence ledger](v1.4-evidence.md).
 * **Declare how the outcome was observed.** Complete, censored, truncated, and
   selected mechanisms live in `antecedent.observation`; assumptions are never
   inferred from column presence.
 * **Work with discovered structure honestly.** Discovery returns equivalence
-  classes and graph posteriors, not a single guessed DAG. Estimation refuses to
+  classes and graph posteriors, not a single guessed DAG. A supplied `Cpdag`
+  stays a `Cpdag`: licensed ATE, response, and `ConditionalEffect` estimate a
+  MEC envelope rather than collapsing to a guessed DAG. Estimation refuses to
   run on an unreviewed partial graph; the Bayesian path reports how much
   posterior mass sits on structures where the effect is unidentified.
 * **Transport and interference as stage contracts.** Selection-diagram transport
   and randomized interference change what identifies the estimand; they stay in
   `antecedent.transport` / `antecedent.interference`, not ordinary `analyze` flags.
 * **Analyze temporal systems.** Temporal graphs with lagged edges, PCMCI-family
-  discovery, pulse and sustained interventions, temporal mediation, and
-  incremental `CausalState` for online workflows.
+  discovery, pulse and sustained interventions — including Frequentist
+  envelopes that keep incomplete `TemporalCpdag` / `TemporalPag` as those
+  classes — temporal mediation, and incremental `CausalState` for online
+  workflows.
 * **Go past effect estimates.** Interventional sampling, counterfactuals,
   root-cause and distribution-change attribution, sensitivity analysis, and
   experimental-design ranking, all in the same engine.

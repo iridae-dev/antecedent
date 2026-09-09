@@ -29,16 +29,18 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the 1.3 matrix licenses the 1.2 families plus Frequentist
-`PointDerivative` / `Elasticity` / `SemiElasticity` / `AverageDerivative` /
-`DirectionalDerivative` / `ResponseJacobian` on explicit or accepted DAGs at
-validation `none`; static `MediationEffect` on explicit or accepted DAGs at
-`none` / `cheap` / `full`; and `Counterfactual` on an explicit Frequentist DAG
-at validation `none`. Those families are not licensed on every coordinate:
-Bayesian and partial-graph derivatives, accepted / Bayesian / nested
-counterfactuals, and cheap/full counterfactual validation remain refused.
-Importability is not a license. The [support matrix](support-matrix.md) is the
-public license.
+At analysis level, the 1.4 matrix licenses the 1.3 families plus
+class-preserving `AverageEffect` on `Cpdag`, class-aware `ResponseCurve` /
+`InterventionResponse` and `ConditionalEffect` on `Cpdag` / `Pag`, Frequentist
+Pulse / single-step Sustained on incomplete `TemporalCpdag` / `TemporalPag`,
+and Frequentist graph-posterior `AverageEffect` on DAG atoms. Completions stay
+envelope atoms; the runtime class is not collapsed. Multi-atom Frequentist
+uncertainty is unavailable. Temporal PAG results disclose their DAG-only
+subset. Those families are not licensed on every coordinate: Bayesian
+incomplete-class temporal cells, Frequentist DBN-posterior mixing, Bayesian
+and partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
+and cheap/full counterfactual validation remain refused. Importability is not
+a license. The [support matrix](support-matrix.md) is the public license.
 
 ## Graph primitives
 
@@ -160,9 +162,11 @@ Implemented identification strategies:
 estimator.
 
 For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
-explicit graph completions. Licensed PAG analysis is `AverageEffect` only; this
-is not a licensed `ResponseCurve`, path-specific, distribution, or mediation
-surface. Full PAG-native ID and IDC are outside the supported scope.
+explicit graph completions. Licensed PAG analysis is `AverageEffect`,
+`ResponseCurve` / `InterventionResponse`, and `ConditionalEffect` via that
+envelope; this is not a licensed path-specific, distribution, or mediation
+surface, and it is not MAG/PAG response identification. Full PAG-native ID
+and IDC are outside the supported scope.
 General multi-node sID recursion and definitive non-transportability
 certificates are outside the 0.9 transport contract.
 

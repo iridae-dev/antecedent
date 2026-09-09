@@ -15,7 +15,25 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 1.3 matrix licenses the 1.2 families plus:
+The 1.4 matrix licenses the 1.3 families plus:
+
+- `AverageEffect` on explicit or accepted `Cpdag` under Frequentist or
+  Bayesian inference with validation `none` / `cheap` / `full`, as a MEC
+  envelope whose runtime class stays `Cpdag`;
+- `ResponseCurve` / `InterventionResponse` on explicit or accepted `Cpdag` /
+  `Pag` under Frequentist or Bayesian inference with validation `none`, via
+  the same generalized-adjustment envelope (not a licensed MAG/PAG
+  response-identification theory);
+- `ConditionalEffect` on explicit or accepted `Cpdag` / `Pag` under
+  Frequentist or Bayesian inference with all three validation values, after a
+  pre-treatment and augmented backdoor check;
+- Frequentist Pulse / single-step Sustained on explicit or accepted
+  `TemporalCpdag` / `TemporalPag` with all three validation values
+  (`TemporalPag` enumerates DAG endpoint refinements only);
+- Frequentist graph-posterior `AverageEffect` on DAG atoms, the sibling of
+  the 1.1 Bayesian envelope.
+
+The 1.3 matrix added:
 
 - Frequentist `PointDerivative` / `Elasticity` / `SemiElasticity` /
   `AverageDerivative` / `DirectionalDerivative` / `ResponseJacobian` on
@@ -56,8 +74,9 @@ mediation requires one mediator with treatment at lag one and mediator/outcome
 contemporaneous, adjusting for observed baseline parents. Multi-step sustained
 uses sequential g-computation; Bayesian time copies share stationary mechanism
 draws. These restrictions are part of each licensed form; see the
-[1.2 evidence ledger](v1.2-evidence.md) and
-[1.3 evidence ledger](v1.3-evidence.md).
+[1.2 evidence ledger](v1.2-evidence.md),
+[1.3 evidence ledger](v1.3-evidence.md), and
+[1.4 evidence ledger](v1.4-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior` under Bayesian or Frequentist
@@ -123,9 +142,10 @@ causal forests, meta-learners, or a general ML CATE surface.
 
 `antecedent.handoff.econml(result)` emits the adjustment set and identification
 status for point-identified backdoor / generalized-adjustment estimands.
-Front-door, IV, general-ID, partial-identification, and graph-posterior results
-refuse rather than pretending they are a set. The adapter does not wrap EconML
-learners or absorb ML CATE.
+Front-door, IV, general-ID, partial-identification, graph-posterior, and
+temporal results refuse rather than pretending they are a set — temporal
+offsets cannot be exported. The adapter does not wrap EconML learners or
+absorb ML CATE.
 
 ### Tigramite
 
@@ -157,7 +177,7 @@ The following are current product boundaries or explicit matrix refusals:
 
 - no ML-based CATE estimators (the EconML adapter emits a set, not a learner);
 - no plotting module;
-- no R, Julia, or JavaScript bindings in 1.2;
+- no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
 - no Frequentist DBN-posterior mixing (1.6) or response mixtures over graph posteriors;
