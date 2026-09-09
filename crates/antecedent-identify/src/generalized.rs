@@ -39,8 +39,12 @@ use antecedent_core::{
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
-    Admg, BitSet, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag,
+    Admg, BitSet, CompletionSampler, Cpdag, CpdagCompletionSampler, DSeparationWorkspace,
+    DenseNodeId, Endpoint, Pag,
 };
+
+use crate::backdoor::BackdoorIdentifier;
+use crate::identifier::IdentificationWorkspace;
 
 use crate::envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
@@ -193,6 +197,72 @@ impl GeneralizedAdjustmentIdentifier {
         }
         Ok(envelope)
     }
+
+    /// Identify an average effect over a CPDAG by streaming MEC DAG completions.
+    ///
+    /// Each completion is identified with ordinary backdoor search. Completions
+    /// that do not identify contribute unidentified mass. The runtime class of
+    /// the source graph stays `Cpdag`; a caller who completed the graph
+    /// themselves holds a `Dag`.
+    ///
+    /// # Errors
+    ///
+    /// Query type unsupported, conflict marks, or graph errors.
+    pub fn identify_cpdag_envelope(
+        &self,
+        cpdag: &Cpdag,
+        query: &AverageEffectQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        match (&query.active, &query.control) {
+            (antecedent_core::Intervention::Set { .. }, antecedent_core::Intervention::Set { .. }) => {
+            }
+            _ => {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "CPDAG envelope ATE requires Set interventions",
+                });
+            }
+        }
+
+        let mut sampler = CpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
+        let mut cases = Vec::new();
+        let w = ProbabilityMass(self.config.per_completion_weight);
+        let backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        let mut workspace = IdentificationWorkspace::default();
+        let cq = CausalQuery::AverageEffect(query.clone());
+        for completion in sampler.by_ref() {
+            let prepared = backdoor.prepare(&completion.graph)?;
+            let result = backdoor.identify(&prepared, &cq, &mut workspace)?;
+            cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
+        }
+        let mut envelope = IdentificationEnvelope::from_cases(cases);
+        envelope.push_features(cpdag_undirected_features(cpdag));
+        if sampler.hit_cap() {
+            envelope.push_features([GraphFeature {
+                kind: Arc::from("completion_enumeration_capped"),
+                detail: Arc::from(format!(
+                    "retained {} MEC DAG completion(s) under max_completions={}; \
+                     identification is established only over the deterministic retained subset",
+                    envelope.cases.len(),
+                    self.config.max_completions
+                )),
+            }]);
+            if envelope.status == IdentificationStatus::NonparametricallyIdentified {
+                envelope.status = IdentificationStatus::PartiallyIdentified;
+            }
+        }
+        Ok(envelope)
+    }
+}
+
+fn cpdag_undirected_features(cpdag: &Cpdag) -> Vec<GraphFeature> {
+    let n = cpdag.undirected_edge_count();
+    if n == 0 {
+        return Vec::new();
+    }
+    vec![GraphFeature {
+        kind: Arc::from("cpdag_undirected_marks"),
+        detail: Arc::from(format!("{n} undirected edge(s) in source CPDAG")),
+    }]
 }
 
 fn pag_circle_features(pag: &Pag) -> Vec<GraphFeature> {
@@ -623,5 +693,41 @@ mod tests {
         assert!(c.contains(&w), "GAC allows side-effect descendant W: {c:?}");
         assert!(!c.contains(&m), "mediator is in Forb: {c:?}");
         assert!(!c.contains(&t) && !c.contains(&y));
+    }
+
+    #[test]
+    fn cpdag_confounded_undirected_has_two_identified_completions() {
+        // Z — T → Y, Z → Y. Completions: Z→T (backdoor {Z}) and T→Z (empty Z).
+        let mut cpdag = Cpdag::with_variables(3);
+        let z = DenseNodeId::from_raw(0);
+        let t = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        cpdag.insert_undirected(z, t).unwrap();
+        cpdag.insert_directed(z, y).unwrap();
+        cpdag.insert_directed(t, y).unwrap();
+        let id = GeneralizedAdjustmentIdentifier::new();
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let env = id.identify_cpdag_envelope(&cpdag, &q).unwrap();
+        assert_eq!(env.cases.len(), 2);
+        assert!(env.unidentified_weight.0 == 0.0);
+        assert_eq!(env.identified_weight.0, 2.0);
+        assert!(env.cases.iter().all(|c| {
+            c.result.status == IdentificationStatus::NonparametricallyIdentified
+        }));
+    }
+
+    #[test]
+    fn fully_oriented_cpdag_is_a_one_case_envelope() {
+        let mut cpdag = Cpdag::with_variables(2);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let env = GeneralizedAdjustmentIdentifier::new()
+            .identify_cpdag_envelope(
+                &cpdag,
+                &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+            )
+            .unwrap();
+        assert_eq!(env.cases.len(), 1);
+        assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(env.unidentified_weight.0 == 0.0);
     }
 }
