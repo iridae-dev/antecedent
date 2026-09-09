@@ -72,9 +72,7 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
     query = _query()
     freq = _ATE["conditional"]["frequentist"]
-    fresh = antecedent.analyze(
-        data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1
-    )
+    fresh = antecedent.analyze(data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1)
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=graph,
@@ -89,7 +87,7 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
     assert fresh.evidence_status == click.evidence_status == "licensed"
     assert fresh.plan.identifier == "generalized.adjustment"
     assert fresh.plan.estimator == freq["estimator"]
-    assert fresh.identification.status == "PartiallyIdentified"
+    assert fresh.identification.status == "GraphDependent"
     assert fresh.ate == pytest.approx(freq["expected_ate"], abs=freq["absolute_tolerance"])
     assert click.ate == pytest.approx(freq["expected_ate"], abs=freq["absolute_tolerance"])
 
@@ -116,3 +114,22 @@ def test_class_aware_conditional_bayesian_pins(accepted: bool, class_name: str) 
     )
     assert result.plan.estimator == bayes["estimator"]
     assert result.ate == pytest.approx(bayes["expected_ate"], abs=bayes["absolute_tolerance"])
+
+
+@pytest.mark.parametrize("class_name", ["dag", "cpdag", "pag"])
+def test_conditional_identification_does_not_reuse_mediator_ate(class_name: str) -> None:
+    names = ["t", "w", "y"]
+    edges = [("t", "w"), ("w", "y")]
+    if class_name == "dag":
+        graph = antecedent.Dag.from_edges(names, edges)
+    elif class_name == "cpdag":
+        graph = antecedent.Cpdag.from_directed_undirected(names, edges, [])
+    else:
+        graph = antecedent.Pag.from_marked_edges(names, [(a, b, "tail", "arrow") for a, b in edges])
+    query = antecedent.ConditionalEffect("t", "y", "w")
+    if class_name == "dag":
+        with pytest.raises(antecedent.errors.CausalCompileError, match="not identified"):
+            antecedent.identify(graph=graph, query=query)
+    else:
+        result = antecedent.identify(graph=graph, query=query)
+        assert result.status == "NotIdentified"

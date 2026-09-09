@@ -213,9 +213,12 @@ impl super::Study {
             .identifier
             .as_deref()
             .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical.logical.record.estimator.as_deref().unwrap_or(
-            EstimatorId::default_for_response(&query.functional).as_str(),
-        );
+        let estimator = physical
+            .logical
+            .record
+            .estimator
+            .as_deref()
+            .unwrap_or(EstimatorId::default_for_response(&query.functional).as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
         let witness = response_witness_ate(query)?;
@@ -355,10 +358,8 @@ impl super::Study {
             message: "class-aware response envelope missing estimand".into(),
         })?;
         let mixed = mix_class_responses(&weighted, envelope.status)?;
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::Response(query.clone()),
-        );
+        let identification =
+            envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         let (scalar, standard_error) = response_scalar_summary(&mixed);
         let estimate = EffectEstimate::new(
             scalar,
@@ -375,7 +376,7 @@ impl super::Study {
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "per-completion posterior draws are not mixed; the curve is the \
-                 identified-mass mean and response uncertainty is omitted",
+                 identified-mass mean; uncertainty is omitted when multiple atoms contribute",
             ));
         }
         if matches!(envelope.status, IdentificationStatus::GraphDependent) {
@@ -479,8 +480,7 @@ fn mix_class_responses(
     // Payload is the identified-mass mix (same object ATE publishes as `ate`).
     // `GraphDependent(vec)` would drop that mix and the Python binder refuses it.
     // Status lives on `identification_status`, not this variant.
-    let estimate = if matches!(envelope_status, IdentificationStatus::NonparametricallyIdentified)
-    {
+    let estimate = if matches!(envelope_status, IdentificationStatus::NonparametricallyIdentified) {
         ResponseIdentification::PointIdentified(mixed_value)
     } else {
         ResponseIdentification::PartiallyIdentified(mixed_value)
@@ -554,74 +554,20 @@ fn mix_response_values(items: &[(f64, &ResponseValue)]) -> Result<ResponseValue,
 }
 
 fn mix_response_uncertainty(items: &[(f64, &ResponseUncertainty)]) -> ResponseUncertainty {
-    let Some((_, first)) = items.first() else {
-        return ResponseUncertainty::None;
-    };
-    match first {
-        ResponseUncertainty::Scalar { level, .. } => {
-            let mut acc_se2 = 0.0;
-            let mut acc_lo = 0.0;
-            let mut acc_hi = 0.0;
-            let mut wsum = 0.0;
-            for (w, uncertainty) in items {
-                let ResponseUncertainty::Scalar { standard_error, lower, upper, level: case_level } =
-                    uncertainty
-                else {
-                    return ResponseUncertainty::None;
-                };
-                if (*case_level - *level).abs() > 1e-12 {
-                    return ResponseUncertainty::None;
-                }
-                acc_se2 += *w * *standard_error * *standard_error;
-                acc_lo += *w * *lower;
-                acc_hi += *w * *upper;
-                wsum += *w;
-            }
-            ResponseUncertainty::Scalar {
-                standard_error: (acc_se2 / wsum).sqrt(),
-                level: *level,
-                lower: acc_lo / wsum,
-                upper: acc_hi / wsum,
-            }
+    // A single atom retains its valid uncertainty. Averaging confidence limits
+    // does not produce confidence limits for the weighted mean (the fits share
+    // observations), nor quantiles of a distribution over graphs.
+    if let [(weight, uncertainty)] = items {
+        if weight.is_finite() && *weight > 0.0 {
+            return (*uncertainty).clone();
         }
-        ResponseUncertainty::PointwiseBand { level, lower, upper: _ } => {
-            let n = lower.len();
-            let mut acc_lo = vec![0.0; n];
-            let mut acc_hi = vec![0.0; n];
-            let mut wsum = 0.0;
-            for (w, uncertainty) in items {
-                let ResponseUncertainty::PointwiseBand { lower: lo, upper: hi, level: case_level } =
-                    uncertainty
-                else {
-                    return ResponseUncertainty::None;
-                };
-                if lo.len() != n || hi.len() != n || (*case_level - *level).abs() > 1e-12 {
-                    return ResponseUncertainty::None;
-                }
-                for i in 0..n {
-                    acc_lo[i] += *w * lo[i];
-                    acc_hi[i] += *w * hi[i];
-                }
-                wsum += *w;
-            }
-            for i in 0..n {
-                acc_lo[i] /= wsum;
-                acc_hi[i] /= wsum;
-            }
-            ResponseUncertainty::PointwiseBand {
-                level: *level,
-                lower: Arc::from(acc_lo),
-                upper: Arc::from(acc_hi),
-            }
-        }
-        ResponseUncertainty::None
-        | ResponseUncertainty::SimultaneousBand { .. }
-        | ResponseUncertainty::IdentifiedEnvelopeBand { .. }
-        | ResponseUncertainty::Posterior { .. } => ResponseUncertainty::None,
     }
+    ResponseUncertainty::None
 }
 
-fn mix_support_reports(reports: &[&antecedent_core::SupportReport]) -> antecedent_core::SupportReport {
+fn mix_support_reports(
+    reports: &[&antecedent_core::SupportReport],
+) -> antecedent_core::SupportReport {
     let first = reports[0];
     let mut status = first.status;
     let mut warnings = first.warnings.clone();
@@ -646,5 +592,34 @@ fn support_rank(status: antecedent_core::SupportStatus) -> u8 {
         antecedent_core::SupportStatus::WeakOverlap => 1,
         antecedent_core::SupportStatus::Extrapolative => 2,
         antecedent_core::SupportStatus::OutsideEmpiricalSupport => 3,
+    }
+}
+
+#[cfg(test)]
+mod uncertainty_tests {
+    use super::*;
+
+    #[test]
+    fn disjoint_atom_intervals_are_not_averaged_into_a_confidence_interval() {
+        let a = ResponseUncertainty::Scalar {
+            standard_error: 0.1,
+            lower: -0.2,
+            upper: 0.2,
+            level: 0.95,
+        };
+        let b = ResponseUncertainty::Scalar {
+            standard_error: 0.1,
+            lower: 9.8,
+            upper: 10.2,
+            level: 0.95,
+        };
+        assert!(matches!(
+            mix_response_uncertainty(&[(0.5, &a), (0.5, &b)]),
+            ResponseUncertainty::None
+        ));
+        assert!(matches!(
+            mix_response_uncertainty(&[(1.0, &a)]),
+            ResponseUncertainty::Scalar { .. }
+        ));
     }
 }

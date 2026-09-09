@@ -70,10 +70,9 @@ pub(super) use crate::planner::{
     compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
     compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
     compile_logical_static_pag_ate, compile_logical_static_pag_response,
-    compile_logical_static_response,
-    compile_logical_temporal_class_effect, compile_logical_temporal_effect,
-    compile_logical_temporal_effect_classified, compile_logical_temporal_response,
-    reject_dag_only_on_pag,
+    compile_logical_static_response, compile_logical_temporal_class_effect,
+    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
+    compile_logical_temporal_response, reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
@@ -235,9 +234,10 @@ mod envelope_se_tests {
     use super::*;
 
     #[test]
-    fn mix_weighted_analytic_se_is_rms() {
+    fn multi_atom_se_requires_joint_sampling_covariance() {
         let se = mix_weighted_analytic_se([(0.5, 2.0), (0.5, 0.0)]);
-        assert!((se - 2.0_f64.sqrt()).abs() < 1e-12);
+        assert!(se.is_nan());
+        assert_eq!(mix_weighted_analytic_se([(1.0, 2.0)]), 2.0);
     }
 
     #[test]
@@ -739,13 +739,10 @@ mod identify_only_tests {
             assert_eq!(click.identification.status, IdentificationStatus::GraphDependent);
             assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
             assert!(
-                fresh
-                    .diagnostics
-                    .iter()
-                    .any(|d| {
-                        d.code.as_ref() == "estimate.graph_posterior.envelope"
-                            && d.message.contains(&format!("unidentified_mass={unidentified_truth}"))
-                    }),
+                fresh.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.graph_posterior.envelope"
+                        && d.message.contains(&format!("unidentified_mass={unidentified_truth}"))
+                }),
                 "fresh Frequentist mixture must retain unidentified mass"
             );
             assert!(

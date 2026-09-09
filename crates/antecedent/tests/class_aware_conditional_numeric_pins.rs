@@ -7,9 +7,7 @@
 use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
-use antecedent_core::{
-    AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
-};
+use antecedent_core::{AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
 use antecedent_validate::PredictiveCheckKind;
@@ -139,7 +137,11 @@ fn cached_count(result: &antecedent::StudyResult) -> usize {
     result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
 }
 
-fn assert_validation_presence(result: &antecedent::StudyResult, suite: RefuteSuite, bayesian: bool) {
+fn assert_validation_presence(
+    result: &antecedent::StudyResult,
+    suite: RefuteSuite,
+    bayesian: bool,
+) {
     match suite {
         RefuteSuite::None => {
             assert!(result.refutations.is_empty(), "validation none must emit no reports");
@@ -185,13 +187,7 @@ fn build_conditional(
         (ClassGraph::Pag(pag), true) => builder.graph(AcceptedGraph::from(pag.clone())),
         (ClassGraph::Pag(pag), false) => builder.graph(pag.clone()),
     };
-    builder
-        .query(query)
-        .inference(inference)
-        .refute(suite)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
+    builder.query(query).inference(inference).refute(suite).bootstrap_replicates(0).build().unwrap()
 }
 
 #[test]
@@ -234,7 +230,7 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                     Some(freq["estimator"].as_str().unwrap())
                 );
                 for result in [&fresh, &click] {
-                    assert_eq!(format!("{:?}", result.identification.status), "PartiallyIdentified");
+                    assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!((result.estimate.ate - freq_ate).abs() < freq_tol, "{class_name} freq");
                     assert_validation_presence(result, suite, false);
                 }
@@ -260,7 +256,10 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                     Some(bayes["estimator"].as_str().unwrap())
                 );
                 for result in [&fresh, &click] {
-                    assert!((result.estimate.ate - bayes_ate).abs() < bayes_tol, "{class_name} bayes");
+                    assert!(
+                        (result.estimate.ate - bayes_ate).abs() < bayes_tol,
+                        "{class_name} bayes"
+                    );
                     assert_validation_presence(result, suite, true);
                     assert_eq!(cached_count(&click), 1);
                 }

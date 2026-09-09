@@ -30,7 +30,8 @@ def test_backdoor_ate_emits_adjustment_set() -> None:
     assert "Identified" in spec.status
     cols = spec.columns(_backdoor_data())
     assert cols["T"].shape == cols["Y"].shape
-    assert cols["W"] is not None and len(cols["W"]) == 1
+    assert cols["W"].shape == (200, 1)
+    np.testing.assert_array_equal(cols["W"][:, 0], _backdoor_data()["z"])
 
 
 def test_analyze_result_handoff_matches_identify() -> None:
@@ -130,12 +131,8 @@ def test_temporal_dag_pulse_emits_adjustment_set() -> None:
     )
     query = antecedent.PulseEffect("t", "y", treatment_lag=1)
     identified = antecedent.identify(graph=graph, query=query)
-    spec = antecedent.handoff.econml(identified)
-    assert spec.treatment == "t"
-    assert spec.outcome == "y"
-    assert spec.confounders == ("z",)
-    assert spec.identifier == "temporal.backdoor.unfolded"
-    assert "Identified" in spec.status
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="temporal offsets"):
+        antecedent.handoff.econml(identified)
 
 
 def test_fully_oriented_cpdag_stays_cpdag_and_emits_w() -> None:
@@ -162,3 +159,26 @@ def test_identify_result_needs_names() -> None:
         antecedent.handoff.econml(legacy)
     spec = antecedent.handoff.econml(legacy, treatment="t", outcome="y")
     assert spec.confounders == ("z",)
+
+
+@pytest.mark.parametrize("bad", [np.zeros(3), np.zeros((200, 1))])
+def test_handoff_rejects_misaligned_columns(bad) -> None:
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    data = _backdoor_data()
+    data["z"] = bad
+    with pytest.raises(antecedent.errors.CausalValueError):
+        antecedent.handoff.econml(identified).columns(data)
+
+
+def test_multiple_controls_are_sample_major() -> None:
+    spec = antecedent.handoff.EconMLSpec(
+        "t", "y", ("z", "w"), "backdoor.adjustment", "NonparametricallyIdentified"
+    )
+    data = _backdoor_data()
+    data["w"] = data["z"] ** 2
+    cols = spec.columns(data)
+    assert cols["W"].shape == (200, 2)
+    np.testing.assert_array_equal(cols["W"][:, 0], data["z"])
+    np.testing.assert_array_equal(cols["W"][:, 1], data["w"])

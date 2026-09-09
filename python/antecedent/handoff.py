@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .identify import Identification
@@ -21,7 +23,6 @@ _ADJUSTMENT_IDENTIFIERS = frozenset(
     {
         Identifier.BACKDOOR_ADJUSTMENT,
         Identifier.BACKDOOR_EFFICIENT,
-        Identifier.TEMPORAL_BACKDOOR_UNFOLDED,
         Identifier.GENERALIZED_ADJUSTMENT,
         Identifier.RESPONSE_BACKDOOR,
     }
@@ -46,13 +47,25 @@ class EconMLSpec:
 
     def columns(self, data: Mapping[str, Any]) -> dict[str, Any]:
         """Pull ``Y``, ``T``, and ``W`` columns from a name→array mapping."""
-        missing = [name for name in (self.outcome, self.treatment, *self.confounders) if name not in data]
+        missing = [
+            name for name in (self.outcome, self.treatment, *self.confounders) if name not in data
+        ]
         if missing:
             raise CausalValueError(f"EconML handoff missing columns: {missing}")
+        arrays = {
+            name: np.asarray(data[name])
+            for name in (self.outcome, self.treatment, *self.confounders)
+        }
+        if any(col.ndim != 1 for col in arrays.values()):
+            raise CausalValueError("EconML handoff requires one-dimensional columns")
+        if len({len(col) for col in arrays.values()}) != 1:
+            raise CausalValueError("EconML handoff columns must have the same number of rows")
         return {
-            "Y": data[self.outcome],
-            "T": data[self.treatment],
-            "W": None if not self.confounders else [data[name] for name in self.confounders],
+            "Y": arrays[self.outcome],
+            "T": arrays[self.treatment],
+            "W": None
+            if not self.confounders
+            else np.column_stack([arrays[name] for name in self.confounders]),
         }
 
 
@@ -67,6 +80,7 @@ def econml(
 
     Licensed only for point-identified backdoor / generalized-adjustment
     estimands on an explicit or accepted graph. Front-door, IV, general ID,
+    temporal estimands (whose offsets this spec cannot represent),
     partial identification, and graph-posterior mixtures refuse rather than
     pretending they are a single adjustment set.
     """
@@ -78,6 +92,11 @@ def econml(
         raise CausalUnsupportedError(
             "EconML handoff refuses graph-posterior mixtures; there is no single "
             "adjustment set to pass to another estimator"
+        )
+    if resolved == Identifier.TEMPORAL_BACKDOOR_UNFOLDED:
+        raise CausalUnsupportedError(
+            "EconML handoff cannot preserve temporal offsets; construct explicitly aligned "
+            "treatment, outcome, and adjustment columns before fitting an external estimator"
         )
     if resolved not in _ADJUSTMENT_IDENTIFIERS:
         raise CausalUnsupportedError(

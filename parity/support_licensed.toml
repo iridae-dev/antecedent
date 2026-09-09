@@ -1656,7 +1656,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1667,7 +1667,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1678,7 +1678,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1689,7 +1689,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1700,7 +1700,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1711,7 +1711,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1722,7 +1722,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. none is the point estimate."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1733,7 +1733,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1744,7 +1744,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1755,7 +1755,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1766,7 +1766,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1777,7 +1777,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1788,7 +1788,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1799,7 +1799,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1810,7 +1810,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1821,7 +1821,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1832,7 +1832,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1843,7 +1843,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1854,7 +1854,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. none is the point estimate."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1865,7 +1865,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1876,7 +1876,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1887,7 +1887,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1898,7 +1898,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1909,7 +1909,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "TemporalMediationEffect"

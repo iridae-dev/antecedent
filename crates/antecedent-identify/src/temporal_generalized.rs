@@ -35,7 +35,9 @@ pub struct TemporalClassEnvelope {
 }
 
 fn refuse_multi_step(query: &TemporalEffectQuery) -> Result<(), IdentificationError> {
-    if matches!(query.policy, TemporalPolicy::Sustained { from, until } if from != until) {
+    if !matches!(query.policy, TemporalPolicy::Pulse { .. })
+        && !matches!(query.policy, TemporalPolicy::Sustained { from, until } if from == until)
+    {
         return Err(IdentificationError::UnsupportedQuery {
             message: "class-aware TemporalCpdag/TemporalPag identification is Pulse \
                       and single-step Sustained only",
@@ -92,6 +94,20 @@ impl GeneralizedAdjustmentIdentifier {
             kind: Arc::from("temporal_pag_circle_marks"),
             detail: Arc::from("TemporalPag completions are definite directed TemporalDags"),
         }]);
+        // DAG endpoint refinements omit latent-confounded MAG completions and
+        // are not audited for PAG Markov equivalence. Never promote this subset
+        // to a claim of identification throughout the source PAG.
+        envelope.push_features([GraphFeature {
+            kind: Arc::from("temporal_pag_dag_subset_only"),
+            detail: Arc::from(
+                "DAG-only endpoint refinements; latent-confounded completions \
+                              and global PAG equivalence are not evaluated. Weights and \
+                              identification apply only to this restricted subset.",
+            ),
+        }]);
+        if envelope.status == IdentificationStatus::NonparametricallyIdentified {
+            envelope.status = IdentificationStatus::PartiallyIdentified;
+        }
         if sampler.hit_cap() {
             downgrade_capped(&mut envelope, self.config.max_completions);
         }
@@ -149,5 +165,41 @@ impl CompletionGraph for antecedent_graph::TemporalCpdagCompletion {
 impl CompletionGraph for antecedent_graph::TemporalPagCompletion {
     fn into_graph(self) -> TemporalDag {
         self.graph
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::{DynamicRuleId, Lag, VariableId};
+
+    #[test]
+    fn pag_dag_refinements_do_not_certify_full_pag_identification() {
+        let mut pag = TemporalPag::empty();
+        let t = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y = pag.add_lagged(VariableId::from_raw(1), Lag::from_raw(0)).unwrap();
+        pag.insert_circle_arrow(t, y).unwrap();
+        let mut query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        query.policy = TemporalPolicy::pulse(-1);
+        let env = GeneralizedAdjustmentIdentifier::new()
+            .identify_temporal_pag_envelope(&pag, &query)
+            .unwrap()
+            .envelope;
+        assert_eq!(env.cases.len(), 1);
+        assert_eq!(env.status, IdentificationStatus::PartiallyIdentified);
+        assert!(
+            env.critical_graph_features
+                .iter()
+                .any(|f| f.kind.as_ref() == "temporal_pag_dag_subset_only")
+        );
+    }
+
+    #[test]
+    fn dynamic_schedule_is_not_silently_estimated_as_a_pulse() {
+        let mut query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        query.policy = TemporalPolicy::dynamic(DynamicRuleId::from_raw(0), Arc::from([-1, 0]));
+        assert!(refuse_multi_step(&query).is_err());
     }
 }

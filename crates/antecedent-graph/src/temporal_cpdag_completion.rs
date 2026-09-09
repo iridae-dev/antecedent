@@ -99,7 +99,7 @@ impl TemporalCpdagCompletionSampler {
 /// Whether `dag` is a Markov-equivalence member of `cpdag`.
 #[must_use]
 pub fn is_temporal_mec_member(cpdag: &TemporalCpdag, dag: &TemporalDag) -> bool {
-    if cpdag.node_count() != dag.node_count() {
+    if cpdag.nodes() != dag.nodes() {
         return false;
     }
     for e in cpdag.edges() {

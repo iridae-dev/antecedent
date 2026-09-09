@@ -19,12 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Admg` response stays refused. See [1.4 evidence](docs/v1.4-evidence.md).
 - Class-aware `ConditionalEffect` on explicit/accepted `Cpdag` and `Pag`
   (Frequentist and Bayesian, `none`/`cheap`/`full`). Same MEC envelope as
-  ATE; the modifier stays in the outcome model, so the pin is the
-  Z-conditional effect at Ē[Z], not the ATE envelope mean. `Admg` stays
+  ATE, with a pre-treatment and backdoor-separation check for the modifier.
+  Unsupported completions retain unidentified mass. `Admg` stays
   refused.
 - `identify()` on `Cpdag` / `Pag` (ATE, response, ConditionalEffect) and on
-  temporal classes (Pulse / Sustained). EconML handoff covers TemporalDag
-  Pulse and a fully-oriented Cpdag that stays a Cpdag.
+  temporal classes (Pulse / single-step Sustained). EconML handoff covers a
+  fully-oriented Cpdag that stays a Cpdag; temporal offsets cannot be exported.
 - Class-preserving Pulse and single-step Sustained on explicit/accepted
   `TemporalCpdag` / `TemporalPag` (Frequentist, `none`/`cheap`/`full`).
   Completions are TemporalDag envelope atoms; runtime class stays
@@ -49,11 +49,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frequentist graph-posterior ATE publishes `GraphDependent` when
   unidentified mass remains, instead of the first identified atom's
   point-ID status.
-- Frequentist envelope SEs disclose that they are a mass-weighted RMS of
-  per-atom analytic SEs and omit between-atom disagreement. Mixed interval
-  endpoints are the same mass-weighted average, not a mixture CI. A
-  non-finite per-atom SE now makes the mixture SE non-finite instead of
-  shrinking the denominator.
+- Multi-atom Frequentist SEs and response uncertainty bands are unavailable;
+  per-atom SEs omit cross-fit covariance, and averaged endpoints are not
+  mixture quantiles. Single-atom uncertainty is preserved.
+- EconML controls have shape `(n_samples, n_controls)`, with row/shape checks;
+  temporal handoffs refuse rather than silently discarding offsets.
+- Conditional-effect completions must pass a pre-treatment and augmented
+  backdoor check. Mediator/collider conditioning no longer inherits ATE ID.
+- Temporal PAG results disclose their DAG-only subset and incomplete equivalence
+  audit; tail-tail selection edges refuse. Dynamic schedules are not accepted
+  by the pulse/single-step class estimator.
 - `AnalysisResult.plan.structure_source` is populated from the study
   coordinate, so EconML handoff can refuse graph-posterior mixtures without
   guessing from the discovery-algorithm name.
