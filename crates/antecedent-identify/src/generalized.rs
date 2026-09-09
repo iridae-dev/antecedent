@@ -128,7 +128,7 @@ impl GeneralizedAdjustmentIdentifier {
         let mut cases = Vec::new();
         let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
-            let result = identify_on_mag_completion(
+            let mut result = identify_on_mag_completion(
                 &completion.graph,
                 t,
                 y,
@@ -138,6 +138,14 @@ impl GeneralizedAdjustmentIdentifier {
                 control.clone(),
                 self.config.max_candidates,
             )?;
+            if let Some(admg) = mag_to_admg(&completion.graph) {
+                validate_conditional_adjustment(
+                    &admg,
+                    completion.graph.nodes(),
+                    query,
+                    &mut result,
+                )?;
+            }
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
@@ -214,8 +222,10 @@ impl GeneralizedAdjustmentIdentifier {
         query: &AverageEffectQuery,
     ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
         match (&query.active, &query.control) {
-            (antecedent_core::Intervention::Set { .. }, antecedent_core::Intervention::Set { .. }) => {
-            }
+            (
+                antecedent_core::Intervention::Set { .. },
+                antecedent_core::Intervention::Set { .. },
+            ) => {}
             _ => {
                 return Err(IdentificationError::UnsupportedQuery {
                     message: "CPDAG envelope ATE requires Set interventions",
@@ -288,6 +298,87 @@ fn pag_var_to_dense(pag: &Pag, id: VariableId) -> Result<DenseNodeId, Identifica
         }
     }
     Err(IdentificationError::UnknownVariable { id })
+}
+
+pub(crate) fn validate_dag_conditional_adjustment(
+    dag: &antecedent_graph::Dag,
+    query: &AverageEffectQuery,
+    result: &mut IdentificationResult,
+) -> Result<(), IdentificationError> {
+    if query.effect_modifiers.is_empty() {
+        return Ok(());
+    }
+    let mut admg = Admg::with_variables(dag.node_count() as u32);
+    for edge in dag.edges() {
+        if let Some((from, to)) = edge.parent_child() {
+            admg.insert_directed(from, to)?;
+        }
+    }
+    validate_conditional_adjustment(&admg, dag.nodes(), query, result)
+}
+
+/// The regression conditions on Z union W. A marginal adjustment certificate
+/// for Z alone does not license this conditional regression: W may be a
+/// mediator, or may open a collider path. This is a sufficient backdoor check,
+/// not a complete conditional-ID algorithm.
+fn validate_conditional_adjustment(
+    graph: &Admg,
+    nodes: &[antecedent_graph::NodeRef],
+    query: &AverageEffectQuery,
+    result: &mut IdentificationResult,
+) -> Result<(), IdentificationError> {
+    if query.effect_modifiers.is_empty() || result.estimands.is_empty() {
+        return Ok(());
+    }
+    let dense = |v: VariableId| {
+        nodes
+            .iter()
+            .position(|node| *node == antecedent_graph::NodeRef::Static(v))
+            .map(|i| DenseNodeId::from_raw(i as u32))
+            .ok_or(IdentificationError::UnknownVariable { id: v })
+    };
+    let t = dense(query.treatment)?;
+    let y = dense(query.outcome)?;
+    let modifiers =
+        query.effect_modifiers.iter().copied().map(dense).collect::<Result<Vec<_>, _>>()?;
+    let descendants = directed_closure(graph, &[t], false);
+    let pretreatment = modifiers.iter().all(|w| *w != y && !descendants.contains(*w));
+    let mutilated = mutilate_outgoing(graph, t);
+    let mut ws = DSeparationWorkspace::default();
+    let mut valid = Vec::new();
+    if pretreatment {
+        for estimand in &result.estimands {
+            let mut conditioning = estimand
+                .adjustment_set
+                .iter()
+                .copied()
+                .map(dense)
+                .collect::<Result<Vec<_>, _>>()?;
+            conditioning.extend_from_slice(&modifiers);
+            conditioning.sort_unstable();
+            conditioning.dedup();
+            if mutilated.is_m_separated(t, y, &conditioning, &mut ws)? {
+                valid.push(estimand.clone());
+            }
+        }
+    }
+    if valid.is_empty() {
+        *result = not_identified(
+            result.query.clone(),
+            "conditional adjustment not certified: modifiers must be pre-treatment and \
+             Z union modifiers must block backdoor paths; marginal ATE identification \
+             alone is insufficient (no complete conditional-ID search attempted)",
+        );
+        result.diagnostics.push(Diagnostic::new(
+            "identify.conditional.adjustment_unverified",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "conditional adjustment is not certified on this completion; its mass is retained as unidentified",
+        ));
+    } else {
+        result.estimands = valid;
+    }
+    Ok(())
 }
 
 fn identify_on_mag_completion(
@@ -559,6 +650,47 @@ mod tests {
     use antecedent_graph::Pag;
 
     #[test]
+    fn conditional_modifier_cannot_be_a_mediator() {
+        let mut cpdag = Cpdag::with_variables(3);
+        let t = DenseNodeId::from_raw(0);
+        let w = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        cpdag.insert_directed(t, w).unwrap();
+        cpdag.insert_directed(w, y).unwrap();
+        let id = GeneralizedAdjustmentIdentifier::new();
+        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
+        assert_eq!(id.identify_cpdag_envelope(&cpdag, &ate).unwrap().identified_weight.0, 1.0);
+        let conditional = ate.with_effect_modifiers([VariableId::from_raw(1)]);
+        let env = id.identify_cpdag_envelope(&cpdag, &conditional).unwrap();
+        assert_eq!(env.identified_weight.0, 0.0);
+        assert_eq!(env.unidentified_weight.0, 1.0);
+        assert!(
+            env.cases[0]
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified")
+        );
+    }
+
+    #[test]
+    fn pretreatment_modifier_can_open_a_collider_path() {
+        // T <- A -> W <- B -> Y, T -> Y. Empty Z identifies ATE,
+        // but conditioning on pre-treatment W opens the noncausal path.
+        let mut pag = Pag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            pag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let id = GeneralizedAdjustmentIdentifier::new();
+        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4));
+        assert!(id.identify_pag_envelope(&pag, &ate).unwrap().identified_weight.0 > 0.0);
+        let conditional = ate.with_effect_modifiers([VariableId::from_raw(2)]);
+        let env = id.identify_pag_envelope(&pag, &conditional).unwrap();
+        assert_eq!(env.identified_weight.0, 0.0);
+        assert!(env.unidentified_weight.0 > 0.0);
+    }
+
+    #[test]
     fn envelope_preserves_mass_on_mixed_pag() {
         let mut pag = Pag::with_variables(2);
         pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -711,9 +843,11 @@ mod tests {
         assert_eq!(env.cases.len(), 2);
         assert!(env.unidentified_weight.0 == 0.0);
         assert_eq!(env.identified_weight.0, 2.0);
-        assert!(env.cases.iter().all(|c| {
-            c.result.status == IdentificationStatus::NonparametricallyIdentified
-        }));
+        assert!(
+            env.cases
+                .iter()
+                .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified })
+        );
     }
 
     #[test]

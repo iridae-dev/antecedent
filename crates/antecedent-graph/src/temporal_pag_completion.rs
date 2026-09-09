@@ -1,7 +1,7 @@
 //! Streamed [`TemporalPag`] → [`TemporalDag`] completions.
 //!
-//! Circle-arrow edges are compelled to Tail→Arrow. Circle-circle and Tail-Tail
-//! edges are oriented both ways. Bidirected or conflict marks refuse the sampler:
+//! Circle-arrow edges are compelled to Tail→Arrow. Circle-circle edges are oriented both ways. Tail-Tail
+//! edges denote selection structure and cannot be refined to DAG edges. Bidirected or conflict marks refuse the sampler:
 //! those graphs cannot complete to a [`TemporalDag`] and stay refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -58,7 +58,12 @@ impl TemporalPagCompletionSampler {
                 forced.push((from, to));
                 continue;
             }
-            if e.is_undirected() || (e.at_a == Endpoint::Circle && e.at_b == Endpoint::Circle) {
+            if e.is_undirected() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "TemporalPagCompletionSampler refuses tail-tail selection edges",
+                });
+            }
+            if e.at_a == Endpoint::Circle && e.at_b == Endpoint::Circle {
                 let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
                 orientable.push((a, b));
                 continue;
@@ -171,6 +176,22 @@ mod tests {
         g.insert_circle_circle_with_middle(z, t, crate::types::MiddleMark::Empty).unwrap();
         let collected: Vec<_> = TemporalPagCompletionSampler::new(g, 8).unwrap().collect();
         assert_eq!(collected.len(), 2);
+    }
+
+    #[test]
+    fn selection_tails_are_not_replaced_with_arrowheads() {
+        let mut g = TemporalPag::empty();
+        let a = lagged(&mut g, 0, 0);
+        let b = lagged(&mut g, 1, 0);
+        g.insert_marked(crate::types::MarkedEdge {
+            a,
+            b,
+            at_a: Endpoint::Tail,
+            at_b: Endpoint::Tail,
+            middle: crate::types::MiddleMark::Empty,
+        })
+        .unwrap();
+        assert!(TemporalPagCompletionSampler::new(g, 4).is_err());
     }
 
     #[test]

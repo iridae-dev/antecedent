@@ -1978,7 +1978,7 @@ fn analyze_temporal_mediation(
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
         let analysis = Study::series(series)
             .graph(g)
-            .query(CausalQuery::Mediation(q))
+            .query(antecedent_core::CausalQuery::Mediation(q))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(bootstrap)
             .build()

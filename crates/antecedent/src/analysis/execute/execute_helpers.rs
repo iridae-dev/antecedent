@@ -342,39 +342,37 @@ pub(super) fn envelope_refute_atoms(fits: &[EnvelopeAtomFit]) -> Vec<EnvelopeRef
     fits.iter().map(EnvelopeRefuteAtom::from).collect()
 }
 
-/// Reported Frequentist envelope SE is RMS of per-atom SEs, not a mixture variance.
-///
-/// Mixed interval endpoints, when published, are the same mass-weighted average
-/// and are not a CI for the mixture.
+/// The legacy diagnostic code is retained for downstream consumers.
 pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
     Diagnostic::new(
         "estimate.envelope.se_omits_between_atom_variance",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        "reported SE is the mass-weighted RMS of per-atom analytic SEs; mixed \
-         interval endpoints are the same mass-weighted average and are not a \
-         mixture CI. Both omit between-atom disagreement of the point estimates",
+        "multi-atom uncertainty is unavailable: per-atom SEs do not determine the \
+         sampling variance of fits sharing observations, and averaged interval \
+         endpoints are not mixture quantiles. Only a single contributing atom \
+         retains its own uncertainty. Completion weights are modeling choices, \
+         not evidence that the averaged effect is identified across graphs",
     )
 }
 
-/// Mass-weighted RMS of analytic SEs. Non-finite on any atom ⇒ NaN.
-///
-/// Dropping a non-finite atom from the SE denominator while keeping it in the
-/// point estimate would attribute an SE to a different estimand than the mix.
+/// A single contributing atom keeps its SE. Multiple fits require joint
+/// sampling covariance (or an explicitly defined graph-mixture distribution).
 pub(super) fn mix_weighted_analytic_se(items: impl IntoIterator<Item = (f64, f64)>) -> f64 {
-    let mut se2 = 0.0;
-    let mut weight = 0.0;
+    let mut single = None;
     for (w, se) in items {
-        if !se.is_finite() {
+        if !w.is_finite() || w < 0.0 {
             return f64::NAN;
         }
-        se2 += w * se * se;
-        weight += w;
+        if w == 0.0 {
+            continue;
+        }
+        if single.is_some() || !se.is_finite() || se < 0.0 {
+            return f64::NAN;
+        }
+        single = Some(se);
     }
-    if !matches!(weight.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-        return f64::NAN;
-    }
-    (se2 / weight).sqrt()
+    single.unwrap_or(f64::NAN)
 }
 
 fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
@@ -814,8 +812,17 @@ pub(super) fn envelope_to_identification_result_for<G>(
                     assumptions.push(record.clone());
                 }
             }
-            diagnostics.extend(case.result.diagnostics.iter().cloned());
         }
+        // Refused and unverified cases explain the missing mass too.
+        diagnostics.extend(case.result.diagnostics.iter().cloned());
+    }
+    for feature in &envelope.critical_graph_features {
+        diagnostics.push(Diagnostic::new(
+            Arc::from(format!("identify.envelope.{}", feature.kind)),
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            Arc::clone(&feature.detail),
+        ));
     }
     if let Some(inv) = &envelope.invariant {
         if estimands.is_empty() {

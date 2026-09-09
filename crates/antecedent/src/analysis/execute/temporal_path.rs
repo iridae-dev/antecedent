@@ -703,11 +703,13 @@ impl super::Study {
             || envelope.identified_weight.0 <= 0.0
         {
             return Err(CausalError::Compile {
-                message: "temporal class-aware effect not identified (no identified mass in envelope)"
-                    .into(),
+                message:
+                    "temporal class-aware effect not identified (no identified mass in envelope)"
+                        .into(),
             });
         }
-        let mut diagnostics = vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
+        let mut diagnostics =
+            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
         let mut total_w = 0.0;
@@ -727,14 +729,7 @@ impl super::Study {
             estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
             estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
             let prep = estimator
-                .prepare(
-                    data,
-                    &estimand,
-                    query,
-                    indexer,
-                    self.split.as_ref(),
-                    &ctx.kernel_policy,
-                )
+                .prepare(data, &estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
                 .map_err(CausalError::from)?;
             let mut workspace = EstimationWorkspace::default();
             let estimate = estimator
@@ -813,7 +808,10 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
-            extras: IdentifiedExecuteExtras { diagnostics: Some(diagnostics), ..Default::default() },
+            extras: IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
         }))
     }
 
@@ -859,10 +857,11 @@ fn temporal_class_envelope_diagnostic<G>(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}",
+            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}, limitations={:?}",
             envelope.identified_weight.0,
             envelope.unidentified_weight.0,
-            envelope.cases.len()
+            envelope.cases.len(),
+            envelope.critical_graph_features,
         ),
     )
 }

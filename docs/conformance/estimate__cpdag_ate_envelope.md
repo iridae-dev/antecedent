@@ -22,8 +22,9 @@ estimate and same-schema refresh reuse, and in
 `python/tests/test_cpdag_ate_numeric_pins.py`.
 
 Class-aware `ConditionalEffect` on Cpdag/Pag reuses this table. The modifier
-`z` stays in the outcome model, so both completions estimate the
-Z-conditional effect at Ē[Z] (`0.40`), not the ATE envelope mean.
+`z` stays in the outcome model. The `T -> Z` mediator completion cannot
+certify conditional adjustment and retains unidentified mass. The supported
+`Z -> T` completion estimates `0.40`; aggregate status is `GraphDependent`.
 Consumers: `class_aware_conditional_numeric_pins`.
 
 ## Expected summary

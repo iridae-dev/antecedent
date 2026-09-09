@@ -35,3 +35,7 @@ the licensed number is the identified-mass mean. The two-point intervention
 contrast is pinned against the CPDAG / PAG Bayesian ATE fixtures.
 `estimate.envelope.response_posterior_not_mixed` discloses the omitted
 posterior mix. cheap/full stay n/a.
+
+Multi-atom uncertainty is omitted: averaged confidence endpoints are neither
+a confidence band for the weighted mean nor quantiles of a graph mixture.
+A single contributing atom retains its own uncertainty.

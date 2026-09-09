@@ -506,7 +506,7 @@ fn response_curve_graph_posterior_is_refused_at_build() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(msg.starts_with("refused:"), "{msg}");
-    assert!(msg.contains("contract choice") || msg.contains("Bayesian inference"), "{msg}");
+    assert!(msg.contains("licensed only for AverageEffect"), "{msg}");
 }
 
 #[test]

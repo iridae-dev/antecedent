@@ -92,7 +92,7 @@ queries = [
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Frequentist graph-posterior mixing is licensed only for AverageEffect on DAG atoms. Other static queries still require the Bayesian envelope combiner (`execute_graph_posterior_bayesian`)."
+reason = "Frequentist graph-posterior mixing is licensed only for AverageEffect on DAG atoms. Other static query families are unsupported for this structure/inference coordinate."
 
 [[closed]]
 queries = ["AverageEffect"]

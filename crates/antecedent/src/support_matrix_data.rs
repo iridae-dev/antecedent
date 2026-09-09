@@ -171,7 +171,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["graph_posterior"]),
         inferences: Some(&["Frequentist"]),
         validations: None,
-        reason: "Frequentist graph-posterior mixing is licensed only for AverageEffect on DAG atoms. Other static queries still require the Bayesian envelope combiner (`execute_graph_posterior_bayesian`).",
+        reason: "Frequentist graph-posterior mixing is licensed only for AverageEffect on DAG atoms. Other static query families are unsupported for this structure/inference coordinate.",
     },
     NaRule {
         queries: Some(&["AverageEffect"]),
