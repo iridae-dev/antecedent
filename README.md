@@ -60,13 +60,11 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.3.0**. This compatible minor puts existing
-query kinds on the staged handle: Frequentist DAG derivatives, conditional Cox
-IPCW observation pairs, static natural mediation with native cheap/full
-validation, and explicit-DAG unit counterfactuals. The
-[1.3.0 release notes](docs/release-notes/v1.3.0.md) and
-[evidence ledger](docs/v1.3-evidence.md) define the licensed forms,
-assumptions, numerical references, and deliberate non-goals.
+The current package version is **1.4.0**. This compatible minor starts
+class-preserving graph coordinates: `AverageEffect` on a supplied `Cpdag`
+stays a `Cpdag` and estimates a MEC envelope. The
+[1.4.0 release notes](docs/release-notes/v1.4.0.md) and
+[evidence ledger](docs/v1.4-evidence.md) define the licensed forms.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·

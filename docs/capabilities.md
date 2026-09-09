@@ -64,10 +64,13 @@ Graph operations:
 * intervention overlays.
 
 Static and temporal graphs have separate semantics. A static graph is not
-interpreted as temporal by default. `Cpdag`, `TemporalCpdag`, and `TemporalPag`
-are implemented graph/interchange types, but this release licenses no analysis
-cell on them. In particular, successful completion to a DAG does not turn an
-incomplete-class cell into a licensed one.
+interpreted as temporal by default. `AverageEffect` on a supplied `Cpdag` is
+licensed (explicit/accepted, Frequentist and Bayesian) via a MEC envelope;
+runtime class stays `Cpdag`. Completing the graph yourself is still the `Dag`
+cell. Pulse and single-step Sustained on incomplete `TemporalCpdag` /
+`TemporalPag` are licensed (explicit/accepted, Frequentist) via a completion
+envelope. Completing those graphs yourself is still the `TemporalDag`
+coordinate. Bayesian incomplete-class temporal cells stay refused.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.
@@ -100,11 +103,11 @@ CBOR artifacts.
 * DBN posterior.
 
 Selected posterior graph samples can be propagated into licensed Bayesian
-effect envelopes. Static graph-posterior analysis is limited to
+or Frequentist effect envelopes. Static graph-posterior analysis is limited to
 `AverageEffect` with DAG atoms. Temporal graph-posterior analysis is limited to
-pulse and single-step sustained effects with `TemporalDag` atoms and validation
-`none`. Frequentist mixtures, response mixtures, and ADMG/CPDAG/PAG posterior
-atoms are refused.
+pulse and single-step sustained effects with `TemporalDag` atoms and Bayesian
+inference. Frequentist DBN-posterior mixing, response mixtures, and
+ADMG/CPDAG/PAG posterior atoms are refused.
 
 ### Conditional independence tests
 
@@ -204,12 +207,16 @@ The list above is inventory. Derivative cells are licensed on explicit or
 accepted Frequentist DAGs at validation `none`; Bayesian and partial-graph
 derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
 licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
-with validation `none` (see the [support matrix](support-matrix.md)). Bayesian
+with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
+inference with validation `none` via the same generalized-adjustment envelope
+as ATE (see the [support matrix](support-matrix.md)). Bayesian
 responses require the
 documented Gaussian additive models, complete observations and AllObserved
-population, with pointwise posterior intervals. TemporalCPDAG/PAG response and
-graph-posterior response mixtures remain refused. The public license is that
-matrix, not this page.
+population, with pointwise posterior intervals. Bayesian Cpdag/Pag response
+mixes identified-mass means only. `Admg` response, TemporalCPDAG/PAG
+response, and graph-posterior response mixtures remain refused.
+`ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
+license is that matrix, not this page.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -260,11 +267,12 @@ not demote `evidence_status` or `support.status`. See
 * transport policies across compatible designs.
 
 Unidentified graph-posterior mass is retained rather than silently
-renormalized away. Static DAG-posterior ATE and temporal DBN-posterior pulse /
-single-step sustained paths consume frozen known-truth mixture fixtures: the
-identified atoms pin the conditional effect, unidentified mass stays visible,
-and priors do not upgrade structural identification. Prepared-vs-fresh
-equality remains an additional execution invariant rather than the license.
+renormalized away. Static DAG-posterior ATE (Bayesian and Frequentist) and
+temporal DBN-posterior pulse / single-step sustained paths consume frozen
+known-truth mixture fixtures: the identified atoms pin the conditional effect,
+unidentified mass stays visible, and priors do not upgrade structural
+identification. Prepared-vs-fresh equality remains an additional execution
+invariant rather than the license.
 
 Conditional effects, temporal mediation and DBN-posterior pulse/single-step
 sustained effects license query-native `cheap` and `full` validation. Bayesian
@@ -486,10 +494,9 @@ Invalidation does not automatically rerun an analysis.
 
 `PreparedStudy` (`Study::prepare`) caches identification across the licensed
 prepared paths. For `AverageEffect`, an estimate click reuses prepare-time
-identification (`exec.identify.cached`) on `Dag`, `Pag`, and `Admg`,
-including the generalized-adjustment PAG envelope and general-ID bidirected
-ADMG functional; the same engine behaviour applies to `Cpdag`, but that is
-not a license, since `AverageEffect` on a `Cpdag` is refused. Static graph
+identification (`exec.identify.cached`) on `Dag`, `Cpdag`, `Pag`, and `Admg`,
+including the CPDAG MEC envelope, the generalized-adjustment PAG envelope, and
+the general-ID bidirected ADMG functional. Static graph
 posteriors freeze each weighted atom's
 identified/unidentified status, result, and estimand; temporal DBN posteriors
 also freeze each identified atom's finite-unfolding indexer. Unidentified

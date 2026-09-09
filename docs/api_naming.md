@@ -44,7 +44,7 @@ Each of those twelve modules has an explicit, separately frozen `__all__`
 surface. The 49-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**14** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**15** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -58,7 +58,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other nine are left off because they're a narrower surface than the twelve stage
+The other ten are left off because they're a narrower surface than the twelve stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -69,6 +69,9 @@ directly:
 - ``antecedent.estimators`` — the typed `estimator_config=` front-end; a real,
   documented stage module, but its content (per-estimator dataclasses) has no
   root-level re-export the way queries/selectors do.
+- ``antecedent.handoff`` — EconML adjustment-set export. Antecedent identifies;
+  the adapter refuses front-door, IV, general ID, partial ID, and
+  graph-posterior results rather than inventing a set.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
