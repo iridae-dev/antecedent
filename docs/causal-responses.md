@@ -279,9 +279,11 @@ license to run every constructor argument.
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
   Both ride the same matrix cell.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
-  plug-in gradients with at most two treatments and a common adjustment set.
-  They are not doubly robust, publish no interval, and treat the supplied
-  direction as `∇m · d` without renormalizing it to unit length.
+  plug-in gradients with at most two treatments, a common adjustment set, and
+  a shared complete-case row set. They are not doubly robust and publish no
+  interval. A Jacobian is row-major outcomes × treatments. A directional
+  query is the unnormalized inner product `∇m · d`. Differential missingness
+  across outcomes is refused.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid

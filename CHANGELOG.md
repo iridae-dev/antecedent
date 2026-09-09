@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backdoor ATE metadata. Selected-outcome complete collapse emits a warning.
 - Observation-adjusted curves document the Horvitz–Thompson `Y* = Y · W`
   composition: censored zeros stay in sample and are not a complete-case drop.
+- Jacobian and directional queries refuse differential missingness across
+  outcomes instead of concatenating per-outcome complete-case sets. Provenance
+  records now describe analytic B-spline derivatives and licensed Cox IPCW.
+  Selected AIPW is documented as `m(X)` on unselected rows, not HT zeros.
 
 The [release notes](docs/release-notes/v1.3.0.md) specify licensed forms and
 unsupported extensions; these additions make no external-package parity claim.

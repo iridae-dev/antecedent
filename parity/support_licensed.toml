@@ -1373,7 +1373,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments, a common adjustment set, and a shared complete-case row set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. Differential missingness across outcomes is refused. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "DirectionalDerivative"
@@ -1384,7 +1384,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments, a common adjustment set, and a shared complete-case row set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. Differential missingness across outcomes is refused. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "ResponseJacobian"
@@ -1395,7 +1395,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments, a common adjustment set, and a shared complete-case row set; not doubly robust. The published value is the row-major Jacobian of outcomes with respect to treatments. Differential missingness across outcomes is refused. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "ResponseJacobian"
@@ -1406,7 +1406,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments, a common adjustment set, and a shared complete-case row set; not doubly robust. The published value is the row-major Jacobian of outcomes with respect to treatments. Differential missingness across outcomes is refused. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1417,7 +1417,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1428,7 +1428,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1439,7 +1439,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1450,7 +1450,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1461,7 +1461,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1472,7 +1472,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Treatment-induced intermediate covariates that are not listed as mediators change the selected path set rather than refusing; they require explicit path or mediator modeling. Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "Counterfactual"

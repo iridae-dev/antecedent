@@ -17,8 +17,10 @@ imply independence.
 
 The historical `OutcomeIndependentGiven([])` marginal censoring alias remains
 accepted. Selected IPW remains an explicit lower-level correction option; AIPW
-is the default licensed response primitive. Its double robustness requires a
-correct observation-propensity or outcome nuisance model, as well as positivity.
+is the default licensed response primitive. Unselected AIPW rows receive the
+outcome-regression prediction `m(X)`, not a Horvitz–Thompson zero. Its double
+robustness requires a correct observation-propensity or outcome nuisance model,
+as well as positivity.
 
 Containment of treatment and the causal adjustment set in a nonempty
 `IndependentGiven` claim is a composition requirement for the downstream
