@@ -178,7 +178,7 @@ def _staged_prepared_result(
     validators: Sequence[Any] | None = None,
     latency: Latency | None = None,
 ) -> Any:
-    """Run a licensed 1.2 cell through prepare → estimate, not a Frequentist sidecar."""
+    """Run a licensed staged cell through prepare → estimate, not a Frequentist sidecar."""
     if validators is not None:
         raise CausalUnsupportedError("this staged query path does not support validators")
     from .accepted_graph import AcceptedGraph

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -93,6 +94,18 @@ class EstimateView:
     mediation: MediationView | None = None
 
     def __repr__(self) -> str:
+        if self.estimator_id == "gcm.fit":
+            se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
+            if se is None or math.isnan(se):
+                return (
+                    f"<EstimateView mean_ite={fmt_float(self.ate)} se=unavailable "
+                    f"estimator={self.estimator_id!r} method={self.method!r}>"
+                )
+            se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
+            return (
+                f"<EstimateView mean_ite={fmt_float(self.ate)} se={fmt_float(se)} ({se_kind}) "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
         if self.se_bootstrap is not None:
             se, se_kind = self.se_bootstrap, "bootstrap"
         else:
@@ -421,12 +434,19 @@ class AnalysisResult:
 
     @property
     def effect(self) -> float:
-        """Primary requested contrast, including direct/mediated/total mediation."""
+        """Primary requested contrast, including mediation and mean ITE."""
         return self.estimate.ate
 
     @property
     def ate(self) -> float:
         """Alias for :attr:`effect` (prefer ``effect`` for non-ATE queries)."""
+        return self.effect
+
+    @property
+    def mean_ite(self) -> float:
+        """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
+        if self.unit_effects is None:
+            raise AttributeError("mean_ite is only defined for counterfactual results")
         return self.effect
 
     def __repr__(self) -> str:
@@ -436,7 +456,10 @@ class AnalysisResult:
             if self.estimate.se_bootstrap is not None
             else self.estimate.se_analytic
         )
-        parts = [verdict, f"effect={fmt_float(self.effect)} ±{fmt_float(se)}"]
+        if self.unit_effects is not None:
+            parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+        else:
+            parts = [verdict, f"effect={fmt_float(self.effect)} ±{fmt_float(se)}"]
         if self.validation.ran:
             n = len(self.validation)
             n_passed = n - len(self.validation.failed)

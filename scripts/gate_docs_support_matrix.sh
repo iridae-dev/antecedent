@@ -93,28 +93,37 @@ for rel in DOCS:
                 f"inventory/support matrix nearby"
             )
 
-# Cheap Counterfactual honesty check (capabilities only).
+# Counterfactual is licensed on one 1.3 cell; remaining coordinates stay refused.
 caps = root / "docs/capabilities.md"
 if caps.is_file():
     text = caps.read_text()
-    paras = paragraphs(text)
-    hits = list(re.finditer(r"Counterfactual", text))
-    if not hits:
+    if not re.search(r"Counterfactual", text):
         fail.append("docs/capabilities.md: Counterfactual is not mentioned")
-    else:
-        ok = False
-        for m in hits:
-            para_span = containing(paras, m.start())
-            para = para_span[2] if para_span else ""
-            window = text[max(0, m.start() - 240) : m.end() + 240]
-            if HEDGE.search(para) or HEDGE.search(window):
-                ok = True
-                break
-        if not ok:
-            fail.append(
-                "docs/capabilities.md: Counterfactual is not marked refused / "
-                "not licensed nearby"
-            )
+    if re.search(r"analyze[`']? refuses `?Counterfactual", text):
+        fail.append(
+            "docs/capabilities.md: Counterfactual is licensed in 1.3; "
+            "do not claim analyze refuses the query type"
+        )
+    licensed = re.search(
+        r"Counterfactual[\s\S]{0,400}(licensed|explicit)[\s\S]{0,200}(Frequentist|none)",
+        text,
+        re.I,
+    )
+    remaining = re.search(
+        r"Counterfactual[\s\S]{0,800}(accepted|nested|Bayesian|cheap/full)[\s\S]{0,200}refus",
+        text,
+        re.I,
+    )
+    if not licensed:
+        fail.append(
+            "docs/capabilities.md: licensed Counterfactual cell "
+            "(explicit Frequentist / validation none) is not described"
+        )
+    if not remaining:
+        fail.append(
+            "docs/capabilities.md: remaining Counterfactual refusals "
+            "(accepted/nested/Bayesian/cheap/full) are not named"
+        )
 
 # The current release notes are part of the 0.9 public contract, not an
 # optional changelog paraphrase.  Verify that their refusal section accounts
@@ -155,6 +164,7 @@ if fail:
 
 print(
     "Docs support-matrix OK (capabilities/comparison link the matrix; current "
-    "release notes enumerate every zero-cell root query; no unhedged overclaims)"
+    "release notes enumerate every zero-cell root query; Counterfactual "
+    "license + remaining refusals are described; no unhedged overclaims)"
 )
 PY

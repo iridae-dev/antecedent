@@ -22,6 +22,7 @@ notebook theme. Rendering never raises: any failure falls back to
 from __future__ import annotations
 
 import html
+import math
 from typing import TYPE_CHECKING, Any
 
 from ._format import fmt_float, fmt_pct
@@ -157,6 +158,15 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         else result.estimate.se_analytic
     )
     se_kind = "bootstrap" if result.estimate.se_bootstrap is not None else "analytic"
+    if result.unit_effects is not None:
+        label = "Mean ITE"
+        if se is None or math.isnan(se):
+            value = _esc(fmt_float(result.effect))
+        else:
+            value = f"{_esc(fmt_float(result.effect))} ± {_esc(fmt_float(se))} ({_esc(se_kind)})"
+    else:
+        label = "Effect"
+        value = f"{_esc(fmt_float(result.effect))} ± {_esc(fmt_float(se))} ({_esc(se_kind)})"
 
     mass = result.posterior.unidentified_mass if result.posterior is not None else None
     callout = _unidentified_callout_html(mass)
@@ -171,9 +181,9 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         f"</div>"
         f"{callout}"
         f'<div class="antecedent-ar-row">'
-        f'<span class="antecedent-ar-label">Effect</span>'
+        f'<span class="antecedent-ar-label">{label}</span>'
         f'<span class="antecedent-ar-value">'
-        f"{_esc(fmt_float(result.effect))} ± {_esc(fmt_float(se))} ({_esc(se_kind)})"
+        f"{value}"
         f"</span>"
         f'<span class="antecedent-ar-sub">estimator: {_esc(result.estimate.estimator_id)}</span>'
         f"</div>"

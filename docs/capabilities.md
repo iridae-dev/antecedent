@@ -17,9 +17,9 @@ The matrix has three active runtime states:
   license it.
 
 The historical `allowed_unlicensed` wire value remains decodable for
-compatibility, but 1.2 has no active allowlist entries and the release gate
-rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin only
-identification or an effect point, while an internal cross-check may establish
+compatibility, but this release has no active allowlist entries and the release
+gate rejects new ones. Evidence kinds are scoped: a known-truth fixture may pin
+only identification or an effect point, while an internal cross-check may establish
 prepared-vs-fresh consistency without pinning the scientific target. Read each
 row's `limitations`; a shared method name is not a parity claim.
 
@@ -29,13 +29,16 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the licensed query families are `AverageEffect`,
-`ConditionalEffect`, `PathSpecificEffect`, `InterventionalDistribution`,
-`ResponseCurve`, `InterventionResponse`, `PulseEffect`, `SustainedEffect`, and
-`TemporalMediationEffect`, only on the exact graph / structure / inference /
-validation rows in the matrix. Root query types outside that list —
-`Counterfactual`, static `MediationEffect`, and all six derivative query types —
-have no licensed `analyze` cell in 1.2. Importability is not a license.
+At analysis level, the 1.3 matrix licenses the 1.2 families plus Frequentist
+`PointDerivative` / `Elasticity` / `SemiElasticity` / `AverageDerivative` /
+`DirectionalDerivative` / `ResponseJacobian` on explicit or accepted DAGs at
+validation `none`; static `MediationEffect` on explicit or accepted DAGs at
+`none` / `cheap` / `full`; and `Counterfactual` on an explicit Frequentist DAG
+at validation `none`. Those families are not licensed on every coordinate:
+Bayesian and partial-graph derivatives, accepted / Bayesian / nested
+counterfactuals, and cheap/full counterfactual validation remain refused.
+Importability is not a license. The [support matrix](support-matrix.md) is the
+public license.
 
 ## Graph primitives
 
@@ -62,8 +65,8 @@ Graph operations:
 
 Static and temporal graphs have separate semantics. A static graph is not
 interpreted as temporal by default. `Cpdag`, `TemporalCpdag`, and `TemporalPag`
-are implemented graph/interchange types, but 1.2 licenses no analysis cell on
-them. In particular, successful completion to a DAG does not turn an
+are implemented graph/interchange types, but this release licenses no analysis
+cell on them. In particular, successful completion to a DAG does not turn an
 incomplete-class cell into a licensed one.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
@@ -186,9 +189,9 @@ certificates are outside the 0.9 transport contract.
   treatment dimensions);
 * additive-GAM g-computation for numeric hard, shift, and stochastic
   intervention responses;
-* selected-outcome IPW and cross-fitted AIPW, plus marginal right/left-censoring
-  IPCW, composed into point-only response curves under explicit observation
-  assumptions.
+* selected-outcome IPW and cross-fitted AIPW, plus marginal right/left Kaplan–Meier
+  IPCW and conditional right/left Cox IPCW, composed into point-only response
+  curves under explicit observation assumptions.
 
 Response results keep structural identification, empirical support, and
 uncertainty kind as separate axes. Pointwise and simultaneous bands are not
@@ -323,8 +326,11 @@ Counterfactual primitives exist:
 * temporal trajectories;
 * unit-level counterfactual analysis.
 
-`analyze` refuses `Counterfactual`; it is not a licensed staged cell. The
-public license is the [support matrix](support-matrix.md).
+`analyze` licenses `Counterfactual` on an explicit Frequentist DAG at
+validation `none` as a two-world GCM ITE. Nested counterfactuals, temporal
+trajectories, accepted or graph-posterior structure, Bayesian inference, and
+cheap/full validation remain refused. The public license is the
+[support matrix](support-matrix.md).
 
 ## Attribution and diagnostics
 
@@ -369,6 +375,9 @@ Estimate validation:
 The 1.2 functional suites refit path-specific effects on row subsets and compare
 entire interventional-distribution tables, including conditional strata.
 Temporal mediation uses mediator-placebo and contrast-specific stability checks.
+Static `MediationEffect` cheap/full uses a mediation-native suite: placebo
+mediator (indirect-effect target), random common cause on the requested contrast,
+binary mediator-range overlap when applicable, and an 80% subset on `full`.
 Continuous-treatment conditional overlap reports unsupported mass under a
 descriptive residual-support model; lower `comparison` values mean better
 support. Passing any of these checks does not establish causal identification

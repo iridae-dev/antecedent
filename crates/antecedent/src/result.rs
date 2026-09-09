@@ -81,8 +81,8 @@ impl StudyResult {
     /// Primary scalar effect for display and tests.
     ///
     /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a
-    /// distribution or mediation: returns the interventional mean or mediation total when
-    /// present, otherwise the estimate's `ate` field.
+    /// distribution, mediation, or counterfactual: returns the interventional mean,
+    /// mediation total, or mean ITE when present, otherwise the estimate's `ate` field.
     #[must_use]
     pub fn effect(&self) -> f64 {
         if let Some(dist) = &self.distribution {
@@ -92,6 +92,9 @@ impl StudyResult {
             if let Some(total) = med.total {
                 return total;
             }
+        }
+        if let Some(cf) = &self.counterfactual {
+            return cf.mean_ite;
         }
         self.estimate.ate
     }

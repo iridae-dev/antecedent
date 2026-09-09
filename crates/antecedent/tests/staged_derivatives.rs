@@ -122,3 +122,91 @@ fn staged_derivatives_known_truth() {
         }
     }
 }
+
+fn naive_ols_slope(a: &[f64], y: &[f64]) -> f64 {
+    let n = a.len() as f64;
+    let mean_a = a.iter().sum::<f64>() / n;
+    let mean_y = y.iter().sum::<f64>() / n;
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for (ai, yi) in a.iter().zip(y) {
+        let da = ai - mean_a;
+        num += da * (yi - mean_y);
+        den += da * da;
+    }
+    num / den
+}
+
+#[test]
+fn confounded_derivatives_are_not_the_observational_slope() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/staged_derivatives/confounded.json"
+    ))
+    .unwrap();
+    let z: Vec<_> = (0..800).map(|i| (f64::from(i) * 0.41).cos()).collect();
+    let a: Vec<_> = (0..800)
+        .map(|i| {
+            let z = (f64::from(i) * 0.41).cos();
+            2.0 + 0.6 * z + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos()
+        })
+        .collect();
+    let y: Vec<_> = a.iter().zip(&z).map(|(a, z)| 5.0 + 2.0 * a + 3.0 * z).collect();
+    let naive = naive_ols_slope(&a, &y);
+    let structural = pin["point"].as_f64().unwrap();
+    assert!((naive - structural).abs() > pin["naive_gap_min"].as_f64().unwrap());
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("z", z.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (s, t) in [(1, 0), (1, 2), (0, 2)] {
+        graph.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(13);
+    let cases = [
+        (
+            "point",
+            F::PointDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                at: 2.0,
+                order: 1,
+                scale: DerivativeScale::Identity,
+            },
+            Some(0.35),
+        ),
+        (
+            "average",
+            F::AverageDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                weighting: DerivativeWeighting::Observed,
+            },
+            None,
+        ),
+    ];
+    for (key, functional, bandwidth) in cases {
+        let study = Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Response(ResponseQuery::new(functional)))
+            .response_options(ContinuousResponseOptions { bandwidth, ..Default::default() })
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(got)) =
+            &result.response.as_ref().unwrap().estimate
+        else {
+            panic!("unidentified {key}")
+        };
+        let want = pin[key].as_f64().unwrap();
+        assert!((got - want).abs() < pin["tolerance"].as_f64().unwrap(), "{key}: {got} != {want}");
+        assert!(
+            (got - structural).abs() * 4.0 < (naive - structural).abs(),
+            "{key} {got} is not closer to structural than naive {naive}"
+        );
+    }
+}
