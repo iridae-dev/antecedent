@@ -544,10 +544,10 @@ pub(super) fn run_envelope_effect_refuters(
             bucket.push((atom.weight, report));
         }
         for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
-            na_weight.entry(validator).and_modify(|(w, _)| *w += atom.weight).or_insert((
-                atom.weight,
-                reason,
-            ));
+            na_weight
+                .entry(validator)
+                .and_modify(|(w, _)| *w += atom.weight)
+                .or_insert((atom.weight, reason));
         }
     }
     let mut reports = Vec::with_capacity(order.len());
@@ -687,14 +687,12 @@ pub(super) fn binary_cf_interventions(
         message: "counterfactual control value must be f64".into(),
     })?;
     if !control.is_finite() {
-        return Err(CausalError::Unsupported {
-            message: "counterfactual control must be finite",
-        });
+        return Err(CausalError::Unsupported { message: "counterfactual control must be finite" });
     }
     Ok((*variable, active, control))
 }
 
-pub(super) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
+pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
     matches!(
         status,
         IdentificationStatus::NonparametricallyIdentified

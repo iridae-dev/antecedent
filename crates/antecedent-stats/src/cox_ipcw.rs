@@ -63,14 +63,16 @@ pub fn cox_ipcw(
     let mut order: Vec<_> = (0..n).collect();
     order.sort_by(|&a, &b| time[b].total_cmp(&time[a]));
     let mut beta = vec![0.0; p];
+    let mut scratch = CoxScratch::new(n, p);
     let mut converged = false;
     for _ in 0..100 {
-        let (ll, score, info, _) = evaluate(time, event, &x, &order, &beta)?;
-        let chol =
-            cholesky_spd(&info, p).ok_or_else(|| invalid("singular Cox IPCW information"))?;
-        let step = chol_solve(&chol, p, &score).ok_or_else(|| invalid("Cox IPCW solve failed"))?;
+        let ll = evaluate(time, event, &x, &order, &beta, &mut scratch)?;
+        let chol = cholesky_spd(&scratch.info, p)
+            .ok_or_else(|| invalid("singular Cox IPCW information"))?;
+        let step =
+            chol_solve(&chol, p, &scratch.score).ok_or_else(|| invalid("Cox IPCW solve failed"))?;
         // Separation can drive the score to zero while Newton steps remain large.
-        if score.iter().map(|v| v.abs()).fold(0.0, f64::max) < 1e-9
+        if scratch.score.iter().map(|v| v.abs()).fold(0.0, f64::max) < 1e-9
             && step.iter().map(|v| v.abs()).fold(0.0, f64::max) < 1e-8
         {
             converged = true;
@@ -80,7 +82,7 @@ pub fn cox_ipcw(
         let mut accepted = false;
         for _ in 0..30 {
             let candidate: Vec<_> = beta.iter().zip(&step).map(|(b, d)| b + fraction * d).collect();
-            if let Ok((next, ..)) = evaluate(time, event, &x, &order, &candidate) {
+            if let Ok(next) = evaluate(time, event, &x, &order, &candidate, &mut scratch) {
                 if next >= ll - 1e-12 {
                     beta = candidate;
                     accepted = true;
@@ -96,8 +98,9 @@ pub fn cox_ipcw(
     if !converged {
         return Err(invalid("Cox IPCW did not converge"));
     }
-    let (_, _, information, mut jumps) = evaluate(time, event, &x, &order, &beta)?;
-    cholesky_spd(&information, p).ok_or_else(|| invalid("singular Cox IPCW information"))?;
+    evaluate(time, event, &x, &order, &beta, &mut scratch)?;
+    cholesky_spd(&scratch.info, p).ok_or_else(|| invalid("singular Cox IPCW information"))?;
+    let mut jumps = std::mem::take(&mut scratch.jumps);
     jumps.reverse();
     let mut cumulative = 0.0;
     for (_, h) in &mut jumps {
@@ -126,7 +129,36 @@ pub fn cox_ipcw(
     })
 }
 
-type Evaluation = (f64, Vec<f64>, Vec<f64>, Vec<(f64, f64)>);
+struct CoxScratch {
+    eta: Vec<f64>,
+    first: Vec<f64>,
+    second: Vec<f64>,
+    score: Vec<f64>,
+    info: Vec<f64>,
+    jumps: Vec<(f64, f64)>,
+}
+
+impl CoxScratch {
+    fn new(n: usize, p: usize) -> Self {
+        Self {
+            eta: vec![0.0; n],
+            first: vec![0.0; p],
+            second: vec![0.0; p * p],
+            score: vec![0.0; p],
+            info: vec![0.0; p * p],
+            jumps: Vec::with_capacity(n),
+        }
+    }
+
+    fn reset_accumulators(&mut self) {
+        self.first.fill(0.0);
+        self.second.fill(0.0);
+        self.score.fill(0.0);
+        self.info.fill(0.0);
+        self.jumps.clear();
+    }
+}
+
 // Descending risk-set accumulation is O(n p²), including tied groups.
 fn evaluate(
     time: &[f64],
@@ -134,32 +166,32 @@ fn evaluate(
     x: &[f64],
     order: &[usize],
     beta: &[f64],
-) -> Result<Evaluation, StatsError> {
+    scratch: &mut CoxScratch,
+) -> Result<f64, StatsError> {
     let n = time.len();
     let p = beta.len();
-    let eta: Vec<_> = (0..n).map(|i| (0..p).map(|j| beta[j] * x[j * n + i]).sum::<f64>()).collect();
-    if eta.iter().any(|v| !v.is_finite() || v.abs() > 500.0) {
+    scratch.eta.resize(n, 0.0);
+    for (i, eta) in scratch.eta.iter_mut().enumerate() {
+        *eta = (0..p).map(|j| beta[j] * x[j * n + i]).sum::<f64>();
+    }
+    if scratch.eta.iter().any(|v| !v.is_finite() || v.abs() > 500.0) {
         return Err(invalid("diverging Cox IPCW coefficients"));
     }
+    scratch.reset_accumulators();
     let mut risk = 0.0;
-    let mut first = vec![0.0; p];
-    let mut second = vec![0.0; p * p];
-    let mut score = vec![0.0; p];
-    let mut info = vec![0.0; p * p];
     let mut ll = 0.0;
-    let mut jumps = Vec::new();
     let mut start = 0;
     while start < n {
         let t = time[order[start]];
         let mut end = start;
         while end < n && time[order[end]] == t {
             let i = order[end];
-            let w = eta[i].exp();
+            let w = scratch.eta[i].exp();
             risk += w;
             for j in 0..p {
-                first[j] += w * x[j * n + i];
+                scratch.first[j] += w * x[j * n + i];
                 for k in 0..p {
-                    second[j * p + k] += w * x[j * n + i] * x[k * n + i];
+                    scratch.second[j * p + k] += w * x[j * n + i] * x[k * n + i];
                 }
             }
             end += 1;
@@ -168,26 +200,27 @@ fn evaluate(
         for &i in &order[start..end] {
             if event[i] == 0.0 {
                 deaths += 1.0;
-                ll += eta[i];
+                ll += scratch.eta[i];
                 for j in 0..p {
-                    score[j] += x[j * n + i];
+                    scratch.score[j] += x[j * n + i];
                 }
             }
         }
         if deaths > 0.0 {
             ll -= deaths * risk.ln();
             for j in 0..p {
-                score[j] -= deaths * first[j] / risk;
+                scratch.score[j] -= deaths * scratch.first[j] / risk;
                 for k in 0..p {
-                    info[j * p + k] +=
-                        deaths * (second[j * p + k] / risk - first[j] * first[k] / risk.powi(2));
+                    scratch.info[j * p + k] += deaths
+                        * (scratch.second[j * p + k] / risk
+                            - scratch.first[j] * scratch.first[k] / risk.powi(2));
                 }
             }
-            jumps.push((t, deaths / risk));
+            scratch.jumps.push((t, deaths / risk));
         }
         start = end;
     }
-    Ok((ll, score, info, jumps))
+    Ok(ll)
 }
 
 #[cfg(test)]

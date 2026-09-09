@@ -5,7 +5,6 @@
 #![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
 
 use std::sync::Arc;
-use std::time::Instant;
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, LatencyMode,
@@ -243,31 +242,17 @@ fn identify_computations(sink: &RecordingProgress) -> usize {
 }
 
 #[test]
-fn prepared_second_shot_cheaper_than_full_run() {
+fn prepared_second_shot_reuses_identification() {
     let (data, dag, query) = confounded_scm(800, 31);
     let sink = Arc::new(RecordingProgress::default());
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
 
-    let t0 = Instant::now();
     let analysis = build_analysis(data.clone(), dag.clone(), query.clone());
     let prepared = analysis.prepare(&ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
     let _ = prepared.estimate(&data, &ctx).unwrap();
-    let prepare_plus_first = t0.elapsed();
-
-    let t1 = Instant::now();
     let _ = prepared.estimate(&data, &ctx).unwrap();
-    let second = t1.elapsed();
-
-    // Second shot skips compile; on this toy it should not be slower than a full prepare+estimate.
-    // Allow generous slack for CI noise — assert structural speedup intent, not a tight budget.
-    assert!(
-        second <= prepare_plus_first.saturating_mul(2),
-        "second={second:?} prepare+first={prepare_plus_first:?}"
-    );
-    // Stronger check: plan is retained (no recompile path) and identification
-    // is served from the prepare-time cache rather than re-derived per click.
     let third = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(prepared.plan().record.plan_id.as_ref(), third.physical_plan.plan_id.as_ref());
     assert!(

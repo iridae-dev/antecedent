@@ -60,7 +60,8 @@ pub fn estimate_static_mediation(
                 && columns.iter().chain(&extras).all(|c| c[r].is_finite())
         })
         .collect();
-    let fit = |rows: &[usize]| -> Result<(f64, f64), EstimationError> {
+    let mut ls_ws = LeastSquaresWorkspace::default();
+    let mut fit = |rows: &[usize]| -> Result<(f64, f64), EstimationError> {
         let mut total = vec![0.0; graph.node_count()];
         let mut direct = total.clone();
         for &node in &order {
@@ -89,13 +90,7 @@ pub fn estimate_static_mediation(
                 matrix.extend(rows.iter().map(|&r| column[r]));
             }
             let y: Vec<_> = rows.iter().map(|&r| columns[i][r]).collect();
-            let fitted = FaerBackend.least_squares(
-                &matrix,
-                rows.len(),
-                p,
-                &y,
-                &mut LeastSquaresWorkspace::default(),
-            )?;
+            let fitted = FaerBackend.least_squares(&matrix, rows.len(), p, &y, &mut ls_ws)?;
             if fitted.rank < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }

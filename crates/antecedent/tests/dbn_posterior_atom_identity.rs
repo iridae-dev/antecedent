@@ -297,6 +297,23 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
                 (result.posterior.as_ref().unwrap().unidentified_mass - failed_weight).abs()
                     < 1e-12
             );
+            let demotion = result
+                .diagnostics
+                .iter()
+                .find(|d| d.code.as_ref() == "estimate.dbn_posterior.atom_demotion")
+                .expect("DBN atom demotion must be a summary diagnostic");
+            assert!(
+                demotion.message.contains(
+                    "identify_unidentified=0 (invalid_graph=0 identify_failed=0 not_identified=0 no_estimand=0)"
+                ),
+                "{}",
+                demotion.message
+            );
+            assert!(
+                demotion.message.contains("estimate_demoted=1 (prepare=1 fit=0 draws=0)"),
+                "{}",
+                demotion.message
+            );
         }
         assert_eq!(cached_count(&fresh), 0);
         assert_eq!(cached_count(&click), 1);

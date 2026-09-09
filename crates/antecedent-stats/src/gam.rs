@@ -595,6 +595,42 @@ impl GamFit {
         }
         s
     }
+
+    /// Derivative `f_j'(x)` of one uncentered smooth.
+    ///
+    /// The evaluation map clamps `x` outside the open knot interior to a
+    /// constant, so the derivative of that map is exactly zero there — the same
+    /// contract as a collapsed finite difference of [`Self::predict_row`].
+    ///
+    /// # Errors
+    ///
+    /// `smooth_index` out of range.
+    pub fn smooth_derivative(&self, smooth_index: usize, x: f64) -> Result<f64, StatsError> {
+        if smooth_index >= self.smooths.len() {
+            return Err(StatsError::Shape { message: "smooth index out of range" });
+        }
+        let smooth = &self.smooths[smooth_index];
+        let knots = smooth.knots.as_ref();
+        if knots.len() < CUBIC_ORDER + CUBIC_DEGREE {
+            return Err(StatsError::Shape { message: "smooth knot vector is too short" });
+        }
+        let left = knots[CUBIC_DEGREE];
+        let right = knots[knots.len() - CUBIC_ORDER];
+        if x < left || x >= right {
+            return Ok(0.0);
+        }
+        let coef_off: usize = self.smooths[..smooth_index].iter().map(|s| s.n_basis).sum();
+        let (span, ders) = cubic_bspline_deriv_nonzeros(x, knots);
+        let first = span.saturating_sub(CUBIC_DEGREE);
+        let mut s = 0.0;
+        for (i, &d) in ders.iter().enumerate() {
+            let b = first + i;
+            if b < smooth.n_basis {
+                s += d * self.coefficients[coef_off + b];
+            }
+        }
+        Ok(s)
+    }
 }
 
 fn validate_raw_layout(
@@ -726,6 +762,63 @@ fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) 
         *v = ndu[i][CUBIC_DEGREE];
     }
     (span, values)
+}
+
+/// First derivatives of the span-local cubic bases.
+///
+/// Outside the open knot interior the clamped evaluation is constant, so this
+/// returns zeros. Interior derivatives use the standard degree-drop recurrence
+/// on the same span as [`cubic_bspline_nonzeros`]; coincident end knots contribute
+/// a zero term rather than a division by zero.
+fn cubic_bspline_deriv_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
+    let left = knots[CUBIC_DEGREE];
+    let right = knots[knots.len() - CUBIC_ORDER];
+    let (span, _) = cubic_bspline_nonzeros(x, knots);
+    if x < left || x >= right {
+        return (span, [0.0; CUBIC_ORDER]);
+    }
+    let quadratic = quadratic_nonzeros(x, knots, span);
+    let mut ders = [0.0_f64; CUBIC_ORDER];
+    for k in 0..CUBIC_ORDER {
+        let i = span - CUBIC_DEGREE + k;
+        let dt0 = knots[i + CUBIC_DEGREE] - knots[i];
+        let dt1 = knots[i + CUBIC_ORDER] - knots[i + 1];
+        let n2_i = if k == 0 { 0.0 } else { quadratic[k - 1] };
+        let n2_ip1 = if k == CUBIC_DEGREE { 0.0 } else { quadratic[k] };
+        let t0 = if dt0.abs() <= f64::EPSILON { 0.0 } else { n2_i / dt0 };
+        let t1 = if dt1.abs() <= f64::EPSILON { 0.0 } else { n2_ip1 / dt1 };
+        ders[k] = (CUBIC_DEGREE as f64) * (t0 - t1);
+    }
+    (span, ders)
+}
+
+/// Degree-2 Cox–de Boor values on the same span as a cubic evaluation.
+///
+/// `values[k] = N_{span-2+k,2}(x)` for `k = 0,1,2`; `values[3]` is unused.
+fn quadratic_nonzeros(x: f64, knots: &[f64], span: usize) -> [f64; CUBIC_ORDER] {
+    const QUAD_DEGREE: usize = 2;
+    const QUAD_ORDER: usize = 3;
+    let mut ndu = [[0.0_f64; QUAD_ORDER]; QUAD_ORDER];
+    ndu[0][0] = 1.0;
+    let mut left = [0.0_f64; QUAD_ORDER];
+    let mut right = [0.0_f64; QUAD_ORDER];
+    for j in 1..QUAD_ORDER {
+        left[j] = x - knots[span + 1 - j];
+        right[j] = knots[span + j] - x;
+        let mut saved = 0.0;
+        for r in 0..j {
+            let denom = right[r + 1] + left[j - r];
+            let temp = if denom.abs() <= f64::EPSILON { 0.0 } else { ndu[r][j - 1] / denom };
+            ndu[r][j] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        ndu[j][j] = saved;
+    }
+    let mut values = [0.0_f64; CUBIC_ORDER];
+    for i in 0..QUAD_ORDER {
+        values[i] = ndu[i][QUAD_DEGREE];
+    }
+    values
 }
 
 /// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
@@ -1063,6 +1156,65 @@ mod tests {
         assert_eq!(fit.smooth_for_raw_col(0), Some(0));
         assert_eq!(fit.smooth_for_raw_col(1), Some(1));
         assert_eq!(fit.smooth_for_raw_col(2), None);
+    }
+
+    #[test]
+    fn smooth_derivative_is_zero_outside_the_clamped_range() {
+        let n = 80usize;
+        let x1 = linspace(n, -1.0, 1.0);
+        let y: Vec<f64> = x1.iter().map(|&v| 2.0 * v + 0.1 * v * v).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let mut ws = GamWorkspace::default();
+        let fit = fit_gam(
+            &x,
+            nrows,
+            ncols,
+            &y,
+            &[SmoothSpec::new(0, 8, 0.2)],
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
+        let knots = fit.smooths[0].knots.as_ref();
+        let left = knots[CUBIC_DEGREE];
+        let right = knots[knots.len() - CUBIC_ORDER];
+        assert_eq!(fit.smooth_derivative(0, left - 1.0).unwrap(), 0.0);
+        assert_eq!(fit.smooth_derivative(0, right).unwrap(), 0.0);
+        assert_eq!(fit.smooth_derivative(0, right + 2.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn smooth_derivative_matches_finite_difference_of_smooth_partial() {
+        let n = 120usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> =
+            x1.iter().enumerate().map(|(i, &v)| (4.0 * v).sin() + 0.02 * (i % 5) as f64).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let mut ws = GamWorkspace::default();
+        let fit = fit_gam(
+            &x,
+            nrows,
+            ncols,
+            &y,
+            &[SmoothSpec::new(0, 10, 0.3)],
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
+        let knots = fit.smooths[0].knots.as_ref();
+        let left = knots[CUBIC_DEGREE];
+        let right = knots[knots.len() - CUBIC_ORDER];
+        let h = 1e-6;
+        for x0 in [0.12, 0.37, 0.5, 0.64, 0.81] {
+            assert!(x0 > left + 10.0 * h && x0 < right - 10.0 * h);
+            let analytic = fit.smooth_derivative(0, x0).unwrap();
+            let fd = (fit.smooth_partial(0, x0 + h).unwrap()
+                - fit.smooth_partial(0, x0 - h).unwrap())
+                / (2.0 * h);
+            assert!((analytic - fd).abs() < 1e-5, "x={x0}: analytic={analytic} fd={fd}");
+        }
     }
 
     #[test]

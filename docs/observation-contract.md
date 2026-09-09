@@ -26,7 +26,10 @@ response regression, not a test that independent censoring holds. The declared
 covariates are the Cox model. Conditional censoring assumes a proportional-hazards
 nuisance model with log-linear effects of those completely observed numeric
 covariates. The fit uses Breslow ties and baseline cumulative hazard; each observed row receives
-`1 / G(T-|Z)`, with zero weight on censored rows. Left censoring reverses the
+`1 / G(T-|Z)`, with zero weight on censored rows. The curve is fit to the
+Horvitz–Thompson transform `Y* = Y · W`; the zeros stay in the sample and are
+offset by the upweighted observed rows. Dropping them would be complete-case
+analysis. Left censoring reverses the
 recorded outcome and censoring time before this computation. Neither weights nor
 hazards are silently clipped: observed-row survival below the declared floor
 refuses. Existing floor diagnostics remain available. Singular or nonconvergent

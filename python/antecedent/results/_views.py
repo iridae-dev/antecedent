@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ..ids import Refute
-from ._format import fmt_float, fmt_pct
+from ._format import fmt_float, fmt_pct, fmt_se
 
 __all__ = [
     "IdentificationView",
@@ -94,24 +93,17 @@ class EstimateView:
     mediation: MediationView | None = None
 
     def __repr__(self) -> str:
-        if self.estimator_id == "gcm.fit":
-            se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
-            if se is None or math.isnan(se):
-                return (
-                    f"<EstimateView mean_ite={fmt_float(self.ate)} se=unavailable "
-                    f"estimator={self.estimator_id!r} method={self.method!r}>"
-                )
-            se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
+        se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
+        se_text = fmt_se(se)
+        label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
+        if se_text is None:
             return (
-                f"<EstimateView mean_ite={fmt_float(self.ate)} se={fmt_float(se)} ({se_kind}) "
+                f"<EstimateView {label}={fmt_float(self.ate)} se=unavailable "
                 f"estimator={self.estimator_id!r} method={self.method!r}>"
             )
-        if self.se_bootstrap is not None:
-            se, se_kind = self.se_bootstrap, "bootstrap"
-        else:
-            se, se_kind = self.se_analytic, "analytic"
+        se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
         return (
-            f"<EstimateView ate={fmt_float(self.ate)} se={fmt_float(se)} ({se_kind}) "
+            f"<EstimateView {label}={fmt_float(self.ate)} se={se_text} ({se_kind}) "
             f"estimator={self.estimator_id!r} method={self.method!r}>"
         )
 
@@ -456,10 +448,13 @@ class AnalysisResult:
             if self.estimate.se_bootstrap is not None
             else self.estimate.se_analytic
         )
+        se_text = fmt_se(se)
         if self.unit_effects is not None:
             parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+        elif se_text is None:
+            parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
         else:
-            parts = [verdict, f"effect={fmt_float(self.effect)} ±{fmt_float(se)}"]
+            parts = [verdict, f"effect={fmt_float(self.effect)} ±{se_text}"]
         if self.validation.ran:
             n = len(self.validation)
             n_passed = n - len(self.validation.failed)
