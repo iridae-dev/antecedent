@@ -20,7 +20,7 @@ Five decision-focused notebooks run without local setup:
 | [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve and examine identification, empirical support, and uncertainty as separate result axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb) |
 | [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — compare observed sales with an explicit censoring mechanism and see the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
-The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, and end-to-end analysis.
+The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, class-preserving CPDAG estimation, and end-to-end analysis.
 
 ## What Can I Do With Antecedent?
 

@@ -76,7 +76,7 @@ print(result.provenance)
 print(result.evidence_status)
 ```
 
-In 1.3 every successful analysis has `evidence_status == "licensed"`.
+Every successful analysis has `evidence_status == "licensed"`.
 `allowed_unlicensed` remains a legacy wire value, but the active allowlist is
 empty and the release gate rejects new entries. A licensed cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
@@ -127,10 +127,13 @@ When the accepted graph is a DAG, this is the same response identification and
 estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
-PAG response queries remain refused by the support matrix, including accepted
-PAGs. Completion-based response primitives exist below the analysis API; they
-do not license a PAG curve through `analyze()` or `PreparedAnalysis`. Response
-mixtures over graph posteriors remain refused.
+`Cpdag` and `Pag` response queries are licensed through the same
+generalized-adjustment envelope as ATE: `analyze()` and `PreparedAnalysis`
+mass-weight identified completions and keep the runtime class. That is not
+MAG/PAG response identification. `Admg` response, TemporalCpdag/Pag response,
+and mixtures over graph posteriors remain refused by the
+[support matrix](support-matrix.md). See the
+[1.4 evidence ledger](v1.4-evidence.md).
 
 ## Validation on a function-valued response
 
@@ -141,7 +144,7 @@ function-valued validation. The returned support diagnostics still describe
 empirical treatment support. They do not establish exchangeability, positivity,
 or model correctness.
 
-## Bayesian responses in 1.2
+## Bayesian responses
 
 Use the prepared workflow to estimate a Gaussian response posterior:
 
@@ -160,13 +163,15 @@ response_bytes = prepared.export_artifact()
 query_bytes = prepared.export_artifact(payload="query")
 ```
 
-Explicit and accepted DAGs and TemporalDAGs are licensed for `ResponseCurve`
-and `InterventionResponse` under the documented Gaussian additive forms.
-Static responses use `response.bayesian`; temporal responses use
-`response.temporal.bayesian` and retain identification and support per horizon.
-These posterior intervals are pointwise, with no joint horizon posterior or
-simultaneous-band claim. Kennedy-DR regularity and row-influence diagnostics
-below describe the Frequentist estimator, not these Bayesian posteriors.
+Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
+`ResponseCurve` and `InterventionResponse` under the documented Gaussian
+additive forms. Static responses use `response.bayesian`; temporal responses
+use `response.temporal.bayesian` and retain identification and support per
+horizon. Class-aware Cpdag/Pag Bayesian response mixes identified-mass means
+only; posterior draws are not mixed. These posterior intervals are pointwise,
+with no joint horizon posterior or simultaneous-band claim. Kennedy-DR
+regularity and row-influence diagnostics below describe the Frequentist
+estimator, not these Bayesian posteriors.
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
@@ -174,7 +179,8 @@ population specifications are refused explicitly. Observation-adjusted
 Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses, graph-posterior response mixtures, and multi-step temporal response
-policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md).
+policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md) and
+[1.4 evidence ledger](v1.4-evidence.md).
 
 ## Row-diagnostic export contract
 
@@ -254,10 +260,11 @@ at export rather than published.
 
 The six derivative query types are licensed on Frequentist explicit or
 accepted DAGs at validation `none`; see the [support matrix](support-matrix.md)
-and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG,
-graph-posterior, observation-adjusted, and cheap/full coordinates remain
-refused. The definitions below are the licensed Frequentist forms, not a
-license to run every constructor argument.
+and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG
+derivative, graph-posterior, observation-adjusted, and cheap/full coordinates
+remain refused. Mean curves on `Cpdag` / `Pag` are a separate 1.4 cell, not a
+derivative license. The definitions below are the licensed Frequentist forms,
+not a license to run every constructor argument.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.

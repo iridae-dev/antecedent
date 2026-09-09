@@ -92,6 +92,10 @@ path = "../../examples/rust/sales_spreadsheet_e2e.rs"
 name = "staged_static_kinds"
 path = "../../examples/rust/staged_static_kinds.rs"
 
+[[example]]
+name = "class_preserving_cpdag"
+path = "../../examples/rust/class_preserving_cpdag.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false

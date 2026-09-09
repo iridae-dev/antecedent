@@ -5,7 +5,7 @@ evidence synthesis. Historical sections record earlier release intentions;
 [TODO.md](TODO.md) owns the detailed 1.x working roadmap. This document defines
 the goals and release boundary for 2.0, not a checklist for an in-flight cut.
 
-Last updated: 2026-09-08
+Last updated: 2026-09-10
 
 ## How to read this
 
@@ -214,6 +214,20 @@ counterfactuals now run identify → prepare → estimate. See the
 partial-graph versions of these families remain refused; transport and
 interference stay stage APIs.
 
+## 1.4 — Class-preserving coordinates, then handoff
+
+Implemented on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
+stays a `Cpdag` and estimates a MEC envelope. The same generalized-adjustment
+envelope licenses `ResponseCurve` / `InterventionResponse` and
+`ConditionalEffect` on `Cpdag` / `Pag`, and Frequentist Pulse / single-step
+Sustained on incomplete `TemporalCpdag` / `TemporalPag`. Frequentist
+graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
+`antecedent.handoff.econml` exports point-identified static adjustment sets.
+See the [evidence ledger](docs/v1.4-evidence.md). Multi-atom Frequentist
+uncertainty is unavailable. Temporal PAG results disclose their DAG-only
+subset. Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
+mixing stay 1.6.
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new
@@ -221,8 +235,9 @@ identification theories: another licensed observation mechanism under the
 existing vocabulary, another graph class for an existing query, another pinned
 oracle, a documented EconML handoff (Antecedent names the adjustment set and
 identification status; EconML estimates heterogeneity). After 1.4 the remaining
-weight is temporal and Bayesian licensing — policies, incomplete temporal
-graphs, and Bayesian cells for queries the staged handle already runs —
+weight is temporal policy and Bayesian licensing — multi-step and dynamic
+schedules, Bayesian incomplete-class temporal cells, and Bayesian cells for
+queries the staged handle already runs —
 then composition of those cells (discovery → accept → analyze, frozen
 plans, design ranking, refusals that point at the next licensed neighbor)
 without adding query kinds.
