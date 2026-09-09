@@ -13,6 +13,7 @@ antecedent = pytest.importorskip("antecedent")
 
 from known_truth import (  # noqa: E402
     BAYES,
+    FREQ,
     STATIC,
     TEMPORAL,
     static_data,
@@ -102,6 +103,71 @@ def test_static_known_truth_mixture(validation, validation_suite: str | None) ->
         tolerance=float(STATIC["effect_abs_tolerance"]),
         unidentified_mass=float(STATIC["expected_unidentified_mass"]),
         expect_ppc=True,
+    )
+
+
+def _assert_frequentist_mixture_contract(
+    fresh,
+    click,
+    prepared,
+    *,
+    validation_suite: str | None,
+    expected_ate: float,
+    unidentified_mass: float,
+) -> None:
+    assert prepared.evidence_status == "licensed"
+    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
+    assert fresh.ate == pytest.approx(expected_ate, abs=1e-8)
+    assert click.ate == pytest.approx(expected_ate, abs=1e-8)
+    assert fresh.posterior is None and click.posterior is None
+    assert fresh.identification.status == click.identification.status == "GraphDependent"
+    assert any(
+        f"unidentified_mass={unidentified_mass}" in diagnostic for diagnostic in fresh.diagnostics
+    )
+    assert all(
+        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
+    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
+    if validation_suite is None:
+        assert not fresh.validation.reports
+        assert not click.validation.reports
+    else:
+        assert fresh.validation.ran and click.validation.ran
+        assert fresh.validation.reports and click.validation.reports
+
+
+@pytest.mark.parametrize("validation, validation_suite", _VALIDATIONS)
+def test_static_known_truth_mixture_frequentist(validation, validation_suite: str | None) -> None:
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=validation,
+        bootstrap=0,
+        seed=1,
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=validation,
+        seed=1,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=1)
+    _assert_frequentist_mixture_contract(
+        fresh,
+        click,
+        prepared,
+        validation_suite=validation_suite,
+        expected_ate=float(STATIC["expected_effect_given_identified"]),
+        unidentified_mass=float(STATIC["expected_unidentified_mass"]),
     )
 
 

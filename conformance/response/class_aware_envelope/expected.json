@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "case": "class_aware_response_envelope",
+  "columns": ["t", "y", "z"],
+  "grid": [0.0, 1.0],
+  "query": {
+    "treatment": "t",
+    "outcome": "y"
+  },
+  "continuous": {
+    "n": 800,
+    "law": "y = 0.10 + 0.40 t + 0.20 z; t = 0.3 + 0.4 z + 0.2 sin(0.017 i); z alternates 0/1"
+  },
+  "contingency_table": [
+    {"z": 0.0, "t": 0.0, "y": 0.0, "count": 360},
+    {"z": 0.0, "t": 0.0, "y": 1.0, "count": 40},
+    {"z": 0.0, "t": 1.0, "y": 0.0, "count": 50},
+    {"z": 0.0, "t": 1.0, "y": 1.0, "count": 50},
+    {"z": 1.0, "t": 0.0, "y": 0.0, "count": 70},
+    {"z": 1.0, "t": 0.0, "y": 1.0, "count": 30},
+    {"z": 1.0, "t": 1.0, "y": 0.0, "count": 120},
+    {"z": 1.0, "t": 1.0, "y": 1.0, "count": 280}
+  ],
+  "cpdag": {
+    "graph": {
+      "class": "Cpdag",
+      "directed_edges": [["z", "y"], ["t", "y"]],
+      "undirected_edges": [["z", "t"]]
+    },
+    "identification": {
+      "identifier": "generalized.adjustment",
+      "status": "PartiallyIdentified",
+      "completion_count": 2,
+      "identified_mass": 2.0,
+      "unidentified_mass": 0.0
+    },
+    "ate_contrast": 0.46,
+    "curve": {
+      "estimator": "response.kennedy_dr",
+      "mean": [0.15043382257307414, 0.6494451618097798],
+      "absolute_tolerance": 1e-10,
+      "contrast_tolerance": 0.08
+    },
+    "intervention": {
+      "estimator": "response.intervention_gcomp",
+      "do_0": 0.16993469652991772,
+      "do_1": 0.6300653034700824,
+      "absolute_tolerance": 1e-12,
+      "contrast_tolerance": 2e-4
+    }
+  },
+  "pag": {
+    "graph": {
+      "class": "Pag",
+      "marked_edges": [
+        ["z", "t", "circle", "circle"],
+        ["z", "y", "tail", "arrow"],
+        ["t", "y", "tail", "arrow"]
+      ]
+    },
+    "identification": {
+      "identifier": "generalized.adjustment",
+      "status": "PartiallyIdentified",
+      "completion_count": 3,
+      "identified_mass": 3.0,
+      "unidentified_mass": 0.0
+    },
+    "ate_contrast": 0.44,
+    "curve": {
+      "estimator": "response.kennedy_dr",
+      "mean": [0.1672450962165589, 0.6325935495520127],
+      "absolute_tolerance": 1e-10,
+      "contrast_tolerance": 0.08
+    },
+    "intervention": {
+      "estimator": "response.intervention_gcomp",
+      "do_0": 0.17991292870655554,
+      "do_1": 0.6200870712934421,
+      "absolute_tolerance": 1e-12,
+      "contrast_tolerance": 2e-4
+    }
+  },
+  "bayesian": {
+    "estimator": "response.bayesian",
+    "backend": "conjugate",
+    "n_draws": 64,
+    "prior_scale": 10.0,
+    "seed": 1,
+    "cpdag_ate_contrast": 0.4615641945101853,
+    "pag_ate_contrast": 0.44161301501541206,
+    "contrast_tolerance": 1e-10,
+    "diagnostic": "estimate.envelope.response_posterior_not_mixed"
+  }
+}
