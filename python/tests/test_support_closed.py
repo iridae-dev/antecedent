@@ -9,16 +9,10 @@ pytest.importorskip("antecedent")
 import antecedent
 from antecedent.errors import CausalUnsupportedError
 
-_REASON_DERIVATIVE = (
-    "refused: Derivative cells are not licensed; only ResponseCurve "
-    "(static Dag or temporal TemporalDag) is staged."
-)
 _REASON_RESPONSE_PAG = (
     "refused: ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
 )
 _REASON_PATH_DIST = "refused: Graph-posterior path and distribution mixtures are not staged."
-_REASON_COUNTERFACTUAL = "refused: Counterfactual is not on the staged handle."
-_REASON_MEDIATION = "refused: MediationEffect is not on the staged handle."
 _REASON_INTERVENTION_RESPONSE_OFF_DAG = (
     "refused: InterventionResponse executes only on a supplied static Dag, the same "
     "requirement that refuses ResponseCurve above; Cpdag/Admg/Pag have no Response "
@@ -44,12 +38,6 @@ _ADMG = antecedent.Admg.from_edges(["t", "y"], _EDGES)
 
 _REFUSED = [
     (
-        "elasticity",
-        antecedent.Elasticity("t", "y", at=1.0),
-        {"graph": _EDGES},
-        _REASON_DERIVATIVE,
-    ),
-    (
         "response_curve_pag",
         _CURVE,
         {"graph": _PAG},
@@ -60,18 +48,6 @@ _REFUSED = [
         antecedent.PathSpecificEffect("t", "y"),
         {"discovery": antecedent.discovery.ExactDagPosterior()},
         _REASON_PATH_DIST,
-    ),
-    (
-        "counterfactual",
-        antecedent.Counterfactual("t", "y"),
-        {"graph": _DAG},
-        _REASON_COUNTERFACTUAL,
-    ),
-    (
-        "mediation",
-        antecedent.MediationEffect("t", "y", mediators=["m"]),
-        {"graph": [("t", "m"), ("m", "y")]},
-        _REASON_MEDIATION,
     ),
     # Second enforced-refusal wave (parity/support_closed.toml): ConditionalEffect /
     # InterventionResponse / TemporalMediationEffect off a supplied Dag, and any

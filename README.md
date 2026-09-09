@@ -43,7 +43,7 @@ See [**Capabilities**](docs/capabilities.md) for the full inventory and [**Suppo
 Artifact contents depend on the payload. Scalar posterior exports retain draws
 and identification metadata but omit the complete assumption and validation
 ledger; keep the analysis result alongside them. See the
-[artifact contracts](docs/artifacts.md#exporting-prepared-results-in-12).
+[artifact contracts](docs/artifacts.md#exporting-prepared-results).
 
 ## Epistemic Honesty
 
@@ -60,11 +60,12 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.2.0**. This compatible minor adds query-native
-validation, Bayesian conditional/mediation/response estimators, accepted-DAG
-functional queries, and sequential sustained-window effects. The
-[1.2.0 release notes](docs/release-notes/v1.2.0.md) and
-[evidence ledger](docs/v1.2-evidence.md) define the licensed forms,
+The current package version is **1.3.0**. This compatible minor puts existing
+query kinds on the staged handle: Frequentist DAG derivatives, conditional Cox
+IPCW observation pairs, static natural mediation with native cheap/full
+validation, and explicit-DAG unit counterfactuals. The
+[1.3.0 release notes](docs/release-notes/v1.3.0.md) and
+[evidence ledger](docs/v1.3-evidence.md) define the licensed forms,
 assumptions, numerical references, and deliberate non-goals.
 
 [Documentation](https://antecedent.readthedocs.io/) ·

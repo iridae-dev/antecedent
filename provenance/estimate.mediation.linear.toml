@@ -1,0 +1,11 @@
+feature_id = "estimate.mediation.linear"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [{ title = "Causality: Models, Reasoning, and Inference", sections = ["Chapter 4 mediation and Chapter 7 structural counterfactuals"] }]
+implementation_deviations = ["Static additive-linear parent equations, independent disturbances, AllObserved; no treatment-mediator interactions.", "Natural direct and indirect effects are path sums; recanting or truncated path identification fails closed.", "Sampling uncertainty uses shared iid row bootstrap across parent equations when explicitly requested; otherwise it is omitted."]
+upstream_implementations_observed = []
+test_sources = ["conformance/estimate/staged_static_kinds", "crates/antecedent-estimate/src/static_mediation.rs"]

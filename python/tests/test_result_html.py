@@ -18,7 +18,11 @@ from antecedent.results import (
     RefutationReport,
     ValidationView,
 )
-from antecedent.results._html import _analysis_result_repr_html
+from antecedent.results._html import (
+    _analysis_result_repr_html,
+    _posterior_repr_html,
+    _validation_repr_html,
+)
 
 
 def _identification(**overrides: object) -> IdentificationView:
@@ -121,6 +125,59 @@ def test_repr_html_effect_row_shows_point_estimate_and_estimator():
     assert "0.031" in html
     assert "ols" in html
     assert "analytic" in html
+
+
+def test_repr_html_omits_nan_interval_for_scalar_effect():
+    result = AnalysisResult(
+        identification=_identification(),
+        estimate=_estimate(estimator_id="mediation.linear", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+    )
+    html = result._repr_html_()
+    assert "0.412" in html
+    assert "se unavailable" in html
+    assert "±" not in html
+    assert "nan" not in html
+
+
+def test_repr_html_counterfactual_row_shows_available_interval():
+    result = AnalysisResult(
+        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        estimate=_estimate(estimator_id="gcm.fit", se_analytic=0.04),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+        unit_effects=[0.4, 0.5],
+    )
+    html = result._repr_html_()
+    assert "Mean ITE" in html
+    assert "±" in html
+    assert "0.040" in html
+
+
+def test_repr_html_counterfactual_row_omits_nan_interval():
+    result = AnalysisResult(
+        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        estimate=_estimate(estimator_id="gcm.fit", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+        unit_effects=[0.4, 0.5],
+    )
+    html = result._repr_html_()
+    assert "Mean ITE" in html
+    assert "0.412" in html
+    assert "gcm.fit" in html
+    assert "±" not in html
+    assert "nan" not in html
 
 
 # --- adjustment-set chips + escaping -----------------------------------------------------
@@ -240,6 +297,31 @@ def test_repr_html_never_raises_on_malformed_result_and_falls_back_to_pre():
     assert rendered.startswith("<pre>")
     assert "&lt;Broken totally-unrenderable&gt;" in rendered
     assert "<Broken totally-unrenderable>" not in rendered
+
+
+def test_nested_view_html_falls_back_when_body_raises():
+    class Broken:
+        def __repr__(self) -> str:
+            return "<Broken view>"
+
+        @property
+        def checks(self) -> object:
+            raise RuntimeError("boom")
+
+        @property
+        def effect_mean(self) -> object:
+            raise RuntimeError("boom")
+
+        @property
+        def ran(self) -> object:
+            raise RuntimeError("boom")
+
+    validation = _validation_repr_html(Broken())  # type: ignore[arg-type]
+    posterior = _posterior_repr_html(Broken())  # type: ignore[arg-type]
+    assert validation.startswith("<pre>")
+    assert posterior.startswith("<pre>")
+    assert "&lt;Broken view&gt;" in validation
+    assert "&lt;Broken view&gt;" in posterior
 
 
 # --- self-contained markup -----------------------------------------------------

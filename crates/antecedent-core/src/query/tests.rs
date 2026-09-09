@@ -77,7 +77,17 @@ fn counterfactual_and_anomaly_queries() {
     let t = VariableId::from_raw(0);
     let cf = CounterfactualQuery::new(y, [Intervention::set(t, Value::f64(1.0))]);
     cf.validate().unwrap();
-    assert!(CausalQuery::counterfactual(cf).is_counterfactual());
+    assert_eq!(cf.control, Intervention::set(t, Value::f64(0.0)));
+    let cf = cf.with_control_level(0.25);
+    assert_eq!(cf.control, Intervention::set(t, Value::f64(0.25)));
+    cf.validate().unwrap();
+    assert!(CausalQuery::counterfactual(cf.clone()).is_counterfactual());
+    let mismatched = cf.with_control(Intervention::set(VariableId::from_raw(2), Value::f64(0.0)));
+    assert!(matches!(
+        mismatched.validate(),
+        Err(QueryError::InterventionVariableMismatch { expected, got })
+            if expected == t && got == VariableId::from_raw(2)
+    ));
     let an = AnomalyAttributionQuery::new([y], 100);
     an.validate().unwrap();
     CausalQuery::anomaly_attribution(an).validate().unwrap();

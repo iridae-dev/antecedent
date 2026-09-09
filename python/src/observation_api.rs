@@ -3,21 +3,19 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalQuery, ContinuousDomain, GridSpec, IdentificationStatus,
-    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, VariableId,
+    CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::{
-    ContinuousResponseEstimator, ObservationEstimatorOptions, ObservationMechanismEstimator,
-    SelectedOutcomeCorrection,
+    ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
 };
-use antecedent_identify::{IdentificationWorkspace, ResponseIdentifier};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{CausalIdentifyError, columns_to_batch, dag_from_named_edges, detach_catch, py_err};
+use crate::{columns_to_batch, dag_from_named_edges, detach_catch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ObservationAdjustedOutcomeResult {
@@ -176,7 +174,7 @@ fn observation_adjusted_outcome(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01, crossfit_folds=5
+    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_observation_response(
@@ -203,6 +201,7 @@ fn analyze_observation_response(
     observation_probability_floor: f64,
     censoring_survival_floor: f64,
     crossfit_folds: usize,
+    accepted: bool,
 ) -> PyResult<ObservationResponseResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -225,64 +224,125 @@ fn analyze_observation_response(
         let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let query = build_query(data.schema(), &treatment, &outcome, &args, Arc::from(grid))?;
-        let identifier = ResponseIdentifier::new();
-        let prepared = identifier
-            .prepare_with_assumptions(&dag, AssumptionSet::new())
-            .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-        let identification = identifier
-            .identify(
-                &prepared,
-                &CausalQuery::Response(query.clone()),
-                &mut IdentificationWorkspace::default(),
-            )
-            .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-        if identification.status != IdentificationStatus::NonparametricallyIdentified {
-            return Err(PyValueError::new_err(
-                "observation-adjusted response is not identified by backdoor adjustment",
-            ));
-        }
-        let first = identification
-            .estimands
-            .first()
-            .ok_or_else(|| PyValueError::new_err("response identification returned no estimand"))?;
-        if identification
-            .estimands
-            .iter()
-            .any(|estimand| estimand.adjustment_set != first.adjustment_set)
-        {
-            return Err(PyValueError::new_err(
-                "response estimation currently requires one common adjustment set",
-            ));
-        }
-        let adjustment_set = first
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect();
         let delayed_entry = delayed_entry
             .as_deref()
             .map(|name| data.schema().id_of(name).map_err(py_err))
             .transpose()?;
-        let observation_estimator =
-            ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+        let builder = if accepted {
+            antecedent::Study::tabular(data.clone()).graph(antecedent::AcceptedGraph::from(dag))
+        } else {
+            antecedent::Study::tabular(data.clone()).graph(dag)
+        };
+        let mut builder = builder
+            .query(CausalQuery::Response(query))
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .observation_options(ObservationEstimatorOptions {
                 selected_correction: correction,
                 observation_probability_floor,
                 censoring_survival_floor,
                 crossfit_folds,
             });
-        let response = observation_estimator
-            .estimate_mean_curve(
-                &ContinuousResponseEstimator::new(Arc::clone(&first.adjustment_set)),
-                &data,
-                &query,
-                delayed_entry,
-                identification.status,
-                identification.required_assumptions,
-            )
-            .map_err(py_err)?;
-        observation_response_result(response, treatment, outcome, adjustment_set)
+        if let Some(entry) = delayed_entry {
+            builder = builder.observation_delayed_entry(entry);
+        }
+        let study = builder.build().map_err(py_err)?;
+        let ctx = crate::py_execution_context(1, 1);
+        let prepared = study.prepare(&ctx).map_err(py_err)?;
+        let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
+        let adjustment_set =
+            result.estimand.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect();
+        observation_response_result(
+            result.response.expect("response route"),
+            treatment,
+            outcome,
+            adjustment_set,
+        )
+    })
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, treatment, outcome, grid, observation_kind, latent, *,
+    observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
+    assumption_kind, assumption_variables=Vec::new(), structural_model=None,
+    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
+    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false
+))]
+#[allow(clippy::too_many_arguments)]
+fn prepare_observation_response(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    grid: Vec<f64>,
+    observation_kind: String,
+    latent: String,
+    observed: Option<String>,
+    censoring: Option<String>,
+    event: Option<String>,
+    lower: Option<String>,
+    upper: Option<String>,
+    indicator: Option<String>,
+    assumption_kind: String,
+    assumption_variables: Vec<String>,
+    structural_model: Option<String>,
+    delayed_entry: Option<String>,
+    correction: &str,
+    observation_probability_floor: f64,
+    censoring_survival_floor: f64,
+    crossfit_folds: usize,
+    accepted: bool,
+) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    let correction = parse_correction(correction)?;
+    let args = ObservationArgs {
+        kind: observation_kind,
+        latent,
+        observed,
+        censoring,
+        event,
+        lower,
+        upper,
+        indicator,
+        assumption_kind,
+        assumption_variables,
+        structural_model,
+    };
+    detach_catch(py, move || {
+        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
+        let query = build_query(data.schema(), &treatment, &outcome, &args, Arc::from(grid))?;
+        let delayed_entry = delayed_entry
+            .as_deref()
+            .map(|name| data.schema().id_of(name).map_err(py_err))
+            .transpose()?;
+        let builder = if accepted {
+            antecedent::Study::tabular(data.clone()).graph(antecedent::AcceptedGraph::from(dag))
+        } else {
+            antecedent::Study::tabular(data.clone()).graph(dag)
+        };
+        let mut builder = builder
+            .query(CausalQuery::Response(query))
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .observation_options(ObservationEstimatorOptions {
+                selected_correction: correction,
+                observation_probability_floor,
+                censoring_survival_floor,
+                crossfit_folds,
+            });
+        if let Some(entry) = delayed_entry {
+            builder = builder.observation_delayed_entry(entry);
+        }
+        let study = builder.build().map_err(py_err)?;
+        let ctx = crate::py_execution_context(1, 1);
+        let prepared = study.prepare(&ctx).map_err(py_err)?;
+        Ok(crate::prepared_api::PyPreparedAnalysis::from_study(prepared, names))
     })
 }
 
@@ -530,6 +590,7 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ObservationAdjustedOutcomeResult>()?;
     m.add_class::<ObservationResponseResult>()?;
+    m.add_function(wrap_pyfunction!(prepare_observation_response, m)?)?;
     m.add_function(wrap_pyfunction!(observation_adjusted_outcome, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_observation_response, m)?)?;
     m.add_function(wrap_pyfunction!(gaussian_observation_log_likelihood, m)?)?;

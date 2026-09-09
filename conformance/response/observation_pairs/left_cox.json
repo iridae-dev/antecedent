@@ -1,0 +1,17 @@
+{
+  "fixture_id": "response.observation_pairs.left_cox",
+  "seed": 1301,
+  "rows": 18000,
+  "grid": [
+    -0.5,
+    0,
+    0.5
+  ],
+  "mean": [
+    4,
+    5,
+    6
+  ],
+  "atol": 0.3,
+  "dgp": "A,Z independent uniform(-1,1); Y=5+2A+Z+uniform(-.5,.5); C exponential rate .07*exp(.6A+.5Z). Left reverses both times."
+}

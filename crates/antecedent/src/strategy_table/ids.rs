@@ -22,6 +22,7 @@ const IDENTIFIER_NAMES: &[&str] = &[
     "general.id",
     "path_specific.natural",
     "response.backdoor",
+    "gcm.parametric",
     "auto",
 ];
 
@@ -44,6 +45,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "temporal.sequential.gcomp",
     "functional.distribution",
     "functional.effect",
+    "mediation.linear",
     "conditional.linear.adjustment",
     "temporal.mediation",
     "response.temporal.bayesian",
@@ -54,6 +56,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "response.gam_derivative",
     "response.intervention_gcomp",
     "temporal.response.gcomp",
+    "gcm.fit",
 ];
 
 /// Closed set of identification strategies.
@@ -80,6 +83,8 @@ pub enum IdentifierId {
     PathSpecificNatural,
     /// Pairwise backdoor identification for response functionals.
     ResponseBackdoor,
+    /// Structural-mechanism identification for staged counterfactuals.
+    GcmParametric,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -143,6 +148,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: true,
             provenance: ("identify.path_specific", "identify.path_specific"),
         },
+        IdentifierId::GcmParametric => IdentifierData {
+            name: "gcm.parametric",
+            is_dag_only: true,
+            provenance: ("counterfactual.aap", "counterfactual.aap"),
+        },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
             is_dag_only: true,
@@ -169,6 +179,7 @@ impl IdentifierId {
         Self::GeneralId,
         Self::PathSpecificNatural,
         Self::ResponseBackdoor,
+        Self::GcmParametric,
         Self::Auto,
     ];
 
@@ -205,6 +216,7 @@ impl FromStr for IdentifierId {
             "general.id" => Ok(Self::GeneralId),
             "path_specific.natural" => Ok(Self::PathSpecificNatural),
             "response.backdoor" => Ok(Self::ResponseBackdoor),
+            "gcm.parametric" => Ok(Self::GcmParametric),
             "auto" => Ok(Self::Auto),
             other => Err(UnknownStrategy {
                 kind: "identifier",
@@ -259,6 +271,8 @@ pub enum EstimatorId {
     FunctionalDistribution,
     /// Discrete plug-in evaluation of an identified scalar functional (ATE / path NE).
     FunctionalEffect,
+    /// Static linear structural mediation.
+    StaticMediationLinear,
     /// Conditional linear adjustment (effect modifiers).
     ConditionalLinearAdjustment,
     /// Temporal linear mediation (path-product).
@@ -279,6 +293,8 @@ pub enum EstimatorId {
     ResponseInterventionGcomp,
     /// Temporal dose-over-horizon / policy-path g-computation (ADR 0021).
     TemporalResponseGcomp,
+    /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
+    GcmFit,
 }
 
 impl EstimatorId {
@@ -416,6 +432,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "functional.distribution",
             provenance: ("estimate.functional_distribution", "estimate.functional_distribution"),
         },
+        EstimatorId::StaticMediationLinear => EstimatorData {
+            name: "mediation.linear",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer.mediation",
+            provenance: ("estimate.mediation.linear", "estimate.mediation.linear"),
+        },
         EstimatorId::FunctionalEffect => EstimatorData {
             name: "functional.effect",
             parallel_task_dimension: "bootstrap.replicate",
@@ -491,6 +513,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "ols.faer.temporal.response",
             provenance: ("estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"),
         },
+        EstimatorId::GcmFit => EstimatorData {
+            name: "gcm.fit",
+            parallel_task_dimension: "analysis",
+            kernel_label: "gcm.aap",
+            provenance: ("estimate.gcm.fit", "estimate.gcm.fit"),
+        },
     }
 }
 
@@ -514,6 +542,7 @@ impl EstimatorId {
         Self::TemporalSequentialGcomp,
         Self::FunctionalDistribution,
         Self::FunctionalEffect,
+        Self::StaticMediationLinear,
         Self::ConditionalLinearAdjustment,
         Self::TemporalMediation,
         Self::TemporalResponseBayesian,
@@ -524,6 +553,7 @@ impl EstimatorId {
         Self::ResponseGamDerivative,
         Self::ResponseInterventionGcomp,
         Self::TemporalResponseGcomp,
+        Self::GcmFit,
     ];
 
     /// Canonical wire id.
@@ -572,6 +602,7 @@ impl FromStr for EstimatorId {
             "temporal.sequential.gcomp" => Ok(Self::TemporalSequentialGcomp),
             "functional.distribution" => Ok(Self::FunctionalDistribution),
             "functional.effect" => Ok(Self::FunctionalEffect),
+            "mediation.linear" => Ok(Self::StaticMediationLinear),
             "conditional.linear.adjustment" => Ok(Self::ConditionalLinearAdjustment),
             "temporal.mediation" => Ok(Self::TemporalMediation),
             "response.temporal.bayesian" => Ok(Self::TemporalResponseBayesian),
@@ -582,6 +613,7 @@ impl FromStr for EstimatorId {
             "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
             "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
             "temporal.response.gcomp" => Ok(Self::TemporalResponseGcomp),
+            "gcm.fit" => Ok(Self::GcmFit),
             other => Err(UnknownStrategy {
                 kind: "estimator",
                 got: other.to_string(),
@@ -850,9 +882,11 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
             method.is_temporal_mediation() || matches!(method, EstimandMethod::FrontDoor)
         }
         EstimatorId::FunctionalDistribution => matches!(method, EstimandMethod::GeneralId),
+        EstimatorId::StaticMediationLinear => matches!(method, EstimandMethod::PathSpecificNatural),
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
+        EstimatorId::GcmFit => false,
     }
 }
 
@@ -943,4 +977,25 @@ pub fn validate_path_specific_pair(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod names {
+    use super::{ESTIMATOR_NAMES, EstimatorId, IDENTIFIER_NAMES, IdentifierId};
+
+    #[test]
+    fn identifier_names_match_all() {
+        assert_eq!(IDENTIFIER_NAMES.len(), IdentifierId::ALL.len());
+        for (name, id) in IDENTIFIER_NAMES.iter().zip(IdentifierId::ALL) {
+            assert_eq!(*name, id.as_str());
+        }
+    }
+
+    #[test]
+    fn estimator_names_match_all() {
+        assert_eq!(ESTIMATOR_NAMES.len(), EstimatorId::ALL.len());
+        for (name, id) in ESTIMATOR_NAMES.iter().zip(EstimatorId::ALL) {
+            assert_eq!(*name, id.as_str());
+        }
+    }
 }

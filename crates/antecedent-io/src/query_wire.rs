@@ -500,8 +500,11 @@ pub enum CausalQueryWire {
     Counterfactual {
         /// Outcomes.
         outcomes: Vec<u32>,
-        /// Interventions.
+        /// Interventions defining the active world.
         interventions: Vec<InterventionWire>,
+        /// Control world. Absent on format-0.4 artifacts written before this field; decode as 0.
+        #[serde(default)]
+        control: Option<InterventionWire>,
         /// Nested flag.
         allow_nested: bool,
     },
@@ -898,6 +901,7 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
                 .iter()
                 .map(InterventionWire::from_domain)
                 .collect::<Result<Vec<_>, _>>()?,
+            control: Some(InterventionWire::from_domain(&q.control)?),
             allow_nested: q.allow_nested,
         },
         CausalQuery::AnomalyAttribution(q) => CausalQueryWire::AnomalyAttribution {
@@ -1009,14 +1013,17 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             max_history_lag: *max_history_lag,
             target_population: target_population.to_domain()?,
         }),
-        CausalQueryWire::Counterfactual { outcomes, interventions, allow_nested } => {
+        CausalQueryWire::Counterfactual { outcomes, interventions, control, allow_nested } => {
+            let interventions: Arc<[Intervention]> =
+                interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into();
+            let control = match control {
+                Some(c) => c.to_domain(),
+                None => CounterfactualQuery::default_control(&interventions),
+            };
             CausalQuery::Counterfactual(CounterfactualQuery {
                 outcomes: vars_from_raw(outcomes),
-                interventions: interventions
-                    .iter()
-                    .map(InterventionWire::to_domain)
-                    .collect::<Vec<_>>()
-                    .into(),
+                interventions,
+                control,
                 allow_nested: *allow_nested,
             })
         }
@@ -1674,5 +1681,30 @@ mod tests {
             )
             .with_conditioning([z]),
         ));
+    }
+
+    #[test]
+    fn counterfactual_wire_omitted_control_defaults_to_zero() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let q = CausalQuery::Counterfactual(CounterfactualQuery::new(
+            y,
+            [Intervention::set(t, Value::f64(1.0))],
+        ));
+        let mut json = serde_json::to_value(causal_query_to_wire(&q).unwrap()).unwrap();
+        json.as_object_mut()
+            .and_then(|root| root.get_mut("counterfactual"))
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("externally tagged counterfactual")
+            .remove("control");
+        let decoded: CausalQueryWire = serde_json::from_value(json).unwrap();
+        let back = causal_query_from_wire(&decoded).unwrap();
+        match back {
+            CausalQuery::Counterfactual(q) => {
+                assert_eq!(q.control, Intervention::set(t, Value::f64(0.0)));
+                assert_eq!(q.interventions.as_ref(), &[Intervention::set(t, Value::f64(1.0))]);
+            }
+            other => panic!("expected Counterfactual, got {other:?}"),
+        }
     }
 }

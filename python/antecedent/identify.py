@@ -28,7 +28,18 @@ from .estimation import identify as _identify_native
 from .graph import Admg, Dag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
-from .query import AverageEffect, ResponseCurve
+from .query import (
+    AverageDerivative,
+    AverageEffect,
+    Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
+    MediationEffect,
+    PointDerivative,
+    ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
+)
 from .results import IdentificationView
 
 
@@ -47,7 +58,18 @@ class Identification:
     method: str
     adjustment_set: list[str]
     graph: Dag | Admg | Sequence[tuple[str, str]]
-    query: AverageEffect | ResponseCurve
+    query: (
+        AverageEffect
+        | ResponseCurve
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | AverageDerivative
+        | DirectionalDerivative
+        | ResponseJacobian
+        | MediationEffect
+        | Counterfactual
+    )
     names: list[str] | None = None
     identifier: str | None = None
     assumption_count: int | None = None
@@ -119,6 +141,7 @@ class Identification:
         *,
         inference: Frequentist | Bayesian | None = None,
         estimator: str | Estimator | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = None,
@@ -144,6 +167,7 @@ class Identification:
             inference=inference,
             identifier=self.identifier,
             estimator=estimator,
+            estimator_config=estimator_config,
             refute=refute,
             seed=seed,
             bootstrap=bootstrap,
@@ -173,7 +197,16 @@ class Identification:
 def identify(
     *,
     graph: Dag | Admg | Sequence[tuple[str, str]],
-    query: AverageEffect | ResponseCurve,
+    query: AverageEffect
+    | ResponseCurve
+    | PointDerivative
+    | Elasticity
+    | SemiElasticity
+    | AverageDerivative
+    | DirectionalDerivative
+    | ResponseJacobian
+    | MediationEffect
+    | Counterfactual,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> Identification:
@@ -201,6 +234,81 @@ def identify(
     ``Dag.latent_project(observed)`` builds the ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
+    if isinstance(
+        query,
+        (
+            MediationEffect,
+            Counterfactual,
+            PointDerivative,
+            Elasticity,
+            SemiElasticity,
+            AverageDerivative,
+            DirectionalDerivative,
+            ResponseJacobian,
+        ),
+    ):
+        from ._native import PreparedAnalysis as NativePrepared
+        from .accepted_graph import AcceptedGraph
+        from .estimation import _static_edges
+
+        supplied = graph.graph if isinstance(graph, AcceptedGraph) else graph
+        if isinstance(query, Counterfactual) and isinstance(graph, AcceptedGraph):
+            raise TypeError("Counterfactual requires an explicit Dag")
+        if not isinstance(supplied, (Dag, list, tuple)):
+            raise TypeError("these staged kinds require a Dag")
+        resolved_names = (
+            list(names)
+            if names is not None
+            else list(supplied.nodes())
+            if isinstance(supplied, Dag)
+            else None
+        )
+        if resolved_names is None:
+            raise ValueError("names is required with an edge list")
+        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+            treatments = list(query.treatments)
+            outcomes = list(query.outcomes)
+        else:
+            treatments = [query.treatment]
+            outcomes = [query.outcome]
+        at = getattr(query, "at", None)
+        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+            at = [at[t] for t in treatments] if isinstance(at, Mapping) else list(query.at)
+        elif at is not None:
+            at = [at]
+        direction = getattr(query, "direction", None)
+        if direction is not None:
+            direction = (
+                [direction[t] for t in treatments]
+                if isinstance(direction, Mapping)
+                else list(direction)
+            )
+        scale = (
+            "log_log"
+            if isinstance(query, Elasticity)
+            else "log_" + query.log_scale
+            if isinstance(query, SemiElasticity)
+            else "identity"
+        )
+        status, method, adjustment, strategy = NativePrepared.identify_existing(
+            resolved_names,
+            _static_edges(supplied),
+            query.kind,
+            treatments,
+            outcomes,
+            mediators=list(query.mediators) if isinstance(query, MediationEffect) else [],
+            contrast=getattr(query, "contrast", "mediated"),
+            control_level=getattr(query, "control_level", 0.0),
+            active_level=getattr(query, "active_level", 1.0),
+            at=at,
+            direction=direction,
+            order=getattr(query, "order", 1),
+            scale=scale,
+            weighting=getattr(query, "weighting", None) or "observed",
+        )
+        if identifier_s not in (None, strategy):
+            raise ValueError(f"{query.kind} requires identifier={strategy}")
+        return Identification(status, method, adjustment, graph, query, resolved_names, strategy)
     if not isinstance(query, (AverageEffect, ResponseCurve)):
         raise TypeError("staged identify() supports AverageEffect and ResponseCurve queries")
     if isinstance(query, ResponseCurve) and isinstance(graph, Admg):

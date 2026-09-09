@@ -1,0 +1,11 @@
+feature_id = "estimate.observation_cox_ipcw"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [{ title = "Regression Models and Life-Tables", sections = ["Cox partial likelihood; Breslow tied-event approximation"] }]
+implementation_deviations = ["Correct log-linear proportional censoring hazards conditional on declared numeric covariates are required; independence is not inferred.", "Right censoring and sign-reversed left censoring only; no conditional delayed entry, interval censoring, truncation, or joint response intervals.", "Observed-row survival below the configured floor is refused, not clipped; singular and nonconvergent models have no marginal fallback."]
+upstream_implementations_observed = [{ project = "survival", exposure = "black-box comparison only" }]
+test_sources = ["conformance/response/conditional_ipcw", "crates/antecedent-stats/src/cox_ipcw.rs"]

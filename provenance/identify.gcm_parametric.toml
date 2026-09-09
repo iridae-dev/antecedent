@@ -1,0 +1,11 @@
+feature_id = "identify.gcm_parametric"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [{ title = "Causality: Models, Reasoning, and Inference", sections = ["Chapter 7 abduction-action-prediction"] }]
+implementation_deviations = ["Identification is under acyclic fitted mechanism restrictions, not nonparametric identification from observational data alone.", "The licensed staged query is one-treatment, one-outcome ITE with hard interventions; nested and temporal requests refuse."]
+upstream_implementations_observed = []
+test_sources = ["conformance/estimate/staged_static_kinds"]

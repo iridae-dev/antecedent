@@ -244,6 +244,8 @@ pub struct StudyBuilder {
     estimator_spec: Option<EstimatorSpec>,
     /// Numerical/inference options for response-family estimators.
     response_options: Option<ContinuousResponseOptions>,
+    observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    observation_delayed_entry: Option<antecedent_core::VariableId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
@@ -279,6 +281,8 @@ impl std::fmt::Debug for StudyBuilder {
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
             .field("response_options", &self.response_options)
+            .field("observation_options", &self.observation_options)
+            .field("observation_delayed_entry", &self.observation_delayed_entry)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("n_draws_explicit", &self.n_draws_explicit)
@@ -309,6 +313,8 @@ impl StudyBuilder {
             estimator: None,
             estimator_spec: None,
             response_options: None,
+            observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
+            observation_delayed_entry: None,
             rd: None,
             inference: InferenceMode::Frequentist,
             n_draws_explicit: false,
@@ -478,6 +484,23 @@ impl StudyBuilder {
     #[must_use]
     pub fn response_options(mut self, options: ContinuousResponseOptions) -> Self {
         self.response_options = Some(options);
+        self
+    }
+
+    /// Explicit numerical options for the observation correction on response curves.
+    #[must_use]
+    pub fn observation_options(
+        mut self,
+        options: antecedent_estimate::ObservationEstimatorOptions,
+    ) -> Self {
+        self.observation_options = options;
+        self
+    }
+
+    /// Delayed-entry column for marginal right-censoring IPCW.
+    #[must_use]
+    pub fn observation_delayed_entry(mut self, variable: antecedent_core::VariableId) -> Self {
+        self.observation_delayed_entry = Some(variable);
         self
     }
 
@@ -738,6 +761,8 @@ impl StudyBuilder {
             estimator: self.estimator,
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
+            observation_options: self.observation_options,
+            observation_delayed_entry: self.observation_delayed_entry,
             rd: self.rd,
             inference,
             overlap_policy: self.overlap_policy,

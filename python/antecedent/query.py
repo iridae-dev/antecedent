@@ -209,13 +209,19 @@ class ConditionalEffect:
 
 @dataclass(frozen=True, slots=True)
 class MediationEffect:
-    """Static mediation (treatment → mediator(s) → outcome)."""
+    """Static natural mediation on a linear additive DAG (no T-M interaction).
+
+    ``direct`` / ``mediated`` alias natural direct / indirect effects in this
+    model. Recanting and empty path sets refuse.
+    """
 
     treatment: str
     outcome: str
     _: KW_ONLY
     mediators: Sequence[str]
-    contrast: Literal["total", "direct", "mediated"] = "mediated"
+    contrast: Literal["total", "direct", "mediated", "natural_direct", "natural_indirect"] = (
+        "mediated"
+    )
     control_level: float = 0.0
     active_level: float = 1.0
     kind: Literal["mediation"] = field(default="mediation", init=False, repr=False)
@@ -223,7 +229,11 @@ class MediationEffect:
 
 @dataclass(frozen=True, slots=True)
 class Counterfactual:
-    """Unit-level ITE via GCM abduction–action–prediction."""
+    """Two-world unit ITE ``Y(a) - Y(a0)`` via GCM abduction–action–prediction.
+
+    This is not a factual-versus-counterfactual residual. Sampling uncertainty
+    is unavailable. Nested, accepted, and Bayesian forms are refused.
+    """
 
     treatment: str
     outcome: str
@@ -379,7 +389,7 @@ class SemiElasticity:
 
 @dataclass(frozen=True, slots=True)
 class DirectionalDerivative:
-    """Response derivative along a direction in a vector intervention space."""
+    """Plug-in response derivative along a supplied direction (not renormalized)."""
 
     treatments: Sequence[str]
     outcomes: Sequence[str]

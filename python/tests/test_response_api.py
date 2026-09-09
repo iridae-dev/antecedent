@@ -340,30 +340,26 @@ def test_response_analyze_derivative_and_jacobian_shapes():
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
     data = {"x": x, "a": a, "b": b, "y": y}
     graph = [("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")]
-    match = (
-        r"refused: Derivative cells are not licensed; only ResponseCurve "
-        r"\(static Dag or temporal TemporalDag\) is staged\."
+    point = antecedent.analyze(
+        data,
+        query=antecedent.PointDerivative("a", "y", at=0.5),
+        graph=graph,
+        estimator_config={"bandwidth": 0.4},
+    )
+    average = antecedent.analyze(
+        data,
+        query=antecedent.AverageDerivative("a", "y"),
+        graph=graph,
+    )
+    jacobian = antecedent.analyze(
+        data,
+        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+        graph=graph,
     )
 
-    with pytest.raises(CausalUnsupportedError, match=match):
-        antecedent.analyze(
-            data,
-            query=antecedent.PointDerivative("a", "y", at=0.5),
-            graph=graph,
-            estimator_config={"bandwidth": 0.4},
-        )
-    with pytest.raises(CausalUnsupportedError, match=match):
-        antecedent.analyze(
-            data,
-            query=antecedent.AverageDerivative("a", "y"),
-            graph=graph,
-        )
-    with pytest.raises(CausalUnsupportedError, match=match):
-        antecedent.analyze(
-            data,
-            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-            graph=graph,
-        )
+    assert point.estimate is not None
+    assert average.estimate is not None
+    assert jacobian.estimate is not None
 
 
 def test_response_analyze_refuses_unwired_semantic_options():
@@ -495,26 +491,21 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     y = np.exp(0.5 * np.log(a) + rng.normal(scale=0.15, size=400))
     data = {"a": a, "y": y}
     graph = [("a", "y")]
-    match = (
-        r"refused: Derivative cells are not licensed; only ResponseCurve "
-        r"\(static Dag or temporal TemporalDag\) is staged\."
+    elasticity = antecedent.analyze(
+        data,
+        query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
+        graph=graph,
+        estimator_config={"bandwidth": 0.25},
     )
-    with pytest.raises(CausalUnsupportedError, match=match):
-        antecedent.analyze(
-            data,
-            query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
-            graph=graph,
-            estimator_config={"bandwidth": 0.25},
-        )
-    with pytest.raises(CausalUnsupportedError, match=match):
-        antecedent.analyze(
-            data,
-            query=antecedent.SemiElasticity(
-                "a", "y", at=float(np.median(a)), log_scale="treatment"
-            ),
-            graph=graph,
-            estimator_config={"bandwidth": 0.25},
-        )
+    semi = antecedent.analyze(
+        data,
+        query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
+        graph=graph,
+        estimator_config={"bandwidth": 0.25},
+    )
+
+    assert elasticity.estimate is not None
+    assert semi.estimate is not None
 
 
 def test_response_refuses_discovery_and_runs_bayesian():

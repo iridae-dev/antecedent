@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ..ids import Refute
-from ._format import fmt_float, fmt_pct
+from ._format import fmt_float, fmt_pct, fmt_se
 
 __all__ = [
     "IdentificationView",
@@ -93,12 +93,17 @@ class EstimateView:
     mediation: MediationView | None = None
 
     def __repr__(self) -> str:
-        if self.se_bootstrap is not None:
-            se, se_kind = self.se_bootstrap, "bootstrap"
-        else:
-            se, se_kind = self.se_analytic, "analytic"
+        se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
+        se_text = fmt_se(se)
+        label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
+        if se_text is None:
+            return (
+                f"<EstimateView {label}={fmt_float(self.ate)} se=unavailable "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
+        se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
         return (
-            f"<EstimateView ate={fmt_float(self.ate)} se={fmt_float(se)} ({se_kind}) "
+            f"<EstimateView {label}={fmt_float(self.ate)} se={se_text} ({se_kind}) "
             f"estimator={self.estimator_id!r} method={self.method!r}>"
         )
 
@@ -415,15 +420,29 @@ class AnalysisResult:
     allowlist_parent: str | None = None
     _raw: Any = None
     _prepared: Any = None
+    unit_effects: list[float] | None = None
+    assumptions: list[str] | None = None
+    support: list[str] | None = None
 
     @property
     def effect(self) -> float:
-        """Primary requested contrast, including direct/mediated/total mediation."""
+        """Primary requested contrast, including mediation and mean ITE."""
         return self.estimate.ate
 
     @property
     def ate(self) -> float:
-        """Alias for :attr:`effect` (prefer ``effect`` for non-ATE queries)."""
+        """Alias for :attr:`effect`.
+
+        On counterfactual results this is mean unit ITE, not a population ATE.
+        Prefer :attr:`mean_ite` or :attr:`effect` there.
+        """
+        return self.effect
+
+    @property
+    def mean_ite(self) -> float:
+        """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
+        if self.unit_effects is None:
+            raise AttributeError("mean_ite is only defined for counterfactual results")
         return self.effect
 
     def __repr__(self) -> str:
@@ -433,7 +452,13 @@ class AnalysisResult:
             if self.estimate.se_bootstrap is not None
             else self.estimate.se_analytic
         )
-        parts = [verdict, f"effect={fmt_float(self.effect)} ±{fmt_float(se)}"]
+        se_text = fmt_se(se)
+        if self.unit_effects is not None:
+            parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+        elif se_text is None:
+            parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
+        else:
+            parts = [verdict, f"effect={fmt_float(self.effect)} ±{se_text}"]
         if self.validation.ran:
             n = len(self.validation)
             n_passed = n - len(self.validation.failed)

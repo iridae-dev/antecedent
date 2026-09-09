@@ -13,34 +13,94 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let fitted = fit_gcm(graph.clone(), data)?;
-        let outcome = *query.outcomes.first().ok_or_else(|| CausalError::Compile {
-            message: "counterfactual query missing outcome".into(),
-        })?;
         let (treatment, active, control) = binary_cf_interventions(query)?;
+        let outcome = query.outcomes[0];
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification = identify_static_query(
+                    IdentifierId::GcmParametric,
+                    graph,
+                    &CausalQuery::Counterfactual(query.clone()),
+                )?;
+                let estimand = identification.estimands[0].clone();
+                Ok((identification, estimand))
+            })?;
+        let fitted = fit_gcm(graph.clone(), data)?;
+        let assignments = format!("{:?}", fitted.assignments);
         let ite = counterfactual_ite(fitted.model, data, treatment, outcome, active, control, ctx)?;
         let estimate = EffectEstimate::new(
             ite.mean_ite,
             f64::NAN,
-            antecedent_core::AssumptionSet::default(),
+            identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let diagnostics = vec![Diagnostic::new(
-            "gcm.counterfactual",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("noise_inference={:?}", ite.noise_inference),
-        )];
-        Ok(self.finish_gcm(
+        let observed = data.float64_values(treatment)?;
+        let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let diagnostics = vec![
+            Diagnostic::new(
+                "gcm.counterfactual.mechanisms",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                assignments,
+            ),
+            Diagnostic::new(
+                "gcm.counterfactual",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "noise_inference={:?}; control={control}; active={active}",
+                    ite.noise_inference
+                ),
+            ),
+            Diagnostic::new(
+                "gcm.counterfactual.support",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "observed treatment range=[{min},{max}]; extrapolative={}",
+                    control < min || control > max || active < min || active > max
+                ),
+            ),
+            Diagnostic::new(
+                "gcm.counterfactual.uncertainty_unavailable",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable.",
+            ),
+        ];
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            CausalQuery::Counterfactual(query.clone()),
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::GcmParametric,
+            estimator_id: EstimatorId::GcmFit,
             treatment,
             outcome,
-            estimate,
-            started,
-            GcmSlot::Counterfactual(ite),
-            diagnostics,
-        ))
+            identify_cached,
+            extra_diagnostics: diagnostics,
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                gcm: Some(GcmSlot::Counterfactual(ite)),
+                bootstrap_replicates_requested: Some(None),
+                identify_provenance: Some(provenance_ids(
+                    "identify.gcm_parametric",
+                    "identify.gcm_parametric",
+                )),
+                estimate_provenance: Some(provenance_ids(
+                    "counterfactual.aap",
+                    "counterfactual.aap",
+                )),
+                ..Default::default()
+            },
+        }))
     }
 
     pub(super) fn execute_anomaly(
@@ -182,8 +242,8 @@ impl super::Study {
             identification,
             estimand,
             estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::LinearAdjustmentAte,
+            identifier_id: IdentifierId::GcmParametric,
+            estimator_id: EstimatorId::GcmFit,
             treatment,
             outcome,
             identify_cached: false,

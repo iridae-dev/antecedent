@@ -1,0 +1,5 @@
+project = "survival"
+version = "3.8.6"
+source = "https://cran.r-project.org/src/contrib/Archive/survival/survival_3.8-6.tar.gz"
+license = "LGPL-2 | LGPL-3"
+notes = "Executing coxph Breslow/basehaz oracle; frozen coefficients, row-specific survival left limits, and weights in conformance/response/conditional_ipcw."

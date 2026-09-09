@@ -12,7 +12,7 @@ default, and uncertainty about the causal graph (equivalence classes, graph
 posteriors) is carried through to the effect instead of being resolved by fiat.
 
 ```toml
-antecedent = "1.2"
+antecedent = "1.3"
 ```
 
 The entry point is `Study::tabular()` (or `::series` / `::series_multi` /

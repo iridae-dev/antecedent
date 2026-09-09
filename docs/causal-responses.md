@@ -76,7 +76,7 @@ print(result.provenance)
 print(result.evidence_status)
 ```
 
-In 1.2 every successful analysis has `evidence_status == "licensed"`.
+In 1.3 every successful analysis has `evidence_status == "licensed"`.
 `allowed_unlicensed` remains a legacy wire value, but the active allowlist is
 empty and the release gate rejects new entries. A licensed cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
@@ -130,7 +130,7 @@ an estimate click.
 PAG response queries remain refused by the support matrix, including accepted
 PAGs. Completion-based response primitives exist below the analysis API; they
 do not license a PAG curve through `analyze()` or `PreparedAnalysis`. Response
-mixtures over graph posteriors are also outside 1.2.
+mixtures over graph posteriors remain refused.
 
 ## Validation on a function-valued response
 
@@ -174,7 +174,7 @@ population specifications are refused explicitly. Observation-adjusted
 Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses, graph-posterior response mixtures, and multi-step temporal response
-policies remain refused. See the [1.2 evidence ledger](v1.2-evidence.md).
+policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md).
 
 ## Row-diagnostic export contract
 
@@ -252,25 +252,38 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The derivative query types below remain public so unsupported requests receive
-a stable typed refusal, but **all derivative analysis cells are refused in
-1.2**. Only `ResponseCurve` and `InterventionResponse` have licensed response
-cells; see the [support matrix](support-matrix.md). The definitions below
-describe implemented response primitives, not a license to run them through
-`analyze()`.
+The six derivative query types are licensed on Frequentist explicit or
+accepted DAGs at validation `none`; see the [support matrix](support-matrix.md)
+and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG,
+graph-posterior, observation-adjusted, and cheap/full coordinates remain
+refused. The definitions below are the licensed Frequentist forms, not a
+license to run every constructor argument.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
-- `PointDerivative(..., at=a)` is a local slope and is typically more sensitive
-  to smoothing and local support than the curve itself. It requires an explicit
-  `bandwidth` in response options / `estimator_config`; Silverman's rule is a
-  level/KDE rate and is refused here rather than silently oversmoothing `m'`.
+- `PointDerivative(..., at=a)` is a local slope of that curve. It requires an
+  explicit `bandwidth` in `estimator_config`; Silverman's rule is a level/KDE
+  rate and is refused rather than silently oversmoothing `m'`. Evidence pins
+  first-order coordinates. Local intervals condition on the fitted nuisances
+  and that bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
-  law; the default observed-law weighting describes the sampled population.
-- `Elasticity(..., at=a)` is a log-outcome/log-treatment derivative. The
-  treatment point must be positive, and scientific interpretation also requires
-  a meaningful positive outcome scale. Like `PointDerivative`, it requires an
-  explicit bandwidth.
+  law; only observed-law weighting is licensed, via the Gaussian-score Riesz
+  representer. The known-truth fixture is a linear SCM, so it does not
+  independently stress a Gaussian treatment density.
+- `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
+  positive, and the fitted response at that point must be positive.
+  Like `PointDerivative`, it requires an explicit bandwidth. Log-outcome
+  intervals are withheld: a partial delta-method interval would understate
+  uncertainty.
+- `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
+  (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
+  Both ride the same matrix cell.
+- `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
+  plug-in gradients with at most two treatments, a common adjustment set, and
+  a shared complete-case row set. They are not doubly robust and publish no
+  interval. A Jacobian is row-major outcomes × treatments. A directional
+  query is the unnormalized inner product `∇m · d`. Differential missingness
+  across outcomes is refused.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid
@@ -324,20 +337,22 @@ query = antecedent.ResponseCurve(
 
 `RightCensored` describes what was recorded. `IndependentGiven` is a separate,
 contestable identifying claim. Antecedent does not derive the second from the
-first. This example deliberately declares conditional censoring; the current
-marginal Kaplan–Meier IPCW estimator refuses it because its licensed contract
-requires `IndependentGiven([])`. Selected-outcome AIPW and *unconditional*
-right/left-censoring IPCW can be composed into a `ResponseCurve` when their
-explicit assumption contract is satisfied. Selected-outcome AIPW cross-fits both
-its nuisance models, and refuses a fold whose training rows cannot support them
-rather than falling back to an in-sample fit. These paths return a point curve with
-`uncertainty.kind == "none"`
+first. This example declares censoring independent of residual demand given
+price and season. A nonempty `IndependentGiven(Z)` that contains treatment and
+every causal adjustment variable is the licensed Cox IPCW pair; marginal
+Kaplan–Meier IPCW remains the licensed pair for `IndependentGiven([])`. See
+the [observation pair contract](observation-contract.md). Selected-outcome AIPW
+and both censoring IPCW estimators can be composed into a `ResponseCurve` when
+their explicit assumption contract is satisfied. Selected-outcome AIPW
+cross-fits both its nuisance models, and refuses a fold whose training rows
+cannot support them rather than falling back to an in-sample fit. These paths
+return a point curve with `uncertainty.kind == "none"`
 and a `joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint
 band. Observation-aware subset validation likewise fails closed until both
-stages can be refit jointly. Unsupported mechanism/assumption/estimator
-combinations fail closed rather than returning the response of the observed
-proxy.
+stages can be refit jointly. Observation-adjusted derivatives, interval
+censoring, and other unsupported mechanism/assumption/estimator combinations
+fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
 [complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)

@@ -544,10 +544,10 @@ pub(super) fn run_envelope_effect_refuters(
             bucket.push((atom.weight, report));
         }
         for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
-            na_weight.entry(validator).and_modify(|(w, _)| *w += atom.weight).or_insert((
-                atom.weight,
-                reason,
-            ));
+            na_weight
+                .entry(validator)
+                .and_modify(|(w, _)| *w += atom.weight)
+                .or_insert((atom.weight, reason));
         }
     }
     let mut reports = Vec::with_capacity(order.len());
@@ -596,7 +596,7 @@ pub(super) fn run_envelope_effect_refuters(
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
 /// marginalization here to (mis)compute.
-pub(super) fn parametric_scm_identification(
+pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
     treatment: VariableId,
     outcome: VariableId,
@@ -657,7 +657,7 @@ pub(super) fn parametric_scm_identification(
 pub(super) fn binary_cf_interventions(
     query: &antecedent_core::CounterfactualQuery,
 ) -> Result<(VariableId, f64, f64), CausalError> {
-    if query.interventions.len() != 1 {
+    if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
             message: "Study counterfactual path currently supports a single hard \
                  intervention for ITE (use gcm helpers for multi-world predict)",
@@ -671,10 +671,28 @@ pub(super) fn binary_cf_interventions(
     let active = value.as_f64().ok_or_else(|| CausalError::Compile {
         message: "counterfactual intervention value must be f64".into(),
     })?;
-    Ok((*variable, active, 0.0))
+    let Intervention::Set { variable: control_var, value: control_value } = &query.control else {
+        return Err(CausalError::Unsupported {
+            message: "Study counterfactual path requires a hard Set control intervention",
+        });
+    };
+    if control_var != variable {
+        return Err(CausalError::Compile {
+            message: format!(
+                "counterfactual control targets {control_var:?}, expected {variable:?}"
+            ),
+        });
+    }
+    let control = control_value.as_f64().ok_or_else(|| CausalError::Compile {
+        message: "counterfactual control value must be f64".into(),
+    })?;
+    if !control.is_finite() {
+        return Err(CausalError::Unsupported { message: "counterfactual control must be finite" });
+    }
+    Ok((*variable, active, control))
 }
 
-pub(super) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
+pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
     matches!(
         status,
         IdentificationStatus::NonparametricallyIdentified
