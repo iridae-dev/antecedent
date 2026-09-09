@@ -123,6 +123,25 @@ def test_repr_html_effect_row_shows_point_estimate_and_estimator():
     assert "analytic" in html
 
 
+def test_repr_html_counterfactual_row_omits_nan_interval():
+    result = AnalysisResult(
+        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        estimate=_estimate(estimator_id="gcm.fit", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+        unit_effects=[0.4, 0.5],
+    )
+    html = result._repr_html_()
+    assert "Mean ITE" in html
+    assert "0.412" in html
+    assert "gcm.fit" in html
+    assert "±" not in html
+    assert "nan" not in html
+
+
 # --- adjustment-set chips + escaping -----------------------------------------------------
 
 

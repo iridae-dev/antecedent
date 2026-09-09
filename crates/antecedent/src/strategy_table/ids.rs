@@ -56,6 +56,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "response.gam_derivative",
     "response.intervention_gcomp",
     "temporal.response.gcomp",
+    "gcm.fit",
 ];
 
 /// Closed set of identification strategies.
@@ -292,6 +293,8 @@ pub enum EstimatorId {
     ResponseInterventionGcomp,
     /// Temporal dose-over-horizon / policy-path g-computation (ADR 0021).
     TemporalResponseGcomp,
+    /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
+    GcmFit,
 }
 
 impl EstimatorId {
@@ -510,6 +513,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "ols.faer.temporal.response",
             provenance: ("estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"),
         },
+        EstimatorId::GcmFit => EstimatorData {
+            name: "gcm.fit",
+            parallel_task_dimension: "analysis",
+            kernel_label: "gcm.aap",
+            provenance: ("estimate.gcm.fit", "estimate.gcm.fit"),
+        },
     }
 }
 
@@ -544,6 +553,7 @@ impl EstimatorId {
         Self::ResponseGamDerivative,
         Self::ResponseInterventionGcomp,
         Self::TemporalResponseGcomp,
+        Self::GcmFit,
     ];
 
     /// Canonical wire id.
@@ -603,6 +613,7 @@ impl FromStr for EstimatorId {
             "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
             "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
             "temporal.response.gcomp" => Ok(Self::TemporalResponseGcomp),
+            "gcm.fit" => Ok(Self::GcmFit),
             other => Err(UnknownStrategy {
                 kind: "estimator",
                 got: other.to_string(),
@@ -875,6 +886,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
+        EstimatorId::GcmFit => false,
     }
 }
 
@@ -965,4 +977,25 @@ pub fn validate_path_specific_pair(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod names {
+    use super::{ESTIMATOR_NAMES, EstimatorId, IDENTIFIER_NAMES, IdentifierId};
+
+    #[test]
+    fn identifier_names_match_all() {
+        assert_eq!(IDENTIFIER_NAMES.len(), IdentifierId::ALL.len());
+        for (name, id) in IDENTIFIER_NAMES.iter().zip(IdentifierId::ALL) {
+            assert_eq!(*name, id.as_str());
+        }
+    }
+
+    #[test]
+    fn estimator_names_match_all() {
+        assert_eq!(ESTIMATOR_NAMES.len(), EstimatorId::ALL.len());
+        for (name, id) in ESTIMATOR_NAMES.iter().zip(EstimatorId::ALL) {
+            assert_eq!(*name, id.as_str());
+        }
+    }
 }

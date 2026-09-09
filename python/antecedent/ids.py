@@ -18,6 +18,7 @@ class Identifier(StrEnum):
     GENERAL_ID = "general.id"
     PATH_SPECIFIC_NATURAL = "path_specific.natural"
     RESPONSE_BACKDOOR = "response.backdoor"
+    GCM_PARAMETRIC = "gcm.parametric"
     AUTO = "auto"
 
 
@@ -50,6 +51,8 @@ class Estimator(StrEnum):
     RESPONSE_RIESZ_ADE = "response.riesz_ade"
     RESPONSE_GAM_DERIVATIVE = "response.gam_derivative"
     RESPONSE_INTERVENTION_GCOMP = "response.intervention_gcomp"
+    GCM_FIT = "gcm.fit"
+    MEDIATION_LINEAR = "mediation.linear"
 
 
 class Latency(StrEnum):

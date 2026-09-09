@@ -20,9 +20,12 @@ accepted. Selected IPW remains an explicit lower-level correction option; AIPW
 is the default licensed response primitive. Its double robustness requires a
 correct observation-propensity or outcome nuisance model, as well as positivity.
 
-Conditional censoring assumes a proportional-hazards nuisance model with
-log-linear effects of declared, completely observed numeric covariates. The fit
-uses Breslow ties and baseline cumulative hazard; each observed row receives
+Containment of treatment and the causal adjustment set in a nonempty
+`IndependentGiven` claim is a composition requirement for the downstream
+response regression, not a test that independent censoring holds. The declared
+covariates are the Cox model. Conditional censoring assumes a proportional-hazards
+nuisance model with log-linear effects of those completely observed numeric
+covariates. The fit uses Breslow ties and baseline cumulative hazard; each observed row receives
 `1 / G(T-|Z)`, with zero weight on censored rows. Left censoring reverses the
 recorded outcome and censoring time before this computation. Neither weights nor
 hazards are silently clipped: observed-row survival below the declared floor

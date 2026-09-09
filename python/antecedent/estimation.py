@@ -988,8 +988,11 @@ class PreparedAnalysis:
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``,
-        ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``, and
-        ``TemporalMediationEffect`` on an explicit graph (or accepted wrapper).
+        ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``,
+        ``TemporalMediationEffect``, static ``MediationEffect``,
+        ``Counterfactual``, and the six Frequentist derivative query types
+        on an explicit graph (or accepted wrapper, except ``Counterfactual``
+        which requires an explicit Dag).
         ``AverageEffect`` also prepares on a ``Pag`` or bidirected ``Admg``; the
         generalized-adjustment envelope or general-ID result is frozen at
         prepare and reused by every estimate click (``exec.identify.cached``).

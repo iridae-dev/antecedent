@@ -75,7 +75,7 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::GcmParametric,
-            estimator_id: EstimatorId::LinearAdjustmentAte,
+            estimator_id: EstimatorId::GcmFit,
             treatment,
             outcome,
             identify_cached,

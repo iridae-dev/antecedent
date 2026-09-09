@@ -100,10 +100,11 @@ does not define or maintain a parallel JSON schema. Response, transport, and
 interference query/result artifacts therefore migrate and validate through the
 same format-0.4 reader as Rust artifacts.
 
-## Exporting prepared results in 1.2
+## Exporting prepared results
 
 `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
-posterior or response result without refitting. Use
+posterior, response result, or static 1.3 result (mediation contrast or unit
+ITE) without refitting. Use
 `export_artifact(payload="query")` for the frozen original query, including its
 query kind and original schema variable IDs rather than an identification-time
 rewrite. Conditional queries and temporal pulse/sustained policies therefore

@@ -1,0 +1,11 @@
+{
+  "fixture_id": "estimate.staged_static_kinds.confounded",
+  "dgp": "Z=cos(i*.41); A=sin(i*.71)+.4*Z; M=2*A+.5*Z+cos(i*1.13); Y=3*A+4*M+5*Z+.1*sin(i*.31)",
+  "control": 0.2,
+  "active": 0.8,
+  "direct": 1.8,
+  "indirect": 4.8,
+  "total": 6.6,
+  "counterfactual_mean": 6.6,
+  "tolerance": 0.03
+}

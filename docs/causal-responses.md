@@ -252,25 +252,36 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The derivative query types below remain public so unsupported requests receive
-a stable typed refusal, but **all derivative analysis cells are refused in
-1.2**. Only `ResponseCurve` and `InterventionResponse` have licensed response
-cells; see the [support matrix](support-matrix.md). The definitions below
-describe implemented response primitives, not a license to run them through
-`analyze()`.
+The six derivative query types are licensed on Frequentist explicit or
+accepted DAGs at validation `none`; see the [support matrix](support-matrix.md)
+and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG,
+graph-posterior, observation-adjusted, and cheap/full coordinates remain
+refused. The definitions below are the licensed Frequentist forms, not a
+license to run every constructor argument.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
-- `PointDerivative(..., at=a)` is a local slope and is typically more sensitive
-  to smoothing and local support than the curve itself. It requires an explicit
-  `bandwidth` in response options / `estimator_config`; Silverman's rule is a
-  level/KDE rate and is refused here rather than silently oversmoothing `m'`.
+- `PointDerivative(..., at=a)` is a local slope of that curve. It requires an
+  explicit `bandwidth` in `estimator_config`; Silverman's rule is a level/KDE
+  rate and is refused rather than silently oversmoothing `m'`. Evidence pins
+  first-order coordinates. Local intervals condition on the fitted nuisances
+  and that bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
-  law; the default observed-law weighting describes the sampled population.
-- `Elasticity(..., at=a)` is a log-outcome/log-treatment derivative. The
-  treatment point must be positive, and scientific interpretation also requires
-  a meaningful positive outcome scale. Like `PointDerivative`, it requires an
-  explicit bandwidth.
+  law; only observed-law weighting is licensed, via the Gaussian-score Riesz
+  representer. The known-truth fixture is a linear SCM, so it does not
+  independently stress a Gaussian treatment density.
+- `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
+  positive, and the fitted response at that point must be positive.
+  Like `PointDerivative`, it requires an explicit bandwidth. Log-outcome
+  intervals are withheld: a partial delta-method interval would understate
+  uncertainty.
+- `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
+  (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
+  Both ride the same matrix cell.
+- `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
+  plug-in gradients with at most two treatments and a common adjustment set.
+  They are not doubly robust, publish no interval, and treat the supplied
+  direction as `∇m · d` without renormalizing it to unit length.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid

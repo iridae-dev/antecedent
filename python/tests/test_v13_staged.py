@@ -23,6 +23,31 @@ def fixture():
     return data, ac.Dag.from_edges(list(data), [("a", "m"), ("a", "y"), ("m", "y")])
 
 
+def confounded_derivatives():
+    i = np.arange(800, dtype=float)
+    z = np.cos(i * 0.41)
+    a = 2 + 0.6 * z + np.sin(i * 0.71) + 0.2 * np.cos(i * 0.13)
+    data = {"a": a, "z": z, "y": 5 + 2 * a + 3 * z}
+    graph = ac.Dag.from_edges(list(data), [("z", "a"), ("z", "y"), ("a", "y")])
+    return data, graph
+
+
+def confounded_static():
+    pin = json.loads(
+        (ROOT / "conformance/estimate/staged_static_kinds/confounded.json").read_text()
+    )
+    i = np.arange(500, dtype=float)
+    z = np.cos(i * 0.41)
+    a = np.sin(i * 0.71) + 0.4 * z
+    m = 2 * a + 0.5 * z + np.cos(i * 1.13)
+    y = 3 * a + 4 * m + 5 * z + 0.1 * np.sin(i * 0.31)
+    data = {"a": a, "m": m, "y": y, "z": z}
+    graph = ac.Dag.from_edges(
+        list(data), [("a", "m"), ("a", "y"), ("m", "y"), ("z", "a"), ("z", "m"), ("z", "y")]
+    )
+    return pin, data, graph
+
+
 @pytest.mark.parametrize(
     "contrast,key",
     [("natural_direct", "direct"), ("natural_indirect", "indirect"), ("total", "total")],
@@ -46,6 +71,7 @@ def test_mediation_stages_and_artifacts(contrast, key, accepted):
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     result = prepared.estimate(data)
     assert result.effect == pytest.approx(pin[key], abs=pin["tolerance"])
+    assert result.estimate.estimator_id == "mediation.linear"
     fresh = ac.analyze(data, graph=graph, query=q, refute="full", bootstrap=0)
     assert fresh.effect == pytest.approx(result.effect)
     assert result.validation.count == 3
@@ -74,7 +100,12 @@ def test_counterfactual_stages_and_artifact():
     prepared = PreparedAnalysis.prepare(data, graph=dag, query=q, refute="none")
     result = prepared.estimate(data)
     assert result.effect == pytest.approx(pin["counterfactual_mean"], abs=pin["tolerance"])
+    assert result.estimate.estimator_id == "gcm.fit"
     assert len(result.unit_effects) == len(data["a"])
+    text = repr(result)
+    assert "mean_ite=" in text
+    assert "±nan" not in text
+    assert result.mean_ite == pytest.approx(result.effect)
     assert ac.analyze(data, query=q, graph=dag, refute="none").effect == pytest.approx(
         result.effect
     )
@@ -88,19 +119,31 @@ def test_counterfactual_stages_and_artifact():
 
 
 @pytest.mark.parametrize(
-    "kind", ["point", "elasticity", "semi", "average", "jacobian", "directional"]
+    "kind,pin_key",
+    [
+        ("point", "point"),
+        ("elasticity", "elasticity"),
+        ("semi", "semi_treatment"),
+        ("semi_outcome", "semi_outcome"),
+        ("average", "average"),
+        ("jacobian", "jacobian"),
+        ("directional", "directional"),
+    ],
 )
-def test_derivative_stages_and_artifacts(kind):
+@pytest.mark.parametrize("accepted", [False, True])
+def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     pin = json.loads((ROOT / "conformance/response/staged_derivatives/expected.json").read_text())
     i = np.arange(800, dtype=float)
     a = 2 + np.sin(i * 0.71) + 0.2 * np.cos(i * 0.13)
     b = np.cos(i * 1.13)
     data = {"a": a, "b": b, "y": 5 + 2 * a - 0.5 * b, "v": 1 + 0.25 * a + 1.5 * b}
     graph = ac.Dag.from_edges(list(data), [("a", "y"), ("b", "y"), ("a", "v"), ("b", "v")])
+    graph = ac.AcceptedGraph(graph) if accepted else graph
     query = {
         "point": ac.PointDerivative("a", "y", at=2),
         "elasticity": ac.Elasticity("a", "y", at=2),
         "semi": ac.SemiElasticity("a", "y", at=2),
+        "semi_outcome": ac.SemiElasticity("a", "y", at=2, log_scale="outcome"),
         "average": ac.AverageDerivative("a", "y"),
         "jacobian": ac.ResponseJacobian(["a", "b"], ["y", "v"], at=[2, 0]),
         "directional": ac.DirectionalDerivative(
@@ -108,16 +151,20 @@ def test_derivative_stages_and_artifacts(kind):
         ),
     }[kind]
     assert identify(graph=graph, query=query)
-    config = {"bandwidth": 0.35} if kind in {"point", "elasticity", "semi"} else None
+    config = (
+        {"bandwidth": 0.35} if kind in {"point", "elasticity", "semi", "semi_outcome"} else None
+    )
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query, estimator_config=config)
+    assert prepared.structure_source == ("accepted" if accepted else "explicit")
     result = prepared.estimate(data)
     wire = artifacts.loads(prepared.export_artifact())
     assert wire.payload_kind == "response_result"
     assert result.identification
-    # Native staged test pins all numeric coordinates; here both public routes must agree.
+    got = np.asarray(result.estimate, dtype=float).ravel()
+    want = np.asarray(pin[pin_key], dtype=float).ravel()
+    assert got == pytest.approx(want, abs=pin["tolerance"])
     fresh = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
-    assert fresh.estimate == result.estimate
-    assert pin["point"] == 2
+    np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
     with pytest.raises(CausalUnsupportedError):
         PreparedAnalysis.prepare(
             data, graph=graph, query=query, estimator_config=config, refute="full"
@@ -206,6 +253,74 @@ def test_new_derivative_boundaries():
                 data, graph=graph, query=query, estimator_config=config
             )
             prepared.estimate(data)
+
+
+@pytest.mark.parametrize("kind,pin_key", [("point", "point"), ("average", "average")])
+def test_confounded_derivatives_are_not_the_observational_slope(kind, pin_key):
+    pin = json.loads((ROOT / "conformance/response/staged_derivatives/confounded.json").read_text())
+    data, graph = confounded_derivatives()
+    naive = np.linalg.lstsq(
+        np.column_stack([np.ones(len(data["a"])), data["a"]]), data["y"], rcond=None
+    )[0][1]
+    structural = pin["point"]
+    assert abs(naive - structural) > pin["naive_gap_min"]
+    query = {
+        "point": ac.PointDerivative("a", "y", at=2),
+        "average": ac.AverageDerivative("a", "y"),
+    }[kind]
+    config = {"bandwidth": 0.35} if kind == "point" else None
+    result = PreparedAnalysis.prepare(
+        data, graph=graph, query=query, estimator_config=config
+    ).estimate(data)
+    got = float(np.asarray(result.estimate, dtype=float).ravel()[0])
+    assert got == pytest.approx(pin[pin_key], abs=pin["tolerance"])
+    assert abs(got - structural) * 4 < abs(naive - structural)
+
+
+@pytest.mark.parametrize(
+    "contrast,key",
+    [("natural_direct", "direct"), ("natural_indirect", "indirect"), ("total", "total")],
+)
+def test_confounded_mediation_is_not_the_unadjusted_association(contrast, key):
+    pin, data, graph = confounded_static()
+    intercept = np.ones(len(data["a"]))
+    ba, bm = np.linalg.lstsq(
+        np.column_stack([intercept, data["a"], data["m"]]), data["y"], rcond=None
+    )[0][1:]
+    naive = (
+        ba * (pin["active"] - pin["control"])
+        if key == "direct"
+        else bm * 2 * (pin["active"] - pin["control"])
+    )
+    if key == "total":
+        naive = np.linalg.lstsq(np.column_stack([intercept, data["a"]]), data["y"], rcond=None)[0][
+            1
+        ] * (pin["active"] - pin["control"])
+    assert abs(naive - pin[key]) > pin["tolerance"]
+    q = ac.MediationEffect(
+        "a",
+        "y",
+        mediators=["m"],
+        contrast=contrast,
+        control_level=pin["control"],
+        active_level=pin["active"],
+    )
+    result = PreparedAnalysis.prepare(data, graph=graph, query=q, bootstrap=0).estimate(data)
+    assert result.effect == pytest.approx(pin[key], abs=pin["tolerance"])
+    assert result.estimate.estimator_id == "mediation.linear"
+
+
+def test_confounded_counterfactual_is_not_the_observational_slope():
+    pin, data, graph = confounded_static()
+    naive = np.linalg.lstsq(
+        np.column_stack([np.ones(len(data["a"])), data["a"]]), data["y"], rcond=None
+    )[0][1] * (pin["active"] - pin["control"])
+    assert abs(naive - pin["counterfactual_mean"]) > pin["tolerance"]
+    q = ac.Counterfactual("a", "y", control_level=pin["control"], active_level=pin["active"])
+    result = PreparedAnalysis.prepare(data, graph=graph, query=q, refute="none").estimate(data)
+    assert result.effect == pytest.approx(pin["counterfactual_mean"], abs=pin["tolerance"])
+    assert result.estimate.estimator_id == ac.Estimator.GCM_FIT
+    assert abs(result.mean_ite - naive) > pin["tolerance"]
 
 
 def test_static_artifact_rejects_wrong_family_payload():

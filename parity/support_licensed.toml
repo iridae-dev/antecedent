@@ -1285,7 +1285,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "PointDerivative"
@@ -1296,7 +1296,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "Elasticity"
@@ -1307,7 +1307,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "Elasticity"
@@ -1318,7 +1318,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "SemiElasticity"
@@ -1329,7 +1329,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "SemiElasticity"
@@ -1340,7 +1340,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Kennedy-DR local quadratic with caller-chosen bandwidth; Silverman's rule is refused. Local intervals condition on fitted nuisances and bandwidth; log-outcome intervals are withheld. Evidence pins first-order coordinates on a correctly specified linear SCM (tolerance 0.15). A second confounded SCM (`conformance/response/staged_derivatives/confounded.json`) pins the point derivative against a DGP whose unadjusted Y~A slope is not the structural slope. Log-treatment scales require a positive evaluation point; log-outcome transforms require a positive fitted response. No Bayesian, partial-graph, observation-adjusted, or derivative-native validation license."
 
 [[cell]]
 query = "AverageDerivative"
@@ -1351,7 +1351,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Observed-law Gaussian-score Riesz ADE; custom and uniform weighting are refused. The fixture is a linear additive SCM whose outcome model is correctly specified, so the pin does not independently stress a Gaussian treatment density. The same confounded SCM additionally pins ADE against that observational association. No Bayesian, partial-graph, weighted representer, or derivative-native validation license."
 
 [[cell]]
 query = "AverageDerivative"
@@ -1362,7 +1362,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Observed-law Gaussian-score Riesz ADE; custom and uniform weighting are refused. The fixture is a linear additive SCM whose outcome model is correctly specified, so the pin does not independently stress a Gaussian treatment density. The same confounded SCM additionally pins ADE against that observational association. No Bayesian, partial-graph, weighted representer, or derivative-native validation license."
 
 [[cell]]
 query = "DirectionalDerivative"
@@ -1373,7 +1373,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "DirectionalDerivative"
@@ -1384,7 +1384,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "ResponseJacobian"
@@ -1395,7 +1395,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "ResponseJacobian"
@@ -1406,7 +1406,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/staged_derivatives"
-limitations = "Complete observations only. Point derivatives require explicit bandwidth; local intervals condition on fitted nuisances and bandwidth. ADE uses the observed-law Gaussian-score representer only. Jacobian/directional derivatives use additive GAMs with at most two treatments and a common adjustment set. No Bayesian, partial-graph, weighted representer or derivative-native validation license."
+limitations = "Complete observations only. Additive-GAM plug-in gradients with at most two treatments and a common adjustment set; not doubly robust. A directional query is the unnormalized inner product of that gradient with the supplied direction. No interval is published. Evidence is a correctly specified linear SCM (tolerance 0.15). No Bayesian, partial-graph, or derivative-native validation license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1417,7 +1417,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1428,7 +1428,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1439,7 +1439,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1450,7 +1450,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1461,7 +1461,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "MediationEffect"
@@ -1472,7 +1472,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "Static complete-data DAG. Additive linear parent regressions with independent disturbances and no treatment-mediator interaction; Direct/Mediated aliases denote natural direct/indirect effects in this model. Identification is path-specific natural (recanting and empty path sets refuse). Cheap/full run a static mediation-native suite: placebo mediator targets the indirect effect, RCC and subset target the requested contrast. The refuter pin is a deterministic regression check, not an independent statistical oracle. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins the same structural contrasts against a DGP whose unadjusted parent regressions omit Z. No Bayesian, partial-graph, or interaction-model license."
 
 [[cell]]
 query = "Counterfactual"
@@ -1483,4 +1483,4 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
-limitations = "Static complete-data DAG mechanisms. Mediation uses additive linear parent regressions and the path-specific identifier; unsupported or recanting path sets refuse. Cheap/full run a static mediation-native suite. Counterfactuals are one-treatment, one-outcome hard-intervention ITE with GCM abduction; mechanisms are refitted on each data click, sampling uncertainty is unavailable, and nested/temporal forms are refused."
+limitations = "One-treatment, one-outcome two-world ITE Y(a)-Y(a0) under fitted GCM mechanisms and abducted disturbances, not a factual-versus-counterfactual residual. Control lives on the query (default hard set of treatment to 0). Mechanisms refit on each data click. Sampling uncertainty is unavailable. Identification is parametric (gcm.parametric). Execution records estimator `gcm.fit`, not linear ATE. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins mean ITE against a DGP whose unadjusted Y~A association differs. Nested, temporal, accepted, Bayesian, and cheap/full remain refused."

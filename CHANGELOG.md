@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   static mediation, and counterfactuals now have named closed reasons (0
   refused cells without a reason). Discovery and Bayesian Python entry points
   raise those reasons instead of claiming the kinds are unstaged.
+- Docs, licensed-cell limitations, and Python derivative tests now match the 1.3
+  licensed forms. Stale 1.2 copy no longer denies Counterfactual, static
+  mediation, or derivative cells; mediation vs ITE limitations are separate;
+  Python pins the derivative fixture rather than only checking route agreement.
+- Counterfactual execution records `gcm.fit` rather than linear ATE. Python no
+  longer prints mean ITE as `effect=… ±nan`. Confounded SCM fixtures pin
+  derivatives, mediation, and ITE against the observational association.
 - Counterfactual ITE control is stored on `CounterfactualQuery` (default hard
   set of the treatment to zero). `StudyBuilder::counterfactual_control` is gone.
 

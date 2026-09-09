@@ -164,6 +164,15 @@ def test_estimate_view_repr_prefers_bootstrap_se_when_present():
     assert "0.050" in text
 
 
+def test_estimate_view_repr_counterfactual_omits_nan_se():
+    view = _estimate(estimator_id="gcm.fit", se_analytic=float("nan"))
+    text = repr(view)
+    assert "mean_ite=0.412" in text
+    assert "se=unavailable" in text
+    assert "ate=" not in text
+    assert "nan" not in text
+
+
 # --- ConflictSummaryView -----------------------------------------------------
 
 
@@ -406,6 +415,24 @@ def test_analysis_result_repr_marks_allowed_unlicensed():
 def test_analysis_result_repr_no_refutations_ran():
     result = _result(validation=ValidationView(passed=False, ran=False, count=0))
     assert "refute=" not in repr(result)
+
+
+def test_analysis_result_repr_counterfactual_uses_mean_ite():
+    result = AnalysisResult(
+        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        estimate=_estimate(estimator_id="gcm.fit", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=_performance(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+        unit_effects=[0.4, 0.5],
+    )
+    text = repr(result)
+    assert "mean_ite=0.412" in text
+    assert "±" not in text
+    assert "nan" not in text
+    assert result.mean_ite == 0.412
 
 
 def test_fmt_float_handles_nan_and_none():

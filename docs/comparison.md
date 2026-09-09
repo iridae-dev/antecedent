@@ -69,7 +69,9 @@ ADMG/CPDAG/PAG posterior atoms are refused. Unidentified atom mass is retained;
 priors do not upgrade identification.
 
 Derivative query types remain importable at the Python root so unsupported
-requests fail as typed matrix refusals. They are not licensed analysis cells.
+requests fail as typed matrix refusals. They are licensed on Frequentist
+explicit or accepted DAGs at validation `none`; Bayesian, partial-graph, and
+validation cheap/full coordinates remain refused.
 
 ## What the repository compares externally
 
@@ -158,7 +160,7 @@ The following are current product boundaries or explicit matrix refusals:
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
 - no response mixtures over graph posteriors or Bayesian nonlinear responses;
-- no licensed derivative analysis cells;
+- no Bayesian or partial-graph derivative cells;
 - no class-aware temporal effect identification on incomplete
   `TemporalCpdag`/`TemporalPag`;
 - no exact DAG pseudo-posterior enumeration beyond six nodes;

@@ -1,0 +1,9 @@
+{
+  "fixture_id": "response.staged_derivatives.confounded",
+  "dgp": "Z=cos(i*.41); A=2+.6*Z+sin(i*.71)+.2*cos(i*.13); Y=5+2*A+3*Z",
+  "at": 2.0,
+  "point": 2.0,
+  "average": 2.0,
+  "tolerance": 0.15,
+  "naive_gap_min": 1.0
+}

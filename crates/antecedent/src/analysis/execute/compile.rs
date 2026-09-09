@@ -261,7 +261,7 @@ impl super::Study {
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                // Parametric SCM paths: logical metadata only (no classic identifier/estimator).
+                // Parametric SCM paths: closed `gcm.parametric` / `gcm.fit`, not backdoor ATE.
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
                 self.query
                     .validate()
