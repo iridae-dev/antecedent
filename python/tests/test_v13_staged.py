@@ -234,7 +234,8 @@ def test_static_mediation_refuter_pin():
     for report, expected in zip(result.validation.reports, pin["reports"], strict=True):
         actual = asdict(report)
         for key in ("original_ate", "refuted_ate", "comparison"):
-            assert actual.pop(key) == pytest.approx(expected[key], abs=pin["atol"])
+            got = actual.pop(key)
+            assert got == pytest.approx(expected[key], abs=pin["atol"])
         assert actual == {k: v for k, v in expected.items() if k in actual}
 
 
