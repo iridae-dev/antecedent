@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Class-preserving `AverageEffect` on explicit/accepted `Cpdag` (Frequentist
+  and Bayesian, `none`/`cheap`/`full`). Completions are MEC envelope atoms;
+  runtime class stays `Cpdag`. See [1.4 evidence](docs/v1.4-evidence.md).
+- Class-aware `ResponseCurve` / `InterventionResponse` on explicit/accepted
+  `Cpdag` and `Pag` (Frequentist and Bayesian, `none`): the ATE
+  generalized-adjustment envelope, evaluated pointwise and mass-weighted.
+  Bayesian mixes identified-mass means only; posterior draws are not mixed.
+  `Admg` response stays refused. See [1.4 evidence](docs/v1.4-evidence.md).
+- Class-aware `ConditionalEffect` on explicit/accepted `Cpdag` and `Pag`
+  (Frequentist and Bayesian, `none`/`cheap`/`full`). Same MEC envelope as
+  ATE; the modifier stays in the outcome model, so the pin is the
+  Z-conditional effect at Ē[Z], not the ATE envelope mean. `Admg` stays
+  refused.
+- `identify()` on `Cpdag` / `Pag` (ATE, response, ConditionalEffect) and on
+  temporal classes (Pulse / Sustained). EconML handoff covers TemporalDag
+  Pulse and a fully-oriented Cpdag that stays a Cpdag.
+- Class-preserving Pulse and single-step Sustained on explicit/accepted
+  `TemporalCpdag` / `TemporalPag` (Frequentist, `none`/`cheap`/`full`).
+  Completions are TemporalDag envelope atoms; runtime class stays
+  incomplete. Bayesian incomplete-class temporal cells stay refused.
+  See [1.4 evidence](docs/v1.4-evidence.md).
+- `antecedent.handoff.econml`: adjustment-set export for point-identified
+  backdoor / generalized-adjustment results. Front-door, IV, general ID,
+  partial ID, and graph-posterior mixtures refuse. Does not wrap EconML
+  learners.
+- Frequentist graph-posterior combiner for
+  `AverageEffect × Dag × graph_posterior` (`none`/`cheap`/`full`). Same
+  known-truth mixture as the 1.1 Bayesian envelope (`E[τ|identified]=2.625`,
+  unidentified mass 0.2); the aggregator is mass-weighted
+  `linear.adjustment.ate`. Frequentist DBN-posterior mixing stays 1.6.
+
+### Fixed
+
+- Frequentist envelope cheap/full now mixes refuters across contributing
+  atoms against the mixture effect (CPDAG/PAG ATE, temporal class Pulse,
+  and Frequentist graph-posterior ATE). First-atom validation was a silent
+  lie about the mixture.
+- Frequentist graph-posterior ATE publishes `GraphDependent` when
+  unidentified mass remains, instead of the first identified atom's
+  point-ID status.
+- Frequentist envelope SEs disclose that they are a mass-weighted RMS of
+  per-atom analytic SEs and omit between-atom disagreement. Mixed interval
+  endpoints are the same mass-weighted average, not a mixture CI. A
+  non-finite per-atom SE now makes the mixture SE non-finite instead of
+  shrinking the denominator.
+- `AnalysisResult.plan.structure_source` is populated from the study
+  coordinate, so EconML handoff can refuse graph-posterior mixtures without
+  guessing from the discovery-algorithm name.
+- Partial / graph-dependent envelopes no longer publish the first atom's
+  adjustment set as if it were invariant.
+
 ## [1.3.0] — 2026-09-08
 
 ### Added
