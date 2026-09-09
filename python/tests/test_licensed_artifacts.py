@@ -257,6 +257,7 @@ _QUERY_PAYLOADS["Counterfactual"] = (
         "counterfactual": {
             "outcomes": [1],
             "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}],
+            "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
             "allow_nested": False,
         }
     },

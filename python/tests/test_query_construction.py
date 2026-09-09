@@ -8,6 +8,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent.errors import CausalValueError
 from antecedent.query import (
     AverageDerivative,
     AverageEffect,
@@ -26,6 +27,7 @@ from antecedent.query import (
     SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
+    temporal_response_spec,
 )
 
 # (class, positional identifier args, expected kind, extra required kwargs)
@@ -122,3 +124,71 @@ def test_query_dataclasses_are_frozen(cls, positional, kind, extra):
     instance = cls(*positional, **extra)
     with pytest.raises(dataclasses.FrozenInstanceError):
         instance.kind = "tampered"  # type: ignore[misc]
+
+
+def test_derivative_coordinates_accept_aligned_mappings():
+    DirectionalDerivative(
+        ["a", "b"],
+        ["y"],
+        at={"a": 1.0, "b": 0.0},
+        direction={"b": 2.0, "a": 0.0},
+    )
+    ResponseJacobian(["a", "b"], ["y"], at={"b": 0.5, "a": 1.5})
+    with pytest.raises(CausalValueError, match="exactly match treatments"):
+        ResponseJacobian(["a", "b"], ["y"], at={"a": 1.0})
+    with pytest.raises(CausalValueError, match="one value per treatment"):
+        ResponseJacobian(["a", "b"], ["y"], at=[1.0])
+
+
+def test_query_value_guards():
+    with pytest.raises(ValueError, match="pair of integer"):
+        SustainedEffect("t", "y", window=(0.0, 1.0))  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="from <= until"):
+        SustainedEffect("t", "y", window=(1, 0))
+    SustainedEffect("t", "y", window=(-2, -1))
+
+    with pytest.raises(CausalValueError, match="at least two"):
+        ResponseCurve("t", "y", grid=[0.0])
+    with pytest.raises(CausalValueError, match="finite"):
+        ResponseCurve("t", "y", grid=[0.0, float("nan")])
+    with pytest.raises(CausalValueError, match="non-empty variable"):
+        AverageDerivative(" ", "y")
+    with pytest.raises(CausalValueError, match="order must be 1 or 2"):
+        PointDerivative("t", "y", at=0.0, order=3)
+    with pytest.raises(CausalValueError, match="positive"):
+        Elasticity("t", "y", at=0.0)
+    with pytest.raises(CausalValueError, match="log_scale"):
+        SemiElasticity("t", "y", at=1.0, log_scale="both")  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError, match="positive"):
+        SemiElasticity("t", "y", at=0.0, log_scale="treatment")
+    SemiElasticity("t", "y", at=-1.0, log_scale="outcome")
+
+    with pytest.raises(CausalValueError, match="must not be None"):
+        InterventionResponse("y", intervention=None)
+    with pytest.raises(CausalValueError, match="at least one"):
+        DirectionalDerivative([], ["y"], at=[], direction=[])
+    curve = ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1, 2])
+    assert curve.is_temporal
+    assert InterventionResponse("y", intervention={"t": 1.0}, horizons=[1]).is_temporal
+    assert not ResponseCurve("t", "y", grid=[0.0, 1.0]).is_temporal
+
+    spec = temporal_response_spec
+    with pytest.raises(CausalValueError, match="non-empty"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=())
+    with pytest.raises(CausalValueError, match="at most"):
+        ResponseCurve(
+            "t",
+            "y",
+            grid=[0.0, 1.0],
+            horizons=list(range(1, spec.max_horizons + 2)),
+        )
+    with pytest.raises(CausalValueError, match="positive integers"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
+    with pytest.raises(CausalValueError, match="strictly increasing"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[2, 2])
+    with pytest.raises(CausalValueError, match="policy"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="unknown")
+    with pytest.raises(CausalValueError, match="treatment_lag"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], treatment_lag=-1)
+    with pytest.raises(CausalValueError, match="max_history_lag"):
+        ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], max_history_lag=-1)

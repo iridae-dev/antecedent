@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 
+import pytest
 from antecedent.results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -119,6 +120,7 @@ def test_identification_view_repr_not_identified():
 def test_identification_view_bool_known_identified_statuses():
     assert bool(_identification(status="NonparametricallyIdentified"))
     assert bool(_identification(status="gcm.parametric"))
+    assert bool(_identification(status="ParametricallyIdentified"))
 
 
 def test_identification_view_bool_negated_statuses_are_false():
@@ -333,10 +335,29 @@ def test_performance_view_repr_with_timing():
 
 
 def test_performance_view_repr_flags():
-    view = _performance(cancelled=True, early_stopped=True)
+    view = _performance(cancelled=True, early_stopped=True, bytes_borrowed=128)
     text = repr(view)
     assert "cancelled" in text
     assert "early_stopped" in text
+    assert "borrowed=128" in text
+
+
+def test_analysis_result_mean_ite_and_prepared_only_actions():
+    result = AnalysisResult(
+        identification=_identification(),
+        estimate=_estimate(),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=_performance(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+    )
+    with pytest.raises(AttributeError, match="counterfactual"):
+        _ = result.mean_ite
+    with pytest.raises(TypeError, match="PreparedAnalysis"):
+        result.refresh({"a": [1.0]})
+    with pytest.raises(TypeError, match="PreparedAnalysis"):
+        result.refute({"a": [1.0]})
 
 
 # --- PlanView / PhysicalPlanView -----------------------------------------------------
@@ -474,6 +495,14 @@ def test_fmt_float_handles_nan_and_none():
     assert fmt_se(float("inf")) is None
     assert fmt_se(float("-inf")) is None
     assert fmt_se(0.031) == "0.031"
+    assert fmt_float(object()) == "None"
+    assert fmt_se(object()) is None
+    assert fmt_pct(None) == "None"
+    assert fmt_pct(object()) == "None"
+    assert fmt_pct(float("nan")) == "nan"
+    assert fmt_pct(float("inf")) == "inf"
+    assert fmt_pct(float("-inf")) == "-inf"
+    assert fmt_pct(0.5) == "50.0%"
     assert fmt_pct(None) == "None"
     assert fmt_pct(math.nan) == "nan"
     assert fmt_pct(0.5) == "50.0%"
