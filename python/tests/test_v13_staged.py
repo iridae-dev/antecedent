@@ -362,6 +362,9 @@ def test_python_consumes_cox_oracle(left):
     )
     adjusted = obs.adjusted_outcome(data, query, censoring_survival_floor=1e-6)
     assert adjusted.weights == pytest.approx(rows["weight"], abs=pin["atol"])
+    assert adjusted.values == pytest.approx(
+        np.array(data["y"]) * np.array(adjusted.weights), abs=pin["atol"]
+    )
 
 
 def test_counterfactual_prepared_refits_supplied_data():
@@ -457,3 +460,18 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
+    with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
+        ac.analyze(data, graph=dag, query=cf, refute="full")
+    with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
+        PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="cheap")
+    with pytest.raises(CausalUnsupportedError, match="sampling uncertainty is unavailable"):
+        ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
+    with pytest.raises(CausalUnsupportedError, match="sampling uncertainty is unavailable"):
+        PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="none", bootstrap=8)
+
+
+def test_counterfactual_reports_extrapolative_support():
+    data, graph = fixture()
+    query = ac.Counterfactual("a", "y", control_level=-4.0, active_level=4.0)
+    result = PreparedAnalysis.prepare(data, graph=graph, query=query, refute="none").estimate(data)
+    assert any("extrapolative=true" in item for item in result.support)

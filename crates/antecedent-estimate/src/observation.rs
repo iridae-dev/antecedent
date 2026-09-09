@@ -155,11 +155,16 @@ impl ObservationMechanismEstimator {
 
     /// Estimate an observation-adjusted scalar mean-response curve.
     ///
-    /// This composition first constructs the licensed selected-outcome IPW/AIPW or
-    /// censoring IPCW Horvitz–Thompson pseudo-outcome `Y* = Y · W`, then applies the
-    /// continuous-treatment response estimator to `Y*`. Censored or unselected rows
-    /// remain in the sample with `Y* = 0`; that is the IPCW contribution, not a
-    /// complete-case drop and not an imputed zero outcome. For selected outcomes, the declared
+    /// This composition first constructs a selected-outcome or censoring-adjusted
+    /// pseudo-outcome, then applies the continuous-treatment response estimator.
+    ///
+    /// Censoring IPCW and selected IPW use the Horvitz–Thompson transform
+    /// `Y* = Y · W`. Censored or IPW-unselected rows remain with `Y* = 0`; that
+    /// is the HT contribution, not a complete-case drop. Default selected
+    /// correction is AIPW: unselected rows receive the outcome-regression
+    /// prediction `m(X)`, not zero.
+    ///
+    /// For selected outcomes, the declared
     /// [`ObservationAssumption::OutcomeIndependentGiven`] set must include the treatment and
     /// every causal adjustment variable. This containment makes the observation correction
     /// conditionally valid for the downstream response regression. Marginal Kaplan–Meier IPCW

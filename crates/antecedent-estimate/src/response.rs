@@ -819,14 +819,13 @@ impl ContinuousResponseEstimator {
                 "plug-in response Jacobian supports at most two treatments",
             ));
         }
+        let samples =
+            read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
-        let mut all_treatments = Vec::new();
-        for &outcome in outcomes {
-            let sample = CompleteSample::read(data, outcome, treatments, &self.adjustment_set)?;
-            if all_treatments.is_empty() {
-                all_treatments.clone_from(&sample.treatment_matrix);
-            }
-            let (level, gradient) = self.plugin_gradient(&sample, at)?;
+        let all_treatments =
+            samples.first().map(|sample| sample.treatment_matrix.clone()).unwrap_or_default();
+        for sample in &samples {
+            let (level, gradient) = self.plugin_gradient(sample, at)?;
             for (j, &raw) in gradient.iter().enumerate() {
                 values.push(transform_derivative(raw, at[j], level, scale)?);
             }
@@ -856,14 +855,13 @@ impl ContinuousResponseEstimator {
                 "plug-in directional derivative supports at most two treatments",
             ));
         }
+        let samples =
+            read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let mut values = Vec::with_capacity(outcomes.len());
-        let mut all_treatments = Vec::new();
-        for &outcome in outcomes {
-            let sample = CompleteSample::read(data, outcome, treatments, &self.adjustment_set)?;
-            if all_treatments.is_empty() {
-                all_treatments.clone_from(&sample.treatment_matrix);
-            }
-            let (_, gradient) = self.plugin_gradient(&sample, at)?;
+        let all_treatments =
+            samples.first().map(|sample| sample.treatment_matrix.clone()).unwrap_or_default();
+        for sample in &samples {
+            let (_, gradient) = self.plugin_gradient(sample, at)?;
             values.push(gradient.iter().zip(direction).map(|(a, b)| a * b).sum());
         }
         Ok((
@@ -1137,6 +1135,26 @@ struct CompleteSample {
     treatment_cols: usize,
     adjustment_cols: usize,
     raw_cols: usize,
+}
+
+fn read_shared_complete_samples(
+    data: &TabularData,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    adjustment: &[VariableId],
+) -> Result<Vec<CompleteSample>, EstimationError> {
+    let mut samples = Vec::with_capacity(outcomes.len());
+    for &outcome in outcomes {
+        samples.push(CompleteSample::read(data, outcome, treatments, adjustment)?);
+    }
+    if let Some(first) = samples.first() {
+        if samples.iter().any(|sample| sample.keep != first.keep) {
+            return Err(EstimationError::unsupported(
+                "plug-in Jacobian and directional derivatives require a shared complete-case row set across outcomes",
+            ));
+        }
+    }
+    Ok(samples)
 }
 
 impl CompleteSample {
@@ -2588,6 +2606,52 @@ mod tests {
             panic!("expected scalar");
         };
         assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+            "log-scale elasticity must say why the interval is withheld"
+        );
+    }
+
+    #[test]
+    fn elasticity_refuses_nonpositive_fitted_response() {
+        assert!(
+            transform_derivative(1.0, 2.0, 0.0, DerivativeScale::LogLog)
+                .unwrap_err()
+                .to_string()
+                .contains("positive fitted response")
+        );
+        let n = 80;
+        let a: Vec<f64> = (0..n).map(|i| -0.4 + i as f64 * 0.01).collect();
+        let y: Vec<f64> = a.iter().map(|av| -4.0 - 2.0 * av).collect();
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(1),
+            treatment: VariableId::from_raw(0),
+            at: 0.2,
+            order: 1,
+            scale: DerivativeScale::LogLog,
+        });
+        let mut estimator = ContinuousResponseEstimator::new([VariableId::from_raw(2)]);
+        estimator.options.bandwidth = Some(0.35);
+        let error = estimator
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("positive fitted response"), "got {error}");
     }
 
     #[test]
@@ -2737,5 +2801,82 @@ mod tests {
         }
         assert_eq!(response.support.status, SupportStatus::Extrapolative);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.gam_derivative");
+    }
+
+    #[test]
+    fn plugin_jacobian_refuses_mismatched_complete_cases() {
+        let n = 80;
+        let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let b: Vec<f64> = (0..n).map(|i| 1.0 - i as f64 / n as f64).collect();
+        let y1: Vec<f64> = a.iter().zip(&b).map(|(av, bv)| 1.0 + 2.0 * av - 0.5 * bv).collect();
+        let mut y2 = y1.iter().map(|v| -1.0 + 0.25 * v).collect::<Vec<_>>();
+        for value in y2.iter_mut().skip(n - 25) {
+            *value = f64::NAN;
+        }
+        let x: Vec<f64> = a.clone();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("y1", y1.as_slice()),
+            ("y2", y2.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([0.5, 0.5]),
+            scale: DerivativeScale::Identity,
+        });
+        let error = ContinuousResponseEstimator::new([VariableId::from_raw(4)])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("shared complete-case"), "got {error}");
+    }
+
+    #[test]
+    fn plugin_jacobian_warns_when_clamped_outside_support() {
+        let n = 120;
+        let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let b: Vec<f64> = a.clone();
+        let y1: Vec<f64> = a.iter().map(|av| 1.0 + 2.0 * av).collect();
+        let y2: Vec<f64> = a.iter().map(|av| -1.0 + 0.25 * av).collect();
+        let x: Vec<f64> = a.clone();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("y1", y1.as_slice()),
+            ("y2", y2.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([8.0, 8.0]),
+            scale: DerivativeScale::Identity,
+        });
+        let response = ContinuousResponseEstimator::new([VariableId::from_raw(4)])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert_eq!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.clamped_basis_derivative"),
+            "outside-support Jacobian must emit the clamped-basis warning"
+        );
     }
 }

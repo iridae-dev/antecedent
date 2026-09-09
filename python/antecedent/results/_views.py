@@ -431,7 +431,11 @@ class AnalysisResult:
 
     @property
     def ate(self) -> float:
-        """Alias for :attr:`effect` (prefer ``effect`` for non-ATE queries)."""
+        """Alias for :attr:`effect`.
+
+        On counterfactual results this is mean unit ITE, not a population ATE.
+        Prefer :attr:`mean_ite` or :attr:`effect` there.
+        """
         return self.effect
 
     @property
