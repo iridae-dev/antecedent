@@ -511,7 +511,7 @@ fn supplied_complete_temporal_pag_estimates() {
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
     let analysis = Study::series(series)
-        .graph(AcceptedGraph::temporal_pag(pag).unwrap())
+        .graph(AcceptedGraph::temporal_pag(pag))
         .temporal_query(q)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -526,45 +526,26 @@ fn supplied_complete_temporal_pag_estimates() {
 }
 
 #[test]
-fn incomplete_temporal_pag_review_required_structured() {
-    // MIGRATION NOTE: a directly-supplied `TemporalPag` now converts into an
-    // `AcceptedGraph` unconditionally (`AcceptedGraph::temporal_pag` /
-    // `impl From<TemporalPag> for AcceptedGraph`, crates/antecedent/src/accepted.rs) —
-    // "circles are information, not incompleteness" for a *supplied* structure, unlike
-    // a discovery *review artifact* (`TemporalPagReview`), which is the only path that
-    // can still produce `CausalError::ReviewRequired`. So this scenario (a supplied
-    // `TemporalPag` with an unresolved circle-arrow mark) can no longer raise
-    // `ReviewRequired` at all — that variant is structurally unreachable here now.
-    // Tracing `Study::compile()` (crates/antecedent/src/analysis/execute/compile.rs)
-    // shows the temporal-backdoor path only knows how to proceed when the supplied
-    // `TemporalPag` happens to be fully directed (`TemporalPag::try_into_temporal_dag`,
-    // crates/antecedent-graph/src/temporal_pag.rs); no class-aware temporal PAG
-    // identifier exists yet, so an unresolved circle mark now surfaces as
-    // `CausalError::Compile` with a message that says exactly that. The underlying
-    // An unresolved circle mark on a *temporal* PAG blocks estimation: no class-aware
-    // temporal PAG identifier exists to consume it. The refusal must stay structured —
-    // Python drives a review UI off `kind` / `pending_edge_count` / `hint`, so
-    // degrading this to a flat message is a user-visible regression, not a shape change.
-    let (series, _g, q) = manufacturing_series(80);
+fn incomplete_temporal_pag_class_envelope_estimates() {
+    let (series, _g, q) = manufacturing_series(200);
     let mut pag = antecedent_graph::TemporalPag::empty();
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();
-    let err = AcceptedGraph::temporal_pag(pag).unwrap_err();
-    match err {
-        antecedent::CausalError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
-            assert_eq!(kind, "temporal_pag");
-            assert!(pending_edge_count >= 1, "expected pending circle marks");
-            // Pin the hint content, as the pre-refactor test did: a non-empty
-            // string is not an actionable hint.
-            assert!(
-                hint.contains("TemporalDag") || hint.contains("PAG"),
-                "hint must name the resolution: {hint}"
-            );
-        }
-        other => panic!("expected CausalError::ReviewRequired, got {other:?}"),
-    }
-    let _ = (series, q);
+    let analysis = Study::series(series)
+        .graph(AcceptedGraph::temporal_pag(pag))
+        .temporal_query(q)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ExecutionContext::for_tests(7)).unwrap();
+    assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={}", result.estimate.ate);
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.temporal_pag.envelope"),
+        "expected class envelope: {:?}",
+        result.diagnostics
+    );
 }
 
 #[test]
@@ -653,7 +634,7 @@ fn discovered_temporal_pag_records_its_algorithm() {
 
     // An asserted PAG genuinely is supplied, and keeps that prefix.
     let plan = Study::series(series)
-        .graph(AcceptedGraph::temporal_pag(pag).unwrap())
+        .graph(AcceptedGraph::temporal_pag(pag))
         .temporal_query(q)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)

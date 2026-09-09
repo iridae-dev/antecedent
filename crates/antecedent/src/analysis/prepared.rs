@@ -60,6 +60,22 @@ pub(crate) struct CachedPagIdentification {
     pub identification: IdentificationResult,
 }
 
+/// Prepare-time MEC envelope for a supplied CPDAG.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedCpdagIdentification {
+    /// Per-completion identification results and their probability mass.
+    pub envelope: IdentificationEnvelope<antecedent_graph::Dag>,
+    /// Public aggregate identification result derived from [`Self::envelope`].
+    pub identification: IdentificationResult,
+}
+
+/// Prepare-time TemporalCpdag/Pag envelope (completions + unfold indexers).
+#[derive(Clone, Debug)]
+pub(crate) struct CachedTemporalClassIdentification {
+    /// Generalized-adjustment envelope over TemporalDag completions.
+    pub envelope: antecedent_identify::TemporalClassEnvelope,
+}
+
 /// One identified atom in a prepared static graph posterior.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedGraphPosteriorAtomIdentification {
@@ -211,7 +227,10 @@ pub(crate) fn build_graph_posterior_identification_cache(
                     {
                         return Ok(None);
                     }
-                    let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                    let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
+                        .or_else(|_| {
+                            select_estimand(&identification, EstimatorId::BayesianGcomp)
+                        })?;
                     Ok(Some((estimand, identification)))
                 })()?;
             by_mask.insert(mask, value.clone());
@@ -729,10 +748,14 @@ impl Study {
                     self.prepare_static_identification(&plan)?.map(Arc::new);
                 analysis.pag_identification_cache =
                     self.prepare_pag_identification(&plan)?.map(Arc::new);
+                analysis.cpdag_identification_cache =
+                    self.prepare_cpdag_identification(&plan)?.map(Arc::new);
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_identification()?.map(Arc::new);
+                analysis.temporal_class_identification_cache =
+                    self.prepare_temporal_class_identification()?.map(Arc::new);
             }
             (_, _, Some(_)) => {
                 // `ensure_prepared_supported` already refuses this coordinate; a
@@ -754,7 +777,9 @@ impl Study {
         // sharp-RD prepare builds no cache and reports nothing: its clicks do.
         if analysis.identification_cache.is_some()
             || analysis.pag_identification_cache.is_some()
+            || analysis.cpdag_identification_cache.is_some()
             || analysis.temporal_identification_cache.is_some()
+            || analysis.temporal_class_identification_cache.is_some()
         {
             super::execute::report_identify_compute(ctx);
         }
@@ -807,7 +832,8 @@ impl Study {
                 }
                 let graph = match self.graph.class() {
                     GraphClass::Dag => self.graph.as_dag().cloned(),
-                    GraphClass::Cpdag | GraphClass::Admg => plan.static_graph().cloned(),
+                    GraphClass::Admg => plan.static_graph().cloned(),
+                    GraphClass::Cpdag => return Ok(None),
                     _ => None,
                 };
                 let Some(graph) = graph else {
@@ -944,7 +970,7 @@ impl Study {
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
         use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
 
-        let CausalQuery::AverageEffect(query) = &self.query else {
+        let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
         };
         if self.graph.class() != GraphClass::Pag {
@@ -956,9 +982,52 @@ impl Study {
         let identifier =
             plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
         let identifier_id: IdentifierId = identifier.parse()?;
-        let envelope = identify_pag(identifier_id, pag, query)?;
-        let identification = super::execute::envelope_to_identification_result(&envelope, query);
+        let envelope = identify_pag(identifier_id, pag, &query)?;
+        let identification = super::execute::envelope_to_identification_result_for(
+            &envelope,
+            self.query.clone(),
+        );
         Ok(Some(CachedPagIdentification { envelope, identification }))
+    }
+
+    /// Compute the MEC envelope once for a supplied CPDAG.
+    fn prepare_cpdag_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_cpdag};
+
+        let Some(query) = self.envelope_witness_ate()? else {
+            return Ok(None);
+        };
+        if self.graph.class() != GraphClass::Cpdag {
+            return Ok(None);
+        }
+        let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
+            message: "CPDAG prepare missing supplied graph".into(),
+        })?;
+        let identifier =
+            plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let envelope = identify_cpdag(identifier_id, cpdag, &query)?;
+        let identification = super::execute::envelope_to_identification_result_for(
+            &envelope,
+            self.query.clone(),
+        );
+        Ok(Some(CachedCpdagIdentification { envelope, identification }))
+    }
+
+    fn envelope_witness_ate(&self) -> Result<Option<AverageEffectQuery>, CausalError> {
+        match &self.query {
+            CausalQuery::AverageEffect(query) => Ok(Some(query.clone())),
+            CausalQuery::Response(query)
+                if super::execute::class_aware_response_supported(query) =>
+            {
+                Ok(Some(super::execute::response_witness_ate(query)?))
+            }
+            CausalQuery::ConditionalEffect(query) => Ok(Some(query.inner.clone())),
+            _ => Ok(None),
+        }
     }
 
     /// Identify once per requested horizon at prepare for temporal response or TemporalEffect.
@@ -1018,6 +1087,41 @@ impl Study {
             }
             _ => Ok(None),
         }
+    }
+
+    fn prepare_temporal_class_identification(
+        &self,
+    ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId};
+
+        if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
+            return Ok(None);
+        }
+        if self.completed_temporal_dag().is_some() {
+            return Ok(None);
+        }
+        let CausalQuery::TemporalEffect(query) = &self.query else {
+            return Ok(None);
+        };
+        let identifier =
+            self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let envelope = match self.graph.class() {
+            GraphClass::TemporalCpdag => {
+                let cpdag = self.graph.as_temporal_cpdag().ok_or_else(|| CausalError::Compile {
+                    message: "temporal class prepare missing TemporalCpdag".into(),
+                })?;
+                crate::strategy_table::identify_temporal_cpdag(identifier_id, cpdag, query)?
+            }
+            GraphClass::TemporalPag => {
+                let pag = self.graph.as_temporal_pag().ok_or_else(|| CausalError::Compile {
+                    message: "temporal class prepare missing TemporalPag".into(),
+                })?;
+                crate::strategy_table::identify_temporal_pag(identifier_id, pag, query)?
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(CachedTemporalClassIdentification { envelope }))
     }
 
     /// Single-shot temporal mediation identification (not per-horizon `I(h)`).
@@ -1118,9 +1222,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Response(q)) if !q.is_temporal() => {
-            if analysis.graph.class() != GraphClass::Dag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports ResponseCurve only on a supplied Dag",
+                    message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, or Pag",
                 });
             }
         }
@@ -1134,9 +1241,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
-            if analysis.graph.class() != GraphClass::TemporalDag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports TemporalEffect only on TemporalDag",
+                    message: "PreparedStudy supports TemporalEffect on TemporalDag, \
+                              TemporalCpdag, or TemporalPag",
                 });
             }
         }
@@ -1158,9 +1269,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => {
-            if analysis.graph.class() != GraphClass::Dag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports ConditionalEffect only on a supplied Dag",
+                    message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
                 });
             }
         }

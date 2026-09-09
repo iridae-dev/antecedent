@@ -6,6 +6,7 @@
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, PopulationRegistry,
+    TemporalEffectQuery,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::{
@@ -21,7 +22,7 @@ use antecedent_identify::{
     AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
     GeneralizedAdjustmentIdentifier, IdIdentifier, IdentificationEnvelope, IdentificationError,
     IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
-    ResponseIdentifier,
+    ResponseIdentifier, TemporalClassEnvelope,
 };
 
 use crate::error::CausalError;
@@ -168,6 +169,31 @@ pub fn identify_static_query_with_rd(
     Ok(result)
 }
 
+/// Class-aware identification over a CPDAG (MEC completion envelope).
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_cpdag(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &AverageEffectQuery,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier::new();
+            id.identify_cpdag_envelope(cpdag, query).map_err(identify_err)
+        }
+        other if other.is_dag_only() => Err(CausalError::Compile {
+            message: format!(
+                "DAG-only identification {:?} cannot accept a CPDAG; use generalized.adjustment",
+                other.as_str()
+            ),
+        }),
+        _ => Err(CausalError::Unsupported { message: "unsupported CPDAG identifier" }),
+    }
+}
+
 /// Class-aware identification over a PAG (generalized adjustment envelope).
 ///
 /// # Errors
@@ -190,6 +216,56 @@ pub fn identify_pag(
             ),
         }),
         _ => Err(CausalError::Unsupported { message: "unsupported PAG identifier" }),
+    }
+}
+
+/// Class-aware identification over a `TemporalCpdag` (MEC `TemporalDag` envelope).
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_temporal_cpdag(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::TemporalCpdag,
+    query: &TemporalEffectQuery,
+) -> Result<TemporalClassEnvelope, CausalError> {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier::new();
+            id.identify_temporal_cpdag_envelope(cpdag, query).map_err(identify_err)
+        }
+        other if other.is_dag_only() => Err(CausalError::Compile {
+            message: format!(
+                "DAG-only identification {:?} cannot accept a TemporalCpdag; use generalized.adjustment",
+                other.as_str()
+            ),
+        }),
+        _ => Err(CausalError::Unsupported { message: "unsupported TemporalCpdag identifier" }),
+    }
+}
+
+/// Class-aware identification over a `TemporalPag` (`TemporalDag` completion envelope).
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_temporal_pag(
+    identifier: IdentifierId,
+    pag: &antecedent_graph::TemporalPag,
+    query: &TemporalEffectQuery,
+) -> Result<TemporalClassEnvelope, CausalError> {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier::new();
+            id.identify_temporal_pag_envelope(pag, query).map_err(identify_err)
+        }
+        other if other.is_dag_only() => Err(CausalError::Compile {
+            message: format!(
+                "DAG-only identification {:?} cannot accept a TemporalPag; use generalized.adjustment",
+                other.as_str()
+            ),
+        }),
+        _ => Err(CausalError::Unsupported { message: "unsupported TemporalPag identifier" }),
     }
 }
 

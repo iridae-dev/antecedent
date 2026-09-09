@@ -319,6 +319,96 @@ pub(super) struct EnvelopeAtomFit {
     pub indexer: Option<TemporalIndexer>,
 }
 
+/// Estimand + mass needed to mix Frequentist or Bayesian envelope refuters.
+pub(super) struct EnvelopeRefuteAtom {
+    pub key: u64,
+    pub weight: f64,
+    pub estimand: IdentifiedEstimand,
+    pub indexer: Option<TemporalIndexer>,
+}
+
+impl From<&EnvelopeAtomFit> for EnvelopeRefuteAtom {
+    fn from(atom: &EnvelopeAtomFit) -> Self {
+        Self {
+            key: atom.key,
+            weight: atom.weight,
+            estimand: atom.estimand.clone(),
+            indexer: atom.indexer.clone(),
+        }
+    }
+}
+
+pub(super) fn envelope_refute_atoms(fits: &[EnvelopeAtomFit]) -> Vec<EnvelopeRefuteAtom> {
+    fits.iter().map(EnvelopeRefuteAtom::from).collect()
+}
+
+/// Reported Frequentist envelope SE is RMS of per-atom SEs, not a mixture variance.
+///
+/// Mixed interval endpoints, when published, are the same mass-weighted average
+/// and are not a CI for the mixture.
+pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.envelope.se_omits_between_atom_variance",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "reported SE is the mass-weighted RMS of per-atom analytic SEs; mixed \
+         interval endpoints are the same mass-weighted average and are not a \
+         mixture CI. Both omit between-atom disagreement of the point estimates",
+    )
+}
+
+/// Mass-weighted RMS of analytic SEs. Non-finite on any atom ⇒ NaN.
+///
+/// Dropping a non-finite atom from the SE denominator while keeping it in the
+/// point estimate would attribute an SE to a different estimand than the mix.
+pub(super) fn mix_weighted_analytic_se(items: impl IntoIterator<Item = (f64, f64)>) -> f64 {
+    let mut se2 = 0.0;
+    let mut weight = 0.0;
+    for (w, se) in items {
+        if !se.is_finite() {
+            return f64::NAN;
+        }
+        se2 += w * se * se;
+        weight += w;
+    }
+    if !matches!(weight.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+        return f64::NAN;
+    }
+    (se2 / weight).sqrt()
+}
+
+fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
+    left.method == right.method
+        && left.adjustment_set == right.adjustment_set
+        && left.instruments == right.instruments
+        && left.mediators == right.mediators
+        && left.rd_design == right.rd_design
+}
+
+/// Status for a Frequentist graph-posterior mixture.
+///
+/// Unidentified mass is [`IdentificationStatus::GraphDependent`]. Multiple
+/// identified atoms with disagreeing estimands are
+/// [`IdentificationStatus::PartiallyIdentified`]. A single identified atom
+/// (or agreeing atoms) keeps that atom's status.
+pub(super) fn graph_posterior_mixture_status(
+    unidentified_mass: f64,
+    contributing: &[&IdentifiedEstimand],
+    primary: IdentificationStatus,
+) -> IdentificationStatus {
+    if unidentified_mass > 1e-12 {
+        return IdentificationStatus::GraphDependent;
+    }
+    let Some(first) = contributing.first() else {
+        return IdentificationStatus::NotIdentified;
+    };
+    if contributing[1..].iter().all(|estimand| estimands_agree(first, estimand)) {
+        primary
+    } else {
+        IdentificationStatus::PartiallyIdentified
+    }
+}
+
 pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
     graphs
         .graph_keys
@@ -483,7 +573,7 @@ pub(super) fn run_envelope_effect_refuters(
     data: &TabularData,
     query: &AverageEffectQuery,
     estimate: &EffectEstimate,
-    atoms: &[EnvelopeAtomFit],
+    atoms: &[EnvelopeRefuteAtom],
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
     suite: RefuteSuite,
@@ -576,7 +666,7 @@ pub(super) fn run_envelope_effect_refuters(
         DiagnosticSeverity::Info,
         format!(
             "effect refuters evaluated each contributing graph atom [{atom_keys}] against the \
-             mixture effect; reports mix by posterior mass and pass only if every contributing \
+             mixture effect; reports mix by envelope mass and pass only if every contributing \
              atom passes"
         ),
     ));
@@ -702,9 +792,16 @@ pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) ->
     )
 }
 
-pub(super) fn envelope_to_identification_result(
-    envelope: &IdentificationEnvelope<Pag>,
+pub(super) fn envelope_to_identification_result<G>(
+    envelope: &IdentificationEnvelope<G>,
     query: &AverageEffectQuery,
+) -> IdentificationResult {
+    envelope_to_identification_result_for(envelope, CausalQuery::AverageEffect(query.clone()))
+}
+
+pub(super) fn envelope_to_identification_result_for<G>(
+    envelope: &IdentificationEnvelope<G>,
+    query: CausalQuery,
 ) -> IdentificationResult {
     let mut estimands = Vec::new();
     let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -727,7 +824,7 @@ pub(super) fn envelope_to_identification_result(
     }
     IdentificationResult::from_parts(
         envelope.status,
-        CausalQuery::AverageEffect(query.clone()),
+        query,
         estimands,
         CausalExprArena::new(),
         DerivationTrace::default(),
@@ -906,6 +1003,7 @@ impl super::Study {
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
         result.support_status = self.support_status;
+        result.structure_source = self.structure_source;
         if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) =
             self.support_status
         {

@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn graph_posterior_discovery_rejects_frequentist() {
+    fn graph_posterior_average_effect_accepts_frequentist() {
         let (data, _graph, query) = scm();
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
         let ctx = ExecutionContext::for_tests(1);
@@ -348,23 +348,13 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        // Structure/inference support-matrix closure (parity/support_closed.toml:
-        // structures=["graph_posterior"], inferences=["Frequentist"]) now refuses this
-        // combination at `build()` itself, before it would otherwise reach `compile`'s
-        // own free-form `graph-posterior discovery requires inference=Bayesian` error —
-        // same outcome (still refused), earlier and with a stable id.
-        let err = Study::tabular(data)
+        Study::tabular(data)
             .graph_posterior(gp)
             .query(query)
             .inference(InferenceMode::Frequentist)
             .refute(RefuteSuite::None)
             .build()
-            .unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("Bayesian") || msg.contains("graph-posterior"),
-            "unexpected error: {msg}"
-        );
+            .expect("AverageEffect × graph_posterior × Frequentist is licensed");
     }
 
     #[test]

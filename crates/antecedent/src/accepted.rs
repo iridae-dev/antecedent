@@ -6,8 +6,10 @@
 //! late, long after a user had already built an analysis around an unreviewed graph.
 //!
 //! [`AcceptedGraph`] moves the guarantee into the type system: constructing one *is*
-//! the review gate. Once a caller holds an `AcceptedGraph`, it cannot carry unresolved
-//! marks, so nothing downstream needs to re-check.
+//! the review gate for marks that block estimation. PAG circles and CPDAG
+//! undirected edges are class information a class-aware identifier consumes;
+//! they may remain on an accepted graph. Conflict and bidirected marks that
+//! cannot complete still refuse construction.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -66,14 +68,6 @@ fn pending_directed(edges: &[(VariableId, VariableId)]) -> Vec<PendingEdge> {
         .collect()
 }
 
-/// [`PendingEdge`]s for undirected `(a, b)` pairs (tail-tail at both ends).
-fn pending_undirected_variable(edges: &[(VariableId, VariableId)]) -> Vec<PendingEdge> {
-    edges
-        .iter()
-        .map(|&(a, b)| PendingEdge::new(variable_name(a), variable_name(b), "tail", "tail"))
-        .collect()
-}
-
 /// Temporal counterpart of [`pending_directed`].
 fn pending_directed_temporal(edges: &[(TemporalNodeKey, TemporalNodeKey)]) -> Vec<PendingEdge> {
     edges
@@ -81,14 +75,6 @@ fn pending_directed_temporal(edges: &[(TemporalNodeKey, TemporalNodeKey)]) -> Ve
         .map(|&(from, to)| {
             PendingEdge::new(temporal_key_name(from), temporal_key_name(to), "tail", "arrow")
         })
-        .collect()
-}
-
-/// Temporal counterpart of [`pending_undirected_variable`].
-fn pending_undirected_temporal(edges: &[(TemporalNodeKey, TemporalNodeKey)]) -> Vec<PendingEdge> {
-    edges
-        .iter()
-        .map(|&(a, b)| PendingEdge::new(temporal_key_name(a), temporal_key_name(b), "tail", "tail"))
         .collect()
 }
 
@@ -230,18 +216,15 @@ enum GraphKind {
 
 /// Asserted-or-accepted causal structure.
 ///
-/// Construction is the review gate: a value of this type can never carry unresolved
-/// marks that would block estimation. [`Self::dag`], [`Self::admg`], [`Self::pag`],
-/// and [`Self::temporal_dag`] are infallible because those classes structurally cannot
-/// be partial. [`Self::pag`] is infallible too: a *static* PAG's circle marks are
-/// information the class-aware generalized-adjustment identifier is built to consume.
+/// Construction is the review gate for marks that *block* estimation.
+/// [`Self::dag`], [`Self::admg`], [`Self::pag`], [`Self::temporal_dag`], and
+/// [`From<Cpdag>`] are infallible: those classes either cannot be partial, or
+/// their remaining marks are information a class-aware identifier consumes
+/// (PAG circles, CPDAG undirected edges).
 ///
-/// [`Self::cpdag`], [`Self::temporal_cpdag`], [`Self::temporal_pag`], and
-/// [`Self::accept`] are fallible, because each of those *can* carry marks that block
-/// estimation. Temporal PAGs are fallible where static PAGs are not for a concrete
-/// reason, not symmetry: no class-aware *temporal* PAG identifier is wired, so a
-/// circle mark on a temporal PAG has nothing that can consume it and genuinely blocks.
-/// That asymmetry is deliberate (see the missing `From<Cpdag>` impls below).
+/// [`Self::cpdag`] and [`Self::temporal_cpdag`] are fallible only for conflict
+/// (`x-x`) marks. [`Self::temporal_pag`] cannot fail: circles are class
+/// information. [`Self::accept`] stays fallible for incomplete review artifacts.
 #[derive(Clone, Debug)]
 pub struct AcceptedGraph {
     kind: GraphKind,
@@ -286,44 +269,26 @@ impl AcceptedGraph {
         Self::from_kind(GraphKind::TemporalDag(g), None)
     }
 
-    /// Accept a temporal PAG, asserting no circle marks remain.
+    /// Accept a temporal PAG.
     ///
-    /// Fallible where [`Self::pag`] is not: static PAG circles are consumed by the
-    /// class-aware generalized-adjustment identifier, but no equivalent temporal
-    /// identifier exists, so a temporal circle mark blocks estimation outright.
-    ///
-    /// # Errors
-    ///
-    /// [`CausalError::ReviewRequired`] when circle marks remain, carrying the count so
-    /// a caller can drive a review UI rather than re-deriving it.
-    pub fn temporal_pag(g: TemporalPag) -> Result<Self, CausalError> {
-        let pending = TemporalPagReview::from_pag(g, "asserted");
-        if !pending.is_complete() {
-            let edges = pending_temporal_pag_circles(&pending.graph, &pending.pending_circles);
-            return Err(CausalError::review_required(
-                ReviewKind::TemporalPag.as_str(),
-                None::<String>,
-                pending.pending_circles.len(),
-                edges,
-                "temporal PAG has unresolved circle marks",
-                "orient the circle marks, or supply a fully directed TemporalDag \
-                 (no class-aware temporal PAG identifier is wired today)",
-            ));
-        }
-        Ok(Self::from_kind(GraphKind::TemporalPag(pending.graph), None))
+    /// Circle marks are the incomplete class. Bidirected and conflict marks
+    /// fail later at the completion sampler, matching static [`Self::pag`].
+    #[must_use]
+    pub fn temporal_pag(g: TemporalPag) -> Self {
+        Self::from_kind(GraphKind::TemporalPag(g), None)
     }
 
-    /// Accept a static CPDAG, asserting it is fully oriented.
+    /// Accept a static CPDAG.
     ///
-    /// Unlike [`Self::dag`] et al., a [`Cpdag`] *can* carry undirected or conflict
-    /// marks, so this checks the graph itself (there is no separate review-acceptance
-    /// workflow here — the caller is asserting the graph directly).
+    /// Undirected marks are the Markov equivalence class: the class-aware ATE
+    /// identifier consumes them. Conflict (`x-x`) marks are not a MEC and still
+    /// block acceptance.
     ///
     /// # Errors
     ///
-    /// [`CausalError::ReviewRequired`] when undirected or conflict marks remain.
+    /// [`CausalError::ReviewRequired`] when conflict marks remain.
     pub fn cpdag(g: Cpdag) -> Result<Self, CausalError> {
-        let pending = g.undirected_edge_count() + g.conflict_edge_count();
+        let pending = g.conflict_edge_count();
         if pending > 0 {
             let edges = pending_cpdag_marks(&g);
             return Err(CausalError::review_required(
@@ -331,22 +296,23 @@ impl AcceptedGraph {
                 None::<String>,
                 pending,
                 edges,
-                "CPDAG carries unresolved undirected or conflict marks",
-                "orient undirected marks and resolve conflicts, or supply a fully oriented Cpdag",
+                "CPDAG carries conflict marks",
+                "resolve orientation conflicts, or supply a Cpdag without x-x edges",
             ));
         }
         Ok(Self::from_kind(GraphKind::Cpdag(g), None))
     }
 
-    /// Accept a temporal CPDAG, asserting it is fully oriented.
+    /// Accept a temporal CPDAG.
     ///
-    /// Same semantics as [`Self::cpdag`], for the temporal class.
+    /// Undirected marks are the Markov equivalence class: the class-aware
+    /// pulse identifier consumes them. Conflict (`x-x`) marks still block.
     ///
     /// # Errors
     ///
-    /// [`CausalError::ReviewRequired`] when undirected or conflict marks remain.
+    /// [`CausalError::ReviewRequired`] when conflict marks remain.
     pub fn temporal_cpdag(g: TemporalCpdag) -> Result<Self, CausalError> {
-        let pending = g.undirected_edge_count() + g.conflict_edge_count();
+        let pending = g.conflict_edge_count();
         if pending > 0 {
             let edges = pending_temporal_cpdag_marks(&g);
             return Err(CausalError::review_required(
@@ -354,8 +320,8 @@ impl AcceptedGraph {
                 None::<String>,
                 pending,
                 edges,
-                "temporal CPDAG carries unresolved undirected or conflict marks",
-                "orient undirected marks and resolve conflicts, or supply a fully oriented TemporalCpdag",
+                "temporal CPDAG carries conflict marks",
+                "resolve orientation conflicts, or supply a TemporalCpdag without x-x edges",
             ));
         }
         Ok(Self::from_kind(GraphKind::TemporalCpdag(g), None))
@@ -518,21 +484,31 @@ impl From<Pag> for AcceptedGraph {
     }
 }
 
+impl From<Cpdag> for AcceptedGraph {
+    // Undirected marks are the MEC, not incompleteness. Conflict marks fail later
+    // at identification (`CpdagCompletionSampler` refuses them).
+    fn from(g: Cpdag) -> Self {
+        Self::from_kind(GraphKind::Cpdag(g), None)
+    }
+}
+
 impl From<TemporalDag> for AcceptedGraph {
     fn from(g: TemporalDag) -> Self {
         Self::temporal_dag(g)
     }
 }
 
-// Deliberately NO `From<Cpdag>` / `From<TemporalCpdag>`.
-//
-// Those two classes can carry unresolved undirected or conflict marks, so accepting
-// one must be fallible (`AcceptedGraph::cpdag` / `AcceptedGraph::temporal_cpdag`,
-// both returning `Result`) — never an infallible `From` that would let an incomplete
-// CPDAG slip into an `AcceptedGraph` un-reviewed. This asymmetry with the `From` impls
-// above *is* the guarantee that partial graphs are never silently completed. A future
-// maintainer "fixing the inconsistency" by adding `From<Cpdag>` would silently destroy
-// that guarantee — don't do it.
+impl From<TemporalCpdag> for AcceptedGraph {
+    fn from(g: TemporalCpdag) -> Self {
+        Self::from_kind(GraphKind::TemporalCpdag(g), None)
+    }
+}
+
+impl From<TemporalPag> for AcceptedGraph {
+    fn from(g: TemporalPag) -> Self {
+        Self::from_kind(GraphKind::TemporalPag(g), None)
+    }
+}
 
 mod sealed {
     pub trait Sealed {}
@@ -576,17 +552,29 @@ impl IntoAccepted for DagReview {
 
 impl IntoAccepted for CpdagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            let pending = self.pending_edges.len() + self.pending_undirected.len();
-            let mut edges = pending_directed(&self.pending_edges);
-            edges.extend(pending_undirected_variable(&self.pending_undirected));
+        if !self.pending_edges.is_empty() {
+            let pending = self.pending_edges.len();
+            let edges = pending_directed(&self.pending_edges);
             return Err(CausalError::review_required(
                 ReviewKind::StaticCpdag.as_str(),
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
-                "static CPDAG review incomplete: pending edges or undirected marks remain",
-                "accept pending edges and orient undirected marks before estimation",
+                "static CPDAG review incomplete: pending directed edges remain",
+                "accept pending directed edges; undirected marks are the CPDAG class \
+                 and do not require orientation",
+            ));
+        }
+        if self.graph.conflict_edge_count() > 0 {
+            let pending = self.graph.conflict_edge_count();
+            let edges = pending_cpdag_marks(&self.graph);
+            return Err(CausalError::review_required(
+                ReviewKind::StaticCpdag.as_str(),
+                Some(self.algorithm.to_string()),
+                pending,
+                edges,
+                "static CPDAG review incomplete: conflict marks remain",
+                "resolve orientation conflicts before accepting the CPDAG",
             ));
         }
         Ok(AcceptedGraph::from_kind(GraphKind::Cpdag(self.graph), Some(self.algorithm)))
@@ -629,17 +617,29 @@ impl IntoAccepted for TemporalGraphReview {
 
 impl IntoAccepted for TemporalCpdagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            let pending = self.pending_edges.len() + self.pending_undirected.len();
-            let mut edges = pending_directed_temporal(&self.pending_edges);
-            edges.extend(pending_undirected_temporal(&self.pending_undirected));
+        if !self.pending_edges.is_empty() {
+            let pending = self.pending_edges.len();
+            let edges = pending_directed_temporal(&self.pending_edges);
             return Err(CausalError::review_required(
                 ReviewKind::TemporalCpdag.as_str(),
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
-                "temporal CPDAG review incomplete: pending edges or undirected marks remain",
-                "accept pending edges and orient undirected marks before estimation",
+                "temporal CPDAG review incomplete: pending directed edges remain",
+                "accept pending directed edges; undirected marks are the TemporalCpdag \
+                 class and do not require orientation",
+            ));
+        }
+        if self.graph.conflict_edge_count() > 0 {
+            let pending = self.graph.conflict_edge_count();
+            let edges = pending_temporal_cpdag_marks(&self.graph);
+            return Err(CausalError::review_required(
+                ReviewKind::TemporalCpdag.as_str(),
+                Some(self.algorithm.to_string()),
+                pending,
+                edges,
+                "temporal CPDAG review incomplete: conflict marks remain",
+                "resolve orientation conflicts before accepting the TemporalCpdag",
             ));
         }
         Ok(AcceptedGraph::from_kind(GraphKind::TemporalCpdag(self.graph), Some(self.algorithm)))
@@ -687,26 +687,33 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_cpdag_review_reports_pending_marks() {
+    fn incomplete_cpdag_review_reports_pending_directed_edges() {
         let mut g = Cpdag::with_variables(2);
-        g.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let review = CpdagReview::from_cpdag(g, "pc");
         let err = AcceptedGraph::accept(review).unwrap_err();
         match err {
             CausalError::ReviewRequired { kind, pending_edge_count, pending_edges, .. } => {
                 assert_eq!(kind, ReviewKind::StaticCpdag.as_str());
                 assert!(pending_edge_count > 0);
-                // The pending edge list must carry the real (undirected, tail-tail)
-                // mark, not just the count.
                 assert_eq!(pending_edges.len(), pending_edge_count);
                 let edge = &pending_edges[0];
                 assert_eq!(edge.at_source, "tail");
-                assert_eq!(edge.at_target, "tail");
+                assert_eq!(edge.at_target, "arrow");
                 assert!(!edge.source.is_empty());
                 assert!(!edge.target.is_empty());
             }
             other => panic!("expected ReviewRequired, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn undirected_cpdag_review_accepts_without_orientation() {
+        let mut g = Cpdag::with_variables(2);
+        g.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let accepted = AcceptedGraph::accept(CpdagReview::from_cpdag(g, "pc")).unwrap();
+        assert_eq!(accepted.class(), GraphClass::Cpdag);
+        assert_eq!(accepted.as_cpdag().unwrap().undirected_edge_count(), 1);
     }
 
     #[test]

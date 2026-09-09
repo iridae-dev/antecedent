@@ -90,8 +90,8 @@ impl PendingGraphReview {
 
 /// Pending review for a PCMCI+ temporal CPDAG.
 ///
-/// Directed edges must be accepted; undirected marks must be explicitly oriented
-/// before completion to a [`TemporalDag`]. Auto-accept never drops undirected edges.
+/// Directed edges must be accepted. Undirected marks are the `TemporalCpdag`
+/// class and do not block acceptance. Auto-accept never drops undirected edges.
 #[derive(Clone, Debug)]
 pub struct PendingCpdagReview {
     /// CPDAG review artifact.
@@ -138,14 +138,14 @@ impl PendingCpdagReview {
         self
     }
 
-    /// Complete the review into an [`AcceptedGraph`] (only when no undirected marks remain).
+    /// Complete the review into an [`AcceptedGraph`].
     ///
-    /// Row-count re-checks and logical/physical compilation now happen at
-    /// [`crate::analysis::StudyBuilder::build`] time.
+    /// Undirected marks stay on the `TemporalCpdag`. Row-count re-checks and
+    /// logical/physical compilation happen at [`crate::analysis::StudyBuilder::build`].
     ///
     /// # Errors
     ///
-    /// [`CausalError::ReviewRequired`] when pending edges or undirected marks remain.
+    /// [`CausalError::ReviewRequired`] when pending directed edges or conflict marks remain.
     pub fn finish(self) -> Result<AcceptedGraph, CausalError> {
         AcceptedGraph::accept(self.review)
     }
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn cpdag_finish_refuses_undirected() {
+    fn cpdag_finish_keeps_undirected_as_temporal_cpdag() {
         let mut g = TemporalCpdag::empty();
         let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -241,7 +241,7 @@ mod tests {
         assert!(!review.pending_undirected.is_empty());
         let pending = PendingCpdagReview::new(review).accept_all_directed();
         assert!(!pending.review.is_complete());
-        let err = pending.finish().unwrap_err();
-        assert!(matches!(err, CausalError::ReviewRequired { .. }));
+        let accepted = pending.finish().unwrap();
+        assert_eq!(accepted.class(), crate::accepted::GraphClass::TemporalCpdag);
     }
 }
