@@ -187,6 +187,12 @@ impl TemporalPag {
         self.edge_between(a, b).is_some()
     }
 
+    /// All marked edges (each pair once).
+    #[must_use]
+    pub fn edges(&self) -> Vec<MarkedEdge> {
+        marked_storage::all_marked_edges(&self.adj)
+    }
+
     /// Edge between nodes.
     #[must_use]
     pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
