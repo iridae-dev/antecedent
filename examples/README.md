@@ -27,9 +27,8 @@ support and uncertainty as separate result axes.
 ### [Pricing, availability and latent demand](notebooks/pricing_availability_latent_demand.ipynb)
 
 Show why inventory-limited sales are not demand. The notebook compares the
-naive observed-sales response with an explicit censoring mechanism and
-independence assumption, and demonstrates the current fail-closed boundary for
-observation-aware response execution.
+naive observed-sales slope with a demand `ResponseCurve` under Cox IPCW, then
+shows that an observation-adjusted demand derivative still fails closed.
 
 ## Scripts
 
@@ -46,6 +45,7 @@ cargo run -p antecedent --example <name>
 | Example | Description | Python | Rust |
 | ------- | ----------- | ------ | ---- |
 | Propensity weighting | IPW ATE on confounded data with overlap diagnostics | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
+| Staged static kinds | Natural mediation and unit ITE on a confounded linear SCM | [python](python/staged_static_kinds.py) | [rust](rust/staged_static_kinds.rs) |
 | Manufacturing temporal | Pulse effect of pressure → defect on a temporal DAG | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
 | Temporal response curve | Dose × horizon ``ResponseCurve`` and intervention path on a temporal DAG | [python](python/temporal_response_curve.py) | [rust](rust/temporal_response_curve.rs) |
 | Discover then estimate | Discover once, accept a DAG, re-estimate many times | [python](python/discover_then_estimate.py) | [rust](rust/discover_then_estimate.rs) |

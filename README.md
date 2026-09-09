@@ -43,7 +43,7 @@ See [**Capabilities**](docs/capabilities.md) for the full inventory and [**Suppo
 Artifact contents depend on the payload. Scalar posterior exports retain draws
 and identification metadata but omit the complete assumption and validation
 ledger; keep the analysis result alongside them. See the
-[artifact contracts](docs/artifacts.md#exporting-prepared-results-in-12).
+[artifact contracts](docs/artifacts.md#exporting-prepared-results).
 
 ## Epistemic Honesty
 

@@ -937,11 +937,20 @@ impl ContinuousResponseEstimator {
                 }
                 let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
-                for &train_mean in &train_treatment_means {
-                    marginal_density +=
-                        gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
+                if treatment_fit.is_none() {
+                    // Every training mean is the same constant; the mixture is one Gaussian.
+                    marginal_density = gaussian_density(
+                        sample.treatment_matrix[i],
+                        constant_treatment_mean,
+                        sigma,
+                    );
+                } else {
+                    for &train_mean in &train_treatment_means {
+                        marginal_density +=
+                            gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
+                    }
+                    marginal_density /= train.len() as f64;
                 }
-                marginal_density /= train.len() as f64;
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
@@ -961,32 +970,25 @@ impl ContinuousResponseEstimator {
         let mut riesz_weights = vec![0.0; n];
         let mut gam_ws = GamWorkspace::default();
         let mut row = vec![0.0; sample.raw_cols];
-        let mut plus = vec![0.0; sample.raw_cols];
-        let mut minus = vec![0.0; sample.raw_cols];
         let mut adj_row = vec![0.0; sample.adjustment_cols];
-        let treatment_range = range(&sample.treatments).1 - range(&sample.treatments).0;
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
             let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             let treatment_mean_constant = sample.train_treatment_mean(&train);
+            let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+            })?;
             for i in (0..n).filter(|i| i % self.options.folds == fold) {
                 sample.write_raw_row(i, &mut row);
                 let mu = predict_one(&outcome_fit, &row)?;
-                let step = finite_difference_step(sample.treatments[i], treatment_range);
-                plus.copy_from_slice(&row);
-                minus.copy_from_slice(&row);
-                plus[0] += step;
-                minus[0] -= step;
-                let gap = plus[0] - minus[0];
-                if !gap.is_finite() || gap <= 0.0 {
-                    return Err(EstimationError::unsupported(
-                        "finite-difference step collapsed under floating-point precision",
-                    ));
-                }
+                // Additive μ(a, x) = α + f_T(a) + Σ g_k(x_k), so ∂μ/∂a = f_T'(a)
+                // and is identical for every covariate row. The clamped evaluation
+                // is constant outside the knot interior; the analytic derivative
+                // is therefore exactly 0 there (`response.clamped_basis_derivative`).
                 let derivative =
-                    (predict_one(&outcome_fit, &plus)? - predict_one(&outcome_fit, &minus)?) / gap;
+                    outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
                 let treatment_mean = match treatment_fit.as_ref() {
                     Some(fit) => {
                         sample.write_adjustment_row(i, &mut adj_row);
@@ -1010,33 +1012,32 @@ impl ContinuousResponseEstimator {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let mut gam_ws = GamWorkspace::default();
         let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
-        let mut base_sum = 0.0;
-        let mut gradient = vec![0.0; at.len()];
-        let mut row = vec![0.0; sample.raw_cols];
-        let mut plus = vec![0.0; sample.raw_cols];
-        let mut minus = vec![0.0; sample.raw_cols];
+        let mut treat_smooths = Vec::with_capacity(at.len());
+        for j in 0..at.len() {
+            treat_smooths.push(fit.smooth_for_raw_col(j).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing a treatment smooth")
+            })?);
+        }
+        // Empirical μ̂(at) = α + Σ_j f_j(at[j]) + mean_i Σ_k g_k(X_i[k]).
+        // The covariate offset is recovered from the in-sample fitted values
+        // so we do not re-evaluate every adjustment smooth.
+        let n = sample.len() as f64;
+        let mut observed_treat_partial = 0.0;
         for i in 0..sample.len() {
-            sample.write_raw_row(i, &mut row);
-            row[..at.len()].copy_from_slice(at);
-            base_sum += predict_one(&fit, &row)?;
-            for j in 0..at.len() {
-                let range_j = sample.treatment_column_range(j);
-                let step = finite_difference_step(at[j], range_j.1 - range_j.0);
-                plus.copy_from_slice(&row);
-                minus.copy_from_slice(&row);
-                plus[j] += step;
-                minus[j] -= step;
-                let gap = plus[j] - minus[j];
-                if !gap.is_finite() || gap <= 0.0 {
-                    return Err(EstimationError::unsupported(
-                        "finite-difference step collapsed under floating-point precision",
-                    ));
-                }
-                gradient[j] += (predict_one(&fit, &plus)? - predict_one(&fit, &minus)?) / gap;
+            for (j, &smooth) in treat_smooths.iter().enumerate() {
+                let a_ij = sample.treatment_matrix[j * sample.len() + i];
+                observed_treat_partial += fit.smooth_partial(smooth, a_ij)?;
             }
         }
-        let n = sample.len() as f64;
-        Ok((base_sum / n, gradient.into_iter().map(|v| v / n).collect()))
+        let fitted_mean = fit.fitted.iter().sum::<f64>() / n;
+        let covariate_offset = fitted_mean - fit.intercept - observed_treat_partial / n;
+        let mut treat_level = 0.0;
+        let mut gradient = Vec::with_capacity(at.len());
+        for (j, &smooth) in treat_smooths.iter().enumerate() {
+            treat_level += fit.smooth_partial(smooth, at[j])?;
+            gradient.push(fit.smooth_derivative(smooth, at[j])?);
+        }
+        Ok((fit.intercept + treat_level + covariate_offset, gradient))
     }
 
     fn fit_outcome(
@@ -1961,8 +1962,8 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
             )];
             if outside {
                 // The cubic B-spline basis is clamped at its boundary knots, so the
-                // fitted surface is constant outside the fitted range and its finite
-                // difference is identically zero there. That zero is a property of the
+                // fitted surface is constant outside the fitted range and its plug-in
+                // derivative is identically zero there. That zero is a property of the
                 // basis, not evidence of a flat response, and must not be read as one.
                 warnings.push(Diagnostic::new(
                     "response.clamped_basis_derivative",
@@ -1974,16 +1975,6 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
             warnings
         },
     }
-}
-
-/// Finite-difference step that stays above floating-point ulp at `|at|`.
-///
-/// A step of only `range · 1e-4` (floored at 1e-7) collapses when `|at|` is huge relative to
-/// the observed range: `at ± step` rounds to `at`, the central difference is exactly zero, and
-/// a slope of 2 can be reported as 0 with a normal-looking SE.
-fn finite_difference_step(at: f64, treatment_range: f64) -> f64 {
-    let scale = at.abs().max(treatment_range.abs()).max(1.0);
-    (treatment_range.abs() * 1e-4).max(scale * 1e-8).max(1e-7)
 }
 
 #[cfg(test)]
@@ -2686,18 +2677,6 @@ mod tests {
             (standard_error - local.point.first_derivative_standard_error).abs() > 1e-8,
             "fixture must distinguish robust and common-sigma derivative SEs"
         );
-    }
-
-    #[test]
-    fn finite_difference_step_scales_with_absolute_level() {
-        // At |A|=1e12 with a tiny observed range, the old range·1e-4 floor of 1e-7 is
-        // smaller than a ulp and collapses at±step to at.
-        let step = finite_difference_step(1e12, 1.0);
-        assert!(step > 1e-7);
-        let plus = 1e12 + step;
-        let minus = 1e12 - step;
-        assert!((plus - minus).abs() > 0.0);
-        assert!(plus > minus);
     }
 
     #[test]

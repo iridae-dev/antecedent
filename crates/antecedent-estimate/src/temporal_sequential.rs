@@ -177,7 +177,8 @@ pub fn estimate_sustained_window(
         }
         differences[outcome]
     };
-    let fit_ols = |rows: Option<&[usize]>| -> Result<Vec<Vec<f64>>, EstimationError> {
+    let mut ls_ws = LeastSquaresWorkspace::default();
+    let mut fit_ols = |rows: Option<&[usize]>| -> Result<Vec<Vec<f64>>, EstimationError> {
         let mut coefficients = vec![Vec::new(); dag.node_count()];
         for &i in &order {
             if let Some(design) = &designs[i] {
@@ -194,13 +195,7 @@ pub fn estimate_sustained_window(
                     (design.matrix.to_vec(), design.outcome.to_vec())
                 };
                 coefficients[i] = FaerBackend
-                    .least_squares(
-                        &matrix,
-                        y.len(),
-                        design.ncols,
-                        &y,
-                        &mut LeastSquaresWorkspace::default(),
-                    )?
+                    .least_squares(&matrix, y.len(), design.ncols, &y, &mut ls_ws)?
                     .coefficients;
             }
         }

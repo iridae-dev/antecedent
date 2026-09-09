@@ -27,7 +27,7 @@ use crate::strategy_table::DEFAULT_ESTIMATOR;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Pag, TemporalDag};
 use antecedent_identify::{
-    IdentificationEnvelope, IdentificationResult, IdentificationStatus, TemporalBackdoorIdentifier,
+    IdentificationEnvelope, IdentificationResult, TemporalBackdoorIdentifier,
     TemporalMediationIdentifier,
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -98,6 +98,41 @@ pub(crate) struct CachedDbnPosteriorAtomIdentification {
     pub indexer: TemporalIndexer,
 }
 
+/// Why identification-time DBN atoms were marked unidentified.
+///
+/// Mass is retained on [`CachedDbnPosteriorIdentification::graphs`]; these
+/// counts say *why* so a result does not have to treat unidentified mass as
+/// an unexplained residual.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct DbnIdentifyDemotion {
+    /// `temporal_dag_from_dbn_masks` rejected the atom.
+    pub invalid_graph: usize,
+    /// Temporal identification returned an error.
+    pub identify_failed: usize,
+    /// Identification status is not a licensed identified status.
+    pub not_identified: usize,
+    /// No selected estimand (empty list or selector refusal).
+    pub no_estimand: usize,
+}
+
+impl DbnIdentifyDemotion {
+    pub(crate) fn total(&self) -> usize {
+        self.invalid_graph + self.identify_failed + self.not_identified + self.no_estimand
+    }
+
+    pub(crate) fn summary(&self, prepare: usize, fit: usize, draws: usize) -> String {
+        let estimate = prepare + fit + draws;
+        format!(
+            "identify_unidentified={} (invalid_graph={} identify_failed={} not_identified={} no_estimand={}); estimate_demoted={estimate} (prepare={prepare} fit={fit} draws={draws})",
+            self.total(),
+            self.invalid_graph,
+            self.identify_failed,
+            self.not_identified,
+            self.no_estimand,
+        )
+    }
+}
+
 /// Prepare-time identification for every atom in a DBN graph posterior.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedDbnPosteriorIdentification {
@@ -106,6 +141,8 @@ pub(crate) struct CachedDbnPosteriorIdentification {
     /// Identified atoms, in posterior order. Unidentified atoms remain in
     /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
     pub atoms: Arc<[CachedDbnPosteriorAtomIdentification]>,
+    /// Identification-time demotion counts, frozen with the cache.
+    pub identify_demotion: DbnIdentifyDemotion,
 }
 
 /// Identify every atom in a static graph posterior and retain its original mass.
@@ -169,7 +206,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
                     else {
                         return Ok(None);
                     };
-                    if !identification_status_ok_for_posterior_atom(identification.status)
+                    if !super::execute::identification_status_ok_for_case(identification.status)
                         || identification.estimands.is_empty()
                     {
                         return Ok(None);
@@ -220,6 +257,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
+    let mut identify_demotion = DbnIdentifyDemotion::default();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -249,23 +287,30 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             variables,
         ) else {
             flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.invalid_graph += 1;
             continue;
         };
         let Ok(temporal) = TemporalBackdoorIdentifier::new().identify_temporal(&graph, query)
         else {
             flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.identify_failed += 1;
             continue;
         };
         let identification = temporal.result;
-        if !identification_status_ok_for_posterior_atom(identification.status)
-            || identification.estimands.is_empty()
-        {
+        if !super::execute::identification_status_ok_for_case(identification.status) {
             flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.not_identified += 1;
+            continue;
+        }
+        if identification.estimands.is_empty() {
+            flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.no_estimand += 1;
             continue;
         }
         let Ok(estimand) = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)
         else {
             flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.no_estimand += 1;
             continue;
         };
         flags.push(GraphIdentFlag::Identified);
@@ -282,23 +327,13 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 
     let graphs = WeightedGraphSamples::new(weights, flags, keys)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms) })
+    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms), identify_demotion })
 }
 
 fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
     u64::try_from(index).map_err(|_| CausalError::Compile {
         message: "DBN posterior has too many atoms for envelope keys".into(),
     })
-}
-
-fn identification_status_ok_for_posterior_atom(status: IdentificationStatus) -> bool {
-    matches!(
-        status,
-        IdentificationStatus::NonparametricallyIdentified
-            | IdentificationStatus::PartiallyIdentified
-            | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
-    )
 }
 
 /// Prepare-time identification products for one temporal horizon.

@@ -123,6 +123,23 @@ def test_repr_html_effect_row_shows_point_estimate_and_estimator():
     assert "analytic" in html
 
 
+def test_repr_html_omits_nan_interval_for_scalar_effect():
+    result = AnalysisResult(
+        identification=_identification(),
+        estimate=_estimate(estimator_id="mediation.linear", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+    )
+    html = result._repr_html_()
+    assert "0.412" in html
+    assert "se unavailable" in html
+    assert "±" not in html
+    assert "nan" not in html
+
+
 def test_repr_html_counterfactual_row_omits_nan_interval():
     result = AnalysisResult(
         identification=_identification(status="gcm.parametric", method="gcm.parametric"),

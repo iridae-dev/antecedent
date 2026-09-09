@@ -155,9 +155,11 @@ impl ObservationMechanismEstimator {
 
     /// Estimate an observation-adjusted scalar mean-response curve.
     ///
-    /// This composition first constructs the licensed selected-outcome IPW/AIPW or marginal
-    /// censoring IPCW pseudo-outcome, then applies the continuous-treatment response estimator
-    /// to that pseudo-outcome. For selected outcomes, the declared
+    /// This composition first constructs the licensed selected-outcome IPW/AIPW or
+    /// censoring IPCW Horvitz–Thompson pseudo-outcome `Y* = Y · W`, then applies the
+    /// continuous-treatment response estimator to `Y*`. Censored or unselected rows
+    /// remain in the sample with `Y* = 0`; that is the IPCW contribution, not a
+    /// complete-case drop and not an imputed zero outcome. For selected outcomes, the declared
     /// [`ObservationAssumption::OutcomeIndependentGiven`] set must include the treatment and
     /// every causal adjustment variable. This containment makes the observation correction
     /// conditionally valid for the downstream response regression. Marginal Kaplan–Meier IPCW
@@ -268,8 +270,16 @@ impl ObservationMechanismEstimator {
             "response.observation_adjustment_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            adjusted.method,
+            adjusted.method.clone(),
         ));
+        if adjusted.method.as_ref() == "observation.selected.complete_collapse.v1" {
+            response.support.warnings.push(Diagnostic::new(
+                "response.observation_selected_complete_collapse",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "every selection indicator is 1, so the selected-outcome correction is the raw recorded outcome; a mis-coded indicator would look like no selection",
+            ));
+        }
         Ok(response)
     }
 
@@ -521,6 +531,10 @@ impl ObservationMechanismEstimator {
             )?
             .weights
         };
+        // Horvitz–Thompson transform: Y* = Y · (δ / G). Censored rows contribute
+        // exactly 0; uncensored rows are upweighted by 1/G. The unweighted mean
+        // of Y* is the IPCW mean. Dropping the zeros would be complete-case
+        // analysis, not IPCW.
         let values = observed.iter().zip(&weights).map(|(&y, &w)| y * w).collect();
         Ok(ObservationAdjustedOutcome {
             values,
@@ -1094,6 +1108,44 @@ mod tests {
         assert_eq!(right_adjusted.values, values);
         assert_eq!(selected_adjusted.weights, vec![1.0; 4]);
         assert_eq!(right_adjusted.weights, vec![1.0; 4]);
+        assert_eq!(selected_adjusted.method.as_ref(), "observation.selected.complete_collapse.v1");
+        let n = 40;
+        let large: Vec<f64> = (0..n).map(|i| i as f64 / (n - 1) as f64).collect();
+        let ones = vec![1.0; n];
+        let large_data = TabularData::from_f64_columns([
+            ("a", large.as_slice()),
+            ("y", large.as_slice()),
+            ("r", ones.as_slice()),
+        ])
+        .unwrap();
+        let collapse_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.2, 0.8])),
+            ),
+        })
+        .with_observation(
+            ObservationSpec::Selected {
+                latent: VariableId::from_raw(1),
+                observed: VariableId::from_raw(1),
+                indicator: VariableId::from_raw(2),
+            },
+            [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
+        );
+        let collapsed = ObservationMechanismEstimator::default()
+            .estimate_mean_curve(
+                &ContinuousResponseEstimator::new(Arc::from([])),
+                &large_data,
+                &collapse_query,
+                None,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(collapsed.support.warnings.iter().any(|warning| {
+            warning.code.as_ref() == "response.observation_selected_complete_collapse"
+        }));
     }
 
     #[test]

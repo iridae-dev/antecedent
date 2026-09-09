@@ -35,6 +35,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   derivatives, mediation, and ITE against the observational association.
 - Counterfactual ITE control is stored on `CounterfactualQuery` (default hard
   set of the treatment to zero). `StudyBuilder::counterfactual_control` is gone.
+- Docs and examples match licensed Cox IPCW, required derivative bandwidth, and
+  staged `MediationEffect` / `Counterfactual` `analyze` calls.
+- Python result views no longer print withheld sampling uncertainty as `±nan`
+  for any estimator; `None`/`nan`/`inf` SEs render as `unavailable`.
+- DBN-posterior atom demotion emits one count-by-reason diagnostic
+  (`estimate.dbn_posterior.atom_demotion`) covering identify-time refusals and
+  estimate-time prepare/fit/draw failures.
+- Plug-in Jacobian and ADE use analytic cubic B-spline derivatives. Outside the
+  open knot interior the clamped evaluation is constant, so the derivative is
+  exactly zero (`response.clamped_basis_derivative`).
+- Prepared second-shot tests assert identification-cache reuse rather than a
+  wall-clock inequality.
+- GCM anomaly/change/unit routes record `gcm.parametric` / `gcm.fit` instead of
+  backdoor ATE metadata. Selected-outcome complete collapse emits a warning.
+- Observation-adjusted curves document the Horvitz–Thompson `Y* = Y · W`
+  composition: censored zeros stay in sample and are not a complete-case drop.
 
 The [release notes](docs/release-notes/v1.3.0.md) specify licensed forms and
 unsupported extensions; these additions make no external-package parity claim.

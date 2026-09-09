@@ -88,6 +88,10 @@ path = "../../examples/rust/prior_bank_surveys.rs"
 name = "sales_spreadsheet_e2e"
 path = "../../examples/rust/sales_spreadsheet_e2e.rs"
 
+[[example]]
+name = "staged_static_kinds"
+path = "../../examples/rust/staged_static_kinds.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false

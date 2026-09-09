@@ -173,6 +173,15 @@ def test_estimate_view_repr_counterfactual_omits_nan_se():
     assert "nan" not in text
 
 
+def test_estimate_view_repr_omits_nan_se_for_every_estimator():
+    view = _estimate(estimator_id="mediation.linear", se_analytic=float("nan"))
+    text = repr(view)
+    assert "ate=0.412" in text
+    assert "se=unavailable" in text
+    assert "nan" not in text
+    assert "±" not in text
+
+
 # --- ConflictSummaryView -----------------------------------------------------
 
 
@@ -435,14 +444,36 @@ def test_analysis_result_repr_counterfactual_uses_mean_ite():
     assert result.mean_ite == 0.412
 
 
+def test_analysis_result_repr_omits_nan_interval():
+    result = AnalysisResult(
+        identification=_identification(),
+        estimate=_estimate(estimator_id="mediation.linear", se_analytic=float("nan")),
+        posterior=None,
+        validation=_validation(ran=False, reports=[]),
+        performance=_performance(),
+        diagnostics=[],
+        provenance={"node_count": 3},
+    )
+    text = repr(result)
+    assert "effect=0.412" in text
+    assert "se=unavailable" in text
+    assert "±" not in text
+    assert "nan" not in text
+
+
 def test_fmt_float_handles_nan_and_none():
-    from antecedent.results._format import fmt_float, fmt_pct
+    from antecedent.results._format import fmt_float, fmt_pct, fmt_se
 
     assert fmt_float(None) == "None"
     assert fmt_float(float("nan")) == "nan"
     assert fmt_float(float("inf")) == "inf"
     assert fmt_float(float("-inf")) == "-inf"
     assert fmt_float(1.23456, ndigits=2) == "1.23"
+    assert fmt_se(None) is None
+    assert fmt_se(float("nan")) is None
+    assert fmt_se(float("inf")) is None
+    assert fmt_se(float("-inf")) is None
+    assert fmt_se(0.031) == "0.031"
     assert fmt_pct(None) == "None"
     assert fmt_pct(math.nan) == "nan"
     assert fmt_pct(0.5) == "50.0%"

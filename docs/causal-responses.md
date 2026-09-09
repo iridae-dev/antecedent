@@ -130,7 +130,7 @@ an estimate click.
 PAG response queries remain refused by the support matrix, including accepted
 PAGs. Completion-based response primitives exist below the analysis API; they
 do not license a PAG curve through `analyze()` or `PreparedAnalysis`. Response
-mixtures over graph posteriors are also outside 1.2.
+mixtures over graph posteriors remain refused.
 
 ## Validation on a function-valued response
 
@@ -335,20 +335,22 @@ query = antecedent.ResponseCurve(
 
 `RightCensored` describes what was recorded. `IndependentGiven` is a separate,
 contestable identifying claim. Antecedent does not derive the second from the
-first. This example deliberately declares conditional censoring; the current
-marginal Kaplan–Meier IPCW estimator refuses it because its licensed contract
-requires `IndependentGiven([])`. Selected-outcome AIPW and *unconditional*
-right/left-censoring IPCW can be composed into a `ResponseCurve` when their
-explicit assumption contract is satisfied. Selected-outcome AIPW cross-fits both
-its nuisance models, and refuses a fold whose training rows cannot support them
-rather than falling back to an in-sample fit. These paths return a point curve with
-`uncertainty.kind == "none"`
+first. This example declares censoring independent of residual demand given
+price and season. A nonempty `IndependentGiven(Z)` that contains treatment and
+every causal adjustment variable is the licensed Cox IPCW pair; marginal
+Kaplan–Meier IPCW remains the licensed pair for `IndependentGiven([])`. See
+the [observation pair contract](observation-contract.md). Selected-outcome AIPW
+and both censoring IPCW estimators can be composed into a `ResponseCurve` when
+their explicit assumption contract is satisfied. Selected-outcome AIPW
+cross-fits both its nuisance models, and refuses a fold whose training rows
+cannot support them rather than falling back to an in-sample fit. These paths
+return a point curve with `uncertainty.kind == "none"`
 and a `joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint
 band. Observation-aware subset validation likewise fails closed until both
-stages can be refit jointly. Unsupported mechanism/assumption/estimator
-combinations fail closed rather than returning the response of the observed
-proxy.
+stages can be refit jointly. Observation-adjusted derivatives, interval
+censoring, and other unsupported mechanism/assumption/estimator combinations
+fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
 [complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)
