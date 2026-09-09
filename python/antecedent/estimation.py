@@ -59,13 +59,21 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalDag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
+    AverageDerivative,
     AverageEffect,
     ConditionalEffect,
+    Counterfactual,
+    DirectionalDerivative,
+    Elasticity,
     InterventionalDistribution,
     InterventionResponse,
+    MediationEffect,
     PathSpecificEffect,
+    PointDerivative,
     PulseEffect,
     ResponseCurve,
+    ResponseJacobian,
+    SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
 )
@@ -355,6 +363,9 @@ def _wrap_ate(
             mediation=mediation,
         ),
         posterior=posterior,
+        unit_effects=getattr(raw, "unit_effects", None),
+        assumptions=getattr(raw, "assumptions", None),
+        support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,
         validation=ValidationView(
             passed=sec_validation.passed,
@@ -924,6 +935,14 @@ class PreparedAnalysis:
         | InterventionResponse
         | PulseEffect
         | SustainedEffect
+        | MediationEffect
+        | Counterfactual
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | AverageDerivative
+        | DirectionalDerivative
+        | ResponseJacobian
         | TemporalMediationEffect
         | None = None,
     ) -> None:
@@ -944,12 +963,21 @@ class PreparedAnalysis:
         | InterventionResponse
         | PulseEffect
         | SustainedEffect
+        | MediationEffect
+        | Counterfactual
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | AverageDerivative
+        | DirectionalDerivative
+        | ResponseJacobian
         | TemporalMediationEffect,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
         inference: Frequentist | Bayesian | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] = False,
         seed: int = 1,
         bootstrap: int | None = None,
@@ -960,8 +988,11 @@ class PreparedAnalysis:
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``,
-        ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``, and
-        ``TemporalMediationEffect`` on an explicit graph (or accepted wrapper).
+        ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``,
+        ``TemporalMediationEffect``, static ``MediationEffect``,
+        ``Counterfactual``, and the six Frequentist derivative query types
+        on an explicit graph (or accepted wrapper, except ``Counterfactual``
+        which requires an explicit Dag).
         ``AverageEffect`` also prepares on a ``Pag`` or bidirected ``Admg``; the
         generalized-adjustment envelope or general-ID result is frozen at
         prepare and reused by every estimate click (``exec.identify.cached``).
@@ -976,14 +1007,21 @@ class PreparedAnalysis:
             from .observation import Complete
             from .population import coerce_target_population
 
-            if query.observation is not None and not isinstance(query.observation, Complete):
-                raise CausalUnsupportedError(
-                    "PreparedAnalysis responses require complete observations; "
-                    "observation correction is not composed on this staged path"
+            if (
+                query.observation is not None
+                and not isinstance(query.observation, Complete)
+                and (
+                    isinstance(inference, Bayesian)
+                    or getattr(query, "is_temporal", False)
+                    or isinstance(query, InterventionResponse)
                 )
-            if query.observation_assumptions:
+            ):
+                raise CausalUnsupportedError("these response cells require complete observations")
+            if query.observation_assumptions and (
+                query.observation is None or isinstance(query.observation, Complete)
+            ):
                 raise CausalUnsupportedError(
-                    "PreparedAnalysis complete responses do not accept observation_assumptions"
+                    "observation_assumptions require an observation mechanism"
                 )
             if query.target_population is not None and coerce_target_population(
                 query.target_population
@@ -991,6 +1029,20 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     "PreparedAnalysis responses require the AllObserved target population"
                 )
+        if estimator_config is not None and not isinstance(
+            query,
+            (
+                PointDerivative,
+                Elasticity,
+                SemiElasticity,
+                AverageDerivative,
+                DirectionalDerivative,
+                ResponseJacobian,
+            ),
+        ):
+            raise CausalUnsupportedError(
+                "prepared estimator_config currently applies to derivatives only"
+            )
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
@@ -1183,6 +1235,62 @@ class PreparedAnalysis:
             )
             return cls(native, kind="average", query=query)
         edges = _static_edges(graph)
+        if isinstance(query, (MediationEffect, Counterfactual)):
+            if inference is not None and not isinstance(inference, Frequentist):
+                if isinstance(query, MediationEffect):
+                    raise CausalUnsupportedError(
+                        "refused: Static natural mediation is Frequentist; a Bayesian "
+                        "mediation estimator is 1.7 work."
+                    )
+                raise CausalUnsupportedError(
+                    "refused: Counterfactuals are Frequentist abduction-action-prediction; "
+                    "a posterior over mechanisms is 1.7 work."
+                )
+            expected_id = (
+                "path_specific.natural" if isinstance(query, MediationEffect) else "gcm.parametric"
+            )
+            expected_est = "mediation.linear" if isinstance(query, MediationEffect) else "gcm.fit"
+            if identifier not in (None, expected_id) or estimator not in (None, expected_est):
+                raise CausalUnsupportedError(
+                    f"{query.kind} requires {expected_id} and {expected_est}"
+                )
+            if isinstance(query, Counterfactual) and (
+                structure_accepted or refute not in (False, "none", Refute.NONE)
+            ):
+                if structure_accepted:
+                    raise CausalUnsupportedError(
+                        "refused: Staged counterfactuals require an explicit Dag; accepted "
+                        "and graph-posterior structures are refused."
+                    )
+                raise CausalUnsupportedError(
+                    "refused: Counterfactual cheap/full are not licensed; there is no "
+                    "native ITE refuter suite and ATE refuters do not apply."
+                )
+            if isinstance(query, Counterfactual) and bootstrap:
+                raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
+            resolved_bootstrap = (
+                0
+                if isinstance(query, Counterfactual)
+                else _resolve_latency_budget(latency, bootstrap, False)[0]
+            )
+            native = _NativePreparedAnalysis.prepare_static_kind(
+                names,
+                columns,
+                edges,
+                query.kind,
+                query.treatment,
+                query.outcome,
+                mediators=list(query.mediators) if isinstance(query, MediationEffect) else [],
+                contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
+                control_level=query.control_level,
+                active_level=query.active_level,
+                refute=coerce_refute(refute),
+                bootstrap=resolved_bootstrap,
+                accepted=structure_accepted,
+                seed=seed,
+                threads=threads,
+            )
+            return cls(native, kind="average", query=query)
         if isinstance(query, ConditionalEffect):
             expected_estimator = (
                 "conditional.bayesian"
@@ -1260,11 +1368,142 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
             )
             return cls(native, kind="average", query=query)
+        if isinstance(
+            query,
+            (
+                AverageDerivative,
+                PointDerivative,
+                Elasticity,
+                SemiElasticity,
+                DirectionalDerivative,
+                ResponseJacobian,
+            ),
+        ):
+            from .observation import Complete
+
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalUnsupportedError(
+                    "refused: Licensed derivative cells are Frequentist explicit or "
+                    "accepted Dag at validation none; Bayesian derivatives remain 1.7 work."
+                )
+            if refute not in (False, "none", Refute.NONE):
+                raise CausalUnsupportedError("not_applicable: derivatives require refute='none'")
+            if getattr(query, "observation", None) is not None and not isinstance(
+                query.observation, Complete
+            ):
+                raise CausalUnsupportedError("derivatives require complete observations")
+            if (
+                query.observation_assumptions
+                or getattr(query, "target_population", None) is not None
+            ):
+                raise CausalUnsupportedError(
+                    "derivatives require the unweighted observed population"
+                )
+            expected = (
+                "response.riesz_ade"
+                if isinstance(query, AverageDerivative)
+                else "response.gam_derivative"
+                if isinstance(query, (DirectionalDerivative, ResponseJacobian))
+                else "response.kennedy_dr"
+            )
+            if identifier not in (None, "response.backdoor") or estimator not in (None, expected):
+                raise CausalUnsupportedError(
+                    f"derivative requires response.backdoor and {expected}"
+                )
+            options = dict(estimator_config or {})
+            if set(options) - {"bandwidth"}:
+                raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
+            if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+                derivative_treatments = list(query.treatments)
+                outcomes = list(query.outcomes)
+            else:
+                derivative_treatments = [query.treatment]
+                outcomes = [query.outcome]
+            at = getattr(query, "at", None)
+            if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+                at = (
+                    [at[t] for t in derivative_treatments]
+                    if isinstance(at, Mapping)
+                    else list(query.at)
+                )
+            elif at is not None:
+                at = [at]
+            direction = getattr(query, "direction", None)
+            if direction is not None:
+                direction = (
+                    [direction[t] for t in derivative_treatments]
+                    if isinstance(direction, Mapping)
+                    else list(direction)
+                )
+            scale = (
+                "log_log"
+                if isinstance(query, Elasticity)
+                else "log_" + query.log_scale
+                if isinstance(query, SemiElasticity)
+                else "identity"
+            )
+            native = _NativePreparedAnalysis.prepare_derivative(
+                names,
+                columns,
+                edges,
+                query.kind,
+                derivative_treatments,
+                outcomes,
+                at=at,
+                direction=direction,
+                order=getattr(query, "order", 1),
+                scale=scale,
+                weighting=getattr(query, "weighting", None) or "observed",
+                bandwidth=options.get("bandwidth"),
+                accepted=structure_accepted,
+                seed=seed,
+                threads=threads,
+            )
+            return cls(native, kind="response_curve", query=query)
         if isinstance(query, ResponseCurve):
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
                     "not_applicable: response curves require refute='none'"
                 )
+            from .observation import (
+                Complete,
+                _assumption_kwargs,
+                _ensure_latent_schema_column,
+                _mechanism_kwargs,
+            )
+
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                from ._native import prepare_observation_response
+
+                if inference is not None and not isinstance(inference, Frequentist):
+                    raise CausalUnsupportedError(
+                        "observation-adjusted responses require Frequentist"
+                    )
+                if len(query.observation_assumptions) != 1:
+                    raise ValueError(
+                        "observation response requires exactly one explicit assumption"
+                    )
+                if identifier not in (None, "response.backdoor") or estimator not in (
+                    None,
+                    "response.kennedy_dr",
+                ):
+                    raise CausalUnsupportedError(
+                        "observation response requires response.backdoor and response.kennedy_dr"
+                    )
+                names, columns = _ensure_latent_schema_column(names, columns, query.observation)
+                kwargs = _mechanism_kwargs(query.observation)
+                kwargs.update(_assumption_kwargs(query.observation_assumptions[0]))
+                native = prepare_observation_response(
+                    names,
+                    columns,
+                    edges,
+                    query.treatment,
+                    query.outcome,
+                    list(query.grid),
+                    accepted=structure_accepted,
+                    **cast(dict[str, Any], kwargs),
+                )
+                return cls(native, kind="response_curve", query=query)
             native = _NativePreparedAnalysis.prepare_response(
                 names,
                 columns,
@@ -1634,6 +1873,15 @@ class PreparedAnalysis:
         threads: int = 1,
     ) -> AnalysisResult | CausalResponseView:
         """Re-estimate without recompiling (same schema as prepare)."""
+        if isinstance(self._query, ResponseCurve) and self._query.observation is not None:
+            from .observation import Complete, _ensure_latent_schema_column
+
+            if not isinstance(self._query.observation, Complete):
+                names, columns = ingest_columns(data)
+                names, columns = _ensure_latent_schema_column(
+                    names, columns, self._query.observation
+                )
+                data = dict(zip(names, columns, strict=True))
         names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
             fn = self._native.estimate_response_arrow_c if arrow else self._native.estimate_response
@@ -1656,6 +1904,15 @@ class PreparedAnalysis:
         threads: int = 1,
     ) -> AnalysisResult | CausalResponseView:
         """Replace retained data and re-estimate."""
+        if isinstance(self._query, ResponseCurve) and self._query.observation is not None:
+            from .observation import Complete, _ensure_latent_schema_column
+
+            if not isinstance(self._query.observation, Complete):
+                names, columns = ingest_columns(data)
+                names, columns = _ensure_latent_schema_column(
+                    names, columns, self._query.observation
+                )
+                data = dict(zip(names, columns, strict=True))
         names, columns, arrow = _prepared_columns(data)
         if self._kind in ("response_curve", "intervention_response"):
             fn = self._native.refresh_response_arrow_c if arrow else self._native.refresh_response

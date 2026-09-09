@@ -21,8 +21,8 @@ Rules enforced throughout:
   against the estimate by default.
 * **Estimate a response, not only a contrast.** Licensed mean curves keep
   structural identification, empirical support, and uncertainty kind as separate
-  axes. Derivative, elasticity, and Jacobian primitives remain lower-level
-  inventory; their root analysis queries are refused in 1.2.
+  axes. Derivative, elasticity, and Jacobian queries are licensed on
+  explicit/accepted Frequentist DAGs; see the [1.3 evidence ledger](v1.3-evidence.md).
 * **Declare how the outcome was observed.** Complete, censored, truncated, and
   selected mechanisms live in `antecedent.observation`; assumptions are never
   inferred from column presence.
@@ -49,8 +49,9 @@ observation-aware pricing. The Rust entry point is
 `Study::tabular()` (or `::series` / `::series_multi` / `::panel` / `::events`) in the
 [`antecedent` crate](https://docs.rs/antecedent).
 
-Package version is **1.2.0**; see
+Package version is **1.3.0**; see
 [ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md),
+the [1.3.0 notes](release-notes/v1.3.0.md),
 the [1.2.0 notes](release-notes/v1.2.0.md),
 the [1.1.0 notes](release-notes/v1.1.0.md),
 the [1.0.0 notes](release-notes/v1.0.0.md), the

@@ -591,12 +591,12 @@ mod tests {
     #[test]
     fn closed_derivative_and_counterfactual_are_enforced() {
         let err =
-            refuse_if_not_applicable(cell("Elasticity", "Dag", "explicit", "Frequentist", "none"))
+            refuse_if_not_applicable(cell("Elasticity", "Pag", "explicit", "Frequentist", "none"))
                 .unwrap_err();
         assert!(err.to_string().starts_with("refused:"), "{err}");
         let err = refuse_if_not_applicable(cell(
             "Counterfactual",
-            "Dag",
+            "Pag",
             "explicit",
             "Frequentist",
             "none",
@@ -612,6 +612,74 @@ mod tests {
         ))
         .unwrap_err();
         assert!(err.to_string().starts_with("refused:"), "{err}");
+    }
+
+    #[test]
+    fn closed_v13_dag_remainders_are_named() {
+        let cases = [
+            (
+                "PointDerivative",
+                "explicit",
+                "Bayesian",
+                "none",
+                "Licensed derivative cells are Frequentist",
+            ),
+            (
+                "AverageDerivative",
+                "graph_posterior",
+                "Bayesian",
+                "none",
+                "Graph-posterior derivative mixtures are not staged",
+            ),
+            (
+                "MediationEffect",
+                "explicit",
+                "Bayesian",
+                "none",
+                "Static natural mediation is Frequentist",
+            ),
+            (
+                "Counterfactual",
+                "accepted",
+                "Frequentist",
+                "none",
+                "Staged counterfactuals require an explicit Dag",
+            ),
+            (
+                "Counterfactual",
+                "explicit",
+                "Bayesian",
+                "none",
+                "Frequentist abduction-action-prediction",
+            ),
+            (
+                "Counterfactual",
+                "explicit",
+                "Frequentist",
+                "cheap",
+                "Counterfactual cheap/full are not licensed",
+            ),
+        ];
+        for (query, structure, inference, validation, needle) in cases {
+            let err =
+                refuse_if_not_applicable(cell(query, "Dag", structure, inference, validation))
+                    .unwrap_err();
+            let text = err.to_string();
+            assert!(text.starts_with("refused:"), "{query}: {text}");
+            assert!(text.contains(needle), "{query}: {text}");
+        }
+        assert_eq!(
+            classify(cell("PointDerivative", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("MediationEffect", "Dag", "accepted", "Frequentist", "full")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("Counterfactual", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
     }
 
     #[test]
@@ -633,7 +701,7 @@ mod tests {
     fn closed_mediation_is_enforced() {
         let err = refuse_if_not_applicable(cell(
             "MediationEffect",
-            "Dag",
+            "Pag",
             "explicit",
             "Frequentist",
             "none",
@@ -642,7 +710,7 @@ mod tests {
         assert!(err.to_string().starts_with("refused:"), "{err}");
         for query in ["TransportQuery", "InterferenceQuery"] {
             let err =
-                refuse_if_not_applicable(cell(query, "Dag", "explicit", "Frequentist", "none"))
+                refuse_if_not_applicable(cell(query, "Pag", "explicit", "Frequentist", "none"))
                     .unwrap_err();
             assert!(err.to_string().starts_with("refused:"), "{query}: {err}");
         }

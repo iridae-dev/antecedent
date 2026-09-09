@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import random
-import time
 
 import numpy as np
 import pytest
@@ -84,9 +83,8 @@ def test_prepared_rejects_bayesian_prior_options_it_cannot_apply():
         )
 
 
-def test_prepared_second_shot_not_slower_than_prepare_plus_first():
+def test_prepared_second_shot_reuses_identification():
     data, edges = _confounded_scm(n=800, seed=31)
-    t0 = time.perf_counter()
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=edges,
@@ -94,13 +92,10 @@ def test_prepared_second_shot_not_slower_than_prepare_plus_first():
         latency="interactive",
         seed=1,
     )
-    _ = prepared.estimate(data, seed=1)
-    prepare_plus_first = time.perf_counter() - t0
-
-    t1 = time.perf_counter()
-    _ = prepared.estimate(data, seed=1)
-    second = time.perf_counter() - t1
-    assert second <= prepare_plus_first * 2.0 + 0.05
+    first = prepared.estimate(data, seed=1)
+    second = prepared.estimate(data, seed=1)
+    assert any(d.startswith("exec.identify.cached") for d in second.diagnostics)
+    assert first.effect == second.effect
 
 
 def test_prepared_response_curve_matches_analyze():

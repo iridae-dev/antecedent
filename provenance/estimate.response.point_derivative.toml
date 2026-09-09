@@ -25,6 +25,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "conformance/response/staged_derivatives",
   "crates/antecedent-estimate/src/response.rs",
   "crates/antecedent-stats/src/response.rs",
 ]

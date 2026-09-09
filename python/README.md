@@ -102,8 +102,9 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace remains frozen at 49 names in 1.2. Temporal response
-attachments use existing query types without adding root exports.
+The root namespace remains frozen at 49 names. Temporal response
+attachments and 1.3 staged kinds reuse existing query types without adding
+root exports.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
@@ -134,10 +135,19 @@ Also exposed:
 - Graph interchange on the classes: `Dag.from_dot` / `.to_dot` and the JSON / GML / NetworkX peers
 - Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),
   [`examples/python/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/causal_state_workflow.py),
-  [`examples/python/temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/temporal_response_curve.py)
+  [`examples/python/temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/temporal_response_curve.py),
+  [`examples/python/staged_static_kinds.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/staged_static_kinds.py)
   (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
+
+In 1.3, `antecedent.estimation.PreparedAnalysis` also stages Frequentist DAG
+derivatives, static natural mediation, explicit-DAG unit counterfactuals, and
+the published observation-pair contract (selected AIPW, marginal KM, conditional
+Cox IPCW). Derivative cheap/full stay n/a; counterfactual sampling uncertainty
+is unavailable. See the
+[1.3 evidence ledger](https://github.com/iridae-dev/antecedent/blob/main/docs/v1.3-evidence.md)
+and the 1.2 ledger below for earlier Bayesian and sequential forms.
 
 In 1.2, `antecedent.estimation.PreparedAnalysis` also supports the licensed
 Bayesian conditional, temporal-mediation and response forms, and multi-step

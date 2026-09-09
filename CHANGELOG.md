@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-08
+
+### Added
+
+- Staged Frequentist DAG derivative cells, including explicit bandwidth and
+  observed-law Riesz / additive-GAM restrictions.
+- Conditional right/left Cox IPCW, executing R survival parity, and a published
+  observation-pair contract. Joint observation/curve bands remain unavailable.
+- Static natural mediation with native cheap/full validation and unit-level GCM
+  counterfactuals with preserved active/control levels.
+- Cached identification, four result axes, static result artifacts, numerical
+  fixtures and prepared-handle benchmarks. See [release evidence](docs/v1.3-evidence.md).
+
+### Fixed
+
+- Remaining Dag refusals for Bayesian/accepted/graph-posterior derivatives,
+  static mediation, and counterfactuals now have named closed reasons (0
+  refused cells without a reason). Discovery and Bayesian Python entry points
+  raise those reasons instead of claiming the kinds are unstaged.
+- Docs, licensed-cell limitations, and Python derivative tests now match the 1.3
+  licensed forms. Stale 1.2 copy no longer denies Counterfactual, static
+  mediation, or derivative cells; mediation vs ITE limitations are separate;
+  Python pins the derivative fixture rather than only checking route agreement.
+- Counterfactual execution records `gcm.fit` rather than linear ATE. Python no
+  longer prints mean ITE as `effect=… ±nan`. Confounded SCM fixtures pin
+  derivatives, mediation, and ITE against the observational association.
+- Counterfactual ITE control is stored on `CounterfactualQuery` (default hard
+  set of the treatment to zero). `StudyBuilder::counterfactual_control` is gone.
+- Docs and examples match licensed Cox IPCW, required derivative bandwidth, and
+  staged `MediationEffect` / `Counterfactual` `analyze` calls.
+- Python result views no longer print withheld sampling uncertainty as `±nan`
+  for any estimator; `None`/`nan`/`inf` SEs render as `unavailable`.
+- DBN-posterior atom demotion emits one count-by-reason diagnostic
+  (`estimate.dbn_posterior.atom_demotion`) covering identify-time refusals and
+  estimate-time prepare/fit/draw failures.
+- Plug-in Jacobian and ADE use analytic cubic B-spline derivatives. Outside the
+  open knot interior the clamped evaluation is constant, so the derivative is
+  exactly zero (`response.clamped_basis_derivative`).
+- Prepared second-shot tests assert identification-cache reuse rather than a
+  wall-clock inequality.
+- GCM anomaly/change/unit routes record `gcm.parametric` / `gcm.fit` instead of
+  backdoor ATE metadata. Selected-outcome complete collapse emits a warning.
+- Observation-adjusted curves document the Horvitz–Thompson `Y* = Y · W`
+  composition: censored zeros stay in sample and are not a complete-case drop.
+- Jacobian and directional queries refuse differential missingness across
+  outcomes instead of concatenating per-outcome complete-case sets. Provenance
+  records now describe analytic B-spline derivatives and licensed Cox IPCW.
+  Selected AIPW is documented as `m(X)` on unselected rows, not HT zeros.
+
+The [release notes](docs/release-notes/v1.3.0.md) specify licensed forms and
+unsupported extensions; these additions make no external-package parity claim.
+
 ## [1.2.0] — 2026-09-07
 
 ### Added
@@ -1653,7 +1705,9 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/iridae-dev/antecedent/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/iridae-dev/antecedent/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/iridae-dev/antecedent/compare/v0.9.1...v1.0.0
 [0.9.1]: https://github.com/iridae-dev/antecedent/compare/v0.9.0...v0.9.1

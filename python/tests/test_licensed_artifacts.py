@@ -197,6 +197,75 @@ def _licensed_queries() -> list[str]:
     return sorted({row["query"] for row in _LICENSED.get("cell") or []})
 
 
+# Existing query wire shapes newly licensed in 1.3.
+for name, functional in {
+    "PointDerivative": {
+        "point_derivative": {
+            "outcome": 1,
+            "treatment": 0,
+            "at": 1.0,
+            "order": 1,
+            "scale": "identity",
+        }
+    },
+    "Elasticity": {
+        "point_derivative": {
+            "outcome": 1,
+            "treatment": 0,
+            "at": 1.0,
+            "order": 1,
+            "scale": "log_log",
+        }
+    },
+    "SemiElasticity": {
+        "point_derivative": {
+            "outcome": 1,
+            "treatment": 0,
+            "at": 1.0,
+            "order": 1,
+            "scale": "log_treatment",
+        }
+    },
+    "AverageDerivative": {
+        "average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}
+    },
+    "DirectionalDerivative": {
+        "directional_derivative": {
+            "outcomes": [1],
+            "treatments": [0],
+            "at": [1.0],
+            "direction": [1.0],
+        }
+    },
+    "ResponseJacobian": {
+        "jacobian": {"outcomes": [1], "treatments": [0], "at": [1.0], "scale": "identity"}
+    },
+}.items():
+    _QUERY_PAYLOADS[name] = (
+        {
+            "response": {
+                "functional": functional,
+                "target_population": "all_observed",
+                "observation": "complete",
+                "observation_assumptions": [],
+            }
+        },
+        ["t", "y"],
+    )
+_QUERY_PAYLOADS["Counterfactual"] = (
+    {
+        "counterfactual": {
+            "outcomes": [1],
+            "interventions": [{"set": {"variable": 0, "value": {"float64": 1.0}}}],
+            "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+            "allow_nested": False,
+        }
+    },
+    ["t", "y"],
+)
+_QUERY_PAYLOADS["MediationEffect"] = _QUERY_PAYLOADS["TemporalMediationEffect"]
+
+
 @pytest.mark.parametrize("query", _licensed_queries())
 def test_licensed_query_artifact_round_trips(query: str) -> None:
     assert query in _QUERY_PAYLOADS, f"licensed query {query} has no artifact payload"

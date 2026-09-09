@@ -19,6 +19,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "conformance/estimate/staged_static_kinds",
  "conformance/gcm/gcm_cf_ite",
  "conformance/gcm/nested_temporal_counterfactual",
  "crates/antecedent-counterfactual/src/engine.rs unit tests (streaming_matches_retained equivalence)",

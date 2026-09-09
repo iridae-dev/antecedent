@@ -33,9 +33,12 @@ nav:
   - Capabilities: capabilities.md
   - Support matrix: support-matrix.md
   - Causal responses: causal-responses.md
+  - Observation contract: observation-contract.md
   - Transport and interference: transport-interference.md
   - Comparison: comparison.md
   - Release notes:
+      - "1.3.0": release-notes/v1.3.0.md
+      - "1.3 evidence and limits": v1.3-evidence.md
       - "1.2.0": release-notes/v1.2.0.md
       - "1.2 evidence and limits": v1.2-evidence.md
       - "1.1.0": release-notes/v1.1.0.md

@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-07
-Scope: workspace crates + `python` extension (package version **1.2.0**)
+Date: 2026-09-08
+Scope: workspace crates + `python` extension (package version **1.3.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -102,3 +102,7 @@ cargo deny check
 # CodeQL (strict local gate — 0 findings; CI uses .github/workflows/codeql.yml)
 bash scripts/gate_codeql.sh
 ```
+
+## 1.3.0 boundary review
+
+The added estimators use safe Rust and existing linear algebra. Conditional Cox IPCW validates input dimensions, numeric covariates, event indicators, convergence, information rank and survival positivity. Nested counterfactuals remain refused. The additive `static_result` artifact uses the existing bounded CBOR container and validates its query, identification and numeric fields. No new runtime dependency or workflow permission is introduced. R survival is an executing test oracle only; no upstream source or executable is bundled.

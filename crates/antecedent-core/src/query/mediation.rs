@@ -17,7 +17,11 @@ use super::error::QueryError;
 pub enum MediationContrast {
     /// Total effect (direct + mediated).
     Total,
-    /// Controlled / path-product direct effect (holding mediators fixed).
+    /// Natural direct path-sum that avoids declared mediators.
+    ///
+    /// Static `mediation.linear` aliases this to [`NaturalDirect`]. It is not a
+    /// general controlled direct effect that holds mediators fixed under
+    /// treatment–mediator interaction.
     Direct,
     /// Mediated / indirect effect (path through mediators).
     Mediated,

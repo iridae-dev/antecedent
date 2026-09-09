@@ -62,7 +62,7 @@ pub struct EstimationWorkspace {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct EffectEstimate {
-    /// ATE point estimate `β_T * (active − control)`.
+    /// Point estimate: ATE, or mean ITE for the counterfactual cell.
     pub ate: f64,
     /// Analytic IID standard error (homoskedastic).
     pub se_analytic: f64,

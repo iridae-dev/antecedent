@@ -2056,6 +2056,20 @@ pub(crate) fn ate_result_from_analysis(
         posterior,
         validation,
         performance,
+        assumptions: result
+            .estimate
+            .assumptions
+            .entries
+            .iter()
+            .map(|r| format!("{:?}", r.assumption))
+            .collect(),
+        support_diagnostics: result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.contains("support") || d.code.contains("overlap"))
+            .map(|d| d.message.to_string())
+            .collect(),
+        unit_effects: result.counterfactual.as_ref().map(|cf| cf.unit_effects.to_vec()),
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),

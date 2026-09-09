@@ -47,8 +47,8 @@ pub use analysis_wire::{
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use causal_artifact::{
-    CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, decode_causal_payload_artifact,
-    encode_causal_payload_artifact,
+    CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
+    decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,

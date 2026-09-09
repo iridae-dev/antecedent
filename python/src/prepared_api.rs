@@ -50,6 +50,10 @@ pub struct PyPreparedAnalysis {
 }
 
 impl PyPreparedAnalysis {
+    pub(crate) fn from_study(prepared: PreparedStudy, names: Vec<String>) -> Self {
+        Self { inner: Arc::new(prepared), names, last: None, series: false }
+    }
+
     fn finish_ate_estimate(
         &mut self,
         py: Python<'_>,
@@ -510,6 +514,195 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Identification reads names and graph only; no dummy statistical fit.
+    #[staticmethod]
+    #[pyo3(signature = (names, edges, kind, treatments, outcomes, *, mediators=Vec::new(),
+        contrast="mediated", control_level=0.0, active_level=1.0, at=None, direction=None,
+        order=1, scale="identity", weighting="observed"))]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    fn identify_existing(
+        names: Vec<String>,
+        edges: Vec<(String, String)>,
+        kind: &str,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        mediators: Vec<String>,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        at: Option<Vec<f64>>,
+        direction: Option<Vec<f64>>,
+        order: u8,
+        scale: &str,
+        weighting: &str,
+    ) -> PyResult<(String, String, Vec<String>, String)> {
+        let empty: &[f64] = &[];
+        let data = TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty)))
+            .map_err(py_err)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
+        let query = if kind == "mediation" || kind == "counterfactual" {
+            if treatments.len() != 1 || outcomes.len() != 1 {
+                return Err(PyValueError::new_err("one treatment/outcome required"));
+            }
+            static_kind_query(
+                data.schema(),
+                kind,
+                &treatments[0],
+                &outcomes[0],
+                &mediators,
+                contrast,
+                control_level,
+                active_level,
+            )?
+        } else {
+            let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+            CausalQuery::Response(ResponseQuery::new(build_functional(
+                kind,
+                &ts,
+                &ys,
+                None,
+                at,
+                direction,
+                None,
+                None,
+                order,
+                crate::response_api::parse_scale(scale)?,
+                crate::response_api::parse_weighting(weighting)?,
+            )?))
+        };
+        let id = antecedent::identify_dag(&dag, &query).map_err(py_err)?;
+        let adjustment = id
+            .estimands()
+            .first()
+            .map(|e| e.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect())
+            .unwrap_or_default();
+        let method = id.estimands().first().map(|e| e.method.to_string()).unwrap_or_default();
+        Ok((format!("{:?}", id.status()), method, adjustment, id.strategy().as_str().to_owned()))
+    }
+
+    /// Static mediation and counterfactuals retain the same staged result axes.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
+        contrast="mediated", control_level=0.0, active_level=1.0, refute=None,
+        bootstrap=0, accepted=false, seed=1, threads=1))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_static_kind(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, String)>,
+        kind: &str,
+        treatment: String,
+        outcome: String,
+        mediators: Vec<String>,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        bootstrap: u32,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<Self> {
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let query = static_kind_query(
+            data.schema(),
+            kind,
+            &treatment,
+            &outcome,
+            &mediators,
+            contrast,
+            control_level,
+            active_level,
+        )?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            };
+            let study = builder
+                .query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap)
+                .build()
+                .map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = study.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Freeze identification for a complete-data static derivative.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
+        direction=None, order=1, scale="identity", weighting="observed", bandwidth=None,
+        accepted=false, seed=1, threads=1))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_derivative(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, String)>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        at: Option<Vec<f64>>,
+        direction: Option<Vec<f64>>,
+        order: u8,
+        scale: &str,
+        weighting: &str,
+        bandwidth: Option<f64>,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<Self> {
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let scale = crate::response_api::parse_scale(scale)?;
+        let weighting = crate::response_api::parse_weighting(weighting)?;
+        detach_catch(py, move || {
+            let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+            let functional = build_functional(
+                &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
+            )?;
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
+            } else {
+                Study::tabular(data).graph(dag)
+            };
+            let study = builder
+                .query(CausalQuery::Response(ResponseQuery::new(functional)))
+                .response_options(antecedent_estimate::ContinuousResponseOptions {
+                    bandwidth,
+                    ..Default::default()
+                })
+                .refute(antecedent::RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = study.prepare(&ctx).map_err(py_err)?;
             Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
     }
@@ -1635,6 +1828,58 @@ impl PyPreparedAnalysis {
             let mut bytes = Vec::new();
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
+        } else if result.mediation.is_some() || result.counterfactual.is_some() {
+            let (control_level, active_level) = match self.inner.query() {
+                CausalQuery::Mediation(q) => (hard_value(&q.control), hard_value(&q.active)),
+                CausalQuery::Counterfactual(q) => {
+                    (hard_value(&q.control), q.interventions.first().and_then(hard_value))
+                }
+                _ => unreachable!(),
+            };
+            let wire = antecedent_io::StaticResultWire {
+                identification: antecedent_io::identification_to_wire(&result.identification)
+                    .map_err(py_err)?,
+                estimate: result.estimate.ate,
+                standard_error: result.estimate.se_bootstrap.or_else(|| {
+                    result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
+                }),
+                assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
+                support: result
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.code.contains("support") || d.code.contains("overlap"))
+                    .map(antecedent_io::diagnostic_to_wire)
+                    .collect(),
+                diagnostics: result
+                    .diagnostics
+                    .iter()
+                    .map(antecedent_io::diagnostic_to_wire)
+                    .collect(),
+                refutations: result
+                    .refutations
+                    .iter()
+                    .map(antecedent_io::refutation_to_wire)
+                    .collect(),
+                unit_effects: result.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+                mediation: result
+                    .mediation
+                    .as_ref()
+                    .map(|m| [m.total.unwrap(), m.direct.unwrap(), m.mediated.unwrap()]),
+                control_level: control_level
+                    .ok_or_else(|| PyValueError::new_err("missing control"))?,
+                active_level: active_level
+                    .ok_or_else(|| PyValueError::new_err("missing active"))?,
+            };
+            let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
+            let artifact = antecedent_io::encode_causal_payload_artifact(
+                &payload,
+                self.names.clone(),
+                artifact_id,
+            )
+            .map_err(py_err)?;
+            let mut bytes = Vec::new();
+            artifact.write_to(&mut bytes).map_err(py_err)?;
+            bytes
         } else {
             return Err(PyValueError::new_err(
                 "retained result has no posterior or response artifact payload",
@@ -1716,7 +1961,7 @@ impl PyPreparedAnalysis {
     }
 }
 
-fn response_from_study(
+pub(crate) fn response_from_study(
     names: &[String],
     result: &antecedent::StudyResult,
 ) -> PyResult<ResponseAnalysisResult> {
@@ -1761,4 +2006,50 @@ fn apply_inference(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPreparedAnalysis>()?;
     Ok(())
+}
+
+fn static_kind_query(
+    schema: &antecedent_core::CausalSchema,
+    kind: &str,
+    treatment: &str,
+    outcome: &str,
+    mediators: &[String],
+    contrast: &str,
+    control: f64,
+    active: f64,
+) -> PyResult<CausalQuery> {
+    let t = schema.id_of(treatment).map_err(py_err)?;
+    let y = schema.id_of(outcome).map_err(py_err)?;
+    match kind {
+        "mediation" => {
+            let contrast = match contrast {
+                "total" => MediationContrast::Total,
+                "direct" => MediationContrast::Direct,
+                "mediated" => MediationContrast::Mediated,
+                "natural_direct" => MediationContrast::NaturalDirect,
+                "natural_indirect" => MediationContrast::NaturalIndirect,
+                _ => return Err(PyValueError::new_err("unknown static mediation contrast")),
+            };
+            let ms = crate::response_api::resolve_names(schema, mediators)?;
+            let mut q = MediationQuery::binary(t, y, Arc::from(ms), contrast);
+            q.control = Intervention::set(t, Value::f64(control));
+            q.active = Intervention::set(t, Value::f64(active));
+            Ok(CausalQuery::Mediation(q))
+        }
+        "counterfactual" => Ok(CausalQuery::Counterfactual(
+            antecedent_core::CounterfactualQuery::new(
+                y,
+                Arc::from([Intervention::set(t, Value::f64(active))]),
+            )
+            .with_control(Intervention::set(t, Value::f64(control))),
+        )),
+        _ => Err(PyValueError::new_err("unsupported static staged kind")),
+    }
+}
+
+fn hard_value(intervention: &Intervention) -> Option<f64> {
+    match intervention {
+        Intervention::Set { value, .. } => value.as_f64(),
+        _ => None,
+    }
 }

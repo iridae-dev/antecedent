@@ -735,6 +735,9 @@ impl super::Study {
         // draws. Prior anchors on the first successful prepare.
         let mut per_graph = Vec::new();
         let mut ws = BayesianGCompWorkspace::default();
+        let mut prepare_demoted = 0usize;
+        let mut fit_demoted = 0usize;
+        let mut draws_demoted = 0usize;
         for (key, estimand, identification, indexer) in fit_atoms {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
@@ -749,6 +752,7 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                prepare_demoted += 1;
                 continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
@@ -762,32 +766,31 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                fit_demoted += 1;
                 continue;
             };
-            match envelope_draws_from_posterior(key, &posterior) {
-                Ok(draws) => {
-                    atom_contexts.push((
-                        key,
-                        estimand.clone(),
-                        identification.clone(),
-                        indexer.clone(),
-                    ));
-                    per_graph.push(draws);
-                    atoms.push(EnvelopeAtomFit {
-                        key,
-                        prep: bprep,
-                        posterior,
-                        status: identification.status,
-                        weight: identified_weight_for_key(&identified.graphs, key),
-                        estimand,
-                        indexer: Some(indexer),
-                    });
+            if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+                atom_contexts.push((
+                    key,
+                    estimand.clone(),
+                    identification.clone(),
+                    indexer.clone(),
+                ));
+                per_graph.push(draws);
+                atoms.push(EnvelopeAtomFit {
+                    key,
+                    prep: bprep,
+                    posterior,
+                    status: identification.status,
+                    weight: identified_weight_for_key(&identified.graphs, key),
+                    estimand,
+                    indexer: Some(indexer),
+                });
+            } else {
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
                 }
-                Err(_) => {
-                    if let Some(idx) = keys.iter().position(|&k| k == key) {
-                        flags[idx] = GraphIdentFlag::Unidentified;
-                    }
-                }
+                draws_demoted += 1;
             }
         }
 
@@ -835,6 +838,12 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!("unidentified_mass={}", posterior.unidentified_mass),
+        ));
+        diagnostics.push(Diagnostic::new(
+            "estimate.dbn_posterior.atom_demotion",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted),
         ));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);

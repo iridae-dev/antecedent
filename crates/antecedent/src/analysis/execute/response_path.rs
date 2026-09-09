@@ -64,11 +64,11 @@ impl super::Study {
                 identification.required_assumptions.clone(),
             )
         } else {
-            ObservationMechanismEstimator::default().estimate_mean_curve(
+            ObservationMechanismEstimator::new(self.observation_options).estimate_mean_curve(
                 &response_estimator,
                 data,
                 query,
-                None,
+                self.observation_delayed_entry,
                 identification.status,
                 identification.required_assumptions.clone(),
             )

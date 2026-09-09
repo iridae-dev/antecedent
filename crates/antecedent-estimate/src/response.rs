@@ -819,14 +819,13 @@ impl ContinuousResponseEstimator {
                 "plug-in response Jacobian supports at most two treatments",
             ));
         }
+        let samples =
+            read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
-        let mut all_treatments = Vec::new();
-        for &outcome in outcomes {
-            let sample = CompleteSample::read(data, outcome, treatments, &self.adjustment_set)?;
-            if all_treatments.is_empty() {
-                all_treatments.clone_from(&sample.treatment_matrix);
-            }
-            let (level, gradient) = self.plugin_gradient(&sample, at)?;
+        let all_treatments =
+            samples.first().map(|sample| sample.treatment_matrix.clone()).unwrap_or_default();
+        for sample in &samples {
+            let (level, gradient) = self.plugin_gradient(sample, at)?;
             for (j, &raw) in gradient.iter().enumerate() {
                 values.push(transform_derivative(raw, at[j], level, scale)?);
             }
@@ -856,14 +855,13 @@ impl ContinuousResponseEstimator {
                 "plug-in directional derivative supports at most two treatments",
             ));
         }
+        let samples =
+            read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let mut values = Vec::with_capacity(outcomes.len());
-        let mut all_treatments = Vec::new();
-        for &outcome in outcomes {
-            let sample = CompleteSample::read(data, outcome, treatments, &self.adjustment_set)?;
-            if all_treatments.is_empty() {
-                all_treatments.clone_from(&sample.treatment_matrix);
-            }
-            let (_, gradient) = self.plugin_gradient(&sample, at)?;
+        let all_treatments =
+            samples.first().map(|sample| sample.treatment_matrix.clone()).unwrap_or_default();
+        for sample in &samples {
+            let (_, gradient) = self.plugin_gradient(sample, at)?;
             values.push(gradient.iter().zip(direction).map(|(a, b)| a * b).sum());
         }
         Ok((
@@ -937,11 +935,20 @@ impl ContinuousResponseEstimator {
                 }
                 let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
-                for &train_mean in &train_treatment_means {
-                    marginal_density +=
-                        gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
+                if treatment_fit.is_none() {
+                    // Every training mean is the same constant; the mixture is one Gaussian.
+                    marginal_density = gaussian_density(
+                        sample.treatment_matrix[i],
+                        constant_treatment_mean,
+                        sigma,
+                    );
+                } else {
+                    for &train_mean in &train_treatment_means {
+                        marginal_density +=
+                            gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
+                    }
+                    marginal_density /= train.len() as f64;
                 }
-                marginal_density /= train.len() as f64;
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
@@ -961,32 +968,25 @@ impl ContinuousResponseEstimator {
         let mut riesz_weights = vec![0.0; n];
         let mut gam_ws = GamWorkspace::default();
         let mut row = vec![0.0; sample.raw_cols];
-        let mut plus = vec![0.0; sample.raw_cols];
-        let mut minus = vec![0.0; sample.raw_cols];
         let mut adj_row = vec![0.0; sample.adjustment_cols];
-        let treatment_range = range(&sample.treatments).1 - range(&sample.treatments).0;
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
             let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             let treatment_mean_constant = sample.train_treatment_mean(&train);
+            let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+            })?;
             for i in (0..n).filter(|i| i % self.options.folds == fold) {
                 sample.write_raw_row(i, &mut row);
                 let mu = predict_one(&outcome_fit, &row)?;
-                let step = finite_difference_step(sample.treatments[i], treatment_range);
-                plus.copy_from_slice(&row);
-                minus.copy_from_slice(&row);
-                plus[0] += step;
-                minus[0] -= step;
-                let gap = plus[0] - minus[0];
-                if !gap.is_finite() || gap <= 0.0 {
-                    return Err(EstimationError::unsupported(
-                        "finite-difference step collapsed under floating-point precision",
-                    ));
-                }
+                // Additive μ(a, x) = α + f_T(a) + Σ g_k(x_k), so ∂μ/∂a = f_T'(a)
+                // and is identical for every covariate row. The clamped evaluation
+                // is constant outside the knot interior; the analytic derivative
+                // is therefore exactly 0 there (`response.clamped_basis_derivative`).
                 let derivative =
-                    (predict_one(&outcome_fit, &plus)? - predict_one(&outcome_fit, &minus)?) / gap;
+                    outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
                 let treatment_mean = match treatment_fit.as_ref() {
                     Some(fit) => {
                         sample.write_adjustment_row(i, &mut adj_row);
@@ -1010,33 +1010,32 @@ impl ContinuousResponseEstimator {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let mut gam_ws = GamWorkspace::default();
         let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
-        let mut base_sum = 0.0;
-        let mut gradient = vec![0.0; at.len()];
-        let mut row = vec![0.0; sample.raw_cols];
-        let mut plus = vec![0.0; sample.raw_cols];
-        let mut minus = vec![0.0; sample.raw_cols];
+        let mut treat_smooths = Vec::with_capacity(at.len());
+        for j in 0..at.len() {
+            treat_smooths.push(fit.smooth_for_raw_col(j).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing a treatment smooth")
+            })?);
+        }
+        // Empirical μ̂(at) = α + Σ_j f_j(at[j]) + mean_i Σ_k g_k(X_i[k]).
+        // The covariate offset is recovered from the in-sample fitted values
+        // so we do not re-evaluate every adjustment smooth.
+        let n = sample.len() as f64;
+        let mut observed_treat_partial = 0.0;
         for i in 0..sample.len() {
-            sample.write_raw_row(i, &mut row);
-            row[..at.len()].copy_from_slice(at);
-            base_sum += predict_one(&fit, &row)?;
-            for j in 0..at.len() {
-                let range_j = sample.treatment_column_range(j);
-                let step = finite_difference_step(at[j], range_j.1 - range_j.0);
-                plus.copy_from_slice(&row);
-                minus.copy_from_slice(&row);
-                plus[j] += step;
-                minus[j] -= step;
-                let gap = plus[j] - minus[j];
-                if !gap.is_finite() || gap <= 0.0 {
-                    return Err(EstimationError::unsupported(
-                        "finite-difference step collapsed under floating-point precision",
-                    ));
-                }
-                gradient[j] += (predict_one(&fit, &plus)? - predict_one(&fit, &minus)?) / gap;
+            for (j, &smooth) in treat_smooths.iter().enumerate() {
+                let a_ij = sample.treatment_matrix[j * sample.len() + i];
+                observed_treat_partial += fit.smooth_partial(smooth, a_ij)?;
             }
         }
-        let n = sample.len() as f64;
-        Ok((base_sum / n, gradient.into_iter().map(|v| v / n).collect()))
+        let fitted_mean = fit.fitted.iter().sum::<f64>() / n;
+        let covariate_offset = fitted_mean - fit.intercept - observed_treat_partial / n;
+        let mut treat_level = 0.0;
+        let mut gradient = Vec::with_capacity(at.len());
+        for (j, &smooth) in treat_smooths.iter().enumerate() {
+            treat_level += fit.smooth_partial(smooth, at[j])?;
+            gradient.push(fit.smooth_derivative(smooth, at[j])?);
+        }
+        Ok((fit.intercept + treat_level + covariate_offset, gradient))
     }
 
     fn fit_outcome(
@@ -1136,6 +1135,26 @@ struct CompleteSample {
     treatment_cols: usize,
     adjustment_cols: usize,
     raw_cols: usize,
+}
+
+fn read_shared_complete_samples(
+    data: &TabularData,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    adjustment: &[VariableId],
+) -> Result<Vec<CompleteSample>, EstimationError> {
+    let mut samples = Vec::with_capacity(outcomes.len());
+    for &outcome in outcomes {
+        samples.push(CompleteSample::read(data, outcome, treatments, adjustment)?);
+    }
+    if let Some(first) = samples.first() {
+        if samples.iter().any(|sample| sample.keep != first.keep) {
+            return Err(EstimationError::unsupported(
+                "plug-in Jacobian and directional derivatives require a shared complete-case row set across outcomes",
+            ));
+        }
+    }
+    Ok(samples)
 }
 
 impl CompleteSample {
@@ -1961,8 +1980,8 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
             )];
             if outside {
                 // The cubic B-spline basis is clamped at its boundary knots, so the
-                // fitted surface is constant outside the fitted range and its finite
-                // difference is identically zero there. That zero is a property of the
+                // fitted surface is constant outside the fitted range and its plug-in
+                // derivative is identically zero there. That zero is a property of the
                 // basis, not evidence of a flat response, and must not be read as one.
                 warnings.push(Diagnostic::new(
                     "response.clamped_basis_derivative",
@@ -1974,16 +1993,6 @@ fn multivariate_support(at: &[f64], treatment_matrix: &[f64], dimensions: usize)
             warnings
         },
     }
-}
-
-/// Finite-difference step that stays above floating-point ulp at `|at|`.
-///
-/// A step of only `range · 1e-4` (floored at 1e-7) collapses when `|at|` is huge relative to
-/// the observed range: `at ± step` rounds to `at`, the central difference is exactly zero, and
-/// a slope of 2 can be reported as 0 with a normal-looking SE.
-fn finite_difference_step(at: f64, treatment_range: f64) -> f64 {
-    let scale = at.abs().max(treatment_range.abs()).max(1.0);
-    (treatment_range.abs() * 1e-4).max(scale * 1e-8).max(1e-7)
 }
 
 #[cfg(test)]
@@ -2597,6 +2606,52 @@ mod tests {
             panic!("expected scalar");
         };
         assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+            "log-scale elasticity must say why the interval is withheld"
+        );
+    }
+
+    #[test]
+    fn elasticity_refuses_nonpositive_fitted_response() {
+        assert!(
+            transform_derivative(1.0, 2.0, 0.0, DerivativeScale::LogLog)
+                .unwrap_err()
+                .to_string()
+                .contains("positive fitted response")
+        );
+        let n: usize = 80;
+        let a: Vec<f64> = (0..n).map(|i| -0.4 + i as f64 * 0.01).collect();
+        let y: Vec<f64> = a.iter().map(|av| -4.0 - 2.0 * av).collect();
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(1),
+            treatment: VariableId::from_raw(0),
+            at: 0.2,
+            order: 1,
+            scale: DerivativeScale::LogLog,
+        });
+        let mut estimator = ContinuousResponseEstimator::new([VariableId::from_raw(2)]);
+        estimator.options.bandwidth = Some(0.35);
+        let error = estimator
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("positive fitted response"), "got {error}");
     }
 
     #[test]
@@ -2689,18 +2744,6 @@ mod tests {
     }
 
     #[test]
-    fn finite_difference_step_scales_with_absolute_level() {
-        // At |A|=1e12 with a tiny observed range, the old range·1e-4 floor of 1e-7 is
-        // smaller than a ulp and collapses at±step to at.
-        let step = finite_difference_step(1e12, 1.0);
-        assert!(step > 1e-7);
-        let plus = 1e12 + step;
-        let minus = 1e12 - step;
-        assert!((plus - minus).abs() > 0.0);
-        assert!(plus > minus);
-    }
-
-    #[test]
     fn second_derivative_uses_chain_rule_on_log_log_scale() {
         // m(a)=a² at a=2: d² log(m)/d(log(a))² = 0.
         let value =
@@ -2758,5 +2801,82 @@ mod tests {
         }
         assert_eq!(response.support.status, SupportStatus::Extrapolative);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.gam_derivative");
+    }
+
+    #[test]
+    fn plugin_jacobian_refuses_mismatched_complete_cases() {
+        let n: usize = 80;
+        let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let b: Vec<f64> = (0..n).map(|i| 1.0 - i as f64 / n as f64).collect();
+        let y1: Vec<f64> = a.iter().zip(&b).map(|(av, bv)| 1.0 + 2.0 * av - 0.5 * bv).collect();
+        let mut y2 = y1.iter().map(|v| -1.0 + 0.25 * v).collect::<Vec<_>>();
+        for value in y2.iter_mut().skip(n - 25) {
+            *value = f64::NAN;
+        }
+        let x: Vec<f64> = a.clone();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("y1", y1.as_slice()),
+            ("y2", y2.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([0.5, 0.5]),
+            scale: DerivativeScale::Identity,
+        });
+        let error = ContinuousResponseEstimator::new([VariableId::from_raw(4)])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("shared complete-case"), "got {error}");
+    }
+
+    #[test]
+    fn plugin_jacobian_warns_when_clamped_outside_support() {
+        let n: usize = 120;
+        let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let b: Vec<f64> = a.clone();
+        let y1: Vec<f64> = a.iter().map(|av| 1.0 + 2.0 * av).collect();
+        let y2: Vec<f64> = a.iter().map(|av| -1.0 + 0.25 * av).collect();
+        let x: Vec<f64> = a.clone();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("y1", y1.as_slice()),
+            ("y2", y2.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([8.0, 8.0]),
+            scale: DerivativeScale::Identity,
+        });
+        let response = ContinuousResponseEstimator::new([VariableId::from_raw(4)])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert_eq!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.clamped_basis_derivative"),
+            "outside-support Jacobian must emit the clamped-basis warning"
+        );
     }
 }

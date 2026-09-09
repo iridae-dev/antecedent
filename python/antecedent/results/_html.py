@@ -24,7 +24,7 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING, Any
 
-from ._format import fmt_float, fmt_pct
+from ._format import fmt_float, fmt_pct, fmt_se
 
 if TYPE_CHECKING:
     from ._views import AnalysisResult, PosteriorView, ValidationView
@@ -157,6 +157,19 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         else result.estimate.se_analytic
     )
     se_kind = "bootstrap" if result.estimate.se_bootstrap is not None else "analytic"
+    se_text = fmt_se(se)
+    if result.unit_effects is not None:
+        label = "Mean ITE"
+        if se_text is None:
+            value = _esc(fmt_float(result.effect))
+        else:
+            value = f"{_esc(fmt_float(result.effect))} ± {_esc(se_text)} ({_esc(se_kind)})"
+    elif se_text is None:
+        label = "Effect"
+        value = f'{_esc(fmt_float(result.effect))} <span class="antecedent-ar-sub">se unavailable</span>'
+    else:
+        label = "Effect"
+        value = f"{_esc(fmt_float(result.effect))} ± {_esc(se_text)} ({_esc(se_kind)})"
 
     mass = result.posterior.unidentified_mass if result.posterior is not None else None
     callout = _unidentified_callout_html(mass)
@@ -171,9 +184,9 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         f"</div>"
         f"{callout}"
         f'<div class="antecedent-ar-row">'
-        f'<span class="antecedent-ar-label">Effect</span>'
+        f'<span class="antecedent-ar-label">{label}</span>'
         f'<span class="antecedent-ar-value">'
-        f"{_esc(fmt_float(result.effect))} ± {_esc(fmt_float(se))} ({_esc(se_kind)})"
+        f"{value}"
         f"</span>"
         f'<span class="antecedent-ar-sub">estimator: {_esc(result.estimate.estimator_id)}</span>'
         f"</div>"

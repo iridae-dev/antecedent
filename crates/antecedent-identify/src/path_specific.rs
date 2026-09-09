@@ -64,16 +64,35 @@ impl PathSpecificIdentifier {
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let CausalQuery::PathSpecific(q) = query else {
-            return Err(IdentificationError::unsupported(
-                "PathSpecificIdentifier supports PathSpecific queries only",
-            ));
+        let mediation_path;
+        let q = match query {
+            CausalQuery::PathSpecific(q) => q,
+            CausalQuery::Mediation(m) => {
+                m.validate()
+                    .map_err(|_| IdentificationError::unsupported("invalid mediation query"))?;
+                mediation_path = PathSpecificEffectQuery {
+                    treatment: m.treatment,
+                    outcome: m.outcome,
+                    path_nodes: Arc::clone(&m.mediators),
+                    control: m.control.clone(),
+                    active: m.active.clone(),
+                    target_population: m.target_population.clone(),
+                    ..PathSpecificEffectQuery::binary(m.treatment, m.outcome)
+                };
+                &mediation_path
+            }
+            _ => {
+                return Err(IdentificationError::unsupported(
+                    "PathSpecificIdentifier requires path-specific or static mediation query",
+                ));
+            }
         };
         q.validate()
             .map_err(|_| IdentificationError::unsupported("invalid path-specific query"))?;
         self.identify_path_specific(prepared, q, query.clone(), workspace)
     }
 
+    #[allow(clippy::too_many_lines)]
     fn identify_path_specific(
         &self,
         prepared: &PreparedAdmg,
@@ -123,7 +142,25 @@ impl PathSpecificIdentifier {
         // same budgeted search, and the two sets must partition the *same* path set for the
         // recanting check below to mean anything.
         let (pi, complement_paths): (Vec<Vec<DenseNodeId>>, Vec<Vec<DenseNodeId>>) =
-            raw_paths.into_iter().partition(|path| path_matches_filter(path, &path_filter));
+            raw_paths.into_iter().partition(|path| {
+                if let CausalQuery::Mediation(m) = &query {
+                    use antecedent_core::MediationContrast;
+                    let mediated = path
+                        .iter()
+                        .skip(1)
+                        .take(path.len().saturating_sub(2))
+                        .any(|node| path_filter.contains(node));
+                    match m.contrast {
+                        MediationContrast::Total => true,
+                        MediationContrast::Direct | MediationContrast::NaturalDirect => !mediated,
+                        MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
+                            mediated
+                        }
+                    }
+                } else {
+                    path_matches_filter(path, &path_filter)
+                }
+            });
         if pi.is_empty() {
             derivation.push("path_specific.empty", "no directed paths match path_nodes filter");
             return Ok(IdentificationResult::not_identified(

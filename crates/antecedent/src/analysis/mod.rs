@@ -28,3 +28,5 @@ pub use latency::{
 };
 pub use prepared::PreparedStudy;
 pub use stage::{StageEvent, StageResultSink};
+
+pub(crate) use execute::parametric_scm_identification;

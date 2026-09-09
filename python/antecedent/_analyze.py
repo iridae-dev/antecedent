@@ -178,7 +178,7 @@ def _staged_prepared_result(
     validators: Sequence[Any] | None = None,
     latency: Latency | None = None,
 ) -> Any:
-    """Run a licensed 1.2 cell through prepare → estimate, not a Frequentist sidecar."""
+    """Run a licensed staged cell through prepare → estimate, not a Frequentist sidecar."""
     if validators is not None:
         raise CausalUnsupportedError("this staged query path does not support validators")
     from .accepted_graph import AcceptedGraph
@@ -379,8 +379,9 @@ def handle_response(
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
         if not isinstance(query, (ResponseCurve, InterventionResponse)):
-            raise TypeError(
-                "derivative and jacobian response queries do not yet support inference=Bayesian(...)"
+            raise CausalUnsupportedError(
+                "refused: Licensed derivative cells are Frequentist explicit or accepted "
+                "Dag at validation none; Bayesian derivatives remain 1.7 work."
             )
         if bootstrap_requested:
             raise CausalUnsupportedError(
@@ -696,6 +697,7 @@ def handle_response(
             query.treatment,
             query.outcome,
             list(query.grid),
+            accepted=structure_accepted,
             **observation_kwargs,
         )
     elif isinstance(graph, Pag):
@@ -838,8 +840,13 @@ def handle_mediation(
     bootstrap: int | None,
     threads: int,
 ) -> Any:
-    del data, query, graph, discovery, refute, seed, bootstrap, threads
-    raise CausalUnsupportedError("refused: MediationEffect is not on the staged handle.")
+    del data, query, graph, refute, seed, bootstrap, threads
+    if discovery is not None:
+        raise CausalUnsupportedError(
+            "refused: Static natural mediation is Frequentist; a Bayesian mediation "
+            "estimator is 1.7 work."
+        )
+    raise CausalUnsupportedError("refused: MediationEffect requires a supplied static Dag.")
 
 
 def handle_counterfactual(
@@ -851,8 +858,13 @@ def handle_counterfactual(
     seed: int,
     threads: int,
 ) -> Any:
-    del data, query, graph, discovery, seed, threads
-    raise CausalUnsupportedError("refused: Counterfactual is not on the staged handle.")
+    del data, query, graph, seed, threads
+    if discovery is not None:
+        raise CausalUnsupportedError(
+            "refused: Staged counterfactuals require an explicit Dag; accepted and "
+            "graph-posterior structures are refused."
+        )
+    raise CausalUnsupportedError("refused: Counterfactual requires a supplied static Dag.")
 
 
 def handle_distribution(
@@ -2069,10 +2081,11 @@ def analyze(
             )
 
     kind = getattr(query, "kind", "")
-    # New 1.2 coordinates share the staged Rust execution path, including the
+    # 1.2/1.3 coordinates share the staged Rust execution path, including the
     # frozen structure axis, validation reports and posterior serialization.
     use_prepared = (
-        kind in {"path_specific", "distribution", "temporal_mediation"}
+        kind
+        in {"path_specific", "distribution", "temporal_mediation", "mediation", "counterfactual"}
         or (
             isinstance(inference, Bayesian)
             and kind in {"conditional", "response_curve", "intervention_response"}
@@ -2083,6 +2096,8 @@ def analyze(
         assert isinstance(
             query,
             (
+                MediationEffect,
+                Counterfactual,
                 ConditionalEffect,
                 TemporalMediationEffect,
                 PathSpecificEffect,
@@ -2118,11 +2133,13 @@ def analyze(
             )
         suite = (
             "none"
-            if is_response and not refute_requested
+            if (is_response or kind == "counterfactual") and not refute_requested
             else "cheap"
             if resolved_refute is True
             else resolved_refute
         )
+        if kind == "counterfactual" and bootstrap_requested and bootstrap:
+            raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
         prepared = PreparedAnalysis.prepare(
             data,
             query=query,
@@ -2132,7 +2149,7 @@ def analyze(
             estimator=estimator,
             refute=suite,
             seed=seed,
-            bootstrap=bootstrap,
+            bootstrap=0 if kind == "counterfactual" else bootstrap,
             threads=threads,
             latency=latency,
         )
