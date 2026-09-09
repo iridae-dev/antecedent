@@ -729,6 +729,579 @@ limitations = "Accepted PAG shares the conjugate envelope-mean pin. Full adds mi
 
 [[cell]]
 query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares execute_cpdag and the same frozen two-completion mass-weighted ATE pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The fixture pins the deterministic 64-draw conjugate envelope mean and zero unidentified mass on fresh and prepared paths. Completions are Cpdag-envelope atoms, not relabeled Dag posteriors. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters on the envelope mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares execute_pag_bayesian over Dag completions and the deterministic conjugate envelope-mean/zero-unidentified-mass pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters on the envelope mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment MEC envelope as the CPDAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Cpdag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Cpdag uses the same mass-weighted Kennedy-DR envelope as explicit Cpdag. The two-point contrast is pinned against the CPDAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Pag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Pag uses the same mass-weighted Kennedy-DR envelope as explicit Pag. The two-point contrast is pinned against the PAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same MEC envelope as the CPDAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Cpdag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Cpdag uses the same mass-weighted intervention g-computation envelope as explicit Cpdag. The do(T=1) − do(T=0) contrast is pinned against the CPDAG ATE cell."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Pag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Pag uses the same mass-weighted intervention g-computation envelope as explicit Pag. The do(T=1) − do(T=0) contrast is pinned against the PAG ATE cell."
+
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment MEC envelope as the CPDAG ATE cell, evaluated pointwise with response.bayesian. Per-completion posterior draws are not mixed; the curve is the identified-mass mean and uncertainty is omitted (estimate.envelope.response_posterior_not_mixed). The two-point contrast is pinned against the CPDAG Bayesian ATE fixture. Runtime class stays Cpdag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. cheap/full are n/a. This is not MAG/PAG response ID."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Cpdag uses the same mass-weighted response.bayesian envelope as explicit Cpdag. The two-point contrast is pinned against the CPDAG Bayesian ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, evaluated pointwise with response.bayesian. Per-completion posterior draws are not mixed; the curve is the identified-mass mean and uncertainty is omitted (estimate.envelope.response_posterior_not_mixed). The two-point contrast is pinned against the PAG Bayesian ATE fixture. Runtime class stays Pag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. cheap/full are n/a. This is not MAG/PAG response ID."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Pag uses the same mass-weighted response.bayesian envelope as explicit Pag. The two-point contrast is pinned against the PAG Bayesian ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same MEC envelope as the CPDAG ATE cell, estimated with response.bayesian per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the CPDAG Bayesian ATE fixture. Per-completion posterior draws are not mixed (estimate.envelope.response_posterior_not_mixed). Runtime class stays Cpdag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. cheap/full are n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Cpdag uses the same mass-weighted response.bayesian envelope as explicit Cpdag. The do(T=1) − do(T=0) contrast is pinned against the CPDAG Bayesian ATE cell."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, estimated with response.bayesian per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the PAG Bayesian ATE fixture. Per-completion posterior draws are not mixed (estimate.envelope.response_posterior_not_mixed). Runtime class stays Pag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. cheap/full are n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/class_aware_envelope"
+limitations = "Accepted Pag uses the same mass-weighted response.bayesian envelope as explicit Pag. The do(T=1) − do(T=0) contrast is pinned against the PAG Bayesian ATE cell."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Incomplete TemporalCpdag stays TemporalCpdag. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. A fully oriented TemporalCpdag is the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian remains refused."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag uses the same mass-weighted temporal-backdoor envelope as explicit. Prepared clicks reuse the frozen envelope."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Cheap suite runs on the mass-weighted pulse; OverlapRefuter is NotApplicable on a temporal-unfolded design. The fixture pins the pulse, not the E-value."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point, not the refuter numbers."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit envelope estimator."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag full suite shares the explicit envelope estimator."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Incomplete TemporalPag stays TemporalPag. Circle marks complete to TemporalDag members; each is identified with temporal.backdoor.unfolded and mass-weighted. A fully directed TemporalPag is the TemporalDag coordinate. Bidirected marks fail at the sampler. Prepared clicks reuse the frozen envelope. Bayesian remains refused."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Cheap suite runs on the mass-weighted pulse. The fixture pins the pulse, not the E-value."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Single-step Sustained only. Same TemporalCpdag envelope as Pulse. Multi-step Sustained stays TemporalDag. Prepared clicks reuse the frozen envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag single-step Sustained shares the explicit Pulse envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Cheap suite on the mass-weighted single-step Sustained. Multi-step remains TemporalDag-only."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Full suite on the mass-weighted single-step Sustained."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag cheap single-step Sustained shares the explicit envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalCpdag full single-step Sustained shares the explicit envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Single-step Sustained only. Same TemporalPag envelope as Pulse. Multi-step Sustained stays TemporalDag."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Cheap suite on the mass-weighted single-step Sustained."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Full suite on the mass-weighted single-step Sustained."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_class_envelope"
+limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope."
+
+[[cell]]
+query = "AverageEffect"
 graph_class = "Admg"
 structure = "explicit"
 inference = "Frequentist"
@@ -792,6 +1365,45 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 limitations = "Accepted ADMG shares the frozen FunctionalEffect ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian remains refused."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
+limitations = "Same known-truth DGP as the Bayesian mixture: E[tau | identified]=2.625 from identified atom effects 3 and 2 at weights 0.5 and 0.3. The Frequentist aggregator is mass-weighted linear.adjustment.ate; a valid reverse-causal atom's 0.2 weight remains unidentified and the public status is GraphDependent. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Cheap runs the ATE-shaped overlap/E-value suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
+evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Full runs the ATE-shaped refuter suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -1033,6 +1645,271 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC."
+
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier is always in the outcome model, so completions that disagree on whether Z is a confounder still estimate the Z-conditional effect at Ē[Z] (0.40 on the ATE fixture), not the ATE envelope mean. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. The pin is the Z-conditional effect at Ē[Z] on the ATE fixture, not the ATE envelope mean. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
 
 [[cell]]
 query = "TemporalMediationEffect"
