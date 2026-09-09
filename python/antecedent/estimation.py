@@ -55,7 +55,7 @@ from .errors import (
     PendingEdge,
     build_review_error,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalDag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -128,6 +128,7 @@ def _plan_from_raw(raw: Any) -> PlanView:
         plan_id=str(getattr(raw, "plan_id", "") or ""),
         modality=getattr(raw, "modality", None),
         discovery_algorithm=getattr(raw, "discovery_algorithm", None),
+        structure_source=getattr(raw, "structure_source", None),
         graph_review_required=bool(getattr(raw, "graph_review_required", False)),
         identifier=getattr(raw, "plan_identifier", None),
         estimator=getattr(raw, "plan_estimator", None)
@@ -819,7 +820,12 @@ def _wrap_prepared_response(
         else None
     )
     temporal = bool(getattr(query, "is_temporal", False))
-    if temporal:
+    identifier = getattr(raw, "identifier", None)
+    if identifier == "generalized.adjustment":
+        method = "generalized.adjustment"
+        identify_op = "identify.generalized_adjustment"
+        validation = None
+    elif temporal:
         method = "temporal.backdoor.unfolded"
         identify_op = "identify.temporal_backdoor"
         validation: ResponseValidationView | None = ResponseValidationView(
@@ -883,6 +889,7 @@ def _wrap_prepared_response(
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
+        diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
     )
 
 
@@ -1098,27 +1105,36 @@ class PreparedAnalysis:
                 inference_mode, temporal_bayes_kw = _prepared_bayesian_args(inference)
             else:
                 inference_mode = "frequentist"
-            lagged = _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
-            native = _NativePreparedAnalysis.prepare_temporal_effect(
-                names,
-                columns,
-                lagged,
-                query.treatment,
-                query.outcome,
-                policy=query.kind,
-                window=getattr(query, "window", None),
-                treatment_lag=query.treatment_lag,
-                horizon_steps=query.horizon_steps,
-                active_level=query.active_level,
-                inference=inference_mode,
-                n_draws=int(temporal_bayes_kw.get("n_draws", 1000)),
-                prior_scale=float(temporal_bayes_kw.get("prior_scale", 10.0)),
-                refute=refute,
-                seed=seed,
-                bootstrap=bootstrap if bootstrap is not None else 0,
-                threads=threads,
-                accepted=structure_accepted,
-            )
+            temporal_kwargs = {
+                "policy": query.kind,
+                "window": getattr(query, "window", None),
+                "treatment_lag": query.treatment_lag,
+                "horizon_steps": query.horizon_steps,
+                "active_level": query.active_level,
+                "inference": inference_mode,
+                "n_draws": int(temporal_bayes_kw.get("n_draws", 1000)),
+                "prior_scale": float(temporal_bayes_kw.get("prior_scale", 10.0)),
+                "refute": refute,
+                "seed": seed,
+                "bootstrap": bootstrap if bootstrap is not None else 0,
+                "threads": threads,
+                "accepted": structure_accepted,
+            }
+            if isinstance(graph, TemporalCpdag):
+                native = _NativePreparedAnalysis.prepare_temporal_cpdag_effect(
+                    names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
+                )
+            elif isinstance(graph, TemporalPag):
+                native = _NativePreparedAnalysis.prepare_temporal_pag_effect(
+                    names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
+                )
+            else:
+                lagged = _lagged_edges(
+                    cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph)
+                )
+                native = _NativePreparedAnalysis.prepare_temporal_effect(
+                    names, columns, lagged, query.treatment, query.outcome, **temporal_kwargs
+                )
             return cls(native, kind="average", query=query)
         if isinstance(query, TemporalMediationEffect):
             if identifier is not None or estimator is not None:
@@ -1204,6 +1220,36 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
             )
             return cls(native, kind="average", query=query)
+        if isinstance(query, AverageEffect) and isinstance(graph, Cpdag):
+            inference = inference or Frequentist()
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            cpdag_bayes_kw: dict[str, Any] = {}
+            if isinstance(inference, Bayesian):
+                inference_mode, cpdag_bayes_kw = _prepared_bayesian_args(inference)
+            else:
+                inference_mode = "frequentist"
+            native = _NativePreparedAnalysis.prepare_cpdag(
+                names,
+                columns,
+                graph,
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                identifier=identifier,
+                estimator=estimator,
+                inference=inference_mode,
+                n_draws=int(cpdag_bayes_kw.get("n_draws", 1000)),
+                prior_scale=float(cpdag_bayes_kw.get("prior_scale", 10.0)),
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, Admg):
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
@@ -1234,6 +1280,39 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
             )
             return cls(native, kind="average", query=query)
+        if isinstance(query, (ResponseCurve, InterventionResponse)) and isinstance(
+            graph, (Pag, Cpdag)
+        ):
+            return cls._prepare_class_response(
+                names,
+                columns,
+                graph,
+                query,
+                inference=inference,
+                identifier=identifier,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                structure_accepted=structure_accepted,
+            )
+        if isinstance(query, ConditionalEffect) and isinstance(graph, (Pag, Cpdag)):
+            return cls._prepare_class_conditional(
+                names,
+                columns,
+                graph,
+                query,
+                inference=inference,
+                identifier=identifier,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                latency=latency,
+                structure_accepted=structure_accepted,
+            )
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             if inference is not None and not isinstance(inference, Frequentist):
@@ -1646,13 +1725,28 @@ class PreparedAnalysis:
         threads: int,
         latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     ) -> PreparedAnalysis:
-        if not isinstance(inference, Bayesian):
+        is_freq_gp_ate = (
+            isinstance(inference, Frequentist)
+            and isinstance(discovery, (ExactDagPosterior, GraphPosterior))
+            and isinstance(query, AverageEffect)
+        )
+        if isinstance(inference, Frequentist) and not is_freq_gp_ate:
             raise CausalTypeError(
-                "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...)"
+                "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
+                "except AverageEffect × graph_posterior"
+            )
+        if not isinstance(inference, (Bayesian, Frequentist)):
+            raise CausalTypeError(
+                "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
+                "or Frequentist() for AverageEffect × graph_posterior"
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
-        inference_mode, bayes_kw = _prepared_bayesian_args(inference)
+        if isinstance(inference, Bayesian):
+            inference_mode, bayes_kw = _prepared_bayesian_args(inference)
+        else:
+            inference_mode = "frequentist"
+            bayes_kw = {}
         n_draws = int(bayes_kw.get("n_draws", 1000))
         prior_scale = float(bayes_kw.get("prior_scale", 10.0))
         if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
@@ -1726,6 +1820,201 @@ class PreparedAnalysis:
             "or GraphPosterior (AverageEffect) and DbnPosterior or GraphPosterior "
             "(PulseEffect / SustainedEffect)"
         )
+
+    @classmethod
+    def _prepare_class_response(
+        cls,
+        names: list[str],
+        columns: Any,
+        graph: Pag | Cpdag,
+        query: ResponseCurve | InterventionResponse,
+        *,
+        inference: Frequentist | Bayesian | None,
+        identifier: str | None,
+        estimator: str | None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
+        seed: int,
+        threads: int,
+        latency: Latency | None,
+        structure_accepted: bool,
+    ) -> PreparedAnalysis:
+        if getattr(query, "is_temporal", False):
+            raise CausalUnsupportedError(
+                "temporal response requires a TemporalDag; Cpdag/Pag response is static"
+            )
+        if identifier not in (None, "generalized.adjustment"):
+            raise CausalUnsupportedError(
+                "Cpdag/Pag response requires identifier='generalized.adjustment'"
+            )
+        if isinstance(inference, Bayesian):
+            expected_estimator = "response.bayesian"
+        elif isinstance(query, ResponseCurve):
+            expected_estimator = "response.kennedy_dr"
+        else:
+            expected_estimator = "response.intervention_gcomp"
+        if estimator not in (None, expected_estimator):
+            raise CausalUnsupportedError(
+                f"Cpdag/Pag response requires estimator={expected_estimator!r}; "
+                f"got {estimator!r}"
+            )
+        if refute not in (False, "none", Refute.NONE):
+            raise CausalUnsupportedError(
+                "not_applicable: response curves require refute='none'"
+            )
+        observation = getattr(query, "observation", None)
+        if observation is not None:
+            from .observation import Complete
+
+            if not isinstance(observation, Complete):
+                raise CausalUnsupportedError(
+                    "observation-aware PAG/CPDAG response envelopes are not yet composed"
+                )
+        kind = query.kind
+        if isinstance(query, ResponseCurve):
+            treatments = [query.treatment]
+            outcomes = [query.outcome]
+            native_fn = (
+                _NativePreparedAnalysis.prepare_pag_response
+                if isinstance(graph, Pag)
+                else _NativePreparedAnalysis.prepare_cpdag_response
+            )
+            native = native_fn(
+                names,
+                columns,
+                graph,
+                kind,
+                treatments,
+                outcomes,
+                grid=list(query.grid),
+                identifier=identifier,
+                estimator=estimator,
+                **_prepared_inference_kwargs(inference),
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                accepted=structure_accepted,
+            )
+            return cls(native, kind="response_curve", query=query)
+        from . import intervention as intervention_specs
+
+        supplied = query.intervention
+        interventions = (
+            list(supplied)
+            if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+            else [supplied]
+        )
+        if not interventions:
+            raise CausalValueError("InterventionResponse requires at least one intervention")
+        treatments = []
+        intervention_kinds: list[str] = []
+        intervention_parameters: list[list[float]] = []
+        for spec in interventions:
+            if isinstance(spec, intervention_specs.Set):
+                kind_name, parameters = "set", [spec.value]
+            elif isinstance(spec, intervention_specs.Shift):
+                kind_name, parameters = "shift", [spec.delta]
+            elif isinstance(spec, intervention_specs.Bernoulli):
+                kind_name, parameters = "bernoulli", [spec.p]
+            elif isinstance(spec, intervention_specs.Gaussian):
+                kind_name, parameters = "gaussian", [spec.mean, spec.variance]
+            elif isinstance(spec, intervention_specs.Categorical):
+                kind_name, parameters = "categorical", list(spec.probabilities)
+            elif isinstance(spec, (intervention_specs.Soft, intervention_specs.Sequence)):
+                raise CausalUnsupportedError(
+                    f"{type(spec).__name__} interventions require a structural/temporal "
+                    "model and are not estimable by response.intervention_gcomp"
+                )
+            else:
+                raise TypeError(
+                    "InterventionResponse.intervention must be an antecedent.intervention "
+                    "specification or a sequence of specifications"
+                )
+            treatments.append(spec.variable)
+            intervention_kinds.append(kind_name)
+            intervention_parameters.append(parameters)
+        native_fn = (
+            _NativePreparedAnalysis.prepare_pag_response
+            if isinstance(graph, Pag)
+            else _NativePreparedAnalysis.prepare_cpdag_response
+        )
+        native = native_fn(
+            names,
+            columns,
+            graph,
+            "intervention_response",
+            treatments,
+            [query.outcome],
+            intervention_kinds=intervention_kinds,
+            intervention_parameters=intervention_parameters,
+            identifier=identifier,
+            estimator=estimator,
+            **_prepared_inference_kwargs(inference),
+            seed=seed,
+            threads=threads,
+            latency=latency,
+            accepted=structure_accepted,
+        )
+        return cls(native, kind="intervention_response", query=query)
+
+    @classmethod
+    def _prepare_class_conditional(
+        cls,
+        names: list[str],
+        columns: Any,
+        graph: Pag | Cpdag,
+        query: ConditionalEffect,
+        *,
+        inference: Frequentist | Bayesian | None,
+        identifier: str | None,
+        estimator: str | None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
+        seed: int,
+        bootstrap: int | None,
+        threads: int,
+        latency: Latency | None,
+        structure_accepted: bool,
+    ) -> PreparedAnalysis:
+        if identifier not in (None, "generalized.adjustment"):
+            raise CausalUnsupportedError(
+                "Cpdag/Pag ConditionalEffect requires identifier='generalized.adjustment'"
+            )
+        expected_estimator = (
+            "conditional.bayesian"
+            if isinstance(inference, Bayesian)
+            else "conditional.linear.adjustment"
+        )
+        if estimator not in (None, expected_estimator):
+            raise CausalUnsupportedError(
+                f"Cpdag/Pag ConditionalEffect requires estimator={expected_estimator!r}; "
+                f"got {estimator!r}"
+            )
+        refute = coerce_refute(refute)  # type: ignore[assignment]
+        bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+        native_fn = (
+            _NativePreparedAnalysis.prepare_pag_conditional
+            if isinstance(graph, Pag)
+            else _NativePreparedAnalysis.prepare_cpdag_conditional
+        )
+        native = native_fn(
+            names,
+            columns,
+            graph,
+            query.treatment,
+            query.outcome,
+            query.modifier,
+            control_level=query.control_level,
+            active_level=query.active_level,
+            identifier=identifier,
+            estimator=estimator,
+            refute=refute,
+            **_prepared_inference_kwargs(inference),
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            latency=latency,
+            accepted=structure_accepted,
+        )
+        return cls(native, kind="average", query=query)
 
     @classmethod
     def _prepare_temporal(

@@ -7,6 +7,7 @@
 )]
 
 use crate::*;
+use antecedent::StudyBuilder;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -131,6 +132,8 @@ pub(crate) struct AnalysisResult {
     pub(crate) modality: String,
     #[pyo3(get)]
     pub(crate) discovery_algorithm: Option<String>,
+    #[pyo3(get)]
+    pub(crate) structure_source: String,
     #[pyo3(get)]
     pub(crate) graph_review_required: bool,
     #[pyo3(get)]
@@ -313,9 +316,85 @@ fn analyze(
     })
 }
 
-/// Temporal effect with a typed [`TemporalPag`]. Circle marks are informational (handled
-/// directly by class-aware temporal identification, like the static PAG path) rather than
-/// pending review, so the supplied PAG is always accepted as-is.
+pub(crate) enum TemporalClassGraph {
+    Cpdag(antecedent_graph::TemporalCpdag),
+    Pag(antecedent_graph::TemporalPag),
+}
+
+pub(crate) fn bind_temporal_class(
+    builder: StudyBuilder,
+    graph: TemporalClassGraph,
+    accepted: bool,
+) -> StudyBuilder {
+    match (graph, accepted) {
+        (TemporalClassGraph::Cpdag(g), true) => builder.graph(AcceptedGraph::from(g)),
+        (TemporalClassGraph::Cpdag(g), false) => builder.graph(g),
+        (TemporalClassGraph::Pag(g), true) => builder.graph(AcceptedGraph::from(g)),
+        (TemporalClassGraph::Pag(g), false) => builder.graph(g),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_temporal_class(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    graph: TemporalClassGraph,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    accepted: bool,
+) -> PyResult<AnalysisResult> {
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let policy = policy.to_ascii_lowercase();
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let t_id = schema_var_id(series.schema(), &treatment)?;
+        let y_id = schema_var_id(series.schema(), &outcome)?;
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        let mut builder = bind_temporal_class(Study::series(series), graph, accepted)
+            .temporal_query(q)
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        analysis_result_from_run(&names, result)
+    })
+}
+
+/// Temporal effect with a typed [`TemporalCpdag`]. Undirected marks stay on the
+/// class; a fully oriented graph is the TemporalDag coordinate.
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -336,7 +415,78 @@ fn analyze(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1
+    threads=1,
+    accepted=false,
+))]
+fn analyze_temporal_cpdag(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    graph: graphs::TemporalCpdag,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    accepted: bool,
+) -> PyResult<AnalysisResult> {
+    analyze_temporal_class(
+        py,
+        names,
+        columns,
+        TemporalClassGraph::Cpdag(graph.cpdag),
+        treatment,
+        outcome,
+        treatment_lag,
+        horizon_steps,
+        active_level,
+        policy,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        refute,
+        validators,
+        seed,
+        bootstrap,
+        threads,
+        accepted,
+    )
+}
+
+/// Temporal effect with a typed [`TemporalPag`]. Circle marks stay on the class.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    graph,
+    treatment,
+    outcome,
+    *,
+    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
+    horizon_steps=1,
+    active_level=1.0,
+    policy=crate::temporal_license::DEFAULT_POLICY,
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
+    seed=1,
+    bootstrap=0,
+    threads=1,
+    accepted=false,
 ))]
 fn analyze_temporal_pag(
     py: Python<'_>,
@@ -358,44 +508,30 @@ fn analyze_temporal_pag(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    accepted: bool,
 ) -> PyResult<AnalysisResult> {
-    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
-    let policy = policy.to_ascii_lowercase();
-    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
-    detach_catch(py, move || {
-        let series = series_from_tabular(tabular)?;
-
-        let t_id = schema_var_id(series.schema(), &treatment)?;
-        let y_id = schema_var_id(series.schema(), &outcome)?;
-        let q = temporal_query_from_policy(
-            &policy,
-            t_id,
-            y_id,
-            treatment_lag,
-            horizon_steps,
-            active_level,
-        )?;
-
-        let mut builder = Study::series(series)
-            .graph(AcceptedGraph::temporal_pag(graph.pag).map_err(py_err)?)
-            .temporal_query(q)
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
-        builder = apply_temporal_inference(
-            builder,
-            inference.as_deref(),
-            n_draws,
-            prior_scale,
-            prior_artifact.as_deref(),
-        )?;
-        let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        analysis_result_from_run(&names, result)
-    })
+    analyze_temporal_class(
+        py,
+        names,
+        columns,
+        TemporalClassGraph::Pag(graph.pag),
+        treatment,
+        outcome,
+        treatment_lag,
+        horizon_steps,
+        active_level,
+        policy,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        refute,
+        validators,
+        seed,
+        bootstrap,
+        threads,
+        accepted,
+    )
 }
 
 /// Temporal effect on irregular event data (aligned via duration bins before estimation).
@@ -1569,12 +1705,15 @@ fn analysis_result_from_run(
     names: &[String],
     result: antecedent::StudyResult,
 ) -> PyResult<AnalysisResult> {
-    let adjustment_set: Vec<String> = result
-        .estimand
-        .adjustment_set
-        .iter()
-        .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
-        .collect();
+    let adjustment_set: Vec<String> = crate::public_adjustment_set(
+        result.identification.status,
+        result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
+            .collect(),
+    );
     let estimator_id = if result.posterior.is_some() {
         "bayesian.temporal.gcomp".to_string()
     } else {
@@ -1702,6 +1841,7 @@ fn analysis_result_from_run(
             .discovery_algorithm
             .as_ref()
             .map(std::string::ToString::to_string),
+        structure_source: result.structure_source.as_str().to_string(),
         graph_review_required: result.logical_plan.graph_review_required,
         plan_identifier: result
             .logical_plan
@@ -1937,6 +2077,7 @@ fn analyze_temporal_graph_posterior(
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_cpdag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_pag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_events, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_panel, m)?)?;

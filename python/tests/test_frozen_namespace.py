@@ -107,6 +107,7 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "artifacts",
     "counterfactual",
     "estimators",
+    "handoff",
     "ids",
     "inference",
     "interference",

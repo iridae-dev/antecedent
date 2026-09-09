@@ -19,7 +19,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule};
 
-use crate::response_api::{ResponseAnalysisResult, build_functional, response_result};
+use crate::response_api::{
+    ResponseAnalysisResult, attach_study_response_meta, build_functional, response_result,
+};
+use crate::temporal_api::{TemporalClassGraph, bind_temporal_class};
 use crate::{
     AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs,
     py_err, py_execution_context_ext, require_named_graph_order, series_from_tabular,
@@ -414,6 +417,253 @@ impl PyPreparedAnalysis {
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
             Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for AverageEffect on a supplied CPDAG (MEC envelope).
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_cpdag(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Cpdag,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "Cpdag")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        let cpdag = graph.cpdag;
+
+        detach_catch(py, move || {
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            let mut builder = if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
+            } else {
+                Study::tabular(data).graph(cpdag)
+            }
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            if let Some(id) = identifier {
+                builder = builder.identifier(
+                    id.parse::<antecedent::IdentifierId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            if let Some(mode) = inference.as_deref() {
+                builder = apply_inference(builder, mode, n_draws, prior_scale)?;
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for ResponseCurve / InterventionResponse on a supplied PAG.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        kind,
+        treatments,
+        outcomes,
+        *,
+        grid=None,
+        intervention_kinds=None,
+        intervention_parameters=None,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        seed=1,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_pag_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Pag,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        grid: Option<Vec<f64>>,
+        intervention_kinds: Option<Vec<String>>,
+        intervention_parameters: Option<Vec<Vec<f64>>>,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "Pag")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let latency_mode = parse_latency(latency)?;
+        let pag = graph.pag;
+        detach_catch(py, move || {
+            prepare_class_response(
+                data,
+                names,
+                ClassResponseGraph::Pag(pag),
+                kind,
+                treatments,
+                outcomes,
+                grid,
+                intervention_kinds,
+                intervention_parameters,
+                identifier,
+                estimator,
+                inference,
+                n_draws,
+                prior_scale,
+                seed,
+                threads,
+                latency_mode,
+                accepted,
+            )
+        })
+    }
+
+    /// Compile once for ResponseCurve / InterventionResponse on a supplied CPDAG.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        kind,
+        treatments,
+        outcomes,
+        *,
+        grid=None,
+        intervention_kinds=None,
+        intervention_parameters=None,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        seed=1,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_cpdag_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Cpdag,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        grid: Option<Vec<f64>>,
+        intervention_kinds: Option<Vec<String>>,
+        intervention_parameters: Option<Vec<Vec<f64>>>,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "Cpdag")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let latency_mode = parse_latency(latency)?;
+        let cpdag = graph.cpdag;
+        detach_catch(py, move || {
+            prepare_class_response(
+                data,
+                names,
+                ClassResponseGraph::Cpdag(cpdag),
+                kind,
+                treatments,
+                outcomes,
+                grid,
+                intervention_kinds,
+                intervention_parameters,
+                identifier,
+                estimator,
+                inference,
+                n_draws,
+                prior_scale,
+                seed,
+                threads,
+                latency_mode,
+                accepted,
+            )
         })
     }
 
@@ -1005,6 +1255,144 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Compile once for Pulse / single-step Sustained on a TemporalCpdag.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        *,
+        policy="pulse",
+        window=None,
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_temporal_cpdag_effect(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::TemporalCpdag,
+        treatment: String,
+        outcome: String,
+        policy: &str,
+        window: Option<(i32, i32)>,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "TemporalCpdag")?;
+        prepare_temporal_class_effect(
+            py,
+            names,
+            columns,
+            TemporalClassGraph::Cpdag(graph.cpdag),
+            treatment,
+            outcome,
+            policy,
+            window,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+            inference,
+            n_draws,
+            prior_scale,
+            refute,
+            seed,
+            bootstrap,
+            threads,
+            accepted,
+        )
+    }
+
+    /// Compile once for Pulse / single-step Sustained on a TemporalPag.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        *,
+        policy="pulse",
+        window=None,
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_temporal_pag_effect(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::TemporalPag,
+        treatment: String,
+        outcome: String,
+        policy: &str,
+        window: Option<(i32, i32)>,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "TemporalPag")?;
+        prepare_temporal_class_effect(
+            py,
+            names,
+            columns,
+            TemporalClassGraph::Pag(graph.pag),
+            treatment,
+            outcome,
+            policy,
+            window,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+            inference,
+            n_draws,
+            prior_scale,
+            refute,
+            seed,
+            bootstrap,
+            threads,
+            accepted,
+        )
+    }
+
     /// Compile once for licensed TemporalMediationEffect on a TemporalDag.
     #[staticmethod]
     #[pyo3(signature = (
@@ -1099,7 +1487,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed AverageEffect × graph_posterior × Bayesian.
+    /// Compile once for licensed AverageEffect × graph_posterior × Bayesian or Frequentist.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -1486,6 +1874,160 @@ impl PyPreparedAnalysis {
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
             Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for ConditionalEffect on a supplied CPDAG.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        modifier,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_cpdag_conditional(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Cpdag,
+        treatment: String,
+        outcome: String,
+        modifier: String,
+        control_level: f64,
+        active_level: f64,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "Cpdag")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = parse_latency(latency)?;
+        let cpdag = graph.cpdag;
+        detach_catch(py, move || {
+            prepare_class_conditional(
+                data,
+                names,
+                ClassResponseGraph::Cpdag(cpdag),
+                treatment,
+                outcome,
+                modifier,
+                control_level,
+                active_level,
+                identifier,
+                estimator,
+                inference,
+                n_draws,
+                prior_scale,
+                suite,
+                seed,
+                bootstrap,
+                threads,
+                latency_mode,
+                accepted,
+            )
+        })
+    }
+
+    /// Compile once for ConditionalEffect on a supplied PAG.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        graph,
+        treatment,
+        outcome,
+        modifier,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        identifier=None,
+        estimator=None,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=50,
+        threads=1,
+        latency=None,
+        accepted=false,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_pag_conditional(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: graphs::Pag,
+        treatment: String,
+        outcome: String,
+        modifier: String,
+        control_level: f64,
+        active_level: f64,
+        identifier: Option<String>,
+        estimator: Option<String>,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        accepted: bool,
+    ) -> PyResult<Self> {
+        require_named_graph_order(&graph.names, &names, "Pag")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = parse_latency(latency)?;
+        let pag = graph.pag;
+        detach_catch(py, move || {
+            prepare_class_conditional(
+                data,
+                names,
+                ClassResponseGraph::Pag(pag),
+                treatment,
+                outcome,
+                modifier,
+                control_level,
+                active_level,
+                identifier,
+                estimator,
+                inference,
+                n_draws,
+                prior_scale,
+                suite,
+                seed,
+                bootstrap,
+                threads,
+                latency_mode,
+                accepted,
+            )
         })
     }
 
@@ -1974,7 +2516,203 @@ pub(crate) fn response_from_study(
     let treatments = vec![name_of(result.treatment)];
     let outcomes = vec![name_of(result.outcome)];
     let adjustment_set = result.estimand.adjustment_set.iter().copied().map(name_of).collect();
-    response_result(response, treatments, outcomes, adjustment_set, names, result.support_status)
+    Ok(attach_study_response_meta(
+        response_result(
+            response,
+            treatments,
+            outcomes,
+            adjustment_set,
+            names,
+            result.support_status,
+        )?,
+        format!("{:?}", result.identification.status),
+        result.logical_plan.identifier.as_deref().map(str::to_owned),
+        result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
+    ))
+}
+
+fn parse_latency(latency: Option<String>) -> PyResult<Option<antecedent::LatencyMode>> {
+    match latency.as_deref() {
+        None => Ok(None),
+        Some(s) => Ok(Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?)),
+    }
+}
+
+enum ClassResponseGraph {
+    Pag(antecedent_graph::Pag),
+    Cpdag(antecedent_graph::Cpdag),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_class_response(
+    data: TabularData,
+    names: Vec<String>,
+    graph: ClassResponseGraph,
+    kind: String,
+    treatments: Vec<String>,
+    outcomes: Vec<String>,
+    grid: Option<Vec<f64>>,
+    intervention_kinds: Option<Vec<String>>,
+    intervention_parameters: Option<Vec<Vec<f64>>>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    seed: u64,
+    threads: u32,
+    latency_mode: Option<antecedent::LatencyMode>,
+    accepted: bool,
+) -> PyResult<PyPreparedAnalysis> {
+    let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+    let outcome_ids = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+    let functional = build_functional(
+        &kind,
+        &treatment_ids,
+        &outcome_ids,
+        grid,
+        None,
+        None,
+        intervention_kinds,
+        intervention_parameters,
+        1,
+        antecedent_core::DerivativeScale::Identity,
+        antecedent_core::DerivativeWeighting::Observed,
+    )?;
+    let query = CausalQuery::Response(ResponseQuery::new(functional));
+    let mut builder = match graph {
+        ClassResponseGraph::Pag(pag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
+            } else {
+                Study::tabular(data).graph(pag)
+            }
+        }
+        ClassResponseGraph::Cpdag(cpdag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
+            } else {
+                Study::tabular(data).graph(cpdag)
+            }
+        }
+    }
+    .query(query)
+    .refute(antecedent::RefuteSuite::None)
+    .bootstrap_replicates(0);
+    if let Some(mode) = latency_mode {
+        builder = builder.latency_mode(mode);
+    }
+    if let Some(id) = identifier {
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(est) = estimator {
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    builder = apply_inference(
+        builder,
+        inference.as_deref().unwrap_or("frequentist"),
+        n_draws,
+        prior_scale,
+    )?;
+    let analysis = builder.build().map_err(py_err)?;
+    let ctx = py_execution_context_ext(
+        seed,
+        threads,
+        None,
+        None,
+        Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+    );
+    let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+    Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: false })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_class_conditional(
+    data: TabularData,
+    names: Vec<String>,
+    graph: ClassResponseGraph,
+    treatment: String,
+    outcome: String,
+    modifier: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    suite: antecedent::RefuteSuite,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    latency_mode: Option<antecedent::LatencyMode>,
+    accepted: bool,
+) -> PyResult<PyPreparedAnalysis> {
+    let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+    let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+    let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
+    let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+        .with_effect_modifiers([w_id]);
+    let cq = ConditionalEffectQuery::try_new(inner)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let mut builder = match graph {
+        ClassResponseGraph::Pag(pag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
+            } else {
+                Study::tabular(data).graph(pag)
+            }
+        }
+        ClassResponseGraph::Cpdag(cpdag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
+            } else {
+                Study::tabular(data).graph(cpdag)
+            }
+        }
+    }
+    .query(CausalQuery::ConditionalEffect(cq))
+    .refute(suite)
+    .bootstrap_replicates(bootstrap);
+    if let Some(mode) = latency_mode {
+        builder = builder.latency_mode(mode);
+    }
+    if let Some(id) = identifier {
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(est) = estimator {
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    builder = apply_inference(
+        builder,
+        inference.as_deref().unwrap_or("frequentist"),
+        n_draws,
+        prior_scale,
+    )?;
+    let analysis = builder.build().map_err(py_err)?;
+    let ctx = py_execution_context_ext(
+        seed,
+        threads,
+        None,
+        None,
+        Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+    );
+    let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+    Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: false })
 }
 
 fn apply_inference(
@@ -2045,6 +2783,73 @@ fn static_kind_query(
         )),
         _ => Err(PyValueError::new_err("unsupported static staged kind")),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_temporal_class_effect(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    graph: TemporalClassGraph,
+    treatment: String,
+    outcome: String,
+    policy: &str,
+    window: Option<(i32, i32)>,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    accepted: bool,
+) -> PyResult<PyPreparedAnalysis> {
+    let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let policy = policy.to_ascii_lowercase();
+    let suite = suite_from_refute(refute.as_ref())?;
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+        let mut q = crate::temporal_api::temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        if let Some((from, until)) = window {
+            if policy != "sustained" {
+                return Err(PyValueError::new_err("window requires policy='sustained'"));
+            }
+            q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+        }
+        let mut builder = bind_temporal_class(Study::series(series), graph, accepted)
+            .temporal_query(q)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        builder = crate::temporal_api::apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            None,
+        )?;
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context_ext(
+            seed,
+            threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+        Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: true })
+    })
 }
 
 fn hard_value(intervention: &Intervention) -> Option<f64> {

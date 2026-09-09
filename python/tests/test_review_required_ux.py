@@ -8,8 +8,6 @@ import pytest
 pytest.importorskip("antecedent")
 import antecedent
 
-_MARK_VOCAB = {"tail", "arrow", "circle", "conflict"}
-
 
 def _lag1_series(n: int = 120, seed: int = 3):
     rng = np.random.default_rng(seed)
@@ -75,48 +73,29 @@ def test_complete_temporal_pag_estimates():
     assert any("temporal.pag.completed_to_dag" in str(d) for d in result.diagnostics)
 
 
-def test_incomplete_temporal_pag_review_attrs():
+def test_incomplete_temporal_pag_class_envelope():
     data = _lag1_series(n=60, seed=9)
     pag = antecedent.graph.TemporalPag.from_marked_lagged_edges(
         ["x", "y"],
         [("x", 1, "y", 0, "circle", "arrow")],
     )
-    with pytest.raises(antecedent.errors.CausalReviewError) as ei:
-        antecedent.analyze(
-            data,
-            graph=pag,
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
-        )
-    err = ei.value
-    assert getattr(err, "kind", None) == "temporal_pag"
-    assert getattr(err, "pending_edge_count", 0) >= 1
-    assert getattr(err, "hint", None)
-
-    # This is a Rust-side ReviewRequired (accepted.rs's temporal_pag() path) with a
-    # genuine circle mark, so pending_edges must carry the real edge, not just a count.
-    assert isinstance(err, antecedent.errors.ReviewRequired)
-    edges = antecedent.errors.pending_edges(err)
-    assert isinstance(edges, tuple)
-    assert edges
-    assert len(edges) == err.pending_edge_count
-    for edge in edges:
-        assert isinstance(edge, antecedent.errors.PendingEdge)
-        assert isinstance(edge.source, str) and edge.source
-        assert isinstance(edge.target, str) and edge.target
-        assert edge.at_source in _MARK_VOCAB
-        assert edge.at_target in _MARK_VOCAB
-    # The offending edge is x@-1 -> y@0 with a circle at the x end (per the
-    # from_marked_lagged_edges call above): at least one endpoint must show it.
-    assert any("circle" in (edge.at_source, edge.at_target) for edge in edges)
+    result = antecedent.analyze(
+        data,
+        graph=pag,
+        query=antecedent.PulseEffect(
+            treatment="x",
+            outcome="y",
+            treatment_lag=1,
+            horizon_steps=1,
+            active_level=1.0,
+        ),
+        bootstrap=0,
+        seed=1,
+        refute=False,
+    )
+    assert isinstance(result.ate, float)
+    assert abs(result.ate - 0.9) < 0.15
+    assert any("identify.temporal_pag.envelope" in str(d) for d in result.diagnostics)
 
 
 def test_review_required_is_still_a_causal_review_error():
