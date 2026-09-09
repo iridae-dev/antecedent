@@ -53,9 +53,7 @@ def main() -> None:
             refute="none",
             bootstrap=0,
         )
-        print(
-            f"{contrast}={result.effect:.4f} estimator={result.estimate.estimator_id}"
-        )
+        print(f"{contrast}={result.effect:.4f} estimator={result.estimate.estimator_id}")
         assert abs(result.effect - expected) < 0.03, result.effect
         assert result.estimate.estimator_id == "mediation.linear"
 

@@ -2624,7 +2624,7 @@ mod tests {
                 .to_string()
                 .contains("positive fitted response")
         );
-        let n = 80;
+        let n: usize = 80;
         let a: Vec<f64> = (0..n).map(|i| -0.4 + i as f64 * 0.01).collect();
         let y: Vec<f64> = a.iter().map(|av| -4.0 - 2.0 * av).collect();
         let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
@@ -2805,7 +2805,7 @@ mod tests {
 
     #[test]
     fn plugin_jacobian_refuses_mismatched_complete_cases() {
-        let n = 80;
+        let n: usize = 80;
         let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
         let b: Vec<f64> = (0..n).map(|i| 1.0 - i as f64 / n as f64).collect();
         let y1: Vec<f64> = a.iter().zip(&b).map(|(av, bv)| 1.0 + 2.0 * av - 0.5 * bv).collect();
@@ -2841,7 +2841,7 @@ mod tests {
 
     #[test]
     fn plugin_jacobian_warns_when_clamped_outside_support() {
-        let n = 120;
+        let n: usize = 120;
         let a: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
         let b: Vec<f64> = a.clone();
         let y1: Vec<f64> = a.iter().map(|av| 1.0 + 2.0 * av).collect();

@@ -124,7 +124,7 @@ def test_column_ingest_and_arrow_probes():
         columns = ["a"]
 
         def __getitem__(self, key: str) -> None:
-            raise RuntimeError("no export")
+            raise KeyError(key)
 
     assert try_as_arrow_c_columns(BadColumns()) is None
 
