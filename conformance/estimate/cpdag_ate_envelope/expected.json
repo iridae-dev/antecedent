@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "case": "two_completion_cpdag_mec_envelope",
+  "columns": ["t", "y", "z"],
+  "query": {
+    "treatment": "t",
+    "outcome": "y",
+    "control_level": 0.0,
+    "active_level": 1.0
+  },
+  "graph": {
+    "class": "Cpdag",
+    "directed_edges": [
+      ["z", "y"],
+      ["t", "y"]
+    ],
+    "undirected_edges": [
+      ["z", "t"]
+    ]
+  },
+  "contingency_table": [
+    {"z": 0.0, "t": 0.0, "y": 0.0, "count": 360},
+    {"z": 0.0, "t": 0.0, "y": 1.0, "count": 40},
+    {"z": 0.0, "t": 1.0, "y": 0.0, "count": 50},
+    {"z": 0.0, "t": 1.0, "y": 1.0, "count": 50},
+    {"z": 1.0, "t": 0.0, "y": 0.0, "count": 70},
+    {"z": 1.0, "t": 0.0, "y": 1.0, "count": 30},
+    {"z": 1.0, "t": 1.0, "y": 0.0, "count": 120},
+    {"z": 1.0, "t": 1.0, "y": 1.0, "count": 280}
+  ],
+  "identification": {
+    "identifier": "generalized.adjustment",
+    "status": "PartiallyIdentified",
+    "completion_count": 2,
+    "identified_mass": 2.0,
+    "unidentified_mass": 0.0,
+    "completion_effects": [0.4, 0.52]
+  },
+  "frequentist": {
+    "estimator": "linear.adjustment.ate",
+    "expected_ate": 0.46,
+    "absolute_tolerance": 1e-12,
+    "tolerance_class": "StableFloat"
+  },
+  "bayesian": {
+    "estimator": "bayesian.gcomp",
+    "backend": "conjugate",
+    "posterior_backend": "cpdag_envelope",
+    "n_draws": 64,
+    "prior_scale": 10.0,
+    "seed": 1,
+    "expected_ate": 0.4615641945101853,
+    "absolute_tolerance": 1e-10,
+    "tolerance_class": "PosteriorDistribution"
+  },
+  "conditional": {
+    "modifier": "z",
+    "frequentist": {
+      "estimator": "conditional.linear.adjustment",
+      "expected_ate": 0.4,
+      "absolute_tolerance": 1e-12,
+      "tolerance_class": "StableFloat"
+    },
+    "bayesian": {
+      "estimator": "conditional.bayesian",
+      "backend": "conjugate",
+      "n_draws": 64,
+      "prior_scale": 10.0,
+      "seed": 1,
+      "expected_ate": 0.4,
+      "absolute_tolerance": 1e-2,
+      "tolerance_class": "PosteriorDistribution"
+    }
+  }
+}

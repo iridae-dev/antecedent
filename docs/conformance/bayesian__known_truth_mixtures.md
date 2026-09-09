@@ -2,8 +2,10 @@
 
 **Suite path:** `conformance/bayesian/known_truth_mixtures`
 
-Frozen, analytic data-generating processes for the staged Bayesian graph-posterior
-effect paths.
+Frozen, analytic data-generating processes for the staged graph-posterior
+effect paths. The Bayesian aggregator mixes per-atom `bayesian.gcomp` draws;
+the Frequentist aggregator mixes per-atom `linear.adjustment.ate` point
+estimates. Both report `E[τ | identified]` and retain unidentified mass.
 
 The static fixture uses `Y = 2T + 2Z + epsilon` with a balanced deterministic
 factorial design.  The unadjusted DAG therefore has effect 3, while the DAG that
