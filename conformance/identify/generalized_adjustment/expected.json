@@ -1,9 +1,50 @@
 {
   "schema_version": 1,
-  "oracle": {"project": "complete MAG enumeration plus generalized adjustment criterion", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "project": "Perkovic et al. (2018), Definitions 4 and 6, Theorem 7",
+    "source": "https://www.jmlr.org/papers/volume18/16-319/16-319.pdf",
+    "generator": "hand-derived visibility and proper-backdoor cases; not an external executable oracle"
+  },
   "cases": [
-    {"id": "directed_edge", "pag": ["T->Y"], "status": "identified", "adjustment_set": []},
-    {"id": "observed_confounder", "pag": ["Z->T", "Z->Y", "T->Y"], "status": "identified", "adjustment_set": ["Z"]},
-    {"id": "mixed_circle_arrow", "pag": ["To->Y"], "invariant": "identified_weight+unidentified_weight=completion_count"}
+    {
+      "id": "directed_edge",
+      "pag": [
+        "T->Y"
+      ],
+      "status": "not_identified_by_adjustment",
+      "adjustment_set": null,
+      "reason": "T->Y is invisible when interpreted as a MAG"
+    },
+    {
+      "id": "observed_confounder",
+      "pag": [
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "status": "not_identified_by_adjustment",
+      "adjustment_set": null,
+      "reason": "T->Y is invisible when interpreted as a MAG"
+    },
+    {
+      "id": "mixed_circle_arrow",
+      "pag": [
+        "To->Y"
+      ],
+      "invariant": "identified_weight+unidentified_weight=completion_count"
+    },
+    {
+      "id": "visible_observed_confounder",
+      "pag": [
+        "R->T",
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "status": "identified",
+      "adjustment_set": [
+        "Z"
+      ]
+    }
   ]
 }

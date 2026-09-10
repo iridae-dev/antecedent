@@ -291,10 +291,16 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
     rng = np.random.default_rng(171)
     a = rng.normal(size=360)
     y = 2.0 * a + rng.normal(scale=0.3, size=360)
-    pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
+    r = rng.normal(size=len(a))
+    s = rng.normal(size=len(a))
+    v = rng.normal(size=len(a))
+    pag = antecedent.Pag.from_marked_edges(
+        ["a", "y", "r", "s", "v"],
+        [("r", "a", "tail", "arrow"), ("a", "y", "tail", "arrow"), ("s", "v", "circle", "circle")],
+    )
 
     result = antecedent.analyze(
-        {"a": a, "y": y},
+        {"a": a, "y": y, "r": r, "s": s, "v": v},
         query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
         graph=pag,
     )
@@ -308,9 +314,17 @@ def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
     rng = np.random.default_rng(173)
     a = rng.normal(size=240)
     y = 1.2 * a + rng.normal(scale=0.2, size=240)
-    pag = antecedent.Pag.from_marked_edges(["a", "y"], [("a", "y", "circle", "arrow")])
+    r = rng.normal(size=len(a))
+    s = rng.normal(size=len(a))
+    v = rng.normal(size=len(a))
+    pag = antecedent.Pag.from_marked_edges(
+        ["a", "y", "r", "s", "v"],
+        [("r", "a", "tail", "arrow"), ("a", "y", "tail", "arrow"), ("s", "v", "circle", "circle")],
+    )
 
-    raw = analyze_response_pag(["a", "y"], [a, y], pag, "a", "y", [-0.25, 0.25], max_completions=1)
+    raw = analyze_response_pag(
+        ["a", "y", "r", "s", "v"], [a, y, r, s, v], pag, "a", "y", [-0.25, 0.25], max_completions=1
+    )
 
     assert raw.enumeration_capped is True
     assert raw.mass_scope == "examined_completions"

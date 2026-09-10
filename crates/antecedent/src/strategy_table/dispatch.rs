@@ -520,3 +520,49 @@ fn est_err(e: EstimationError) -> CausalError {
 fn identify_err(e: IdentificationError) -> CausalError {
     CausalError::from(e)
 }
+
+/// Class-aware response identification covering every intervention target.
+///
+/// # Errors
+/// Unsupported strategy/query or graph errors.
+pub fn identify_cpdag_response(
+    identifier: IdentifierId,
+    graph: &antecedent_graph::Cpdag,
+    query: &antecedent_core::ResponseQuery,
+) -> Result<IdentificationEnvelope<Dag>, CausalError> {
+    let witness = crate::analysis::response_witness_ate(query)?;
+    if query.functional.treatment_ids().len() == 1 {
+        return identify_cpdag(identifier, graph, &witness);
+    }
+    if identifier != IdentifierId::GeneralizedAdjustment {
+        return Err(CausalError::Unsupported {
+            message: "joint CPDAG response requires generalized.adjustment",
+        });
+    }
+    GeneralizedAdjustmentIdentifier::new()
+        .identify_cpdag_response_envelope(graph, query)
+        .map_err(identify_err)
+}
+
+/// Class-aware MAG response identification covering every intervention target.
+///
+/// # Errors
+/// Unsupported strategy/query or graph errors.
+pub fn identify_pag_response(
+    identifier: IdentifierId,
+    graph: &Pag,
+    query: &antecedent_core::ResponseQuery,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    let witness = crate::analysis::response_witness_ate(query)?;
+    if query.functional.treatment_ids().len() == 1 {
+        return identify_pag(identifier, graph, &witness);
+    }
+    if identifier != IdentifierId::GeneralizedAdjustment {
+        return Err(CausalError::Unsupported {
+            message: "joint PAG response requires generalized.adjustment",
+        });
+    }
+    GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_response_envelope(graph, query)
+        .map_err(identify_err)
+}

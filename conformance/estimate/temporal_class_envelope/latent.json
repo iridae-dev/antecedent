@@ -1,0 +1,13 @@
+{
+  "description": "Temporal MAG with measured adjustment for latent T-Z confounding and a visibility witness R->T",
+  "columns": ["t", "y", "z", "r"],
+  "marked_edges": [["r",0,"t",0,"tail","arrow"],["z",0,"t",0,"arrow","arrow"],["z",1,"y",0,"tail","arrow"],["t",1,"y",0,"tail","arrow"]],
+  "n": 800,
+  "law": "z_i=i%2; t_i=0.3+0.4*z_i+0.05*sin(0.017*i); r_i=floor(i/2)%2; y_i=1+2*t_(i-1)+0.5*z_(i-1). R is a zero-coefficient visibility witness. Z and T share an exogenous cause.",
+  "treatment_offset": -1,
+  "outcome_offset": 0,
+  "adjustment": [{"name":"z","offset":-1}],
+  "effect": 2.0,
+  "absolute_tolerance": 0.000001,
+  "oracle": "Analytic coefficient of T in the lagged linear outcome equation; not a frozen implementation output"
+}

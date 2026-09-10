@@ -227,10 +227,11 @@ pub(crate) fn build_graph_posterior_identification_cache(
                     {
                         return Ok(None);
                     }
-                    let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
-                        .or_else(|_| {
-                            select_estimand(&identification, EstimatorId::BayesianGcomp)
-                        })?;
+                    let estimand =
+                        select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
+                            .or_else(|_| {
+                                select_estimand(&identification, EstimatorId::BayesianGcomp)
+                            })?;
                     Ok(Some((estimand, identification)))
                 })()?;
             by_mask.insert(mask, value.clone());
@@ -982,11 +983,13 @@ impl Study {
         let identifier =
             plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
         let identifier_id: IdentifierId = identifier.parse()?;
-        let envelope = identify_pag(identifier_id, pag, &query)?;
-        let identification = super::execute::envelope_to_identification_result_for(
-            &envelope,
-            self.query.clone(),
-        );
+        let envelope = if let CausalQuery::Response(response) = &self.query {
+            crate::strategy_table::identify_pag_response(identifier_id, pag, response)?
+        } else {
+            identify_pag(identifier_id, pag, &query)?
+        };
+        let identification =
+            super::execute::envelope_to_identification_result_for(&envelope, self.query.clone());
         Ok(Some(CachedPagIdentification { envelope, identification }))
     }
 
@@ -1009,11 +1012,13 @@ impl Study {
         let identifier =
             plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PAG_IDENTIFIER);
         let identifier_id: IdentifierId = identifier.parse()?;
-        let envelope = identify_cpdag(identifier_id, cpdag, &query)?;
-        let identification = super::execute::envelope_to_identification_result_for(
-            &envelope,
-            self.query.clone(),
-        );
+        let envelope = if let CausalQuery::Response(response) = &self.query {
+            crate::strategy_table::identify_cpdag_response(identifier_id, cpdag, response)?
+        } else {
+            identify_cpdag(identifier_id, cpdag, &query)?
+        };
+        let identification =
+            super::execute::envelope_to_identification_result_for(&envelope, self.query.clone());
         Ok(Some(CachedCpdagIdentification { envelope, identification }))
     }
 
@@ -1097,14 +1102,10 @@ impl Study {
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
         }
-        if self.completed_temporal_dag().is_some() {
-            return Ok(None);
-        }
         let CausalQuery::TemporalEffect(query) = &self.query else {
             return Ok(None);
         };
-        let identifier =
-            self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
+        let identifier = self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
         let envelope = match self.graph.class() {
             GraphClass::TemporalCpdag => {

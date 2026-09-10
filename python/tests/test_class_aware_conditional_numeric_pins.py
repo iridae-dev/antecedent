@@ -70,6 +70,11 @@ def _query() -> antecedent.ConditionalEffect:
 def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -> None:
     data = _expand_contingency(_ATE)
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
+        assert identified.status == "NotIdentified"
+        assert identified.certificate["identified_weight"] == 0.0
+        return
     query = _query()
     freq = _ATE["conditional"]["frequentist"]
     fresh = antecedent.analyze(data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1)
@@ -97,6 +102,11 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
 def test_class_aware_conditional_bayesian_pins(accepted: bool, class_name: str) -> None:
     data = _expand_contingency(_ATE)
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
+        assert identified.status == "NotIdentified"
+        assert identified.certificate["identified_weight"] == 0.0
+        return
     bayes = _ATE["conditional"]["bayesian"]
     inference = antecedent.Bayesian(
         backend="conjugate",

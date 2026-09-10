@@ -162,6 +162,7 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
 /// Optional finish slots that most identified paths leave at default.
 #[derive(Default)]
 pub(super) struct IdentifiedExecuteExtras {
+    pub certificate: Option<crate::Identification>,
     pub stage_timings_ns: Vec<(Arc<str>, u64)>,
     pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
     pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
@@ -920,11 +921,34 @@ impl super::Study {
         self.graph.as_dag().ok_or(CausalError::Unsupported { message })
     }
 
+    pub(super) fn attach_certificate(
+        &self,
+        mut result: StudyResult,
+        identification: crate::Identification,
+    ) -> StudyResult {
+        result.certificate = Some(crate::AnalysisIdentification {
+            identification,
+            query: self.query.clone(),
+            graph_class: self.graph.class(),
+        });
+        result
+    }
+
     pub(super) fn finish_identified_execute(
         &self,
         args: IdentifiedExecuteFinish<'_>,
     ) -> StudyResult {
         let extras = args.extras;
+        let certificate = extras.certificate.or_else(|| {
+            (self.graph_posterior.is_none()
+                && (self.graph.as_dag().is_some() || self.graph.as_admg().is_some()))
+            .then(|| crate::Identification::Point {
+                result: args.identification.clone(),
+                temporal_indexer: None,
+                strategy: args.identifier_id,
+                structure_version: self.graph.version(),
+            })
+        });
         let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
             prebuilt
         } else {
@@ -1006,6 +1030,11 @@ impl super::Study {
             n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
+        });
+        result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
+            identification,
+            query: self.query.clone(),
+            graph_class: self.graph.class(),
         });
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;

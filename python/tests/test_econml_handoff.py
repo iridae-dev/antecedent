@@ -131,8 +131,12 @@ def test_temporal_dag_pulse_emits_adjustment_set() -> None:
     )
     query = antecedent.PulseEffect("t", "y", treatment_lag=1)
     identified = antecedent.identify(graph=graph, query=query)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="temporal offsets"):
-        antecedent.handoff.econml(identified)
+    spec = antecedent.handoff.econml(identified)
+    cols = spec.columns(_backdoor_data())
+    np.testing.assert_array_equal(cols["T"], _backdoor_data()["t"][:-1])
+    np.testing.assert_array_equal(cols["Y"], _backdoor_data()["y"][1:])
+    np.testing.assert_array_equal(cols["W"][:, 0], _backdoor_data()["z"][:-1])
+    np.testing.assert_array_equal(cols["origins"], np.arange(1, 200))
 
 
 def test_fully_oriented_cpdag_stays_cpdag_and_emits_w() -> None:
@@ -155,8 +159,7 @@ def test_identify_result_needs_names() -> None:
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identified = antecedent.identify(graph=_backdoor_graph(), query=query)
     legacy = identified.to_identify_result()
-    with pytest.raises(antecedent.errors.CausalValueError, match="treatment"):
-        antecedent.handoff.econml(legacy)
+    assert antecedent.handoff.econml(legacy).treatment == "t"
     spec = antecedent.handoff.econml(legacy, treatment="t", outcome="y")
     assert spec.confounders == ("z",)
 
@@ -182,3 +185,34 @@ def test_multiple_controls_are_sample_major() -> None:
     assert cols["W"].shape == (200, 2)
     np.testing.assert_array_equal(cols["W"][:, 0], data["z"])
     np.testing.assert_array_equal(cols["W"][:, 1], data["w"])
+
+
+@pytest.mark.parametrize("analyzed", [False, True])
+def test_relabeling_certificate_is_rejected(analyzed):
+    query = antecedent.AverageEffect("t", "y")
+    result = (
+        antecedent.analyze(
+            _backdoor_data(), graph=_backdoor_graph(), query=query, refute=False, bootstrap=0
+        )
+        if analyzed
+        else antecedent.identify(graph=_backdoor_graph(), query=query)
+    )
+    with pytest.raises(antecedent.errors.CausalValueError, match="certified query"):
+        antecedent.handoff.econml(result, treatment="z", outcome="y")
+
+
+def test_joint_handoff_retains_both_treatment_columns():
+    from test_joint_class_response import _data, _graph
+
+    query = antecedent.InterventionResponse(
+        "y", intervention=[antecedent.intervention.Set("t", 1), antecedent.intervention.Set("z", 1)]
+    )
+    identified = antecedent.identify(graph=_graph("cpdag", False), query=query)
+    spec = antecedent.handoff.econml(identified)
+    data = _data()
+    cols = spec.columns(data)
+    assert spec.treatments == ("t", "z")
+    np.testing.assert_array_equal(cols["T"], np.column_stack([data["t"], data["z"]]))
+    np.testing.assert_array_equal(cols["W"], data["w"][:, None])
+    with pytest.raises(antecedent.errors.CausalValueError, match="every joint treatment"):
+        antecedent.handoff.econml(identified, treatment="t")

@@ -1,212 +1,166 @@
-//! Streamed [`TemporalPag`] → [`TemporalDag`] completions.
-//!
-//! Circle-arrow edges are compelled to Tail→Arrow. Circle-circle edges are oriented both ways. Tail-Tail
-//! edges denote selection structure and cannot be refined to DAG edges. Bidirected or conflict marks refuse the sampler:
-//! those graphs cannot complete to a [`TemporalDag`] and stay refused.
+//! Temporal PAG endpoint refinements retaining directed and bidirected MAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::{CompletionSampler, CompletionValidationReport, GraphError, NodeRef, Pag, TemporalPag};
+use antecedent_core::TemporalIndexer;
 
-use crate::error::GraphError;
-use crate::temporal::TemporalDag;
-use crate::temporal_pag::TemporalPag;
-use crate::types::{DenseNodeId, Endpoint};
-
-/// One [`TemporalDag`] completion of a [`TemporalPag`].
+/// One definite mixed-graph refinement of a temporal PAG.
 #[derive(Clone, Debug)]
 pub struct TemporalPagCompletion {
-    /// Completed temporal DAG.
-    pub graph: TemporalDag,
-    /// Index among valid yields.
+    /// Temporal MAG template, preserving the source's lag coordinates.
+    pub graph: TemporalPag,
+    /// Index among retained, valid yields.
     pub index: usize,
 }
 
-/// Streams [`TemporalPag`] → [`TemporalDag`] completions with a hard cap.
+/// Bounded temporal MAG completions, constrained before retention and class audit.
 #[derive(Clone, Debug)]
 pub struct TemporalPagCompletionSampler {
     base: TemporalPag,
-    /// Two-way edges `(a, b)` with `a.raw() <= b.raw()`.
-    orientable: Vec<(DenseNodeId, DenseNodeId)>,
-    /// Circle-arrow edges forced to `from -> to`.
-    forced: Vec<(DenseNodeId, DenseNodeId)>,
+    inner: CompletionSampler,
     max_completions: usize,
-    next_index: usize,
-    assign: u64,
 }
-
 impl TemporalPagCompletionSampler {
-    /// Build a sampler that yields at most `max_completions` [`TemporalDag`]s.
+    /// Enumerate directed/bidirected completions under temporal and stationary constraints.
+    ///
+    /// The MAG validity and equivalence audit applies to the stationary unfolding.
+    /// Identification must additionally certify and audit its unfolded query window.
+    /// Selection-variable tail-tail edges remain outside the directed/bidirected family.
     ///
     /// # Errors
-    ///
-    /// Bidirected or conflict marks, or more than 63 orientable edges.
+    /// Conflict/selection marks, excessive circle sites, or invalid graph coordinates.
     pub fn new(pag: TemporalPag, max_completions: usize) -> Result<Self, GraphError> {
-        let mut orientable = Vec::new();
-        let mut forced = Vec::new();
-        for e in pag.edges() {
-            if e.is_conflict() {
-                return Err(GraphError::InvalidEndpoints {
-                    message: "TemporalPagCompletionSampler refuses conflict (x-x) edges",
-                });
-            }
-            if e.at_a == Endpoint::Arrow && e.at_b == Endpoint::Arrow {
-                return Err(GraphError::InvalidEndpoints {
-                    message: "TemporalPagCompletionSampler refuses bidirected edges; \
-                              those graphs cannot complete to a TemporalDag",
-                });
-            }
-            if let Some((from, to)) = e.parent_child() {
-                forced.push((from, to));
-                continue;
-            }
-            if e.is_undirected() {
-                return Err(GraphError::InvalidEndpoints {
-                    message: "TemporalPagCompletionSampler refuses tail-tail selection edges",
-                });
-            }
-            if e.at_a == Endpoint::Circle && e.at_b == Endpoint::Circle {
-                let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
-                orientable.push((a, b));
-                continue;
-            }
-            if e.at_a == Endpoint::Circle && e.at_b == Endpoint::Arrow {
-                forced.push((e.a, e.b));
-            } else if e.at_a == Endpoint::Arrow && e.at_b == Endpoint::Circle {
-                forced.push((e.b, e.a));
-            } else {
-                return Err(GraphError::InvalidEndpoints {
-                    message: "TemporalPagCompletionSampler cannot orient this mark combination",
-                });
-            }
-        }
-        orientable.sort_by_key(|(a, b)| (a.raw(), b.raw()));
-        orientable.dedup();
-        if orientable.len() > 63 {
+        if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
             return Err(GraphError::InvalidEndpoints {
-                message: "too many orientable edges for TemporalPagCompletionSampler mask",
+                message: "temporal MAG completion requires non-conflict directed/bidirected-family marks; selection edges are unsupported",
             });
         }
-        Ok(Self { base: pag, orientable, forced, max_completions, next_index: 0, assign: 0 })
+        let mut variables = 0;
+        let mut history = 0;
+        for node in pag.nodes() {
+            if let NodeRef::Lagged { variable, lag } = node {
+                variables =
+                    variables.max(variable.raw().checked_add(1).ok_or(GraphError::TooManyNodes)?);
+                history = history.max(lag.raw());
+            }
+        }
+        let indexer =
+            TemporalIndexer::new(variables, history, 1).map_err(|_| GraphError::TooManyNodes)?;
+        Self::for_window(pag, max_completions, &indexer)
     }
-
-    /// Hard cap on yielded valid completions.
+    /// Enumerate templates whose stationary copies are valid MAGs in a supplied window.
+    ///
+    /// # Errors
+    /// Invalid source marks, coordinates, or excessive endpoint-assignment space.
+    pub fn for_window(
+        pag: TemporalPag,
+        max_completions: usize,
+        indexer: &TemporalIndexer,
+    ) -> Result<Self, GraphError> {
+        if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "temporal MAG completion requires the non-conflict directed/bidirected family",
+            });
+        }
+        let inner = CompletionSampler::with_projection(
+            &pag.as_static_pag_for_alg(),
+            max_completions,
+            |candidate| {
+                refine(&pag, candidate)
+                    .and_then(|graph| graph.unfold(indexer.clone()).ok())
+                    .map(|unfolded| unfolded.pag)
+            },
+        )?;
+        Ok(Self { base: pag, inner, max_completions })
+    }
+    /// Maximum retained valid templates.
     #[must_use]
-    pub fn max_completions(&self) -> usize {
+    pub const fn max_completions(&self) -> usize {
         self.max_completions
     }
-
-    /// Whether the retention cap stopped the stream before every mask was examined.
+    /// Whether valid templates were omitted by the retention bound.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
-        self.next_index >= self.max_completions && self.assign < self.total_masks()
+        self.inner.hit_cap()
     }
-
-    fn total_masks(&self) -> u64 {
-        let n = self.orientable.len();
-        if n == 0 { 1 } else { 1u64 << n }
-    }
-
-    fn build_completion(&self, mask: u64) -> Option<TemporalDag> {
-        let mut g = self.base.clone();
-        for &(from, to) in &self.forced {
-            if g.set_marks(from, to, Endpoint::Tail, Endpoint::Arrow).is_err() {
-                return None;
-            }
-        }
-        for (i, &(a, b)) in self.orientable.iter().enumerate() {
-            let reverse = ((mask >> i) & 1) == 1;
-            let (from, to) = if reverse { (b, a) } else { (a, b) };
-            if g.set_marks(from, to, Endpoint::Tail, Endpoint::Arrow).is_err() {
-                return None;
-            }
-        }
-        g.try_into_temporal_dag().ok()
+    /// Full template assignment and equivalence audit, including constraint rejects.
+    #[must_use]
+    pub const fn validation_report(&self) -> CompletionValidationReport {
+        self.inner.validation_report()
     }
 }
-
+fn refine(base: &TemporalPag, candidate: &Pag) -> Option<TemporalPag> {
+    let mut graph = base.clone();
+    for edge in base.edges() {
+        let completed = candidate.edge_between(edge.a, edge.b)?;
+        graph.set_marks(edge.a, edge.b, completed.at_a, completed.at_b).ok()?;
+    }
+    Some(graph)
+}
 impl Iterator for TemporalPagCompletionSampler {
     type Item = TemporalPagCompletion;
-
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next_index >= self.max_completions {
-            return None;
-        }
-        let total = self.total_masks();
-        while self.assign < total {
-            let mask = self.assign;
-            self.assign += 1;
-            if let Some(graph) = self.build_completion(mask) {
-                let index = self.next_index;
-                self.next_index += 1;
-                return Some(TemporalPagCompletion { graph, index });
-            }
-        }
-        None
+        let completion = self.inner.next()?;
+        Some(TemporalPagCompletion {
+            graph: refine(&self.base, &completion.graph)
+                .expect("constraints checked before retention"),
+            index: completion.index,
+        })
     }
 }
-
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{Lag, VariableId};
-
     use super::*;
-
-    fn lagged(g: &mut TemporalPag, var: u32, lag: u32) -> DenseNodeId {
-        g.add_lagged(VariableId::from_raw(var), Lag::from_raw(lag)).unwrap()
+    use crate::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
+    use antecedent_core::{Lag, VariableId};
+    fn pair() -> (TemporalPag, DenseNodeId, DenseNodeId) {
+        let mut graph = TemporalPag::empty();
+        let a = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = graph.add_lagged(VariableId::from_raw(1), Lag::from_raw(0)).unwrap();
+        (graph, a, b)
     }
-
     #[test]
-    fn circle_arrow_chain_yields_one() {
-        let mut g = TemporalPag::empty();
-        let a = lagged(&mut g, 0, 1);
-        let b = lagged(&mut g, 1, 0);
-        g.insert_circle_arrow(a, b).unwrap();
-        let collected: Vec<_> = TemporalPagCompletionSampler::new(g, 8).unwrap().collect();
-        assert_eq!(collected.len(), 1);
-        assert!(collected[0].graph.children(a).contains(&b));
+    fn future_circle_arrow_retains_only_latent_completion() {
+        let (mut graph, past, present) = pair();
+        graph.insert_circle_arrow(present, past).unwrap();
+        let mut sampler = TemporalPagCompletionSampler::new(graph, 1).unwrap();
+        let completion = sampler.next().expect("valid latent completion");
+        let edge = completion.graph.edge_between(present, past).unwrap();
+        assert_eq!((edge.at_a, edge.at_b), (Endpoint::Arrow, Endpoint::Arrow));
+        assert!(sampler.next().is_none());
+        assert!(!sampler.hit_cap());
     }
-
     #[test]
-    fn circle_circle_confounder_has_two_dags() {
-        let mut g = TemporalPag::empty();
-        let z = lagged(&mut g, 0, 1);
-        let t = lagged(&mut g, 1, 1);
-        let y = lagged(&mut g, 2, 0);
-        g.insert_directed(z, y).unwrap();
-        g.insert_directed(t, y).unwrap();
-        g.insert_circle_circle_with_middle(z, t, crate::types::MiddleMark::Empty).unwrap();
-        let collected: Vec<_> = TemporalPagCompletionSampler::new(g, 8).unwrap().collect();
-        assert_eq!(collected.len(), 2);
+    fn circle_arrow_retains_latent_completion() {
+        let (mut graph, a, b) = pair();
+        graph.insert_circle_arrow(a, b).unwrap();
+        let completions: Vec<_> = TemporalPagCompletionSampler::new(graph, 8).unwrap().collect();
+        assert_eq!(completions.len(), 2);
+        assert!(
+            completions.iter().any(|c| c.graph.edge_between(a, b).unwrap().at_a == Endpoint::Arrow)
+        );
     }
-
     #[test]
-    fn selection_tails_are_not_replaced_with_arrowheads() {
-        let mut g = TemporalPag::empty();
-        let a = lagged(&mut g, 0, 0);
-        let b = lagged(&mut g, 1, 0);
-        g.insert_marked(crate::types::MarkedEdge {
-            a,
-            b,
-            at_a: Endpoint::Tail,
-            at_b: Endpoint::Tail,
-            middle: crate::types::MiddleMark::Empty,
-        })
-        .unwrap();
-        assert!(TemporalPagCompletionSampler::new(g, 4).is_err());
+    fn bidirected_template_is_retained() {
+        let (mut graph, a, b) = pair();
+        graph
+            .insert_marked(MarkedEdge {
+                a,
+                b,
+                at_a: Endpoint::Arrow,
+                at_b: Endpoint::Arrow,
+                middle: MiddleMark::Empty,
+            })
+            .unwrap();
+        assert_eq!(TemporalPagCompletionSampler::new(graph, 8).unwrap().count(), 1);
     }
-
     #[test]
-    fn refuses_bidirected() {
-        let mut g = TemporalPag::empty();
-        let a = lagged(&mut g, 0, 1);
-        let b = lagged(&mut g, 1, 0);
-        g.insert_marked(crate::types::MarkedEdge {
-            a,
-            b,
-            at_a: Endpoint::Arrow,
-            at_b: Endpoint::Arrow,
-            middle: crate::types::MiddleMark::Empty,
-        })
-        .unwrap();
-        assert!(TemporalPagCompletionSampler::new(g, 4).is_err());
+    fn future_to_past_refinements_do_not_consume_retention_cap() {
+        let (mut graph, a, b) = pair();
+        graph.insert_circle_circle_with_middle(a, b, MiddleMark::Empty).unwrap();
+        let mut sampler = TemporalPagCompletionSampler::new(graph, 1).unwrap();
+        assert!(sampler.validation_report().rejected_constraints > 0);
+        assert!(sampler.next().is_some());
+        assert!(sampler.hit_cap());
     }
 }

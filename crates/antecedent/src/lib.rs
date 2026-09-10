@@ -90,7 +90,7 @@ pub use identify_api::{Identification, identify, identify_dag, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
-pub use result::StudyResult;
+pub use result::{AnalysisIdentification, StudyResult};
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
 };

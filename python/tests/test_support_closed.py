@@ -26,7 +26,10 @@ def _two_node_table(n: int = 48, seed: int = 3):
 _DATA = _two_node_table()
 _EDGES = [("t", "y")]
 _DAG = antecedent.Dag.from_edges(["t", "y"], _EDGES)
-_PAG = antecedent.Pag.from_marked_edges(["t", "y"], [("t", "y", "circle", "arrow")])
+_PAG_DATA = {**_DATA, "r": np.arange(len(_DATA["t"]), dtype=float) % 2}
+_PAG = antecedent.Pag.from_marked_edges(
+    ["t", "y", "r"], [("r", "t", "tail", "arrow"), ("t", "y", "tail", "arrow")]
+)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 _ADMG = antecedent.Admg.from_edges(["t", "y"], _EDGES)
@@ -49,9 +52,7 @@ _REFUSED = [
     # Frequentist graph-posterior queries stay closed.
     (
         "intervention_response_admg",
-        antecedent.InterventionResponse(
-            "y", intervention=antecedent.intervention.Set("t", 1.0)
-        ),
+        antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0)),
         {"graph": _ADMG},
         _REASON_ADMG_RESPONSE,
     ),
@@ -86,7 +87,7 @@ def test_closed_cells_raise_refused(query, kwargs, prefix):
 
 def test_licensed_pag_response_curve_runs():
     result = antecedent.analyze(
-        _DATA,
+        _PAG_DATA,
         graph=_PAG,
         query=_CURVE,
         refute=False,
@@ -132,7 +133,7 @@ def test_licensed_average_effect_on_dag_frequentist():
 
 def test_licensed_pag_ate_runs():
     result = antecedent.analyze(
-        _DATA,
+        _PAG_DATA,
         graph=_PAG,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         refute=False,

@@ -26,9 +26,11 @@ _EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 _DAG = antecedent.Dag.from_edges(["z", "t", "y"], _EDGES)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+_PAG_DATA = {**_ATE_DATA, "r": np.arange(len(_ATE_DATA["t"]), dtype=float) % 2}
 _PAG = antecedent.Pag.from_marked_edges(
-    ["t", "y", "z"],
+    ["t", "y", "z", "r"],
     [
+        ("r", "t", "tail", "arrow"),
         ("z", "t", "tail", "arrow"),
         ("z", "y", "tail", "arrow"),
         ("t", "y", "tail", "arrow"),
@@ -230,18 +232,18 @@ _MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
         (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "cheap", _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "full", _BAYES),
-        (_ATE_DATA, _PAG, _ATE, False, None),
-        (_ATE_DATA, _PAG, _ATE, "cheap", None),
-        (_ATE_DATA, _PAG, _ATE, "full", None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", None),
-        (_ATE_DATA, _PAG, _ATE, False, _BAYES),
-        (_ATE_DATA, _PAG, _ATE, "cheap", _BAYES),
-        (_ATE_DATA, _PAG, _ATE, "full", _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, False, None),
+        (_PAG_DATA, _PAG, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG, _ATE, "full", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", None),
+        (_PAG_DATA, _PAG, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, False, None),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, "cheap", None),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, "full", None),

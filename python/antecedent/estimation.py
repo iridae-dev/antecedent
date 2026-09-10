@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from types import SimpleNamespace
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 
 from ._coerce import coerce_latency, coerce_refute
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
@@ -231,7 +233,10 @@ def _section_performance(raw: Any) -> Any:
 
 
 def _wrap_ate(
-    raw: AteAnalysisResult | TemporalAnalysisResult, prepared: Any | None = None
+    raw: AteAnalysisResult | TemporalAnalysisResult,
+    prepared: Any | None = None,
+    *,
+    query: Any = None,
 ) -> AnalysisResult:
     """Build the nested :class:`AnalysisResult` view from either native DTO.
 
@@ -345,7 +350,10 @@ def _wrap_ate(
             effect_sds=list(sds or ()),
             alphas=None if alphas_raw is None else list(alphas_raw),
         )
+    certificate_json = getattr(raw, "certificate_json", None)
     return AnalysisResult(
+        certificate=json.loads(certificate_json) if certificate_json else None,
+        query=query if query is not None else getattr(prepared, "_query", None),
         identification=IdentificationView(
             status=sec_identification.status,
             method=sec_identification.method,
@@ -712,16 +720,17 @@ def analyze_many(
     if latency is not None:
         kwargs["latency"] = latency
     raws = _analyze_ate_many(names, columns, edges, specs, **kwargs)
-    return [_wrap_ate(r) for r in raws]
+    return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
 
 
 @dataclass(frozen=True)
 class IdentifyResult:
-    """Identify-only result (no estimate)."""
+    """Identify-only result (no estimate), retaining its certified query."""
 
     status: str
     method: str
     adjustment_set: list[str]
+    query: Any = None
 
 
 def identify(
@@ -753,7 +762,9 @@ def identify(
             query.outcome,
             identifier=identifier,
         )
-        return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
+        return IdentifyResult(
+            status=status, method=method, adjustment_set=list(adjustment), query=query
+        )
     if isinstance(graph, Dag):
         node_names = list(graph.nodes())
         edges = list(graph.edges())
@@ -769,7 +780,9 @@ def identify(
         query.outcome,
         identifier=identifier,
     )
-    return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
+    return IdentifyResult(
+        status=status, method=method, adjustment_set=list(adjustment), query=query
+    )
 
 
 def _response_support_bounds(raw: Any) -> dict[str, tuple[float, float]]:
@@ -808,6 +821,22 @@ def _support_point_status(raw: Any) -> tuple[SupportStatus, ...] | None:
     return tuple(cast(SupportStatus, status) for status in cells) if cells else None
 
 
+class _TemporalPrepareKwargs(TypedDict):
+    policy: str
+    window: tuple[int, int] | None
+    treatment_lag: int
+    horizon_steps: int
+    active_level: float
+    inference: str
+    n_draws: int
+    prior_scale: float
+    refute: bool | str | None
+    seed: int
+    bootstrap: int
+    threads: int
+    accepted: bool
+
+
 def _wrap_prepared_response(
     raw: Any, query: ResponseCurve | InterventionResponse | None = None
 ) -> CausalResponseView:
@@ -821,6 +850,7 @@ def _wrap_prepared_response(
     )
     temporal = bool(getattr(query, "is_temporal", False))
     identifier = getattr(raw, "identifier", None)
+    validation: ResponseValidationView | None
     if identifier == "generalized.adjustment":
         method = "generalized.adjustment"
         identify_op = "identify.generalized_adjustment"
@@ -828,7 +858,7 @@ def _wrap_prepared_response(
     elif temporal:
         method = "temporal.backdoor.unfolded"
         identify_op = "identify.temporal_backdoor"
-        validation: ResponseValidationView | None = ResponseValidationView(
+        validation = ResponseValidationView(
             (
                 ResponseValidationCheck(
                     "refute.temporal_response.skipped",
@@ -843,7 +873,9 @@ def _wrap_prepared_response(
         method = "response.backdoor"
         identify_op = "identify.response"
         validation = None
+    certificate_json = getattr(raw, "certificate_json", None)
     return CausalResponseView(
+        certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
         response=response,
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
@@ -1105,7 +1137,7 @@ class PreparedAnalysis:
                 inference_mode, temporal_bayes_kw = _prepared_bayesian_args(inference)
             else:
                 inference_mode = "frequentist"
-            temporal_kwargs = {
+            temporal_kwargs: _TemporalPrepareKwargs = {
                 "policy": query.kind,
                 "window": getattr(query, "window", None),
                 "treatment_lag": query.treatment_lag,
@@ -1835,7 +1867,7 @@ class PreparedAnalysis:
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
         seed: int,
         threads: int,
-        latency: Latency | None,
+        latency: Latency | Literal["interactive", "standard", "report"] | None,
         structure_accepted: bool,
     ) -> PreparedAnalysis:
         if getattr(query, "is_temporal", False):
@@ -1854,13 +1886,10 @@ class PreparedAnalysis:
             expected_estimator = "response.intervention_gcomp"
         if estimator not in (None, expected_estimator):
             raise CausalUnsupportedError(
-                f"Cpdag/Pag response requires estimator={expected_estimator!r}; "
-                f"got {estimator!r}"
+                f"Cpdag/Pag response requires estimator={expected_estimator!r}; got {estimator!r}"
             )
         if refute not in (False, "none", Refute.NONE):
-            raise CausalUnsupportedError(
-                "not_applicable: response curves require refute='none'"
-            )
+            raise CausalUnsupportedError("not_applicable: response curves require refute='none'")
         observation = getattr(query, "observation", None)
         if observation is not None:
             from .observation import Complete
@@ -1874,14 +1903,11 @@ class PreparedAnalysis:
             treatments = [query.treatment]
             outcomes = [query.outcome]
             native_fn = (
-                _NativePreparedAnalysis.prepare_pag_response
+                partial(_NativePreparedAnalysis.prepare_pag_response, names, columns, graph)
                 if isinstance(graph, Pag)
-                else _NativePreparedAnalysis.prepare_cpdag_response
+                else partial(_NativePreparedAnalysis.prepare_cpdag_response, names, columns, graph)
             )
             native = native_fn(
-                names,
-                columns,
-                graph,
                 kind,
                 treatments,
                 outcomes,
@@ -1933,14 +1959,11 @@ class PreparedAnalysis:
             intervention_kinds.append(kind_name)
             intervention_parameters.append(parameters)
         native_fn = (
-            _NativePreparedAnalysis.prepare_pag_response
+            partial(_NativePreparedAnalysis.prepare_pag_response, names, columns, graph)
             if isinstance(graph, Pag)
-            else _NativePreparedAnalysis.prepare_cpdag_response
+            else partial(_NativePreparedAnalysis.prepare_cpdag_response, names, columns, graph)
         )
         native = native_fn(
-            names,
-            columns,
-            graph,
             "intervention_response",
             treatments,
             [query.outcome],
@@ -1971,7 +1994,7 @@ class PreparedAnalysis:
         seed: int,
         bootstrap: int | None,
         threads: int,
-        latency: Latency | None,
+        latency: Latency | Literal["interactive", "standard", "report"] | None,
         structure_accepted: bool,
     ) -> PreparedAnalysis:
         if identifier not in (None, "generalized.adjustment"):
@@ -1988,17 +2011,14 @@ class PreparedAnalysis:
                 f"Cpdag/Pag ConditionalEffect requires estimator={expected_estimator!r}; "
                 f"got {estimator!r}"
             )
-        refute = coerce_refute(refute)  # type: ignore[assignment]
+        refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
         native_fn = (
-            _NativePreparedAnalysis.prepare_pag_conditional
+            partial(_NativePreparedAnalysis.prepare_pag_conditional, names, columns, graph)
             if isinstance(graph, Pag)
-            else _NativePreparedAnalysis.prepare_cpdag_conditional
+            else partial(_NativePreparedAnalysis.prepare_cpdag_conditional, names, columns, graph)
         )
         native = native_fn(
-            names,
-            columns,
-            graph,
             query.treatment,
             query.outcome,
             query.modifier,

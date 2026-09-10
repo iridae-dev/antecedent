@@ -248,6 +248,12 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
+        let certificate = crate::Identification::Point {
+            result: identification.clone(),
+            temporal_indexer: Some(indexer.clone()),
+            strategy: IdentifierId::TemporalBackdoorUnfolded,
+            structure_version: self.graph.version(),
+        };
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -267,6 +273,7 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
+                certificate: Some(certificate),
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -809,6 +816,11 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
+                certificate: Some(crate::Identification::TemporalEnvelope {
+                    envelope: bundle.envelope.clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             },

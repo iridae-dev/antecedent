@@ -33,6 +33,75 @@ use crate::common::{
 };
 use crate::error::ValidationError;
 
+/// Sensitivity perturbations act on the identified lag-aligned regression rows.
+/// This changes no graph certificate and makes no iid sampling-uncertainty claim.
+fn with_temporal_diagnostic_rows<R>(
+    problem: &RefutationProblem<'_>,
+    run: impl FnOnce(&RefutationProblem<'_>) -> Result<R, ValidationError>,
+) -> Result<R, ValidationError> {
+    use antecedent_core::{
+        CausalSchemaBuilder, Intervention, MeasurementSpec, RoleHint, SmallRoleSet, Value,
+        ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
+    let prep = crate::common::temporal_diagnostic_design(problem)?;
+    let n = prep.design.nrows;
+    let mut values = vec![prep.treatment.to_vec(), prep.design.outcome.to_vec()];
+    for i in 0..prep.adjustment_set.len() {
+        let start = (i + 2) * n;
+        values.push(prep.design.matrix[start..start + n].to_vec());
+    }
+    let mut schema = CausalSchemaBuilder::new();
+    let mut columns = Vec::new();
+    let mut ids = Vec::new();
+    for (i, values) in values.into_iter().enumerate() {
+        let id = VariableId::from_raw(
+            u32::try_from(i)
+                .map_err(|_| ValidationError::data_msg("diagnostic design exceeds u32 columns"))?,
+        );
+        schema
+            .add_variable(
+                format!("aligned_{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .map_err(|e| ValidationError::data_msg(e.to_string()))?;
+        columns.push(OwnedColumn::Float64(Float64Column::new(
+            id,
+            Arc::from(values),
+            ValidityBitmap::all_valid(n),
+        )?));
+        ids.push(id);
+    }
+    let schema = schema.build().map_err(|e| ValidationError::data_msg(e.to_string()))?;
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None)?);
+    let mut estimand = problem.estimand.clone();
+    estimand.method = Arc::from("backdoor.adjustment");
+    estimand.adjustment_set = Arc::from(&ids[2..]);
+    let query = antecedent_core::AverageEffectQuery::new(
+        ids[0],
+        ids[1],
+        Arc::from([]),
+        Intervention::set(ids[0], Value::Float64(prep.control)),
+        Intervention::set(ids[0], Value::Float64(prep.active)),
+        prep.target_population,
+    );
+    let aligned = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        problem.original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    run(&aligned)
+}
+
 /// Default partial-R² grid, ascending.
 fn default_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
@@ -425,6 +494,11 @@ impl LinearSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        if problem.temporal.is_some() {
+            return with_temporal_diagnostic_rows(problem, |aligned| {
+                self.refute(aligned, workspace, ctx)
+            });
+        }
         if self.partial_r2_grid.is_empty() {
             return Err(ValidationError::NotApplicable {
                 message: "linear sensitivity requires a non-empty partial_r2_grid",
@@ -500,6 +574,11 @@ impl PartialLinearSensitivity {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        if problem.temporal.is_some() {
+            return with_temporal_diagnostic_rows(problem, |aligned| {
+                self.refute(aligned, workspace, ctx)
+            });
+        }
         if self.partial_r2_grid.is_empty() {
             return Err(ValidationError::NotApplicable {
                 message: "partial-linear sensitivity requires a non-empty partial_r2_grid",
@@ -731,12 +810,18 @@ impl NonparametricSensitivity {
     /// # Errors
     ///
     /// Data failures or empty `partial_r2_grid`.
+    #[allow(clippy::only_used_in_recursion)]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
-        _workspace: &mut EstimationWorkspace,
+        workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
+        if problem.temporal.is_some() {
+            return with_temporal_diagnostic_rows(problem, |aligned| {
+                self.refute(aligned, workspace, ctx)
+            });
+        }
         if self.partial_r2_grid.is_empty() {
             return Err(ValidationError::NotApplicable {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",

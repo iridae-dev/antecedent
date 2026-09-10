@@ -84,6 +84,13 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
     data = _series(_PIN)
     graph = graph_fn(accepted=accepted)
     query = _pulse(_PIN)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=query)
+        assert identified.status == "NotIdentified"
+        assert len(identified.certificate["cases"]) == 3
+        with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
+            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+        return
     section = _PIN[class_name]
     expected = float(section["pulse"]["ate"])
     tol = float(section["pulse"]["absolute_tolerance"])
@@ -109,20 +116,18 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
     assert click.ate == pytest.approx(expected, abs=tol)
     assert any(diag in diagnostic for diagnostic in fresh.diagnostics)
     assert any(diag in diagnostic for diagnostic in click.diagnostics)
-    assert all(not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
+    assert all(
+        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
+    )
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     assert any(
         "estimate.envelope.se_omits_between_atom_variance" in diagnostic
         for diagnostic in fresh.diagnostics
     )
 
-    cheap = antecedent.analyze(
-        data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1
-    )
+    cheap = antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1)
     assert cheap.validation.ran
-    assert any(
-        "refute.envelope.effect_mixture" in diagnostic for diagnostic in cheap.diagnostics
-    )
+    assert any("refute.envelope.effect_mixture" in diagnostic for diagnostic in cheap.diagnostics)
     assert cheap.ate == pytest.approx(expected, abs=tol)
 
 
@@ -130,6 +135,11 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
 def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, graph_fn) -> None:
     data = _series(_PIN)
     graph = graph_fn(accepted=False)
+    if class_name == "pag":
+        for query in (_pulse(_PIN), _sustained(_PIN)):
+            with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
+                antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+        return
     pulse = antecedent.analyze(
         data, graph=graph, query=_pulse(_PIN), refute=False, bootstrap=0, seed=1
     )
@@ -144,7 +154,7 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
 def test_temporal_class_bayesian_refuses_at_build(class_name: str, graph_fn) -> None:
     data = _series(_PIN)
     graph = graph_fn(accepted=False)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="1.6"):
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="1.7"):
         antecedent.analyze(
             data,
             graph=graph,

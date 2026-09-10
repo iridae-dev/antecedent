@@ -1,4 +1,4 @@
-//! 1.4 numeric pins for licensed Cpdag/Pag ConditionalEffect cells.
+//! 1.4 numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -208,6 +208,16 @@ fn class_aware_conditional_pins_z_conditional_effect() {
         ("pag", ClassGraph::Pag(pag_from_class_pin(&class))),
     ];
     for (class_name, graph) in graphs {
+        if let ClassGraph::Pag(pag) = &graph {
+            let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+                .identify_pag_envelope(pag, &query.inner)
+                .unwrap();
+            assert_eq!(
+                env.identified_weight.0, 0.0,
+                "conditioning cannot rescue MAG non-amenability"
+            );
+            continue;
+        }
         for accepted in [false, true] {
             for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
                 let freq_study = build_conditional(

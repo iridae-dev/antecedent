@@ -24,6 +24,8 @@ use crate::{
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
     #[pyo3(get)]
+    certificate_json: Option<String>,
+    #[pyo3(get)]
     treatments: Vec<String>,
     #[pyo3(get)]
     outcomes: Vec<String>,
@@ -328,6 +330,7 @@ fn analyze_response_pag(
         let upper_rows = upper.iter().map(|value| vec![*value]).collect();
         let support_status = support_status_name(worst_support).to_owned();
         Ok(ResponseAnalysisResult {
+            certificate_json: None,
             treatments: vec![treatment],
             outcomes: vec![outcome],
             points,
@@ -589,6 +592,7 @@ pub(crate) fn response_result(
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(evidence);
     Ok(ResponseAnalysisResult {
+        certificate_json: None,
         treatments,
         outcomes,
         points,
@@ -636,7 +640,10 @@ pub(crate) fn response_result(
             .map(|warning| warning.message.to_string())
             .collect(),
         identification: format!("{:?}", response.identification_status),
-        adjustment_set: crate::public_adjustment_set(response.identification_status, adjustment_set),
+        adjustment_set: crate::public_adjustment_set(
+            response.identification_status,
+            adjustment_set,
+        ),
         horizon_adjustment_sets,
         assumptions: response
             .assumptions
@@ -661,10 +668,12 @@ pub(crate) fn response_result(
 
 pub(crate) fn attach_study_response_meta(
     mut mapped: ResponseAnalysisResult,
+    certificate_json: Option<String>,
     identification: String,
     identifier: Option<String>,
     diagnostics: Vec<String>,
 ) -> ResponseAnalysisResult {
+    mapped.certificate_json = certificate_json;
     mapped.identification = identification;
     mapped.identifier = identifier;
     mapped.diagnostics = diagnostics;

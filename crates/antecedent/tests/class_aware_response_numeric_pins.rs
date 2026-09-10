@@ -184,11 +184,7 @@ fn assert_envelope_diagnostic(
         identification["unidentified_mass"].as_f64().unwrap(),
         identification["completion_count"].as_u64().unwrap()
     );
-    let code = if class == "cpdag" {
-        "identify.cpdag.envelope"
-    } else {
-        "identify.pag.envelope"
-    };
+    let code = if class == "cpdag" { "identify.cpdag.envelope" } else { "identify.pag.envelope" };
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == code && d.message.contains(&expected)),
         "{class} envelope diagnostic must report {expected}; got {:?}",
@@ -241,6 +237,18 @@ fn class_aware_intervention_pins_against_ate_envelope() {
         ("pag", ClassGraph::Pag(pag_from_pin(&pin))),
     ];
     for (class, graph) in graphs {
+        if let ClassGraph::Pag(pag) = &graph {
+            let (t, y) = ids(&pin);
+            let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+                .identify_pag_envelope(pag, &AverageEffectQuery::binary_ate(t, y))
+                .unwrap();
+            assert_eq!(
+                env.identified_weight.0, 0.0,
+                "invisible causal edges cannot license response adjustment"
+            );
+            assert_eq!(env.unidentified_weight.0, env.cases.len() as f64);
+            continue;
+        }
         let section = &pin[class];
         let ate = section["ate_contrast"].as_f64().unwrap();
         let do0 = section["intervention"]["do_0"].as_f64().unwrap();
@@ -268,7 +276,11 @@ fn class_aware_intervention_pins_against_ate_envelope() {
             let lo = response_values(&low)[0];
             let hi = response_values(&fresh)[0];
             assert!((lo - do0).abs() < tol, "{class} do(0) {lo}");
-            assert!((hi - lo - ate).abs() < section["intervention"]["contrast_tolerance"].as_f64().unwrap(), "{class} contrast");
+            assert!(
+                (hi - lo - ate).abs()
+                    < section["intervention"]["contrast_tolerance"].as_f64().unwrap(),
+                "{class} contrast"
+            );
         }
     }
 }
@@ -284,6 +296,18 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
         ("pag", ClassGraph::Pag(pag_from_pin(&pin))),
     ];
     for (class, graph) in graphs {
+        if let ClassGraph::Pag(pag) = &graph {
+            let (t, y) = ids(&pin);
+            let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+                .identify_pag_envelope(pag, &AverageEffectQuery::binary_ate(t, y))
+                .unwrap();
+            assert_eq!(
+                env.identified_weight.0, 0.0,
+                "invisible causal edges cannot license response adjustment"
+            );
+            assert_eq!(env.unidentified_weight.0, env.cases.len() as f64);
+            continue;
+        }
         let section = &pin[class];
         let expected: Vec<f64> = section["curve"]["mean"]
             .as_array()
@@ -328,8 +352,16 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
                 assert_envelope_diagnostic(result, section, class);
                 let values = response_values(result);
                 assert_eq!(values.len(), 2);
-                assert!((values[0] - expected[0]).abs() < mean_tol, "{class} curve[0] {}", values[0]);
-                assert!((values[1] - expected[1]).abs() < mean_tol, "{class} curve[1] {}", values[1]);
+                assert!(
+                    (values[0] - expected[0]).abs() < mean_tol,
+                    "{class} curve[0] {}",
+                    values[0]
+                );
+                assert!(
+                    (values[1] - expected[1]).abs() < mean_tol,
+                    "{class} curve[1] {}",
+                    values[1]
+                );
                 assert!(
                     (values[1] - values[0] - ate).abs() < contrast_tol,
                     "{class} curve contrast {} vs ate {ate}",
@@ -383,6 +415,14 @@ fn class_aware_bayesian_intervention_pins_against_ate_envelope() {
         ("pag", ClassGraph::Pag(pag_from_pin(&pin)), "pag_ate_contrast"),
     ];
     for (class, graph, contrast_key) in graphs {
+        if let ClassGraph::Pag(pag) = &graph {
+            let (t, y) = ids(&pin);
+            let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+                .identify_pag_envelope(pag, &AverageEffectQuery::binary_ate(t, y))
+                .unwrap();
+            assert_eq!(env.identified_weight.0, 0.0);
+            continue;
+        }
         let expected = bayes[contrast_key].as_f64().unwrap();
         let tol = bayes["contrast_tolerance"].as_f64().unwrap();
         for accepted in [false, true] {

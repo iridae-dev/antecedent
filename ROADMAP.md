@@ -216,17 +216,93 @@ interference stay stage APIs.
 
 ## 1.4 — Class-preserving coordinates, then handoff
 
-Implemented on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
+In completion review on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
 stays a `Cpdag` and estimates a MEC envelope. The same generalized-adjustment
 envelope licenses `ResponseCurve` / `InterventionResponse` and
 `ConditionalEffect` on `Cpdag` / `Pag`, and Frequentist Pulse / single-step
 Sustained on incomplete `TemporalCpdag` / `TemporalPag`. Frequentist
 graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
 `antecedent.handoff.econml` exports point-identified static adjustment sets.
+Joint interventions certify a common adjustment set for all targets per
+completion; they do not inherit the first target's ATE certificate.
 See the [evidence ledger](docs/v1.4-evidence.md). Multi-atom Frequentist
-uncertainty is unavailable. Temporal PAG results disclose their DAG-only
-subset. Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
-mixing stay 1.6.
+uncertainty is unavailable. The temporal PAG mixed-graph replacement is under
+integration verification, with finite-window audit limits explicit.
+Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
+mixing stay 1.7.
+
+### Explicit ownership from the 1.4 completion review
+
+1.4 owns query-faithful single/joint EconML handoffs, constrained conditional
+adjustment search, preservation of identification envelopes and temporal
+coordinates through Python, aligned temporal adjustment handoffs, static
+Bayesian stochastic response policies, and temporal PAG mixed-graph
+completion/adjustment. The PAG work also owns singleton and conditional MAG
+edge-visibility checks, matching the criterion already used for joint responses.
+Temporal PAG completion retains directed/bidirected MAGs; finite-window audit
+limits remain explicit. Each item
+requires consuming numerical or contract evidence and the PR gates.
+
+1.8 owns response-specific prior transfer for static Bayesian response cells,
+including class envelopes and explicit source/target compatibility.
+
+1.5 owns implementation and calibration of covariance-aware sampling
+uncertainty for existing static multi-atom Frequentist aggregates, including
+CPDAG/PAG responses. 1.9 owns the temporal/DBN counterparts, including
+dependence-preserving resampling. This includes the missing joint
+resampling or influence-covariance machinery; it is not merely a calibration
+pass over unavailable intervals. Graph-weight conditioning and unidentified
+mass must remain explicit.
+
+1.10 retains its result-composition and presentation work. It does not own
+repairing information lost at 1.4's native-to-Python identification boundary.
+1.4 must preserve certificates through analysis and prepared results as well as
+identify-only results, compare temporal completion certificates in shared named
+coordinates, and verify all advertised temporal validation modes.
+
+## 1.5 — Local, distributional, joint
+
+Planned; inserted ahead of the temporal and Bayesian minors, which move to
+1.6–1.10.
+
+The consumer question is inverse forecasting: which conditions move a target
+population toward the upper tail of an outcome distribution. The licensed
+surface answers with means, over the sample, one lever at a time. 1.5 adds no
+query kinds and no identification theory. It adds estimators, a functional
+parameter, and an execution contract on kinds the staged handle already runs:
+
+- **Retargetable prepared plans.** Cross-fitted AIPW scores exported from a
+  prepared `AverageEffect` or discrete joint `InterventionResponse`, and
+  `retarget(weights, depends_on=...)` estimating the effect in a declared
+  covariate-defined target population without refitting. Valid only when the
+  weights are a function of the certified adjustment set. Weights that depend
+  on treatment or its descendants are refused. This is standardization to a
+  declared target, not ML CATE; no heterogeneity model is learned.
+- **Exceedance functionals.** `Exceedance(c)` / `ExceedanceGrid` on
+  `AverageEffect`, `ConditionalEffect`, and discrete joint
+  `InterventionResponse`: the interventional CDF on a threshold grid, with
+  bands simultaneous over the grid and support per threshold.
+- **Non-additive joint estimation.** A cell-saturated AIPW estimator on the
+  common adjustment set 1.4 certifies, with a first-class interaction contrast.
+  The additive estimators report on the result that their interaction is
+  structurally zero.
+- **Tier-rule identification at width.** A tiered background-knowledge
+  constructor over existing `Admg` / `Pag` semantics that certifies the
+  tier-closure adjustment set without enumerating completions. If the owner
+  rules this a new identification theory, it leaves 1.5 for its own minor.
+- **Batch execution and claim hygiene.** Parallel prepared batches with
+  simultaneous inference over the claim family, typed per-validator failures,
+  and candidate-selection provenance on the artifact.
+
+1.5 owns the joint influence-covariance machinery (static multi-atom
+aggregates, as above) and the `PreparedStudy` handle shape: what a prepared
+plan freezes, what a call may vary, and `retarget` as a method on that plan.
+1.10 composes prior transfer and design ranking onto that shape rather than
+redesigning it.
+
+Quantile treatment effects and PN/PS/PNS bounds are new estimands. They stay
+unscheduled post-1.x work. [TODO.md](TODO.md) holds the fixtures and
+completion items.
 
 ## 1.x — Compatible cells
 
@@ -234,13 +310,14 @@ Minors add cells to the frozen matrix without new query kinds or new
 identification theories: another licensed observation mechanism under the
 existing vocabulary, another graph class for an existing query, another pinned
 oracle, a documented EconML handoff (Antecedent names the adjustment set and
-identification status; EconML estimates heterogeneity). After 1.4 the remaining
-weight is temporal policy and Bayesian licensing — multi-step and dynamic
-schedules, Bayesian incomplete-class temporal cells, and Bayesian cells for
-queries the staged handle already runs —
-then composition of those cells (discovery → accept → analyze, frozen
-plans, design ranking, refusals that point at the next licensed neighbor)
-without adding query kinds.
+identification status; EconML estimates heterogeneity). After 1.4 comes
+local, distributional, and joint estimation on existing kinds (1.5). Then the
+remaining weight is temporal policy and Bayesian licensing — multi-step and
+dynamic schedules, Bayesian incomplete-class temporal cells, and Bayesian cells
+for queries the staged handle already runs (1.6–1.8) — then calibration (1.9)
+and composition of those cells (discovery → accept → analyze, frozen
+plans, design ranking, refusals that point at the next licensed neighbor;
+1.10) without adding query kinds.
 
 A 1.x item that needs a new query type, a new graph semantics, a new
 identification theory, or a new language runtime is not 1.x.

@@ -101,6 +101,16 @@ impl TemporalBackdoorIdentifier {
         template: &TemporalDag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        self.identify_temporal_with_history(template, query, 0)
+    }
+
+    /// Reuse a common certified history when comparing completion functionals.
+    pub(crate) fn identify_temporal_with_history(
+        &self,
+        template: &TemporalDag,
+        query: &TemporalEffectQuery,
+        minimum_history: u32,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
@@ -143,7 +153,7 @@ impl TemporalBackdoorIdentifier {
 
         let variable_count = required_variable_count(template, query.treatment, query.outcome);
         let max_lag = template_max_lag(template);
-        let base_history = min_offset.unsigned_abs().max(max_lag);
+        let base_history = min_offset.unsigned_abs().max(max_lag).max(minimum_history);
         // The user's max_history_lag, when set, caps window growth; otherwise
         // bound simple confounder chains through every template variable.
         let history_cap = query
@@ -481,7 +491,7 @@ fn required_variable_count(
     max_id.saturating_add(1)
 }
 
-fn retarget(
+pub(crate) fn retarget(
     intervention: &Intervention,
     variable: VariableId,
 ) -> Result<Intervention, IdentificationError> {
@@ -493,7 +503,7 @@ fn retarget(
     }
 }
 
-fn annotate_temporal(
+pub(crate) fn annotate_temporal(
     result: &mut IdentificationResult,
     query: &TemporalEffectQuery,
     treatment_key: TemporalNodeKey,

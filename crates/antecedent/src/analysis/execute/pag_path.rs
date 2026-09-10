@@ -125,23 +125,30 @@ impl super::Study {
                 let identification = envelope_to_identification_result(&envelope, query);
                 (envelope, identification, false)
             };
+        let certificate = crate::Identification::Envelope {
+            envelope: envelope.clone(),
+            strategy: identifier_id,
+            structure_version: self.graph.version(),
+        };
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
             if matches!(self.inference, InferenceMode::Bayesian(_))
                 || matches!(estimator_id, EstimatorId::BayesianGcomp)
             {
-                return self.execute_pag_nonidentified_prior(
-                    query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identification,
-                    identify_cached,
-                    started,
-                    pag_envelope_diagnostic(&envelope),
-                    "pag",
-                );
+                return self
+                    .execute_pag_nonidentified_prior(
+                        query,
+                        physical,
+                        ctx,
+                        &envelope,
+                        identification,
+                        identify_cached,
+                        started,
+                        pag_envelope_diagnostic(&envelope),
+                        "pag",
+                    )
+                    .map(|result| self.attach_certificate(result, certificate));
             }
             return Err(CausalError::Compile {
                 message: "PAG effect not identified (no identified mass in envelope)".into(),
@@ -151,18 +158,20 @@ impl super::Study {
         let mut diagnostics = vec![pag_envelope_diagnostic(&envelope)];
 
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_pag_bayesian(
-                data,
-                query,
-                physical,
-                ctx,
-                &envelope,
-                identification,
-                identify_cached,
-                started,
-                pag_envelope_diagnostic(&envelope),
-                "pag",
-            );
+            return self
+                .execute_pag_bayesian(
+                    data,
+                    query,
+                    physical,
+                    ctx,
+                    &envelope,
+                    identification,
+                    identify_cached,
+                    started,
+                    pag_envelope_diagnostic(&envelope),
+                    "pag",
+                )
+                .map(|result| self.attach_certificate(result, certificate));
         }
 
         let mut weighted_ate = 0.0;
@@ -274,6 +283,7 @@ impl super::Study {
                 ..Default::default()
             },
         }))
+        .map(|result| self.attach_certificate(result, certificate))
     }
 
     /// CPDAG ATE via MEC-completion envelope + mass-weighted estimates.
@@ -309,23 +319,30 @@ impl super::Study {
                 let identification = envelope_to_identification_result(&envelope, query);
                 (envelope, identification, false)
             };
+        let certificate = crate::Identification::CpdagEnvelope {
+            envelope: envelope.clone(),
+            strategy: identifier_id,
+            structure_version: self.graph.version(),
+        };
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
             if matches!(self.inference, InferenceMode::Bayesian(_))
                 || matches!(estimator_id, EstimatorId::BayesianGcomp)
             {
-                return self.execute_pag_nonidentified_prior(
-                    query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identification,
-                    identify_cached,
-                    started,
-                    cpdag_envelope_diagnostic(&envelope),
-                    "cpdag",
-                );
+                return self
+                    .execute_pag_nonidentified_prior(
+                        query,
+                        physical,
+                        ctx,
+                        &envelope,
+                        identification,
+                        identify_cached,
+                        started,
+                        cpdag_envelope_diagnostic(&envelope),
+                        "cpdag",
+                    )
+                    .map(|result| self.attach_certificate(result, certificate));
             }
             return Err(CausalError::Compile {
                 message: "CPDAG effect not identified (no identified mass in envelope)".into(),
@@ -335,18 +352,20 @@ impl super::Study {
         let mut diagnostics = vec![cpdag_envelope_diagnostic(&envelope)];
 
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_pag_bayesian(
-                data,
-                query,
-                physical,
-                ctx,
-                &envelope,
-                identification,
-                identify_cached,
-                started,
-                cpdag_envelope_diagnostic(&envelope),
-                "cpdag",
-            );
+            return self
+                .execute_pag_bayesian(
+                    data,
+                    query,
+                    physical,
+                    ctx,
+                    &envelope,
+                    identification,
+                    identify_cached,
+                    started,
+                    cpdag_envelope_diagnostic(&envelope),
+                    "cpdag",
+                )
+                .map(|result| self.attach_certificate(result, certificate));
         }
 
         let mut weighted_ate = 0.0;
@@ -454,6 +473,7 @@ impl super::Study {
                 ..Default::default()
             },
         }))
+        .map(|result| self.attach_certificate(result, certificate))
     }
 
     /// Non-identified PAG with Bayesian inference: prior-predictive draws, no invented ID.

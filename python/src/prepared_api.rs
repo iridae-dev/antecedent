@@ -2525,6 +2525,7 @@ pub(crate) fn response_from_study(
             names,
             result.support_status,
         )?,
+        crate::identification_details::analysis_to_json(result, names)?,
         format!("{:?}", result.identification.status),
         result.logical_plan.identifier.as_deref().map(str::to_owned),
         result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
@@ -2661,8 +2662,8 @@ fn prepare_class_conditional(
     let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
     let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
         .with_effect_modifiers([w_id]);
-    let cq = ConditionalEffectQuery::try_new(inner)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let cq =
+        ConditionalEffectQuery::try_new(inner).map_err(|e| PyValueError::new_err(e.to_string()))?;
     let mut builder = match graph {
         ClassResponseGraph::Pag(pag) => {
             if accepted {

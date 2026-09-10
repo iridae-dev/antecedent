@@ -80,9 +80,8 @@ fn series() -> TimeSeriesData {
     .unwrap()
 }
 
-/// A temporal PAG the accept gate admits (no circle marks) but that cannot
-/// complete: the bidirected `t-1 <-> y` mark has no `parent_child()` reduction.
-fn incompletable_temporal_pag() -> AcceptedGraph {
+/// A valid temporal MAG with an unblocked latent backdoor at the queried lag.
+fn latent_temporal_pag() -> AcceptedGraph {
     let mut pag = TemporalPag::empty();
     let t1 = pag.add_lagged(T, Lag::from_raw(1)).unwrap();
     let y0 = pag.add_lagged(Y, Lag::CONTEMPORANEOUS).unwrap();
@@ -102,15 +101,14 @@ fn incompletable_temporal_cpdag() -> AcceptedGraph {
     let t1 = cpdag.add_lagged(T, Lag::from_raw(1)).unwrap();
     let y0 = cpdag.add_lagged(Y, Lag::CONTEMPORANEOUS).unwrap();
     cpdag.insert_marked(MarkedEdge::conflict(t1, y0)).unwrap();
-    assert!(
-        cpdag.try_into_temporal_dag().is_err(),
-        "the conflict mark still blocks completion"
-    );
+    assert!(cpdag.try_into_temporal_dag().is_err(), "the conflict mark still blocks completion");
     AcceptedGraph::from(cpdag)
 }
 
 fn pulse_query() -> CausalQuery {
-    CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(T, Y, 1.0))
+    CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(T, Y, 1.0).with_policy(TemporalPolicy::pulse(-1)),
+    )
 }
 
 /// The licensed Sustained form: a single-step window (`from == until`), not the
@@ -118,13 +116,17 @@ fn pulse_query() -> CausalQuery {
 fn single_step_sustained_query() -> CausalQuery {
     let mut q = TemporalEffectQuery::sustained(T, Y, 0, 1.0);
     assert!(matches!(q.policy, TemporalPolicy::Sustained { from: 0, until: 0, .. }));
-    q.policy = TemporalPolicy::sustained(0, 0);
+    q.policy = TemporalPolicy::sustained(-1, -1);
     CausalQuery::TemporalEffect(q)
 }
 
-/// Bidirected / conflict graphs reach the licensed TemporalCpdag/Pag cell, then
-/// fail at the completion sampler — not a Support refusal and not a number.
-fn assert_identify_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery, label: &str) {
+/// Valid latent graphs can fail adjustment certification; conflict graphs fail
+/// completion. Both reach their licensed graph class without becoming a DAG.
+fn assert_completion_or_adjustment_refusal(
+    graph: &AcceptedGraph,
+    query: &CausalQuery,
+    label: &str,
+) {
     let ctx = antecedent_core::ExecutionContext::for_tests(1);
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
         let study = Study::series(series())
@@ -136,10 +138,11 @@ fn assert_identify_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery
             .unwrap_or_else(|e| panic!("{label}/{suite:?}: licensed cell must build: {e}"));
         let err = study
             .run(&ctx)
-            .expect_err(&format!("{label}/{suite:?}: incompletable structure must not estimate"));
+            .expect_err(&format!("{label}/{suite:?}: uncertified adjustment must not estimate"));
         let msg = err.to_string();
         assert!(
-            msg.contains("bidirected")
+            msg.contains("no identified mass")
+                || msg.contains("bidirected")
                 || msg.contains("conflict")
                 || msg.contains("completion")
                 || msg.contains("refuses"),
@@ -150,12 +153,12 @@ fn assert_identify_completion_refusal(graph: &AcceptedGraph, query: &CausalQuery
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_identify_completion_refusal(&incompletable_temporal_pag(), &pulse_query(), "pulse/pag");
+    assert_completion_or_adjustment_refusal(&latent_temporal_pag(), &pulse_query(), "pulse/pag");
 }
 
 #[test]
 fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_identify_completion_refusal(
+    assert_completion_or_adjustment_refusal(
         &incompletable_temporal_cpdag(),
         &pulse_query(),
         "pulse/cpdag",
@@ -170,8 +173,8 @@ fn pulse_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 /// policies of one query family sharing a single arm.
 #[test]
 fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
-    assert_identify_completion_refusal(
-        &incompletable_temporal_pag(),
+    assert_completion_or_adjustment_refusal(
+        &latent_temporal_pag(),
         &single_step_sustained_query(),
         "sustained/pag",
     );
@@ -179,7 +182,7 @@ fn sustained_on_incompletable_accepted_temporal_pag_reaches_compile() {
 
 #[test]
 fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
-    assert_identify_completion_refusal(
+    assert_completion_or_adjustment_refusal(
         &incompletable_temporal_cpdag(),
         &single_step_sustained_query(),
         "sustained/cpdag",
@@ -191,7 +194,7 @@ fn sustained_on_incompletable_accepted_temporal_cpdag_reaches_compile() {
 /// completion failure is not that cell.
 #[test]
 fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refused() {
-    for graph in [incompletable_temporal_pag(), incompletable_temporal_cpdag()] {
+    for graph in [latent_temporal_pag(), incompletable_temporal_cpdag()] {
         let err = Study::series(series())
             .graph(graph)
             .query(single_step_sustained_query())

@@ -113,9 +113,10 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalCpdag | GraphClass::TemporalPag) => {
-                self.compile_logical_temporal_class()
-            }
+            (
+                Some(AnalysisRoute::TemporalEffect),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical_temporal_class(),
             (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
                     unreachable!()
@@ -248,14 +249,15 @@ impl super::Study {
                 let cpdag =
                     self.graph.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
                 let (identifier, estimator) = self.resolve_class_conditional_pair();
-                let mut plan = compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
-                    data,
-                    cpdag,
-                    query: &q.inner,
-                    validation_suite: self.validation_suite_id(),
-                    identifier,
-                    estimator,
-                })?;
+                let mut plan =
+                    compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
+                        data,
+                        cpdag,
+                        query: &q.inner,
+                        validation_suite: self.validation_suite_id(),
+                        identifier,
+                        estimator,
+                    })?;
                 plan.record.plan_id = Arc::from("static_cpdag_conditional");
                 plan.query = CausalQuery::ConditionalEffect(q.clone());
                 Ok(plan)
@@ -409,9 +411,10 @@ impl super::Study {
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
-            (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalCpdag | GraphClass::TemporalPag) => {
-                self.compile_temporal_class(ctx)
-            }
+            (
+                Some(AnalysisRoute::TemporalEffect),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_temporal_class(ctx),
             (
                 Some(AnalysisRoute::MultiEnvTemporalEffect | AnalysisRoute::PanelTemporalEffect),
                 GraphClass::TemporalDag,
@@ -423,7 +426,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
             (
-                Some(AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional),
+                Some(
+                    AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional,
+                ),
                 GraphClass::Pag,
             ) => {
                 let pag = self.graph.as_pag().expect("class() == Pag implies as_pag() is Some");
@@ -435,11 +440,11 @@ impl super::Study {
                 )
             }
             (
-                Some(AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional),
+                Some(
+                    AnalysisRoute::StaticAte | AnalysisRoute::Response | AnalysisRoute::Conditional,
+                ),
                 GraphClass::Cpdag,
-            ) => {
-                self.compile_logical()?.compile_physical(ctx)
-            }
+            ) => self.compile_logical()?.compile_physical(ctx),
             (Some(AnalysisRoute::StaticAte), GraphClass::Admg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
@@ -514,15 +519,7 @@ impl super::Study {
             unreachable!()
         };
         let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-        if let Some(dag) = self.completed_temporal_dag() {
-            let class = match &self.data {
-                DataInput::Event(_) => DataClassification::Event,
-                _ => DataClassification::Temporal,
-            };
-            return compile_logical_temporal_effect_classified(
-                data, &dag, q, self.split, false, class,
-            );
-        }
+
         let class = match &self.data {
             DataInput::Event(_) => DataClassification::Event,
             _ => DataClassification::Temporal,
@@ -538,45 +535,17 @@ impl super::Study {
             _ => unreachable!(),
         };
         let (identifier, estimator) = self.resolve_temporal_class_pair();
-        compile_logical_temporal_class_effect(
-            data,
-            nodes,
-            q,
-            self.split,
-            class,
-            plan_id,
-            identifier,
-            estimator,
-        )
+        let mut logical = compile_logical_temporal_class_effect(
+            data, nodes, q, self.split, class, plan_id, identifier, estimator,
+        )?;
+        logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
+        Ok(logical)
     }
 
     fn compile_temporal_class(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
-        if let Some(dag) = self.completed_temporal_dag() {
-            let mut logical = self.compile_logical_temporal_class()?;
-            if self.graph.class() == GraphClass::TemporalPag {
-                logical.record.discovery_algorithm = Some(self.graph.algorithm_id().map_or_else(
-                    || Arc::from("supplied.temporal_pag.completed_to_dag"),
-                    |a| Arc::from(format!("{a}.pag_completed_to_dag").as_str()),
-                ));
-            }
-            return logical.compile_physical_with_graph(ctx, Some(dag));
-        }
         self.compile_logical_temporal_class()?.compile_physical(ctx)
-    }
-
-    pub(crate) fn completed_temporal_dag(&self) -> Option<antecedent_graph::TemporalDag> {
-        match self.graph.class() {
-            GraphClass::TemporalCpdag => self
-                .graph
-                .as_temporal_cpdag()
-                .and_then(|g| g.try_into_temporal_dag().ok()),
-            GraphClass::TemporalPag => {
-                self.graph.as_temporal_pag().and_then(|g| g.try_into_temporal_dag().ok())
-            }
-            _ => None,
-        }
     }
 }

@@ -69,6 +69,7 @@ class ArrowLoadInfo:
     column_names: list[str]
 
 class AteAnalysisResult:
+    certificate_json: str | None
     unit_effects: list[float] | None
     assumptions: list[str]
     support_diagnostics: list[str]
@@ -148,6 +149,7 @@ class AteAnalysisResult:
     allowlist_parent: str | None
 
 class ResponseAnalysisResult:
+    certificate_json: str | None
     treatments: list[str]
     outcomes: list[str]
     points: list[list[float]]
@@ -442,6 +444,7 @@ class PredictSummary:
     n: int
 
 class AnalysisResult:
+    certificate_json: str | None
     ate: float
     se_analytic: float
     se_bootstrap: float | None
@@ -1777,7 +1780,10 @@ def identify_structure(
     treatment_lag: int = 1,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-) -> tuple[str, str, list[str]]: ...
+    window: tuple[int, int] | None = None,
+    treatments: list[str] | None = None,
+    include_details: bool = False,
+) -> tuple[str, str, list[str]] | str: ...
 def identify_ate_admg(
     names: list[str],
     graph: Admg,

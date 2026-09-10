@@ -112,7 +112,7 @@ queries = [
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior mixing is 1.6 work. Temporal graph-posterior cells still require the Bayesian envelope combiner (`execute_dbn_posterior_bayesian`)."
+reason = "Frequentist DBN-posterior mixing is 1.7 work. Temporal graph-posterior cells still require the Bayesian envelope combiner (`execute_dbn_posterior_bayesian`)."
 
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
@@ -187,7 +187,7 @@ queries = ["PulseEffect", "SustainedEffect"]
 graph_classes = ["TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 inferences = ["Bayesian"]
-reason = "Class-aware TemporalCpdag/TemporalPag pulse is the Frequentist generalized-adjustment envelope; a Bayesian envelope combiner for temporal incomplete classes is 1.6 work."
+reason = "Class-aware TemporalCpdag/TemporalPag pulse is the Frequentist generalized-adjustment envelope; a Bayesian envelope combiner for temporal incomplete classes is 1.7 work."
 
 [[closed]]
 queries = ["PulseEffect", "SustainedEffect"]

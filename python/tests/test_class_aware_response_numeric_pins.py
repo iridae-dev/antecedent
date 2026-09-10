@@ -84,6 +84,11 @@ def _values(result) -> np.ndarray:
 def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
     data = _expand_contingency(_PIN)
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
+        assert identified.status == "NotIdentified"
+        assert identified.certificate["identified_weight"] == 0.0
+        return
     section = _PIN[class_name]
     high = antecedent.analyze(
         data, graph=graph, query=_intervention(1.0), refute=False, bootstrap=0, seed=1
@@ -119,6 +124,11 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
 def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
     data = _continuous_linear(_PIN)
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
+        assert identified.status == "NotIdentified"
+        assert identified.certificate["identified_weight"] == 0.0
+        return
     section = _PIN[class_name]
     query = _curve()
     fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
@@ -160,6 +170,11 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
 def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str) -> None:
     data = _expand_contingency(_PIN)
     graph = _cpdag(accepted=accepted) if class_name == "cpdag" else _pag(accepted=accepted)
+    if class_name == "pag":
+        identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
+        assert identified.status == "NotIdentified"
+        assert identified.certificate["identified_weight"] == 0.0
+        return
     bayes = _PIN["bayesian"]
     inference = antecedent.Bayesian(
         backend="conjugate",

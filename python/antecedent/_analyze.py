@@ -6,6 +6,7 @@ extend via a handler rather than growing a monolith.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
@@ -70,6 +71,9 @@ from ._native import (
 from ._native import analyze_response as _analyze_response
 from ._native import analyze_response_pag as _analyze_response_pag
 from ._native import (
+    analyze_temporal_cpdag as _analyze_temporal_cpdag,
+)
+from ._native import (
     analyze_temporal_discover as _analyze_temporal_discover,
 )
 from ._native import (
@@ -77,9 +81,6 @@ from ._native import (
 )
 from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
-)
-from ._native import (
-    analyze_temporal_cpdag as _analyze_temporal_cpdag,
 )
 from ._native import (
     analyze_temporal_pag as _analyze_temporal_pag,
@@ -257,7 +258,7 @@ def handle_conditional(
         threads=threads,
         accepted=structure_accepted,
     )
-    return _wrap_ate(raw)
+    return _wrap_ate(raw, query=query)
 
 
 def handle_temporal_mediation(
@@ -818,7 +819,9 @@ def handle_response(
         "operation_id": raw.provenance_id,
         "operation_ids": [identification_operation, raw.provenance_id],
     }
+    certificate_json = getattr(raw, "certificate_json", None)
     return CausalResponseView(
+        certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
         response=response,
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
@@ -922,7 +925,7 @@ def handle_distribution(
         seed=seed,
         threads=threads,
     )
-    return _wrap_ate(raw)
+    return _wrap_ate(raw, query=query)
 
 
 def handle_path_specific(
@@ -968,7 +971,7 @@ def handle_path_specific(
         threads=threads,
         refute=refute if refute_requested else False,
     )
-    return _wrap_ate(raw)
+    return _wrap_ate(raw, query=query)
 
 
 def handle_supplied_graph_posterior(
@@ -1068,7 +1071,8 @@ def handle_supplied_graph_posterior(
                 control_level=query.control_level,
                 active_level=query.active_level,
                 **common,
-            )
+            ),
+            query=query,
         )
     return _wrap_ate(
         _analyze_temporal_graph_posterior(
@@ -1082,7 +1086,8 @@ def handle_supplied_graph_posterior(
             horizon_steps=query.horizon_steps,
             active_level=query.active_level,
             **common,
-        )
+        ),
+        query=query,
     )
 
 
@@ -1160,7 +1165,7 @@ def handle_static_ate_discover(
         threads=threads,
         **bayes_kw,
     )
-    return _wrap_ate(raw)
+    return _wrap_ate(raw, query=query)
 
 
 def _typed_ate(
@@ -1277,15 +1282,18 @@ def handle_static_ate(
         )
     if isinstance(graph, Pag):
         return _wrap_ate(
-            _typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common)
+            _typed_ate(data, graph, _analyze_ate_pag, _analyze_ate_pag_arrow_c, **common),
+            query=query,
         )
     if isinstance(graph, Cpdag):
         return _wrap_ate(
-            _typed_ate(data, graph, _analyze_ate_cpdag, _analyze_ate_cpdag_arrow_c, **common)
+            _typed_ate(data, graph, _analyze_ate_cpdag, _analyze_ate_cpdag_arrow_c, **common),
+            query=query,
         )
     if isinstance(graph, Admg):
         return _wrap_ate(
-            _typed_ate(data, graph, _analyze_ate_admg, _analyze_ate_admg_arrow_c, **common)
+            _typed_ate(data, graph, _analyze_ate_admg, _analyze_ate_admg_arrow_c, **common),
+            query=query,
         )
     edges = _static_edges(graph)
     arrow = try_as_arrow_c_columns(data)
@@ -1298,7 +1306,7 @@ def handle_static_ate(
     else:
         names, columns = as_columns(data)
         raw = _analyze_ate(names, columns, **ate_kwargs)
-    return _wrap_ate(raw)
+    return _wrap_ate(raw, query=query)
 
 
 def _analyze_jpcmci_plus_discover(
