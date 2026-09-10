@@ -35,8 +35,9 @@ class-preserving `AverageEffect` on `Cpdag`, class-aware `ResponseCurve` /
 Pulse / single-step Sustained on incomplete `TemporalCpdag` / `TemporalPag`,
 and Frequentist graph-posterior `AverageEffect` on DAG atoms. Completions stay
 envelope atoms; the runtime class is not collapsed. Multi-atom Frequentist
-uncertainty is unavailable. Temporal PAG results disclose their DAG-only
-subset. Those families are not licensed on every coordinate: Bayesian
+uncertainty is unavailable. Temporal PAG results retain MAG completions and
+disclose finite-window audit caps. Those families are not licensed on every
+coordinate: Bayesian
 incomplete-class temporal cells, Frequentist DBN-posterior mixing, Bayesian
 and partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
@@ -71,8 +72,9 @@ licensed (explicit/accepted, Frequentist and Bayesian) via a MEC envelope;
 runtime class stays `Cpdag`. Completing the graph yourself is still the `Dag`
 cell. Pulse and single-step Sustained on incomplete `TemporalCpdag` /
 `TemporalPag` are licensed (explicit/accepted, Frequentist) via a completion
-envelope. Completing those graphs yourself is still the `TemporalDag`
-coordinate. Bayesian incomplete-class temporal cells stay refused.
+envelope. A fully oriented supplied class stays that class. Completing those
+graphs yourself is still the `TemporalDag` coordinate. Bayesian
+incomplete-class temporal cells stay refused.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.
@@ -163,10 +165,11 @@ estimator.
 
 For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
 explicit graph completions. Licensed PAG analysis is `AverageEffect`,
-`ResponseCurve` / `InterventionResponse`, and `ConditionalEffect` via that
-envelope; this is not a licensed path-specific, distribution, or mediation
-surface, and it is not MAG/PAG response identification. Full PAG-native ID
-and IDC are outside the supported scope.
+`ResponseCurve` / `InterventionResponse`, and `ConditionalEffect` after a MAG
+visibility check; this is a sufficient adjustment criterion, not a licensed
+complete identification theory for MAG or PAG response functionals, and not a
+path-specific, distribution, or mediation surface. Full PAG-native ID and IDC
+are outside the supported scope.
 General multi-node sID recursion and definitive non-transportability
 certificates are outside the 0.9 transport contract.
 

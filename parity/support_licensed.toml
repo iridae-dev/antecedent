@@ -1045,7 +1045,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalCpdag stays TemporalCpdag. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. A fully oriented TemporalCpdag is the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian remains refused."
+limitations = "Incomplete TemporalCpdag stays TemporalCpdag, including a fully oriented supplied graph. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian remains refused."
 
 [[cell]]
 query = "PulseEffect"
@@ -1111,7 +1111,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalPag stays TemporalPag. Circle marks complete to TemporalDag members; each is identified with temporal.backdoor.unfolded and mass-weighted. A fully directed TemporalPag is the TemporalDag coordinate. Bidirected marks fail at the sampler. Prepared clicks reuse the frozen envelope. Bayesian remains refused."
+limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Bayesian remains refused."
 
 [[cell]]
 query = "PulseEffect"

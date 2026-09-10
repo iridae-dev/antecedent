@@ -29,7 +29,8 @@ The 1.4 matrix licenses the 1.3 families plus:
   pre-treatment and augmented backdoor check;
 - Frequentist Pulse / single-step Sustained on explicit or accepted
   `TemporalCpdag` / `TemporalPag` with all three validation values
-  (`TemporalPag` enumerates DAG endpoint refinements only);
+  (`TemporalPag` retains directed/bidirected MAG completions; finite-window
+  equivalence audits cannot confer class-wide point identification);
 - Frequentist graph-posterior `AverageEffect` on DAG atoms, the sibling of
   the 1.1 Bayesian envelope.
 
@@ -141,11 +142,11 @@ effects and policy-oriented workflows. Antecedent's licensed
 causal forests, meta-learners, or a general ML CATE surface.
 
 `antecedent.handoff.econml(result)` emits the adjustment set and identification
-status for point-identified backdoor / generalized-adjustment estimands.
-Front-door, IV, general-ID, partial-identification, graph-posterior, and
-temporal results refuse rather than pretending they are a set — temporal
-offsets cannot be exported. The adapter does not wrap EconML learners or
-absorb ML CATE.
+status for point-identified backdoor / generalized-adjustment estimands,
+including lag-aligned temporal columns when the certificate carries offsets.
+Front-door, IV, general-ID, partial-identification, and graph-posterior
+results refuse rather than pretending they are a set. The adapter does not
+wrap EconML learners or absorb ML CATE.
 
 ### Tigramite
 
@@ -180,9 +181,9 @@ The following are current product boundaries or explicit matrix refusals:
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no Frequentist DBN-posterior mixing (1.6) or response mixtures over graph posteriors;
+- no Frequentist DBN-posterior mixing (1.7) or response mixtures over graph posteriors;
 - no Bayesian or partial-graph derivative cells;
-- no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.6);
+- no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.
 

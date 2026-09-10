@@ -70,8 +70,9 @@ directly:
   documented stage module, but its content (per-estimator dataclasses) has no
   root-level re-export the way queries/selectors do.
 - ``antecedent.handoff`` — EconML adjustment-set export. Antecedent identifies;
-  the adapter refuses front-door, IV, general ID, partial ID, graph-posterior,
-  and temporal results rather than inventing a set.
+  the adapter refuses front-door, IV, general ID, partial ID, and
+  graph-posterior results rather than inventing a set. Temporal results export
+  certified offsets and trim boundaries.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
@@ -111,7 +112,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
 | Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
-| EconML handoff | — | `antecedent.handoff.econml(result)` — point-identified static backdoor / generalized adjustment only |
+| EconML handoff | — | `antecedent.handoff.econml(result)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
 | Continuous response | `ResponseQuery` / `ResponseFunctional` | `ResponseCurve` / `AverageDerivative` / `PointDerivative` / `Elasticity` / `SemiElasticity` |
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
