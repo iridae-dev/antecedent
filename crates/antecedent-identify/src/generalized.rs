@@ -320,7 +320,10 @@ fn pag_circle_features(pag: &Pag) -> Vec<GraphFeature> {
     }]
 }
 
-fn pag_var_to_dense(pag: &Pag, id: VariableId) -> Result<DenseNodeId, IdentificationError> {
+pub(crate) fn pag_var_to_dense(
+    pag: &Pag,
+    id: VariableId,
+) -> Result<DenseNodeId, IdentificationError> {
     for (i, node) in pag.nodes().iter().enumerate() {
         if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == id {

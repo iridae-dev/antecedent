@@ -36,6 +36,7 @@ pub mod path_specific;
 pub mod prepared;
 pub mod rd;
 pub mod response;
+pub(crate) mod response_id;
 pub mod result;
 pub mod temporal_backdoor;
 pub mod temporal_generalized;
@@ -71,6 +72,7 @@ pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
+pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,

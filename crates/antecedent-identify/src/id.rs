@@ -158,8 +158,18 @@ impl IdIdentifier {
                 }
                 self.identify_sets(prepared, &y, &x, query.clone(), workspace)
             }
+            CausalQuery::Response(response) => {
+                let witness = crate::response_id::response_ate_witness(response)?;
+                let mut result = self.identify_ate(prepared, &witness, workspace)?;
+                result.query = query.clone();
+                result.derivation.push(
+                    "identify.response.general_id",
+                    "Shpitser–Pearl ID of P(Y | do(A)) evaluated as the response contrast",
+                );
+                Ok(result)
+            }
             _ => Err(IdentificationError::unsupported(
-                "IdIdentifier supports AverageEffect and Distribution queries",
+                "IdIdentifier supports AverageEffect, Distribution, and Response queries",
             )),
         }
     }

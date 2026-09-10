@@ -104,18 +104,33 @@ impl ResponseIdentifier {
                 .saturating_add(result.performance.candidates_examined);
             performance.sets_returned =
                 performance.sets_returned.saturating_add(result.performance.sets_returned);
-            if result.status != IdentificationStatus::NonparametricallyIdentified {
-                derivation.push(
-                    "response.backdoor",
-                    format!("pair ({treatment},{outcome}) was not identified"),
-                );
-                return Ok(IdentificationResult::not_identified(
-                    query.clone(),
-                    derivation,
-                    assumptions,
-                    performance,
-                ));
-            }
+            let result = if result.status != IdentificationStatus::NonparametricallyIdentified {
+                match crate::response_id::identify_dag_via_id(prepared.dag(), &witness) {
+                    Ok(id) if id.status == IdentificationStatus::NonparametricallyIdentified => {
+                        derivation.push(
+                            "identify.response.general_id",
+                            format!(
+                                "pair ({treatment},{outcome}) identified by Shpitser–Pearl ID after back-door failed"
+                            ),
+                        );
+                        id
+                    }
+                    Ok(_) | Err(_) => {
+                        derivation.push(
+                            "response.backdoor",
+                            format!("pair ({treatment},{outcome}) was not identified"),
+                        );
+                        return Ok(IdentificationResult::not_identified(
+                            query.clone(),
+                            derivation,
+                            assumptions,
+                            performance,
+                        ));
+                    }
+                }
+            } else {
+                result
+            };
             let Some(first) = result.estimands.first() else {
                 return Ok(IdentificationResult::not_identified(
                     query.clone(),
@@ -124,6 +139,11 @@ impl ResponseIdentifier {
                     performance,
                 ));
             };
+            if first.method_kind().ok() == Some(antecedent_expr::EstimandMethod::GeneralId) {
+                let mut identified = result;
+                identified.query = query.clone();
+                return Ok(identified);
+            }
             let functional = arena.backdoor_ate(
                 treatment,
                 outcome,

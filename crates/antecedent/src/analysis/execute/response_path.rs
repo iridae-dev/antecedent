@@ -45,6 +45,61 @@ impl super::Study {
             });
         }
 
+        if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
+            || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
+        {
+            let (response, _) =
+                estimate_general_id_response(data, query, &identification, &estimand, ctx)?;
+            let (scalar, standard_error) = response_scalar_summary(&response);
+            let estimate = EffectEstimate::new(
+                scalar,
+                standard_error,
+                response.assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            let (treatment, outcome) = response_primary_pair(&query.functional)?;
+            let mut diagnostics = identification.diagnostics.clone();
+            diagnostics.push(Diagnostic::new(
+                "identify.response.general_id",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "response contrast identified by Shpitser–Pearl ID; levels are the \
+                 discrete functional.effect plug-in, not an adjustment g-formula",
+            ));
+            if identify_cached {
+                diagnostics.push(identify_cached_diagnostic());
+            }
+            return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id,
+                estimator_id,
+                treatment,
+                outcome,
+                identify_cached: false,
+                extra_diagnostics: Vec::new(),
+                refutations: Vec::new(),
+                distribution: None,
+                mediation: None,
+                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                bootstrap_replicates_ok: None,
+                cancelled: false,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras {
+                    estimate_provenance: Some(provenance_ids(
+                        "estimate.response.general_id",
+                        "estimate.response.general_id",
+                    )),
+                    diagnostics: Some(diagnostics),
+                    response: Some(response),
+                    bootstrap_replicates_requested: Some(None),
+                    ..Default::default()
+                },
+            }));
+        }
+
         if cell_aipw {
             return self.execute_cell_aipw_response(
                 data,
@@ -116,10 +171,7 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         let scalar_intervention = scalar.is_finite()
-            && matches!(
-                query.functional,
-                ResponseFunctional::InterventionResponse { .. }
-            );
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
             && !matches!(self.refute, RefuteSuite::None)
         {
@@ -284,7 +336,11 @@ impl super::Study {
         let column = table
             .columns
             .iter()
-            .position(|c| c.arm == requested_arm && (n_thresholds <= 1 || c.threshold == table.columns.first().and_then(|c| c.threshold)))
+            .position(|c| {
+                c.arm == requested_arm
+                    && (n_thresholds <= 1
+                        || c.threshold == table.columns.first().and_then(|c| c.threshold))
+            })
             .or_else(|| table.columns.iter().position(|c| c.arm == requested_arm))
             .ok_or(CausalError::Unsupported { message: "unsupported requested cell" })?;
         let contrast = antecedent_estimate::LinearContrast {
@@ -602,6 +658,7 @@ impl super::Study {
         let mut weighted = Vec::new();
         let mut atom_scores = Vec::new();
         let mut total_w = 0.0;
+        let mut unestimated_id_mass = 0.0;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         for case in &envelope.cases {
             if !identification_status_ok_for_case(case.result.status)
@@ -610,6 +667,33 @@ impl super::Study {
                 continue;
             }
             let estimand = case.result.estimands[0].clone();
+            if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
+                || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
+            {
+                match estimate_general_id_response(data, query, &case.result, &estimand, ctx) {
+                    Ok((response, scores)) => {
+                        let w = case.weight.0;
+                        total_w += w;
+                        if primary_estimand.is_none() {
+                            primary_estimand = Some(estimand);
+                        }
+                        if let Some(scores) = scores {
+                            atom_scores.push((w, scores));
+                        }
+                        weighted.push((w, response));
+                    }
+                    Err(err)
+                        if err.to_string().contains("discrete level cap")
+                            || err.to_string().contains("continuous") =>
+                    {
+                        // Identified by ID, unevaluable with the discrete plug-in.
+                        // Keep the mass out of the mix and refuse a subset SE.
+                        unestimated_id_mass += case.weight.0;
+                    }
+                    Err(err) => return Err(err),
+                }
+                continue;
+            }
             let mut response_estimator =
                 ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
             if let Some(options) = &self.response_options {
@@ -669,23 +753,75 @@ impl super::Study {
         let mut mixed = mix_class_responses(&weighted, envelope.status)?;
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
-        let mixed_scores = mix_response_influences(&atom_scores);
+        // A multi-completion envelope must not keep a single atom's plugin
+        // interval. Mix IFs only when every contributing identified atom
+        // supplies one and every completion is identified. Unidentified
+        // mass is retained on status; it is not a license to publish the
+        // identified-atom SE as the envelope.
+        if envelope.cases.len() > 1 {
+            mixed.uncertainty = ResponseUncertainty::None;
+        }
+        let mixed_scores = if atom_scores.len() == weighted.len()
+            && envelope.unidentified_weight.0 <= 1e-12
+            && unestimated_id_mass <= 1e-12
+        {
+            mix_response_influences(&atom_scores, data.row_count())
+        } else {
+            None
+        };
         if let Some(scores) = mixed_scores.as_ref() {
-            if let Some(se) = influence_se(scores.columns.first().map(Vec::as_slice).unwrap_or(&[]))
-            {
-                if let ResponseUncertainty::None = mixed.uncertainty {
-                    if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(v))
-                    | ResponseIdentification::PartiallyIdentified(ResponseValue::Scalar(v)) =
-                        &mixed.estimate
-                    {
-                        let z = 1.959963984540054;
+            if matches!(mixed.uncertainty, ResponseUncertainty::None) {
+                let cols: Vec<&[f64]> = scores.columns.iter().map(Vec::as_slice).collect();
+                let cov = antecedent_estimate::joint_influence_covariance(&cols, None)?;
+                let options = self.response_options.clone().unwrap_or_default();
+                let level = options.confidence_level;
+                let value = match &mixed.estimate {
+                    ResponseIdentification::PointIdentified(value)
+                    | ResponseIdentification::PartiallyIdentified(value) => Some(value),
+                    _ => None,
+                };
+                match value {
+                    Some(ResponseValue::Scalar(v)) => {
+                        let se = cov.se(0);
+                        let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
                         mixed.uncertainty = ResponseUncertainty::Scalar {
                             standard_error: se,
-                            level: 0.95,
+                            level,
                             lower: v - z * se,
                             upper: v + z * se,
                         };
                     }
+                    Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
+                        let critical = match options.simultaneous_replicates {
+                            Some(reps) => antecedent_estimate::max_t_critical(
+                                &cov,
+                                level,
+                                reps,
+                                options.multiplier_seed,
+                            )?,
+                            None => antecedent_stats::normal_ppf(0.5 + level / 2.0),
+                        };
+                        let lower = mean
+                            .iter()
+                            .enumerate()
+                            .map(|(j, v)| v - critical * cov.se(j))
+                            .collect();
+                        let upper = mean
+                            .iter()
+                            .enumerate()
+                            .map(|(j, v)| v + critical * cov.se(j))
+                            .collect();
+                        mixed.uncertainty = match options.simultaneous_replicates {
+                            Some(replicates) => ResponseUncertainty::SimultaneousBand {
+                                level,
+                                lower,
+                                upper,
+                                replicates,
+                            },
+                            None => ResponseUncertainty::PointwiseBand { level, lower, upper },
+                        };
+                    }
+                    _ => {}
                 }
             }
         }
@@ -698,6 +834,20 @@ impl super::Study {
         );
         attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
         let mut diagnostics = vec![envelope_diag];
+        if envelope.cases.iter().any(|c| {
+            c.result
+                .estimands
+                .iter()
+                .any(|e| e.method_kind().ok() == Some(EstimandMethod::GeneralId))
+        }) {
+            diagnostics.push(Diagnostic::new(
+                "identify.response.general_id",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "at least one MAG/CPDAG completion identified the response by \
+                 Shpitser–Pearl ID after generalized adjustment failed",
+            ));
+        }
         if !estimate.se_analytic.is_finite() {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
@@ -981,35 +1131,50 @@ fn attach_response_influence(
 
 fn mix_response_influences(
     atoms: &[(f64, antecedent_estimate::ResponseInfluence)],
+    full_n: usize,
 ) -> Option<antecedent_estimate::ResponseInfluence> {
     if atoms.is_empty() {
         return None;
     }
     let n_cols = atoms[0].1.columns.len();
-    let n = atoms[0].1.columns.first()?.len();
-    if atoms.iter().any(|(_, s)| s.columns.len() != n_cols || s.columns.iter().any(|c| c.len() != n))
-    {
+    if full_n < 2 || n_cols == 0 {
         return None;
+    }
+    let mut aligned = Vec::with_capacity(atoms.len());
+    for (_, scores) in atoms {
+        let n = scores.row_index.len();
+        if n < 2 || scores.columns.len() != n_cols || scores.columns.iter().any(|c| c.len() != n) {
+            return None;
+        }
+        let mut seen = vec![false; full_n];
+        for &row in scores.row_index.iter() {
+            let slot = seen.get_mut(row as usize)?;
+            if *slot {
+                return None;
+            }
+            *slot = true;
+        }
+        let mut columns = Vec::new();
+        for col in &scores.columns {
+            let center = col.iter().sum::<f64>() / n as f64;
+            let mut full = vec![0.0; full_n];
+            for (&row, &v) in scores.row_index.iter().zip(col) {
+                full[row as usize] = (v - center) * full_n as f64 / n as f64;
+            }
+            columns.push(full);
+        }
+        aligned.push(columns);
     }
     let weights: Vec<f64> = atoms.iter().map(|(w, _)| *w).collect();
     let mut columns = Vec::with_capacity(n_cols);
     for j in 0..n_cols {
-        let refs: Vec<&[f64]> = atoms.iter().map(|(_, s)| s.columns[j].as_slice()).collect();
+        let refs: Vec<&[f64]> = aligned.iter().map(|cols| cols[j].as_slice()).collect();
         columns.push(antecedent_estimate::frozen_weight_mixture_scores(&refs, &weights).ok()?);
     }
     Some(antecedent_estimate::ResponseInfluence {
         columns,
-        row_index: Arc::clone(&atoms[0].1.row_index),
+        row_index: (0..full_n).map(u32::try_from).collect::<Result<Vec<_>, _>>().ok()?.into(),
     })
-}
-
-fn influence_se(psi: &[f64]) -> Option<f64> {
-    if psi.len() < 2 {
-        return None;
-    }
-    let n = psi.len() as f64;
-    let se = (psi.iter().map(|x| x * x).sum::<f64>() / (n * (n - 1.0))).sqrt();
-    se.is_finite().then_some(se)
 }
 
 #[cfg(test)]
@@ -1038,5 +1203,77 @@ mod uncertainty_tests {
             mix_response_uncertainty(&[(1.0, &a)]),
             ResponseUncertainty::Scalar { .. }
         ));
+    }
+}
+
+fn estimate_general_id_response(
+    data: &TabularData,
+    query: &ResponseQuery,
+    identification: &antecedent_identify::IdentificationResult,
+    estimand: &IdentifiedEstimand,
+    ctx: &ExecutionContext,
+) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
+    if !matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
+        return Err(CausalError::Unsupported {
+            message: "general-ID MAG/PAG/DAG response atoms are licensed for \
+                      InterventionResponse Set contrasts; MeanCurve stays on the \
+                      adjustment envelope",
+        });
+    }
+    let (treatment, outcome) = response_primary_pair(&query.functional)?;
+    let est = FunctionalEffect::new();
+    let prepared = est
+        .prepare(
+            data,
+            estimand,
+            &identification.arena,
+            identification.required_assumptions.clone(),
+            &[treatment, outcome],
+        )
+        .map_err(CausalError::from)?;
+    let mut ws = FunctionalDistributionWorkspace::default();
+    let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+    Ok((
+        CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status: identification.status,
+            estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(estimate.ate)),
+            uncertainty: ResponseUncertainty::None,
+            support: antecedent_core::SupportReport {
+                status: antecedent_core::SupportStatus::Supported,
+                query_region: antecedent_core::SupportRegion {
+                    minima: Arc::from([]),
+                    maxima: Arc::from([]),
+                },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: None,
+            },
+            assumptions: identification.required_assumptions.clone(),
+            provenance_id: Arc::from("estimate.response.general_id"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        },
+        None,
+    ))
+}
+
+#[cfg(test)]
+mod influence_review_tests {
+    use super::*;
+
+    #[test]
+    fn response_mixture_aligns_original_row_ids() {
+        let a = antecedent_estimate::ResponseInfluence {
+            columns: vec![vec![-1.0, 1.0]],
+            row_index: Arc::from([0, 2]),
+        };
+        let b = antecedent_estimate::ResponseInfluence {
+            columns: vec![vec![-2.0, 2.0]],
+            row_index: Arc::from([1, 3]),
+        };
+        let mixed = mix_response_influences(&[(0.5, a), (0.5, b)], 4).unwrap();
+        assert_eq!(mixed.row_index.as_ref(), &[0, 1, 2, 3]);
+        assert_eq!(mixed.columns[0], vec![-1.0, -2.0, 1.0, 2.0]);
     }
 }
