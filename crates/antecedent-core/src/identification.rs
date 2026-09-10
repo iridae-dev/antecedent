@@ -35,13 +35,12 @@ pub enum IdentificationStatus {
     PartiallyIdentified,
     /// Identification depends on which graph in an equivalence class / ensemble.
     GraphDependent,
-    /// Search or budget could not determine identifiability.
+    /// Not identified.
     ///
-    /// Distinct from [`Self::NotIdentified`]: the algorithm did not prove a
-    /// non-identifiable completion (for example a candidate-family cap fired
-    /// before enumeration). A budget miss must not be reported as a scientific
-    /// open-back-door.
-    Undetermined,
-    /// Proven not identified (search completed, or a certificate of non-ID).
+    /// Exhaustive search with no set, or a certificate of non-ID, is the
+    /// scientific case. A search that could not finish (candidate-family cap,
+    /// history bound) keeps this status for the 1.0 public-API / artifact
+    /// freeze — there is no third variant — and is marked by an Execution
+    /// diagnostic, not a scientific open-back-door.
     NotIdentified,
 }

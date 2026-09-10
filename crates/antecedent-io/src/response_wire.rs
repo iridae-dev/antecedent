@@ -17,10 +17,10 @@ use antecedent_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::analysis_wire::{DiagnosticWire, diagnostic_from_wire, diagnostic_to_wire};
+use crate::analysis_wire::{diagnostic_from_wire, diagnostic_to_wire, DiagnosticWire};
 use crate::error::IoError;
 use crate::query_wire::{InterventionWire, TargetPopulationWire};
-use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
+use crate::trace::{assumptions_from_wire, assumptions_to_wire, AssumptionRecordWire};
 
 /// Evaluation grid on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -612,7 +612,6 @@ pub enum IdentificationStatusWire {
     IdentifiedUnderPriorRestrictions,
     PartiallyIdentified,
     GraphDependent,
-    Undetermined,
     NotIdentified,
 }
 
@@ -738,7 +737,6 @@ fn status_to_wire(s: IdentificationStatus) -> IdentificationStatusWire {
         }
         IdentificationStatus::PartiallyIdentified => IdentificationStatusWire::PartiallyIdentified,
         IdentificationStatus::GraphDependent => IdentificationStatusWire::GraphDependent,
-        IdentificationStatus::Undetermined => IdentificationStatusWire::Undetermined,
         IdentificationStatus::NotIdentified => IdentificationStatusWire::NotIdentified,
     }
 }
@@ -755,7 +753,6 @@ fn status_from_wire(s: IdentificationStatusWire) -> IdentificationStatus {
         }
         IdentificationStatusWire::PartiallyIdentified => IdentificationStatus::PartiallyIdentified,
         IdentificationStatusWire::GraphDependent => IdentificationStatus::GraphDependent,
-        IdentificationStatusWire::Undetermined => IdentificationStatus::Undetermined,
         IdentificationStatusWire::NotIdentified => IdentificationStatus::NotIdentified,
     }
 }

@@ -658,15 +658,22 @@ mod tests {
             .unwrap();
         assert_eq!(
             generic.status,
-            IdentificationStatus::Undetermined,
+            IdentificationStatus::NotIdentified,
             "generic search must cap on this graph: {:?}",
             generic.diagnostics
         );
         assert!(
             generic.diagnostics.iter().any(|d| {
-                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-            })
+                d.kind == DiagnosticKind::Execution
+                    && d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            }),
+            "cap is execution, not a third status: {:?}",
+            generic.diagnostics
         );
+        assert!(generic
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
 
         let started = std::time::Instant::now();
         let id = identify_tiered_joint(&background, &schema, &query).unwrap();
@@ -731,12 +738,10 @@ mod tests {
             .identify_joint_admg_response(&admg, &joint_query(&schema, "t1", "t2", "y"))
             .unwrap();
         assert_eq!(id.status, IdentificationStatus::NotIdentified);
-        assert_ne!(id.status, IdentificationStatus::Undetermined);
         assert!(id.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific));
-        assert!(
-            !id.diagnostics.iter().any(|d| {
-                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-            })
-        );
+        assert!(!id
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
     }
 }

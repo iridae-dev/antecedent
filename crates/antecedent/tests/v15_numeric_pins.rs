@@ -443,12 +443,10 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
     );
     assert!(fresh.estimate.monotone_rearranged);
     assert!(fresh.estimate.simultaneous_interval.is_none());
-    assert!(
-        fresh
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
-    );
+    assert!(fresh
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
 
     let prepared = ate_study(data.clone(), graph, grid_q, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
@@ -707,12 +705,10 @@ fn static_cpdag_and_pag_envelope_se_is_finite() {
         "CPDAG envelope SE must be finite, se={}",
         cpdag_res.estimate.se_analytic
     );
-    assert!(
-        cpdag_res
-            .diagnostics
-            .iter()
-            .all(|d| { d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance" })
-    );
+    assert!(cpdag_res
+        .diagnostics
+        .iter()
+        .all(|d| { d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance" }));
 
     let r: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
     let pag_data = cols(&[("t", t.clone()), ("y", y.clone()), ("z", z.clone()), ("r", r)]);
@@ -736,12 +732,10 @@ fn static_cpdag_and_pag_envelope_se_is_finite() {
         "PAG envelope SE must be finite, se={}",
         pag_res.estimate.se_analytic
     );
-    assert!(
-        pag_res
-            .diagnostics
-            .iter()
-            .all(|d| { d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance" })
-    );
+    assert!(pag_res
+        .diagnostics
+        .iter()
+        .all(|d| { d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance" }));
 }
 
 #[test]
@@ -756,9 +750,9 @@ fn batch_joint_if_and_overlap_does_not_abort() {
         .estimate_many(&[query, q2], &ctx)
         .unwrap();
     assert_eq!(results.len(), 2);
-    assert!(
-        results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
-    );
+    assert!(results
+        .iter()
+        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if")));
     assert!(results.iter().any(|r| {
         r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection.unrecorded")
     }));
@@ -1022,15 +1016,14 @@ fn conditional_exceedance_grid_publishes_per_arm_cdf() {
         "ConditionalEffect grid must not publish a first-threshold scalar"
     );
     assert!(result.estimate.influence.is_none());
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
-    );
-    assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.cdf_inference")
-    );
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.functional.cdf_inference"));
 }
 
 #[test]
@@ -1071,14 +1064,12 @@ fn prepared_batch_reuses_plans_and_records_screen() {
         restored.candidate_selection.as_ref().map(|s| s.screen_rows.len()),
         Some(recorded.screen_rows.len())
     );
-    assert!(
-        results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
-    );
-    assert!(
-        results
-            .iter()
-            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection"))
-    );
+    assert!(results
+        .iter()
+        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if")));
+    assert!(results
+        .iter()
+        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection")));
     assert!(results.iter().any(|r| {
         r.diagnostics
             .iter()
@@ -1167,16 +1158,14 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
         }
     }
     let z: Vec<_> = certified.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
-    assert!(
-        backdoor
-            .is_m_separated(
-                DenseNodeId::from_raw(t.raw()),
-                DenseNodeId::from_raw(y.raw()),
-                &z,
-                &mut antecedent_graph::DSeparationWorkspace::default()
-            )
-            .unwrap()
-    );
+    assert!(backdoor
+        .is_m_separated(
+            DenseNodeId::from_raw(t.raw()),
+            DenseNodeId::from_raw(y.raw()),
+            &z,
+            &mut antecedent_graph::DSeparationWorkspace::default()
+        )
+        .unwrap());
     let result = Study::tabular(data)
         .tiered_background(background)
         .unwrap()
@@ -1191,9 +1180,10 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
         .unwrap();
     assert!((result.estimate.ate - 1.8).abs() < 1.96 * result.estimate.se_analytic);
     assert!(result.estimate.evalue.is_some_and(|e| e.is_finite() && e >= 1.0));
-    assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "tiered.evalue.vanderweele_approx")
-    );
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "tiered.evalue.vanderweele_approx"));
     assert!(
         result.diagnostics.iter().any(|d| {
             d.code.as_ref() == "tiered.evalue.vanderweele_approx"
@@ -1393,12 +1383,10 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
         mixed.estimate.ate.is_nan(),
         "class-aware grid must not publish a mean-CATE scalar as the grid"
     );
-    assert!(
-        mixed
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
-    );
+    assert!(mixed
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
 }
 
 #[test]
@@ -1566,11 +1554,9 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
     assert!(results.iter().any(|r| {
         r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if.unavailable")
     }));
-    assert!(
-        results
-            .iter()
-            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection"))
-    );
+    assert!(results
+        .iter()
+        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection")));
     assert!(
         results.iter().all(|r| r.estimate.simultaneous_interval.is_none()),
         "batch family max-t must not be invented when joint IF cannot form"
@@ -1589,12 +1575,10 @@ fn allobserved_first_click_matches_retarget_ones() {
         ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
     let table = first.estimate.score_table.as_ref().expect("AllObserved iid AIPW must export φ");
     assert!(first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
-    assert!(
-        !first
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized")
-    );
+    assert!(!first
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized"));
     let ones = vec![1.0; table.n_rows];
     let retargeted = ate_study(data, graph, query, EstimatorId::Aipw)
         .prepare(&ctx)
@@ -1617,12 +1601,10 @@ fn att_residualized_has_no_scores_and_refuses_retarget() {
     let first =
         ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
     assert!(first.estimate.score_table.is_none());
-    assert!(
-        first
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized")
-    );
+    assert!(first
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized"));
     assert!(!first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     assert!(prepared.score_table().is_none());
@@ -1877,12 +1859,10 @@ fn conditional_extreme_threshold_refuses_empty_tail_band() {
     assert!(!inf.threshold_supported[2] && !inf.threshold_supported[3]);
     assert!(inf.lower[2].is_nan() && inf.upper[2].is_nan());
     assert!(inf.lower[3].is_nan() && inf.upper[3].is_nan());
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported")
-    );
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported"));
 }
 
 #[test]
@@ -1937,11 +1917,9 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
         "different outcomes must not share residualization"
     );
     let results = prepared.estimate(&data, &ctx).unwrap();
-    assert!(
-        results
-            .iter()
-            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.shared_design"))
-    );
+    assert!(results
+        .iter()
+        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.shared_design")));
 }
 
 #[test]
@@ -2390,16 +2368,18 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         .unwrap();
     assert_eq!(
         generic.status,
-        IdentificationStatus::Undetermined,
-        "generic joint search must cap here, not scientific-refuse: {:?}",
+        IdentificationStatus::NotIdentified,
+        "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
         generic.diagnostics
     );
-    assert!(
-        generic
-            .diagnostics
-            .iter()
-            .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
-    );
+    assert!(generic.diagnostics.iter().any(|d| {
+        d.kind == antecedent_core::DiagnosticKind::Execution
+            && d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+    }));
+    assert!(!generic
+        .diagnostics
+        .iter()
+        .any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific));
 
     let started = std::time::Instant::now();
     let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
@@ -2435,11 +2415,86 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
         .identify_joint_admg_response(&admg, &query)
         .unwrap();
     assert_eq!(id.status, IdentificationStatus::NotIdentified);
-    assert_ne!(id.status, IdentificationStatus::Undetermined);
     assert!(id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific));
+    assert!(!id
+        .diagnostics
+        .iter()
+        .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
+}
+
+/// Cap vs scientific refuse stay distinct on the 1.4 artifact wire: same
+/// `not_identified` status, different diagnostic kind/code/text. No new enum value.
+#[test]
+fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
+    let mut capped = antecedent_graph::Admg::with_variables(20);
+    capped.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    capped.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    for i in 3..20 {
+        let z = DenseNodeId::from_raw(i);
+        capped.insert_directed(z, DenseNodeId::from_raw(0)).unwrap();
+        capped.insert_directed(z, DenseNodeId::from_raw(1)).unwrap();
+        capped.insert_directed(z, DenseNodeId::from_raw(2)).unwrap();
+    }
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([
+            Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+            Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+        ]),
+    });
+    let cap = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_joint_admg_response(&capped, &query)
+        .unwrap();
+
+    let mut scientific = antecedent_graph::Admg::with_variables(4);
+    scientific.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    scientific.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    scientific.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
+    scientific.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
+    scientific.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    scientific.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    scientific.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
+    let sci_query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(3),
+        interventions: Arc::from([
+            Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            Intervention::set(VariableId::from_raw(2), Value::f64(1.0)),
+        ]),
+    });
+    let sci = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_joint_admg_response(&scientific, &sci_query)
+        .unwrap();
+
+    let cap_wire = antecedent_io::identification_to_wire(&cap).unwrap();
+    let sci_wire = antecedent_io::identification_to_wire(&sci).unwrap();
+    assert_eq!(cap_wire.status, "not_identified");
+    assert_eq!(sci_wire.status, "not_identified");
     assert!(
-        !id.diagnostics
-            .iter()
-            .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
+        cap_wire.diagnostics.iter().any(|d| {
+            d.kind == "execution"
+                && d.code == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+        }),
+        "cap wire: {:?}",
+        cap_wire.diagnostics
     );
+    assert!(
+        !cap_wire
+            .diagnostics
+            .iter()
+            .any(|d| { d.kind == "scientific" || d.message.contains("open back-door") }),
+        "cap must not serialize as a scientific refuse: {:?}",
+        cap_wire.diagnostics
+    );
+    assert!(
+        sci_wire
+            .diagnostics
+            .iter()
+            .any(|d| { d.kind == "scientific" && d.message.contains("open back-door") }),
+        "scientific wire: {:?}",
+        sci_wire.diagnostics
+    );
+    assert!(!sci_wire
+        .diagnostics
+        .iter()
+        .any(|d| { d.code == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
 }

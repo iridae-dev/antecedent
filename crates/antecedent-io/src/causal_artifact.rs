@@ -8,12 +8,12 @@ use std::collections::HashSet;
 use antecedent_core::{Assumption, AssumptionScope, ResponseQuery};
 use serde::{Deserialize, Serialize};
 
-use crate::container::{CompressPolicy, pack_section_shared};
+use crate::container::{pack_section_shared, CompressPolicy};
 use crate::{
-    ArtifactKind, ArtifactManifest, CausalQueryWire, CausalResponseWire, EncodedArtifact,
-    InterferenceEstimateWire, IoError, ProvenanceWire, STABLE_FORMAT, SemanticVersion,
-    TransportEffectEstimateWire, TransportIdentificationWire, causal_query_from_wire,
-    causal_response_from_wire, from_cbor, read_and_migrate, to_cbor, transport_effect_from_wire,
+    causal_query_from_wire, causal_response_from_wire, from_cbor, read_and_migrate, to_cbor,
+    transport_effect_from_wire, ArtifactKind, ArtifactManifest, CausalQueryWire,
+    CausalResponseWire, EncodedArtifact, InterferenceEstimateWire, IoError, ProvenanceWire,
+    SemanticVersion, TransportEffectEstimateWire, TransportIdentificationWire, STABLE_FORMAT,
 };
 
 const HEADER_SECTION: &str = "causal_payload.header";
@@ -645,8 +645,7 @@ fn validate_response_result(
             crate::IdentificationStatusWire::GraphDependent,
             crate::ResponseIdentificationWire::GraphDependent(_)
         ) | (
-            crate::IdentificationStatusWire::Undetermined
-                | crate::IdentificationStatusWire::NotIdentified,
+            crate::IdentificationStatusWire::NotIdentified,
             crate::ResponseIdentificationWire::Unidentified { .. }
         )
     );
@@ -1157,9 +1156,9 @@ fn validate_interference_estimate(estimate: &InterferenceEstimateWire) -> Result
 mod tests {
     use super::*;
     use crate::{
-        FormatVersion, IdentificationStatusWire, ResponseFunctionalWire,
+        section_descriptor, FormatVersion, IdentificationStatusWire, ResponseFunctionalWire,
         ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
-        SectionBytes, SupportRegionWire, SupportReportWire, SupportStatusWire, section_descriptor,
+        SectionBytes, SupportRegionWire, SupportReportWire, SupportStatusWire,
     };
 
     fn response_query() -> CausalQueryWire {
@@ -1681,12 +1680,10 @@ mod tests {
                 variable_names: vec!["a".into(), "y".into()],
             },
         );
-        assert!(
-            decode(&artifact)
-                .unwrap_err()
-                .to_string()
-                .contains("partially identified response only")
-        );
+        assert!(decode(&artifact)
+            .unwrap_err()
+            .to_string()
+            .contains("partially identified response only"));
     }
 
     #[test]

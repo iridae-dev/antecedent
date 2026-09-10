@@ -881,11 +881,7 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
 ///
 /// Effect not identified or no estimand returned.
 pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalError> {
-    if matches!(
-        result.status,
-        IdentificationStatus::NotIdentified | IdentificationStatus::Undetermined
-    ) || result.estimands.is_empty()
-    {
+    if matches!(result.status, IdentificationStatus::NotIdentified) || result.estimands.is_empty() {
         return Err(CausalError::Compile { message: "effect not identified".into() });
     }
     if !identification_status_acceptable(result.status) {
@@ -1031,7 +1027,7 @@ pub fn validate_path_specific_pair(
 
 #[cfg(test)]
 mod names {
-    use super::{ESTIMATOR_NAMES, EstimatorId, IDENTIFIER_NAMES, IdentifierId};
+    use super::{EstimatorId, IdentifierId, ESTIMATOR_NAMES, IDENTIFIER_NAMES};
 
     #[test]
     fn identifier_names_match_all() {
