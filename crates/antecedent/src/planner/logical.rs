@@ -130,6 +130,8 @@ pub fn compile_logical_static_response(
                 ResponseFunctional::MeanCurve { .. }
                     | ResponseFunctional::InterventionResponse { .. }
             ))
+        && !(estimator == EstimatorId::CellAipw
+            && matches!(input.query.functional, ResponseFunctional::InterventionResponse { .. }))
     {
         return Err(CausalError::Compile {
             message: format!(
@@ -422,7 +424,14 @@ fn compile_logical_class_response(
     }
     validate_class_response_pair(identifier_id, estimator_id)?;
     let expected = EstimatorId::default_for_response(&query.functional);
-    if estimator_id != expected && estimator_id != EstimatorId::ResponseBayesian {
+    if estimator_id != expected
+        && estimator_id != EstimatorId::ResponseBayesian
+        && !(estimator_id == EstimatorId::CellAipw
+            && matches!(
+                query.functional,
+                antecedent_core::ResponseFunctional::InterventionResponse { .. }
+            ))
+    {
         return Err(CausalError::Compile {
             message: format!(
                 "response functional requires estimator {:?} or response.bayesian; got {:?}",

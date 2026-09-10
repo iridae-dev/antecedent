@@ -48,6 +48,10 @@ pub struct PreparedPropensityProblem {
     ///
     /// `None` for all other target populations. Length equals [`Self::nrows`] when present.
     pub target_weights: Option<Arc<[f64]>>,
+    /// Original data-frame row index of each complete-case row.
+    pub row_index: Arc<[u32]>,
+    /// Treatment variable id (for score-table provenance).
+    pub treatment_id: VariableId,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -331,6 +335,16 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         target_population: query.target_population.clone(),
         target_weights,
+        row_index: {
+            let mut idx = Vec::with_capacity(nrows);
+            for (i, &keep) in row_mask.iter().enumerate() {
+                if keep {
+                    idx.push(u32::try_from(i).unwrap_or(u32::MAX));
+                }
+            }
+            Arc::from(idx)
+        },
+        treatment_id: treatment,
     })
 }
 

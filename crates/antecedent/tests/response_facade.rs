@@ -526,5 +526,8 @@ fn prepared_response_refute_is_refused() {
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
     assert!(msg.starts_with("refused:"), "{msg}");
-    assert!(msg.contains("AverageEffect only"), "{msg}");
+    assert!(
+        msg.contains("AverageEffect and scalar InterventionResponse"),
+        "{msg}"
+    );
 }

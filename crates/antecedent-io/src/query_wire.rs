@@ -12,9 +12,10 @@ use antecedent_core::{
     CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
     ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
     InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
-    MediationQuery, OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, PredicateExpr,
-    SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value, VariableId,
+    MediationQuery, OrderedFloatBits, OutcomeFunctional, PathSpecificEffectQuery,
+    PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig, ShapleyMode,
+    StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
+    UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +72,53 @@ pub struct SetInterventionWire {
     pub variable: u32,
     /// Assigned value.
     pub value: ValueWire,
+}
+
+/// Outcome functional on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OutcomeFunctionalWire {
+    /// Mean (default).
+    Mean,
+    /// Single exceedance threshold.
+    Exceedance(f64),
+    /// Exceedance grid.
+    ExceedanceGrid(Vec<f64>),
+}
+
+impl Default for OutcomeFunctionalWire {
+    fn default() -> Self {
+        Self::Mean
+    }
+}
+
+impl OutcomeFunctionalWire {
+    /// Whether this is the omitted backward-compatible default.
+    #[must_use]
+    pub const fn is_mean(&self) -> bool {
+        matches!(self, Self::Mean)
+    }
+    /// Encode.
+    #[must_use]
+    pub fn from_domain(f: &OutcomeFunctional) -> Self {
+        match f {
+            OutcomeFunctional::Exceedance(c) => Self::Exceedance(c.to_f64()),
+            OutcomeFunctional::ExceedanceGrid(grid) => {
+                Self::ExceedanceGrid(grid.iter().map(|c| c.to_f64()).collect())
+            }
+            _ => Self::Mean,
+        }
+    }
+
+    /// Decode.
+    #[must_use]
+    pub fn to_domain(&self) -> OutcomeFunctional {
+        match self {
+            Self::Mean => OutcomeFunctional::Mean,
+            Self::Exceedance(c) => OutcomeFunctional::exceedance(*c),
+            Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(grid.clone()),
+        }
+    }
 }
 
 /// Target population on the wire.
@@ -476,6 +524,9 @@ pub enum CausalQueryWire {
         active: InterventionWire,
         /// Population.
         target_population: TargetPopulationWire,
+        /// Outcome functional. Absent on pre-1.5 artifacts decodes as Mean.
+        #[serde(default, skip_serializing_if = "OutcomeFunctionalWire::is_mean")]
+        outcome_functional: OutcomeFunctionalWire,
     },
     /// Temporal effect.
     TemporalEffect {
@@ -883,6 +934,7 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
             target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+            outcome_functional: OutcomeFunctionalWire::from_domain(&q.outcome_functional),
         },
         CausalQuery::TemporalEffect(q) => CausalQueryWire::TemporalEffect {
             treatment: q.treatment.raw(),
@@ -986,14 +1038,18 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             control,
             active,
             target_population,
-        } => CausalQuery::AverageEffect(AverageEffectQuery::new(
-            VariableId::from_raw(*treatment),
-            VariableId::from_raw(*outcome),
-            vars_from_raw(effect_modifiers),
-            control.to_domain(),
-            active.to_domain(),
-            target_population.to_domain()?,
-        )),
+            outcome_functional,
+        } => CausalQuery::AverageEffect(
+            AverageEffectQuery::new(
+                VariableId::from_raw(*treatment),
+                VariableId::from_raw(*outcome),
+                vars_from_raw(effect_modifiers),
+                control.to_domain(),
+                active.to_domain(),
+                target_population.to_domain()?,
+            )
+            .with_outcome_functional(outcome_functional.to_domain()),
+        ),
         CausalQueryWire::TemporalEffect {
             treatment,
             outcome,

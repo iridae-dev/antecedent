@@ -357,6 +357,146 @@ pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
     )
 }
 
+/// Embed complete-case influences into the original row universe before mixing.
+/// Equal vector lengths do not establish common observations.
+pub(super) fn static_aligned_influence(data: &TabularData, query: &AverageEffectQuery,
+    estimand: &IdentifiedEstimand, influence: &[f64]) -> Option<Vec<f64>> {
+    if !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved) { return None; }
+    let mut ids = vec![query.treatment, query.outcome];
+    ids.extend(query.effect_modifiers.iter().copied());
+    ids.extend(estimand.adjustment_set.iter().copied());
+    ids.extend(estimand.instruments.iter().copied());
+    ids.extend(estimand.mediators.iter().copied());
+    let mask = data.complete_case_mask(&ids).ok()?;
+    let rows: Vec<_> = mask.iter().enumerate().filter_map(|(i,&keep)| keep.then_some(i)).collect();
+    if rows.len() != influence.len() || rows.len() < 2 { return None; }
+    let mean = influence.iter().sum::<f64>() / influence.len() as f64;
+    let mut full = vec![0.0; mask.len()];
+    for (&i,&v) in rows.iter().zip(influence) { full[i] = (v-mean)*mask.len() as f64/influence.len() as f64; }
+    Some(full)
+}
+
+/// Mix ConditionalEffect exceedance grids across envelope atoms.
+///
+/// Per threshold, each atom is estimated on the same indicator transform, IFs
+/// are aligned to the original row universe, and `F_a(c)` / scores are mixed
+/// by frozen completion weight — the same rule as class-aware mean CATEs.
+pub(super) fn attach_class_conditional_functional_grid(
+    estimate: EffectEstimate,
+    data: &TabularData,
+    query: &antecedent_core::ConditionalEffectQuery,
+    atoms: &[(f64, IdentifiedEstimand)],
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, CausalError> {
+    let _ = ctx;
+    let Some(thresholds) = query.inner.outcome_functional.thresholds() else {
+        return Ok(estimate);
+    };
+    if atoms.is_empty() {
+        return Ok(estimate);
+    }
+    let est = ConditionalLinearAdjustment::new();
+    let mut mixed_cdf = Vec::with_capacity(thresholds.len() * 2);
+    let mut mixed_columns = Vec::with_capacity(thresholds.len());
+    for &threshold in &thresholds {
+        let data_c = super::helpers::apply_outcome_functional(
+            data,
+            query.inner.outcome,
+            &antecedent_core::OutcomeFunctional::exceedance(threshold),
+        )?;
+        let mut arm0 = 0.0;
+        let mut arm1 = 0.0;
+        let mut mass = 0.0;
+        let mut contributing = 0usize;
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
+        for &(w, ref estimand) in atoms {
+            if !w.is_finite() || w <= 0.0 {
+                continue;
+            }
+            let (point, arms) = est.estimate_with_means(&data_c, estimand, query)?;
+            arm0 += w * (1.0 - arms[0]);
+            arm1 += w * (1.0 - arms[1]);
+            mass += w;
+            contributing += 1;
+            if let Some(inf) = point
+                .influence
+                .as_deref()
+                .and_then(|inf| static_aligned_influence(data, &query.inner, estimand, inf))
+            {
+                atom_ifs.push(inf);
+                atom_weights.push(w);
+            }
+        }
+        if !matches!(mass.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: "class-aware ConditionalEffect grid had no estimable atoms".into(),
+            });
+        }
+        mixed_cdf.push(arm0 / mass);
+        mixed_cdf.push(arm1 / mass);
+        if atom_ifs.len() != contributing {
+            return Err(CausalError::Unsupported {
+                message: "class-aware ConditionalEffect grid refused: every contributing atom must supply an aligned influence function; refusing a covariance from a subset of atoms",
+            });
+        }
+        let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
+        mixed_columns.push(antecedent_estimate::frozen_weight_mixture_scores(
+            &refs,
+            &atom_weights,
+        )?);
+    }
+    let mut out = estimate;
+    if mixed_columns.len() != thresholds.len() {
+        return Err(CausalError::Unsupported {
+            message: "class-aware ConditionalEffect grid refused: joint IF columns must match the declared threshold grid",
+        });
+    }
+    if mixed_columns.len() >= 2 {
+        let refs: Vec<&[f64]> = mixed_columns.iter().map(Vec::as_slice).collect();
+        out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
+    }
+    out.exceedance_cdf = Some(Arc::from(mixed_cdf));
+    if thresholds.len() > 1 {
+        out.ate = f64::NAN;
+        out.se_analytic = f64::NAN;
+        out.se_bootstrap = None;
+        out.influence = None;
+        out.simultaneous_interval = None;
+    }
+    Ok(out)
+}
+
+/// Frozen-weight mixture SE from per-atom IFs that share rows.
+///
+/// Graph weights are modeling choices. Unidentified mass is not mixed in.
+pub(super) fn mix_static_envelope_se(atom_ifs: &[Vec<f64>], atom_weights: &[f64]) -> f64 {
+    if atom_ifs.is_empty() || atom_ifs.len() != atom_weights.len() {
+        return f64::NAN;
+    }
+    let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
+    let Ok(mixed) = antecedent_estimate::frozen_weight_mixture_scores(&refs, atom_weights) else {
+        return f64::NAN;
+    };
+    antecedent_estimate::joint_influence_covariance(&[&mixed], None)
+        .map(|c| c.se(0))
+        .unwrap_or(f64::NAN)
+}
+
+/// Frozen-weight mixture IF, or `None` when atoms do not share a row universe.
+pub(super) fn mixed_static_influence(
+    atom_ifs: &[Vec<f64>],
+    atom_weights: &[f64],
+) -> Option<std::sync::Arc<[f64]>> {
+    if atom_ifs.is_empty() || atom_ifs.len() != atom_weights.len() {
+        return None;
+    }
+    let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
+    antecedent_estimate::frozen_weight_mixture_scores(&refs, atom_weights)
+        .ok()
+        .map(std::sync::Arc::from)
+}
+
 /// A single contributing atom keeps its SE. Multiple fits require joint
 /// sampling covariance (or an explicitly defined graph-mixture distribution).
 pub(super) fn mix_weighted_analytic_se(items: impl IntoIterator<Item = (f64, f64)>) -> f64 {
@@ -916,6 +1056,55 @@ pub(super) fn bayesian_temporal_gcomp(
     }
 }
 
+fn push_aipw_score_kind(
+    diagnostics: &mut Vec<Diagnostic>,
+    estimator_id: EstimatorId,
+    estimate: &EffectEstimate,
+) {
+    if diagnostics.iter().any(|d| {
+        matches!(
+            d.code.as_ref(),
+            "estimate.aipw.crossfit_scores" | "estimate.aipw.full_sample_residualized"
+        )
+    }) {
+        return;
+    }
+    match estimator_id {
+        EstimatorId::CellAipw | EstimatorId::Aipw if estimate.score_table.is_some() => {
+            diagnostics.push(Diagnostic::new(
+                "estimate.aipw.crossfit_scores",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
+            ));
+        }
+        EstimatorId::Aipw => {
+            diagnostics.push(Diagnostic::new(
+                "estimate.aipw.full_sample_residualized",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
+            ));
+        }
+        _ => {}
+    }
+}
+
+fn push_grid_scalar_cleared(diagnostics: &mut Vec<Diagnostic>, estimate: &EffectEstimate) {
+    if diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared") {
+        return;
+    }
+    if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2) && !estimate.ate.is_finite()
+    {
+        diagnostics.push(Diagnostic::new(
+            "estimate.functional.grid_scalar_cleared",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
+        ));
+    }
+}
+
 impl super::Study {
     pub(super) fn require_execute_dag(&self, message: &'static str) -> Result<&Dag, CausalError> {
         self.graph.as_dag().ok_or(CausalError::Unsupported { message })
@@ -964,6 +1153,8 @@ impl super::Study {
         {
             diagnostics.push(identify_cached_diagnostic());
         }
+        push_aipw_score_kind(&mut diagnostics, args.estimator_id, &args.estimate);
+        push_grid_scalar_cleared(&mut diagnostics, &args.estimate);
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)
@@ -1040,6 +1231,20 @@ impl super::Study {
         result.response = extras.response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
+        if self
+            .tiered
+            .as_ref()
+            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                super::helpers::attach_tiered_evalue(
+                    &mut result.estimate,
+                    data,
+                    args.outcome,
+                    &mut result.diagnostics,
+                );
+            }
+        }
         if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) =
             self.support_status
         {

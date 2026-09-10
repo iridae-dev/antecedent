@@ -1172,6 +1172,7 @@ mod tests {
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
             temporal: None,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
         })
     }
 
@@ -1223,6 +1224,7 @@ mod tests {
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
             temporal: None,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
         });
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let mut artifact =
@@ -1274,6 +1276,7 @@ mod tests {
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
             temporal: None,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
@@ -1297,6 +1300,7 @@ mod tests {
             observation: crate::ObservationSpecWire::Complete,
             observation_assumptions: Vec::new(),
             temporal: None,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
         });
         let artifact = unchecked_artifact(
             &CausalPayloadWire::Query(Box::new(query)),
@@ -1346,6 +1350,7 @@ mod tests {
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
             horizon_identification: None,
+            interaction_structurally_zero: false,
         };
         let payload = CausalPayloadWire::ResponseResult(Box::new(response));
         let artifact = encode_causal_payload_artifact(
@@ -1406,6 +1411,7 @@ mod tests {
                     }],
                 },
             ]),
+            interaction_structurally_zero: false,
         }
     }
 
@@ -1587,6 +1593,7 @@ mod tests {
             assumptions: Vec::new(),
             provenance_id: "identify.binary_iv_bounds".into(),
             horizon_identification: None,
+            interaction_structurally_zero: false,
         }
     }
 
@@ -1757,6 +1764,7 @@ mod tests {
             assumptions: Vec::new(),
             provenance_id: "estimate.response.kennedy_dr".into(),
             horizon_identification: None,
+            interaction_structurally_zero: false,
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::ResponseResult(Box::new(response)),

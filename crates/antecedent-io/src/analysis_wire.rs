@@ -59,6 +59,130 @@ pub struct EffectEstimateWire {
     pub first_stage_diagnostics: Option<FirstStageDiagnosticsWire>,
     /// Retained memory.
     pub retained_memory_bytes: Option<u64>,
+    /// Cross-fitted AIPW score table (retarget / joint cells / exceedance).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_table: Option<ScoreTableWire>,
+    /// Per-arm / per-threshold `F_a(c)` after monotone rearrangement, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exceedance_cdf: Option<Vec<f64>>,
+    /// Whether exceedance means were isotonically rearranged (cov/bands stay raw).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub monotone_rearranged: bool,
+    /// Joint covariance of score means or shared-row claims.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_covariance: Option<JointCovarianceWire>,
+    /// Simultaneous score-family bands and weighted support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_inference: Option<ScoreInferenceWire>,
+    /// Declared canonical scenario effects, in estimand order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_effects: Option<Vec<f64>>,
+    /// Simultaneous batch interval (lower, upper, level).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simultaneous_interval: Option<(f64, f64, f64)>,
+    /// BH and BY adjusted p-values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjusted_p_values: Option<(f64, f64)>,
+    /// Simultaneous scenario intervals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_intervals: Option<Vec<(f64, f64)>>,
+    /// Additive joint-response disclosure: interaction is structurally zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interaction_structurally_zero: Option<bool>,
+    /// Point E-value for a named no-latent premise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evalue: Option<f64>,
+    /// Candidate-selection provenance, including screen/estimate row splits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_selection: Option<CandidateSelectionWire>,
+}
+
+/// Screen / estimate split recorded on a batch estimate artifact.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CandidateSelectionWire {
+    /// Screen run id.
+    pub screen_id: String,
+    /// Procedure wire name.
+    pub procedure: String,
+    /// Winning family index.
+    pub winner_index: usize,
+    /// Family size.
+    pub family_size: usize,
+    /// Screen-half row indexes.
+    pub screen_rows: Vec<u32>,
+    /// Estimate-half row indexes.
+    pub estimate_rows: Vec<u32>,
+    /// Whether the halves are disjoint.
+    pub disjoint: bool,
+}
+
+/// Joint covariance, column-major.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct JointCovarianceWire {
+    /// Number of functionals.
+    pub dim: usize,
+    /// Covariance entries.
+    pub values: Vec<f64>,
+}
+
+/// Simultaneous inference over a declared score family.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct ScoreInferenceWire {
+    pub raw_means: Vec<f64>,
+    pub lower: Vec<f64>,
+    pub upper: Vec<f64>,
+    pub level: f64,
+    pub critical_value: f64,
+    pub event_n_eff: Vec<f64>,
+    pub threshold_supported: Vec<bool>,
+    pub n_eff: f64,
+    pub n_eff_by_arm: Vec<f64>,
+    pub propensity_range: Option<(f64, f64)>,
+    pub overlap_ok: bool,
+}
+
+/// Artifact form of a cross-fitted AIPW score table.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ScoreTableWire {
+    /// Observed cells on retained rows.
+    #[serde(default)]
+    pub observed_arm: Vec<u32>,
+    /// Raw out-of-fold propensities in score-column order.
+    #[serde(default)]
+    pub propensities: Vec<f64>,
+    /// Original outcomes for threshold support.
+    #[serde(default)]
+    pub observed_outcome: Vec<f64>,
+    /// Complete-case row count.
+    pub n_rows: u64,
+    /// Original row indexes.
+    pub row_index: Vec<u32>,
+    /// Fold ids.
+    pub fold_ids: Vec<u32>,
+    /// Fold count.
+    pub n_folds: u32,
+    /// Column-major scores.
+    pub scores: Vec<f64>,
+    /// `(arm, threshold)` column keys.
+    pub columns: Vec<ScoreColumnWire>,
+    /// Adjustment variable raw ids.
+    pub adjustment_set: Vec<u32>,
+    /// Nuisance provenance.
+    pub nuisance_provenance: String,
+    /// Treatment raw id.
+    pub treatment: u32,
+    /// Extra intervened raw ids.
+    pub intervened: Vec<u32>,
+}
+
+/// Score-table column key.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ScoreColumnWire {
+    /// Arm or cell mask.
+    pub arm: u32,
+    /// Exceedance threshold (`None` = mean).
+    pub threshold: Option<f64>,
 }
 
 /// Closed excluded propensity interval.
@@ -229,7 +353,90 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
             }
         }),
         retained_memory_bytes: e.retained_memory_bytes,
+        simultaneous_interval: e.simultaneous_interval,
+        adjusted_p_values: e.adjusted_p_values,
+        evalue: e.evalue,
+        candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
+            screen_id: s.screen_id.to_string(),
+            procedure: s.procedure.to_string(),
+            winner_index: s.winner_index,
+            family_size: s.family_size,
+            screen_rows: s.screen_rows.to_vec(),
+            estimate_rows: s.estimate_rows.to_vec(),
+            disjoint: s.disjoint,
+        }),
+        scenario_effects: e.scenario_effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: e.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        joint_covariance: e
+            .joint_covariance
+            .as_ref()
+            .map(|c| JointCovarianceWire { dim: c.dim, values: c.values.to_vec() }),
+        score_inference: e.score_inference.as_ref().map(|s| ScoreInferenceWire {
+            raw_means: s.raw_means.clone(),
+            lower: s.lower.clone(),
+            upper: s.upper.clone(),
+            level: s.level,
+            critical_value: s.critical_value,
+            event_n_eff: s.event_n_eff.clone(),
+            threshold_supported: s.threshold_supported.clone(),
+            n_eff: s.support.n_eff,
+            n_eff_by_arm: s.support.n_eff_by_arm.clone(),
+            propensity_range: s.support.propensity_range,
+            overlap_ok: s.support.overlap_ok,
+        }),
+        score_table: e.score_table.as_ref().map(score_table_to_wire),
+        exceedance_cdf: e.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: e.monotone_rearranged,
+        interaction_structurally_zero: e.interaction_structurally_zero.then_some(true),
     }
+}
+
+fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWire {
+    let wire = table.to_wire();
+    ScoreTableWire {
+        observed_arm: table.observed_arm.to_vec(),
+        propensities: table.propensities.to_vec(),
+        observed_outcome: table.observed_outcome.to_vec(),
+        n_rows: wire.n_rows,
+        row_index: wire.row_index,
+        fold_ids: wire.fold_ids,
+        n_folds: wire.n_folds,
+        scores: wire.scores,
+        columns: wire
+            .columns
+            .into_iter()
+            .map(|c| ScoreColumnWire { arm: c.arm, threshold: c.threshold })
+            .collect(),
+        adjustment_set: wire.adjustment_set,
+        nuisance_provenance: wire.nuisance_provenance,
+        treatment: wire.treatment,
+        intervened: wire.intervened,
+    }
+}
+
+fn score_table_from_wire(
+    wire: &ScoreTableWire,
+) -> Result<antecedent_estimate::ScoreTable, IoError> {
+    let domain = antecedent_estimate::ScoreTableWire {
+        observed_arm: wire.observed_arm.clone(),
+        propensities: wire.propensities.clone(),
+        observed_outcome: wire.observed_outcome.clone(),
+        n_rows: wire.n_rows,
+        row_index: wire.row_index.clone(),
+        fold_ids: wire.fold_ids.clone(),
+        n_folds: wire.n_folds,
+        scores: wire.scores.clone(),
+        columns: wire
+            .columns
+            .iter()
+            .map(|c| antecedent_estimate::ScoreColumn { arm: c.arm, threshold: c.threshold })
+            .collect(),
+        adjustment_set: wire.adjustment_set.clone(),
+        nuisance_provenance: wire.nuisance_provenance.clone(),
+        treatment: wire.treatment,
+        intervened: wire.intervened.clone(),
+    };
+    antecedent_estimate::ScoreTable::from_wire(domain).map_err(|e| IoError::Convert(e.to_string()))
 }
 
 fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
@@ -293,7 +500,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
             })
         })
         .transpose()?;
-    Ok(EffectEstimate::from_parts(
+    let mut estimate = EffectEstimate::from_parts(
         w.ate,
         w.se_analytic,
         w.se_bootstrap,
@@ -306,7 +513,74 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
         overlap_report,
         w.retained_memory_bytes,
     )
-    .with_first_stage_diagnostics(first_stage))
+    .with_first_stage_diagnostics(first_stage);
+    if let Some(table) = w.score_table.as_ref() {
+        estimate = estimate.with_score_table(Some(score_table_from_wire(table)?));
+    }
+    if let Some(cdf) = w.exceedance_cdf.as_ref() {
+        estimate = estimate.with_exceedance_cdf(Some(cdf.clone().into()));
+    }
+    estimate = estimate.with_monotone_rearranged(w.monotone_rearranged);
+    if let Some(c) = &w.joint_covariance {
+        if c.dim == 0
+            || c.values.len() != c.dim.saturating_mul(c.dim)
+            || c.values.iter().any(|v| !v.is_finite())
+        {
+            return Err(IoError::Convert("invalid joint covariance".into()));
+        }
+        estimate.joint_covariance = Some(antecedent_estimate::JointCovariance {
+            dim: c.dim,
+            values: c.values.clone().into(),
+        });
+    }
+    if let Some(s) = &w.score_inference {
+        let n = s.raw_means.len();
+        if n == 0
+            || s.lower.len() != n
+            || s.upper.len() != n
+            || s.event_n_eff.len() != n
+            || s.threshold_supported.len() != n
+            || s.raw_means.iter().chain(&s.lower).chain(&s.upper).any(|v| !v.is_finite())
+            || !s.level.is_finite()
+            || s.level <= 0.0
+            || s.level >= 1.0
+        {
+            return Err(IoError::Convert("invalid score inference".into()));
+        }
+        estimate.score_inference = Some(antecedent_estimate::scores::ScoreInference {
+            raw_means: s.raw_means.clone(),
+            lower: s.lower.clone(),
+            upper: s.upper.clone(),
+            level: s.level,
+            critical_value: s.critical_value,
+            event_n_eff: s.event_n_eff.clone(),
+            threshold_supported: s.threshold_supported.clone(),
+            support: antecedent_estimate::WeightedSupport {
+                n_eff: s.n_eff,
+                n_eff_by_arm: s.n_eff_by_arm.clone(),
+                propensity_range: s.propensity_range,
+                overlap_ok: s.overlap_ok,
+            },
+        });
+    }
+    estimate.simultaneous_interval = w.simultaneous_interval;
+    estimate.adjusted_p_values = w.adjusted_p_values;
+    estimate.evalue = w.evalue;
+    estimate.candidate_selection = w.candidate_selection.as_ref().map(|s| {
+        antecedent_estimate::CandidateSelectionRecord {
+            screen_id: std::sync::Arc::from(s.screen_id.as_str()),
+            procedure: std::sync::Arc::from(s.procedure.as_str()),
+            winner_index: s.winner_index,
+            family_size: s.family_size,
+            screen_rows: std::sync::Arc::from(s.screen_rows.as_slice()),
+            estimate_rows: std::sync::Arc::from(s.estimate_rows.as_slice()),
+            disjoint: s.disjoint,
+        }
+    });
+    estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
+    estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
+    estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
+    Ok(estimate)
 }
 
 fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, IoError> {
@@ -674,6 +948,18 @@ mod tests {
                 partial_r2: 0.2,
             }),
             retained_memory_bytes: Some(4096),
+            score_table: None,
+            joint_covariance: None,
+            score_inference: None,
+            scenario_effects: None,
+            simultaneous_interval: None,
+            adjusted_p_values: None,
+            scenario_intervals: None,
+            exceedance_cdf: None,
+            monotone_rearranged: false,
+            interaction_structurally_zero: None,
+            evalue: None,
+            candidate_selection: None,
         };
         let domain = effect_estimate_from_wire(&wire).unwrap();
         assert_eq!(effect_estimate_to_wire(&domain), wire);

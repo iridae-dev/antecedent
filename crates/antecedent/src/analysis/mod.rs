@@ -18,7 +18,9 @@ mod latency;
 mod prepared;
 mod stage;
 
-pub use batch::BatchStudy;
+pub use batch::{
+    BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, PreparedBatch,
+};
 pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
 pub use execute::Study;
 pub use latency::{

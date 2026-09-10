@@ -256,6 +256,10 @@ pub struct StudyBuilder {
     population_registry: Option<PopulationRegistry>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+    /// Optional tier-rule background (fast-path generalized adjustment).
+    tiered: Option<antecedent_graph::TieredBackground>,
+    /// Optional coarsened continuous coordinate for cell-AIPW joint response.
+    continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
     latency_mode: Option<LatencyMode>,
     /// Optional field-level compute budget overrides.
@@ -269,6 +273,7 @@ impl std::fmt::Debug for StudyBuilder {
         f.debug_struct("StudyBuilder")
             .field("data", &"<data>")
             .field("graph", &self.graph)
+            .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
             .field("structure_source", &self.structure_source)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
@@ -321,6 +326,8 @@ impl StudyBuilder {
             overlap_policy: None,
             population_registry: None,
             custom_validators: Vec::new(),
+            tiered: None,
+            continuous_cell: None,
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
             stage_sink: None,
@@ -343,6 +350,42 @@ impl StudyBuilder {
         self.graph = Some(graph);
         self.structure_source = Some(source);
         self
+    }
+
+    /// Declare a tier order over existing ADMG / PAG semantics.
+    ///
+    /// CoDetermined certifies the tier-closure set in `O(p)` as
+    /// `generalized.adjustment`. Unknown keeps two canonical sets as an
+    /// envelope. Materializes the background as the study graph.
+    ///
+    /// # Errors
+    ///
+    /// Missing tabular schema or invalid tier geometry.
+    pub fn tiered_background(
+        mut self,
+        background: antecedent_graph::TieredBackground,
+    ) -> Result<Self, CausalError> {
+        let schema = match &self.data {
+            DataInput::Tabular(data) => data.schema().clone(),
+            DataInput::Temporal(data) | DataInput::Event(data) => data.schema().clone(),
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "TieredBackground requires tabular or series data",
+                });
+            }
+        };
+        let graph = match background.within_tier {
+            antecedent_graph::WithinTier::CoDetermined => {
+                crate::AcceptedGraph::from(background.to_admg(&schema)?)
+            }
+            antecedent_graph::WithinTier::Unknown => {
+                crate::AcceptedGraph::from(background.to_pag(&schema)?)
+            }
+        };
+        self.graph = Some(graph);
+        self.structure_source = Some(crate::support::StructureSource::Explicit);
+        self.tiered = Some(background);
+        Ok(self)
     }
 
     /// Supply a posterior over graph structures instead of a single accepted graph.
@@ -462,6 +505,20 @@ impl StudyBuilder {
     /// the allowlist. Ignored on the temporal path (which always uses
     /// [`EstimatorId::TemporalLinearAdjustment`]).
     ///
+    /// Discretize one continuous coordinate onto `grid` for cell-AIPW joint response.
+    ///
+    /// The resulting estimand is coarsened treatment, not a point intervention at
+    /// a fixed continuous level.
+    #[must_use]
+    pub fn continuous_cell(
+        mut self,
+        variable: antecedent_core::VariableId,
+        grid: impl Into<std::sync::Arc<[f64]>>,
+    ) -> Self {
+        self.continuous_cell = Some((variable, grid.into()));
+        self
+    }
+
     /// Accepts either a bare [`EstimatorId`] (study fills bootstrap / overlap defaults, exactly
     /// as before) or a fully caller-configured estimator (e.g.
     /// `LinearAdjustmentAte::new().with_se_kind(..)`), via `impl Into<`[`EstimatorSpec`]`>`.
@@ -668,6 +725,71 @@ impl StudyBuilder {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
         let graph_class = crate::support::effective_graph_class(&graph, &query);
+        let selected = self.estimator_spec.as_ref().map(crate::estimator_spec::EstimatorSpec::id);
+        let functional = match &query {
+            CausalQuery::AverageEffect(q) => Some(&q.outcome_functional),
+            CausalQuery::ConditionalEffect(q) => Some(&q.inner.outcome_functional),
+            CausalQuery::Response(q) => Some(&q.outcome_functional),
+            _ => None,
+        };
+        if functional.is_some_and(|f| !matches!(f, antecedent_core::OutcomeFunctional::Mean)) {
+            let transforms_outcome = matches!(inference, InferenceMode::Frequentist)
+                && graph_posterior.is_none()
+                && match &query {
+                    CausalQuery::AverageEffect(_) => {
+                        graph_class == GraphClass::Dag || self.tiered.is_some()
+                    }
+                    CausalQuery::ConditionalEffect(_) => {
+                        matches!(graph_class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag)
+                    }
+                    CausalQuery::Response(q) => q.temporal.is_none(),
+                    _ => false,
+                };
+            if !transforms_outcome {
+                return Err(CausalError::Unsupported {
+                    message: "this inference/graph/query path does not implement the requested outcome functional",
+                });
+            }
+        }
+        if selected == Some(EstimatorId::CellAipw) && graph_class != GraphClass::Dag {
+            return Err(CausalError::Unsupported {
+                message: "cell-AIPW requires a static DAG with one certified common adjustment set",
+            });
+        }
+        if matches!(functional, Some(antecedent_core::OutcomeFunctional::ExceedanceGrid(_))) {
+            let score_grid = matches!(inference, InferenceMode::Frequentist)
+                && graph_posterior.is_none()
+                && match &query {
+                    CausalQuery::AverageEffect(q) => {
+                        selected == Some(EstimatorId::Aipw)
+                            && matches!(
+                                q.target_population,
+                                antecedent_core::TargetPopulation::AllObserved
+                            )
+                            && (graph_class == GraphClass::Dag
+                                || self.tiered.as_ref().is_some_and(|b| {
+                                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                                }))
+                    }
+                    CausalQuery::Response(q) => {
+                        selected == Some(EstimatorId::CellAipw)
+                            && q.temporal.is_none()
+                            && graph_class == GraphClass::Dag
+                    }
+                    CausalQuery::ConditionalEffect(_) => {
+                        matches!(
+                            graph_class,
+                            GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+                        )
+                    }
+                    _ => false,
+                };
+            if !score_grid {
+                return Err(CausalError::Unsupported {
+                    message: "full exceedance grids require explicit iid AIPW, cell-AIPW joint response, or Frequentist ConditionalEffect on Dag/Cpdag/Pag",
+                });
+            }
+        }
         if let Some(spec) = &self.estimator_spec {
             let bayesian = matches!(inference, InferenceMode::Bayesian(_));
             let expected = match &query {
@@ -697,7 +819,17 @@ impl StudyBuilder {
                 _ => None,
             };
             if let Some(expected) = expected {
-                if spec.id() != expected {
+                let cell_aipw_ok = spec.id() == EstimatorId::CellAipw
+                    && matches!(
+                        &query,
+                        CausalQuery::Response(q)
+                            if q.temporal.is_none()
+                                && matches!(
+                                    q.functional,
+                                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                                )
+                    );
+                if spec.id() != expected && !cell_aipw_ok {
                     return Err(CausalError::Compile {
                         message: format!(
                             "query and inference require estimator {}; got {}",
@@ -777,6 +909,8 @@ impl StudyBuilder {
             temporal_class_identification_cache: None,
             graph_posterior_identification_cache: None,
             dbn_posterior_identification_cache: None,
+            tiered: self.tiered,
+            continuous_cell: self.continuous_cell,
         })
     }
 }

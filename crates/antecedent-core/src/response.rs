@@ -259,6 +259,8 @@ pub struct CausalResponse {
     pub provenance_id: Arc<str>,
     /// Per-horizon identification on a temporal surface; absent on static curves.
     pub horizon_identification: Option<Arc<[HorizonIdentification]>>,
+    /// Additive joint g-computation makes the interaction contrast structurally zero.
+    pub interaction_structurally_zero: bool,
 }
 
 #[cfg(test)]

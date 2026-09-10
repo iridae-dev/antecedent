@@ -91,6 +91,8 @@ pub struct StudyResult {
     pub treatment: VariableId,
     /// Outcome variable.
     pub outcome: VariableId,
+    /// Candidate-selection screen recorded for a prepared batch family.
+    pub candidate_selection: Option<crate::analysis::CandidateSelection>,
 }
 
 impl StudyResult {

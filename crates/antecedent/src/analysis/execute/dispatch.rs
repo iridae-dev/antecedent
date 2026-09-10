@@ -426,6 +426,21 @@ impl super::Study {
             }
             AnalysisRoute::StaticAte => {
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
+                if let Some(background) = self.tiered.clone() {
+                    let identifier =
+                        physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
+                    let estimator =
+                        physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+                    return self.execute_tiered_average(
+                        data,
+                        q,
+                        physical,
+                        ctx,
+                        &background,
+                        identifier.parse()?,
+                        estimator.parse()?,
+                    );
+                }
                 match self.graph.class() {
                     GraphClass::Dag => {
                         let graph =

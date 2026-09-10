@@ -19,7 +19,9 @@ pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
 pub mod bayesian_mediation;
+pub mod cell_aipw;
 pub mod conditional;
+pub mod crossfit_aipw;
 pub mod design_compile;
 pub mod envelope;
 pub mod error;
@@ -30,6 +32,7 @@ pub mod gcomp;
 pub mod glm_adjustment;
 pub mod interference;
 pub mod iv;
+pub mod joint_if;
 pub mod observation;
 pub mod overlap;
 pub mod prediction;
@@ -37,6 +40,8 @@ pub mod prepare;
 pub mod propensity;
 pub mod rd;
 pub mod response;
+pub mod retarget;
+pub mod scores;
 pub mod se;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
@@ -49,8 +54,8 @@ pub mod util;
 mod calibration_coverage;
 
 pub use adjustment::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
-    PreparedEstimationProblem,
+    CandidateSelectionRecord, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte,
+    LinearFitKind, PreparedEstimationProblem,
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
@@ -62,7 +67,14 @@ pub use bayesian::{
     hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
     nonidentified_with_prior,
 };
+pub use cell_aipw::{
+    CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, contrast_named, interaction_contrast,
+};
 pub use conditional::ConditionalLinearAdjustment;
+pub use crossfit_aipw::{
+    AIPW_CROSSFIT_PROVENANCE, DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores,
+    crossfit_binary_scores, thresholds_of, weighted_support,
+};
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
 pub use error::EstimationError;
@@ -75,6 +87,10 @@ pub use functional_distribution::{
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use interference::{InterferenceEstimate, estimate_interference, own_treatment_level};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
+pub use joint_if::{
+    JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
+    max_t_critical, monotone_decreasing, monotone_increasing, weighted_mean,
+};
 pub use observation::{
     ObservationAdjustedOutcome, ObservationEstimatorOptions, ObservationMechanismEstimator,
     SelectedOutcomeCorrection,
@@ -87,7 +103,14 @@ pub use propensity::{
     default_propensity_overlap,
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
-pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions};
+pub use response::{
+    ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence,
+};
+pub use retarget::{
+    MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, check_depends_on,
+    exceedance_cdf_values, retarget, summarize_functional,
+};
+pub use scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable, ScoreTableWire};
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use temporal_adjustment::TemporalLinearAdjustment;
