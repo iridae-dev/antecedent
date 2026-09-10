@@ -36,7 +36,9 @@ and Python handoff APIs. Its lockfile changes are workspace version updates;
 no external dependency, unsafe block, or artifact decoder was added. Temporal
 handoffs refuse when offsets cannot be preserved, and incomplete graph results
 retain their identification limitations. The local CodeQL gate passed on
-2026-09-10 with the existing documented query exclusions.
+2026-09-10 with zero Rust, Python, and Actions findings under the existing
+documented query exclusions. A redundant test import was removed and Python
+rescanned before the final combined findings audit passed.
 
 ## Unsafe code policy
 
