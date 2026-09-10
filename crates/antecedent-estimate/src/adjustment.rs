@@ -61,6 +61,7 @@ pub struct EstimationWorkspace {
 /// Point estimate with uncertainty.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(clippy::struct_excessive_bools)]
 pub struct EffectEstimate {
     /// Point estimate: ATE, or mean ITE for the counterfactual cell.
     pub ate: f64,
@@ -123,8 +124,8 @@ pub struct CandidateSelectionRecord {
     pub screen_id: Arc<str>,
     /// Selection rule wire name (`max_t`, `bh`, `by`, `unrecorded`).
     pub procedure: Arc<str>,
-    /// Winning query index in the supplied family.
-    pub winner_index: usize,
+    /// Winning query index in the supplied family, or `None` when ranking is unavailable.
+    pub winner_index: Option<usize>,
     /// Family size.
     pub family_size: usize,
     /// Row indexes used to screen candidates.
@@ -716,6 +717,114 @@ impl LinearAdjustmentAte {
         }
     }
 
+    /// ATE from the configured linear fit on a row-resample of a prepared design.
+    ///
+    /// `row_src[r]` copies design row `row_src[r]` onto output row `r`. Length must
+    /// equal `problem.design.nrows`. For `AllObserved` / `Predicate` the ATE is
+    /// `β_T · Δ` and does not reread treatment labels.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, out-of-range source row, or fit failure.
+    pub fn ate_on_row_indices(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+    ) -> Result<f64, EstimationError> {
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        if row_src.len() != n {
+            return Err(EstimationError::data_msg(
+                "row resample length must match the prepared design",
+            ));
+        }
+        let mut x_boot = vec![0.0; n * p];
+        let mut y_boot = vec![0.0; n];
+        self.ate_on_row_indices_into(problem, workspace, row_src, &mut x_boot, &mut y_boot)
+    }
+
+    /// [`Self::ate_on_row_indices`] using caller-owned gather buffers.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, out-of-range source row, or fit failure.
+    pub fn ate_on_row_indices_into(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+        x_boot: &mut [f64],
+        y_boot: &mut [f64],
+    ) -> Result<f64, EstimationError> {
+        let t_col = problem
+            .design
+            .treatment_column()
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
+        let coefs = self.fit_resampled_coefficients(problem, workspace, row_src, x_boot, y_boot)?;
+        gcomp_or_coef_ate(problem, &coefs, t_col)
+    }
+
+    fn fit_resampled_coefficients(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+        x_boot: &mut [f64],
+        y_boot: &mut [f64],
+    ) -> Result<Vec<f64>, EstimationError> {
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        if row_src.len() != n || y_boot.len() != n || x_boot.len() != n * p {
+            return Err(EstimationError::data_msg("row resample buffers must match the design"));
+        }
+        for (r, &src) in row_src.iter().enumerate() {
+            if src >= n {
+                return Err(EstimationError::data_msg("row resample index out of range"));
+            }
+            y_boot[r] = problem.design.outcome[src];
+            for c in 0..p {
+                x_boot[c * n + r] = problem.design.matrix[c * n + src];
+            }
+        }
+        match self.fit_kind {
+            LinearFitKind::Ols => {
+                let fit = self
+                    .backend
+                    .least_squares(x_boot, n, p, y_boot, &mut workspace.ols)
+                    .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+            LinearFitKind::Ridge { lambda } => {
+                let fit =
+                    fit_ridge(x_boot, n, p, y_boot, lambda, &self.backend, &mut workspace.ols)
+                        .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+            LinearFitKind::Lasso { lambda } => {
+                let fit = fit_lasso_with_ones_column(
+                    x_boot,
+                    n,
+                    p,
+                    y_boot,
+                    &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
+                )
+                .map_err(EstimationError::from)?;
+                let mut coefficients = Vec::with_capacity(p);
+                coefficients.push(fit.intercept);
+                coefficients.extend_from_slice(&fit.coefficients);
+                Ok(coefficients)
+            }
+            LinearFitKind::Huber { c } => {
+                let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
+                let fit =
+                    fit_huber_m(x_boot, n, p, y_boot, &opts, &self.backend, &mut workspace.ols)
+                        .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+        }
+    }
+
     fn bootstrap_se(
         &self,
         problem: &PreparedEstimationProblem,
@@ -728,67 +837,11 @@ impl LinearAdjustmentAte {
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
         crate::util::bootstrap_se(self.bootstrap_replicates, ctx, 0xA7E_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                y_boot[r] = problem.design.outcome[src];
-                for c in 0..p {
-                    x_boot[c * n + r] = problem.design.matrix[c * n + src];
-                }
+            match self.fit_resampled_coefficients(problem, workspace, idx, &mut x_boot, &mut y_boot)
+            {
+                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
+                Err(_) => Ok(None),
             }
-            let coefs = match self.fit_kind {
-                LinearFitKind::Ols => {
-                    match self.backend.least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Ridge { lambda } => {
-                    match fit_ridge(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        lambda,
-                        &self.backend,
-                        &mut workspace.ols,
-                    ) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Lasso { lambda } => {
-                    match fit_lasso_with_ones_column(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
-                    ) {
-                        Ok(fit) => {
-                            let mut coefficients = Vec::with_capacity(p);
-                            coefficients.push(fit.intercept);
-                            coefficients.extend_from_slice(&fit.coefficients);
-                            coefficients
-                        }
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Huber { c } => {
-                    let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-                    match fit_huber_m(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        &opts,
-                        &self.backend,
-                        &mut workspace.ols,
-                    ) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-            };
-            Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?))
         })
     }
 }
@@ -1053,6 +1106,9 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-8);
         assert!(effect.se_bootstrap.is_some());
+        let identity: Vec<usize> = (0..prep.design.nrows).collect();
+        let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
+        assert!((resampled - effect.ate).abs() < 1e-12);
     }
 
     #[test]

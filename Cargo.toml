@@ -82,6 +82,18 @@ module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
+# Numerical kernels stay optimized in `cargo test` debug builds. Library crates
+# that change in the 1.x working loop stay at opt-level 0 so incremental
+# compiles stay cheap.
+[profile.dev.package.faer]
+opt-level = 2
+
+[profile.dev.package.antecedent-stats]
+opt-level = 2
+
+[profile.dev.package.antecedent-kernels]
+opt-level = 2
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
