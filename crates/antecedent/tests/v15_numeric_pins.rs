@@ -13,8 +13,8 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
-    Intervention, OutcomeFunctional, PopulationRegistry, ResponseFunctional, ResponseQuery,
-    TargetPopulation, Value, VariableId,
+    IdentificationStatus, Intervention, OutcomeFunctional, PopulationRegistry, ResponseFunctional,
+    ResponseQuery, TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{
@@ -1256,20 +1256,13 @@ fn cell_aipw_cheap_runs_overlap_and_evalue() {
 }
 
 #[test]
-fn continuous_cell_grid_is_consumed_by_cell_aipw() {
-    let mut rng = ExecutionContext::for_tests(203).rng.stream(0xCB);
-    let n = 700usize;
-    let mut a = vec![0.0; n];
-    let mut d = vec![0.0; n];
-    let mut y = vec![0.0; n];
-    let mut z = vec![0.0; n];
-    for i in 0..n {
-        z[i] = standard_normal(&mut rng);
-        a[i] = f64::from(rng.next_f64() < 0.5);
-        d[i] = rng.next_f64();
-        y[i] = 1.2 * a[i] + 0.4 * d[i] + 0.2 * z[i] + 0.3 * standard_normal(&mut rng);
-    }
-    let data = cols(&[("a", a), ("d", d), ("y", y), ("z", z)]);
+fn continuous_cell_refuses_point_cde() {
+    let data = cols(&[
+        ("a", vec![0.0, 1.0, 0.0, 1.0]),
+        ("d", vec![0.1, 0.4, 0.6, 0.9]),
+        ("y", vec![1.0, 2.0, 1.5, 2.5]),
+        ("z", vec![0.2, -0.1, 0.0, 0.3]),
+    ]);
     let mut graph = Dag::with_variables(4);
     graph.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
     graph.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
@@ -1279,7 +1272,7 @@ fn continuous_cell_grid_is_consumed_by_cell_aipw() {
         outcome: VariableId::from_raw(2),
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     });
-    let result = Study::tabular(data)
+    let err = Study::tabular(data)
         .graph(graph)
         .query(CausalQuery::Response(query))
         .estimator(EstimatorId::CellAipw)
@@ -1287,12 +1280,11 @@ fn continuous_cell_grid_is_consumed_by_cell_aipw() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(203))
-        .unwrap();
-    assert!(result.estimate.ate.is_finite());
-    let table = result.estimate.score_table.expect("continuous cell scores");
-    assert!(table.columns.len() >= 2);
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("do(D=d0)"),
+        "point CDE must be a named refuse, not a coarsened grid: {err}"
+    );
 }
 
 #[test]
@@ -2200,4 +2192,154 @@ fn pag_front_door_response_uses_general_id() {
         result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
         "general-ID provenance must be visible"
     );
+}
+
+fn same_tier_joint_query(schema: &antecedent_core::CausalSchema) -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: schema.id_of("y").unwrap(),
+        interventions: Arc::from([
+            Intervention::set(schema.id_of("t1").unwrap(), Value::f64(1.0)),
+            Intervention::set(schema.id_of("t2").unwrap(), Value::f64(1.0)),
+        ]),
+    })
+}
+
+fn same_tier_joint_dgp(n: usize, seed: u64) -> (TabularData, TieredBackground, ResponseQuery) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC0);
+    let mut z = vec![0.0; n];
+    let mut t1 = vec![0.0; n];
+    let mut t2 = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let latent = standard_normal(&mut rng);
+        z[i] = zi;
+        t1[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.2 + 0.9 * zi + 0.7 * latent)).exp()));
+        t2[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.1 + 0.8 * zi + 0.65 * latent)).exp()));
+        y[i] = 1.2 * t1[i] + 0.8 * t2[i] + 1.5 * t1[i] * t2[i] + 0.55 * zi
+            + 0.3 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("z", z), ("t1", t1), ("t2", t2), ("y", y)]);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let query = same_tier_joint_query(&schema);
+    (data, background, query)
+}
+
+#[test]
+fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
+    let (data, background, query) = same_tier_joint_dgp(2_400, 17);
+    let schema = data.schema().clone();
+    let z = schema.id_of("z").unwrap();
+    let t1_id = schema.id_of("t1").unwrap();
+    let t2_id = schema.id_of("t2").unwrap();
+    let y = schema.id_of("y").unwrap();
+    let admg = background.to_admg(&schema).unwrap();
+    let t1 = DenseNodeId::from_raw(t1_id.raw());
+    let t2 = DenseNodeId::from_raw(t2_id.raw());
+    assert!(admg.has_bidirected(), "same-tier pair must materialize ↔");
+    assert!(admg.bidirected_neighbors(t1).contains(&t2));
+    let mut descendants = BitSet::default();
+    let mut ws = GraphWorkspace::default();
+    admg.descendants_of(&[t1], &mut descendants, &mut ws);
+    assert!(!descendants.contains(t2), "treating ↔ as a directed path would put t2 in De(t1)");
+
+    let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
+    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(id.estimands[0].adjustment_set.as_ref(), &[z]);
+    assert!(
+        !id.estimands[0].adjustment_set.iter().any(|&v| v == t2_id),
+        "t2 is a treatment; walking ↔ as directed must not put the peer in Z"
+    );
+    let admg_id = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_joint_admg_response(&admg, &query)
+        .unwrap();
+    assert_eq!(admg_id.estimands[0].adjustment_set, id.estimands[0].adjustment_set);
+
+    let ctx = ExecutionContext::for_tests(17);
+    let result = Study::tabular(data.clone())
+        .tiered_background(background.clone())
+        .unwrap()
+        .query(CausalQuery::Response(query.clone()))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!(result.estimate.ate.is_finite(), "licensed cell must be finite");
+    assert!(result.estimate.se_analytic.is_finite(), "cell-AIPW SE requires IFs");
+    let table = result.estimate.score_table.as_ref().expect("cell.aipw must freeze scores");
+    let ix = antecedent_estimate::interaction_contrast(table).unwrap();
+    assert!(ix.value.is_finite() && ix.se.is_finite(), "interaction={} se={}", ix.value, ix.se);
+
+    let direct = antecedent_estimate::CellSaturatedAipw::new()
+        .fit_scores(
+            &data,
+            &[t1_id, t2_id],
+            y,
+            id.estimands[0].adjustment_set.as_ref(),
+            &OutcomeFunctional::Mean,
+            None,
+        )
+        .unwrap();
+    let summary = direct.summarize(None).unwrap();
+    let arm11 = direct.columns.iter().position(|c| c.arm == 3).expect("cell 11");
+    assert!(
+        (result.estimate.ate - summary.means[arm11]).abs() < PIN_ABS,
+        "tiered cell.aipw {} must match closure-ADMG cell-AIPW {}",
+        result.estimate.ate,
+        summary.means[arm11]
+    );
+    let empty = antecedent_estimate::CellSaturatedAipw::new()
+        .fit_scores(&data, &[t1_id, t2_id], y, &[], &OutcomeFunctional::Mean, None)
+        .unwrap()
+        .summarize(None)
+        .unwrap();
+    assert!(
+        (empty.means[arm11] - summary.means[arm11]).abs() > 1e-4,
+        "skipping identification (Z={{}}) would not recover the licensed cell"
+    );
+
+    let prepared = BatchStudy::tiered(data.clone(), background)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare_cells(&[query], &ctx)
+        .unwrap();
+    assert!(
+        prepared.plans()[0].score_table().is_some(),
+        "prepare_cells must freeze cell-AIPW scores"
+    );
+    let batch = &prepared.estimate(&data, &ctx).unwrap()[0];
+    assert!(batch.estimate.ate.is_finite(), "prepare_cells estimate must be a real cell");
+    let batch_table = batch.estimate.score_table.as_ref().expect("batch cell.aipw scores");
+    let batch_ix = antecedent_estimate::interaction_contrast(batch_table).unwrap();
+    assert!(batch_ix.value.is_finite());
+}
+
+#[test]
+fn unknown_tier_joint_has_no_single_admg() {
+    let (data, _, query) = same_tier_joint_dgp(40, 18);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+        WithinTier::Unknown,
+    )
+    .unwrap();
+    let err = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap_err();
+    assert!(err.to_string().contains("no single ADMG"), "{err}");
+    let ctx = ExecutionContext::for_tests(18);
+    let batch_err = BatchStudy::tiered(data, background)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare_cells(&[query], &ctx)
+        .unwrap_err();
+    assert!(batch_err.to_string().contains("no single ADMG"), "{batch_err}");
 }
