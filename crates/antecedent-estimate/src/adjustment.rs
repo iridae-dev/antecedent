@@ -87,6 +87,52 @@ pub struct EffectEstimate {
     pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// Cross-fitted AIPW score table when the estimator exported one.
+    pub score_table: Option<crate::scores::ScoreTable>,
+    /// Simultaneous score-family bands and target-local support.
+    pub score_inference: Option<crate::scores::ScoreInference>,
+    /// Effects under declared canonical orientation scenarios, in estimand order.
+    pub scenario_effects: Option<Arc<[f64]>>,
+    /// Simultaneous batch interval (lower, upper, level).
+    pub simultaneous_interval: Option<(f64, f64, f64)>,
+    /// BH and BY adjusted p-values for the fixed batch family.
+    pub adjusted_p_values: Option<(f64, f64)>,
+    /// Simultaneous intervals for canonical scenarios; not bounds on all completions.
+    pub scenario_intervals: Option<Arc<[(f64, f64)]>>,
+    /// Joint IF covariance across arms / thresholds / cells / claims.
+    pub joint_covariance: Option<crate::joint_if::JointCovariance>,
+    /// Per-threshold `F_a(c) = 1 - P(Y(a) > c)` after monotone rearrangement.
+    pub exceedance_cdf: Option<Arc<[f64]>>,
+    /// `true` when `exceedance_cdf` / grid means were isotonically rearranged.
+    /// Joint covariance and score-inference bands always describe the raw AIPW scores.
+    pub monotone_rearranged: bool,
+    /// Whether an additive joint path makes the interaction contrast structurally zero.
+    pub interaction_structurally_zero: bool,
+    /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
+    pub influence: Option<Arc<[f64]>>,
+    /// Point E-value for the reported effect when a named no-latent premise is in force.
+    pub evalue: Option<f64>,
+    /// Candidate-selection screen recorded on a batch family (artifact payload).
+    pub candidate_selection: Option<CandidateSelectionRecord>,
+}
+
+/// Screen / estimate split recorded on a batch result artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CandidateSelectionRecord {
+    /// Caller-stable screen run id, or `"unrecorded"`.
+    pub screen_id: Arc<str>,
+    /// Selection rule wire name (`max_t`, `bh`, `by`, `unrecorded`).
+    pub procedure: Arc<str>,
+    /// Winning query index in the supplied family.
+    pub winner_index: usize,
+    /// Family size.
+    pub family_size: usize,
+    /// Row indexes used to screen candidates.
+    pub screen_rows: Arc<[u32]>,
+    /// Row indexes used to estimate the surfaced family.
+    pub estimate_rows: Arc<[u32]>,
+    /// Whether the two halves are disjoint.
+    pub disjoint: bool,
 }
 
 impl EffectEstimate {
@@ -111,6 +157,19 @@ impl EffectEstimate {
             overlap_report: None,
             first_stage_diagnostics: None,
             retained_memory_bytes: None,
+            score_table: None,
+            score_inference: None,
+            scenario_effects: None,
+            simultaneous_interval: None,
+            adjusted_p_values: None,
+            scenario_intervals: None,
+            joint_covariance: None,
+            exceedance_cdf: None,
+            monotone_rearranged: false,
+            interaction_structurally_zero: false,
+            influence: None,
+            evalue: None,
+            candidate_selection: None,
         }
     }
 
@@ -143,6 +202,19 @@ impl EffectEstimate {
             overlap_report,
             first_stage_diagnostics: None,
             retained_memory_bytes,
+            score_table: None,
+            score_inference: None,
+            scenario_effects: None,
+            simultaneous_interval: None,
+            adjusted_p_values: None,
+            scenario_intervals: None,
+            joint_covariance: None,
+            exceedance_cdf: None,
+            monotone_rearranged: false,
+            interaction_structurally_zero: false,
+            influence: None,
+            evalue: None,
+            candidate_selection: None,
         }
     }
 
@@ -160,6 +232,61 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
         self.overlap_report = overlap_report;
+        self
+    }
+
+    /// Attach a cross-fitted score table.
+    #[must_use]
+    pub fn with_score_table(mut self, table: Option<crate::scores::ScoreTable>) -> Self {
+        self.score_table = table;
+        self
+    }
+
+    /// Attach joint IF covariance.
+    #[must_use]
+    pub fn with_joint_covariance(mut self, cov: Option<crate::joint_if::JointCovariance>) -> Self {
+        self.joint_covariance = cov;
+        self
+    }
+
+    /// Attach per-threshold CDF values `F_a(c)`.
+    #[must_use]
+    pub fn with_exceedance_cdf(mut self, cdf: Option<Arc<[f64]>>) -> Self {
+        self.exceedance_cdf = cdf;
+        self
+    }
+
+    /// Record whether exceedance means were isotonically rearranged.
+    ///
+    /// When `true`, [`Self::simultaneous_interval`] is cleared: those intervals
+    /// must not mix rearranged means with raw covariance.
+    #[must_use]
+    pub fn with_monotone_rearranged(mut self, rearranged: bool) -> Self {
+        self.monotone_rearranged = rearranged;
+        if rearranged {
+            self.simultaneous_interval = None;
+        }
+        self
+    }
+
+    /// Mark that a joint interaction contrast is structurally zero on this path.
+    #[must_use]
+    pub fn with_interaction_structurally_zero(mut self, zero: bool) -> Self {
+        self.interaction_structurally_zero = zero;
+        self
+    }
+
+    /// Attach a per-row influence sequence for the reported scalar.
+    #[must_use]
+    pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
+        self.influence = influence;
+        self
+    }
+
+    /// Attach a point E-value for a named no-latent / unmeasured-confounding premise.
+    #[must_use]
+    pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
+        self.evalue = evalue;
         self
     }
 
@@ -472,8 +599,17 @@ impl LinearAdjustmentAte {
             )
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
+        let influence = treatment_coef_influence(
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            t_col,
+            &residuals,
+            problem.treatment_delta,
+        );
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_influence(Some(Arc::from(influence))))
     }
 
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
@@ -728,6 +864,32 @@ fn analytic_se_treatment(
         return f64::NAN;
     };
     (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+}
+
+/// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
+fn treatment_coef_influence(
+    matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    residuals: &[f64],
+    delta: f64,
+) -> Vec<f64> {
+    if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
+        return vec![0.0; residuals.len()];
+    }
+    let t = &matrix[t_col * nrows..t_col * nrows + nrows];
+    let t_mean = t.iter().sum::<f64>() / nrows as f64;
+    let mut ss = 0.0;
+    for &ti in t {
+        let d = ti - t_mean;
+        ss += d * d;
+    }
+    if ss <= 0.0 {
+        return vec![0.0; nrows];
+    }
+    let scale = delta * nrows as f64 / ss;
+    residuals.iter().zip(t.iter()).map(|(&e, &ti)| e * (ti - t_mean) * scale).collect()
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {

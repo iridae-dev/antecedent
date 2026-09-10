@@ -162,4 +162,7 @@ pub enum QueryError {
     /// Distribution weights contain negatives or non-finite values.
     #[error("custom distribution weights must be finite and non-negative")]
     InvalidPopulationWeights,
+    /// Exceedance threshold is non-finite or the grid is empty / not strictly increasing.
+    #[error("outcome functional thresholds must be finite and strictly increasing")]
+    InvalidOutcomeFunctional,
 }

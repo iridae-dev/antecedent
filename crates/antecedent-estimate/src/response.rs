@@ -148,6 +148,18 @@ impl Default for ContinuousResponseOptions {
     }
 }
 
+/// Per-row influence columns for a fitted response functional.
+///
+/// One column per reported coordinate (a scalar intervention, or each
+/// `MeanCurve` grid point). Rows are complete-case rows in `row_index`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResponseInfluence {
+    /// Influence of each retained row on each reported coordinate.
+    pub columns: Vec<Vec<f64>>,
+    /// Original data-frame row index of each complete-case row.
+    pub row_index: Arc<[u32]>,
+}
+
 /// Continuous-response estimator with a caller-supplied valid adjustment set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseEstimator {
@@ -184,11 +196,29 @@ impl ContinuousResponseEstimator {
         identification_status: IdentificationStatus,
         assumptions: AssumptionSet,
     ) -> Result<CausalResponse, EstimationError> {
+        self.estimate_identified_scored(data, query, identification_status, assumptions)
+            .map(|(response, _)| response)
+    }
+
+    /// Estimate and retain the response-functional influence columns.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate_identified`].
+    pub fn estimate_identified_scored(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        identification_status: IdentificationStatus,
+        assumptions: AssumptionSet,
+    ) -> Result<(CausalResponse, Option<ResponseInfluence>), EstimationError> {
         self.validate(query, identification_status)?;
+        let mut influence = None;
         let (value, uncertainty, support, provenance_id) = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
-                let (value, uncertainty, support) =
+                let (value, uncertainty, support, scores) =
                     self.mean_curve(data, *outcome, treatment.variable, &treatment.grid.values()?)?;
+                influence = Some(scores);
                 let provenance =
                     if matches!(uncertainty, ResponseUncertainty::SimultaneousBand { .. }) {
                         "estimate.response.kennedy_dr_simultaneous"
@@ -218,22 +248,31 @@ impl ContinuousResponseEstimator {
                 (value, uncertainty, support, "estimate.response.gam_derivative")
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                let (value, uncertainty, support) =
+                let (value, uncertainty, support, scores) =
                     self.intervention_response(data, *outcome, interventions)?;
+                influence = Some(scores);
                 (value, uncertainty, support, "estimate.response.intervention_gcomp")
             }
         };
         let assumptions = with_estimation_assumptions(assumptions, &query.functional);
-        Ok(CausalResponse {
-            estimand: query.functional.clone(),
-            identification_status,
-            estimate: ResponseIdentification::PointIdentified(value),
-            uncertainty,
-            support,
-            assumptions,
-            provenance_id: Arc::from(provenance_id),
-            horizon_identification: None,
-        })
+        let interaction_structurally_zero = matches!(
+            &query.functional,
+            ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() > 1
+        );
+        Ok((
+            CausalResponse {
+                estimand: query.functional.clone(),
+                identification_status,
+                estimate: ResponseIdentification::PointIdentified(value),
+                uncertainty,
+                support,
+                assumptions,
+                provenance_id: Arc::from(provenance_id),
+                horizon_identification: None,
+                interaction_structurally_zero,
+            },
+            influence,
+        ))
     }
 
     /// Bayesian Gaussian linear-additive response levels, with posterior
@@ -439,6 +478,10 @@ impl ContinuousResponseEstimator {
             assumptions,
             provenance_id: Arc::from("estimate.response.bayesian"),
             horizon_identification: None,
+            interaction_structurally_zero: matches!(
+                &query.functional,
+                ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() > 1
+            ),
         })
     }
 
@@ -507,7 +550,8 @@ impl ContinuousResponseEstimator {
         outcome: VariableId,
         treatment: VariableId,
         grid: &[f64],
-    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport, ResponseInfluence), EstimationError>
+    {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
         let PseudoOutcome { values: pseudo, density_floor_rows } =
             self.cross_fitted_pseudo_outcome(&sample)?;
@@ -616,6 +660,12 @@ impl ContinuousResponseEstimator {
                 upper: Arc::from(upper),
             }
         };
+        let row_index: Arc<[u32]> = sample
+            .keep
+            .iter()
+            .map(|&i| u32::try_from(i).unwrap_or(u32::MAX))
+            .collect();
+        let scores = ResponseInfluence { columns: influences, row_index };
         Ok((
             ResponseValue::Surface {
                 grid: Arc::from(grid.to_vec()),
@@ -624,6 +674,7 @@ impl ContinuousResponseEstimator {
             },
             uncertainty,
             support,
+            scores,
         ))
     }
 
@@ -632,7 +683,8 @@ impl ContinuousResponseEstimator {
         data: &TabularData,
         outcome: VariableId,
         interventions: &[Intervention],
-    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport, ResponseInfluence), EstimationError>
+    {
         let mut treatments = Vec::with_capacity(interventions.len());
         for intervention in interventions {
             let Some(variable) = intervention.primary_variable() else {
@@ -659,13 +711,14 @@ impl ContinuousResponseEstimator {
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
-        let estimate = if interventions.iter().any(intervention_needs_monte_carlo) {
+        let row_means = if interventions.iter().any(intervention_needs_monte_carlo) {
             let draws = 256;
-            let mut total = 0.0;
+            let mut means = vec![0.0; sample.len()];
             let mut factual = vec![0.0; sample.raw_cols];
             let mut row = vec![0.0; sample.raw_cols];
             for row_index in 0..sample.len() {
                 sample.write_raw_row(row_index, &mut factual);
+                let mut total = 0.0;
                 for draw in 0..draws {
                     row.copy_from_slice(&factual);
                     for (column, intervention) in interventions.iter().enumerate() {
@@ -674,10 +727,28 @@ impl ContinuousResponseEstimator {
                     }
                     total += predict_one(&fit, &row)?;
                 }
+                means[row_index] = total / draws as f64;
             }
-            total / (sample.len() * draws) as f64
+            means
         } else {
-            exact_discrete_intervention_mean(&fit, &sample, interventions)?
+            exact_discrete_intervention_rows(&fit, &sample, interventions)?
+        };
+        let n = row_means.len() as f64;
+        let estimate = row_means.iter().sum::<f64>() / n;
+        let psi: Vec<f64> = row_means.iter().map(|m| m - estimate).collect();
+        let se = if n > 1.0 {
+            (psi.iter().map(|x| x * x).sum::<f64>() / (n * (n - 1.0))).sqrt()
+        } else {
+            f64::NAN
+        };
+        let z = 1.959963984540054;
+        let scores = ResponseInfluence {
+            columns: vec![psi],
+            row_index: sample
+                .keep
+                .iter()
+                .map(|&i| u32::try_from(i).unwrap_or(u32::MAX))
+                .collect(),
         };
         let minima: Vec<f64> =
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).0).collect();
@@ -685,7 +756,12 @@ impl ContinuousResponseEstimator {
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).1).collect();
         Ok((
             ResponseValue::Scalar(estimate),
-            ResponseUncertainty::None,
+            ResponseUncertainty::Scalar {
+                standard_error: se,
+                level: 0.95,
+                lower: estimate - z * se,
+                upper: estimate + z * se,
+            },
             SupportReport {
                 status: SupportStatus::Extrapolative,
                 query_region: SupportRegion {
@@ -703,10 +779,11 @@ impl ContinuousResponseEstimator {
                     "response.intervention_plugin_model_dependent",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
-                    "intervention response uses additive-GAM g-computation; joint policy support and statistical uncertainty are not certified",
+                    "intervention response uses additive-GAM g-computation; SE is the plugin IF of the fitted g-comp functional (μ treated as estimated on the complete-case rows)",
                 )],
                 point_status: None,
             },
+            scores,
         ))
     }
 
@@ -1508,11 +1585,11 @@ enum DiscreteAtom {
 /// Bernoulli and Categorical are summed over their support with the declared probabilities
 /// rather than Monte-Carlo sampled through a continuous smoother. That avoids treating
 /// unordered category codes as ordered coordinates along a spline.
-fn exact_discrete_intervention_mean(
+fn exact_discrete_intervention_rows(
     fit: &antecedent_stats::GamFit,
     sample: &CompleteSample,
     interventions: &[Intervention],
-) -> Result<f64, EstimationError> {
+) -> Result<Vec<f64>, EstimationError> {
     let supports: Vec<Vec<DiscreteAtom>> =
         interventions.iter().map(discrete_intervention_support).collect::<Result<_, _>>()?;
     // The mixture is a cartesian product across interventions, so its cost is exponential in
@@ -1529,13 +1606,13 @@ fn exact_discrete_intervention_mean(
             "joint discrete intervention support exceeds the exact-mixture budget; intervene on fewer variables or coarsen the category supports",
         ));
     }
-    let mut total = 0.0;
+    let mut out = Vec::with_capacity(sample.len());
     let mut row = vec![0.0; sample.raw_cols];
     for row_index in 0..sample.len() {
         sample.write_raw_row(row_index, &mut row);
-        total += mixture_expectation(fit, &mut row, &supports, 0, 1.0)?;
+        out.push(mixture_expectation(fit, &mut row, &supports, 0, 1.0)?);
     }
-    Ok(total / sample.len() as f64)
+    Ok(out)
 }
 
 fn discrete_intervention_support(

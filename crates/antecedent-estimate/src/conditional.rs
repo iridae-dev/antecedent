@@ -82,6 +82,25 @@ impl ConditionalLinearAdjustment {
             "ConditionalLinearAdjustment requires ExplicitOverride overlap policy",
         )?;
         query.validate()?;
+        self.estimate_with_means(data, estimand, query).map(|(estimate, _)| estimate)
+    }
+
+    /// Estimate the contrast and the two interventional arm means.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate`].
+    pub fn estimate_with_means(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &ConditionalEffectQuery,
+    ) -> Result<(EffectEstimate, [f64; 2]), EstimationError> {
+        require_explicit_override(
+            self.overlap,
+            "ConditionalLinearAdjustment requires ExplicitOverride overlap policy",
+        )?;
+        query.validate()?;
         self.estimate_ate(data, estimand, &query.inner)
     }
 
@@ -90,12 +109,13 @@ impl ConditionalLinearAdjustment {
     /// # Errors
     ///
     /// Empty modifiers or OLS failures.
+    #[allow(clippy::too_many_lines)]
     pub fn estimate_ate(
         &self,
         data: &TabularData,
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
-    ) -> Result<EffectEstimate, EstimationError> {
+    ) -> Result<(EffectEstimate, [f64; 2]), EstimationError> {
         if query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported(
                 "ConditionalLinearAdjustment requires effect modifiers",
@@ -177,13 +197,55 @@ impl ConditionalLinearAdjustment {
         g[3] = delta * w_bar;
         let se_analytic = crate::util::delta_method_se(&inv, ncols, &g, sigma2);
 
+        let mut residuals = vec![0.0; n];
+        for i in 0..n {
+            let mut pred = 0.0;
+            for j in 0..ncols {
+                pred += coef[j] * design[j * n + i];
+            }
+            residuals[i] = y[i] - pred;
+        }
+        let n_f = n as f64;
+        let mut influence = vec![0.0; n];
+        for i in 0..n {
+            let mut g_inv_x = 0.0;
+            for a in 0..ncols {
+                if g[a] == 0.0 {
+                    continue;
+                }
+                let mut inv_x = 0.0;
+                for b in 0..ncols {
+                    inv_x += inv[a * ncols + b] * design[b * n + i];
+                }
+                g_inv_x += g[a] * inv_x;
+            }
+            influence[i] = n_f * g_inv_x * residuals[i];
+        }
+
         let _ = Arc::clone(&estimand.method);
 
-        Ok(EffectEstimate::new(
-            point,
-            se_analytic,
-            AssumptionSet::default(),
-            OverlapPolicy::ExplicitOverride,
+        let mut mu0 = 0.0;
+        let mut mu1 = 0.0;
+        for i in 0..n {
+            let mut zterm = 0.0;
+            for k in 0..n_z {
+                zterm += coef[4 + k] * design[(4 + k) * n + i];
+            }
+            mu0 += coef[0] + coef[1] * control + coef[2] * w[i] + coef[3] * control * w[i] + zterm;
+            mu1 += coef[0] + coef[1] * active + coef[2] * w[i] + coef[3] * active * w[i] + zterm;
+        }
+        mu0 /= n_f;
+        mu1 /= n_f;
+
+        Ok((
+            EffectEstimate::new(
+                point,
+                se_analytic,
+                AssumptionSet::default(),
+                OverlapPolicy::ExplicitOverride,
+            )
+            .with_influence(Some(Arc::from(influence))),
+            [mu0, mu1],
         ))
     }
 }

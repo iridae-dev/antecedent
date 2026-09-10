@@ -79,8 +79,9 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    BatchStudy, ComputeBudget, LatencyMode, PreparedStudy, RdConfig, RefuteSuite, StageEvent,
-    StageResultSink, Study, StudyBuilder,
+    BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
+    LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, StageEvent, StageResultSink,
+    Study, StudyBuilder,
 };
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};

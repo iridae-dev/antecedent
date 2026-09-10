@@ -16,9 +16,9 @@ pub(super) use std::time::Instant;
 
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec, PopulationRegistry,
-    ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
+    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
@@ -94,8 +94,8 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, refute_outcomes, run_refuters, validator_not_applicable_diagnostic,
-    validator_not_applicable_diagnostics,
+    push_conflict_diagnostics, refute_outcomes, run_plugin_level_refuters, run_refuters,
+    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -164,6 +164,10 @@ pub struct Study {
     /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
     pub(crate) dbn_posterior_identification_cache:
         Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
+    /// Optional tier-rule background for O(p) closure certification.
+    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
+    /// Optional coarsened continuous coordinate for cell-AIPW.
+    pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
 }
 
 impl std::fmt::Debug for Study {
@@ -171,6 +175,7 @@ impl std::fmt::Debug for Study {
         f.debug_struct("Study")
             .field("data", &"<data>")
             .field("graph", &self.graph)
+            .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
             .field("structure_source", &self.structure_source)
             .field("support_status", &self.support_status)

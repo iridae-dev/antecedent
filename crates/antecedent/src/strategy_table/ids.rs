@@ -55,6 +55,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "response.riesz_ade",
     "response.gam_derivative",
     "response.intervention_gcomp",
+    "cell.aipw",
     "temporal.response.gcomp",
     "gcm.fit",
 ];
@@ -291,6 +292,8 @@ pub enum EstimatorId {
     ResponseGamDerivative,
     /// Additive-GAM g-computation for static, shifted, or stochastic interventions.
     ResponseInterventionGcomp,
+    /// Cell-saturated AIPW for discrete joint `Set` interventions.
+    CellAipw,
     /// Temporal dose-over-horizon / policy-path g-computation (ADR 0021).
     TemporalResponseGcomp,
     /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
@@ -507,6 +510,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.response.intervention_gcomp",
             ),
         },
+        EstimatorId::CellAipw => EstimatorData {
+            name: "cell.aipw",
+            parallel_task_dimension: "cell",
+            kernel_label: "aipw.cell",
+            provenance: ("estimate.cell.aipw", "estimate.cell.aipw"),
+        },
         EstimatorId::TemporalResponseGcomp => EstimatorData {
             name: "temporal.response.gcomp",
             parallel_task_dimension: "horizon",
@@ -552,6 +561,7 @@ impl EstimatorId {
         Self::ResponseRieszAde,
         Self::ResponseGamDerivative,
         Self::ResponseInterventionGcomp,
+        Self::CellAipw,
         Self::TemporalResponseGcomp,
         Self::GcmFit,
     ];
@@ -612,6 +622,7 @@ impl FromStr for EstimatorId {
             "response.riesz_ade" => Ok(Self::ResponseRieszAde),
             "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
             "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
+            "cell.aipw" => Ok(Self::CellAipw),
             "temporal.response.gcomp" => Ok(Self::TemporalResponseGcomp),
             "gcm.fit" => Ok(Self::GcmFit),
             other => Err(UnknownStrategy {
@@ -693,6 +704,7 @@ pub fn validate_response_pair(
                 | EstimatorId::ResponseRieszAde
                 | EstimatorId::ResponseGamDerivative
                 | EstimatorId::ResponseInterventionGcomp
+                | EstimatorId::CellAipw
                 | EstimatorId::ResponseBayesian
         )
     {
@@ -721,6 +733,7 @@ pub fn validate_class_response_pair(
             estimator,
             EstimatorId::ResponseKennedyDr
                 | EstimatorId::ResponseInterventionGcomp
+                | EstimatorId::CellAipw
                 | EstimatorId::ResponseBayesian
         )
     {
@@ -897,6 +910,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::ResponseRieszAde
         | EstimatorId::ResponseGamDerivative
         | EstimatorId::ResponseInterventionGcomp
+        | EstimatorId::CellAipw
         | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),

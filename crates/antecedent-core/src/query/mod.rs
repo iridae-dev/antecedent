@@ -9,6 +9,7 @@ mod average;
 mod counterfactual;
 mod distribution;
 mod error;
+mod functional;
 mod interference;
 mod mediation;
 mod population;
@@ -28,6 +29,7 @@ pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
+pub use functional::OutcomeFunctional;
 pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     InterferenceFunctional, InterferenceQuery,

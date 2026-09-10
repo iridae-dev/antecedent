@@ -396,6 +396,7 @@ impl TemporalResponseEstimator {
             assumptions,
             provenance_id: Arc::from("estimate.response.temporal.bayesian"),
             horizon_identification: Some(Arc::from(horizons)),
+            interaction_structurally_zero: false,
         })
     }
 
@@ -468,6 +469,7 @@ impl TemporalResponseEstimator {
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
             horizon_identification: Some(Arc::from(horizon_identification)),
+            interaction_structurally_zero: false,
         })
     }
 
@@ -545,6 +547,7 @@ impl TemporalResponseEstimator {
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
             horizon_identification: Some(Arc::from(horizon_identification)),
+            interaction_structurally_zero: false,
         })
     }
 
