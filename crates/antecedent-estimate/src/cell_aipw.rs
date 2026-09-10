@@ -31,6 +31,9 @@ use crate::util::stats_err;
 /// Maximum jointly intervened binary coordinates (8 cells at k=3).
 pub const MAX_JOINT_BINARY: usize = 3;
 
+/// Named refuse: coarsened `continuous_cell` is not a point CDE.
+pub const POINT_CDE_UNLICENSED: &str = "point controlled direct effect is unlicensed; continuous_cell coarsens D onto a grid and is not do(D=d0)";
+
 /// Cell-saturated joint AIPW estimator.
 #[derive(Clone, Debug)]
 pub struct CellSaturatedAipw {
@@ -64,13 +67,13 @@ impl CellSaturatedAipw {
 
     /// Fit cell scores for binary treatments `treatments` on `adjustment`.
     ///
-    /// A continuous coordinate may be discretized onto `continuous_grid`
-    /// (coarsened-treatment estimand; this is not point intervention at fixed `D`).
+    /// A continuous coordinate is refused: coarsening D is not `do(D=d0)`.
     ///
     /// # Errors
     ///
-    /// Too many treatments, empty cells needed for a requested contrast, or
-    /// a fold missing a cell that appears in the data.
+    /// Too many treatments, empty cells needed for a requested contrast,
+    /// a fold missing a cell that appears in the data, or a continuous cell
+    /// (point CDE is unlicensed).
     pub fn fit_scores(
         &self,
         data: &TabularData,
@@ -112,6 +115,9 @@ impl CellSaturatedAipw {
             return Err(EstimationError::unsupported(
                 "cell-saturated AIPW supports 1..=3 binary treatments",
             ));
+        }
+        if continuous.is_some() {
+            return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
         }
         let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
         if let Some(ids) = fold_ids {
@@ -170,6 +176,9 @@ fn prepare_cells(
     ids.extend_from_slice(treatments);
     ids.push(outcome);
     ids.extend_from_slice(adjustment);
+    if continuous.is_some() {
+        return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
+    }
     if let Some(c) = continuous {
         ids.push(c.variable);
     }
@@ -731,6 +740,22 @@ mod tests {
             contrast.se
         );
         assert!(contrast.se > 0.0);
+    }
+
+    #[test]
+    fn continuous_cell_refuses_point_cde() {
+        let data = interaction_dgp(80);
+        let err = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &[VariableId::from_raw(0)],
+                VariableId::from_raw(2),
+                &[VariableId::from_raw(3)],
+                &OutcomeFunctional::Mean,
+                Some(ContinuousCellSpec { variable: VariableId::from_raw(1), grid: &[0.0, 1.0] }),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("do(D=d0)"), "{err}");
     }
 
     #[test]

@@ -1016,6 +1016,22 @@ class PreparedAnalysis:
         accepted: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_tiered_intervention_response(
+        names: list[str],
+        columns: Sequence[Any],
+        tiers: list[list[str]],
+        within_tier: str,
+        outcome: str,
+        treatments: list[str],
+        intervention_kinds: list[str],
+        intervention_parameters: list[list[float]],
+        *,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        latency: str | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_intervention_response(
         names: list[str],
         columns: Sequence[Any],

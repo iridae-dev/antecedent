@@ -258,7 +258,7 @@ pub struct StudyBuilder {
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     tiered: Option<antecedent_graph::TieredBackground>,
-    /// Optional coarsened continuous coordinate for cell-AIPW joint response.
+    /// Refused at build: coarsened continuous coordinate is not a point CDE.
     continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
     latency_mode: Option<LatencyMode>,
@@ -506,10 +506,10 @@ impl StudyBuilder {
     /// the allowlist. Ignored on the temporal path (which always uses
     /// [`EstimatorId::TemporalLinearAdjustment`]).
     ///
-    /// Discretize one continuous coordinate onto `grid` for cell-AIPW joint response.
+    /// Request a coarsened continuous coordinate for cell-AIPW.
     ///
-    /// The resulting estimand is coarsened treatment, not a point intervention at
-    /// a fixed continuous level.
+    /// Refused at [`Self::build`]: coarsening D is not a controlled direct
+    /// effect at a point (`do(D=d0)`). Point CDE is unlicensed.
     #[must_use]
     pub fn continuous_cell(
         mut self,
@@ -752,10 +752,66 @@ impl StudyBuilder {
                 });
             }
         }
-        if selected == Some(EstimatorId::CellAipw) && graph_class != GraphClass::Dag {
+        if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
-                message: "cell-AIPW requires a static DAG with one certified common adjustment set",
+                message: antecedent_estimate::POINT_CDE_UNLICENSED.into(),
             });
+        }
+        let codetermined_joint = self.tiered.as_ref().is_some_and(|b| {
+            b.within_tier == antecedent_graph::WithinTier::CoDetermined
+        }) && matches!(
+            &query,
+            CausalQuery::Response(q)
+                if q.temporal.is_none()
+                    && matches!(
+                        &q.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse {
+                            interventions,
+                            ..
+                        } if interventions.len() >= 2
+                    )
+        );
+        let cell_aipw = selected == Some(EstimatorId::CellAipw)
+            || (selected.is_none() && codetermined_joint);
+        if cell_aipw {
+            if let Some(background) = &self.tiered {
+                let CausalQuery::Response(response) = &query else {
+                    return Err(CausalError::Unsupported {
+                        message:
+                            "cell-AIPW on a tiered background requires joint InterventionResponse"
+                                .into(),
+                    });
+                };
+                if matches!(inference, InferenceMode::Bayesian(_)) {
+                    return Err(CausalError::Unsupported {
+                        message: "CoDetermined joint cells are Frequentist cell.aipw".into(),
+                    });
+                }
+                if selected.is_some_and(|id| id != EstimatorId::CellAipw) {
+                    return Err(CausalError::Unsupported {
+                        message: "CoDetermined joint cells require estimator cell.aipw".into(),
+                    });
+                }
+                let identification = antecedent_identify::identify_tiered_joint(
+                    background,
+                    data_schema(&data),
+                    response,
+                )?;
+                if !matches!(
+                    identification.status,
+                    antecedent_core::IdentificationStatus::NonparametricallyIdentified
+                        | antecedent_core::IdentificationStatus::PartiallyIdentified
+                ) || identification.estimands.is_empty()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                    });
+                }
+            } else if graph_class != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "cell-AIPW requires a static DAG with one certified common adjustment set",
+                });
+            }
         }
         if matches!(functional, Some(antecedent_core::OutcomeFunctional::ExceedanceGrid(_))) {
             let score_grid = matches!(inference, InferenceMode::Frequentist)
@@ -775,7 +831,10 @@ impl StudyBuilder {
                     CausalQuery::Response(q) => {
                         selected == Some(EstimatorId::CellAipw)
                             && q.temporal.is_none()
-                            && graph_class == GraphClass::Dag
+                            && (graph_class == GraphClass::Dag
+                                || self.tiered.as_ref().is_some_and(|b| {
+                                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                                }))
                     }
                     CausalQuery::ConditionalEffect(_) => {
                         matches!(graph_class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag)
@@ -867,7 +926,15 @@ impl StudyBuilder {
                 refute = RefuteSuite::None;
             }
         }
-        let support_status = if let Some(cell) =
+        let support_status = if cell_aipw
+            && self.tiered.as_ref().is_some_and(|b| {
+                b.within_tier == antecedent_graph::WithinTier::CoDetermined
+            })
+        {
+            // Off the Admg×InterventionResponse matrix cell: CoDetermined is a
+            // known closure ADMG, not a bare Admg response plug-in.
+            None
+        } else if let Some(cell) =
             crate::support::support_cell(&query, graph_class, structure, &inference, refute)
         {
             Some(crate::support::refuse_if_not_applicable(cell)?)

@@ -12,7 +12,7 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use antecedent_graph::{Cpdag, Dag, Pag, TemporalDag};
+use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 
 use crate::error::CausalError;
 use crate::strategy_table::{
@@ -592,6 +592,85 @@ pub fn compile_logical_path_specific(
     };
     plan.validate()?;
     Ok(plan)
+}
+
+/// Compile a CoDetermined joint `InterventionResponse` on the closure ADMG.
+///
+/// # Errors
+/// Invalid query or identifier/estimator pair.
+pub fn compile_logical_codetermined_joint(
+    data: &TabularData,
+    admg: &Admg,
+    query: &ResponseQuery,
+    validation_suite: Option<Arc<str>>,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let identifier_id: IdentifierId = identifier.parse()?;
+    let estimator_id: EstimatorId = estimator.parse()?;
+    if identifier_id != IdentifierId::GeneralizedAdjustment || estimator_id != EstimatorId::CellAipw
+    {
+        return Err(CausalError::Compile {
+            message: format!(
+                "CoDetermined joint cells require generalized.adjustment + cell.aipw; got {:?} / {:?}",
+                identifier_id.as_str(),
+                estimator_id.as_str()
+            ),
+        });
+    }
+    let (treatments, outcomes) = response_query_variables(&query.functional);
+    for &treatment in &treatments {
+        for &outcome in &outcomes {
+            validate_query_vars_in_admg(admg, treatment, outcome)?;
+        }
+    }
+    let query_variables: Arc<[VariableId]> =
+        treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
+    let plan = LogicalAnalysisPlan {
+        record: LogicalAnalysisPlanRecord {
+            plan_id: Arc::from("codetermined_joint_response"),
+            data_classification: DataClassification::Tabular,
+            discovery_algorithm: None,
+            graph_review_required: false,
+            identifier: Some(identifier),
+            estimator: Some(estimator),
+            validation_suite,
+            query_variables,
+        },
+        query: CausalQuery::Response(query.clone()),
+        split: None,
+        row_count_hint: data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+fn validate_query_vars_in_admg(
+    admg: &Admg,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<(), CausalError> {
+    let mut has_t = false;
+    let mut has_y = false;
+    for node in admg.nodes() {
+        if let antecedent_graph::NodeRef::Static(v) = node {
+            if *v == treatment {
+                has_t = true;
+            }
+            if *v == outcome {
+                has_y = true;
+            }
+        }
+    }
+    if !has_t || !has_y {
+        return Err(CausalError::Compile {
+            message: format!(
+                "query variables not in ADMG (treatment present={has_t}, outcome present={has_y})"
+            ),
+        });
+    }
+    Ok(())
 }
 
 fn validate_query_vars_in_dag(

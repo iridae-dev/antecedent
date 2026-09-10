@@ -33,7 +33,13 @@ impl super::Study {
                             DataInput::Tabular(_),
                             GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
                         )
-                    ))
+                    )
+                    || (matches!(
+                        (&self.data, class),
+                        (DataInput::Tabular(_), GraphClass::Admg)
+                    ) && self.tiered.as_ref().is_some_and(|b| {
+                        b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                    })))
                     || (q.is_temporal()
                         && matches!(
                             (&self.data, class),
@@ -42,8 +48,8 @@ impl super::Study {
             {
                 return Err(CausalError::Unsupported {
                     message: "static CausalQuery::Response requires tabular data and a Dag, \
-                              Cpdag, or Pag; temporal response requires series/event data and \
-                              a TemporalDag",
+                              Cpdag, or Pag (or a CoDetermined tier closure); temporal \
+                              response requires series/event data and a TemporalDag",
                 });
             }
             (_, CausalQuery::Distribution(_), class)
@@ -228,6 +234,10 @@ impl super::Study {
             DEFAULT_RESPONSE_IDENTIFIER_ID,
             EstimatorId::default_for_response(&query.functional),
         )
+    }
+
+    pub(super) fn resolve_codetermined_joint_pair(&self) -> (Arc<str>, Arc<str>) {
+        self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw)
     }
 
     /// Resolve identifier/estimator for Cpdag/Pag response (generalized adjustment).
@@ -431,8 +441,16 @@ impl super::Study {
                     GraphClass::Cpdag | GraphClass::Pag => {
                         self.execute_class_response(data, q, physical, ctx)
                     }
+                    GraphClass::Admg
+                        if self.tiered.as_ref().is_some_and(|b| {
+                            b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                        }) =>
+                    {
+                        self.execute_codetermined_joint_response(data, q, physical, ctx)
+                    }
                     _ => Err(CausalError::Unsupported {
-                        message: "static response execute requires a Dag, Cpdag, or Pag",
+                        message: "static response execute requires a Dag, Cpdag, or Pag \
+                                  (or a CoDetermined tier closure)",
                     }),
                 }
             }

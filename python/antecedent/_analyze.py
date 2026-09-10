@@ -520,6 +520,25 @@ def handle_response(
             refute=refute if refute_requested else False,
         )
         return _wrap_prepared_response(temporal_raw, query)
+    if isinstance(graph, TieredBackground):
+        if not isinstance(query, InterventionResponse):
+            raise CausalUnsupportedError(
+                "TieredBackground response cells are licensed for joint InterventionResponse"
+            )
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            validators=validators,
+            refute="none" if not refute_requested else refute,
+            seed=seed,
+            bootstrap=None,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
     if (
         graph is not None
         and not isinstance(graph, (Dag, Pag))
@@ -2210,7 +2229,8 @@ def analyze(
             raise ValueError("this query requires graph=")
         if isinstance(graph, TieredBackground):
             raise CausalUnsupportedError(
-                "tiered backgrounds currently support frequentist AverageEffect only"
+                "staged Bayesian / path-specific prepare does not take TieredBackground; "
+                "joint CoDetermined cells use Frequentist cell.aipw"
             )
         from .estimation import PreparedAnalysis
 
