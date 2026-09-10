@@ -230,6 +230,7 @@ _EXPECTED_STAGE_ALL = {
         "PredictiveCheckReport",
         "PreparedAnalysis",
         "PreparedBatch",
+        "SharedBatchDesign",
         "CandidateScreen",
         "PriorSensitivityReport",
         "RefutationReport",

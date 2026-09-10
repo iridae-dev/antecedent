@@ -526,8 +526,48 @@ fn prepared_response_refute_is_refused() {
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
     assert!(msg.starts_with("refused:"), "{msg}");
-    assert!(
-        msg.contains("AverageEffect and scalar InterventionResponse"),
-        "{msg}"
-    );
+    assert!(msg.contains("AverageEffect and scalar InterventionResponse"), "{msg}");
+}
+
+#[test]
+fn curve_joint_influence_has_sample_mean_scaling() {
+    let (data, _, query) = mean_curve_study();
+    let mut est =
+        antecedent_estimate::ContinuousResponseEstimator::new(
+            std::sync::Arc::<[VariableId]>::from([VariableId::from_raw(2)]),
+        );
+    est.options.export_row_diagnostics = true;
+    let (response, scores) = est
+        .estimate_identified_scored(
+            &data,
+            &query,
+            antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+            antecedent_core::AssumptionSet::default(),
+        )
+        .unwrap();
+    let scores = scores.unwrap();
+    let n = scores.row_index.len();
+    let exported = &response
+        .support
+        .diagnostics
+        .iter()
+        .find(|d| d.id.as_ref() == "response.row_influence")
+        .unwrap()
+        .values;
+    for (g, col) in scores.columns.iter().enumerate() {
+        for (i, value) in col.iter().enumerate() {
+            assert!((value - n as f64 * exported[g * n + i]).abs() < 1e-12);
+        }
+    }
+    let refs: Vec<_> = scores.columns.iter().map(Vec::as_slice).collect();
+    let cov = antecedent_estimate::joint_influence_covariance(&refs, None).unwrap();
+    if let ResponseUncertainty::PointwiseBand { lower, upper, .. } = response.uncertainty {
+        for g in 0..lower.len() {
+            let se = (upper[g] - lower[g]) / (2.0 * 1.959_963_984_540_054);
+            let joint_se = cov.values[g * cov.dim + g].sqrt();
+            assert!((joint_se / se - (n as f64 / (n - 1) as f64).sqrt()).abs() < 1e-6);
+        }
+    } else {
+        panic!("expected pointwise curve band");
+    }
 }

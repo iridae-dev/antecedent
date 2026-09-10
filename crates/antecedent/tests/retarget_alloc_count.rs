@@ -88,7 +88,7 @@ fn retarget_10k_by_500_stays_within_allocation_budget() {
         t[i] = f64::from(rng.next_f64() < p);
         y[i] = (1.0 + zi) * t[i] + 0.4 * zi + 0.35 * standard_normal(&mut rng);
     }
-    let mut levers = Vec::with_capacity(N_LEVERS as usize);
+    let mut levers = Vec::with_capacity(usize::try_from(N_LEVERS).unwrap());
     for k in 0..N_LEVERS {
         let center = -2.0 + 4.0 * k as f64 / (N_LEVERS as f64 - 1.0);
         let mut w = vec![0.0; n];
