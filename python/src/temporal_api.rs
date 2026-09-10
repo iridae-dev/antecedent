@@ -1783,6 +1783,19 @@ fn analysis_result_from_run(
         // this stays correct if a temporal path ever computes one.
         overlap_ess: result.estimate.overlap_report.as_ref().and_then(|r| r.ess),
         overlap_propensity_min: result.estimate.overlap_report.as_ref().map(|r| r.propensity_min),
+        functional_means: None,
+        exceedance_cdf: None,
+        monotone_rearranged: false,
+        interaction_structurally_zero: None,
+        score_table: None,
+        joint_covariance: None,
+        score_inference: None,
+        scenario_effects: None,
+        scenario_intervals: None,
+        simultaneous_interval: None,
+        adjusted_p_values: None,
+        candidate_selection: None,
+        evalue: None,
     };
     let posterior_section = PosteriorSection {
         effect_mean: posterior_effect_mean,
@@ -1795,7 +1808,7 @@ fn analysis_result_from_run(
         artifact: posterior_artifact.clone(),
         unidentified_mass: posterior_unidentified_mass,
     };
-    let validation = ValidationSection::from_reports(refutations.clone());
+    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
         plan_id: plan_id.clone(),
         modality: modality.clone(),
@@ -1873,7 +1886,7 @@ fn analysis_result_from_run(
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        refutation_count: refutations.len(),
+        refutation_count: validation.count,
         refutations,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,

@@ -50,6 +50,9 @@ from ._native import (
     analyze_ate_pag_arrow_c as _analyze_ate_pag_arrow_c,
 )
 from ._native import (
+    analyze_ate_tiered as _analyze_ate_tiered,
+)
+from ._native import (
     analyze_conditional as _analyze_conditional,
 )
 from ._native import (
@@ -110,7 +113,7 @@ from .estimation import (
     AnalysisResult,
     _resolve_latency_budget,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .observation import Complete as _ObservationComplete
@@ -219,6 +222,7 @@ def handle_conditional(
     structure_accepted: bool = False,
 ) -> Any:
     from .estimation import _static_edges, _wrap_ate
+    from .query import coerce_outcome_functional
 
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
@@ -251,6 +255,7 @@ def handle_conditional(
         query.modifier,
         control_level=query.control_level,
         active_level=query.active_level,
+        outcome_functional=coerce_outcome_functional(getattr(query, "outcome_functional", None)),
         refute=refute,
         validators=list(validators) if validators is not None else None,
         seed=seed,
@@ -1267,14 +1272,43 @@ def handle_static_ate(
         common["on_stage"] = on_stage
 
     pop = coerce_target_population(getattr(query, "target_population", None))
+    from .query import coerce_outcome_functional
+
+    functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
     preds, dists = registry_wire(population_registry)
     pop_kw: dict[str, Any] = {}
     if pop is not None:
         pop_kw["target_population"] = pop
+    if functional is not None:
+        pop_kw["outcome_functional"] = functional
     if preds:
         pop_kw["population_predicates"] = preds
     if dists:
         pop_kw["population_distributions"] = dists
+    if isinstance(graph, TieredBackground):
+        if pop_kw:
+            raise CausalUnsupportedError(
+                "tiered Python execution does not yet accept target populations or outcome functionals"
+            )
+        names, columns = ingest_columns(data)
+        return _wrap_ate(
+            _analyze_ate_tiered(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap or 0,
+                threads=threads,
+            ),
+            query=query,
+        )
     if pop_kw and isinstance(graph, (Pag, Cpdag, Admg)):
         raise ValueError(
             "target_population / population_registry currently require a Dag "
@@ -1971,6 +2005,7 @@ def analyze(
         | TemporalDag
         | TemporalCpdag
         | TemporalPag
+        | TieredBackground
         | Sequence[tuple[str, str]]
         | Sequence[tuple[str, int, str, int]]
         | None
@@ -2172,6 +2207,10 @@ def analyze(
         )
         if graph is None:
             raise ValueError("this query requires graph=")
+        if isinstance(graph, TieredBackground):
+            raise CausalUnsupportedError(
+                "tiered backgrounds currently support frequentist AverageEffect only"
+            )
         from .estimation import PreparedAnalysis
 
         unsupported = [

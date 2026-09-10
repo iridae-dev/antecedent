@@ -26,6 +26,9 @@ from ._native import (
     analyze_ate_many as _analyze_ate_many,
 )
 from ._native import (
+    prepare_ate_batch as _prepare_ate_batch,
+)
+from ._native import (
     identify_ate as _identify_ate,
 )
 from ._native import (
@@ -175,6 +178,15 @@ def _section_estimate(raw: Any) -> Any:
         method=getattr(raw, "method", "") or "",
         overlap_ess=getattr(raw, "overlap_ess", None),
         overlap_propensity_min=getattr(raw, "overlap_propensity_min", None),
+        functional_means=getattr(raw, "functional_means", None),
+        exceedance_cdf=getattr(raw, "exceedance_cdf", None),
+        monotone_rearranged=bool(getattr(raw, "monotone_rearranged", False)),
+        interaction_structurally_zero=getattr(raw, "interaction_structurally_zero", None),
+        score_table=getattr(raw, "score_table", None),
+        simultaneous_interval=getattr(raw, "simultaneous_interval", None),
+        adjusted_p_values=getattr(raw, "adjusted_p_values", None),
+        candidate_selection=getattr(raw, "candidate_selection", None),
+        evalue=getattr(raw, "evalue", None),
     )
 
 
@@ -370,6 +382,25 @@ def _wrap_ate(
             overlap_ess=sec_estimate.overlap_ess,
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
             mediation=mediation,
+            functional_means=tuple(sec_estimate.functional_means)
+            if getattr(sec_estimate, "functional_means", None) is not None
+            else None,
+            exceedance_cdf=tuple(sec_estimate.exceedance_cdf)
+            if getattr(sec_estimate, "exceedance_cdf", None) is not None
+            else None,
+            monotone_rearranged=bool(getattr(sec_estimate, "monotone_rearranged", False)),
+            interaction_structurally_zero=getattr(
+                sec_estimate, "interaction_structurally_zero", None
+            ),
+            score_table=getattr(sec_estimate, "score_table", None),
+            joint_covariance=getattr(sec_estimate, "joint_covariance", None),
+            score_inference=getattr(sec_estimate, "score_inference", None),
+            scenario_effects=getattr(sec_estimate, "scenario_effects", None),
+            scenario_intervals=getattr(sec_estimate, "scenario_intervals", None),
+            simultaneous_interval=getattr(sec_estimate, "simultaneous_interval", None),
+            adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
+            candidate_selection=getattr(sec_estimate, "candidate_selection", None),
+            evalue=getattr(sec_estimate, "evalue", None),
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
@@ -384,6 +415,7 @@ def _wrap_ate(
             posterior_predictive=posterior_predictive,
             prior_sensitivity=prior_sensitivity,
             reports=_refutation_reports_from_raw(sec_validation),
+            computation_failures=list(getattr(sec_validation, "computation_failures", [])),
         ),
         performance=PerformanceView(
             plan_id=sec_performance.plan_id,
@@ -682,6 +714,7 @@ def analyze_many(
     bootstrap: int | None = None,
     threads: int = 1,
     latency: Literal["interactive", "standard", "report"] | None = None,
+    candidate_screen: CandidateScreen | None = None,
 ) -> list[AnalysisResult]:
     """Estimate many average effects on one shared table ingest.
 
@@ -697,6 +730,8 @@ def analyze_many(
         ``False`` or a suite name; leave unset (``None``) for the default
         suite. Explicit ``refute=True`` raises ``TypeError`` — see
         :func:`antecedent._coerce.coerce_refute`.
+    candidate_screen:
+        Optional screen/estimate split recorded on every result.
     """
     if not queries:
         raise CausalValueError("analyze_many requires at least one query")
@@ -719,8 +754,90 @@ def analyze_many(
     )
     if latency is not None:
         kwargs["latency"] = latency
+    kwargs.update(_screen_kwargs(candidate_screen))
     raws = _analyze_ate_many(names, columns, edges, specs, **kwargs)
     return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
+
+
+@dataclass(frozen=True)
+class CandidateScreen:
+    """Declared screen/estimate split for a batch family."""
+
+    screen_id: str
+    procedure: Literal["max_t", "bh", "by", "unrecorded"]
+    screen_rows: Sequence[int]
+    estimate_rows: Sequence[int]
+
+
+def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
+    if screen is None:
+        return {}
+    return {
+        "screen_id": screen.screen_id,
+        "screen_procedure": screen.procedure,
+        "screen_rows": [int(i) for i in screen.screen_rows],
+        "estimate_rows": [int(i) for i in screen.estimate_rows],
+    }
+
+
+@dataclass
+class PreparedBatch:
+    """Compile-once batch of average-effect plans with shared-row joint inference."""
+
+    _native: Any
+    _queries: tuple[AverageEffect, ...]
+    _names: tuple[str, ...]
+
+    @classmethod
+    def prepare(
+        cls,
+        data: Mapping[str, Any] | Any,
+        *,
+        graph: Dag | Sequence[tuple[str, str]],
+        queries: Sequence[AverageEffect],
+        identifier: str | None = None,
+        estimator: str | None = None,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        seed: int = 1,
+        bootstrap: int | None = 0,
+        threads: int = 1,
+        latency: Literal["interactive", "standard", "report"] | None = None,
+        candidate_screen: CandidateScreen | None = None,
+    ) -> PreparedBatch:
+        if not queries:
+            raise CausalValueError("PreparedBatch.prepare requires at least one query")
+        if not all(isinstance(q, AverageEffect) for q in queries):
+            raise CausalTypeError("PreparedBatch currently supports AverageEffect queries only")
+        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        names, columns = ingest_columns(data)
+        edges = _static_edges(graph)
+        specs = [
+            (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries
+        ]
+        kwargs: dict[str, Any] = dict(
+            identifier=identifier,
+            estimator=estimator,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=0 if bootstrap is None else bootstrap,
+            threads=threads,
+        )
+        if latency is not None:
+            kwargs["latency"] = latency
+        kwargs.update(_screen_kwargs(candidate_screen))
+        native = _prepare_ate_batch(names, columns, edges, specs, **kwargs)
+        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
+
+    def estimate(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> list[AnalysisResult]:
+        names, columns = ingest_columns(data)
+        raws = self._native.estimate(names, columns, seed=seed, threads=threads)
+        return [_wrap_ate(r, query=q) for r, q in zip(raws, self._queries, strict=True)]
 
 
 @dataclass(frozen=True)
@@ -944,14 +1061,12 @@ class PreparedAnalysis:
     **Estimate click:** same-schema data; seeds / threads. Does not re-identify
     or recompile the logical plan.
 
-    **Refute click:** AverageEffect only. :meth:`refute` raises
-    ``CausalUnsupportedError``, prefixed with the matrix's own wire id for
-    the cell: ``not_applicable:`` for ResponseCurve / InterventionResponse
-    (cheap/full name the ATE-shaped scalar refuter suite, which a
-    function-valued estimand has no state for), and ``refused:`` for
-    PathSpecificEffect / InterventionalDistribution / TemporalMediationEffect
-    (the suite is licensed elsewhere but these executors return empty
-    refutations). ConditionalEffect's cheap/full refuter suite is licensed.
+    **Refute click:** AverageEffect and scalar Dag ``InterventionResponse``.
+    :meth:`refute` raises ``CausalUnsupportedError``, prefixed with the
+    matrix's own wire id for the cell: ``not_applicable:`` for ResponseCurve
+    and for temporal / class-aware InterventionResponse (those remain
+    function-valued or envelope-mixed surfaces). ConditionalEffect and Dag
+    InterventionResponse cheap/full run the scalar ATE-shaped suite.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
@@ -1415,6 +1530,8 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"ConditionalEffect requires backdoor.adjustment and {expected_estimator}"
                 )
+            from .query import coerce_outcome_functional
+
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             native = _NativePreparedAnalysis.prepare_conditional(
@@ -1433,6 +1550,9 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+                outcome_functional=coerce_outcome_functional(
+                    getattr(query, "outcome_functional", None)
+                ),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, PathSpecificEffect):
@@ -1644,12 +1764,12 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"InterventionResponse requires response.backdoor and {expected_estimator}"
                 )
-            if refute not in (False, "none", Refute.NONE):
+            if isinstance(inference, Bayesian) and refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
-                    "not_applicable: PreparedAnalysis InterventionResponse cheap/full does "
-                    "not denote; cheap and full name the ATE-shaped scalar refuter suite and "
-                    "a function-valued estimand has no such state. Use refute='none'."
+                    "not_applicable: Bayesian InterventionResponse cheap/full does not denote"
                 )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             from . import intervention as intervention_specs
 
             supplied = query.intervention
@@ -1696,6 +1816,7 @@ class PreparedAnalysis:
                 intervention_kinds,
                 intervention_parameters,
                 **_prepared_inference_kwargs(inference),
+                refute=refute,
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -1720,6 +1841,8 @@ class PreparedAnalysis:
             inference_mode, average_bayes_kw = _prepared_bayesian_args(inference)
         else:
             inference_mode = "frequentist"
+        from .query import coerce_outcome_functional
+
         native = _NativePreparedAnalysis.prepare(
             names,
             columns,
@@ -1730,6 +1853,9 @@ class PreparedAnalysis:
             active_level=query.active_level,
             identifier=identifier,
             estimator=estimator,
+            outcome_functional=coerce_outcome_functional(
+                getattr(query, "outcome_functional", None)
+            ),
             inference=inference_mode,
             n_draws=int(average_bayes_kw.get("n_draws", 1000)),
             prior_scale=float(average_bayes_kw.get("prior_scale", 10.0)),
@@ -2013,6 +2139,8 @@ class PreparedAnalysis:
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+        from .query import coerce_outcome_functional
+
         native_fn = (
             partial(_NativePreparedAnalysis.prepare_pag_conditional, names, columns, graph)
             if isinstance(graph, Pag)
@@ -2033,6 +2161,9 @@ class PreparedAnalysis:
             threads=threads,
             latency=latency,
             accepted=structure_accepted,
+            outcome_functional=coerce_outcome_functional(
+                getattr(query, "outcome_functional", None)
+            ),
         )
         return cls(native, kind="average", query=query)
 
@@ -2205,6 +2336,30 @@ class PreparedAnalysis:
         raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
+    def retarget(
+        self,
+        weights: Any,
+        depends_on: Sequence[str],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Estimate a declared target population from frozen scores. No refit.
+
+        Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
+        Nonempty ``depends_on`` needs a DAG so descendant closure can be checked.
+        ``analyze()`` does not return a retarget handle.
+        """
+        import numpy as np
+
+        raw = self._native.retarget(
+            np.asarray(weights, dtype=float).tolist(),
+            list(depends_on),
+            seed=seed,
+            threads=threads,
+        )
+        return _wrap_ate(raw, prepared=self)
+
     def refresh(
         self,
         data: Mapping[str, Any] | Any,
@@ -2250,12 +2405,10 @@ class PreparedAnalysis:
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         """
-        if self._kind in ("response_curve", "intervention_response"):
+        if self._kind == "response_curve":
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis.refute is AverageEffect-only; "
-                "ResponseCurve / InterventionResponse cheap/full/placebo do not denote — "
-                "cheap and full name the ATE-shaped scalar refuter suite and a "
-                "function-valued estimand has no such state."
+                "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "
+                "Dag InterventionResponse; ResponseCurve cheap/full/placebo do not denote."
             )
         if isinstance(suite, Refute):
             suite = str(suite)
@@ -2283,6 +2436,8 @@ __all__ = [
     "PosteriorView",
     "PredictiveCheckReport",
     "PreparedAnalysis",
+    "PreparedBatch",
+    "CandidateScreen",
     "PriorSensitivityReport",
     "RefutationReport",
     "ValidationView",

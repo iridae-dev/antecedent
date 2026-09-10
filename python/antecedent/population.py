@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import TypedDict
+
+
+class DistributionBinding(TypedDict):
+    weights: list[float]
+    depends_on: list[int]
 
 
 @dataclass
@@ -15,13 +21,27 @@ class PopulationRegistry:
     """
 
     predicates: dict[str, list[int]] = field(default_factory=dict)
-    distributions: dict[int, list[float]] = field(default_factory=dict)
+    distributions: dict[int, list[float] | DistributionBinding] = field(default_factory=dict)
 
     def insert_predicate(self, name: str, rows: Sequence[int]) -> None:
         self.predicates[str(name)] = [int(r) for r in rows]
 
-    def insert_distribution(self, distribution_id: int, weights: Sequence[float]) -> None:
-        self.distributions[int(distribution_id)] = [float(w) for w in weights]
+    def insert_distribution(
+        self,
+        distribution_id: int,
+        weights: Sequence[float],
+        *,
+        depends_on: Sequence[int] | None = None,
+    ) -> None:
+        """Bind weights; AIPW requires declared covariate IDs in ``depends_on``."""
+        values = [float(w) for w in weights]
+        if depends_on is None:
+            self.distributions[int(distribution_id)] = values
+        else:
+            self.distributions[int(distribution_id)] = {
+                "weights": values,
+                "depends_on": [int(v) for v in depends_on],
+            }
 
 
 class Population:
@@ -157,7 +177,7 @@ def coerce_target_population(spec: object) -> dict[str, object] | None:
 
 def registry_wire(
     registry: PopulationRegistry | None,
-) -> tuple[dict[str, list[int]], dict[int, list[float]]]:
+) -> tuple[dict[str, list[int]], dict[int, list[float] | DistributionBinding]]:
     if registry is None:
         return {}, {}
     return dict(registry.predicates), dict(registry.distributions)
