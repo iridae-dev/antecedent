@@ -14,14 +14,14 @@
 
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{ExecutionContext, TargetPopulation};
 use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, linear_estimator_no_bootstrap,
-    refit_effect, with_resampled_rows,
+    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
+    linear_estimator_no_bootstrap, refit_effect, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -99,6 +99,59 @@ impl BootstrapRefute {
         let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
         let mut row_idx = vec![0usize; n];
         let mut ates = Vec::with_capacity(self.replicates as usize);
+        // AllObserved static OLS: resampling the prepared design rows is the same
+        // complete-case bootstrap as rebuilding a table and calling `prepare` again.
+        // ATT/ATC re-filter treatment labels after the table rebuild, and temporal
+        // designs need the lag indexer, so those stay on the table path.
+        let use_design = problem.temporal.is_none()
+            && matches!(problem.query.target_population, TargetPopulation::AllObserved);
+        if use_design {
+            let estimator = forced_refit_estimator(&self.estimator);
+            let prepared = estimator
+                .prepare(problem.data, problem.estimand, problem.query)
+                .map_err(ValidationError::from)?;
+            let selected = prepared.design.row_selection.as_ref();
+            if selected.len() == prepared.design.nrows {
+                let mut orig_to_design = vec![usize::MAX; n];
+                for (k, &orig) in selected.iter().enumerate() {
+                    if orig < n {
+                        orig_to_design[orig] = k;
+                    }
+                }
+                let n_design = prepared.design.nrows;
+                let mut design_idx = vec![0usize; n_design];
+                let mut x_boot = vec![0.0; n_design * prepared.design.ncols];
+                let mut y_boot = vec![0.0; n_design];
+                for _ in 0..self.replicates {
+                    for slot in &mut row_idx {
+                        *slot = valid[unbiased_index(&mut rng, valid.len())];
+                    }
+                    for (k, &orig) in selected.iter().enumerate() {
+                        if orig >= n {
+                            return Err(ValidationError::estimation_msg(
+                                "prepared design row_selection is out of range",
+                            ));
+                        }
+                        let src_orig = row_idx[orig];
+                        let src_d = orig_to_design[src_orig];
+                        if src_d == usize::MAX {
+                            return Err(ValidationError::estimation_msg(
+                                "bootstrap resample left the prepared design",
+                            ));
+                        }
+                        design_idx[k] = src_d;
+                    }
+                    ates.push(estimator.ate_on_row_indices_into(
+                        &prepared,
+                        workspace,
+                        &design_idx,
+                        &mut x_boot,
+                        &mut y_boot,
+                    )?);
+                }
+                return Ok(coverage_report(problem, ates, self.ci_level, self.replicates));
+            }
+        }
         for _ in 0..self.replicates {
             for slot in &mut row_idx {
                 *slot = valid[unbiased_index(&mut rng, valid.len())];
@@ -115,35 +168,44 @@ impl BootstrapRefute {
             )?;
             ates.push(est.ate);
         }
-        ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let m = ates.len();
-        let lo_frac = (1.0 - self.ci_level) / 2.0;
-        let hi_frac = 1.0 - lo_frac;
-        let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
-        let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
-        let lo = ates[lo_idx];
-        let hi = ates[hi_idx];
-        let mean_ate = ates.iter().sum::<f64>() / m as f64;
-        let width = hi - lo;
-        let passed = problem.original.ate >= lo && problem.original.ate <= hi;
-        Ok(RefutationReport {
-            refuter: Arc::from("bootstrap.ci_coverage"),
-            original_ate: problem.original.ate,
-            refuted_ate: mean_ate,
-            comparison: width,
-            informative: true,
-            passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(format!(
-                    "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
-                     (coverage check of the point estimate, not a placebo falsification)",
-                    problem.original.ate,
-                    self.ci_level * 100.0
-                )))
-            },
-            replicates: self.replicates,
-        })
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+    }
+}
+
+fn coverage_report(
+    problem: &RefutationProblem<'_>,
+    mut ates: Vec<f64>,
+    ci_level: f64,
+    replicates: u32,
+) -> RefutationReport {
+    ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let m = ates.len();
+    let lo_frac = (1.0 - ci_level) / 2.0;
+    let hi_frac = 1.0 - lo_frac;
+    let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
+    let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
+    let lo = ates[lo_idx];
+    let hi = ates[hi_idx];
+    let mean_ate = ates.iter().sum::<f64>() / m as f64;
+    let width = hi - lo;
+    let passed = problem.original.ate >= lo && problem.original.ate <= hi;
+    RefutationReport {
+        refuter: Arc::from("bootstrap.ci_coverage"),
+        original_ate: problem.original.ate,
+        refuted_ate: mean_ate,
+        comparison: width,
+        informative: true,
+        passed,
+        failure_condition: if passed {
+            None
+        } else {
+            Some(Arc::from(format!(
+                "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
+                 (coverage check of the point estimate, not a placebo falsification)",
+                problem.original.ate,
+                ci_level * 100.0
+            )))
+        },
+        replicates,
     }
 }
