@@ -16,7 +16,7 @@
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
 //! propensity-based estimators in [`crate::propensity`].
 //!
-//! AllObserved iid fits (no trim, homoskedastic SE, no cluster/panel) use the
+//! `AllObserved` iid fits (no trim, homoskedastic SE, no cluster/panel) use the
 //! same cross-fitted score table as `retarget`. ATT/ATC, trim, and clustered SE
 //! stay on the residualized full-sample path and do not export that table.
 //!
@@ -385,7 +385,7 @@ impl AipwAte {
     }
 
     /// Cross-fitted binary AIPW contrast. Uniform weights (`None`) are the
-    /// AllObserved retarget(`1`) object.
+    /// `AllObserved` retarget(`1`) object.
     fn fit_crossfit_scores(
         &self,
         problem: &PreparedPropensityProblem,
@@ -419,12 +419,7 @@ impl AipwAte {
                     .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast.value))
                     .collect()
             }
-            None => table
-                .column(0)?
-                .iter()
-                .zip(table.column(1)?)
-                .map(|(&a, &b)| b - a)
-                .collect(),
+            None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
         };
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -456,11 +451,10 @@ impl AipwAte {
         if refuse_overlap && !inference.support.overlap_ok {
             return Err(EstimationError::unsupported("custom target weighted overlap failed"));
         }
-        let e_hat = table
-            .columns
-            .iter()
-            .position(|c| c.arm == 1 && c.threshold.is_none())
-            .and_then(|col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows));
+        let e_hat =
+            table.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none()).and_then(
+                |col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows),
+            );
         let overlap_report = e_hat.map(|scores| {
             crate::propensity::propensity_overlap_report(
                 problem,

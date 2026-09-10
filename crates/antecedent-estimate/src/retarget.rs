@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, VariableId};
-use antecedent_graph::{BitSet, Dag, GraphWorkspace};
+use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 
 use crate::crossfit_aipw::{WeightedSupport, weighted_support};
 use crate::error::EstimationError;
@@ -31,8 +31,10 @@ pub enum RetargetRefusal {
     OutsideAdjustmentSet,
     /// Weighted overlap / effective sample size failed.
     WeightedOverlap,
-    /// Descendant closure cannot be computed without a DAG.
+    /// Descendant closure cannot be computed without a directed graph.
     DescendantClosureUnavailable,
+    /// Nonconstant weights were supplied with an empty `depends_on`.
+    UndeclaredNonconstantWeights,
 }
 
 impl RetargetRefusal {
@@ -50,9 +52,40 @@ impl RetargetRefusal {
                 "retarget refused: weighted overlap failed under the declared target weights"
             }
             Self::DescendantClosureUnavailable => {
-                "retarget depends_on descendant closure requires a DAG; refusing rather than skipping the descendant check"
+                "retarget depends_on descendant closure requires a directed graph (DAG or ADMG); refusing rather than skipping the descendant check"
+            }
+            Self::UndeclaredNonconstantWeights => {
+                "nonempty depends_on is required for nonconstant target weights"
             }
         }
+    }
+}
+
+/// Directed-edge descendant queries. Bidirected and circle marks are ignored.
+pub trait DirectedAncestry {
+    /// Nodes in dense order.
+    fn nodes(&self) -> &[NodeRef];
+    /// Directed descendants of `nodes`, including `nodes` themselves.
+    fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace);
+}
+
+impl DirectedAncestry for Dag {
+    fn nodes(&self) -> &[NodeRef] {
+        Dag::nodes(self)
+    }
+
+    fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        Dag::descendants_of(self, nodes, out, ws);
+    }
+}
+
+impl DirectedAncestry for Admg {
+    fn nodes(&self) -> &[NodeRef] {
+        Admg::nodes(self)
+    }
+
+    fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        Admg::descendants_of(self, nodes, out, ws);
     }
 }
 
@@ -77,13 +110,17 @@ pub struct RetargetResult {
 
 /// Validate `depends_on` against the frozen certificate and graph.
 ///
+/// Empty `depends_on` is legal here; [`retarget`] refuses it when `weights`
+/// are nonconstant. Nonempty `depends_on` needs a directed graph (DAG or
+/// ADMG) so descendant closure can be checked along directed edges only.
+///
 /// # Errors
 ///
 /// Illegal dependence or weights that are not a function of the adjustment set.
 pub fn check_depends_on(
     depends_on: &[VariableId],
     table: &ScoreTable,
-    graph: Option<&Dag>,
+    graph: Option<&dyn DirectedAncestry>,
 ) -> Result<(), EstimationError> {
     for &v in depends_on {
         if v == table.treatment || table.intervened.iter().any(|&x| x == v) {
@@ -98,12 +135,12 @@ pub fn check_depends_on(
     if depends_on.is_empty() {
         return Ok(());
     }
-    let Some(dag) = graph else {
+    let Some(graph) = graph else {
         return Err(EstimationError::unsupported(
             RetargetRefusal::DescendantClosureUnavailable.as_str(),
         ));
     };
-    if descendant_of_intervened(depends_on, table, dag)? {
+    if descendant_of_intervened(depends_on, table, graph)? {
         return Err(EstimationError::unsupported(RetargetRefusal::IllegalDependence.as_str()));
     }
     Ok(())
@@ -112,7 +149,7 @@ pub fn check_depends_on(
 fn descendant_of_intervened(
     depends_on: &[VariableId],
     table: &ScoreTable,
-    dag: &Dag,
+    graph: &dyn DirectedAncestry,
 ) -> Result<bool, EstimationError> {
     let mut sources = vec![table.treatment];
     sources.extend(table.intervened.iter().copied());
@@ -120,7 +157,7 @@ fn descendant_of_intervened(
     let mut out = BitSet::default();
     let mut dense = Vec::with_capacity(sources.len());
     for &id in &sources {
-        let Some(pos) = dag.nodes().iter().position(|n| n.variable() == id) else {
+        let Some(pos) = graph.nodes().iter().position(|n| n.variable() == id) else {
             return Err(EstimationError::unsupported(
                 RetargetRefusal::DescendantClosureUnavailable.as_str(),
             ));
@@ -130,17 +167,25 @@ fn descendant_of_intervened(
                 RetargetRefusal::DescendantClosureUnavailable.as_str(),
             ));
         };
-        dense.push(antecedent_graph::DenseNodeId::from_raw(raw));
+        dense.push(DenseNodeId::from_raw(raw));
     }
-    dag.descendants_of(&dense, &mut out, &mut ws);
+    graph.descendants_of(&dense, &mut out, &mut ws);
     for &v in depends_on {
-        if let Some(pos) = dag.nodes().iter().position(|n| n.variable() == v) {
-            if out.contains(antecedent_graph::DenseNodeId::from_raw(pos as u32)) {
+        if let Some(pos) = graph.nodes().iter().position(|n| n.variable() == v) {
+            if out.contains(DenseNodeId::from_raw(pos as u32)) {
                 return Ok(true);
             }
         }
     }
     Ok(false)
+}
+
+/// Weights are constant when every finite entry equals the first, up to `1e-12`.
+fn weights_are_constant(weights: &[f64]) -> bool {
+    let Some(&first) = weights.first() else {
+        return true;
+    };
+    weights.iter().all(|&w| (w - first).abs() <= 1e-12)
 }
 
 /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit nuisances.
@@ -155,16 +200,21 @@ pub fn retarget(
     table: &ScoreTable,
     weights: &[f64],
     depends_on: &[VariableId],
-    graph: Option<&Dag>,
+    graph: Option<&dyn DirectedAncestry>,
     treatment: Option<&[f64]>,
     propensity: Option<&[f64]>,
 ) -> Result<(RetargetResult, bool), EstimationError> {
-    check_depends_on(depends_on, table, graph)?;
     if weights.len() != table.n_rows {
         return Err(EstimationError::data_msg(
             "retarget weights must align with the prepared score-table rows",
         ));
     }
+    if depends_on.is_empty() && !weights_are_constant(weights) {
+        return Err(EstimationError::unsupported(
+            RetargetRefusal::UndeclaredNonconstantWeights.as_str(),
+        ));
+    }
+    check_depends_on(depends_on, table, graph)?;
 
     let (summary, monotone_rearranged, mut diagnostics) =
         summarize_functional(table, Some(weights))?;
@@ -363,19 +413,35 @@ mod tests {
     }
 
     #[test]
-    fn nonempty_depends_on_without_dag_refuses() {
+    fn nonempty_depends_on_without_directed_graph_refuses() {
         let t = table();
         let err = check_depends_on(&[VariableId::from_raw(2)], &t, None).unwrap_err();
-        assert!(err.to_string().contains("descendant closure requires a DAG"));
+        assert!(err.to_string().contains("descendant closure requires a directed graph"));
+    }
+
+    #[test]
+    fn admg_depends_on_uses_directed_descendants_only() {
+        let t = table();
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        check_depends_on(&[VariableId::from_raw(2)], &t, Some(&g)).unwrap();
+    }
+
+    #[test]
+    fn nonconstant_weights_require_nonempty_depends_on() {
+        let t = table();
+        let w = [1.0, 2.0, 1.0, 1.0];
+        let err = retarget(&t, &w, &[], None, Some(&[0.0, 1.0, 0.0, 1.0]), None).unwrap_err();
+        assert!(err.to_string().contains("nonempty depends_on is required for nonconstant"));
     }
 
     #[test]
     fn retarget_matches_weighted_mean() {
         let t = table();
         let w = [1.0, 1.0, 1.0, 1.0];
-        let (out, failed) =
-            retarget(&t, &w, &[], None, Some(&[0.0, 1.0, 0.0, 1.0]), None)
-                .unwrap();
+        let (out, failed) = retarget(&t, &w, &[], None, Some(&[0.0, 1.0, 0.0, 1.0]), None).unwrap();
         // Four rows cannot meet the licensed Kish-arm floor; the means still retarget.
         let _ = failed;
         assert!((out.summary.means[1] - 2.0).abs() < 1e-12);

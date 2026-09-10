@@ -1,8 +1,8 @@
 //! Outcome functionals on licensed effect and response queries.
 //!
 //! Identification is unchanged: the same adjustment set is applied to a
-//! transform of `Y` (`Y` itself, or `1{Y > c}`). Quantile inversion is not
-//! licensed here.
+//! transform of `Y` (`Y` itself, or `1{Y > c}`). Quantile treatment effects
+//! invert an estimated `F_a` on a disclosed grid.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,6 +24,9 @@ pub enum OutcomeFunctional {
     Exceedance(OrderedFloatBits),
     /// `P(Y(a) > c)` on a strictly increasing threshold grid.
     ExceedanceGrid(Arc<[OrderedFloatBits]>),
+    /// Quantile `F_a^{-1}(τ)` (QTE is the arm contrast). Identification is
+    /// the same as the CDF; inversion is estimation.
+    Quantile(OrderedFloatBits),
 }
 
 impl Default for OutcomeFunctional {
@@ -52,6 +55,21 @@ impl OutcomeFunctional {
         Self::ExceedanceGrid(bits)
     }
 
+    /// Quantile at level `tau` in `(0, 1)`.
+    #[must_use]
+    pub fn quantile(tau: f64) -> Self {
+        Self::Quantile(OrderedFloatBits::from_f64(tau))
+    }
+
+    /// Quantile level when this is [`Self::Quantile`].
+    #[must_use]
+    pub fn quantile_level(&self) -> Option<f64> {
+        match self {
+            Self::Quantile(tau) => Some(tau.to_f64()),
+            _ => None,
+        }
+    }
+
     /// Thresholds in evaluation order (`None` for the mean functional).
     #[must_use]
     pub fn thresholds(&self) -> Option<Vec<f64>> {
@@ -59,6 +77,7 @@ impl OutcomeFunctional {
             Self::Mean => None,
             Self::Exceedance(c) => Some(vec![c.to_f64()]),
             Self::ExceedanceGrid(grid) => Some(grid.iter().map(|c| c.to_f64()).collect()),
+            Self::Quantile(_) => None,
         }
     }
 
@@ -96,6 +115,14 @@ impl OutcomeFunctional {
                     prev = v;
                 }
                 Ok(())
+            }
+            Self::Quantile(tau) => {
+                let t = tau.to_f64();
+                if t.is_finite() && t > 0.0 && t < 1.0 {
+                    Ok(())
+                } else {
+                    Err(QueryError::InvalidOutcomeFunctional)
+                }
             }
         }
     }

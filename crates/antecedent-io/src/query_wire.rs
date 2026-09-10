@@ -84,6 +84,8 @@ pub enum OutcomeFunctionalWire {
     Exceedance(f64),
     /// Exceedance grid.
     ExceedanceGrid(Vec<f64>),
+    /// Quantile level τ.
+    Quantile(f64),
 }
 
 impl Default for OutcomeFunctionalWire {
@@ -106,6 +108,7 @@ impl OutcomeFunctionalWire {
             OutcomeFunctional::ExceedanceGrid(grid) => {
                 Self::ExceedanceGrid(grid.iter().map(|c| c.to_f64()).collect())
             }
+            OutcomeFunctional::Quantile(tau) => Self::Quantile(tau.to_f64()),
             _ => Self::Mean,
         }
     }
@@ -117,6 +120,7 @@ impl OutcomeFunctionalWire {
             Self::Mean => OutcomeFunctional::Mean,
             Self::Exceedance(c) => OutcomeFunctional::exceedance(*c),
             Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(grid.clone()),
+            Self::Quantile(tau) => OutcomeFunctional::quantile(*tau),
         }
     }
 }
