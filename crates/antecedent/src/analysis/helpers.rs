@@ -78,6 +78,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,
+        certificate: None,
         estimand: args.estimand,
         estimate: args.estimate,
         response: None,
@@ -94,6 +95,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         diagnostics: args.diagnostics,
         provenance: args.provenance,
         support_status: None,
+        structure_source: crate::support::StructureSource::Explicit,
         performance: ExecutionPerformanceRecord {
             wall_time_ns: Some(args.wall_time_ns),
             peak_rss_bytes: None,

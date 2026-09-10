@@ -6,8 +6,10 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::graphs;
 use crate::*;
 use antecedent::{AcceptedGraph, StudyBuilder};
+use antecedent_core::{AverageEffectQuery, CausalQuery, ConditionalEffectQuery, VariableId};
 use antecedent_graph::Dag;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
@@ -1033,8 +1035,8 @@ fn run_ate_with_graph_input(
     builder = match graph {
         StaticGraphInput::Pag(pag) => builder.graph(pag),
         StaticGraphInput::Cpdag(cpdag) => {
-            let accepted = AcceptedGraph::cpdag(cpdag).map_err(py_err)?;
-            builder.graph(accepted)
+            AcceptedGraph::cpdag(cpdag.clone()).map_err(py_err)?;
+            builder.graph(cpdag)
         }
         StaticGraphInput::Admg(admg) => builder.graph(admg),
     };
@@ -1512,9 +1514,9 @@ fn analyze_ate_discover(
             }
         };
 
-        // Bayesian graph-posterior discovery: no discrete graph to review — wire the
-        // posterior directly. Frequentist inference + a posterior is refused by the
-        // library itself (checked inside `build`/`run`, not here).
+        // Graph-posterior discovery: no discrete graph to review — wire the
+        // posterior directly. Frequentist inference is licensed for AverageEffect
+        // on DAG atoms; other queries still refuse at `build()`.
         let is_graph_posterior = matches!(
             algo.as_str(),
             "exact_dag_posterior"
@@ -1866,12 +1868,18 @@ pub(crate) fn ate_result_from_analysis(
     result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
-    let adjustment_set: Vec<String> = result
-        .estimand
-        .adjustment_set
-        .iter()
-        .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
-        .collect();
+    let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
+    let adjustment_set: Vec<String> = crate::public_adjustment_set(
+        result.identification.status,
+        result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
+            .collect(),
+    );
 
     let refutation_ran = !result.refutations.is_empty();
     let refutation_passed = if refutation_ran {
@@ -1969,6 +1977,7 @@ pub(crate) fn ate_result_from_analysis(
         crate::evidence_status_parts(result.support_status);
 
     Ok(AteAnalysisResult {
+        certificate_json,
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
@@ -2006,6 +2015,7 @@ pub(crate) fn ate_result_from_analysis(
             .discovery_algorithm
             .as_ref()
             .map(std::string::ToString::to_string),
+        structure_source: result.structure_source.as_str().to_string(),
         graph_review_required: result.logical_plan.graph_review_required,
         plan_identifier: result
             .logical_plan
@@ -2308,6 +2318,221 @@ fn identify_ate(
     })
 }
 
+fn structure_var_id(names: &[String], name: &str) -> PyResult<VariableId> {
+    names
+        .iter()
+        .position(|n| n == name)
+        .and_then(|i| u32::try_from(i).ok())
+        .map(VariableId::from_raw)
+        .ok_or_else(|| PyValueError::new_err(format!("unknown variable {name:?}")))
+}
+
+fn structure_query(
+    kind: &str,
+    names: &[String],
+    treatment: &str,
+    outcome: &str,
+    modifier: Option<&str>,
+    policy: Option<&str>,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    window: Option<(i32, i32)>,
+    treatments: Option<Vec<String>>,
+) -> PyResult<CausalQuery> {
+    let t_id = structure_var_id(names, treatment)?;
+    let y_id = structure_var_id(names, outcome)?;
+    match kind {
+        "average" | "average_effect" => {
+            Ok(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t_id, y_id)))
+        }
+        "intervention_response" => {
+            use antecedent_core::{ResponseFunctional, ResponseQuery};
+            let targets = treatments.unwrap_or_else(|| vec![treatment.to_string()]);
+            let interventions = targets
+                .iter()
+                .map(|name| {
+                    structure_var_id(names, name).map(|id| Intervention::set(id, Value::f64(1.0)))
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(CausalQuery::Response(ResponseQuery::new(
+                ResponseFunctional::InterventionResponse {
+                    outcome: y_id,
+                    interventions: interventions.into(),
+                },
+            )))
+        }
+        "response" | "response_curve" => {
+            use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+            Ok(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: y_id,
+                treatment: ContinuousDomain::new(
+                    t_id,
+                    GridSpec::Values(std::sync::Arc::from([0.0, 1.0])),
+                ),
+            })))
+        }
+        "conditional" | "conditional_effect" => {
+            let modifier = modifier.ok_or_else(|| {
+                PyValueError::new_err("ConditionalEffect identify requires modifier=")
+            })?;
+            let w_id = structure_var_id(names, modifier)?;
+            let inner = AverageEffectQuery::binary_ate(t_id, y_id).with_effect_modifiers([w_id]);
+            let cq = ConditionalEffectQuery::try_new(inner)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            Ok(CausalQuery::ConditionalEffect(cq))
+        }
+        "pulse" | "sustained" | "temporal_effect" => {
+            let policy = policy.unwrap_or(if kind == "sustained" { "sustained" } else { "pulse" });
+            let mut query = crate::temporal_api::temporal_query_from_policy(
+                policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            if let Some((from, until)) = window {
+                if !matches!(query.policy, TemporalPolicy::Sustained { .. }) {
+                    return Err(PyValueError::new_err("window requires a sustained policy"));
+                }
+                query.policy = TemporalPolicy::sustained(from, until);
+            }
+            Ok(CausalQuery::TemporalEffect(query))
+        }
+        other => {
+            Err(PyValueError::new_err(format!("identify_structure unknown query kind {other:?}")))
+        }
+    }
+}
+
+fn identification_tuple(
+    identification: &antecedent::Identification,
+    names: &[String],
+) -> (String, String, Vec<String>) {
+    let status = format!("{:?}", identification.status());
+    let method = identification.strategy().as_str().to_string();
+    let indexer = match identification {
+        antecedent::Identification::Point { temporal_indexer, .. } => temporal_indexer.as_ref(),
+        antecedent::Identification::TemporalEnvelope { envelope, .. } => envelope.indexers.first(),
+        _ => None,
+    };
+    let adjustment = identification
+        .estimands()
+        .first()
+        .map(|e| {
+            e.adjustment_set
+                .iter()
+                .filter_map(|id| {
+                    let variable =
+                        indexer.and_then(|i| i.key_of(id.raw()).ok()).map_or(*id, |k| k.variable);
+                    names.get(variable.as_usize()).cloned()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    (status, method, adjustment)
+}
+
+/// Identify without data against a typed graph class.
+#[pyfunction]
+#[pyo3(signature = (
+    graph,
+    query_kind,
+    treatment,
+    outcome,
+    *,
+    identifier=None,
+    modifier=None,
+    policy=None,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    window=None,
+    treatments=None,
+    include_details=false,
+))]
+#[allow(clippy::too_many_arguments)]
+fn identify_structure(
+    py: Python<'_>,
+    graph: Bound<'_, PyAny>,
+    query_kind: String,
+    treatment: String,
+    outcome: String,
+    identifier: Option<String>,
+    modifier: Option<String>,
+    policy: Option<String>,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    window: Option<(i32, i32)>,
+    treatments: Option<Vec<String>>,
+    include_details: bool,
+) -> PyResult<Py<PyAny>> {
+    use pyo3::IntoPyObjectExt;
+    let dag = graph.extract::<graphs::Dag>().ok();
+    let cpdag = graph.extract::<graphs::Cpdag>().ok();
+    let pag = graph.extract::<graphs::Pag>().ok();
+    let tdag = graph.extract::<graphs::TemporalDag>().ok();
+    let tcpdag = graph.extract::<graphs::TemporalCpdag>().ok();
+    let tpag = graph.extract::<graphs::TemporalPag>().ok();
+    let (summary, details) = detach_catch(py, move || {
+        let (structure, names) = if let Some(g) = dag {
+            (AcceptedGraph::from(g.dag), g.names)
+        } else if let Some(g) = cpdag {
+            (AcceptedGraph::from(g.cpdag), g.names)
+        } else if let Some(g) = pag {
+            (AcceptedGraph::from(g.pag), g.names)
+        } else if let Some(g) = tdag {
+            (AcceptedGraph::from(g.dag), g.names)
+        } else if let Some(g) = tcpdag {
+            (AcceptedGraph::from(g.cpdag), g.names)
+        } else if let Some(g) = tpag {
+            (AcceptedGraph::from(g.pag), g.names)
+        } else {
+            return Err(PyValueError::new_err(
+                "identify_structure requires a Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, or TemporalPag",
+            ));
+        };
+        let query = structure_query(
+            &query_kind,
+            &names,
+            &treatment,
+            &outcome,
+            modifier.as_deref(),
+            policy.as_deref(),
+            treatment_lag,
+            horizon_steps,
+            active_level,
+            window,
+            treatments,
+        )?;
+        let identification = if let Some(id) = identifier {
+            let strategy = id
+                .parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            antecedent::identify_with(&structure, &query, strategy).map_err(py_err)?
+        } else {
+            antecedent::identify(&structure, &query).map_err(py_err)?
+        };
+        let details = if include_details {
+            Some(crate::identification_details::to_json(
+                &identification,
+                &query,
+                &names,
+                structure.class().as_str(),
+            )?)
+        } else {
+            None
+        };
+        Ok((identification_tuple(&identification, &names), details))
+    })?;
+    match details {
+        Some(json) => json.into_py_any(py),
+        None => summary.into_py_any(py),
+    }
+}
+
 /// Average effect from a supplied graph posterior (known-truth / replay atoms).
 #[pyfunction]
 #[pyo3(signature = (
@@ -2404,5 +2629,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
+    m.add_function(wrap_pyfunction!(identify_structure, m)?)?;
     Ok(())
 }

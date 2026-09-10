@@ -258,7 +258,10 @@ impl ContinuousResponseEstimator {
             ));
         }
         let mut support_grid = None;
-        let (outcome, treatment, grid, scalar) = match &query.functional {
+        let mut joint_levels = Vec::new();
+        let mut primary_shift = None;
+        let mut stochastic = false;
+        let (outcome, treatment, mut grid, scalar) = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
                 (*outcome, treatment.variable, treatment.grid.values()?, false)
             }
@@ -268,10 +271,16 @@ impl ContinuousResponseEstimator {
                         "static Bayesian response does not accept temporal Sequence",
                     ));
                 }
-                let (t, level, shift) =
-                    crate::temporal_response::resolve_temporal_intervention(interventions)?;
+                stochastic =
+                    interventions.iter().any(|iv| matches!(iv, Intervention::Stochastic { .. }));
+                let (t, level, shift) = static_bayesian_policy(&interventions[0])?;
+                for intervention in &interventions[1..] {
+                    let (target, level, shift) = static_bayesian_policy(intervention)?;
+                    joint_levels.push((target, level, shift));
+                }
                 let sample = CompleteSample::read(data, *outcome, &[t], &self.adjustment_set)?;
                 if level.is_none() {
+                    primary_shift = Some(shift);
                     let (lo, hi) = range(&sample.treatments);
                     support_grid = Some(vec![lo + shift, hi + shift]);
                 }
@@ -286,14 +295,29 @@ impl ContinuousResponseEstimator {
                 ));
             }
         };
-        let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
+        let treatments: Vec<_> = std::iter::once(treatment)
+            .chain(joint_levels.iter().map(|(target, _, _)| *target))
+            .collect();
+        let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
         let n = sample.len();
-        let covs: Vec<_> = self
-            .adjustment_set
+        if let Some(shift) = primary_shift {
+            grid[0] = sample.treatments.iter().sum::<f64>() / n as f64 + shift;
+            let (lo, hi) = range(&sample.treatments);
+            support_grid = Some(vec![lo + shift, hi + shift]);
+        }
+
+        let mut covs: Vec<_> = treatments
             .iter()
             .enumerate()
-            .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n]))
+            .skip(1)
+            .map(|(i, &id)| (id, &sample.treatment_matrix[i * n..(i + 1) * n]))
             .collect();
+        covs.extend(
+            self.adjustment_set
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n])),
+        );
         let design = antecedent_stats::CompiledDesign::linear_adjustment(
             &sample.treatments,
             &covs,
@@ -318,6 +342,9 @@ impl ContinuousResponseEstimator {
         )?;
         let mut weights: Vec<_> =
             prep.design.matrix.chunks(n).map(|c| c.iter().sum::<f64>() / n as f64).collect();
+        for (i, (_, level, shift)) in joint_levels.iter().enumerate() {
+            weights[i + 2] = level.unwrap_or(weights[i + 2] + shift);
+        }
         let mut means = Vec::new();
         let mut lower = Vec::new();
         let mut upper = Vec::new();
@@ -348,7 +375,7 @@ impl ContinuousResponseEstimator {
             ess.push(sum * sum / kernels.iter().map(|k| k * k).sum::<f64>().max(f64::MIN_POSITIVE));
             density.push(sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()));
         }
-        let support = support_report(
+        let mut support = support_report(
             support_points,
             &sample.treatments,
             &ess,
@@ -356,6 +383,26 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             0,
         );
+        if treatments.len() > 1 {
+            support.status = SupportStatus::Extrapolative;
+            support.point_status = None;
+            support.query_region = SupportRegion {
+                minima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).0).collect(),
+                maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
+            };
+            support.warnings.push(Diagnostic::new(
+                "response.joint_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the Gaussian additive model and empirical covariate distribution",
+            ));
+        }
+        if stochastic {
+            support.status = SupportStatus::Extrapolative;
+            support.point_status = None;
+            support.warnings.push(Diagnostic::new(
+                "response.stochastic_policy_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
+            ));
+        }
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption {
@@ -1574,6 +1621,67 @@ fn mixture_expectation(
         row[column] = saved;
     }
     Ok(sum)
+}
+
+/// Expected policy level for a linear-additive response. Integrating each
+/// coefficient draw at this level is exact within that model, rather than a
+/// deterministic replacement of the policy in a nonlinear response estimator.
+fn static_bayesian_policy(
+    iv: &Intervention,
+) -> Result<(VariableId, Option<f64>, f64), EstimationError> {
+    let numeric = |value: &antecedent_core::Value| {
+        value.as_f64().filter(|x| x.is_finite()).ok_or_else(|| {
+            EstimationError::unsupported("static Bayesian policy requires finite numeric values")
+        })
+    };
+    let (target, level, shift) = match iv {
+        Intervention::Set { variable, value } => (*variable, Some(numeric(value)?), 0.0),
+        Intervention::Shift { variable, delta } => (*variable, None, numeric(delta)?),
+        Intervention::Stochastic { variable, policy } => {
+            let mean = match policy {
+                StochasticPolicy::Bernoulli { p } => *p,
+                StochasticPolicy::Gaussian { mean, .. } => *mean,
+                StochasticPolicy::Categorical { probs } => {
+                    // Scale before summing: valid finite probabilities need not
+                    // be normalized and their raw sum can overflow.
+                    let scale = probs.iter().copied().fold(0.0_f64, f64::max);
+                    let total: f64 = probs.iter().map(|p| p / scale).sum();
+                    probs.iter().enumerate().map(|(i, p)| i as f64 * (p / scale) / total).sum()
+                }
+                _ => {
+                    return Err(EstimationError::unsupported(
+                        "unsupported static Bayesian stochastic policy",
+                    ));
+                }
+            };
+            (*variable, Some(mean), 0.0)
+        }
+        Intervention::Soft { variable, mechanism } => {
+            if mechanism.parameters.len() != 1 || !mechanism.parameters[0].is_finite() {
+                return Err(EstimationError::unsupported(
+                    "static Bayesian Soft requires one finite parameter",
+                ));
+            }
+            match mechanism.family_id.as_ref() {
+                "constant" => (*variable, Some(mechanism.parameters[0]), 0.0),
+                "additive_shift" => (*variable, None, mechanism.parameters[0]),
+                _ => {
+                    return Err(EstimationError::unsupported(
+                        "static Bayesian Soft supports constant and additive_shift",
+                    ));
+                }
+            }
+        }
+        _ => {
+            return Err(EstimationError::unsupported(
+                "unsupported static Bayesian intervention policy",
+            ));
+        }
+    };
+    if level.is_some_and(|x| !x.is_finite()) || !shift.is_finite() {
+        return Err(EstimationError::unsupported("static Bayesian policy has a non-finite mean"));
+    }
+    Ok((target, level, shift))
 }
 
 fn intervention_level(

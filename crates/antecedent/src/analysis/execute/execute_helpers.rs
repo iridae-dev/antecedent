@@ -162,6 +162,7 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
 /// Optional finish slots that most identified paths leave at default.
 #[derive(Default)]
 pub(super) struct IdentifiedExecuteExtras {
+    pub certificate: Option<crate::Identification>,
     pub stage_timings_ns: Vec<(Arc<str>, u64)>,
     pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
     pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
@@ -317,6 +318,94 @@ pub(super) struct EnvelopeAtomFit {
     pub weight: f64,
     pub estimand: IdentifiedEstimand,
     pub indexer: Option<TemporalIndexer>,
+}
+
+/// Estimand + mass needed to mix Frequentist or Bayesian envelope refuters.
+pub(super) struct EnvelopeRefuteAtom {
+    pub key: u64,
+    pub weight: f64,
+    pub estimand: IdentifiedEstimand,
+    pub indexer: Option<TemporalIndexer>,
+}
+
+impl From<&EnvelopeAtomFit> for EnvelopeRefuteAtom {
+    fn from(atom: &EnvelopeAtomFit) -> Self {
+        Self {
+            key: atom.key,
+            weight: atom.weight,
+            estimand: atom.estimand.clone(),
+            indexer: atom.indexer.clone(),
+        }
+    }
+}
+
+pub(super) fn envelope_refute_atoms(fits: &[EnvelopeAtomFit]) -> Vec<EnvelopeRefuteAtom> {
+    fits.iter().map(EnvelopeRefuteAtom::from).collect()
+}
+
+/// The legacy diagnostic code is retained for downstream consumers.
+pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.envelope.se_omits_between_atom_variance",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "multi-atom uncertainty is unavailable: per-atom SEs do not determine the \
+         sampling variance of fits sharing observations, and averaged interval \
+         endpoints are not mixture quantiles. Only a single contributing atom \
+         retains its own uncertainty. Completion weights are modeling choices, \
+         not evidence that the averaged effect is identified across graphs",
+    )
+}
+
+/// A single contributing atom keeps its SE. Multiple fits require joint
+/// sampling covariance (or an explicitly defined graph-mixture distribution).
+pub(super) fn mix_weighted_analytic_se(items: impl IntoIterator<Item = (f64, f64)>) -> f64 {
+    let mut single = None;
+    for (w, se) in items {
+        if !w.is_finite() || w < 0.0 {
+            return f64::NAN;
+        }
+        if w == 0.0 {
+            continue;
+        }
+        if single.is_some() || !se.is_finite() || se < 0.0 {
+            return f64::NAN;
+        }
+        single = Some(se);
+    }
+    single.unwrap_or(f64::NAN)
+}
+
+fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
+    left.method == right.method
+        && left.adjustment_set == right.adjustment_set
+        && left.instruments == right.instruments
+        && left.mediators == right.mediators
+        && left.rd_design == right.rd_design
+}
+
+/// Status for a Frequentist graph-posterior mixture.
+///
+/// Unidentified mass is [`IdentificationStatus::GraphDependent`]. Multiple
+/// identified atoms with disagreeing estimands are
+/// [`IdentificationStatus::PartiallyIdentified`]. A single identified atom
+/// (or agreeing atoms) keeps that atom's status.
+pub(super) fn graph_posterior_mixture_status(
+    unidentified_mass: f64,
+    contributing: &[&IdentifiedEstimand],
+    primary: IdentificationStatus,
+) -> IdentificationStatus {
+    if unidentified_mass > 1e-12 {
+        return IdentificationStatus::GraphDependent;
+    }
+    let Some(first) = contributing.first() else {
+        return IdentificationStatus::NotIdentified;
+    };
+    if contributing[1..].iter().all(|estimand| estimands_agree(first, estimand)) {
+        primary
+    } else {
+        IdentificationStatus::PartiallyIdentified
+    }
 }
 
 pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
@@ -483,7 +572,7 @@ pub(super) fn run_envelope_effect_refuters(
     data: &TabularData,
     query: &AverageEffectQuery,
     estimate: &EffectEstimate,
-    atoms: &[EnvelopeAtomFit],
+    atoms: &[EnvelopeRefuteAtom],
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
     suite: RefuteSuite,
@@ -576,7 +665,7 @@ pub(super) fn run_envelope_effect_refuters(
         DiagnosticSeverity::Info,
         format!(
             "effect refuters evaluated each contributing graph atom [{atom_keys}] against the \
-             mixture effect; reports mix by posterior mass and pass only if every contributing \
+             mixture effect; reports mix by envelope mass and pass only if every contributing \
              atom passes"
         ),
     ));
@@ -702,9 +791,16 @@ pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) ->
     )
 }
 
-pub(super) fn envelope_to_identification_result(
-    envelope: &IdentificationEnvelope<Pag>,
+pub(super) fn envelope_to_identification_result<G>(
+    envelope: &IdentificationEnvelope<G>,
     query: &AverageEffectQuery,
+) -> IdentificationResult {
+    envelope_to_identification_result_for(envelope, CausalQuery::AverageEffect(query.clone()))
+}
+
+pub(super) fn envelope_to_identification_result_for<G>(
+    envelope: &IdentificationEnvelope<G>,
+    query: CausalQuery,
 ) -> IdentificationResult {
     let mut estimands = Vec::new();
     let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -717,8 +813,17 @@ pub(super) fn envelope_to_identification_result(
                     assumptions.push(record.clone());
                 }
             }
-            diagnostics.extend(case.result.diagnostics.iter().cloned());
         }
+        // Refused and unverified cases explain the missing mass too.
+        diagnostics.extend(case.result.diagnostics.iter().cloned());
+    }
+    for feature in &envelope.critical_graph_features {
+        diagnostics.push(Diagnostic::new(
+            Arc::from(format!("identify.envelope.{}", feature.kind)),
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            Arc::clone(&feature.detail),
+        ));
     }
     if let Some(inv) = &envelope.invariant {
         if estimands.is_empty() {
@@ -727,7 +832,7 @@ pub(super) fn envelope_to_identification_result(
     }
     IdentificationResult::from_parts(
         envelope.status,
-        CausalQuery::AverageEffect(query.clone()),
+        query,
         estimands,
         CausalExprArena::new(),
         DerivationTrace::default(),
@@ -816,11 +921,34 @@ impl super::Study {
         self.graph.as_dag().ok_or(CausalError::Unsupported { message })
     }
 
+    pub(super) fn attach_certificate(
+        &self,
+        mut result: StudyResult,
+        identification: crate::Identification,
+    ) -> StudyResult {
+        result.certificate = Some(crate::AnalysisIdentification {
+            identification,
+            query: self.query.clone(),
+            graph_class: self.graph.class(),
+        });
+        result
+    }
+
     pub(super) fn finish_identified_execute(
         &self,
         args: IdentifiedExecuteFinish<'_>,
     ) -> StudyResult {
         let extras = args.extras;
+        let certificate = extras.certificate.or_else(|| {
+            (self.graph_posterior.is_none()
+                && (self.graph.as_dag().is_some() || self.graph.as_admg().is_some()))
+            .then(|| crate::Identification::Point {
+                result: args.identification.clone(),
+                temporal_indexer: None,
+                strategy: args.identifier_id,
+                structure_version: self.graph.version(),
+            })
+        });
         let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
             prebuilt
         } else {
@@ -903,9 +1031,15 @@ impl super::Study {
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
         });
+        result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
+            identification,
+            query: self.query.clone(),
+            graph_class: self.graph.class(),
+        });
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
         result.support_status = self.support_status;
+        result.structure_source = self.structure_source;
         if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) =
             self.support_status
         {

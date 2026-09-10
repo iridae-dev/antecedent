@@ -248,6 +248,12 @@ impl super::Study {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
+        let certificate = crate::Identification::Point {
+            result: identification.clone(),
+            temporal_indexer: Some(indexer.clone()),
+            strategy: IdentifierId::TemporalBackdoorUnfolded,
+            structure_version: self.graph.version(),
+        };
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -267,6 +273,7 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
+                certificate: Some(certificate),
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -662,6 +669,213 @@ impl super::Study {
             },
         }))
     }
+
+    pub(super) fn execute_temporal_class(
+        &self,
+        data: &TimeSeriesData,
+        query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            return Err(CausalError::Unsupported {
+                message: "class-aware TemporalCpdag/TemporalPag pulse is Frequentist only",
+            });
+        }
+        if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+        {
+            return Err(CausalError::Compile {
+                message: "class-aware TemporalCpdag/TemporalPag is Pulse and single-step \
+                          Sustained only"
+                    .into(),
+            });
+        }
+        let started = Instant::now();
+        let identifier = physical
+            .logical
+            .record
+            .identifier
+            .as_deref()
+            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let (bundle, identify_cached) =
+            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                report_identify_compute(ctx);
+                (self.identify_temporal_class(identifier_id, query)?, false)
+            };
+        let envelope = &bundle.envelope.envelope;
+        if matches!(envelope.status, IdentificationStatus::NotIdentified)
+            || envelope.identified_weight.0 <= 0.0
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "temporal class-aware effect not identified (no identified mass in envelope)"
+                        .into(),
+            });
+        }
+        let mut diagnostics =
+            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
+        let mut weighted_ate = 0.0;
+        let mut se_items = Vec::new();
+        let mut total_w = 0.0;
+        let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut assumptions = antecedent_core::AssumptionSet::default();
+        let mut refute_atoms = Vec::new();
+        for (i, (case, indexer)) in
+            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
+        {
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                continue;
+            }
+            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+            let mut estimator = TemporalLinearAdjustment::new();
+            estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
+            estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
+            let prep = estimator
+                .prepare(data, &estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .map_err(CausalError::from)?;
+            let mut workspace = EstimationWorkspace::default();
+            let estimate = estimator
+                .fit(&prep, &mut workspace, ctx, case.result.required_assumptions.clone())
+                .map_err(CausalError::from)?;
+            let w = case.weight.0;
+            weighted_ate += w * estimate.ate;
+            se_items.push((w, estimate.se_analytic));
+            total_w += w;
+            if primary_estimand.is_none() {
+                primary_estimand = Some(estimand.clone());
+                assumptions = estimate.assumptions.clone();
+            }
+            refute_atoms.push(EnvelopeRefuteAtom {
+                key: i as u64,
+                weight: w,
+                estimand,
+                indexer: Some(indexer.clone()),
+            });
+        }
+        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: "temporal class-aware envelope had no estimable identified cases".into(),
+            });
+        }
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: "temporal class-aware envelope missing estimand".into(),
+        })?;
+        let estimate = EffectEstimate::new(
+            weighted_ate / total_w,
+            mix_weighted_analytic_se(se_items),
+            assumptions,
+            OverlapPolicy::ExplicitOverride,
+        );
+        let identification = envelope_to_identification_result_for(
+            envelope,
+            CausalQuery::TemporalEffect(query.clone()),
+        );
+        let tabular = TabularData::new(data.storage().clone());
+        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+            &tabular,
+            &ate_q,
+            &estimate,
+            &refute_atoms,
+            &mut refute_ws,
+            ctx,
+            self.refute,
+            "temporal.linear.adjustment",
+            &self.custom_validators,
+            Some(query),
+            self.split.as_ref(),
+            Some(data.time_index()),
+        )?;
+        diagnostics.extend(na_diagnostics);
+        diagnostics.push(envelope_se_omits_between_atom_variance());
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            estimator_id: EstimatorId::TemporalLinearAdjustment,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                certificate: Some(crate::Identification::TemporalEnvelope {
+                    envelope: bundle.envelope.clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
+                diagnostics: Some(diagnostics),
+                ..Default::default()
+            },
+        }))
+    }
+
+    fn identify_temporal_class(
+        &self,
+        identifier_id: IdentifierId,
+        query: &TemporalEffectQuery,
+    ) -> Result<crate::analysis::prepared::CachedTemporalClassIdentification, CausalError> {
+        let envelope = match self.graph.class() {
+            GraphClass::TemporalCpdag => {
+                let cpdag = self.graph.as_temporal_cpdag().ok_or_else(|| CausalError::Compile {
+                    message: "TemporalCpdag execute missing supplied graph".into(),
+                })?;
+                identify_temporal_cpdag(identifier_id, cpdag, query)?
+            }
+            GraphClass::TemporalPag => {
+                let pag = self.graph.as_temporal_pag().ok_or_else(|| CausalError::Compile {
+                    message: "TemporalPag execute missing supplied graph".into(),
+                })?;
+                identify_temporal_pag(identifier_id, pag, query)?
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "class-aware temporal execute requires TemporalCpdag or TemporalPag",
+                });
+            }
+        };
+        Ok(crate::analysis::prepared::CachedTemporalClassIdentification { envelope })
+    }
+}
+
+fn temporal_class_envelope_diagnostic<G>(
+    envelope: &IdentificationEnvelope<G>,
+    class: GraphClass,
+) -> Diagnostic {
+    let code = if class == GraphClass::TemporalCpdag {
+        "identify.temporal_cpdag.envelope"
+    } else {
+        "identify.temporal_pag.envelope"
+    };
+    Diagnostic::new(
+        code,
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}, limitations={:?}",
+            envelope.identified_weight.0,
+            envelope.unidentified_weight.0,
+            envelope.cases.len(),
+            envelope.critical_graph_features,
+        ),
+    )
 }
 
 fn aggregate_temporal_horizon_evidence<'a>(

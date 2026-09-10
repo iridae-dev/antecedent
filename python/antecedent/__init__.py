@@ -20,10 +20,10 @@ root-exported stage modules are:
 ``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
 ``antecedent.validation``.
 
-Fourteen narrower modules are reachable but deliberately outside ``__all__``:
-``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``ids``,
-``inference``, ``interference``, ``intervention``, ``model``, ``observation``,
-``population``, ``query``, ``results``, and ``transport``.
+Fifteen narrower modules are reachable but deliberately outside ``__all__``:
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
+``ids``, ``inference``, ``interference``, ``intervention``, ``model``,
+``observation``, ``population``, ``query``, ``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -73,6 +73,7 @@ from . import (
 # (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
 from . import estimators as estimators
+from . import handoff as handoff
 from . import ids as ids
 from . import inference as inference
 from . import interference as interference
@@ -202,7 +203,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "1.3.0"
+        __version__ = "1.4.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

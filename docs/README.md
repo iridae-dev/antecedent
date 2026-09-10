@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **1.3.0**.
+explicit stage contracts. Package version **1.4.0**.
 
 | Doc | Contents |
 |-----|----------|
@@ -20,6 +20,8 @@ explicit stage contracts. Package version **1.3.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [1.4.0 release notes](release-notes/v1.4.0.md) | Class-preserving CPDAG/PAG cells, temporal incomplete Pulse, EconML handoff |
+| [1.4 evidence ledger](v1.4-evidence.md) | CPDAG ATE, class-aware response/CATE, temporal class envelope, Frequentist GP ATE |
 | [1.3.0 release notes](release-notes/v1.3.0.md) | Staged derivatives, observation pairs, static mediation, unit counterfactuals |
 | [1.3 evidence ledger](v1.3-evidence.md) | Derivative, observation, mediation, and counterfactual pins |
 | [1.2.0 release notes](release-notes/v1.2.0.md) | Query-native validation, Bayesian estimators, and sequential sustained windows |

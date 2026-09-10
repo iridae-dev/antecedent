@@ -197,22 +197,27 @@ impl super::Study {
         }))
     }
 
-    pub(super) fn execute_pag_bayesian(
+    pub(super) fn execute_pag_bayesian<G>(
         &self,
         data: &TabularData,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<Pag>,
+        envelope: &IdentificationEnvelope<G>,
         identification: IdentificationResult,
         identify_cached: bool,
         started: Instant,
+        envelope_diagnostic: Diagnostic,
+        class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
+        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let estimator_id =
+            if conditional { EstimatorId::BayesianConditional } else { EstimatorId::BayesianGcomp };
 
         let mut weights = Vec::new();
         let mut flags = Vec::new();
@@ -229,7 +234,7 @@ impl super::Study {
                 && !case.result.estimands.is_empty()
             {
                 flags.push(GraphIdentFlag::Identified);
-                let mut estimand = select_estimand(&case.result, EstimatorId::BayesianGcomp)?;
+                let mut estimand = select_estimand(&case.result, estimator_id)?;
                 if estimand.method.as_ref().starts_with("generalized.adjustment") {
                     estimand.method = Arc::from("backdoor.adjustment");
                 }
@@ -246,7 +251,14 @@ impl super::Study {
         // (1..n); still use entry() so the stash is key-safe.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
         for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
-            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            let prep = if conditional {
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                est.prepare_conditional(data, estimand, &q)
+            } else {
+                est.prepare(data, estimand, query)
+            }
+            .map_err(CausalError::from)?;
             if i == 0 {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
                 envelope_prior = resolved;
@@ -293,7 +305,7 @@ impl super::Study {
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
-            InferenceDiagnostics::analytic("pag_envelope"),
+            InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
@@ -302,15 +314,17 @@ impl super::Study {
         }
         let estimate = effect_from_posterior(&posterior)?;
         let estimand = primary_estimand.or(envelope.invariant.clone()).ok_or_else(|| {
-            CausalError::Compile { message: "PAG Bayesian envelope missing estimand".into() }
+            CausalError::Compile {
+                message: format!("{class_tag} Bayesian envelope missing estimand"),
+            }
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(super::pag_path::pag_envelope_diagnostic(envelope));
+        diagnostics.push(envelope_diagnostic);
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
-            "estimate.pag.envelope",
+            format!("estimate.{class_tag}.envelope"),
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!("unidentified_mass={}", posterior.unidentified_mass),
@@ -327,11 +341,11 @@ impl super::Study {
                     data,
                     query,
                     &estimate,
-                    &atoms,
+                    &envelope_refute_atoms(&atoms),
                     &mut refute_ws,
                     ctx,
                     self.refute,
-                    "bayesian.gcomp",
+                    estimator_id.as_str(),
                     &self.custom_validators,
                     None,
                     self.split.as_ref(),
@@ -359,7 +373,7 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id: EstimatorId::BayesianGcomp,
+            estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached,
@@ -390,23 +404,19 @@ impl super::Study {
     /// placeholder shape `stub_accepted_graph_for` built at `build()` time) — the logical
     /// plan needs a structure argument for row-count / classification bookkeeping only.
     /// Real identification happens per-graph, against the posterior atoms, in
-    /// [`Self::execute_graph_posterior_bayesian`] / [`Self::execute_dbn_posterior_bayesian`].
+    /// [`Self::execute_graph_posterior_bayesian`],
+    /// [`Self::execute_graph_posterior_frequentist`], or
+    /// [`Self::execute_dbn_posterior_bayesian`].
     ///
     /// # Errors
     ///
-    /// `InferenceMode::Frequentist` (a graph posterior is a mixture over structures;
-    /// only Bayesian inference can combine per-graph effect draws into an envelope), or
-    /// an unsupported data/query combination (graph-posterior analysis supports tabular
-    /// average-effect or temporal-effect queries only).
+    /// `InferenceMode::Frequentist` on a temporal (DBN) posterior — that combiner
+    /// is 1.6 — or an unsupported data/query combination (graph-posterior analysis
+    /// supports tabular average-effect or temporal-effect queries only).
     pub(super) fn compile_graph_posterior(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
-        if matches!(self.inference, InferenceMode::Frequentist) {
-            return Err(CausalError::Unsupported {
-                message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
-            });
-        }
         match (&self.data, &self.query) {
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
                 let n_vars =
@@ -415,7 +425,10 @@ impl super::Study {
                     })?;
                 let stub = Dag::with_variables(n_vars);
                 let identifier = Arc::from("backdoor.adjustment");
-                let estimator = Arc::from("bayesian.gcomp");
+                let estimator = match &self.inference {
+                    InferenceMode::Frequentist => Arc::from("linear.adjustment.ate"),
+                    InferenceMode::Bayesian(_) => Arc::from("bayesian.gcomp"),
+                };
                 let mut logical = compile_logical_static_ate(StaticAteCompileInput {
                     data,
                     graph: &stub,
@@ -431,6 +444,13 @@ impl super::Study {
                         .unwrap_or_else(|| Arc::from("graph_posterior")),
                 );
                 logical.compile_physical(ctx)
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_))
+                if matches!(self.inference, InferenceMode::Frequentist) =>
+            {
+                Err(CausalError::Unsupported {
+                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                })
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -610,7 +630,7 @@ impl super::Study {
                     data,
                     query,
                     &estimate,
-                    &atoms,
+                    &envelope_refute_atoms(&atoms),
                     &mut refute_ws,
                     ctx,
                     self.refute,
@@ -665,6 +685,189 @@ impl super::Study {
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
+                ..Default::default()
+            },
+        }))
+    }
+
+    /// Execute a supplied static graph posterior into a Frequentist effect mixture.
+    ///
+    /// Same atoms and unidentified-mass rule as
+    /// [`Self::execute_graph_posterior_bayesian`]: identified atoms contribute
+    /// `linear.adjustment.ate` point estimates, mixed as
+    /// `E[τ | identified] = Σ w_i τ_i / identified_mass`. Unidentified mass is
+    /// retained in the envelope diagnostic and is not redistributed.
+    ///
+    /// # Errors
+    ///
+    /// No identified atoms, or any per-graph identification/estimation failure.
+    pub(super) fn execute_graph_posterior_frequentist(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if !matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(CausalError::Unsupported {
+                message: "execute_graph_posterior_frequentist requires inference=Frequentist",
+            });
+        }
+        let estimator_id = EstimatorId::LinearAdjustmentAte;
+        let estimator = estimator_id.as_str();
+        let (identified, identify_cached) =
+            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_graph_posterior_identification_cache(
+                        gp, query, ctx,
+                    )?,
+                    false,
+                )
+            };
+        let mut subsample_notes = Vec::new();
+        let graphs = maybe_interactive_subsample_graphs(
+            self.latency_mode,
+            identified.graphs.clone(),
+            ctx,
+            &mut subsample_notes,
+        )?;
+        let keep = identified_envelope_keys(&graphs);
+
+        let mut weighted_ate = 0.0;
+        let mut se_items = Vec::new();
+        let mut total_w = 0.0;
+        let mut primary_estimand = None;
+        let mut primary_identification = None;
+        let mut assumptions = antecedent_core::AssumptionSet::default();
+        let mut refute_atoms = Vec::new();
+        for atom in identified.atoms.iter() {
+            if !keep.contains(&atom.key) {
+                continue;
+            }
+            let mut case_ws = StaticEstimateWorkspaces::default();
+            let case_spec = self
+                .estimator_spec
+                .clone()
+                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
+            let estimate = estimate_static_effect(
+                &case_spec,
+                data,
+                &atom.estimand,
+                query,
+                atom.identification.required_assumptions.clone(),
+                self.bootstrap_replicates,
+                self.overlap_policy,
+                self.population_registry.as_ref(),
+                ctx,
+                &mut case_ws,
+            )?;
+            let w = identified_weight_for_key(&graphs, atom.key);
+            weighted_ate += w * estimate.ate;
+            se_items.push((w, estimate.se_analytic));
+            total_w += w;
+            if primary_estimand.is_none() {
+                primary_estimand = Some(atom.estimand.clone());
+                primary_identification = Some(atom.identification.clone());
+                assumptions = estimate.assumptions.clone();
+            }
+            refute_atoms.push(EnvelopeRefuteAtom {
+                key: atom.key,
+                weight: w,
+                estimand: atom.estimand.clone(),
+                indexer: None,
+            });
+        }
+        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: "graph-posterior envelope: no identified graph atoms".into(),
+            });
+        }
+        let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
+            message: "graph-posterior envelope: no identified graph atoms".into(),
+        })?;
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: "graph-posterior envelope: missing estimand".into(),
+        })?;
+        let estimate = EffectEstimate::new(
+            weighted_ate / total_w,
+            mix_weighted_analytic_se(se_items),
+            assumptions,
+            OverlapPolicy::ExplicitOverride,
+        );
+        let unidentified_mass: f64 = graphs
+            .weights
+            .iter()
+            .zip(graphs.identified.iter())
+            .filter(|(_, flag)| **flag != GraphIdentFlag::Identified)
+            .map(|(weight, _)| *weight)
+            .sum();
+        let contributing: Vec<&IdentifiedEstimand> =
+            refute_atoms.iter().map(|atom| &atom.estimand).collect();
+        identification.status =
+            graph_posterior_mixture_status(unidentified_mass, &contributing, identification.status);
+
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.extend(subsample_notes);
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(envelope_se_omits_between_atom_variance());
+        diagnostics.push(Diagnostic::new(
+            "estimate.graph_posterior.envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "identified_mass={total_w}, unidentified_mass={unidentified_mass}, atoms={}",
+                refute_atoms.len()
+            ),
+        ));
+
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+            data,
+            query,
+            &estimate,
+            &refute_atoms,
+            &mut refute_ws,
+            ctx,
+            self.refute,
+            estimator,
+            &self.custom_validators,
+            None,
+            self.split.as_ref(),
+            None,
+        )?;
+        diagnostics.extend(na_diagnostics);
+
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.linear_adjustment",
+                    "estimate.linear_adjustment_ate",
+                )),
+                diagnostics: Some(diagnostics),
                 ..Default::default()
             },
         }))
@@ -855,7 +1058,7 @@ impl super::Study {
             &tabular,
             &ate_query,
             &estimate,
-            &atoms,
+            &envelope_refute_atoms(&atoms),
             &mut EstimationWorkspace::default(),
             ctx,
             self.refute,

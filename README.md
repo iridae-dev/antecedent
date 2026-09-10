@@ -20,7 +20,7 @@ Five decision-focused notebooks run without local setup:
 | [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve and examine identification, empirical support, and uncertainty as separate result axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb) |
 | [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — compare observed sales with an explicit censoring mechanism and see the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
-The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, and end-to-end analysis.
+The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, class-preserving CPDAG estimation, and end-to-end analysis.
 
 ## What Can I Do With Antecedent?
 
@@ -60,13 +60,11 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.3.0**. This compatible minor puts existing
-query kinds on the staged handle: Frequentist DAG derivatives, conditional Cox
-IPCW observation pairs, static natural mediation with native cheap/full
-validation, and explicit-DAG unit counterfactuals. The
-[1.3.0 release notes](docs/release-notes/v1.3.0.md) and
-[evidence ledger](docs/v1.3-evidence.md) define the licensed forms,
-assumptions, numerical references, and deliberate non-goals.
+The current package version is **1.4.0**. This compatible minor starts
+class-preserving graph coordinates: `AverageEffect` on a supplied `Cpdag`
+stays a `Cpdag` and estimates a MEC envelope. The
+[1.4.0 release notes](docs/release-notes/v1.4.0.md) and
+[evidence ledger](docs/v1.4-evidence.md) define the licensed forms.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·

@@ -36,21 +36,24 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
         assert result.posterior.envelope.unidentified_mass == mass
 
 
-def test_exact_dag_posterior_rejects_frequentist():
+def test_exact_dag_posterior_frequentist_ate_mixture():
     n = 80
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
-    with pytest.raises(TypeError, match="Bayesian"):
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.ExactDagPosterior(),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Frequentist(),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        {"t": t, "y": y, "z": z},
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Frequentist(),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.posterior is None
+    assert np.isfinite(result.ate)
+    assert result.evidence_status == "licensed"
+    assert any("unidentified_mass=" in diagnostic for diagnostic in result.diagnostics)
 
 
 def test_dbn_posterior_bayesian_pulse_mixture():

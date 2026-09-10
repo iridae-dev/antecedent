@@ -146,6 +146,7 @@ for _fn in (
     "analyze_panel",
     "analyze_panel_discover",
     "analyze_temporal_discover",
+    "analyze_temporal_cpdag",
     "analyze_temporal_pag",
     "analyze_temporal_response",
 ):
@@ -158,6 +159,7 @@ for _fn in (
 # catch a regression of exactly the bug it was written for.
 _MUST_BE_CHECKED = (
     "analyze",
+    "analyze_temporal_cpdag",
     "analyze_temporal_pag",
     "analyze_events",
     "analyze_panel",

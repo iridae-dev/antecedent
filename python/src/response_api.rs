@@ -24,6 +24,8 @@ use crate::{
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
     #[pyo3(get)]
+    certificate_json: Option<String>,
+    #[pyo3(get)]
     treatments: Vec<String>,
     #[pyo3(get)]
     outcomes: Vec<String>,
@@ -95,6 +97,12 @@ pub(crate) struct ResponseAnalysisResult {
     allowlist_reason: Option<String>,
     #[pyo3(get)]
     allowlist_parent: Option<String>,
+    /// Study-level diagnostic codes (`code: message`), including class envelopes.
+    #[pyo3(get)]
+    diagnostics: Vec<String>,
+    /// Logical-plan identifier when the result came through Study prepare/estimate.
+    #[pyo3(get)]
+    identifier: Option<String>,
 }
 
 #[pyfunction]
@@ -322,6 +330,7 @@ fn analyze_response_pag(
         let upper_rows = upper.iter().map(|value| vec![*value]).collect();
         let support_status = support_status_name(worst_support).to_owned();
         Ok(ResponseAnalysisResult {
+            certificate_json: None,
             treatments: vec![treatment],
             outcomes: vec![outcome],
             points,
@@ -365,6 +374,8 @@ fn analyze_response_pag(
             evidence_status: None,
             allowlist_reason: None,
             allowlist_parent: None,
+            diagnostics: Vec::new(),
+            identifier: Some("generalized.adjustment".into()),
         })
     })
 }
@@ -567,10 +578,11 @@ pub(crate) fn response_result(
         adjustment_set = first;
     }
     let (points, values, scalar, matrix) = match response.estimate {
-        ResponseIdentification::PointIdentified(value) => value_parts(value)?,
-        _ => {
+        ResponseIdentification::PointIdentified(value)
+        | ResponseIdentification::PartiallyIdentified(value) => value_parts(value)?,
+        ResponseIdentification::GraphDependent(_) | ResponseIdentification::Unidentified { .. } => {
             return Err(PyValueError::new_err(
-                "the continuous-response estimator expected point identification",
+                "the continuous-response estimator expected an identified payload",
             ));
         }
     };
@@ -580,6 +592,7 @@ pub(crate) fn response_result(
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(evidence);
     Ok(ResponseAnalysisResult {
+        certificate_json: None,
         treatments,
         outcomes,
         points,
@@ -627,7 +640,10 @@ pub(crate) fn response_result(
             .map(|warning| warning.message.to_string())
             .collect(),
         identification: format!("{:?}", response.identification_status),
-        adjustment_set,
+        adjustment_set: crate::public_adjustment_set(
+            response.identification_status,
+            adjustment_set,
+        ),
         horizon_adjustment_sets,
         assumptions: response
             .assumptions
@@ -645,7 +661,23 @@ pub(crate) fn response_result(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
+        diagnostics: Vec::new(),
+        identifier: None,
     })
+}
+
+pub(crate) fn attach_study_response_meta(
+    mut mapped: ResponseAnalysisResult,
+    certificate_json: Option<String>,
+    identification: String,
+    identifier: Option<String>,
+    diagnostics: Vec<String>,
+) -> ResponseAnalysisResult {
+    mapped.certificate_json = certificate_json;
+    mapped.identification = identification;
+    mapped.identifier = identifier;
+    mapped.diagnostics = diagnostics;
+    mapped
 }
 
 fn named_horizon_adjustments(
@@ -709,7 +741,7 @@ type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64
 
 fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
     match value {
-        ResponseValue::Scalar(value) => Ok((Vec::new(), Vec::new(), Some(value), None)),
+        ResponseValue::Scalar(value) => Ok((vec![vec![0.0]], vec![vec![value]], Some(value), None)),
         ResponseValue::Surface { grid, dimension, mean } => {
             let points = grid.chunks(dimension).map(<[f64]>::to_vec).collect::<Vec<_>>();
             let values = mean.iter().map(|value| vec![*value]).collect();

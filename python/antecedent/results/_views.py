@@ -369,6 +369,7 @@ class PlanView:
     plan_id: str
     modality: str | None = None
     discovery_algorithm: str | None = None
+    structure_source: str | None = None
     graph_review_required: bool = False
     identifier: str | None = None
     estimator: str | None = None
@@ -420,6 +421,8 @@ class AnalysisResult:
     allowlist_parent: str | None = None
     _raw: Any = None
     _prepared: Any = None
+    query: Any = None
+    certificate: dict[str, Any] | None = None
     unit_effects: list[float] | None = None
     assumptions: list[str] | None = None
     support: list[str] | None = None

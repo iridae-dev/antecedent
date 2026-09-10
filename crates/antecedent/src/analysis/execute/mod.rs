@@ -65,9 +65,12 @@ pub(super) use crate::inference::{
 };
 pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
-    StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPathSpecificCompileInput,
-    StaticResponseCompileInput, compile_logical_distribution, compile_logical_path_specific,
-    compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_static_response,
+    StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
+    StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
+    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
+    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
+    compile_logical_static_pag_ate, compile_logical_static_pag_response,
+    compile_logical_static_response, compile_logical_temporal_class_effect,
     compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
     compile_logical_temporal_response, reject_dag_only_on_pag,
 };
@@ -81,9 +84,10 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_ESTIMATOR, DEFAULT_RESPONSE_IDENTIFIER,
     DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
-    estimate_provenance_step, estimate_static_effect, identify_admg, identify_pag,
+    estimate_provenance_step, estimate_static_effect, identify_admg, identify_cpdag, identify_pag,
     identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_with_rd, require_identified, select_estimand, validate_static_pair,
+    identify_static_query_with_rd, identify_temporal_cpdag, identify_temporal_pag,
+    require_identified, select_estimand, validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
@@ -146,9 +150,14 @@ pub struct Study {
     pub(crate) mediation_adjustment_cache: Option<Arc<[antecedent_data::LaggedColumn]>>,
     /// Prepare-time generalized-adjustment envelope for a supplied PAG.
     pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
+    /// Prepare-time MEC envelope for a supplied CPDAG.
+    pub(crate) cpdag_identification_cache: Option<Arc<super::prepared::CachedCpdagIdentification>>,
     /// Prepare-time temporal-backdoor identification + indexer for temporal response.
     pub(crate) temporal_identification_cache:
         Option<Arc<super::prepared::CachedTemporalIdentification>>,
+    /// Prepare-time TemporalCpdag/Pag envelope.
+    pub(crate) temporal_class_identification_cache:
+        Option<Arc<super::prepared::CachedTemporalClassIdentification>>,
     /// Prepare-time per-atom identification and weights for a static graph posterior.
     pub(crate) graph_posterior_identification_cache:
         Option<Arc<super::prepared::CachedGraphPosteriorIdentification>>,
@@ -186,9 +195,14 @@ impl std::fmt::Debug for Study {
             .field("identification_cache_is_some", &self.identification_cache.is_some())
             .field("mediation_adjustment_cache", &self.mediation_adjustment_cache)
             .field("pag_identification_cache_is_some", &self.pag_identification_cache.is_some())
+            .field("cpdag_identification_cache_is_some", &self.cpdag_identification_cache.is_some())
             .field(
                 "temporal_identification_cache_is_some",
                 &self.temporal_identification_cache.is_some(),
+            )
+            .field(
+                "temporal_class_identification_cache_is_some",
+                &self.temporal_class_identification_cache.is_some(),
             )
             .field(
                 "graph_posterior_identification_cache_is_some",
@@ -212,6 +226,26 @@ mod response_path;
 mod static_path;
 mod temporal_path;
 include!("execute_helpers.rs");
+
+pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
+
+#[cfg(test)]
+mod envelope_se_tests {
+    use super::*;
+
+    #[test]
+    fn multi_atom_se_requires_joint_sampling_covariance() {
+        let se = mix_weighted_analytic_se([(0.5, 2.0), (0.5, 0.0)]);
+        assert!(se.is_nan());
+        assert!((mix_weighted_analytic_se([(1.0, 2.0)]) - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn mix_weighted_analytic_se_is_nan_if_any_atom_is_nonfinite() {
+        assert!(mix_weighted_analytic_se([(0.5, 0.1), (0.5, f64::NAN)]).is_nan());
+        assert!(mix_weighted_analytic_se([(1.0, f64::INFINITY)]).is_nan());
+    }
+}
 
 #[cfg(test)]
 mod support_tests {
@@ -630,18 +664,135 @@ mod identify_only_tests {
         );
     }
 
-    fn cheap_overlap_comparison(gp: GraphPosterior, n: usize) -> f64 {
-        let result = Study::tabular(known_truth_graph_mixture_data(n))
+    #[test]
+    fn graph_posterior_ate_known_truth_mixture_frequentist() {
+        // Same atoms and unidentified-mass rule as the Bayesian pin; the
+        // aggregator is mass-weighted linear.adjustment.ate, so the mixture
+        // hits the analytic 2.625 exactly rather than a posterior mean.
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../conformance/bayesian/known_truth_mixtures/expected.json"
+        ))
+        .unwrap();
+        let pin = &expected["static_average_effect"];
+        let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+        let weights: Vec<f64> = pin["posterior_weights"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect();
+        let mixture_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+        let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0, 3, 1, 0, true);
+        let mut marginals = vec![0.0; 9];
+        marginals[1] = weights[0] + weights[1];
+        marginals[3] = weights[2];
+        marginals[6] = weights[1];
+        marginals[7] = weights[1];
+
+        let mut report_counts = Vec::new();
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let gp = GraphPosterior::new(
+                3,
+                weights.clone(),
+                vec![direct, adjusted, unidentified],
+                marginals.clone(),
+                marginals.clone(),
+                1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+                InferenceDiagnostics::analytic("known_truth_mixtures"),
+                0,
+            )
+            .unwrap()
+            .with_algorithm("known_truth_fixture");
+            let data = known_truth_graph_mixture_data(n);
+            let (ctx, sink) = recording_ctx(1);
+            let study = Study::tabular(data.clone())
+                .graph_posterior(gp)
+                .query(ate())
+                .refute(suite)
+                .inference(InferenceMode::Frequentist)
+                .build()
+                .unwrap();
+            let fresh = study.clone().run(&ctx).unwrap();
+            assert_eq!(identify_computations(&sink), 1, "a fresh run identifies its atoms once");
+            let mut prepared = study.prepare(&ctx).unwrap();
+            assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
+            let click = prepared.estimate(&data, &ctx).unwrap();
+            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            assert_eq!(
+                identify_computations(&sink),
+                2,
+                "prepared estimate and refresh clicks must not re-identify"
+            );
+            assert!(
+                (click.estimate.ate - mixture_truth).abs() < 1e-8,
+                "{suite:?} mixture mean={} truth={mixture_truth}",
+                click.estimate.ate
+            );
+            assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+            assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+            assert!(click.posterior.is_none(), "Frequentist mixture must not attach a posterior");
+            assert_eq!(click.identification.status, IdentificationStatus::GraphDependent);
+            assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
+            assert!(
+                fresh.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.graph_posterior.envelope"
+                        && d.message.contains(&format!("unidentified_mass={unidentified_truth}"))
+                }),
+                "fresh Frequentist mixture must retain unidentified mass"
+            );
+            assert!(
+                fresh.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
+                }),
+                "Frequentist mixture SE must disclose omitted between-atom variance"
+            );
+            assert_eq!(cached_count(&fresh), 0);
+            assert_eq!(cached_count(&click), 1);
+            assert_eq!(cached_count(&refreshed), 1);
+            assert_eq!(click.refutations.len(), fresh.refutations.len());
+            match suite {
+                RefuteSuite::None => {
+                    assert!(click.refutations.is_empty(), "validation none must emit no reports");
+                }
+                RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                    assert!(!click.refutations.is_empty(), "{suite:?} must execute a refuter");
+                    assert!(
+                        click
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
+                        "Frequentist {suite:?} must mix effect refuters across atoms"
+                    );
+                }
+            }
+            report_counts.push(click.refutations.len());
+        }
+        assert_eq!(report_counts[0], 0, "validation none must emit no reports");
+        assert!(report_counts[1] > 0, "cheap validation must execute a refuter");
+        assert!(
+            report_counts[2] >= report_counts[1],
+            "full validation must not drop the cheap refuters"
+        );
+    }
+
+    fn cheap_overlap_comparison(gp: GraphPosterior, n: usize, frequentist: bool) -> f64 {
+        let mut builder = Study::tabular(known_truth_graph_mixture_data(n))
             .graph_posterior(gp)
             .query(ate())
-            .refute(RefuteSuite::Cheap)
-            .inference(InferenceMode::Bayesian(
+            .refute(RefuteSuite::Cheap);
+        builder = if frequentist {
+            builder.inference(InferenceMode::Frequentist)
+        } else {
+            builder.inference(InferenceMode::Bayesian(
                 BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
             ))
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(3))
-            .unwrap();
+        };
+        let result = builder.build().unwrap().run(&ExecutionContext::for_tests(3)).unwrap();
         result
             .refutations
             .iter()
@@ -680,11 +831,47 @@ mod identify_only_tests {
             0,
         )
         .unwrap();
-        let mixed = cheap_overlap_comparison(mix, n);
-        let first = cheap_overlap_comparison(first_only, n);
+        let mixed = cheap_overlap_comparison(mix, n, false);
+        let first = cheap_overlap_comparison(first_only, n, false);
         assert!(
             (mixed - first).abs() > 1e-9,
             "mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
+        );
+    }
+
+    #[test]
+    fn frequentist_graph_posterior_overlap_mixes_distinct_adjustment_atoms() {
+        let n = 64;
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0, 3, 1, 0, true);
+        let mix = GraphPosterior::new(
+            3,
+            vec![0.5, 0.3, 0.2],
+            vec![direct, adjusted, unidentified],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("overlap_mixture"),
+            0,
+        )
+        .unwrap();
+        let first_only = GraphPosterior::new(
+            3,
+            vec![1.0],
+            vec![direct],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("overlap_first_atom"),
+            0,
+        )
+        .unwrap();
+        let mixed = cheap_overlap_comparison(mix, n, true);
+        let first = cheap_overlap_comparison(first_only, n, true);
+        assert!(
+            (mixed - first).abs() > 1e-9,
+            "Frequentist mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
         );
     }
 

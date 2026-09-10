@@ -64,12 +64,32 @@ fn chain_table(n: usize) -> (TabularData, Dag) {
     (data, g)
 }
 
+fn visible_mag_table(n: usize, mixed: bool) -> (TabularData, Pag) {
+    let t: Vec<_> = (0..n).map(|i| (i % 2) as f64).collect();
+    let y: Vec<_> = t.iter().enumerate().map(|(i, t)| 1.0 + 2.0 * t + 0.01 * i as f64).collect();
+    let r: Vec<_> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+    let a: Vec<_> = (0..n).map(|i| (i as f64).sin()).collect();
+    let b: Vec<_> = (0..n).map(|i| (i as f64).cos()).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("r", r.as_slice()),
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+    ])
+    .unwrap();
+    let mut pag = Pag::with_variables(5);
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    if mixed {
+        pag.insert_circle_circle(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
+    }
+    (data, pag)
+}
+
 #[test]
 fn pag_ate_via_generalized_adjustment() {
-    let (data, _) = chain_table(80);
-    // Directed MAG completion of a two-node PAG is unique → full identified mass.
-    let mut pag = Pag::with_variables(2);
-    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, pag) = visible_mag_table(80, false);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let analysis = Study::tabular(data)
         .graph(pag)
@@ -88,9 +108,7 @@ fn pag_ate_via_generalized_adjustment() {
 
 #[test]
 fn pag_bayesian_full_runs_mixture_ppc_and_prior_sensitivity() {
-    let (data, _) = chain_table(80);
-    let mut pag = Pag::with_variables(2);
-    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, pag) = visible_mag_table(80, false);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let result = Study::tabular(data)
         .graph(pag)
@@ -130,9 +148,7 @@ fn pag_bayesian_full_runs_mixture_ppc_and_prior_sensitivity() {
 
 #[test]
 fn pag_with_circles_ate_via_generalized_adjustment() {
-    let (data, _) = chain_table(80);
-    let mut pag = Pag::with_variables(2);
-    pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, pag) = visible_mag_table(80, true);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let analysis = Study::tabular(data)
         .graph(pag)

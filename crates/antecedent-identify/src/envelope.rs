@@ -140,6 +140,7 @@ impl<G> IdentificationEnvelope<G> {
             .filter(|c| {
                 c.result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                        || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
                 })
             })
             .count();

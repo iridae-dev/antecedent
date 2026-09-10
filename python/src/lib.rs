@@ -29,6 +29,7 @@ mod gcm_api;
 mod graph_build;
 mod graph_io;
 mod graphs;
+mod identification_details;
 mod observation_api;
 mod prepared_api;
 mod prior_bank;
@@ -105,12 +106,12 @@ use antecedent::{
     IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
-    CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
-    Intervention, InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, PopulationRegistry,
-    PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
+    AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
+    DistributionRef, ExecutionContext, Intervention, InterventionalDistributionQuery, KernelPolicy,
+    Lag, MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig,
+    TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
+    VariableId,
 };
 use antecedent_data::TimeDummyEncoding;
 use antecedent_data::{
@@ -286,9 +287,9 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
 // - DAG-shaped (`DagReview`, `TemporalGraphReview`): `true` clears pending directed edges
 //   first (mirrors the old `DiscoveryAccept::AutoAccept`); `false` requires the graph to
 //   already be fully oriented.
-// - CPDAG-shaped (`CpdagReview`, `TemporalCpdagReview`): `true` clears directed pending
-//   edges only — undirected marks still block acceptance, matching the old
-//   `accept_all_directed` semantics (never silently orients ambiguous edges).
+// - CPDAG-shaped (`CpdagReview`): `true` clears directed pending edges. Undirected
+//   marks are the MEC and do not block acceptance (class-aware ATE consumes them).
+//   `TemporalCpdagReview` is the same for undirected marks (class-aware pulse).
 // - PAG-shaped (`PagReview`, `TemporalPagReview`): circle marks are informational, not
 //   incompleteness (the class-aware identifiers handle them directly), so `true` accepts
 //   the discovered graph as-is via the infallible `From` conversion — mirroring the old
@@ -352,10 +353,9 @@ pub(crate) fn accept_temporal_pag_review(
     review: TemporalPagReview,
     accept_discovered: bool,
 ) -> Result<AcceptedGraph, RustCausalError> {
-    // Unlike the static case, auto-accept cannot bypass the gate: no class-aware
-    // temporal PAG identifier exists, so a remaining circle mark genuinely blocks.
+    // Circles are TemporalPag class information; auto-accept keeps the PAG.
     if accept_discovered {
-        AcceptedGraph::temporal_pag(graph)
+        Ok(AcceptedGraph::temporal_pag(graph))
     } else {
         AcceptedGraph::accept(review)
     }
@@ -565,6 +565,22 @@ struct ArrowLoadInfo {
     column_names: Vec<String>,
 }
 
+pub(crate) fn public_adjustment_set(
+    status: antecedent_core::IdentificationStatus,
+    set: Vec<String>,
+) -> Vec<String> {
+    use antecedent_core::IdentificationStatus::{
+        IdentifiedUnderParametricRestrictions, IdentifiedUnderPriorRestrictions,
+        NonparametricallyIdentified,
+    };
+    match status {
+        NonparametricallyIdentified
+        | IdentifiedUnderParametricRestrictions
+        | IdentifiedUnderPriorRestrictions => set,
+        _ => Vec::new(),
+    }
+}
+
 pub(crate) fn evidence_status_parts(
     status: Option<antecedent::CellStatus>,
 ) -> (Option<String>, Option<String>, Option<String>) {
@@ -581,6 +597,8 @@ pub(crate) fn evidence_status_parts(
 #[pyclass]
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
+    #[pyo3(get)]
+    pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]
@@ -655,6 +673,9 @@ pub(crate) struct AteAnalysisResult {
     /// Discovery algorithm id from the logical plan, if any.
     #[pyo3(get)]
     discovery_algorithm: Option<String>,
+    /// Support-matrix structure axis (`explicit`, `accepted`, `graph_posterior`).
+    #[pyo3(get)]
+    structure_source: String,
     /// Whether graph review is required before estimation.
     #[pyo3(get)]
     graph_review_required: bool,

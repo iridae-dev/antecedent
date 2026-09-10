@@ -30,6 +30,8 @@ pub struct PagCompletion {
 pub struct CompletionValidationReport {
     /// Endpoint assignments examined exhaustively.
     pub assignments_examined: u64,
+    /// Ancestral assignments rejected by caller-supplied structural constraints.
+    pub rejected_constraints: u64,
     /// Assignments rejected because they were not ancestral graphs.
     pub rejected_non_ancestral: u64,
     /// Ancestral assignments rejected because they were not maximal.
@@ -73,6 +75,16 @@ impl CompletionSampler {
     /// skipped and recorded in [`CompletionValidationReport::equivalence_audit_skipped`].
     #[allow(clippy::needless_pass_by_value)] // preserve the established constructor API
     pub fn new(pag: Pag, max_completions: usize) -> Result<Self, GraphError> {
+        Self::with_projection(&pag, max_completions, |g| Some(g.clone()))
+    }
+
+    pub(crate) fn with_projection(
+        pag: &Pag,
+        max_completions: usize,
+        project: impl Fn(&Pag) -> Option<Pag>,
+    ) -> Result<Self, GraphError> {
+        let audit_source = project(pag)
+            .ok_or(GraphError::InvalidEndpoints { message: "PAG validation projection failed" })?;
         let mut sites = Vec::new();
         let n = pag.node_count();
         for i in 0..n {
@@ -101,14 +113,8 @@ impl CompletionSampler {
         // that basis would withdraw a capability from every PAG past 12 nodes. Instead the
         // audit is skipped and recorded: local validation still runs, and callers that would
         // otherwise assert a class-wide property must downgrade on this flag.
-        let audit_class = sites.is_empty() || {
-            let n = pag.node_count() as u128;
-            let conditioning_sets = 1u128 << pag.node_count().saturating_sub(2);
-            let queries = u128::from(total)
-                .saturating_mul(n.saturating_mul(n.saturating_sub(1)) / 2)
-                .saturating_mul(conditioning_sets);
-            pag.node_count() <= MAX_EQUIVALENCE_NODES && queries <= MAX_EQUIVALENCE_QUERIES
-        };
+        let audit_class = sites.is_empty()
+            || within_equivalence_budget(audit_source.node_count(), u128::from(total));
         let mut report = CompletionValidationReport {
             assignments_examined: total,
             equivalence_audit_skipped: !audit_class,
@@ -118,21 +124,25 @@ impl CompletionSampler {
         let mut represented_completions = 0usize;
         let mut reference_signature = None;
         for mask in 0..total {
-            let Some(candidate) = orient_assignment(&pag, &sites, mask) else {
+            let Some(candidate) = orient_assignment(pag, &sites, mask) else {
                 report.rejected_non_ancestral += 1;
                 continue;
             };
-            if !is_maximal_ancestral_graph(&candidate) {
+            let Some(audited) = project(&candidate) else {
+                report.rejected_constraints += 1;
+                continue;
+            };
+            if !is_maximal_ancestral_graph(&audited) {
                 report.rejected_nonmaximal += 1;
                 continue;
             }
-            if !preserves_unshielded_colliders(&pag, &candidate) {
+            if !preserves_unshielded_colliders(&audit_source, &audited) {
                 report.rejected_local_incompatible += 1;
                 continue;
             }
             if audit_class {
                 let signature =
-                    if sites.is_empty() { Vec::new() } else { m_separation_signature(&candidate) };
+                    if sites.is_empty() { Vec::new() } else { m_separation_signature(&audited) };
                 if let Some(reference) = &reference_signature {
                     if reference != &signature {
                         report.ambiguous_global_class = true;
@@ -202,6 +212,16 @@ impl CompletionSampler {
     pub fn hit_cap(&self) -> bool {
         self.report.represented_completions > self.max_completions
     }
+}
+
+fn within_equivalence_budget(n: usize, assignments: u128) -> bool {
+    if n > MAX_EQUIVALENCE_NODES {
+        return false;
+    }
+    assignments
+        .saturating_mul((n as u128).saturating_mul(n.saturating_sub(1) as u128) / 2)
+        .saturating_mul(1u128 << n.saturating_sub(2))
+        <= MAX_EQUIVALENCE_QUERIES
 }
 
 fn orient_assignment(
@@ -353,7 +373,7 @@ fn as_admg(g: &Pag) -> Admg {
     admg
 }
 
-fn m_separation_signature(g: &Pag) -> Vec<bool> {
+pub(crate) fn m_separation_signature(g: &Pag) -> Vec<bool> {
     let admg = as_admg(g);
     let n = g.node_count();
     let mut signature = Vec::new();
@@ -395,6 +415,27 @@ impl Iterator for CompletionSampler {
         self.next_index += 1;
         Some(PagCompletion { graph, index })
     }
+}
+
+/// Compare the m-separation models of finite directed/bidirected MAGs.
+///
+/// Returns `None` when the existing exhaustive-audit budget is exceeded.
+/// This certifies only the supplied finite graphs, not an infinite temporal model.
+#[must_use]
+pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
+    let reference = graphs.first()?;
+    let n = reference.node_count();
+    if graphs.iter().any(|g| g.node_count() != n || !is_mag_completion(g)) {
+        return Some(false);
+    }
+    if graphs.len() == 1 {
+        return Some(true);
+    }
+    if !within_equivalence_budget(n, graphs.len() as u128) {
+        return None;
+    }
+    let signature = m_separation_signature(reference);
+    Some(graphs.iter().skip(1).all(|g| m_separation_signature(g) == signature))
 }
 
 #[cfg(test)]
