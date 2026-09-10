@@ -2215,8 +2215,12 @@ fn same_tier_joint_dgp(n: usize, seed: u64) -> (TabularData, TieredBackground, R
         let latent = standard_normal(&mut rng);
         z[i] = zi;
         t1[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.2 + 0.9 * zi + 0.7 * latent)).exp()));
-        t2[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.1 + 0.8 * zi + 0.65 * latent)).exp()));
-        y[i] = 1.2 * t1[i] + 0.8 * t2[i] + 1.5 * t1[i] * t2[i] + 0.55 * zi
+        t2[i] =
+            f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.1 + 0.8 * zi + 0.65 * latent)).exp()));
+        y[i] = 1.2 * t1[i]
+            + 0.8 * t2[i]
+            + 1.5 * t1[i] * t2[i]
+            + 0.55 * zi
             + 0.3 * standard_normal(&mut rng);
     }
     let data = cols(&[("z", z), ("t1", t1), ("t2", t2), ("y", y)]);
@@ -2252,6 +2256,11 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
     assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(id.estimands[0].adjustment_set.as_ref(), &[z]);
+    assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+        &a.assumption,
+        antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
+    )));
     assert!(
         !id.estimands[0].adjustment_set.iter().any(|&v| v == t2_id),
         "t2 is a treatment; walking ↔ as directed must not put the peer in Z"
@@ -2342,4 +2351,95 @@ fn unknown_tier_joint_has_no_single_admg() {
         .prepare_cells(&[query], &ctx)
         .unwrap_err();
     assert!(batch_err.to_string().contains("no single ADMG"), "{batch_err}");
+}
+
+/// 20 same-tier co-facets. Generic subset search caps at 16 candidates; the
+/// O(p) closure shortcut must still identify with Z = closure minus treatments.
+#[test]
+fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
+    const COFACETS: usize = 20;
+    let mut b = antecedent_core::CausalSchemaBuilder::new();
+    b = b.continuous("z").finish().continuous("t1").finish().continuous("t2").finish();
+    let mut facets = Vec::new();
+    for i in 0..COFACETS {
+        let name = format!("f{i}");
+        b = b.continuous(name.clone()).finish();
+        facets.push(name);
+    }
+    let schema = b.continuous("y").finish().build().unwrap();
+    let mut treatment_tier = vec!["t1", "t2"];
+    treatment_tier.extend(facets.iter().map(String::as_str));
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], treatment_tier, vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let query = same_tier_joint_query(&schema);
+    let expected = background
+        .tier_closure_set(
+            &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
+            schema.id_of("y").unwrap(),
+        )
+        .unwrap();
+    assert_eq!(expected.len(), 1 + COFACETS);
+
+    let admg = background.to_admg(&schema).unwrap();
+    let generic = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_joint_admg_response(&admg, &query)
+        .unwrap();
+    assert_eq!(
+        generic.status,
+        IdentificationStatus::Undetermined,
+        "generic joint search must cap here, not scientific-refuse: {:?}",
+        generic.diagnostics
+    );
+    assert!(
+        generic
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
+    );
+
+    let started = std::time::Instant::now();
+    let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
+    assert!(started.elapsed().as_millis() < 200, "O(p) joint closure took {:?}", started.elapsed());
+    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(id.estimands[0].adjustment_set.as_ref(), expected.as_ref());
+    assert_eq!(id.performance.candidates_examined, 2);
+    assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+        &a.assumption,
+        antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
+    )));
+}
+
+#[test]
+fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
+    let mut admg = antecedent_graph::Admg::with_variables(4);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(3),
+        interventions: Arc::from([
+            Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            Intervention::set(VariableId::from_raw(2), Value::f64(1.0)),
+        ]),
+    });
+    let id = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_joint_admg_response(&admg, &query)
+        .unwrap();
+    assert_eq!(id.status, IdentificationStatus::NotIdentified);
+    assert_ne!(id.status, IdentificationStatus::Undetermined);
+    assert!(id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific));
+    assert!(
+        !id.diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
+    );
 }
