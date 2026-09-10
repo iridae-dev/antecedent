@@ -1163,6 +1163,27 @@ impl Study {
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::Response(query) => {
+                if let Some(background) = &self.tiered {
+                    let schema = match &self.data {
+                        DataInput::Tabular(data) => data.schema(),
+                        _ => {
+                            return Err(CausalError::Unsupported {
+                                message: "CoDetermined joint prepare requires tabular data".into(),
+                            });
+                        }
+                    };
+                    let identification = antecedent_identify::identify_tiered_joint(
+                        background,
+                        schema,
+                        query,
+                    )?;
+                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                        CausalError::Unsupported {
+                            message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                        }
+                    })?;
+                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
+                }
                 let Some(graph) = self.graph.as_dag().cloned() else {
                     return Ok(None);
                 };
@@ -1719,12 +1740,17 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Response(q)) if !q.is_temporal() => {
+            let codetermined = analysis.tiered.as_ref().is_some_and(|b| {
+                b.within_tier == antecedent_graph::WithinTier::CoDetermined
+            });
             if !matches!(
                 analysis.graph.class(),
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
-            ) {
+            ) && !(analysis.graph.class() == GraphClass::Admg && codetermined)
+            {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, or Pag",
+                    message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, or Pag \
+                              (or CoDetermined joint cells)",
                 });
             }
         }

@@ -1547,6 +1547,59 @@ class PreparedAnalysis:
                 latency=latency,
                 structure_accepted=structure_accepted,
             )
+        if isinstance(query, InterventionResponse) and isinstance(graph, TieredBackground):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells are Frequentist cell.aipw"
+                )
+            if identifier not in (None, "generalized.adjustment"):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells require identifier generalized.adjustment"
+                )
+            if estimator not in (None, "cell.aipw"):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells require estimator cell.aipw"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            from . import intervention as intervention_specs
+
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            if len(interventions) < 2:
+                raise CausalUnsupportedError(
+                    "cell-AIPW on a tiered background requires joint InterventionResponse"
+                )
+            treatments: list[str] = []
+            intervention_kinds: list[str] = []
+            intervention_parameters: list[list[float]] = []
+            for spec in interventions:
+                if not isinstance(spec, intervention_specs.Set):
+                    raise CausalUnsupportedError(
+                        "CoDetermined joint cells require binary Set interventions"
+                    )
+                treatments.append(spec.variable)
+                intervention_kinds.append("set")
+                intervention_parameters.append([spec.value])
+            native = _NativePreparedAnalysis.prepare_tiered_intervention_response(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.outcome,
+                treatments,
+                intervention_kinds,
+                intervention_parameters,
+                refute=refute,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+            )
+            return cls(native, kind="intervention_response", query=query)
         if isinstance(query, ConditionalEffect) and isinstance(graph, (Pag, Cpdag)):
             return cls._prepare_class_conditional(
                 names,

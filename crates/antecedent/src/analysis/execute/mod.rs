@@ -70,8 +70,9 @@ pub(super) use crate::planner::{
     StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
     compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
     compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
-    compile_logical_static_pag_ate, compile_logical_static_pag_response,
-    compile_logical_static_response, compile_logical_temporal_class_effect,
+    compile_logical_codetermined_joint, compile_logical_static_pag_ate,
+    compile_logical_static_pag_response, compile_logical_static_response,
+    compile_logical_temporal_class_effect,
     compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
     compile_logical_temporal_response, reject_dag_only_on_pag,
 };
@@ -167,7 +168,7 @@ pub struct Study {
         Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
-    /// Optional coarsened continuous coordinate for cell-AIPW.
+    /// Refused: coarsened continuous coordinate is not a point CDE.
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,

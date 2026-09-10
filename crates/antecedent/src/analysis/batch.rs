@@ -461,8 +461,9 @@ impl BatchStudy {
     /// Compile discrete joint `InterventionResponse` cells into a reusable prepared batch.
     ///
     /// Defaults to [`EstimatorId::CellAipw`] when the batch has no estimator override.
-    /// DAG-only: cell AIPW on a DAG is licensed; CoDetermined
-    /// `identify_tiered` is ATE-only; ADMG InterventionResponse already refuses.
+    /// Licensed on a DAG and on CoDetermined via joint ADMG adjustment on the
+    /// known closure graph. Unknown has no single ADMG. Bare ADMG
+    /// InterventionResponse already refuses.
     ///
     /// # Errors
     ///
@@ -610,8 +611,17 @@ impl BatchStudy {
     fn cell_adjustment_set(&self, query: &ResponseQuery) -> Result<Arc<[VariableId]>, CausalError> {
         match &self.graph {
             BatchGraph::Dag(graph) => cell_adjustment_set(graph, query, self.identifier),
-            BatchGraph::Tiered(_) => {
-                Err(CausalError::Unsupported { message: "batch prepare_cells requires a DAG" })
+            BatchGraph::Tiered(background) => {
+                let identification = antecedent_identify::identify_tiered_joint(
+                    background,
+                    self.data.schema(),
+                    query,
+                )?;
+                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(
+                    || CausalError::Unsupported {
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                    },
+                )
             }
         }
     }

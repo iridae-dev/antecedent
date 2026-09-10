@@ -259,6 +259,55 @@ impl super::Study {
         }))
     }
 
+    pub(super) fn execute_codetermined_joint_response(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let background = self.tiered.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "CoDetermined joint execute requires a tiered background".into(),
+        })?;
+        let identifier =
+            physical.logical.record.identifier.as_deref().unwrap_or("generalized.adjustment");
+        let estimator = physical.logical.record.estimator.as_deref().unwrap_or("cell.aipw");
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if estimator_id != EstimatorId::CellAipw {
+            return Err(CausalError::Unsupported {
+                message: "CoDetermined joint cells require estimator cell.aipw".into(),
+            });
+        }
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification = antecedent_identify::identify_tiered_joint(
+                    background,
+                    data.schema(),
+                    query,
+                )?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Unsupported {
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                    }
+                })?;
+                Ok((identification, estimand))
+            })?;
+        self.execute_cell_aipw_response(
+            data,
+            query,
+            physical,
+            ctx,
+            identification,
+            estimand,
+            identifier_id,
+            estimator_id,
+            identify_cached,
+            started,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
     fn execute_cell_aipw_response(
@@ -306,15 +355,18 @@ impl super::Study {
             treatments.push(*variable);
             requested_arm |= u32::from(level == 1.0) << j;
         }
-        if treatments.is_empty() || (treatments.len() < 2 && self.continuous_cell.is_none()) {
+        if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
-                message: "cell.aipw requires at least two binary Set interventions, or one binary Set plus a continuous_cell grid",
+                message: antecedent_estimate::POINT_CDE_UNLICENSED.into(),
+            });
+        }
+        if treatments.len() < 2 {
+            return Err(CausalError::Unsupported {
+                message: "cell.aipw requires at least two binary Set interventions",
             });
         }
         let est = antecedent_estimate::CellSaturatedAipw::new();
-        let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
-            antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
-        });
+        let continuous = None;
         let table = est
             .fit_scores(
                 data,

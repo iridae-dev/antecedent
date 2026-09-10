@@ -316,11 +316,11 @@ pub fn support_cell(
 ///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`] and run the
 ///   *static DAG* path when it is false — the Dag cell's license is the
 ///   honest claim. `compile.rs` wires no other query against
-///   `GraphClass::Admg`: `CausalQuery::Response` on an ADMG (bidirected or
-///   not) hits compile.rs's wildcard `Err("unsupported data/graph/query
-///   combination")` because `dispatch.rs`'s Response arm requires a literal
-///   `self.graph.as_dag()`, which an ADMG-shaped `AcceptedGraph` never
-///   satisfies — so the collapse must not (and does not) fire there.
+///   `GraphClass::Admg` except CoDetermined joint cells: a bare ADMG
+///   `CausalQuery::Response` still hits compile.rs's wildcard because
+///   `dispatch.rs` requires Dag/Cpdag/Pag, or a CoDetermined tier closure.
+///   The collapse must not fire for a supplied Admg response. CoDetermined
+///   cells are off this matrix axis (known closure ADMG + cell.aipw).
 /// - **Cpdag, under `AverageEffect`**: undirected marks are MEC information.
 ///   Completing a CPDAG to a DAG is a `Dag` cell only when the *caller*
 ///   supplies a `Dag`. A supplied `Cpdag` stays `Cpdag` even when it has a

@@ -1894,6 +1894,104 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Compile once for joint InterventionResponse on a CoDetermined tier closure.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        tiers,
+        within_tier,
+        outcome,
+        treatments,
+        intervention_kinds,
+        intervention_parameters,
+        *,
+        refute=None,
+        seed=1,
+        threads=1,
+        latency=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_tiered_intervention_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        tiers: Vec<Vec<String>>,
+        within_tier: String,
+        outcome: String,
+        treatments: Vec<String>,
+        intervention_kinds: Vec<String>,
+        intervention_parameters: Vec<Vec<f64>>,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+    ) -> PyResult<Self> {
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+
+        detach_catch(py, move || {
+            let within = match within_tier.to_ascii_lowercase().as_str() {
+                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
+                "unknown" => antecedent_graph::WithinTier::Unknown,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "within_tier must be codetermined|unknown, got {other}"
+                    )));
+                }
+            };
+            let named: Vec<Vec<&str>> =
+                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+            let background =
+                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    .map_err(py_err)?;
+            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
+            let functional = crate::response_api::build_functional(
+                "intervention_response",
+                &treatment_ids,
+                &outcome_ids,
+                None,
+                None,
+                None,
+                Some(intervention_kinds),
+                Some(intervention_parameters),
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
+            )?;
+            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let mut builder = Study::tabular(data)
+                .tiered_background(background)
+                .map_err(py_err)?
+                .query(query)
+                .estimator(antecedent::EstimatorId::CellAipw)
+                .refute(suite)
+                .bootstrap_replicates(0);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
     /// Compile once from tabular columns + DAG edges (static ConditionalEffect).
     #[staticmethod]
     #[pyo3(signature = (

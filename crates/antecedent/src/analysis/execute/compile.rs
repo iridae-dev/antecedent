@@ -70,6 +70,24 @@ impl super::Study {
                     estimator,
                 })
             }
+            (Some(AnalysisRoute::Response), GraphClass::Admg)
+                if self.tiered.as_ref().is_some_and(|b| {
+                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                }) =>
+            {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+                let (identifier, estimator) = self.resolve_codetermined_joint_pair();
+                compile_logical_codetermined_joint(
+                    data,
+                    admg,
+                    q,
+                    self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                )
+            }
             (Some(AnalysisRoute::StaticAte), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
@@ -445,6 +463,13 @@ impl super::Study {
                 ),
                 GraphClass::Cpdag,
             ) => self.compile_logical()?.compile_physical(ctx),
+            (Some(AnalysisRoute::Response), GraphClass::Admg)
+                if self.tiered.as_ref().is_some_and(|b| {
+                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                }) =>
+            {
+                self.compile_logical()?.compile_physical(ctx)
+            }
             (Some(AnalysisRoute::StaticAte), GraphClass::Admg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
