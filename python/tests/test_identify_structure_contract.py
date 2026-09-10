@@ -40,8 +40,6 @@ def test_class_response_requires_an_intervention(interventions) -> None:
 
 
 def test_native_certificate_keeps_temporal_coordinates_and_derivation():
-    import antecedent
-
     graph = antecedent.TemporalDag.from_lagged_edges(
         ["t", "y", "z"],
         [("z", 0, "t", 0), ("z", 1, "y", 0), ("t", 1, "y", 0)],

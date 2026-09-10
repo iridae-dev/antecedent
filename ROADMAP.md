@@ -216,18 +216,19 @@ interference stay stage APIs.
 
 ## 1.4 — Class-preserving coordinates, then handoff
 
-In completion review on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
+Implemented and locally verified on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
 stays a `Cpdag` and estimates a MEC envelope. The same generalized-adjustment
 envelope licenses `ResponseCurve` / `InterventionResponse` and
 `ConditionalEffect` on `Cpdag` / `Pag`, and Frequentist Pulse / single-step
 Sustained on incomplete `TemporalCpdag` / `TemporalPag`. Frequentist
 graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
-`antecedent.handoff.econml` exports point-identified static adjustment sets.
+`antecedent.handoff.econml` exports query-bound point-identified static and
+lag-aligned temporal adjustment designs, including all joint targets.
 Joint interventions certify a common adjustment set for all targets per
 completion; they do not inherit the first target's ATE certificate.
 See the [evidence ledger](docs/v1.4-evidence.md). Multi-atom Frequentist
-uncertainty is unavailable. The temporal PAG mixed-graph replacement is under
-integration verification, with finite-window audit limits explicit.
+uncertainty is unavailable. The temporal PAG mixed-graph implementation is verified, with finite-window
+audit limits explicit.
 Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
 mixing stay 1.7.
 
