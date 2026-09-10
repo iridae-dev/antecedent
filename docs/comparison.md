@@ -22,8 +22,8 @@ Prepared iid AllObserved `AverageEffect` plans with explicit AIPW and discrete j
 covers mean and exceedance, including class-aware ConditionalEffect grids mixed
 across envelope atoms. Discrete joint interventions may use `cell.aipw`.
 `TieredBackground` certifies a tier-closure adjustment set as a fast path.
-CoDetermined joint cells are ADMG generalized adjustment on the known closure
-plus `cell.aipw`; Unknown-tier joint stays refused.
+CoDetermined joint cells are the `O(p)` treatment-set closure shortcut plus
+`cell.aipw`; Unknown-tier joint stays refused.
 Static Cpdag / Pag Frequentist effect and response aggregates publish joint-IF
 standard errors mixed by frozen completion weights. Scalar Dag
 `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control
