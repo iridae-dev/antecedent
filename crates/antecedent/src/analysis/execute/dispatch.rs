@@ -172,8 +172,20 @@ impl super::Study {
     }
 
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
+    ///
+    /// CoDetermined tier-closure is generalized adjustment + AIPW, not `general.id`.
+    /// A same-tier bidirected clique must not kick a licensed AIPW study onto the
+    /// functional-effect identifier.
     pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_ADMG_ESTIMATOR_ID)
+        if self
+            .tiered
+            .as_ref()
+            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+        {
+            self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
+        } else {
+            self.resolve_id_est_pair(DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_ADMG_ESTIMATOR_ID)
+        }
     }
 
     /// Resolve identifier/estimator for ConditionalEffect.

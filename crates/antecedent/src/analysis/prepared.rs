@@ -466,6 +466,12 @@ impl PreparedStudy {
         self.score_table.as_ref()
     }
 
+    /// Shared batch design attached when this plan was prepared inside a batch.
+    #[must_use]
+    pub fn shared_design(&self) -> Option<&super::batch::SharedBatchDesign> {
+        self.analysis.shared_batch_design.as_deref()
+    }
+
     /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
     ///
     /// `weights` must align with the score-table complete-case rows.
@@ -488,13 +494,18 @@ impl PreparedStudy {
             message: "retarget requires a prepared score table on AverageEffect or \
                       discrete joint InterventionResponse",
         })?;
-        let dag = self.analysis.graph.as_dag();
+        let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
+            .analysis
+            .graph
+            .as_dag()
+            .map(|g| g as _)
+            .or_else(|| self.analysis.graph.as_admg().map(|g| g as _));
         let treatment = score_table_treatment_col(&self.analysis, table);
         let (out, overlap_failed) = antecedent_estimate::retarget(
             table,
             weights,
             depends_on,
-            dag,
+            graph,
             treatment.as_deref(),
             None,
         )?;
@@ -529,8 +540,9 @@ impl PreparedStudy {
             t.len()
         };
         let (ate, se) = match &self.analysis.query {
-            CausalQuery::AverageEffect(_) if n_thresholds > 1 => (f64::NAN, f64::NAN),
-            CausalQuery::Response(_) if n_thresholds > 1 => (f64::NAN, f64::NAN),
+            CausalQuery::AverageEffect(_) | CausalQuery::Response(_) if n_thresholds > 1 => {
+                (f64::NAN, f64::NAN)
+            }
             CausalQuery::AverageEffect(_) => {
                 let c = out
                     .contrast
@@ -717,7 +729,11 @@ impl PreparedStudy {
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         let click_scores = click_analysis.prepare_score_table(ctx)?;
-        overlay_prepared_score_functional(&self.analysis.query, click_scores.as_ref(), &mut result)?;
+        overlay_prepared_score_functional(
+            &self.analysis.query,
+            click_scores.as_ref(),
+            &mut result,
+        )?;
         Ok(result)
     }
 
@@ -1445,6 +1461,8 @@ impl Study {
         let DataInput::Tabular(data) = &self.data else {
             return Ok(None);
         };
+        // Unknown is two canonical sets / GraphDependent / no single Z.
+        // One score table would collapse the envelope; retarget refuses.
         if self
             .tiered
             .as_ref()
@@ -1486,7 +1504,16 @@ impl Study {
                         message: "prepared AIPW scores require iid inference without propensity trimming",
                     });
                 }
-                let problem = est.prepare(data, &cache.estimand, query)?;
+                let mut estimand = cache.estimand.clone();
+                if estimand.method.as_ref().starts_with("generalized.adjustment")
+                    || estimand.method.as_ref().starts_with("tiered.")
+                {
+                    estimand.method = Arc::from("backdoor.adjustment");
+                }
+                let mut problem = est.prepare(data, &estimand, query)?;
+                if let Some(shared) = self.shared_batch_design.as_ref() {
+                    shared.apply_to_propensity(&mut problem)?;
+                }
                 let table = crossfit_binary_scores(
                     &problem,
                     query,
@@ -1518,13 +1545,51 @@ impl Study {
                 let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
                     antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
                 });
-                let table = est.fit_scores(
+                let (fold_ids, design) = match self.shared_batch_design.as_ref() {
+                    Some(shared) => {
+                        let mut ids: Vec<_> = treatments
+                            .iter()
+                            .copied()
+                            .chain(std::iter::once(*outcome))
+                            .chain(cache.estimand.adjustment_set.iter().copied())
+                            .collect();
+                        if let Some((variable, _)) = self.continuous_cell.as_ref() {
+                            ids.push(*variable);
+                        }
+                        let ids = data.complete_case_mask(&ids);
+                        let row_index = match ids {
+                            Ok(mask) => mask
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(i, &keep)| {
+                                    keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
+                                })
+                                .collect::<Vec<_>>(),
+                            Err(_) => Vec::new(),
+                        };
+                        let folds = if row_index.is_empty() {
+                            None
+                        } else {
+                            Some(shared.folds_for(&row_index)?)
+                        };
+                        let design = if row_index.is_empty() {
+                            None
+                        } else {
+                            shared.design_for(&cache.estimand.adjustment_set, &row_index)?
+                        };
+                        (folds, design)
+                    }
+                    None => (None, None),
+                };
+                let table = est.fit_scores_with_assignment(
                     data,
                     &treatments,
                     *outcome,
                     &cache.estimand.adjustment_set,
                     &query.outcome_functional,
                     continuous,
+                    fold_ids.as_deref(),
+                    design.as_deref(),
                 )?;
                 Ok(Some(table))
             }
@@ -1576,7 +1641,9 @@ fn overlay_prepared_score_functional(
     };
     if !matches!(
         functional,
-        OutcomeFunctional::Exceedance(_) | OutcomeFunctional::ExceedanceGrid(_)
+        OutcomeFunctional::Exceedance(_)
+            | OutcomeFunctional::ExceedanceGrid(_)
+            | OutcomeFunctional::Quantile(_)
     ) {
         return Ok(());
     }

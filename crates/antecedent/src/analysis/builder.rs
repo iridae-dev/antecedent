@@ -271,6 +271,7 @@ pub struct StudyBuilder {
 impl std::fmt::Debug for StudyBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StudyBuilder")
+            .field("continuous_cell", &self.continuous_cell)
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
@@ -777,10 +778,7 @@ impl StudyBuilder {
                             && graph_class == GraphClass::Dag
                     }
                     CausalQuery::ConditionalEffect(_) => {
-                        matches!(
-                            graph_class,
-                            GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
-                        )
+                        matches!(graph_class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag)
                     }
                     _ => false,
                 };
@@ -911,6 +909,7 @@ impl StudyBuilder {
             dbn_posterior_identification_cache: None,
             tiered: self.tiered,
             continuous_cell: self.continuous_cell,
+            shared_batch_design: None,
         })
     }
 }

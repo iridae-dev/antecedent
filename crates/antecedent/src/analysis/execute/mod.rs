@@ -36,7 +36,8 @@ pub(super) use antecedent_estimate::{
     TemporalResponseEstimator, aggregate_effect_envelope, nonidentified_with_prior,
 };
 pub(super) use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
+    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, ExprNode, IdentifiedEstimand,
+    OutcomeExprId,
 };
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
 pub(super) use antecedent_identify::{
@@ -168,11 +169,14 @@ pub struct Study {
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Optional coarsened continuous coordinate for cell-AIPW.
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
+    /// Shared fold assignment / covariate design when this study is part of a batch.
+    pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
 }
 
 impl std::fmt::Debug for Study {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Study")
+            .field("continuous_cell", &self.continuous_cell)
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
@@ -217,6 +221,7 @@ impl std::fmt::Debug for Study {
                 "dbn_posterior_identification_cache_is_some",
                 &self.dbn_posterior_identification_cache.is_some(),
             )
+            .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
             .finish()
     }
 }
