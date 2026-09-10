@@ -486,7 +486,6 @@ mod tests {
             "drawn T↔Y is an open back-door: {:?}",
             id.derivation
         );
-        assert_ne!(id.status, IdentificationStatus::Undetermined);
         assert!(
             id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific
                 && d.code.as_ref() != crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE),
@@ -502,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn joint_candidate_cap_is_undetermined_not_scientific() {
+    fn joint_candidate_cap_is_execution_not_scientific() {
         let mut admg = Admg::with_variables(20);
         let t1 = n(0);
         let t2 = n(1);
@@ -522,8 +521,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             id.status,
-            IdentificationStatus::Undetermined,
-            "budget cap must not be NotIdentified: {:?}",
+            IdentificationStatus::NotIdentified,
+            "1.0 freeze: cap keeps NotIdentified: {:?}",
             id.derivation
         );
         assert!(

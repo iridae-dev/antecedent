@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
+use crate::container::{section_descriptor, ArtifactManifest, EncodedArtifact, SectionBytes};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
@@ -110,7 +110,6 @@ fn validate_posterior_meta(
             | "IdentifiedUnderPriorRestrictions"
             | "PartiallyIdentified"
             | "GraphDependent"
-            | "Undetermined"
             | "NotIdentified"
     ) {
         return Err(IoError::Convert(format!(

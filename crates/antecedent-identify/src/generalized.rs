@@ -13,12 +13,13 @@
 //! by increasing set size and stops at the first valid set (minimal-first). Completions
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
 //! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
-//! folded into unidentified mass as [`IdentificationStatus::Undetermined`] (enumeration
-//! was never attempted, so it can't be proven identified or not). That is not
-//! [`IdentificationStatus::NotIdentified`]. It is additionally counted in
-//! [`IdentificationEnvelope::truncated_completions`] and tagged with
-//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], so a budget miss stays distinct from a
-//! proven non-identifiable completion.
+//! folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
+//! (the 1.0 public surface; there is no third identification outcome). Enumeration
+//! was never attempted, so this is not a scientific open-back-door: the result
+//! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
+//! counted in [`IdentificationEnvelope::truncated_completions`]. A completed
+//! search that finds no set is also [`IdentificationStatus::NotIdentified`], but
+//! with a Scientific diagnostic.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -58,11 +59,11 @@ use crate::result::{
 
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
-/// searching exhaustively and finding no valid set. A cap is
-/// [`IdentificationStatus::Undetermined`] with an execution diagnostic, not
-/// [`IdentificationStatus::NotIdentified`] and not a scientific open-back-door.
-/// Both cases still fold into [`IdentificationEnvelope::unidentified_weight`]
-/// (unidentified mass is preserved either way); [`IdentificationEnvelope::truncated_completions`]
+/// searching exhaustively and finding no valid set. A cap keeps
+/// [`IdentificationStatus::NotIdentified`] for the 1.0 freeze and is an
+/// Execution diagnostic, not a scientific open-back-door. Both cases still fold
+/// into [`IdentificationEnvelope::unidentified_weight`] (unidentified mass is
+/// preserved either way); [`IdentificationEnvelope::truncated_completions`]
 /// counts only this diagnostic.
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
@@ -820,21 +821,18 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Undetermined result for a completion whose candidate set exceeded `max_candidates`
-/// before enumeration could even start. Distinguished from a genuinely-searched, genuinely-
-/// blocked completion via [`IdentificationStatus::Undetermined`] and
-/// [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment).
+/// Execution-capped result: candidate family exceeded `max_candidates` before
+/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`]
+/// (1.0 freeze). Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
+/// [`DiagnosticKind::Execution`], not a scientific open-back-door.
 pub(crate) fn capped_completion_result(
     query: CausalQuery,
     n_candidates: usize,
     max_candidates: usize,
 ) -> IdentificationResult {
-    let mut derivation = DerivationTrace::default();
-    derivation.push(
-        "generalized.adjustment",
-        "generalized adjustment candidate set exceeds enumeration limit",
-    );
-    let diagnostic = Diagnostic::new(
+    let mut result =
+        not_identified(query, "generalized adjustment candidate set exceeds enumeration limit");
+    result.diagnostics.push(Diagnostic::new(
         CAPPED_COMPLETION_DIAGNOSTIC_CODE,
         DiagnosticKind::Execution,
         DiagnosticSeverity::Warning,
@@ -844,18 +842,8 @@ pub(crate) fn capped_completion_result(
              identifiability could not be determined (not the same as a proven non-\
              identifiable completion)"
         ),
-    );
-    IdentificationResult::from_parts(
-        IdentificationStatus::Undetermined,
-        query,
-        Vec::new(),
-        CausalExprArena::new(),
-        derivation,
-        AssumptionSet::default(),
-        vec![diagnostic],
-        IdentificationPerformanceRecord::default(),
-        None,
-    )
+    ));
+    result
 }
 
 pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
@@ -933,13 +921,11 @@ mod tests {
         let env = id.identify_cpdag_envelope(&cpdag, &conditional).unwrap();
         assert_eq!(env.identified_weight.0, 0.0);
         assert_eq!(env.unidentified_weight.0, 1.0);
-        assert!(
-            env.cases[0]
-                .result
-                .diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified")
-        );
+        assert!(env.cases[0]
+            .result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified"));
     }
 
     #[test]
@@ -1078,17 +1064,25 @@ mod tests {
         );
         assert_eq!(
             capped_env.cases[0].result.status,
-            IdentificationStatus::Undetermined,
-            "cap is undetermined, not proven non-ID"
+            IdentificationStatus::NotIdentified,
+            "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic"
         );
-        assert_eq!(capped_env.status, IdentificationStatus::Undetermined);
+        assert_eq!(capped_env.status, IdentificationStatus::NotIdentified);
         assert!(
-            capped_env.cases[0]
+            capped_env.cases[0].result.diagnostics.iter().any(|d| {
+                d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                    && d.kind == DiagnosticKind::Execution
+            }),
+            "capped case should carry the capped-completion execution diagnostic"
+        );
+        assert!(
+            !capped_env.cases[0]
                 .result
                 .diagnostics
                 .iter()
-                .any(|d| d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE),
-            "capped case should carry the capped-completion diagnostic"
+                .any(|d| d.kind == DiagnosticKind::Scientific),
+            "cap must not be stamped scientific: {:?}",
+            capped_env.cases[0].result.diagnostics
         );
 
         // Case B: bare T ↔ Y (unmeasured confounding, no other variables). The search is
@@ -1151,11 +1145,10 @@ mod tests {
         assert_eq!(env.cases.len(), 2);
         assert!(env.unidentified_weight.0 == 0.0);
         assert_eq!(env.identified_weight.0, 2.0);
-        assert!(
-            env.cases
-                .iter()
-                .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified })
-        );
+        assert!(env
+            .cases
+            .iter()
+            .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified }));
     }
 
     #[test]

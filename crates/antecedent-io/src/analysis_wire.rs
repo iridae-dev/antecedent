@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
-use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
-use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
+use crate::expr_wire::{expr_arena_from_wire, expr_arena_to_wire, ExprArenaWire};
+use crate::query_wire::{causal_query_from_wire, causal_query_to_wire, CausalQueryWire};
 use crate::trace::{
-    AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
+    assumptions_from_wire, assumptions_to_wire, AssumptionRecordWire, DerivationStepWire,
 };
 
 /// Effect estimate wire.
@@ -697,7 +697,6 @@ pub fn identification_to_wire(
             }
             IdentificationStatus::PartiallyIdentified => "partially_identified".into(),
             IdentificationStatus::GraphDependent => "graph_dependent".into(),
-            IdentificationStatus::Undetermined => "undetermined".into(),
             IdentificationStatus::NotIdentified => "not_identified".into(),
         },
         query: causal_query_to_wire(&r.query)?,
@@ -749,7 +748,6 @@ pub fn identification_from_wire(
         }
         "partially_identified" => IdentificationStatus::PartiallyIdentified,
         "graph_dependent" => IdentificationStatus::GraphDependent,
-        "undetermined" => IdentificationStatus::Undetermined,
         "not_identified" => IdentificationStatus::NotIdentified,
         other => {
             return Err(IoError::Convert(format!("unknown IdentificationStatus `{other}`")));
@@ -916,6 +914,15 @@ mod tests {
             let back = identification_from_wire(&wire).unwrap();
             assert_eq!(back.status, status);
         }
+    }
+
+    #[test]
+    fn undetermined_is_not_a_wire_status() {
+        let mut wire =
+            identification_to_wire(&empty_id_result(IdentificationStatus::NotIdentified)).unwrap();
+        wire.status = "undetermined".into();
+        let err = identification_from_wire(&wire).unwrap_err();
+        assert!(err.to_string().contains("unknown IdentificationStatus `undetermined`"), "{err}");
     }
 
     fn descriptive_assumption() -> AssumptionRecordWire {
