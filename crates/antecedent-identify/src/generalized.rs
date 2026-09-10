@@ -921,11 +921,13 @@ mod tests {
         let env = id.identify_cpdag_envelope(&cpdag, &conditional).unwrap();
         assert_eq!(env.identified_weight.0, 0.0);
         assert_eq!(env.unidentified_weight.0, 1.0);
-        assert!(env.cases[0]
-            .result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified"));
+        assert!(
+            env.cases[0]
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified")
+        );
     }
 
     #[test]
@@ -1145,10 +1147,11 @@ mod tests {
         assert_eq!(env.cases.len(), 2);
         assert!(env.unidentified_weight.0 == 0.0);
         assert_eq!(env.identified_weight.0, 2.0);
-        assert!(env
-            .cases
-            .iter()
-            .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified }));
+        assert!(
+            env.cases
+                .iter()
+                .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified })
+        );
     }
 
     #[test]

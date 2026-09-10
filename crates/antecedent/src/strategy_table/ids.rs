@@ -1027,7 +1027,7 @@ pub fn validate_path_specific_pair(
 
 #[cfg(test)]
 mod names {
-    use super::{EstimatorId, IdentifierId, ESTIMATOR_NAMES, IDENTIFIER_NAMES};
+    use super::{ESTIMATOR_NAMES, EstimatorId, IDENTIFIER_NAMES, IdentifierId};
 
     #[test]
     fn identifier_names_match_all() {

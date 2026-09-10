@@ -17,10 +17,10 @@ use antecedent_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::analysis_wire::{diagnostic_from_wire, diagnostic_to_wire, DiagnosticWire};
+use crate::analysis_wire::{DiagnosticWire, diagnostic_from_wire, diagnostic_to_wire};
 use crate::error::IoError;
 use crate::query_wire::{InterventionWire, TargetPopulationWire};
-use crate::trace::{assumptions_from_wire, assumptions_to_wire, AssumptionRecordWire};
+use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
 
 /// Evaluation grid on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
