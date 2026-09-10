@@ -8,9 +8,18 @@ import pytest
 pytest.importorskip("antecedent")
 
 import antecedent
+from antecedent.errors import CausalIdentifyError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.handoff import econml
-from antecedent.query import Exceedance, ExceedanceGrid, Mean, Quantile, coerce_outcome_functional
+from antecedent.intervention import Set
+from antecedent.query import (
+    Exceedance,
+    ExceedanceGrid,
+    InterventionResponse,
+    Mean,
+    Quantile,
+    coerce_outcome_functional,
+)
 
 
 def _binary_confounded(n: int = 400, seed: int = 15):
@@ -496,6 +505,56 @@ def test_prepared_retarget_codetermined_exceedance_grid():
     ).retarget(w_u, ["u"])
     assert peer.estimate.exceedance_cdf is not None
     assert len(peer.estimate.exceedance_cdf) == 6
+
+
+def test_codetermined_joint_cells_are_cell_aipw():
+    rng = np.random.default_rng(17)
+    n = 2000
+    z = rng.normal(size=n)
+    latent = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z + 0.7 * latent)))).astype(
+        float
+    )
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z + 0.65 * latent)))).astype(
+        float
+    )
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "t1": t1, "t2": t2, "y": y}
+    background = TieredBackground(
+        tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.CODETERMINED
+    )
+    query = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
+    result = antecedent.analyze(
+        data,
+        graph=background,
+        query=query,
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    assert np.isfinite(result.estimate)
+    assert result.uncertainty.standard_error is not None
+    assert np.isfinite(result.uncertainty.standard_error)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        query=query,
+        graph=background,
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    click = prepared.estimate(data)
+    assert np.isfinite(click.estimate)
+    unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
+    with pytest.raises((CausalUnsupportedError, CausalIdentifyError), match="no single ADMG"):
+        antecedent.analyze(
+            data,
+            graph=unknown,
+            query=query,
+            estimator="cell.aipw",
+            refute="none",
+            bootstrap=0,
+        )
 
 
 def test_unrecorded_batch_has_no_invented_winner():
