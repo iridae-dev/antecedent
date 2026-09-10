@@ -37,6 +37,8 @@ nav:
   - Transport and interference: transport-interference.md
   - Comparison: comparison.md
   - Release notes:
+      - "1.5.0": release-notes/v1.5.0.md
+      - "1.5 evidence and limits": v1.5-evidence.md
       - "1.4.0": release-notes/v1.4.0.md
       - "1.4 evidence and limits": v1.4-evidence.md
       - "1.3.0": release-notes/v1.3.0.md

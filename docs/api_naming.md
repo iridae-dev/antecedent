@@ -112,7 +112,11 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
 | Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
-| EconML handoff | — | `antecedent.handoff.econml(result)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
+| EconML handoff | — | `antecedent.handoff.econml(result, modifiers=…, target_weights=…, outcome_functional=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
+| Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
+| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a DAG | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze()` has no retarget handle and does not always return scores |
+| Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
+| Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
 | Continuous response | `ResponseQuery` / `ResponseFunctional` | `ResponseCurve` / `AverageDerivative` / `PointDerivative` / `Elasticity` / `SemiElasticity` |
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
@@ -132,7 +136,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.accepted(...)` / `.asserted(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
 | Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
-| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued response queries license validation `none`, so requesting a scalar suite raises `CausalUnsupportedError`. |
+| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` license validation `none`. Scalar Dag `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
 | Tabular data | `TabularData::from_f64_columns` | `dict[str, array]` / pandas / Arrow |
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |

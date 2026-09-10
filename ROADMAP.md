@@ -226,8 +226,9 @@ graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
 lag-aligned temporal adjustment designs, including all joint targets.
 Joint interventions certify a common adjustment set for all targets per
 completion; they do not inherit the first target's ATE certificate.
-See the [evidence ledger](docs/v1.4-evidence.md). Multi-atom Frequentist
-uncertainty is unavailable. The temporal PAG mixed-graph implementation is verified, with finite-window
+See the [evidence ledger](docs/v1.4-evidence.md). Static multi-atom
+Frequentist uncertainty moves to 1.5; temporal / DBN stays unavailable until
+1.9. The temporal PAG mixed-graph implementation is verified, with finite-window
 audit limits explicit.
 Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
 mixing stay 1.7.
@@ -263,8 +264,9 @@ coordinates, and verify all advertised temporal validation modes.
 
 ## 1.5 — Local, distributional, joint
 
-Planned; inserted ahead of the temporal and Bayesian minors, which move to
-1.6–1.10.
+Implemented on the `1.5.0` branch. See the
+[evidence ledger](docs/v1.5-evidence.md). The temporal and Bayesian minors
+remain 1.6–1.10.
 
 The consumer question is inverse forecasting: which conditions move a target
 population toward the upper tail of an outcome distribution. The licensed

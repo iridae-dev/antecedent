@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### In progress
+
+1.5 execution contracts are implemented: retargetable AIPW/cell-AIPW scores,
+exceedance grids mixed on class-aware ConditionalEffect envelopes, joint cell
+estimation, static shared-row IF covariance, `PreparedBatch`, estimate-artifact
+candidate-selection provenance, and licensed Dag `InterventionResponse`
+cheap/full on the scalar cell mean. Temporal/DBN multi-atom Frequentist
+uncertainty stays 1.9.
+
+## [1.4.0] — 2026-09-10
+
 ### Added
 
 - Class-preserving `AverageEffect` on explicit/accepted `Cpdag` (Frequentist
