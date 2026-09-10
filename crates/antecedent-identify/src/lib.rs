@@ -62,7 +62,9 @@ pub use envelope::{
 };
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
-pub use generalized::{GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier};
+pub use generalized::{
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+};
 pub use hedge::HedgeCertificate;
 pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;

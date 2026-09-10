@@ -121,6 +121,7 @@ pub fn encode_causal_posterior_with_payload(
             }
             IdentificationStatus::PartiallyIdentified => "PartiallyIdentified".into(),
             IdentificationStatus::GraphDependent => "GraphDependent".into(),
+            IdentificationStatus::Undetermined => "Undetermined".into(),
             IdentificationStatus::NotIdentified => "NotIdentified".into(),
         },
         unidentified_mass: posterior.unidentified_mass,

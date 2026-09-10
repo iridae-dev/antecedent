@@ -1172,11 +1172,8 @@ impl Study {
                             });
                         }
                     };
-                    let identification = antecedent_identify::identify_tiered_joint(
-                        background,
-                        schema,
-                        query,
-                    )?;
+                    let identification =
+                        antecedent_identify::identify_tiered_joint(background, schema, query)?;
                     let estimand = identification.estimands.first().cloned().ok_or_else(|| {
                         CausalError::Unsupported {
                             message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
@@ -1740,9 +1737,10 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Response(q)) if !q.is_temporal() => {
-            let codetermined = analysis.tiered.as_ref().is_some_and(|b| {
-                b.within_tier == antecedent_graph::WithinTier::CoDetermined
-            });
+            let codetermined = analysis
+                .tiered
+                .as_ref()
+                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined);
             if !matches!(
                 analysis.graph.class(),
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag

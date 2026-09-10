@@ -645,7 +645,8 @@ fn validate_response_result(
             crate::IdentificationStatusWire::GraphDependent,
             crate::ResponseIdentificationWire::GraphDependent(_)
         ) | (
-            crate::IdentificationStatusWire::NotIdentified,
+            crate::IdentificationStatusWire::Undetermined
+                | crate::IdentificationStatusWire::NotIdentified,
             crate::ResponseIdentificationWire::Unidentified { .. }
         )
     );

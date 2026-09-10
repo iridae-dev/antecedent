@@ -73,6 +73,7 @@ impl<G> IdentificationEnvelope<G> {
         let mut unidentified = 0.0;
         let mut all_id = true;
         let mut any_id = false;
+        let mut any_undetermined = false;
         let mut any_parametric = false;
         let mut any_prior_restricted = false;
         let mut any_partial = false;
@@ -106,6 +107,11 @@ impl<G> IdentificationEnvelope<G> {
                         }
                     }
                 }
+                IdentificationStatus::Undetermined => {
+                    all_id = false;
+                    any_undetermined = true;
+                    unidentified += c.weight.0;
+                }
                 IdentificationStatus::NotIdentified | IdentificationStatus::GraphDependent => {
                     all_id = false;
                     unidentified += c.weight.0;
@@ -128,6 +134,8 @@ impl<G> IdentificationEnvelope<G> {
             IdentificationStatus::GraphDependent
         } else if any_id {
             IdentificationStatus::PartiallyIdentified
+        } else if any_undetermined {
+            IdentificationStatus::Undetermined
         } else {
             IdentificationStatus::NotIdentified
         };
@@ -207,7 +215,9 @@ fn collect_critical_features<G>(
     let mut unidentified_cases = 0u64;
     for c in cases {
         match c.result.status {
-            IdentificationStatus::NotIdentified | IdentificationStatus::GraphDependent => {
+            IdentificationStatus::NotIdentified
+            | IdentificationStatus::Undetermined
+            | IdentificationStatus::GraphDependent => {
                 unidentified_cases += 1;
                 for step in &c.result.derivation.steps {
                     if step.rule.as_ref().contains("not")

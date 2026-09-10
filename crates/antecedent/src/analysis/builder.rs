@@ -757,22 +757,24 @@ impl StudyBuilder {
                 message: antecedent_estimate::POINT_CDE_UNLICENSED.into(),
             });
         }
-        let codetermined_joint = self.tiered.as_ref().is_some_and(|b| {
-            b.within_tier == antecedent_graph::WithinTier::CoDetermined
-        }) && matches!(
-            &query,
-            CausalQuery::Response(q)
-                if q.temporal.is_none()
-                    && matches!(
-                        &q.functional,
-                        antecedent_core::ResponseFunctional::InterventionResponse {
-                            interventions,
-                            ..
-                        } if interventions.len() >= 2
-                    )
-        );
-        let cell_aipw = selected == Some(EstimatorId::CellAipw)
-            || (selected.is_none() && codetermined_joint);
+        let codetermined_joint = self
+            .tiered
+            .as_ref()
+            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+            && matches!(
+                &query,
+                CausalQuery::Response(q)
+                    if q.temporal.is_none()
+                        && matches!(
+                            &q.functional,
+                            antecedent_core::ResponseFunctional::InterventionResponse {
+                                interventions,
+                                ..
+                            } if interventions.len() >= 2
+                        )
+            );
+        let cell_aipw =
+            selected == Some(EstimatorId::CellAipw) || (selected.is_none() && codetermined_joint);
         if cell_aipw {
             if let Some(background) = &self.tiered {
                 let CausalQuery::Response(response) = &query else {
@@ -927,9 +929,10 @@ impl StudyBuilder {
             }
         }
         let support_status = if cell_aipw
-            && self.tiered.as_ref().is_some_and(|b| {
-                b.within_tier == antecedent_graph::WithinTier::CoDetermined
-            })
+            && self
+                .tiered
+                .as_ref()
+                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
             // Off the Admg×InterventionResponse matrix cell: CoDetermined is a
             // known closure ADMG, not a bare Admg response plug-in.

@@ -282,11 +282,8 @@ impl super::Study {
         }
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = antecedent_identify::identify_tiered_joint(
-                    background,
-                    data.schema(),
-                    query,
-                )?;
+                let identification =
+                    antecedent_identify::identify_tiered_joint(background, data.schema(), query)?;
                 let estimand = identification.estimands.first().cloned().ok_or_else(|| {
                     CausalError::Unsupported {
                         message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),

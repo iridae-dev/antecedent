@@ -110,6 +110,7 @@ fn validate_posterior_meta(
             | "IdentifiedUnderPriorRestrictions"
             | "PartiallyIdentified"
             | "GraphDependent"
+            | "Undetermined"
             | "NotIdentified"
     ) {
         return Err(IoError::Convert(format!(

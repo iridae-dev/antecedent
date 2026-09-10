@@ -104,21 +104,49 @@ impl TieredBackground {
         treatment: VariableId,
         outcome: VariableId,
     ) -> Result<Arc<[VariableId]>, GraphError> {
-        let k = self.tier_of(treatment).ok_or(GraphError::InvalidEndpoints {
-            message: "treatment is not in a declared tier",
-        })?;
+        self.tier_closure_set(&[treatment], outcome)
+    }
+
+    /// Closure of a treatment *set*: all nodes in tiers `≤ k` except the
+    /// treatments, where `k` is the latest treatment tier. `O(p)`.
+    ///
+    /// # Errors
+    ///
+    /// Empty set, a treatment or outcome missing from the tiers, a duplicate
+    /// treatment, or outcome not strictly after every treatment.
+    pub fn tier_closure_set(
+        &self,
+        treatments: &[VariableId],
+        outcome: VariableId,
+    ) -> Result<Arc<[VariableId]>, GraphError> {
+        if treatments.is_empty() {
+            return Err(GraphError::InvalidEndpoints { message: "treatment set is empty" });
+        }
         let y = self
             .tier_of(outcome)
             .ok_or(GraphError::InvalidEndpoints { message: "outcome is not in a declared tier" })?;
-        if y <= k {
-            return Err(GraphError::InvalidEndpoints {
-                message: "outcome must sit in a later tier than treatment",
-            });
+        let mut k_max = 0usize;
+        let mut seen = std::collections::BTreeSet::new();
+        for &treatment in treatments {
+            let k = self.tier_of(treatment).ok_or(GraphError::InvalidEndpoints {
+                message: "treatment is not in a declared tier",
+            })?;
+            if !seen.insert(treatment) {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "treatment set must be distinct",
+                });
+            }
+            if y <= k {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "outcome must sit in a later tier than every treatment",
+                });
+            }
+            k_max = k_max.max(k);
         }
         let mut set = Vec::new();
-        for tier in self.tiers.iter().take(k + 1) {
+        for tier in self.tiers.iter().take(k_max + 1) {
             for &v in tier.iter() {
-                if v != treatment {
+                if !seen.contains(&v) {
                     set.push(v);
                 }
             }
@@ -277,6 +305,28 @@ mod tests {
         assert!(!set.iter().any(|&v| v == t));
         assert!(set.iter().any(|&v| v == s.id_of("era").unwrap()));
         assert!(set.iter().any(|&v| v == s.id_of("design").unwrap()));
+        assert!(!set.iter().any(|&v| v == s.id_of("m").unwrap()));
+    }
+
+    #[test]
+    fn joint_closure_excludes_every_treatment() {
+        let s = schema();
+        let bg = TieredBackground::from_named(
+            &s,
+            &[vec!["era"], vec!["scale"], vec!["design", "t"], vec!["m"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let set = bg
+            .tier_closure_set(
+                &[s.id_of("design").unwrap(), s.id_of("t").unwrap()],
+                s.id_of("y").unwrap(),
+            )
+            .unwrap();
+        assert!(!set.iter().any(|&v| v == s.id_of("design").unwrap()));
+        assert!(!set.iter().any(|&v| v == s.id_of("t").unwrap()));
+        assert!(set.iter().any(|&v| v == s.id_of("era").unwrap()));
+        assert!(set.iter().any(|&v| v == s.id_of("scale").unwrap()));
         assert!(!set.iter().any(|&v| v == s.id_of("m").unwrap()));
     }
 
