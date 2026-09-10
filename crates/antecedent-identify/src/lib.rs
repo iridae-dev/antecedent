@@ -80,7 +80,10 @@ pub use result::{
 pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
-pub use tiered::{NO_LATENT_TO_OUTCOME, identify_tiered, identify_tiered_envelope};
+pub use tiered::{
+    NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, TIERED_JOINT_UNKNOWN_REFUSE,
+    identify_tiered, identify_tiered_envelope, identify_tiered_joint,
+};
 pub use transport::{
     NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     TransportIdentification, TransportIdentifier,
