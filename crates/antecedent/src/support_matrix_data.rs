@@ -187,7 +187,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["graph_posterior"]),
         inferences: Some(&["Frequentist"]),
         validations: None,
-        reason: "Frequentist DBN-posterior mixing is 1.6 work. Temporal graph-posterior cells still require the Bayesian envelope combiner (`execute_dbn_posterior_bayesian`).",
+        reason: "Frequentist DBN-posterior mixing is 1.7 work. Temporal graph-posterior cells still require the Bayesian envelope combiner (`execute_dbn_posterior_bayesian`).",
     },
     NaRule {
         queries: Some(&["AverageEffect"]),
@@ -267,7 +267,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit", "accepted"]),
         inferences: Some(&["Bayesian"]),
         validations: None,
-        reason: "Class-aware TemporalCpdag/TemporalPag pulse is the Frequentist generalized-adjustment envelope; a Bayesian envelope combiner for temporal incomplete classes is 1.6 work.",
+        reason: "Class-aware TemporalCpdag/TemporalPag pulse is the Frequentist generalized-adjustment envelope; a Bayesian envelope combiner for temporal incomplete classes is 1.7 work.",
     },
     NaRule {
         queries: Some(&["PulseEffect", "SustainedEffect"]),

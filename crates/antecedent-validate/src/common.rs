@@ -868,6 +868,45 @@ pub(crate) fn fill_gaussian(out: &mut [f64], ctx: &ExecutionContext, stream_id: 
     antecedent_kernels::fill_standard_normal(&mut rng, out);
 }
 
+/// Compile the actual lag-aligned complete cases used by temporal diagnostics.
+pub(crate) fn temporal_diagnostic_design(
+    problem: &RefutationProblem<'_>,
+) -> Result<antecedent_estimate::PreparedEstimationProblem, ValidationError> {
+    let temporal = problem.temporal.ok_or(ValidationError::NotApplicable {
+        message: "temporal diagnostic requires temporal context",
+    })?;
+    let estimator = antecedent_estimate::TemporalLinearAdjustment::new();
+    let prep = if let Some(panel) = temporal.panel {
+        estimator
+            .prepare_panel(
+                panel,
+                problem.estimand,
+                temporal.temporal_query,
+                temporal.indexer,
+                temporal.split,
+                temporal.kernel_policy,
+            )?
+            .0
+    } else {
+        let time_index = temporal.time_index.ok_or(ValidationError::NotApplicable {
+            message: "temporal e-value requires a series time index",
+        })?;
+        let series = antecedent_data::TimeSeriesData::try_new(
+            problem.data.storage().clone(),
+            time_index.clone(),
+        )?;
+        estimator.prepare(
+            &series,
+            problem.estimand,
+            temporal.temporal_query,
+            temporal.indexer,
+            temporal.split,
+            temporal.kernel_policy,
+        )?
+    };
+    Ok(prep)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

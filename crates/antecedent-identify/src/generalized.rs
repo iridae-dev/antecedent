@@ -123,13 +123,9 @@ impl GeneralizedAdjustmentIdentifier {
             }
         };
 
-        let mut sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
-            .map_err(IdentificationError::from)?;
-        let mut cases = Vec::new();
-        let w = ProbabilityMass(self.config.per_completion_weight);
-        for completion in sampler.by_ref() {
+        self.pag_envelope_with(pag, |completion| {
             let mut result = identify_on_mag_completion(
-                &completion.graph,
+                completion,
                 t,
                 y,
                 t_d,
@@ -138,14 +134,37 @@ impl GeneralizedAdjustmentIdentifier {
                 control.clone(),
                 self.config.max_candidates,
             )?;
-            if let Some(admg) = mag_to_admg(&completion.graph) {
+            result.query = CausalQuery::AverageEffect(query.clone());
+            if let (Some(admg), Some(cut)) =
+                (mag_to_admg(completion), proper_backdoor_mag(completion, t_d, y_d))
+            {
                 validate_conditional_adjustment(
                     &admg,
-                    completion.graph.nodes(),
+                    &cut,
+                    completion.nodes(),
                     query,
                     &mut result,
+                    &crate::backdoor::AdjustmentSearchConfig {
+                        max_candidates: self.config.max_candidates,
+                        ..Default::default()
+                    },
                 )?;
             }
+            Ok(result)
+        })
+    }
+
+    pub(crate) fn pag_envelope_with(
+        &self,
+        pag: &Pag,
+        mut identify: impl FnMut(&Pag) -> Result<IdentificationResult, IdentificationError>,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        let mut sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
+            .map_err(IdentificationError::from)?;
+        let mut cases = Vec::new();
+        let w = ProbabilityMass(self.config.per_completion_weight);
+        for completion in sampler.by_ref() {
+            let result = identify(&completion.graph)?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
@@ -233,15 +252,27 @@ impl GeneralizedAdjustmentIdentifier {
             }
         }
 
-        let mut sampler = CpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
-        let mut cases = Vec::new();
-        let w = ProbabilityMass(self.config.per_completion_weight);
         let backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
         let mut workspace = IdentificationWorkspace::default();
         let cq = CausalQuery::AverageEffect(query.clone());
+        self.cpdag_envelope_with(cpdag, |graph| {
+            let prepared = backdoor.prepare(graph)?;
+            backdoor.identify(&prepared, &cq, &mut workspace)
+        })
+    }
+
+    pub(crate) fn cpdag_envelope_with(
+        &self,
+        cpdag: &Cpdag,
+        mut identify: impl FnMut(
+            &antecedent_graph::Dag,
+        ) -> Result<IdentificationResult, IdentificationError>,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        let mut sampler = CpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
+        let mut cases = Vec::new();
+        let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
-            let prepared = backdoor.prepare(&completion.graph)?;
-            let result = backdoor.identify(&prepared, &cq, &mut workspace)?;
+            let result = identify(&completion.graph)?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
@@ -304,6 +335,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
     dag: &antecedent_graph::Dag,
     query: &AverageEffectQuery,
     result: &mut IdentificationResult,
+    config: &crate::backdoor::AdjustmentSearchConfig,
 ) -> Result<(), IdentificationError> {
     if query.effect_modifiers.is_empty() {
         return Ok(());
@@ -314,7 +346,19 @@ pub(crate) fn validate_dag_conditional_adjustment(
             admg.insert_directed(from, to)?;
         }
     }
-    validate_conditional_adjustment(&admg, dag.nodes(), query, result)
+    let t = dag
+        .nodes()
+        .iter()
+        .position(|node| *node == antecedent_graph::NodeRef::Static(query.treatment))
+        .ok_or(IdentificationError::UnknownVariable { id: query.treatment })?;
+    validate_conditional_adjustment(
+        &admg,
+        &mutilate_outgoing(&admg, DenseNodeId::from_raw(t as u32)),
+        dag.nodes(),
+        query,
+        result,
+        config,
+    )
 }
 
 /// The regression conditions on Z union W. A marginal adjustment certificate
@@ -323,11 +367,13 @@ pub(crate) fn validate_dag_conditional_adjustment(
 /// not a complete conditional-ID algorithm.
 fn validate_conditional_adjustment(
     graph: &Admg,
+    mutilated: &Admg,
     nodes: &[antecedent_graph::NodeRef],
     query: &AverageEffectQuery,
     result: &mut IdentificationResult,
+    config: &crate::backdoor::AdjustmentSearchConfig,
 ) -> Result<(), IdentificationError> {
-    if query.effect_modifiers.is_empty() || result.estimands.is_empty() {
+    if query.effect_modifiers.is_empty() {
         return Ok(());
     }
     let dense = |v: VariableId| {
@@ -343,7 +389,6 @@ fn validate_conditional_adjustment(
         query.effect_modifiers.iter().copied().map(dense).collect::<Result<Vec<_>, _>>()?;
     let descendants = directed_closure(graph, &[t], false);
     let pretreatment = modifiers.iter().all(|w| *w != y && !descendants.contains(*w));
-    let mutilated = mutilate_outgoing(graph, t);
     let mut ws = DSeparationWorkspace::default();
     let mut valid = Vec::new();
     if pretreatment {
@@ -362,12 +407,55 @@ fn validate_conditional_adjustment(
             }
         }
     }
+    if valid.is_empty() && pretreatment {
+        let found =
+            constrained_conditional_set(graph, mutilated, nodes, query, &modifiers, config)?;
+        match found {
+            ConditionalSearch::Found(adjustments, examined) => {
+                for adjustment in adjustments {
+                    let (active, control) = conditional_levels(query)?;
+                    let functional = result.arena.backdoor_ate(
+                        query.treatment,
+                        query.outcome,
+                        &adjustment,
+                        active,
+                        control,
+                    );
+                    valid.push(IdentifiedEstimand::backdoor(
+                        "backdoor.adjustment",
+                        adjustment.into(),
+                        functional,
+                    ));
+                }
+                result.status = IdentificationStatus::NonparametricallyIdentified;
+                result.query = CausalQuery::AverageEffect(query.clone());
+                result.performance.candidates_examined += examined;
+                result.performance.sets_returned = valid.len() as u64;
+                result.diagnostics.retain(|d| d.code.as_ref() != CAPPED_COMPLETION_DIAGNOSTIC_CODE);
+                result.derivation.push("conditional.adjustment.search", "searched with the fixed pre-treatment modifier in every separation test; alternative joint conditioning set certified");
+                if result.required_assumptions.entries.is_empty() {
+                    result
+                        .required_assumptions
+                        .push(crate::assumptions::causal_markov("conditional.adjustment"));
+                }
+            }
+            ConditionalSearch::Capped(n) => {
+                *result = capped_completion_result(
+                    CausalQuery::AverageEffect(query.clone()),
+                    n,
+                    config.max_candidates,
+                );
+                return Ok(());
+            }
+            ConditionalSearch::Absent => {}
+        }
+    }
     if valid.is_empty() {
         *result = not_identified(
             result.query.clone(),
             "conditional adjustment not certified: modifiers must be pre-treatment and \
              Z union modifiers must block backdoor paths; marginal ATE identification \
-             alone is insufficient (no complete conditional-ID search attempted)",
+             alone is insufficient; constrained adjustment search found no set (general conditional ID not attempted)",
         );
         result.diagnostics.push(Diagnostic::new(
             "identify.conditional.adjustment_unverified",
@@ -381,7 +469,178 @@ fn validate_conditional_adjustment(
     Ok(())
 }
 
-fn identify_on_mag_completion(
+fn conditional_levels(query: &AverageEffectQuery) -> Result<(Value, Value), IdentificationError> {
+    match (&query.active, &query.control) {
+        (
+            antecedent_core::Intervention::Set { value: a, .. },
+            antecedent_core::Intervention::Set { value: c, .. },
+        ) => Ok((a.clone(), c.clone())),
+        _ => Err(IdentificationError::unsupported(
+            "conditional adjustment requires Set interventions",
+        )),
+    }
+}
+
+enum ConditionalSearch {
+    Found(Vec<Vec<VariableId>>, u64),
+    Capped(usize),
+    Absent,
+}
+
+fn constrained_conditional_set(
+    graph: &Admg,
+    cut: &Admg,
+    nodes: &[antecedent_graph::NodeRef],
+    query: &AverageEffectQuery,
+    modifiers: &[DenseNodeId],
+    config: &crate::backdoor::AdjustmentSearchConfig,
+) -> Result<ConditionalSearch, IdentificationError> {
+    let dense = |v| {
+        nodes
+            .iter()
+            .position(|node| *node == antecedent_graph::NodeRef::Static(v))
+            .map(|i| DenseNodeId::from_raw(i as u32))
+            .ok_or(IdentificationError::UnknownVariable { id: v })
+    };
+    let t = dense(query.treatment)?;
+    let y = dense(query.outcome)?;
+    let mut seeds = vec![t, y];
+    seeds.extend_from_slice(modifiers);
+    let ancestors = directed_closure(graph, &seeds, true);
+    let descendants = directed_closure(graph, &[t], false);
+    let candidates: Vec<_> = nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, node)| {
+            let antecedent_graph::NodeRef::Static(variable) = node else {
+                return None;
+            };
+            let id = DenseNodeId::from_raw(i as u32);
+            let outside_history = config.max_history_lag.is_some_and(|cap| {
+                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
+            });
+            (id != y
+                && !descendants.contains(id)
+                && ancestors.contains(id)
+                && !modifiers.contains(&id)
+                && !config.forbidden.contains(variable)
+                && !outside_history)
+                .then_some(id)
+        })
+        .collect();
+    if candidates.len() > config.max_candidates {
+        return Ok(ConditionalSearch::Capped(candidates.len()));
+    }
+    if config.max_results == 0 {
+        return Ok(ConditionalSearch::Absent);
+    }
+    let mut ws = DSeparationWorkspace::default();
+    let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
+    let mut examined = 0;
+    let sizes: Vec<_> = if config.maximal_only && !config.minimal_only {
+        (0..=candidates.len()).rev().collect()
+    } else {
+        (0..=candidates.len()).collect()
+    };
+    for size in sizes {
+        let mut error = None;
+        crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+            if config.minimal_only && found.iter().any(|old| old.iter().all(|v| z.contains(v))) {
+                return false;
+            }
+            if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
+                return false;
+            }
+            examined += 1;
+            let mut conditioned = z.to_vec();
+            conditioned.extend_from_slice(modifiers);
+            match cut.is_m_separated(t, y, &conditioned, &mut ws) {
+                Ok(true) => {
+                    found.push(z.to_vec());
+                    found.len() >= config.max_results
+                }
+                Ok(false) => false,
+                Err(e) => {
+                    error = Some(IdentificationError::from(e));
+                    true
+                }
+            }
+        });
+        if let Some(e) = error {
+            return Err(e);
+        }
+        if found.len() >= config.max_results {
+            break;
+        }
+    }
+    let mut sets: Vec<Vec<VariableId>> = found
+        .iter()
+        .map(|set| {
+            set.iter()
+                .map(|id| match nodes[id.as_usize()] {
+                    antecedent_graph::NodeRef::Static(v) => v,
+                    _ => unreachable!("static graph"),
+                })
+                .collect()
+        })
+        .collect();
+    rank_conditional_sets(&mut sets, config);
+    Ok(if sets.is_empty() {
+        ConditionalSearch::Absent
+    } else {
+        ConditionalSearch::Found(sets, examined)
+    })
+}
+
+fn rank_conditional_sets(
+    sets: &mut [Vec<VariableId>],
+    config: &crate::backdoor::AdjustmentSearchConfig,
+) {
+    if !config.measurement_costs.is_empty() {
+        let cost = |set: &[VariableId]| {
+            set.iter()
+                .map(|v| {
+                    config
+                        .measurement_costs
+                        .iter()
+                        .find(|(id, _)| id == v)
+                        .map_or(1.0, |(_, cost)| *cost)
+                })
+                .sum::<f64>()
+        };
+        sets.sort_by(|a, b| cost(a).total_cmp(&cost(b)));
+    }
+}
+
+// Perkovic et al. (2018), Definition 6 and Theorem 7. A MAG arrow need not
+// exclude hidden confounding. Delete only visible first edges of causal paths;
+// keep side-effect edges so conditioning cannot conceal collider bias.
+fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg> {
+    let graph = mag_to_admg(mag)?;
+    let ancestors_y = directed_closure(&graph, &[y], true);
+    let causal_children: Vec<_> =
+        graph.children(t).iter().copied().filter(|v| ancestors_y.contains(*v)).collect();
+    if causal_children.iter().any(|&v| !crate::joint_response::visible(mag, t, v)) {
+        return None;
+    }
+    let mut cut = Admg::with_variables(graph.node_count() as u32);
+    for i in 0..graph.node_count() {
+        let a = DenseNodeId::from_raw(i as u32);
+        for &b in graph.children(a) {
+            if a != t || !causal_children.contains(&b) {
+                cut.insert_directed(a, b).ok()?;
+            }
+        }
+        for &b in graph.bidirected_neighbors(a) {
+            if b.raw() > a.raw() {
+                cut.insert_bidirected(a, b).ok()?;
+            }
+        }
+    }
+    Some(cut)
+}
+
+pub(crate) fn identify_on_mag_completion(
     mag: &Pag,
     t: VariableId,
     y: VariableId,
@@ -403,7 +662,12 @@ fn identify_on_mag_completion(
         return Ok(not_identified(query, "completion is not a MAG (undirected marks remain)"));
     };
 
-    let mutilated = mutilate_outgoing(&admg, t_d);
+    let Some(mutilated) = proper_backdoor_mag(mag, t_d, y_d) else {
+        return Ok(not_identified(
+            query,
+            "MAG is not adjustment amenable: a causal path starts with an invisible edge; no adjustment set identifies this effect",
+        ));
+    };
     let candidates = adjustment_candidates(&admg, t_d, y_d);
     if candidates.len() > max_candidates {
         return Ok(capped_completion_result(query, candidates.len(), max_candidates));
@@ -475,7 +739,7 @@ fn identify_on_mag_completion(
             d.push(
                 "generalized.adjustment",
                 format!(
-                    "Z (size {}) m-separates T from Y in G_underline{{T}} among GAC candidates",
+                    "Z (size {}) m-separates T from Y in the proper back-door graph after MAG amenability and forbidden-set checks",
                     z_vars.len()
                 ),
             );
@@ -523,7 +787,7 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
     out
 }
 
-fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitSet {
+pub(crate) fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitSet {
     let mut out = BitSet::with_len(admg.node_count());
     let mut stack: Vec<DenseNodeId> = seeds.to_vec();
     for &s in seeds {
@@ -541,7 +805,7 @@ fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitS
     out
 }
 
-fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
+pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
     let mut derivation = DerivationTrace::default();
     derivation.push("generalized.adjustment", detail);
     IdentificationResult::not_identified(
@@ -557,7 +821,7 @@ fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
 /// blocked completion via [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment); the
 /// derivation text is kept human-readable and consistent with the other not-identified
 /// branches in this function.
-fn capped_completion_result(
+pub(crate) fn capped_completion_result(
     query: CausalQuery,
     n_candidates: usize,
     max_candidates: usize,
@@ -591,7 +855,7 @@ fn capped_completion_result(
     )
 }
 
-fn mag_to_admg(mag: &Pag) -> Option<Admg> {
+pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
     let n = mag.node_count() as u32;
     let mut admg = Admg::with_variables(n);
     for i in 0..mag.node_count() {
@@ -645,6 +909,8 @@ fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
 
 #[cfg(test)]
 mod tests {
+    // Completion weights here are exact counts of unit-weight cases.
+    #![allow(clippy::float_cmp)]
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_graph::Pag;
@@ -676,7 +942,7 @@ mod tests {
     #[test]
     fn pretreatment_modifier_can_open_a_collider_path() {
         // T <- A -> W <- B -> Y, T -> Y. Empty Z identifies ATE,
-        // but conditioning on pre-treatment W opens the noncausal path.
+        // Conditioning on pre-treatment W opens the noncausal path; adding A closes it.
         let mut pag = Pag::with_variables(5);
         for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
             pag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
@@ -686,8 +952,12 @@ mod tests {
         assert!(id.identify_pag_envelope(&pag, &ate).unwrap().identified_weight.0 > 0.0);
         let conditional = ate.with_effect_modifiers([VariableId::from_raw(2)]);
         let env = id.identify_pag_envelope(&pag, &conditional).unwrap();
-        assert_eq!(env.identified_weight.0, 0.0);
-        assert!(env.unidentified_weight.0 > 0.0);
+        assert!(env.identified_weight.0 > 0.0);
+        assert_eq!(env.unidentified_weight.0, 0.0);
+        assert_eq!(
+            env.cases[0].result.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(1)]
+        );
     }
 
     #[test]
@@ -709,35 +979,63 @@ mod tests {
     }
 
     #[test]
-    fn directed_edge_identifies_with_empty_z() {
+    fn invisible_directed_edge_does_not_identify_even_conditionally() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/identify/generalized_adjustment/expected.json"
         ))
         .unwrap();
-        assert_eq!(fixture["cases"][0]["adjustment_set"].as_array().unwrap().len(), 0);
-        let mut pag = Pag::with_variables(2);
+        assert_eq!(fixture["cases"][0]["status"], "not_identified_by_adjustment");
+        let mut pag = Pag::with_variables(3);
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let id = GeneralizedAdjustmentIdentifier::new();
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let env = id.identify_pag_envelope(&pag, &q).unwrap();
+        for query in [q.clone(), q.with_effect_modifiers([VariableId::from_raw(2)])] {
+            let env = id.identify_pag_envelope(&pag, &query).unwrap();
+            assert_eq!(env.status, IdentificationStatus::NotIdentified);
+            assert_eq!(env.identified_weight.0, 0.0);
+            assert!(env.cases[0].result.estimands.is_empty());
+        }
+        // R -> T with R nonadjacent to Y makes T -> Y visible.
+        pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        let env = id
+            .identify_pag_envelope(
+                &pag,
+                &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+            )
+            .unwrap();
         assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(env.unidentified_weight.0 == 0.0);
-        assert!(env.cases[0].result.required_assumptions.entries.iter().any(|record| {
-            record.assumption == antecedent_core::Assumption::CausalMarkov
-                && record.scope == antecedent_core::AssumptionScope::Identification
-        }));
+        assert!(env.cases[0].result.estimands[0].adjustment_set.is_empty());
+    }
+
+    #[test]
+    fn proper_backdoor_preserves_side_effect_collider_edges() {
+        // R -> T -> Y; T -> W <- U -> Y. R witnesses visibility of T -> Y.
+        let mut mag = Pag::with_variables(5);
+        for (a, b) in [(4, 0), (0, 1), (0, 2), (3, 2), (3, 1)] {
+            mag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let w = DenseNodeId::from_raw(2);
+        let cut = proper_backdoor_mag(&mag, t, y).unwrap();
+        assert!(cut.children(t).contains(&w));
+        assert!(!cut.children(t).contains(&y));
+        let mut workspace = DSeparationWorkspace::default();
+        assert!(cut.is_m_separated(t, y, &[], &mut workspace).unwrap());
+        assert!(!cut.is_m_separated(t, y, &[w], &mut workspace).unwrap());
     }
 
     #[test]
     fn confounder_identifies_with_nonempty_z() {
         // Z → T, Z → Y, T → Y  (backdoor {Z}).
-        let mut pag = Pag::with_variables(3);
+        let mut pag = Pag::with_variables(4);
         let z = DenseNodeId::from_raw(0);
         let t = DenseNodeId::from_raw(1);
         let y = DenseNodeId::from_raw(2);
         pag.insert_directed(z, t).unwrap();
         pag.insert_directed(z, y).unwrap();
         pag.insert_directed(t, y).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(3), t).unwrap();
         let id = GeneralizedAdjustmentIdentifier::new();
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
         let env = id.identify_pag_envelope(&pag, &q).unwrap();
@@ -752,13 +1050,14 @@ mod tests {
         // Case A: Z → T, Z → Y, T → Y, but max_candidates=0 forces the single-candidate set
         // {Z} over the cap before enumeration can even start — the search was truncated, not
         // exhausted.
-        let mut capped_pag = Pag::with_variables(3);
+        let mut capped_pag = Pag::with_variables(4);
         let z = DenseNodeId::from_raw(0);
         let t = DenseNodeId::from_raw(1);
         let y = DenseNodeId::from_raw(2);
         capped_pag.insert_directed(z, t).unwrap();
         capped_pag.insert_directed(z, y).unwrap();
         capped_pag.insert_directed(t, y).unwrap();
+        capped_pag.insert_directed(DenseNodeId::from_raw(3), t).unwrap();
         let capped_id = GeneralizedAdjustmentIdentifier {
             config: GeneralizedAdjustmentConfig {
                 max_completions: 8,
@@ -863,5 +1162,50 @@ mod tests {
         assert_eq!(env.cases.len(), 1);
         assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(env.unidentified_weight.0 == 0.0);
+    }
+}
+
+#[cfg(test)]
+mod conditional_search_tests {
+    use super::*;
+
+    #[test]
+    fn modifier_collider_requires_an_alternative_adjustment_set() {
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(3, 0), (3, 2), (4, 2), (4, 1), (0, 1)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let mut identifier = BackdoorIdentifier::new();
+        let prepared = identifier.prepare(&dag).unwrap();
+        let result = identifier
+            .identify(
+                &prepared,
+                &CausalQuery::AverageEffect(query.clone()),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+        identifier.config.forbidden = Arc::from([VariableId::from_raw(3)]);
+        let result = identifier
+            .identify(
+                &prepared,
+                &CausalQuery::AverageEffect(query.clone()),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(4)]);
+        identifier.config.forbidden = Arc::from([VariableId::from_raw(3), VariableId::from_raw(4)]);
+        let result = identifier
+            .identify(
+                &prepared,
+                &CausalQuery::AverageEffect(query),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NotIdentified);
     }
 }

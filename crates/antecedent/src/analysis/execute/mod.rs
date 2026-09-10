@@ -227,7 +227,7 @@ mod static_path;
 mod temporal_path;
 include!("execute_helpers.rs");
 
-pub(super) use response_path::{class_aware_response_supported, response_witness_ate};
+pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
 
 #[cfg(test)]
 mod envelope_se_tests {
@@ -237,7 +237,7 @@ mod envelope_se_tests {
     fn multi_atom_se_requires_joint_sampling_covariance() {
         let se = mix_weighted_analytic_se([(0.5, 2.0), (0.5, 0.0)]);
         assert!(se.is_nan());
-        assert_eq!(mix_weighted_analytic_se([(1.0, 2.0)]), 2.0);
+        assert!((mix_weighted_analytic_se([(1.0, 2.0)]) - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]

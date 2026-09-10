@@ -299,7 +299,7 @@ impl ValidationSuite {
             // Temporal designs fall through to `run_one`, which returns the same
             // `NotApplicable` outcomes as the plain `run` path for these validators.
             let outcome = match id {
-                ValidatorId::Overlap => ValidationOutcome::Report(
+                ValidatorId::Overlap if problem.temporal.is_none() => ValidationOutcome::Report(
                     crate::overlap::OverlapRefuter::new()
                         .refute_with_propensity(problem, propensity)?,
                 ),

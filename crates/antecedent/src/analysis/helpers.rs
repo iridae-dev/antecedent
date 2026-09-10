@@ -78,6 +78,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,
+        certificate: None,
         estimand: args.estimand,
         estimate: args.estimate,
         response: None,

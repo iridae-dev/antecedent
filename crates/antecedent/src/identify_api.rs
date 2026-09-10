@@ -8,6 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(test)]
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, TemporalIndexer};
@@ -40,6 +41,9 @@ pub enum Identification {
     Point {
         /// Underlying identification result.
         result: IdentificationResult,
+        /// Unfolding coordinates for a temporal point result. Estimand variable
+        /// ids remain in the expression arena's coordinate system.
+        temporal_indexer: Option<TemporalIndexer>,
         /// Identifier strategy that produced this result.
         strategy: IdentifierId,
         /// [`AcceptedGraph::version`] of the structure identification ran against.
@@ -230,18 +234,29 @@ fn identify_with_source(
             let dag = structure.as_dag().expect("class() == Dag implies as_dag() is Some");
             let id_query = static_identify_query(query);
             let result = identify_static_query(strategy, dag, &id_query)?;
-            Ok(Identification::Point { result, strategy, structure_version })
+            Ok(Identification::Point {
+                result,
+                temporal_indexer: None,
+                strategy,
+                structure_version,
+            })
         }
         GraphClass::Cpdag => {
             let cpdag = structure.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
-            let witness = class_ate_witness(query, "CPDAG")?;
-            let envelope = identify_cpdag(strategy, cpdag, &witness)?;
+            let envelope = if let CausalQuery::Response(response) = query {
+                strategy_table::identify_cpdag_response(strategy, cpdag, response)?
+            } else {
+                identify_cpdag(strategy, cpdag, &class_ate_witness(query, "CPDAG")?)?
+            };
             Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
         }
         GraphClass::Pag => {
             let pag = structure.as_pag().expect("class() == Pag implies as_pag() is Some");
-            let witness = class_ate_witness(query, "PAG")?;
-            let envelope = identify_pag(strategy, pag, &witness)?;
+            let envelope = if let CausalQuery::Response(response) = query {
+                strategy_table::identify_pag_response(strategy, pag, response)?
+            } else {
+                identify_pag(strategy, pag, &class_ate_witness(query, "PAG")?)?
+            };
             Ok(Identification::Envelope { envelope, strategy, structure_version })
         }
         GraphClass::Admg => {
@@ -252,7 +267,12 @@ fn identify_with_source(
                 });
             };
             let result = identify_admg(strategy, admg, average_effect)?;
-            Ok(Identification::Point { result, strategy, structure_version })
+            Ok(Identification::Point {
+                result,
+                temporal_indexer: None,
+                strategy,
+                structure_version,
+            })
         }
         GraphClass::TemporalDag => {
             let dag = structure
@@ -266,9 +286,12 @@ fn identify_with_source(
             let identified = TemporalBackdoorIdentifier::new()
                 .identify_temporal(dag, q)
                 .map_err(CausalError::from)?;
-            let mut result = identified.result;
-            remap_temporal_adjustment(&mut result, &identified.indexer);
-            Ok(Identification::Point { result, strategy, structure_version })
+            Ok(Identification::Point {
+                result: identified.result,
+                temporal_indexer: Some(identified.indexer),
+                strategy,
+                structure_version,
+            })
         }
         GraphClass::TemporalCpdag => {
             let cpdag = structure
@@ -279,8 +302,7 @@ fn identify_with_source(
                     message: "TemporalCpdag identification supports only CausalQuery::TemporalEffect",
                 });
             };
-            let mut envelope = identify_temporal_cpdag(strategy, cpdag, q)?;
-            remap_temporal_envelope(&mut envelope);
+            let envelope = identify_temporal_cpdag(strategy, cpdag, q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
         GraphClass::TemporalPag => {
@@ -292,8 +314,7 @@ fn identify_with_source(
                     message: "TemporalPag identification supports only CausalQuery::TemporalEffect",
                 });
             };
-            let mut envelope = identify_temporal_pag(strategy, pag, q)?;
-            remap_temporal_envelope(&mut envelope);
+            let envelope = identify_temporal_pag(strategy, pag, q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
     }
@@ -312,20 +333,7 @@ fn class_ate_witness(
 ) -> Result<AverageEffectQuery, CausalError> {
     match query {
         CausalQuery::AverageEffect(q) => Ok(q.clone()),
-        CausalQuery::Response(q)
-            if q.temporal.is_none()
-                && matches!(
-                    q.functional,
-                    antecedent_core::ResponseFunctional::MeanCurve { .. }
-                        | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                ) =>
-        {
-            let (treatment, outcome) =
-                q.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                    message: "response query has no treatment/outcome pair".into(),
-                })?;
-            Ok(AverageEffectQuery::binary_ate(treatment, outcome))
-        }
+        CausalQuery::Response(q) => crate::analysis::response_witness_ate(q),
         CausalQuery::ConditionalEffect(q) => Ok(q.inner.clone()),
         _ => Err(CausalError::Compile {
             message: format!(
@@ -334,37 +342,6 @@ fn class_ate_witness(
             ),
         }),
     }
-}
-
-fn remap_temporal_adjustment(result: &mut IdentificationResult, indexer: &TemporalIndexer) {
-    for estimand in &mut result.estimands {
-        remap_estimand_adjustment(estimand, indexer);
-    }
-}
-
-fn remap_temporal_envelope(bundle: &mut TemporalClassEnvelope) {
-    if let Some(estimand) = bundle.envelope.invariant.as_mut() {
-        if let Some(indexer) = bundle.indexers.first() {
-            remap_estimand_adjustment(estimand, indexer);
-        }
-    }
-    for (case, indexer) in bundle.envelope.cases.iter_mut().zip(bundle.indexers.iter()) {
-        for estimand in &mut case.result.estimands {
-            remap_estimand_adjustment(estimand, indexer);
-        }
-    }
-}
-
-fn remap_estimand_adjustment(estimand: &mut IdentifiedEstimand, indexer: &TemporalIndexer) {
-    let mut seen = Vec::new();
-    for &id in estimand.adjustment_set.iter() {
-        if let Ok(key) = indexer.key_of(id.raw()) {
-            if !seen.contains(&key.variable) {
-                seen.push(key.variable);
-            }
-        }
-    }
-    estimand.adjustment_set = Arc::from(seen);
 }
 
 /// Class-appropriate default identifier, reusing the existing `DEFAULT_*_IDENTIFIER_ID`

@@ -633,6 +633,16 @@ impl super::Study {
                     started,
                     "pag",
                 )
+                .map(|result| {
+                    self.attach_certificate(
+                        result,
+                        crate::Identification::Envelope {
+                            envelope,
+                            strategy: identifier_id,
+                            structure_version: self.graph.version(),
+                        },
+                    )
+                })
             }
             GraphClass::Cpdag => {
                 let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
@@ -664,6 +674,16 @@ impl super::Study {
                     started,
                     "cpdag",
                 )
+                .map(|result| {
+                    self.attach_certificate(
+                        result,
+                        crate::Identification::CpdagEnvelope {
+                            envelope,
+                            strategy: identifier_id,
+                            structure_version: self.graph.version(),
+                        },
+                    )
+                })
             }
             _ => Err(CausalError::Unsupported {
                 message: "class-aware ConditionalEffect execute requires a Cpdag or Pag",

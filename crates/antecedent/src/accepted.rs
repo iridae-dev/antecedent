@@ -5,11 +5,11 @@
 //! guarantee was enforced by runtime checks scattered across `compile()` — all firing
 //! late, long after a user had already built an analysis around an unreviewed graph.
 //!
-//! [`AcceptedGraph`] moves the guarantee into the type system: constructing one *is*
-//! the review gate for marks that block estimation. PAG circles and CPDAG
+//! [`AcceptedGraph`] records acceptance in the type system. Class-aware
+//! identification still validates that the accepted marks support estimation. PAG circles and CPDAG
 //! undirected edges are class information a class-aware identifier consumes;
 //! they may remain on an accepted graph. Conflict and bidirected marks that
-//! cannot complete still refuse construction.
+//! cannot complete are refused before estimation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

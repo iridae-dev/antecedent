@@ -48,54 +48,18 @@ def test_fci_review_required_attrs():
     assert "generalized adjustment" in hint
 
 
-def test_complete_temporal_pag_estimates():
+@pytest.mark.parametrize("endpoint", ["tail", "circle"])
+def test_temporal_pag_does_not_bypass_mag_visibility(endpoint):
     data = _lag1_series()
     pag = antecedent.graph.TemporalPag.from_marked_lagged_edges(
-        ["x", "y"],
-        [("x", 1, "y", 0, "tail", "arrow")],
+        ["x", "y"], [("x", 1, "y", 0, endpoint, "arrow")]
     )
-    result = antecedent.analyze(
-        data,
-        graph=pag,
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
-    )
-    assert isinstance(result.ate, float)
-    assert abs(result.ate - 0.9) < 0.15
-    assert any("temporal.pag.completed_to_dag" in str(d) for d in result.diagnostics)
-
-
-def test_incomplete_temporal_pag_class_envelope():
-    data = _lag1_series(n=60, seed=9)
-    pag = antecedent.graph.TemporalPag.from_marked_lagged_edges(
-        ["x", "y"],
-        [("x", 1, "y", 0, "circle", "arrow")],
-    )
-    result = antecedent.analyze(
-        data,
-        graph=pag,
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
-    )
-    assert isinstance(result.ate, float)
-    assert abs(result.ate - 0.9) < 0.15
-    assert any("identify.temporal_pag.envelope" in str(d) for d in result.diagnostics)
+    query = antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1)
+    identified = antecedent.identify(graph=pag, query=query)
+    assert identified.status == "NotIdentified"
+    assert identified.certificate["graph_class"] == "TemporalPag"
+    with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
+        antecedent.analyze(data, graph=pag, query=query, bootstrap=0, seed=1, refute=False)
 
 
 def test_review_required_is_still_a_causal_review_error():

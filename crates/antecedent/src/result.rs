@@ -18,6 +18,17 @@ use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::gcm::IteResult;
 
+/// Identification certificate retained from the actual execution, including class atoms.
+#[derive(Clone, Debug)]
+pub struct AnalysisIdentification {
+    /// Full point or completion-envelope artifact in its original coordinates.
+    pub identification: crate::Identification,
+    /// Query whose functional was estimated.
+    pub query: antecedent_core::CausalQuery,
+    /// Supplied graph class, preserved even when fully oriented.
+    pub graph_class: crate::GraphClass,
+}
+
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -28,6 +39,8 @@ pub struct StudyResult {
     pub physical_plan: PhysicalExecutionPlanRecord,
     /// Full identification artifact.
     pub identification: IdentificationResult,
+    /// Complete identification certificate, when supplied by the execution path.
+    pub certificate: Option<AnalysisIdentification>,
     /// Primary estimand used for estimation.
     pub estimand: IdentifiedEstimand,
     /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).

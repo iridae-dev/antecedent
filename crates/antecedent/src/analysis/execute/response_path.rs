@@ -176,6 +176,7 @@ pub(super) fn response_primary_pair(
 
 pub(crate) fn class_aware_response_supported(query: &ResponseQuery) -> bool {
     query.temporal.is_none()
+        && !query.functional.treatment_ids().is_empty()
         && query.observation == ObservationSpec::Complete
         && matches!(
             query.functional,
@@ -186,6 +187,11 @@ pub(crate) fn class_aware_response_supported(query: &ResponseQuery) -> bool {
 pub(crate) fn response_witness_ate(
     query: &ResponseQuery,
 ) -> Result<AverageEffectQuery, CausalError> {
+    if !class_aware_response_supported(query) {
+        return Err(CausalError::Unsupported {
+            message: "class-aware response identification requires at least one intervention on complete-observation static data",
+        });
+    }
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
     Ok(AverageEffectQuery::binary_ate(treatment, outcome))
 }
@@ -221,19 +227,22 @@ impl super::Study {
             .unwrap_or(EstimatorId::default_for_response(&query.functional).as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
-        let witness = response_witness_ate(query)?;
         match self.graph.class() {
             GraphClass::Pag => {
                 let pag = physical.static_pag().ok_or_else(|| CausalError::Compile {
                     message: "PAG response execute missing resolved static PAG".into(),
                 })?;
-                let (envelope, identify_cached) =
-                    if let Some(cache) = self.pag_identification_cache.as_deref() {
-                        (cache.envelope.clone(), true)
-                    } else {
-                        report_identify_compute(ctx);
-                        (identify_pag(identifier_id, pag, &witness)?, false)
-                    };
+                let (envelope, identify_cached) = if let Some(cache) =
+                    self.pag_identification_cache.as_deref()
+                {
+                    (cache.envelope.clone(), true)
+                } else {
+                    report_identify_compute(ctx);
+                    (
+                        crate::strategy_table::identify_pag_response(identifier_id, pag, query)?,
+                        false,
+                    )
+                };
                 let envelope_diag = super::pag_path::pag_envelope_diagnostic(&envelope);
                 self.finish_class_response(
                     data,
@@ -247,6 +256,16 @@ impl super::Study {
                     estimator_id,
                     started,
                 )
+                .map(|result| {
+                    self.attach_certificate(
+                        result,
+                        crate::Identification::Envelope {
+                            envelope,
+                            strategy: identifier_id,
+                            structure_version: self.graph.version(),
+                        },
+                    )
+                })
             }
             GraphClass::Cpdag => {
                 let cpdag = self.graph.as_cpdag().ok_or_else(|| CausalError::Compile {
@@ -257,7 +276,14 @@ impl super::Study {
                         (cache.envelope.clone(), true)
                     } else {
                         report_identify_compute(ctx);
-                        (identify_cpdag(identifier_id, cpdag, &witness)?, false)
+                        (
+                            crate::strategy_table::identify_cpdag_response(
+                                identifier_id,
+                                cpdag,
+                                query,
+                            )?,
+                            false,
+                        )
                     };
                 let envelope_diag = super::pag_path::cpdag_envelope_diagnostic(&envelope);
                 self.finish_class_response(
@@ -272,6 +298,16 @@ impl super::Study {
                     estimator_id,
                     started,
                 )
+                .map(|result| {
+                    self.attach_certificate(
+                        result,
+                        crate::Identification::CpdagEnvelope {
+                            envelope,
+                            strategy: identifier_id,
+                            structure_version: self.graph.version(),
+                        },
+                    )
+                })
             }
             _ => Err(CausalError::Unsupported {
                 message: "class-aware response execute requires a Cpdag or Pag",

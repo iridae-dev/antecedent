@@ -113,10 +113,8 @@ impl super::Study {
         // The temporal path is linear/temporal-backdoor only; refuse an explicitly
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
-            let class_aware = matches!(
-                self.graph.class(),
-                GraphClass::TemporalCpdag | GraphClass::TemporalPag
-            ) && self.completed_temporal_dag().is_none();
+            let class_aware =
+                matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag);
             if let Some(id) = &self.identifier {
                 let ok = if class_aware {
                     *id == IdentifierId::GeneralizedAdjustment
@@ -221,7 +219,10 @@ impl super::Study {
     }
 
     /// Resolve identifier/estimator for Cpdag/Pag response (generalized adjustment).
-    pub(super) fn resolve_class_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+    pub(super) fn resolve_class_response_pair(
+        &self,
+        query: &ResponseQuery,
+    ) -> (Arc<str>, Arc<str>) {
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
@@ -335,10 +336,7 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                if matches!(
-                    self.graph.class(),
-                    GraphClass::TemporalCpdag | GraphClass::TemporalPag
-                ) && self.completed_temporal_dag().is_none()
+                if matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
                 {
                     return self.execute_temporal_class(data, q, physical, ctx);
                 }

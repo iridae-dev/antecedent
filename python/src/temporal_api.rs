@@ -121,6 +121,8 @@ pub(crate) struct PredictSummary {
 #[derive(Clone)]
 pub(crate) struct AnalysisResult {
     #[pyo3(get)]
+    pub(crate) certificate_json: Option<String>,
+    #[pyo3(get)]
     pub(crate) ate: f64,
     #[pyo3(get)]
     pub(crate) se_analytic: f64,
@@ -1705,13 +1707,16 @@ fn analysis_result_from_run(
     names: &[String],
     result: antecedent::StudyResult,
 ) -> PyResult<AnalysisResult> {
+    let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
     let adjustment_set: Vec<String> = crate::public_adjustment_set(
         result.identification.status,
         result
             .estimand
             .adjustment_set
             .iter()
-            .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
             .collect(),
     );
     let estimator_id = if result.posterior.is_some() {
@@ -1831,6 +1836,7 @@ fn analysis_result_from_run(
         evidence_status_parts(result.support_status);
 
     Ok(AnalysisResult {
+        certificate_json,
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,

@@ -445,10 +445,9 @@ impl super::Study {
                 );
                 logical.compile_physical(ctx)
             }
-            (
-                DataInput::Temporal(_) | DataInput::Event(_),
-                CausalQuery::TemporalEffect(_),
-            ) if matches!(self.inference, InferenceMode::Frequentist) => {
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_))
+                if matches!(self.inference, InferenceMode::Frequentist) =>
+            {
                 Err(CausalError::Unsupported {
                     message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
                 })

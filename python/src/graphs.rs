@@ -922,6 +922,7 @@ impl TemporalCpdag {
 #[pymethods]
 impl TemporalCpdag {
     #[classmethod]
+    #[pyo3(signature = (names, directed, undirected=None))]
     fn from_lagged_edges(
         _cls: &Bound<'_, PyType>,
         names: Vec<String>,

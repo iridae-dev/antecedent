@@ -942,6 +942,21 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
         Some("temporal.linear.adjustment"),
         Some(temporal),
     );
+    let suite = ValidationSuite::new().with(ValidatorId::Overlap);
+    let plain = suite.run(&problem, &mut ws, &ctx).unwrap();
+    let warmed = suite
+        .run_with_propensity(
+            &problem,
+            &mut ws,
+            &mut antecedent_stats::PropensityWorkspace::default(),
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(ValidationSuite::not_applicable_only(&plain).len(), 1);
+    assert_eq!(
+        ValidationSuite::not_applicable_only(&plain),
+        ValidationSuite::not_applicable_only(&warmed)
+    );
     let mut prepared =
         DummyOutcome { replicates: 2, ..DummyOutcome::new() }.prepare(&problem, &ctx).unwrap();
     assert!(prepared.panel.is_some(), "prepare must compile a panel slice template");

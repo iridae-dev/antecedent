@@ -24,11 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused.
 - `identify()` on `Cpdag` / `Pag` (ATE, response, ConditionalEffect) and on
   temporal classes (Pulse / single-step Sustained). EconML handoff covers a
-  fully-oriented Cpdag that stays a Cpdag; temporal offsets cannot be exported.
+  fully-oriented Cpdag that stays a Cpdag, and exports certified temporal offsets.
 - Class-preserving Pulse and single-step Sustained on explicit/accepted
   `TemporalCpdag` / `TemporalPag` (Frequentist, `none`/`cheap`/`full`).
-  Completions are TemporalDag envelope atoms; runtime class stays
-  incomplete. Bayesian incomplete-class temporal cells stay refused.
+  CPDAG completions are DAGs; PAG completions retain directed/bidirected MAGs.
+  Runtime class stays incomplete, including fully oriented supplied classes. Bayesian incomplete-class temporal cells stay refused.
   See [1.4 evidence](docs/v1.4-evidence.md).
 - `antecedent.handoff.econml`: adjustment-set export for point-identified
   backdoor / generalized-adjustment results. Front-door, IV, general ID,
@@ -38,9 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AverageEffect × Dag × graph_posterior` (`none`/`cheap`/`full`). Same
   known-truth mixture as the 1.1 Bayesian envelope (`E[τ|identified]=2.625`,
   unidentified mass 0.2); the aggregator is mass-weighted
-  `linear.adjustment.ate`. Frequentist DBN-posterior mixing stays 1.6.
+  `linear.adjustment.ate`. Frequentist DBN-posterior mixing stays 1.7.
 
 ### Fixed
+
+- Typed-graph `identify()` preserves explicit sustained-intervention windows.
+  Joint responses certify one common adjustment set covering every target in
+  each graph completion; Bayesian prediction applies every intervention.
+- Workspace formatting, all-target Clippy, Python type checks, and release
+  metadata are aligned with the PR gates.
 
 - Frequentist envelope cheap/full now mixes refuters across contributing
   atoms against the mixture effect (CPDAG/PAG ATE, temporal class Pulse,
@@ -53,11 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-atom SEs omit cross-fit covariance, and averaged endpoints are not
   mixture quantiles. Single-atom uncertainty is preserved.
 - EconML controls have shape `(n_samples, n_controls)`, with row/shape checks;
-  temporal handoffs refuse rather than silently discarding offsets.
+  temporal handoffs align certified offsets and trim boundaries. Fresh and
+  prepared analysis results retain the certificate needed for direct handoff.
 - Conditional-effect completions must pass a pre-treatment and augmented
   backdoor check. Mediator/collider conditioning no longer inherits ATE ID.
-- Temporal PAG results disclose their DAG-only subset and incomplete equivalence
-  audit; tail-tail selection edges refuse. Dynamic schedules are not accepted
+- Temporal PAG completions preserve latent edges, enforce stationarity and time
+  direction, and disclose finite-window equivalence audit caps. Tail-tail
+  selection edges refuse. Dynamic schedules are not accepted
   by the pulse/single-step class estimator.
 - `AnalysisResult.plan.structure_source` is populated from the study
   coordinate, so EconML handoff can refuse graph-posterior mixtures without

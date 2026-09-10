@@ -29,6 +29,7 @@ mod gcm_api;
 mod graph_build;
 mod graph_io;
 mod graphs;
+mod identification_details;
 mod observation_api;
 mod prepared_api;
 mod prior_bank;
@@ -105,12 +106,12 @@ use antecedent::{
     IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, CachePolicy,
-    CausalRng, ChangeAttributionQuery, DistributionRef, ExecutionContext,
-    Intervention, InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, PopulationRegistry,
-    PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
+    AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
+    DistributionRef, ExecutionContext, Intervention, InterventionalDistributionQuery, KernelPolicy,
+    Lag, MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig,
+    TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
+    VariableId,
 };
 use antecedent_data::TimeDummyEncoding;
 use antecedent_data::{
@@ -596,6 +597,8 @@ pub(crate) fn evidence_status_parts(
 #[pyclass]
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
+    #[pyo3(get)]
+    pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]

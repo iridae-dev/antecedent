@@ -159,6 +159,15 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
         ("pag", ClassGraph::Pag(pag()), "identify.temporal_pag.envelope"),
     ];
     for (class, graph, diag) in graphs {
+        if class == "pag" {
+            for accepted in [false, true] {
+                let error = build(&data, &graph, accepted, query.clone())
+                    .run(&ExecutionContext::for_tests(1))
+                    .unwrap_err();
+                assert!(error.to_string().contains("no identified mass"));
+            }
+            continue;
+        }
         let section = &pin[class];
         let expected = section["pulse"]["ate"].as_f64().unwrap();
         let tol = section["pulse"]["absolute_tolerance"].as_f64().unwrap();
@@ -227,6 +236,15 @@ fn temporal_class_single_step_sustained_matches_pulse() {
     let data = series(&pin);
     let graphs = [("cpdag", ClassGraph::Cpdag(cpdag())), ("pag", ClassGraph::Pag(pag()))];
     for (class, graph) in graphs {
+        if class == "pag" {
+            for query in [pulse_query(&pin), sustained_query(&pin)] {
+                let error = build(&data, &graph, false, query)
+                    .run(&ExecutionContext::for_tests(1))
+                    .unwrap_err();
+                assert!(error.to_string().contains("no identified mass"));
+            }
+            continue;
+        }
         let pulse = build(&data, &graph, false, pulse_query(&pin))
             .run(&ExecutionContext::for_tests(1))
             .unwrap()

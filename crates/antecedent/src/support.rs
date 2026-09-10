@@ -325,11 +325,9 @@ pub fn support_cell(
 ///   Completing a CPDAG to a DAG is a `Dag` cell only when the *caller*
 ///   supplies a `Dag`. A supplied `Cpdag` stays `Cpdag` even when it has a
 ///   unique orientation.
-/// - **`TemporalCpdag` / `TemporalPag`, under `TemporalEffect`**: a graph that
-///   `try_into_temporal_dag` completes is the `TemporalDag` coordinate. An
-///   incomplete graph stays `TemporalCpdag` / `TemporalPag` and uses the
-///   class-aware envelope. Scoped to `TemporalEffect` because temporal
-///   `CausalQuery::Mediation` only has a `GraphClass::TemporalDag` arm.
+/// - **`TemporalCpdag` / `TemporalPag`**: supplied classes remain class-shaped,
+///   including fully oriented inputs. A directed MAG edge is not a DAG edge:
+///   visibility must still be certified before adjustment.
 ///
 /// Not collapsed: a static [`Pag`]'s circle marks are information the
 /// class-aware generalized-adjustment identifier is built to consume, never
@@ -343,26 +341,6 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
             if admg.has_bidirected() { GraphClass::Admg } else { GraphClass::Dag }
         }
         (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
-        (GraphClass::TemporalCpdag, CausalQuery::TemporalEffect(_)) => {
-            let cpdag = graph
-                .as_temporal_cpdag()
-                .expect("class() == TemporalCpdag implies as_temporal_cpdag() is Some");
-            if cpdag.try_into_temporal_dag().is_ok() {
-                GraphClass::TemporalDag
-            } else {
-                GraphClass::TemporalCpdag
-            }
-        }
-        (GraphClass::TemporalPag, CausalQuery::TemporalEffect(_)) => {
-            let pag = graph
-                .as_temporal_pag()
-                .expect("class() == TemporalPag implies as_temporal_pag() is Some");
-            if pag.try_into_temporal_dag().is_ok() {
-                GraphClass::TemporalDag
-            } else {
-                GraphClass::TemporalPag
-            }
-        }
         (class, _) => class,
     }
 }
@@ -763,13 +741,14 @@ mod tests {
         for graph in ["Cpdag", "Pag"] {
             for inference in ["Frequentist", "Bayesian"] {
                 for validation in ["none", "cheap", "full"] {
-                    let status =
-                        classify(cell("ConditionalEffect", graph, "accepted", inference, validation));
-                    assert_eq!(
-                        status,
-                        CellStatus::Licensed,
-                        "{graph}/{inference}/{validation}"
-                    );
+                    let status = classify(cell(
+                        "ConditionalEffect",
+                        graph,
+                        "accepted",
+                        inference,
+                        validation,
+                    ));
+                    assert_eq!(status, CellStatus::Licensed, "{graph}/{inference}/{validation}");
                     refuse_if_not_applicable(cell(
                         "ConditionalEffect",
                         graph,
@@ -1141,9 +1120,9 @@ mod tests {
         assert_eq!(effective_graph_class(&graph, &distribution_query()), GraphClass::Cpdag);
     }
 
-    /// (d) A complete `TemporalCpdag` collapses to `TemporalDag` under `TemporalEffect`.
+    /// Fully oriented temporal CPDAGs retain their supplied class.
     #[test]
-    fn complete_temporal_cpdag_collapses_to_temporal_dag_under_temporal_effect() {
+    fn complete_temporal_cpdag_retains_class_under_temporal_effect() {
         let mut cpdag = TemporalCpdag::empty();
         let a =
             cpdag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
@@ -1152,7 +1131,7 @@ mod tests {
             .unwrap();
         cpdag.insert_directed(a, b).unwrap();
         let graph = AcceptedGraph::temporal_cpdag(cpdag).unwrap();
-        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalCpdag);
     }
 
     /// An incomplete `TemporalCpdag` is accepted: undirected marks are the MEC.
@@ -1169,10 +1148,9 @@ mod tests {
         assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalCpdag);
     }
 
-    /// (d) A complete `TemporalPag` (no circle marks) collapses to `TemporalDag` under
-    /// `TemporalEffect`.
+    /// Fully oriented temporal PAGs still require MAG adjustment certification.
     #[test]
-    fn complete_temporal_pag_collapses_to_temporal_dag_under_temporal_effect() {
+    fn complete_temporal_pag_retains_class_under_temporal_effect() {
         use antecedent_graph::TemporalPag;
         let mut pag = TemporalPag::empty();
         let a = pag.add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(1)).unwrap();
@@ -1180,7 +1158,7 @@ mod tests {
             pag.add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
         pag.insert_directed(a, b).unwrap();
         let graph = AcceptedGraph::temporal_pag(pag);
-        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalDag);
+        assert_eq!(effective_graph_class(&graph, &pulse_query()), GraphClass::TemporalPag);
     }
 
     /// A `TemporalPag` with a circle mark is accepted: circles are the incomplete class.
@@ -1274,11 +1252,13 @@ mod tests {
     /// under Frequentist none. Prepared-cache reuse is covered separately.
     #[test]
     fn build_pag_ate_is_licensed() {
-        let mut pag = Pag::with_variables(2);
+        let mut pag = Pag::with_variables(3);
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
         let data = antecedent_data::TabularData::from_f64_columns([
             ("t", [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0].as_slice()),
             ("y", [0.0, 2.0, 0.1, 2.1, 0.0, 2.0, 0.1, 2.1].as_slice()),
+            ("r", [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0].as_slice()),
         ])
         .unwrap();
         let result = crate::analysis::Study::tabular(data)

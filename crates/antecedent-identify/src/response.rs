@@ -68,6 +68,19 @@ impl ResponseIdentifier {
         }
         require_observation_claim(response)?;
 
+        if matches!(response.functional, ResponseFunctional::InterventionResponse { .. })
+            && response.functional.treatment_ids().len() > 1
+        {
+            let mut result = crate::GeneralizedAdjustmentIdentifier::new()
+                .identify_joint_dag_response(prepared.dag(), response)?;
+            for record in &prepared.declared_assumptions().entries {
+                if !result.required_assumptions.entries.contains(record) {
+                    result.required_assumptions.push(record.clone());
+                }
+            }
+            return Ok(result);
+        }
+
         let pairs = response_pairs(&response.functional)?;
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(pairs.len());

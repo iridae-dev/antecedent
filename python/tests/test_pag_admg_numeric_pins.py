@@ -131,81 +131,41 @@ def _assert_common_cell_contract(
 @pytest.mark.parametrize("validation, validation_suite", _VALIDATIONS)
 @pytest.mark.parametrize("inference_name", ["frequentist", "bayesian"])
 def test_pag_ate_envelope_numeric_pin(
-    accepted: bool,
-    validation,
-    validation_suite: str | None,
-    inference_name: str,
+    accepted: bool, validation, validation_suite: str | None, inference_name: str
 ) -> None:
-    """Pin all 12 licensed PAG ATE structure/inference/validation cells."""
-    data = _expand_contingency(_PAG_PIN)
-    graph = _pag(accepted=accepted)
-    query = _query(_PAG_PIN)
-    section = _PAG_PIN[inference_name]
-    if inference_name == "bayesian":
-        inference = antecedent.Bayesian(
-            backend=section["backend"],
-            n_draws=int(section["n_draws"]),
-            prior_scale=float(section["prior_scale"]),
-        )
-        seed = int(section["seed"])
-    else:
-        inference = None
-        seed = 1
+    """Visible mixed MAGs retain all twelve licensed estimation/validation cells."""
+    from test_mag_adjustment_visibility import _case
 
-    fresh = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=inference,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
+    data, graph = _case(True)
+    if accepted:
+        graph = antecedent.AcceptedGraph.from_graph(graph)
+    query = antecedent.AverageEffect("t", "y")
+    inference = antecedent.Bayesian(prior_scale=100.0) if inference_name == "bayesian" else None
+    kwargs = dict(
+        graph=graph, query=query, inference=inference, refute=validation, bootstrap=0, seed=1
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        graph=graph,
-        query=query,
-        inference=inference,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
-        latency="interactive",
-    )
-    click = prepared.estimate(data, seed=seed)
-
+    fresh = antecedent.analyze(data, **kwargs)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **kwargs)
+    click = prepared.estimate(data, seed=1)
     _assert_common_cell_contract(
         fresh,
         click,
         prepared,
         accepted=accepted,
         validation_suite=validation_suite,
-        identifier=_PAG_PIN["identification"]["identifier"],
-        estimator=section["estimator"],
-        status=_PAG_PIN["identification"]["status"],
-        expected_ate=float(section["expected_ate"]),
-        tolerance=float(section["absolute_tolerance"]),
+        identifier="generalized.adjustment",
+        estimator="bayesian.gcomp" if inference_name == "bayesian" else "linear.adjustment.ate",
+        status="NonparametricallyIdentified",
+        expected_ate=2.0,
+        tolerance=0.05,
     )
-    if inference_name == "frequentist":
-        mass = _PAG_PIN["identification"]
-        envelope_fact = (
-            f"identified_mass={mass['identified_mass']:g}, "
-            f"unidentified_mass={mass['unidentified_mass']:g}, "
-            f"cases={mass['completion_count']}"
-        )
-        assert any(envelope_fact in diagnostic for diagnostic in fresh.diagnostics)
-        assert any(envelope_fact in diagnostic for diagnostic in click.diagnostics)
-        assert fresh.posterior is click.posterior is None
-    else:
-        for result in (fresh, click):
-            assert result.posterior is not None
-            assert result.posterior.backend == section["posterior_backend"]
-            assert result.posterior.n_draws == section["n_draws"]
-            assert result.posterior.unidentified_mass == pytest.approx(
-                _PAG_PIN["identification"]["unidentified_mass"], abs=1e-15
-            )
-            assert result.posterior.effect_mean == pytest.approx(
-                section["expected_ate"], abs=section["absolute_tolerance"]
-            )
+
+
+def test_old_invisible_pag_has_no_adjustment_certificate():
+    identified = antecedent.identify(graph=_pag(accepted=False), query=_query(_PAG_PIN))
+    assert identified.status == "NotIdentified"
+    assert identified.certificate["identified_weight"] == 0.0
+    assert identified.certificate["unidentified_weight"] == 3.0
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -257,11 +217,13 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
 
 
 def test_pag_same_schema_refresh_reuses_identification() -> None:
-    data = _expand_contingency(_PAG_PIN)
+    from test_mag_adjustment_visibility import _case
+
+    data, graph = _case(True)
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
-        graph=_pag(accepted=False),
-        query=_query(_PAG_PIN),
+        graph=graph,
+        query=antecedent.AverageEffect("t", "y"),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -269,8 +231,8 @@ def test_pag_same_schema_refresh_reuses_identification() -> None:
     )
     click = prepared.estimate(data, seed=1)
     refreshed = prepared.refresh(data, seed=1)
-    expected = float(_PAG_PIN["frequentist"]["expected_ate"])
-    tolerance = float(_PAG_PIN["frequentist"]["absolute_tolerance"])
+    expected = 2.0
+    tolerance = 1e-10
     assert click.ate == pytest.approx(expected, abs=tolerance)
     assert refreshed.ate == pytest.approx(expected, abs=tolerance)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
@@ -291,13 +253,7 @@ def test_numeric_pin_laws_match_their_recorded_functionals() -> None:
     assert conditional_effects == pytest.approx([0.4, 0.4], abs=1e-15)
     unadjusted_effect = float(np.mean(pag_y[pag_t == 1.0])) - float(np.mean(pag_y[pag_t == 0.0]))
     assert unadjusted_effect == pytest.approx(0.52, abs=1e-15)
-    pag_effects = _PAG_PIN["identification"]["completion_effects"]
-    assert pag_effects == pytest.approx(
-        [conditional_effects[0], unadjusted_effect, conditional_effects[1]], abs=1e-15
-    )
-    assert sum(pag_effects) / len(pag_effects) == pytest.approx(
-        _PAG_PIN["frequentist"]["expected_ate"], abs=1e-15
-    )
+    # These are observational contrasts, not identified effects for the MAG.
 
     data = _expand_contingency(_ADMG_PIN)
     t, m, y = (data[name] for name in ("t", "m", "y"))

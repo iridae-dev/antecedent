@@ -45,6 +45,7 @@ pub mod temporal_pag;
 pub mod temporal_pag_completion;
 pub mod types;
 pub mod unfold;
+pub mod unfold_pag;
 pub mod workspace;
 
 pub use admg::Admg;
@@ -73,4 +74,5 @@ pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,
     ensure_lagged,
 };
+pub use unfold_pag::UnfoldedTemporalPag;
 pub use workspace::{BitSet, GraphWorkspace};

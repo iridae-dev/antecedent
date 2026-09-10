@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
+use antecedent::{AcceptedGraph, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
@@ -136,22 +136,6 @@ fn cached_count(result: &antecedent::StudyResult) -> usize {
     result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
 }
 
-fn assert_pag_envelope_diagnostic(result: &antecedent::StudyResult, pin: &serde_json::Value) {
-    let identification = &pin["identification"];
-    let expected = format!(
-        "identified_mass={}, unidentified_mass={}, cases={}",
-        identification["identified_mass"].as_f64().unwrap(),
-        identification["unidentified_mass"].as_f64().unwrap(),
-        identification["completion_count"].as_u64().unwrap()
-    );
-    assert!(
-        result.diagnostics.iter().any(|d| {
-            d.code.as_ref() == "identify.pag.envelope" && d.message.contains(&expected)
-        }),
-        "PAG envelope diagnostic must report the pinned completion masses ({expected})"
-    );
-}
-
 fn assert_validation_presence(
     result: &antecedent::StudyResult,
     suite: RefuteSuite,
@@ -232,84 +216,16 @@ fn run_prepared(
 }
 
 #[test]
-fn pag_ate_envelope_numeric_pin() {
+fn invisible_pag_pin_is_not_identified_by_adjustment() {
     let pin = pag_pin();
-    let data = expand_contingency(&pin);
     let pag = pag_from_pin(&pin);
     let query = query_from_pin(&pin);
-    let freq = &pin["frequentist"];
-    let bayes = &pin["bayesian"];
-    let identifier = pin["identification"]["identifier"].as_str().unwrap();
-    let freq_estimator = freq["estimator"].as_str().unwrap();
-    let bayes_estimator = bayes["estimator"].as_str().unwrap();
-    let bayes_seed = bayes["seed"].as_u64().unwrap();
-    let freq_ate = freq["expected_ate"].as_f64().unwrap();
-    let freq_tol = freq["absolute_tolerance"].as_f64().unwrap();
-    let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
-    let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
-    let unidentified = pin["identification"]["unidentified_mass"].as_f64().unwrap();
-    assert_eq!(pin["identification"]["status"], "PartiallyIdentified");
-    assert_eq!(bayes["backend"], "conjugate");
-
-    for accepted in [false, true] {
-        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let mut freq_builder = Study::tabular(data.clone());
-            freq_builder = if accepted {
-                freq_builder.graph(AcceptedGraph::from(pag.clone()))
-            } else {
-                freq_builder.graph(pag.clone())
-            };
-            let freq_study = freq_builder
-                .query(query.clone())
-                .refute(suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap();
-            let (fresh, click, refreshed) =
-                run_prepared(&freq_study, &data, bayes_seed, identifier, freq_estimator);
-            assert_eq!(format!("{:?}", fresh.identification.status), "PartiallyIdentified");
-            for result in [&fresh, &click, &refreshed] {
-                assert_validation_presence(result, suite, false);
-                assert_pag_envelope_diagnostic(result, &pin);
-            }
-            assert_prepared_reuse(&fresh, &click, &refreshed, freq_ate, freq_tol);
-
-            let mut bayes_builder = Study::tabular(data.clone());
-            bayes_builder = if accepted {
-                bayes_builder.graph(AcceptedGraph::from(pag.clone()))
-            } else {
-                bayes_builder.graph(pag.clone())
-            };
-            let bayes_study = bayes_builder
-                .query(query.clone())
-                .inference(InferenceMode::Bayesian(
-                    BayesianConfig::conjugate()
-                        .n_draws(usize::try_from(bayes["n_draws"].as_u64().unwrap()).unwrap())
-                        .prior_scale(bayes["prior_scale"].as_f64().unwrap()),
-                ))
-                .refute(suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap();
-            let (fresh, click, refreshed) =
-                run_prepared(&bayes_study, &data, bayes_seed, identifier, bayes_estimator);
-            assert_prepared_reuse(&fresh, &click, &refreshed, bayes_ate, bayes_tol);
-            for result in [&fresh, &click, &refreshed] {
-                assert_validation_presence(result, suite, true);
-                assert_pag_envelope_diagnostic(result, &pin);
-                let posterior = result.posterior.as_ref().expect("PAG Bayesian envelope");
-                assert!((posterior.unidentified_mass - unidentified).abs() < 1e-15);
-                if matches!(suite, RefuteSuite::Full) {
-                    assert!(
-                        posterior.prior_sensitivity.is_some(),
-                        "Bayesian full validation must attach prior sensitivity"
-                    );
-                } else {
-                    assert!(posterior.prior_sensitivity.is_none());
-                }
-            }
-        }
-    }
+    let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&pag, &query)
+        .unwrap();
+    assert_eq!(envelope.identified_weight.0, 0.0);
+    assert_eq!(envelope.unidentified_weight.0, envelope.cases.len() as f64);
+    assert!(envelope.cases.iter().all(|case| case.result.estimands.is_empty()));
 }
 
 #[test]
