@@ -26,13 +26,13 @@ from ._native import (
     analyze_ate_many as _analyze_ate_many,
 )
 from ._native import (
-    prepare_ate_batch as _prepare_ate_batch,
-)
-from ._native import (
     identify_ate as _identify_ate,
 )
 from ._native import (
     identify_ate_admg as _identify_ate_admg,
+)
+from ._native import (
+    prepare_ate_batch as _prepare_ate_batch,
 )
 from .discovery import (
     FCI,
@@ -60,7 +60,7 @@ from .errors import (
     PendingEdge,
     build_review_error,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -705,7 +705,7 @@ def _resolve_static_discovery_edges(
 def analyze_many(
     data: Mapping[str, Any] | Any,
     *,
-    graph: Dag | Sequence[tuple[str, str]],
+    graph: Dag | TieredBackground | Sequence[tuple[str, str]],
     queries: Sequence[AverageEffect],
     identifier: str | None = None,
     estimator: str | None = None,
@@ -723,9 +723,10 @@ def analyze_many(
     data:
         Column mapping / DataFrame (ingested once).
     graph:
-        Static DAG or edge list shared by every query.
+        Static DAG, edge list, or ``TieredBackground`` shared by every query.
     queries:
-        Non-empty sequence of ``AverageEffect`` queries.
+        Non-empty sequence of ``AverageEffect`` queries. Outcome functionals
+        are executed, not dropped to means.
     refute:
         ``False`` or a suite name; leave unset (``None``) for the default
         suite. Explicit ``refute=True`` raises ``TypeError`` — see
@@ -740,9 +741,17 @@ def analyze_many(
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
     names, columns = ingest_columns(data)
-    edges = _static_edges(graph)
+    from .query import coerce_outcome_functional
+
     specs = [
-        (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries
+        (
+            q.treatment,
+            q.outcome,
+            float(q.control_level),
+            float(q.active_level),
+            coerce_outcome_functional(q.outcome_functional),
+        )
+        for q in queries
     ]
     kwargs: dict[str, Any] = dict(
         identifier=identifier,
@@ -755,7 +764,18 @@ def analyze_many(
     if latency is not None:
         kwargs["latency"] = latency
     kwargs.update(_screen_kwargs(candidate_screen))
-    raws = _analyze_ate_many(names, columns, edges, specs, **kwargs)
+    if isinstance(graph, TieredBackground):
+        raws = _analyze_ate_many(
+            names,
+            columns,
+            [],
+            specs,
+            tiers=[list(tier) for tier in graph.tiers],
+            within_tier=str(graph.within_tier),
+            **kwargs,
+        )
+    else:
+        raws = _analyze_ate_many(names, columns, _static_edges(graph), specs, **kwargs)
     return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
 
 
@@ -780,20 +800,55 @@ def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
     }
 
 
+@dataclass(frozen=True)
+class SharedBatchDesign:
+    """Fold assignment and covariate design frozen on a prepared batch.
+
+    Folds and, when adjustment sets agree, the ``[1 | Z]`` matrix are shared.
+    Propensity and outcome residualization remain per-query fits on that design.
+    """
+
+    n_folds: int
+    fold_ids: tuple[int, ...]
+    adjustment_set: tuple[int, ...] | None
+    shares_covariates: bool
+    shares_propensity: bool = False
+    shares_outcome_residualization: bool = False
+
+
 @dataclass
 class PreparedBatch:
-    """Compile-once batch of average-effect plans with shared-row joint inference."""
+    """Compile-once batch of average-effect plans with shared-row joint inference.
+
+    ``prepare`` freezes one fold-assignment object and, when every query shares
+    a certified adjustment set, one covariate design. Propensity and outcome
+    residualization are still fit per query.
+    """
 
     _native: Any
     _queries: tuple[AverageEffect, ...]
     _names: tuple[str, ...]
+
+    @property
+    def shared_design(self) -> SharedBatchDesign | None:
+        n_folds = self._native.shared_n_folds()
+        if n_folds is None:
+            return None
+        folds = self._native.shared_fold_ids() or []
+        adj = self._native.shared_adjustment_set()
+        return SharedBatchDesign(
+            n_folds=int(n_folds),
+            fold_ids=tuple(int(i) for i in folds),
+            adjustment_set=None if adj is None else tuple(int(i) for i in adj),
+            shares_covariates=bool(self._native.shares_covariates()),
+        )
 
     @classmethod
     def prepare(
         cls,
         data: Mapping[str, Any] | Any,
         *,
-        graph: Dag | Sequence[tuple[str, str]],
+        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
         queries: Sequence[AverageEffect],
         identifier: str | None = None,
         estimator: str | None = None,
@@ -810,9 +865,17 @@ class PreparedBatch:
             raise CausalTypeError("PreparedBatch currently supports AverageEffect queries only")
         resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
-        edges = _static_edges(graph)
+        from .query import coerce_outcome_functional
+
         specs = [
-            (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries
+            (
+                q.treatment,
+                q.outcome,
+                float(q.control_level),
+                float(q.active_level),
+                coerce_outcome_functional(q.outcome_functional),
+            )
+            for q in queries
         ]
         kwargs: dict[str, Any] = dict(
             identifier=identifier,
@@ -825,7 +888,18 @@ class PreparedBatch:
         if latency is not None:
             kwargs["latency"] = latency
         kwargs.update(_screen_kwargs(candidate_screen))
-        native = _prepare_ate_batch(names, columns, edges, specs, **kwargs)
+        if isinstance(graph, TieredBackground):
+            native = _prepare_ate_batch(
+                names,
+                columns,
+                [],
+                specs,
+                tiers=[list(tier) for tier in graph.tiers],
+                within_tier=str(graph.within_tier),
+                **kwargs,
+            )
+        else:
+            native = _prepare_ate_batch(names, columns, _static_edges(graph), specs, **kwargs)
         return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
 
     def estimate(
@@ -1395,6 +1469,35 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+            )
+            return cls(native, kind="average", query=query)
+        if isinstance(query, AverageEffect) and isinstance(graph, TieredBackground):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis TieredBackground supports Frequentist only"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            from .query import coerce_outcome_functional
+
+            native = _NativePreparedAnalysis.prepare_tiered(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                bootstrap=0 if bootstrap is None else bootstrap,
+                threads=threads,
+                latency=latency,
+                outcome_functional=coerce_outcome_functional(
+                    getattr(query, "outcome_functional", None)
+                ),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, Admg):
@@ -2347,8 +2450,9 @@ class PreparedAnalysis:
         """Estimate a declared target population from frozen scores. No refit.
 
         Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
-        Nonempty ``depends_on`` needs a DAG so descendant closure can be checked.
-        ``analyze()`` does not return a retarget handle.
+        Nonempty ``depends_on`` needs a directed graph (DAG or ADMG) so
+        descendant closure can be checked. Nonconstant weights require a
+        nonempty ``depends_on``. ``analyze()`` does not return a retarget handle.
         """
         import numpy as np
 
@@ -2437,6 +2541,7 @@ __all__ = [
     "PredictiveCheckReport",
     "PreparedAnalysis",
     "PreparedBatch",
+    "SharedBatchDesign",
     "CandidateScreen",
     "PriorSensitivityReport",
     "RefutationReport",

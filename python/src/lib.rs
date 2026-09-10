@@ -951,7 +951,7 @@ pub(crate) struct CandidateSelectionSection {
     #[pyo3(get)]
     procedure: String,
     #[pyo3(get)]
-    winner_index: usize,
+    winner_index: Option<usize>,
     #[pyo3(get)]
     family_size: usize,
     #[pyo3(get)]

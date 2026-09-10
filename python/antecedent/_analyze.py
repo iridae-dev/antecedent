@@ -1286,9 +1286,9 @@ def handle_static_ate(
     if dists:
         pop_kw["population_distributions"] = dists
     if isinstance(graph, TieredBackground):
-        if pop_kw:
+        if pop is not None or preds or dists:
             raise CausalUnsupportedError(
-                "tiered Python execution does not yet accept target populations or outcome functionals"
+                "tiered Python execution does not yet accept target populations"
             )
         names, columns = ingest_columns(data)
         return _wrap_ate(
@@ -1306,6 +1306,7 @@ def handle_static_ate(
                 seed=seed,
                 bootstrap=bootstrap or 0,
                 threads=threads,
+                outcome_functional=functional,
             ),
             query=query,
         )
