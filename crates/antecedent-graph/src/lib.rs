@@ -43,6 +43,7 @@ pub mod temporal;
 pub mod temporal_cpdag_completion;
 pub mod temporal_pag;
 pub mod temporal_pag_completion;
+pub mod tiered;
 pub mod types;
 pub mod unfold;
 pub mod unfold_pag;
@@ -69,6 +70,7 @@ pub use temporal_cpdag_completion::{
 };
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSampler};
+pub use tiered::{TieredBackground, WithinTier};
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,
