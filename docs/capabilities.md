@@ -29,14 +29,18 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the 1.4 matrix licenses the 1.3 families plus
-class-preserving `AverageEffect` on `Cpdag`, class-aware `ResponseCurve` /
-`InterventionResponse` and `ConditionalEffect` on `Cpdag` / `Pag`, Frequentist
-Pulse / single-step Sustained on incomplete `TemporalCpdag` / `TemporalPag`,
-and Frequentist graph-posterior `AverageEffect` on DAG atoms. Completions stay
-envelope atoms; the runtime class is not collapsed. Multi-atom Frequentist
-uncertainty is unavailable. Temporal PAG results retain MAG completions and
-disclose finite-window audit caps. Those families are not licensed on every
+At analysis level, the 1.5 matrix keeps the 1.4 licensed cells and adds
+estimators, functionals, and execution contracts on those cells: retargetable
+prepared AIPW scores (AllObserved iid AIPW and cell-AIPW only; `analyze()`
+does not always return scores), exceedance functionals, cell-saturated joint AIPW,
+`TieredBackground` as a fast path over ADMG / PAG adjustment, and joint
+influence-function standard errors on static Cpdag / Pag effect and response
+aggregates. Unknown tiers retain distinct canonical scenario effects.
+Completions stay envelope atoms; the runtime class is not collapsed.
+Multi-atom Frequentist uncertainty is unavailable on temporal and DBN class
+envelopes until 1.9. The [v1.5 evidence](v1.5-evidence.md) ledger records
+consuming tests and that 1.9 deferral. Temporal PAG results retain MAG completions
+and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: Bayesian
 incomplete-class temporal cells, Frequentist DBN-posterior mixing, Bayesian
 and partial-graph derivatives, accepted / Bayesian / nested counterfactuals,

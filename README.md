@@ -54,17 +54,18 @@ Antecedent does not rely on a single notion of “tested.” It triangulates its
 - [**The support matrix**](docs/support-matrix.md) **is a license, not a feature list.** A capability existing somewhere in the codebase does not mean the public analysis workflow may use it. Each licensed combination carries an explicit evidence contract; everything else is typed impossible or refuses by default.
 - **Evidence itself is typed.** Implementation tests, analytic known truths, internal cross-checks, frozen external oracles, behavioral parity, and stronger equivalence claims remain distinct so weaker evidence cannot quietly acquire a stronger label.
 
-For example, consider an average treatment effect estimated with AIPW. The public analysis route is licensed only where Antecedent has evidence for the full causal contract. The AIPW implementation has its own provenance record tying it to the literature while explicitly recording that it does not cross-fit, so it does not inherit DML guarantees that require cross-fitting. Its numerical behavior is separately checked against pinned external implementations through reproducible oracle fixtures, and repository gates verify that those fixtures are actually exercised by conformance tests. None of those facts is allowed to stand in for the others: an external match does not prove identification, a citation does not grant an unimplemented theorem, and code that happens to run does not make an analysis supported. If the requested combination falls outside the licensed contract, Antecedent refuses it instead. 
+For example, consider an average treatment effect estimated with AIPW. The public analysis route is licensed only where Antecedent has evidence for the full causal contract. The legacy full-sample AIPW path has a provenance record that explicitly excludes cross-fitting guarantees. The 1.5 score path adds cross-fitting, whose inference still requires positivity and suitable nuisance convergence rates; the review ledger records its current evidence and gaps. The legacy path’s numerical behavior is separately checked against pinned external implementations through reproducible oracle fixtures, and repository gates verify that those fixtures are actually exercised by conformance tests. None of those facts is allowed to stand in for the others: an external match does not prove identification, a citation does not grant an unimplemented theorem, and code that happens to run does not make an analysis supported. If the requested combination falls outside the licensed contract, Antecedent refuses it instead.
 
 **None of this proves Antecedent correct. Together, these mechanisms make accidental overclaiming harder, make unsupported claims fail closed, and leave a visible trail for someone trying to prove the software wrong.**
 
 ## Project status and documentation
 
-The current package version is **1.4.0**. This compatible minor starts
-class-preserving graph coordinates: `AverageEffect` on a supplied `Cpdag`
-stays a `Cpdag` and estimates a MEC envelope. The
-[1.4.0 release notes](docs/release-notes/v1.4.0.md) and
-[evidence ledger](docs/v1.4-evidence.md) define the licensed forms.
+The working package version is **1.5.0**. Its checklist is not yet complete.
+Implemented additions include
+retargetable prepared plans, exceedance functionals, cell-saturated joint
+AIPW, and tier-background identification on the existing licensed cells. The
+[1.5.0 release notes](docs/release-notes/v1.5.0.md) and
+[evidence ledger](docs/v1.5-evidence.md) describe their implemented scope and remaining release requirements.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·
