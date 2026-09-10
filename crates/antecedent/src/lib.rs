@@ -80,8 +80,8 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
-    LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, StageEvent, StageResultSink,
-    Study, StudyBuilder,
+    LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign,
+    SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
 };
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};

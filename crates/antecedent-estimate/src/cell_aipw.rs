@@ -85,7 +85,52 @@ impl CellSaturatedAipw {
                 "cell-saturated AIPW supports 1..=3 binary treatments",
             ));
         }
-        let prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
+        self.fit_scores_with_assignment(
+            data, treatments, outcome, adjustment, functional, continuous, None, None,
+        )
+    }
+
+    /// Fit cell scores using a caller-assigned fold vector and/or `[1 | Z…]` design.
+    ///
+    /// `fold_ids` and `design` are complete-case aligned with the prepared rows.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::fit_scores`], plus assignment shape mismatch.
+    pub fn fit_scores_with_assignment(
+        &self,
+        data: &TabularData,
+        treatments: &[VariableId],
+        outcome: VariableId,
+        adjustment: &[VariableId],
+        functional: &OutcomeFunctional,
+        continuous: Option<ContinuousCellSpec<'_>>,
+        fold_ids: Option<&[u32]>,
+        design: Option<&[f64]>,
+    ) -> Result<ScoreTable, EstimationError> {
+        if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
+            return Err(EstimationError::unsupported(
+                "cell-saturated AIPW supports 1..=3 binary treatments",
+            ));
+        }
+        let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
+        if let Some(ids) = fold_ids {
+            if ids.len() != prepared.n {
+                return Err(EstimationError::data_msg(
+                    "shared fold assignment length must match complete-case rows",
+                ));
+            }
+            prepared.fold_assignment = Some(ids.to_vec());
+        }
+        if let Some(shared) = design {
+            if shared.len() != prepared.design.len() {
+                return Err(EstimationError::data_msg(
+                    "shared covariate design length must match the prepared [1 | Z] matrix",
+                ));
+            }
+            prepared.design = shared.to_vec();
+            prepared.shared_design = true;
+        }
         let thresholds = thresholds_of(functional);
         crossfit_cell_scores(&prepared, &thresholds, self)
     }
@@ -110,6 +155,8 @@ struct PreparedCells {
     row_index: Vec<u32>,
     adjustment_set: Arc<[VariableId]>,
     treatments: Arc<[VariableId]>,
+    fold_assignment: Option<Vec<u32>>,
+    shared_design: bool,
 }
 
 fn prepare_cells(
@@ -215,6 +262,8 @@ fn prepare_cells(
             .chain(continuous.map(|s| s.variable))
             .collect::<Vec<_>>()
             .into(),
+        fold_assignment: None,
+        shared_design: false,
     })
 }
 
@@ -251,8 +300,15 @@ fn crossfit_cell_scores(
     }
     let mut scores = vec![0.0; n * columns.len()];
     let mut propensities = vec![0.0; n * columns.len()];
-    let fold_ids: Vec<u32> =
-        (0..n).map(|i| (prepared.row_index[i] as usize % folds) as u32).collect();
+    let fold_ids: Vec<u32> = match prepared.fold_assignment.as_deref() {
+        Some(ids) if ids.len() == n => ids.to_vec(),
+        Some(_) => {
+            return Err(EstimationError::data_msg(
+                "shared fold assignment length must match complete-case rows",
+            ));
+        }
+        None => (0..n).map(|i| (prepared.row_index[i] as usize % folds) as u32).collect(),
+    };
     let clip = clip_of(est.overlap);
     let mut out_ws = crate::aipw::AipwWorkspace::default();
 
@@ -356,7 +412,13 @@ fn crossfit_cell_scores(
         scores: Arc::from(scores),
         columns: Arc::from(columns),
         adjustment_set: Arc::clone(&prepared.adjustment_set),
-        nuisance_provenance: Arc::from("cell.aipw.crossfit.multinomial_logit.ols.v1"),
+        nuisance_provenance: Arc::from(
+            if prepared.fold_assignment.is_some() || prepared.shared_design {
+                "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
+            } else {
+                "cell.aipw.crossfit.multinomial_logit.ols.v1"
+            },
+        ),
         treatment: prepared.treatments[0],
         intervened: Arc::clone(&prepared.treatments),
     })
@@ -640,6 +702,8 @@ mod tests {
             row_index: (0..10).collect(),
             adjustment_set: Arc::from([]),
             treatments: Arc::from([VariableId::from_raw(0)]),
+            fold_assignment: None,
+            shared_design: false,
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
         assert!(err.to_string().contains("training fold"));

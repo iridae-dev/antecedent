@@ -76,8 +76,15 @@ pub fn build_binary_scores(
     let n = problem.nrows;
     let ncols = problem.design_ncols;
     let clip = clip_of(problem.overlap);
-    let fold_ids: Vec<u32> =
-        (0..n).map(|i| (problem.row_index[i] as usize % folds) as u32).collect();
+    let fold_ids: Vec<u32> = match problem.fold_assignment.as_deref() {
+        Some(ids) if ids.len() == n => ids.to_vec(),
+        Some(_) => {
+            return Err(EstimationError::data_msg(
+                "shared fold assignment length must match complete-case rows",
+            ));
+        }
+        None => (0..n).map(|i| (problem.row_index[i] as usize % folds) as u32).collect(),
+    };
 
     let mut columns = Vec::new();
     for &c in thresholds {
@@ -179,7 +186,11 @@ pub fn build_binary_scores(
         scores: Arc::from(scores),
         columns: Arc::from(columns),
         adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(AIPW_CROSSFIT_PROVENANCE),
+        nuisance_provenance: Arc::from(if problem.fold_assignment.is_some() {
+            "aipw.crossfit.v1;batch.shared_design"
+        } else {
+            AIPW_CROSSFIT_PROVENANCE
+        }),
         treatment,
         intervened: Arc::from([]),
     })

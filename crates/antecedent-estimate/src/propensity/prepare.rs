@@ -52,6 +52,8 @@ pub struct PreparedPropensityProblem {
     pub row_index: Arc<[u32]>,
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
+    /// Optional complete-case fold ids. `None` uses `row_index % n_folds`.
+    pub fold_assignment: Option<Arc<[u32]>>,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -345,6 +347,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             Arc::from(idx)
         },
         treatment_id: treatment,
+        fold_assignment: None,
     })
 }
 

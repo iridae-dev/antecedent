@@ -20,6 +20,7 @@ mod stage;
 
 pub use batch::{
     BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, PreparedBatch,
+    SharedBatchDesign, SharedCovariateDesign,
 };
 pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
 pub use execute::Study;
