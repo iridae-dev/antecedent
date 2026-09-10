@@ -10,7 +10,7 @@ pytest.importorskip("antecedent")
 import antecedent
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.handoff import econml
-from antecedent.query import Exceedance, ExceedanceGrid, Mean, coerce_outcome_functional
+from antecedent.query import Exceedance, ExceedanceGrid, Mean, Quantile, coerce_outcome_functional
 
 
 def _binary_confounded(n: int = 400, seed: int = 15):
@@ -21,6 +21,37 @@ def _binary_confounded(n: int = 400, seed: int = 15):
     return {"t": t, "y": y, "z": z}
 
 
+def _codetermined_siblings(n: int = 800, seed: int = 214):
+    """CoDetermined `{z, u} | {t} | {y}` — same-tier z↔u in the closure ADMG."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    u = rng.normal(size=n)
+    t = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.3 + 0.9 * z + 0.5 * u)))).astype(float)
+    y = (1.0 + z) * t + 0.4 * z + 0.3 * u + 0.35 * rng.normal(size=n)
+    weights = np.exp(-0.5 * ((z - 0.6) / 0.7) ** 2)
+    data = {"t": t, "y": y, "z": z, "u": u}
+    background = TieredBackground(
+        tiers=[["z", "u"], ["t"], ["y"]], within_tier=WithinTier.CODETERMINED
+    )
+    return data, background, weights
+
+
+def _assert_same_effect(batch, solo, *, abs_=1e-12):
+    a, b = batch.estimate.ate, solo.estimate.ate
+    if np.isnan(a) and np.isnan(b):
+        assert batch.estimate.exceedance_cdf is not None
+        assert solo.estimate.exceedance_cdf is not None
+        np.testing.assert_allclose(
+            batch.estimate.exceedance_cdf, solo.estimate.exceedance_cdf, atol=abs_, rtol=0.0
+        )
+        return
+    assert a == pytest.approx(b, abs=abs_)
+    if batch.estimate.exceedance_cdf is not None or solo.estimate.exceedance_cdf is not None:
+        np.testing.assert_allclose(
+            batch.estimate.exceedance_cdf, solo.estimate.exceedance_cdf, atol=abs_, rtol=0.0
+        )
+
+
 def test_outcome_functional_wire():
     assert coerce_outcome_functional(None) is None
     assert coerce_outcome_functional(Mean()) is None
@@ -29,6 +60,7 @@ def test_outcome_functional_wire():
         "kind": "exceedance_grid",
         "thresholds": [0.0, 0.5],
     }
+    assert coerce_outcome_functional(Quantile(0.5)) == {"kind": "quantile", "tau": 0.5}
 
 
 def test_analyze_exceedance_and_mean():
@@ -51,6 +83,15 @@ def test_analyze_exceedance_and_mean():
     )
     assert np.isfinite(mean.estimate.ate)
     assert np.isfinite(exc.estimate.ate)
+    qte = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
+        refute="none",
+        bootstrap=0,
+        estimator="aipw",
+    )
+    assert np.isfinite(qte.estimate.ate)
 
 
 def test_prepared_retarget():
@@ -168,8 +209,28 @@ def test_class_aware_prepare_conditional_exceedance():
     cdf = out_grid.estimate.exceedance_cdf
     assert cdf is not None
     assert len(cdf) == 6
-    assert all(np.isfinite(cdf))
+    assert all(0.0 <= value <= 1.0 for value in cdf)
+    assert np.all(np.diff(np.array(cdf).reshape(-1, 2), axis=0) >= 0.0)
     assert np.isnan(out_grid.estimate.ate)
+    inf = out_grid.estimate.score_inference
+    assert inf is not None
+    assert len(inf.raw_means) == 6
+    assert len(inf.lower) == 6
+    assert len(inf.threshold_supported) == 6
+    assert any(inf.threshold_supported)
+    assert all(
+        np.isfinite(lo) for lo, ok in zip(inf.lower, inf.threshold_supported, strict=True) if ok
+    )
+    extreme = antecedent.ConditionalEffect(
+        "t", "y", "z", outcome_functional=ExceedanceGrid([0.0, 1.0e6])
+    )
+    tail = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=extreme, graph=graph, refute="none", bootstrap=0
+    ).estimate(data)
+    tail_inf = tail.estimate.score_inference
+    assert tail_inf is not None
+    assert tail_inf.threshold_supported[-2:] == [False, False]
+    assert all(not np.isfinite(v) for v in tail_inf.lower[-2:])
 
 
 def test_analyze_does_not_always_return_scores():
@@ -237,6 +298,13 @@ def test_prepared_batch_and_candidate_selection():
     assert len(sel.screen_rows) == n // 2
     assert len(sel.estimate_rows) == n - n // 2
     assert results[0].estimate.adjusted_p_values is not None
+    design = batch.shared_design
+    assert design is not None
+    assert design.n_folds == 5
+    assert design.shares_covariates
+    assert not design.shares_propensity
+    assert not design.shares_outcome_residualization
+    assert design.fold_ids
 
 
 def test_validator_computation_failure_is_typed_and_does_not_abort_claim():
@@ -267,9 +335,7 @@ def test_validator_computation_failure_is_typed_and_does_not_abort_claim():
 def test_dag_intervention_response_cheap_runs():
     data = _binary_confounded(600)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    query = antecedent.InterventionResponse(
-        "y", intervention=antecedent.intervention.Set("t", 1.0)
-    )
+    query = antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0))
     one_shot = antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0)
     assert np.isfinite(one_shot.estimate)
     plan = antecedent.estimation.PreparedAnalysis.prepare(
@@ -280,3 +346,169 @@ def test_dag_intervention_response_cheap_runs():
     validated = plan.refute(data, suite="cheap")
     assert np.isfinite(validated.estimate.ate)
     assert validated.validation.ran
+
+
+def test_analyze_many_keeps_exceedance_functional():
+    rng = np.random.default_rng(218)
+    n = 1200
+    t = (rng.uniform(size=n) < 0.5).astype(float)
+    y = rng.normal(size=n) * (1.0 + 0.4 * t)
+    data = {"t": t, "y": y}
+    graph = antecedent.Dag.from_edges(["t", "y"], [("t", "y")])
+    q90 = 1.2815515655446004
+    mean_q = antecedent.AverageEffect("t", "y")
+    exc_q = antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(q90))
+    mean, exc = antecedent.estimation.analyze_many(
+        data,
+        graph=graph,
+        queries=[mean_q, exc_q],
+        estimator="aipw",
+        refute=False,
+        bootstrap=0,
+    )
+    assert mean.estimate.exceedance_cdf is None
+    assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
+    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=mean_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    solo_exc = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=exc_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    _assert_same_effect(mean, solo_mean)
+    _assert_same_effect(exc, solo_exc)
+
+
+def test_analyze_many_tiered_codetermined_aipw():
+    data, background, _ = _codetermined_siblings(800, 219)
+    mean_q = antecedent.AverageEffect("t", "y")
+    grid_q = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5]))
+    mean, grid = antecedent.estimation.analyze_many(
+        data,
+        graph=background,
+        queries=[mean_q, grid_q],
+        estimator="aipw",
+        refute=False,
+        bootstrap=0,
+    )
+    assert np.isfinite(mean.estimate.ate)
+    assert mean.estimate.exceedance_cdf is None
+    assert np.isnan(grid.estimate.ate)
+    assert grid.estimate.exceedance_cdf is not None
+    solo_mean = antecedent.analyze(
+        data, graph=background, query=mean_q, estimator="aipw", refute="none", bootstrap=0
+    )
+    solo_grid = antecedent.analyze(
+        data, graph=background, query=grid_q, estimator="aipw", refute="none", bootstrap=0
+    )
+    _assert_same_effect(mean, solo_mean)
+    _assert_same_effect(grid, solo_grid)
+
+
+def test_prepared_batch_keeps_exceedance_functional():
+    rng = np.random.default_rng(216)
+    n = 1200
+    t = (rng.uniform(size=n) < 0.5).astype(float)
+    y = rng.normal(size=n) * (1.0 + 0.4 * t)
+    data = {"t": t, "y": y}
+    graph = antecedent.Dag.from_edges(["t", "y"], [("t", "y")])
+    q90 = 1.2815515655446004
+    mean_q = antecedent.AverageEffect("t", "y")
+    exc_q = antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(q90))
+    batch = antecedent.estimation.PreparedBatch.prepare(
+        data,
+        graph=graph,
+        queries=[mean_q, exc_q],
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    mean, exc = batch.estimate(data)
+    assert mean.estimate.exceedance_cdf is None
+    assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
+    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=mean_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    solo_exc = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=exc_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    _assert_same_effect(mean, solo_mean)
+    _assert_same_effect(exc, solo_exc)
+
+
+def test_prepared_batch_tiered_codetermined_aipw():
+    data, background, _ = _codetermined_siblings(800, 217)
+    mean_q = antecedent.AverageEffect("t", "y")
+    grid_q = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5]))
+    batch = antecedent.estimation.PreparedBatch.prepare(
+        data,
+        graph=background,
+        queries=[mean_q, grid_q],
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    mean, grid = batch.estimate(data)
+    assert np.isfinite(mean.estimate.ate)
+    assert mean.estimate.exceedance_cdf is None
+    assert np.isnan(grid.estimate.ate)
+    assert grid.estimate.exceedance_cdf is not None
+    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=mean_q, graph=background, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    solo_grid = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=grid_q, graph=background, estimator="aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    _assert_same_effect(mean, solo_mean)
+    _assert_same_effect(grid, solo_grid)
+
+
+def test_prepared_retarget_codetermined_exceedance_grid():
+    data, background, weights = _codetermined_siblings(800, 214)
+    query = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5, 1.0]))
+    plan = antecedent.estimation.PreparedAnalysis.prepare(
+        data, query=query, graph=background, estimator="aipw", refute="none", bootstrap=0
+    )
+    out = plan.retarget(weights, ["z"])
+    cdf = out.estimate.exceedance_cdf
+    assert cdf is not None
+    assert len(cdf) == 6
+    assert np.isnan(out.estimate.ate)
+    # Walking ↔ as descendants from t would refuse a treatment-tier peer.
+    rng = np.random.default_rng(214)
+    n = 800
+    z = rng.normal(size=n)
+    latent = rng.normal(size=n)
+    u = latent + 0.35 * rng.normal(size=n)
+    t = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.3 + 0.8 * z + 0.45 * latent)))).astype(
+        float
+    )
+    y = (1.0 + z) * t + 0.4 * z + 0.3 * u + 0.35 * rng.normal(size=n)
+    w_u = np.exp(-0.5 * ((u - 0.3) / 0.8) ** 2)
+    peer = antecedent.estimation.PreparedAnalysis.prepare(
+        {"t": t, "y": y, "z": z, "u": u},
+        query=query,
+        graph=TieredBackground(
+            tiers=[["z"], ["t", "u"], ["y"]], within_tier=WithinTier.CODETERMINED
+        ),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    ).retarget(w_u, ["u"])
+    assert peer.estimate.exceedance_cdf is not None
+    assert len(peer.estimate.exceedance_cdf) == 6
+
+
+def test_unrecorded_batch_has_no_invented_winner():
+    data = _binary_confounded(300)
+    graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    batch = antecedent.estimation.PreparedBatch.prepare(
+        data,
+        graph=graph,
+        queries=[antecedent.AverageEffect("t", "y")],
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    (result,) = batch.estimate(data)
+    assert result.estimate.candidate_selection is not None
+    assert result.estimate.candidate_selection.winner_index is None

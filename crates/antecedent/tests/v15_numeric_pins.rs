@@ -8,7 +8,8 @@
 use std::sync::Arc;
 
 use antecedent::{
-    BatchStudy, CandidateProcedure, CandidateScreen, EstimatorId, PreparedStudy, RefuteSuite, Study,
+    BatchStudy, CandidateProcedure, CandidateScreen, EstimatorId, PreparedStudy, RefuteSuite,
+    SharedBatchDesign, Study,
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
@@ -16,7 +17,9 @@ use antecedent_core::{
     TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
+use antecedent_graph::{
+    BitSet, Cpdag, Dag, DenseNodeId, GraphWorkspace, Pag, TieredBackground, WithinTier,
+};
 use antecedent_kernels::standard_normal;
 
 fn cols(pairs: &[(&str, Vec<f64>)]) -> TabularData {
@@ -63,6 +66,236 @@ fn ate_study(
         .bootstrap_replicates(0)
         .build()
         .unwrap()
+}
+
+const PIN_ABS: f64 = 1e-12;
+
+fn assert_estimates_pin_eq(
+    batch: &antecedent::StudyResult,
+    solo: &antecedent::StudyResult,
+    what: &str,
+) {
+    let batch_nan = batch.estimate.ate.is_nan();
+    let solo_nan = solo.estimate.ate.is_nan();
+    assert_eq!(batch_nan, solo_nan, "{what}: ate NaN mismatch");
+    if !batch_nan {
+        assert!(
+            (batch.estimate.ate - solo.estimate.ate).abs() < PIN_ABS,
+            "{what}: ate {} vs {}",
+            batch.estimate.ate,
+            solo.estimate.ate
+        );
+    }
+    match (&batch.estimate.exceedance_cdf, &solo.estimate.exceedance_cdf) {
+        (None, None) => {}
+        (Some(a), Some(b)) => {
+            assert_eq!(a.len(), b.len(), "{what}: cdf length");
+            for (i, (ai, bi)) in a.iter().zip(b.iter()).enumerate() {
+                assert!((ai - bi).abs() < PIN_ABS, "{what}: cdf[{i}] {ai} vs {bi}");
+            }
+        }
+        _ => panic!("{what}: exceedance_cdf presence mismatch"),
+    }
+}
+
+fn variance_shift_binary(
+    n: usize,
+    seed: u64,
+) -> (TabularData, Dag, AverageEffectQuery, AverageEffectQuery) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let q90 = 1.281_551_565_544_600_4;
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        t[i] = f64::from(rng.next_f64() < 0.5);
+        y[i] = standard_normal(&mut rng) * (1.0 + 0.4 * t[i]);
+    }
+    let data = cols(&[("t", t), ("y", y)]);
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let mean_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let exc_q = mean_q.clone().with_outcome_functional(OutcomeFunctional::exceedance(q90));
+    (data, graph, mean_q, exc_q)
+}
+
+fn tiered_aipw(
+    data: TabularData,
+    background: TieredBackground,
+    query: AverageEffectQuery,
+) -> Study {
+    Study::tabular(data)
+        .tiered_background(background)
+        .unwrap()
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// CoDetermined `{z, u} | {t} | {y}`. Same-tier background siblings add z↔u to the
+/// closure ADMG. `u` is not a directed descendant of `t`; a pin with singleton
+/// tiers never builds that bidirected edge.
+fn codetermined_background_siblings(
+    n: usize,
+    seed: u64,
+) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId, VariableId) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut z = vec![0.0; n];
+    let mut u = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut w = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let ui = standard_normal(&mut rng);
+        z[i] = zi;
+        u[i] = ui;
+        let p = 1.0 / (1.0 + (-(-0.3 + 0.9 * zi + 0.5 * ui)).exp());
+        t[i] = f64::from(rng.next_f64() < p);
+        y[i] = (1.0 + zi) * t[i] + 0.4 * zi + 0.3 * ui + 0.35 * standard_normal(&mut rng);
+        w[i] = (-0.5 * ((zi - 0.6) / 0.7).powi(2)).exp();
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("u", u)]);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z", "u"], vec!["t"], vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let query =
+        AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+    let z_id = schema.id_of("z").unwrap();
+    let u_id = schema.id_of("u").unwrap();
+    (data, background, query, w, z_id, u_id)
+}
+
+/// CoDetermined `{z} | {t, u} | {y}`. Same-tier treatment peer adds t↔u.
+/// `u` is in the certified set and is not a directed descendant of `t`.
+fn codetermined_treatment_sibling(
+    n: usize,
+    seed: u64,
+) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut z = vec![0.0; n];
+    let mut u = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut w = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let latent = standard_normal(&mut rng);
+        z[i] = zi;
+        u[i] = latent + 0.35 * standard_normal(&mut rng);
+        let p = 1.0 / (1.0 + (-(-0.3 + 0.8 * zi + 0.45 * latent)).exp());
+        t[i] = f64::from(rng.next_f64() < p);
+        y[i] = (1.0 + zi) * t[i] + 0.4 * zi + 0.3 * u[i] + 0.35 * standard_normal(&mut rng);
+        w[i] = (-0.5 * ((u[i] - 0.3) / 0.8).powi(2)).exp();
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("u", u)]);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], vec!["t", "u"], vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let query =
+        AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+    (data, background, query, w, schema.id_of("u").unwrap())
+}
+
+fn assert_bidirected_sibling_not_descendant(
+    background: &TieredBackground,
+    schema: &antecedent_core::CausalSchema,
+    treatment: VariableId,
+    sibling: VariableId,
+) {
+    let admg = background.to_admg(schema).unwrap();
+    assert!(admg.has_bidirected(), "same-tier CoDetermined must materialize ↔");
+    let t = DenseNodeId::from_raw(treatment.raw());
+    let s = DenseNodeId::from_raw(sibling.raw());
+    let mut out = BitSet::default();
+    let mut ws = GraphWorkspace::default();
+    admg.descendants_of(&[t], &mut out, &mut ws);
+    assert!(!out.contains(s), "bidirected sibling must not be a directed descendant of treatment");
+    assert!(
+        admg.bidirected_neighbors(s).iter().any(|&v| v != t)
+            || admg.bidirected_neighbors(t).contains(&s),
+        "sibling must participate in a bidirected edge (same-tier CoDetermined)"
+    );
+}
+
+fn retarget_grid_matches_standalone(
+    data: &TabularData,
+    background: TieredBackground,
+    query: AverageEffectQuery,
+    weights: &[f64],
+    depends_on: &[VariableId],
+    ctx: &ExecutionContext,
+) -> antecedent::StudyResult {
+    let thresholds = [0.0_f64, 0.5, 1.0];
+    let mid = thresholds[1];
+    let grid_q =
+        query.clone().with_outcome_functional(OutcomeFunctional::exceedance_grid(thresholds));
+    let exc_q = query.with_outcome_functional(OutcomeFunctional::exceedance(mid));
+    let prepared =
+        tiered_aipw(data.clone(), background.clone(), grid_q.clone()).prepare(ctx).unwrap();
+    assert!(prepared.score_table().is_some(), "CoDetermined AIPW must freeze scores");
+    let table = prepared.score_table().unwrap();
+    for &v in depends_on {
+        assert!(
+            table.adjustment_set.iter().any(|&z| z == v),
+            "depends_on variable must sit in the certified tier-closure set"
+        );
+    }
+    let retargeted = prepared.retarget(weights, depends_on, ctx).unwrap();
+    let cdf = retargeted.estimate.exceedance_cdf.as_ref().expect("retargeted grid F_a(c)");
+    assert_eq!(cdf.len(), thresholds.len() * 2);
+    assert!(
+        retargeted.estimate.ate.is_nan(),
+        "grid retarget must not publish a first-threshold ATE"
+    );
+
+    // CustomDistribution first-click is licensed for a scalar exceedance (Y → 1{Y>c}),
+    // not a multi-threshold grid. Pin the grid contrast at c to that standalone path.
+    let exc_retarget = tiered_aipw(data.clone(), background.clone(), exc_q.clone())
+        .prepare(ctx)
+        .unwrap()
+        .retarget(weights, depends_on, ctx)
+        .unwrap();
+    let mut registry = PopulationRegistry::new();
+    let href = DistributionRef::from_raw(1);
+    registry.insert_distribution_with_dependence(href, weights.to_vec(), depends_on.to_vec());
+    let standalone = Study::tabular(data.clone())
+        .tiered_background(background)
+        .unwrap()
+        .query(exc_q.with_target_population(TargetPopulation::CustomDistribution(href)))
+        .population_registry(registry)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(ctx)
+        .unwrap();
+    assert!(
+        (exc_retarget.estimate.ate - standalone.estimate.ate).abs() < PIN_ABS,
+        "tiered exceedance retarget {} vs CustomDistribution {}",
+        exc_retarget.estimate.ate,
+        standalone.estimate.ate
+    );
+    // columns are (arm0,c), (arm1,c) per threshold; ATE = F_0(c) - F_1(c).
+    let grid_contrast = cdf[2] - cdf[3];
+    assert!(
+        (grid_contrast - exc_retarget.estimate.ate).abs() < PIN_ABS,
+        "grid contrast at {mid} {} vs exceedance {}",
+        grid_contrast,
+        exc_retarget.estimate.ate
+    );
+    retargeted
 }
 
 #[test]
@@ -210,7 +443,12 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
     );
     assert!(fresh.estimate.monotone_rearranged);
     assert!(fresh.estimate.simultaneous_interval.is_none());
-    assert!(fresh.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
+    );
 
     let prepared = ate_study(data.clone(), graph, grid_q, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
@@ -526,16 +764,16 @@ fn batch_joint_if_and_overlap_does_not_abort() {
     }));
 }
 
-#[test]
-fn retarget_hot_path_10k_by_500_is_bounded() {
-    let (data, graph, query, _, _) = confounded_hetero(10_000, 26);
+fn retarget_distinct_lever_loop(n: usize, n_levers: u32, seed: u64, max_secs: f64) {
+    let (data, graph, query, _, _) = confounded_hetero(n, seed);
     let z = VariableId::from_raw(2);
     let z_col = data.float64_slice(z).unwrap().to_vec();
-    let ctx = ExecutionContext::for_tests(26);
+    let ctx = ExecutionContext::for_tests(seed);
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
-    let levers: Vec<Vec<f64>> = (0..500)
+    let denom = f64::from(n_levers.saturating_sub(1).max(1));
+    let levers: Vec<Vec<f64>> = (0..n_levers)
         .map(|k| {
-            let center = -2.0 + 4.0 * f64::from(k) / 499.0;
+            let center = -2.0 + 4.0 * f64::from(k) / denom;
             z_col.iter().map(|&zi| (-0.5 * ((zi - center) / 0.7).powi(2)).exp()).collect()
         })
         .collect();
@@ -545,7 +783,23 @@ fn retarget_hot_path_10k_by_500_is_bounded() {
         assert!(out.estimate.ate.is_finite());
     }
     let elapsed = started.elapsed();
-    assert!(elapsed.as_secs_f64() < 8.0, "retarget 10k×500 distinct levers took {elapsed:?}");
+    assert!(
+        elapsed.as_secs_f64() < max_secs,
+        "retarget {n}×{n_levers} distinct levers took {elapsed:?}"
+    );
+}
+
+#[test]
+fn retarget_hot_path_smoke_is_bounded() {
+    // Default smoke. The licensed 10k×500 ADR 0011 measurement is the ignored
+    // timed harness below plus `retarget_alloc_count` (500 distinct levers).
+    retarget_distinct_lever_loop(2_000, 50, 26, 2.0);
+}
+
+#[test]
+#[ignore = "ADR 0011 10k×500 timed harness; allocation contract is retarget_alloc_count"]
+fn retarget_hot_path_10k_by_500_is_bounded() {
+    retarget_distinct_lever_loop(10_000, 500, 26, 8.0);
 }
 
 #[test]
@@ -748,10 +1002,35 @@ fn conditional_exceedance_grid_publishes_per_arm_cdf() {
     let cdf = result.estimate.exceedance_cdf.expect("conditional grid F_a(c)");
     assert_eq!(cdf.len(), 6);
     assert!(cdf.iter().all(|v| v.is_finite()));
-    assert!(result.estimate.joint_covariance.is_some());
-    assert!(result.estimate.ate.is_nan(), "ConditionalEffect grid must not publish a first-threshold scalar");
+    let cov = result.estimate.joint_covariance.expect("per-arm CDF covariance");
+    assert_eq!(cov.dim, 6, "joint covariance must be 2K per-arm coordinates, not K contrasts");
+    let inf = result.estimate.score_inference.expect("per-arm simultaneous bands");
+    assert_eq!(inf.raw_means.len(), 6);
+    assert_eq!(inf.lower.len(), 6);
+    assert_eq!(inf.upper.len(), 6);
+    assert_eq!(inf.threshold_supported.len(), 6);
+    assert!(
+        inf.threshold_supported.iter().any(|ok| *ok),
+        "interior thresholds on this DGP must have tail support"
+    );
+    assert!(
+        inf.lower.iter().zip(&inf.threshold_supported).any(|(lo, ok)| *ok && lo.is_finite()),
+        "supported arms must publish a finite raw-score band"
+    );
+    assert!(
+        result.estimate.ate.is_nan(),
+        "ConditionalEffect grid must not publish a first-threshold scalar"
+    );
     assert!(result.estimate.influence.is_none());
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.cdf_inference")
+    );
 }
 
 #[test]
@@ -759,7 +1038,7 @@ fn prepared_batch_reuses_plans_and_records_screen() {
     let (data, graph, query, _, _) = confounded_hetero(700, 192);
     let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let ctx = ExecutionContext::for_tests(192);
-    let n = data.row_count() as u32;
+    let n = u32::try_from(data.row_count()).unwrap();
     let screen_rows: Vec<u32> = (0..n / 2).collect();
     let estimate_rows: Vec<u32> = (n / 2..n).collect();
     let n_estimate = estimate_rows.len();
@@ -792,12 +1071,18 @@ fn prepared_batch_reuses_plans_and_records_screen() {
         restored.candidate_selection.as_ref().map(|s| s.screen_rows.len()),
         Some(recorded.screen_rows.len())
     );
-    assert!(results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if")));
-    assert!(results
-        .iter()
-        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection")));
+    assert!(
+        results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
+    );
+    assert!(
+        results
+            .iter()
+            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection"))
+    );
     assert!(results.iter().any(|r| {
-        r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection.ranked_on_reported_family")
+        r.diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "batch.candidate_selection.ranked_on_reported_family")
     }));
     let inf = results[0].estimate.influence.as_ref().expect("estimate-sample IF");
     assert_eq!(
@@ -810,32 +1095,32 @@ fn prepared_batch_reuses_plans_and_records_screen() {
 #[test]
 fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
     let n_nodes = 200u32;
+    let n = 800;
     let mut names = Vec::with_capacity(n_nodes as usize);
-    let mut columns = Vec::with_capacity(n_nodes as usize);
+    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(n_nodes as usize);
     let mut rng = ExecutionContext::for_tests(200).rng.stream(0xC8);
-    let mut prev = vec![0.0; 400];
-    for i in 0..n_nodes {
+    let latent: Vec<Vec<f64>> =
+        (0..20).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
+    for i in 0..n_nodes as usize {
         names.push(format!("v{i}"));
-        let mut col = vec![0.0; 400];
-        for (row, v) in col.iter_mut().enumerate() {
-            let noise = standard_normal(&mut rng);
-            *v = if i == 0 { noise } else { 0.15 * prev[row] + noise };
-        }
+        let mut col: Vec<f64> =
+            (0..n).map(|r| 0.3 * latent[i / 10][r] + standard_normal(&mut rng)).collect();
         if i == 50 {
-            for row in 0..400 {
-                col[row] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-0.4 * prev[row]).exp()));
+            for (r, value) in col.iter_mut().enumerate() {
+                *value += 0.4 * columns[0][r];
             }
         }
-        if i + 1 == n_nodes {
-            for row in 0..400 {
-                col[row] = 1.8 * prev[row] + 0.4 * standard_normal(&mut rng);
+        if i == 199 {
+            for (r, value) in col.iter_mut().enumerate() {
+                *value = 1.8 * columns[50][r]
+                    + 0.4 * columns[0][r]
+                    + 0.2 * columns[51][r]
+                    + standard_normal(&mut rng);
             }
         }
-        prev.clone_from(&col);
         columns.push(col);
     }
-    let pairs: Vec<(&str, Vec<f64>)> =
-        names.iter().map(String::as_str).zip(columns).collect();
+    let pairs: Vec<(&str, Vec<f64>)> = names.iter().map(String::as_str).zip(columns).collect();
     let borrowed: Vec<(&str, &[f64])> = pairs.iter().map(|(n, v)| (*n, v.as_slice())).collect();
     let data = TabularData::from_f64_columns(borrowed).unwrap();
     let schema = data.schema();
@@ -847,31 +1132,68 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
         TieredBackground::from_named(schema, &tiers, WithinTier::CoDetermined).unwrap();
     let t = schema.id_of("v50").unwrap();
     let y = schema.id_of(&names[199]).unwrap();
-    let identified = antecedent_identify::identify_tiered(
-        &background,
-        &AverageEffectQuery::binary_ate(t, y),
-    )
-    .unwrap();
+    let identified =
+        antecedent_identify::identify_tiered(&background, &AverageEffectQuery::binary_ate(t, y))
+            .unwrap();
     let certified = identified.estimands[0].adjustment_set.clone();
     let expected = background.tier_closure(t, y).unwrap();
     assert_eq!(certified.as_ref(), expected.as_ref());
     assert!(certified.contains(&schema.id_of("v49").unwrap()));
     assert!(!certified.contains(&t));
     assert!(!certified.contains(&y));
+    let mut backdoor = antecedent_graph::Admg::with_variables(n_nodes);
+    for (k, tier) in background.tiers.iter().enumerate() {
+        for later in background.tiers.iter().skip(k + 1) {
+            for &u in tier.iter().filter(|&&u| u != t) {
+                for &v in later.iter() {
+                    backdoor
+                        .insert_directed(
+                            DenseNodeId::from_raw(u.raw()),
+                            DenseNodeId::from_raw(v.raw()),
+                        )
+                        .unwrap();
+                }
+            }
+        }
+        for (i, &u) in tier.iter().enumerate() {
+            for &v in tier.iter().skip(i + 1) {
+                backdoor
+                    .insert_bidirected(
+                        DenseNodeId::from_raw(u.raw()),
+                        DenseNodeId::from_raw(v.raw()),
+                    )
+                    .unwrap();
+            }
+        }
+    }
+    let z: Vec<_> = certified.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
+    assert!(
+        backdoor
+            .is_m_separated(
+                DenseNodeId::from_raw(t.raw()),
+                DenseNodeId::from_raw(y.raw()),
+                &z,
+                &mut antecedent_graph::DSeparationWorkspace::default()
+            )
+            .unwrap()
+    );
     let result = Study::tabular(data)
         .tiered_background(background)
         .unwrap()
         .query(AverageEffectQuery::binary_ate(t, y))
         .identifier("backdoor.adjustment".parse().unwrap())
-        .estimator(EstimatorId::Aipw)
+        .estimator(EstimatorId::LinearAdjustmentAte)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(200))
         .unwrap();
+    assert!((result.estimate.ate - 1.8).abs() < 1.96 * result.estimate.se_analytic);
     assert!(result.estimate.evalue.is_some_and(|e| e.is_finite() && e >= 1.0));
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "tiered.evalue.vanderweele_approx"));
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "tiered.evalue.vanderweele_approx")
+    );
     assert!(
         result.diagnostics.iter().any(|d| {
             d.code.as_ref() == "tiered.evalue.vanderweele_approx"
@@ -927,8 +1249,10 @@ fn cell_aipw_cheap_runs_overlap_and_evalue() {
         .run(&ExecutionContext::for_tests(202))
         .unwrap();
     assert!(result.estimate.ate.is_finite());
-    assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue")
-        || result.diagnostics.iter().any(|d| d.code.as_ref().contains("evalue")));
+    assert!(
+        result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue")
+            || result.diagnostics.iter().any(|d| d.code.as_ref().contains("evalue"))
+    );
 }
 
 #[test]
@@ -990,17 +1314,17 @@ fn prepared_batch_cells_reuse_joint_plans() {
 fn linear_plan_has_no_score_table_and_refuses_retarget() {
     let (data, graph, query, weights, _) = confounded_hetero(300, 17);
     let ctx = ExecutionContext::for_tests(17);
-    let first = ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::LinearAdjustmentAte)
-        .run(&ctx)
-        .unwrap();
+    let first =
+        ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::LinearAdjustmentAte)
+            .run(&ctx)
+            .unwrap();
     assert!(
         first.estimate.score_table.is_none(),
         "first-click linear analyze/run must not invent a score table"
     );
     assert!(!first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
-    let prepared = ate_study(data, graph, query, EstimatorId::LinearAdjustmentAte)
-        .prepare(&ctx)
-        .unwrap();
+    let prepared =
+        ate_study(data, graph, query, EstimatorId::LinearAdjustmentAte).prepare(&ctx).unwrap();
     assert!(prepared.score_table().is_none());
     let err = prepared.retarget(&weights, &[VariableId::from_raw(2)], &ctx).unwrap_err();
     assert!(
@@ -1073,8 +1397,16 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
         mixed.estimate.influence.is_none(),
         "class-aware grids must not keep a mean-CATE or first-threshold IF as the scalar influence"
     );
-    assert!(mixed.estimate.ate.is_nan(), "class-aware grid must not publish a mean-CATE scalar as the grid");
-    assert!(mixed.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared"));
+    assert!(
+        mixed.estimate.ate.is_nan(),
+        "class-aware grid must not publish a mean-CATE scalar as the grid"
+    );
+    assert!(
+        mixed
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared")
+    );
 }
 
 #[test]
@@ -1205,7 +1537,10 @@ fn cell_aipw_refuses_named_interaction_on_exceedance_grid() {
         .unwrap()
         .run(&ExecutionContext::for_tests(208))
         .unwrap();
-    assert!(result.estimate.ate.is_nan(), "cell.aipw grids must not publish a first-threshold scalar");
+    assert!(
+        result.estimate.ate.is_nan(),
+        "cell.aipw grids must not publish a first-threshold scalar"
+    );
     let table = result.estimate.score_table.as_ref().expect("cell grid scores");
     let err = antecedent_estimate::cell_aipw::contrast_named(table, "interaction").unwrap_err();
     assert!(
@@ -1219,28 +1554,31 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
     let (data, graph, q1, _, _) = confounded_hetero(400, 209);
     let q2 = q1.clone().with_target_population(TargetPopulation::Treated);
     let ctx = ExecutionContext::for_tests(209);
-    let n = data.row_count() as u32;
+    let n = u32::try_from(data.row_count()).unwrap();
     let results = BatchStudy::new(data, graph)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .candidate_screen(CandidateScreen {
             screen_id: Arc::from("v15.no-joint"),
-            procedure: CandidateProcedure::MaxT,
+            procedure: CandidateProcedure::BenjaminiHochberg,
             screen_rows: (0..n / 2).collect(),
             estimate_rows: (n / 2..n).collect(),
         })
         .estimate_many(&[q1, q2], &ctx)
         .unwrap();
     assert_eq!(results.len(), 2);
+    assert_eq!(results[0].candidate_selection.as_ref().unwrap().winner_index, None);
     assert!(results[0].candidate_selection.is_some());
     assert!(results[0].estimate.candidate_selection.is_some());
     assert!(results.iter().any(|r| {
         r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if.unavailable")
     }));
-    assert!(results
-        .iter()
-        .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection")));
+    assert!(
+        results
+            .iter()
+            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.candidate_selection"))
+    );
     assert!(
         results.iter().all(|r| r.estimate.simultaneous_interval.is_none()),
         "batch family max-t must not be invented when joint IF cannot form"
@@ -1255,12 +1593,16 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
 fn allobserved_first_click_matches_retarget_ones() {
     let (data, graph, query, _, _) = confounded_hetero(800, 210);
     let ctx = ExecutionContext::for_tests(210);
-    let first = ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw)
-        .run(&ctx)
-        .unwrap();
+    let first =
+        ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
     let table = first.estimate.score_table.as_ref().expect("AllObserved iid AIPW must export φ");
     assert!(first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
-    assert!(!first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized"));
+    assert!(
+        !first
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized")
+    );
     let ones = vec![1.0; table.n_rows];
     let retargeted = ate_study(data, graph, query, EstimatorId::Aipw)
         .prepare(&ctx)
@@ -1280,11 +1622,15 @@ fn att_residualized_has_no_scores_and_refuses_retarget() {
     let (data, graph, query, _, _) = confounded_hetero(600, 211);
     let query = query.with_target_population(TargetPopulation::Treated);
     let ctx = ExecutionContext::for_tests(211);
-    let first = ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw)
-        .run(&ctx)
-        .unwrap();
+    let first =
+        ate_study(data.clone(), graph.clone(), query.clone(), EstimatorId::Aipw).run(&ctx).unwrap();
     assert!(first.estimate.score_table.is_none());
-    assert!(first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized"));
+    assert!(
+        first
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.aipw.full_sample_residualized")
+    );
     assert!(!first.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.aipw.crossfit_scores"));
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     assert!(prepared.score_table().is_none());
@@ -1301,10 +1647,557 @@ fn retarget_depends_on_without_dag_refuses_on_prepared_table() {
     let ctx = ExecutionContext::for_tests(213);
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let table = prepared.score_table().expect("AllObserved AIPW scores");
-    let err = antecedent_estimate::check_depends_on(&[VariableId::from_raw(2)], table, None)
-        .unwrap_err();
+    let err =
+        antecedent_estimate::check_depends_on(&[VariableId::from_raw(2)], table, None).unwrap_err();
     assert!(
-        err.to_string().contains("descendant closure requires a DAG"),
-        "nonempty depends_on without a DAG must refuse, not skip: {err}"
+        err.to_string().contains("descendant closure requires a directed graph"),
+        "nonempty depends_on without a directed graph must refuse, not skip: {err}"
+    );
+}
+
+#[test]
+fn retarget_succeeds_on_codetermined_tiered_admg() {
+    // {z, u} | {t} | {y}: z↔u in the closure ADMG. depends_on=[z]; u is z's
+    // bidirected neighbor and is not a directed descendant of t. Identified
+    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed 1.5 call.
+    let (data, background, query, weights, z, u) = codetermined_background_siblings(800, 214);
+    let schema = data.schema().clone();
+    let t = schema.id_of("t").unwrap();
+    assert_bidirected_sibling_not_descendant(&background, &schema, t, u);
+    assert!(
+        background
+            .to_admg(&schema)
+            .unwrap()
+            .bidirected_neighbors(DenseNodeId::from_raw(z.raw()))
+            .contains(&DenseNodeId::from_raw(u.raw())),
+        "z must be bidirected-adjacent to u"
+    );
+    let ctx = ExecutionContext::for_tests(214);
+    let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[z], &ctx);
+    assert!(out.estimate.exceedance_cdf.is_some());
+
+    // {z} | {t, u} | {y}: t↔u. Walking ↔ as descendants from t would mark u
+    // and refuse depends_on=[u]. Directed-only closure must keep this legal.
+    let (data, background, query, weights, u) = codetermined_treatment_sibling(800, 214);
+    let schema = data.schema().clone();
+    let t = schema.id_of("t").unwrap();
+    assert_bidirected_sibling_not_descendant(&background, &schema, t, u);
+    assert!(
+        background
+            .to_admg(&schema)
+            .unwrap()
+            .bidirected_neighbors(DenseNodeId::from_raw(t.raw()))
+            .contains(&DenseNodeId::from_raw(u.raw())),
+        "treatment-tier peer must be t↔u"
+    );
+    let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[u], &ctx);
+    assert!(out.estimate.exceedance_cdf.is_some());
+}
+
+#[test]
+fn retarget_nonconstant_weights_require_depends_on() {
+    let (data, graph, query, weights, _) = confounded_hetero(400, 215);
+    let ctx = ExecutionContext::for_tests(215);
+    let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
+    let err = prepared.retarget(&weights, &[], &ctx).unwrap_err();
+    assert!(
+        err.to_string().contains("nonempty depends_on is required for nonconstant"),
+        "nonconstant w + empty depends_on must refuse: {err}"
+    );
+}
+
+#[test]
+fn batch_prepare_keeps_exceedance_functional() {
+    let (data, graph, mean_q, exc_q) = variance_shift_binary(1_200, 216);
+    let ctx = ExecutionContext::for_tests(216);
+    let queries = [mean_q, exc_q];
+    let results = BatchStudy::new(data.clone(), graph.clone())
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare(&queries, &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    assert_eq!(results.len(), 2);
+    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
+    assert!(
+        (results[1].estimate.ate - results[0].estimate.ate).abs() > 1e-6,
+        "exceedance batch member must not silently become the mean sibling"
+    );
+    for (q, row) in queries.iter().zip(&results) {
+        let solo = ate_study(data.clone(), graph.clone(), q.clone(), EstimatorId::Aipw)
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap();
+        assert_estimates_pin_eq(row, &solo, "prepared batch vs standalone");
+    }
+}
+
+#[test]
+fn batch_estimate_many_keeps_exceedance_functional() {
+    let (data, graph, mean_q, exc_q) = variance_shift_binary(1_200, 218);
+    let ctx = ExecutionContext::for_tests(218);
+    let queries = [mean_q, exc_q];
+    let results = BatchStudy::new(data.clone(), graph.clone())
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .estimate_many(&queries, &ctx)
+        .unwrap();
+    assert_eq!(results.len(), 2);
+    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
+    assert!(
+        (results[1].estimate.ate - results[0].estimate.ate).abs() > 1e-6,
+        "analyze_many / estimate_many must not silently become the mean sibling"
+    );
+    for (q, row) in queries.iter().zip(&results) {
+        let solo = ate_study(data.clone(), graph.clone(), q.clone(), EstimatorId::Aipw)
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap();
+        assert_estimates_pin_eq(row, &solo, "estimate_many vs standalone");
+    }
+}
+
+#[test]
+fn batch_tiered_codetermined_prepare_and_estimate() {
+    // Same-tier {z, u} so the closure ADMG has z↔u. Mean + ExceedanceGrid.
+    let (data, background, mean_q, _, _, u) = codetermined_background_siblings(800, 217);
+    let schema = data.schema().clone();
+    let t = schema.id_of("t").unwrap();
+    assert_bidirected_sibling_not_descendant(&background, &schema, t, u);
+    let grid_q =
+        mean_q.clone().with_outcome_functional(OutcomeFunctional::exceedance_grid([0.0, 0.5]));
+    let ctx = ExecutionContext::for_tests(217);
+    let queries = [mean_q, grid_q];
+    let results = BatchStudy::tiered(data.clone(), background.clone())
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare(&queries, &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    assert_eq!(results.len(), 2);
+    assert!(results[0].estimate.ate.is_finite());
+    assert!(results[0].estimate.exceedance_cdf.is_none(), "mean sibling must stay a mean");
+    assert!(
+        results[1].estimate.ate.is_nan(),
+        "grid batch member must not publish a first-threshold ATE"
+    );
+    assert!(results[1].estimate.exceedance_cdf.as_ref().is_some_and(|c| c.len() == 4));
+    for (q, row) in queries.iter().zip(&results) {
+        let solo = tiered_aipw(data.clone(), background.clone(), q.clone())
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap();
+        assert_estimates_pin_eq(row, &solo, "tiered batch vs standalone");
+    }
+}
+
+#[test]
+fn plugin_zero_shift_influence_equals_sample_mean_influence() {
+    let n = 400usize;
+    let mut rng = ExecutionContext::for_tests(301).rng.stream(0x301);
+    let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let y: Vec<_> = t.iter().map(|v| 1.0 + v + standard_normal(&mut rng)).collect();
+    let mean = y.iter().sum::<f64>() / n as f64;
+    let expected_se =
+        (y.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n * (n - 1)) as f64).sqrt();
+    let data = cols(&[("t", t), ("y", y)]);
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let q = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::shift(VariableId::from_raw(0), Value::f64(0.0))]),
+    });
+    let result = Study::tabular(data)
+        .graph(graph)
+        .query(q)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(301))
+        .unwrap();
+    assert!((response_value(&result) - mean).abs() < 1e-8);
+    assert!((result.estimate.se_analytic - expected_se).abs() < 1e-7);
+}
+
+#[test]
+fn plugin_set_intervals_include_model_fit_uncertainty() {
+    let mut covered = 0;
+    for seed in 300..340 {
+        let n = 300;
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x302);
+        let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+        let y: Vec<_> = (0..n).map(|_| 1.5 + standard_normal(&mut rng)).collect();
+        let data = cols(&[("t", t), ("y", y)]);
+        let estimator = antecedent_estimate::ContinuousResponseEstimator::new(Arc::from([]));
+        let q = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.0))]),
+        });
+        let response = estimator
+            .estimate_identified(
+                &data,
+                &q,
+                antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                antecedent_core::AssumptionSet::default(),
+            )
+            .unwrap();
+        let antecedent_core::ResponseUncertainty::Scalar { standard_error, lower, upper, .. } =
+            response.uncertainty
+        else {
+            panic!("missing response interval")
+        };
+        assert!(
+            standard_error > 0.02,
+            "constant counterfactual design must retain outcome-model uncertainty"
+        );
+        covered += usize::from(lower <= 1.5 && upper >= 1.5);
+    }
+    assert!(covered >= 33, "covered {covered}/40 population response means");
+}
+
+#[test]
+fn conditional_extreme_threshold_refuses_empty_tail_band() {
+    let (data, graph, _, _, _) = confounded_hetero(400, 210);
+    let inner = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_effect_modifiers([VariableId::from_raw(2)])
+        .with_outcome_functional(OutcomeFunctional::exceedance_grid([0.0, 1.0e6]));
+    let query = ConditionalEffectQuery::try_new(inner).unwrap();
+    let result = Study::tabular(data)
+        .graph(graph)
+        .query(CausalQuery::ConditionalEffect(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(210))
+        .unwrap();
+    let inf = result.estimate.score_inference.expect("tail support on the object");
+    assert_eq!(inf.threshold_supported.len(), 4);
+    assert!(!inf.threshold_supported[2] && !inf.threshold_supported[3]);
+    assert!(inf.lower[2].is_nan() && inf.upper[2].is_nan());
+    assert!(inf.lower[3].is_nan() && inf.upper[3].is_nan());
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported")
+    );
+}
+
+#[test]
+fn prepared_batch_shares_fold_object_and_covariate_design() {
+    let (data, _graph, query, _, _) = confounded_hetero(500, 211);
+    let y2: Vec<f64> = data
+        .float64_values(VariableId::from_raw(1))
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(i, y)| y + 0.15 * ((i % 3) as f64))
+        .collect();
+    let data = cols(&[
+        ("t", data.float64_values(VariableId::from_raw(0)).unwrap()),
+        ("y", data.float64_values(VariableId::from_raw(1)).unwrap()),
+        ("z", data.float64_values(VariableId::from_raw(2)).unwrap()),
+        ("y2", y2),
+    ]);
+    let mut graph = Dag::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
+    let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(211);
+    let prepared = BatchStudy::new(data.clone(), graph)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare(&[query, q2], &ctx)
+        .unwrap();
+    let shared: &SharedBatchDesign =
+        prepared.shared_design().expect("prepare must freeze a shared design object");
+    assert_eq!(shared.n_folds, 5);
+    assert!(shared.covariate.is_some(), "same adjustment set must share [1 | Z]");
+    let a = prepared.plans()[0].shared_design().expect("plan 0 shared design");
+    let b = prepared.plans()[1].shared_design().expect("plan 1 shared design");
+    assert!(
+        std::ptr::eq(a, b),
+        "each query must hold the same SharedBatchDesign object, not an independently rebuilt design"
+    );
+    let t0 = prepared.plans()[0].score_table().expect("scores");
+    let t1 = prepared.plans()[1].score_table().expect("scores");
+    assert_eq!(t0.fold_ids.as_ref(), t1.fold_ids.as_ref());
+    assert_eq!(t0.fold_ids.as_ref(), shared.folds_for(&t0.row_index).unwrap());
+    assert!(t0.nuisance_provenance.contains("batch.shared_design"));
+    assert!(t1.nuisance_provenance.contains("batch.shared_design"));
+    assert_ne!(
+        t0.scores.as_ref(),
+        t1.scores.as_ref(),
+        "different outcomes must not share residualization"
+    );
+    let results = prepared.estimate(&data, &ctx).unwrap();
+    assert!(
+        results
+            .iter()
+            .any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.shared_design"))
+    );
+}
+
+#[test]
+fn pag_multi_atom_response_mixes_aligned_ifs() {
+    let n = 1_200usize;
+    let mut rng = ExecutionContext::for_tests(212).rng.stream(0xD4);
+    let mut r = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        r[i] = standard_normal(&mut rng);
+        z[i] = standard_normal(&mut rng);
+        t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(0.8 * r[i] + 0.5 * z[i])).exp()));
+        y[i] = 1.6 * t[i] + 0.7 * z[i] + 0.35 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+    // R→T witnesses visibility. Z o→ T is one Markov class with two MAGs (Z→T and Z↔T).
+    let mut pag = Pag::with_variables(4);
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_circle_arrow(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(
+            &pag,
+            &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+        )
+        .unwrap();
+    assert!(
+        env.unidentified_weight.0 <= 1e-12,
+        "all-identified fixture must not hide unidentified mass"
+    );
+    let identified: Vec<_> = env
+        .cases
+        .iter()
+        .filter(|c| c.result.status != antecedent_identify::IdentificationStatus::NotIdentified)
+        .collect();
+    assert!(
+        identified.len() >= 2,
+        "fixture must have multiple identified MAG completions, got {} of {}",
+        identified.len(),
+        env.cases.len()
+    );
+    let zt = DenseNodeId::from_raw(2);
+    let tt = DenseNodeId::from_raw(0);
+    let marks: Vec<_> =
+        identified.iter().map(|c| c.graph.edge_between(zt, tt).map(|e| (e.at_a, e.at_b))).collect();
+    assert!(
+        marks.windows(2).any(|w| w[0] != w[1]),
+        "completions must be distinct MAGs (Z→T vs Z↔T), got {marks:?}"
+    );
+    let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let mixed = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::Response(response))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(212))
+        .unwrap();
+    assert!(mixed.estimate.ate.is_finite());
+    assert!(
+        mixed.estimate.se_analytic.is_finite() && mixed.estimate.se_analytic > 0.0,
+        "all-identified multi-atom mix must publish mixed IF uncertainty, se={}",
+        mixed.estimate.se_analytic
+    );
+    assert!(
+        mixed.estimate.joint_covariance.is_some() || mixed.estimate.influence.is_some(),
+        "mixed IF / covariance must be attached"
+    );
+    assert!(
+        mixed.diagnostics.iter().any(|d| {
+            d.code.as_ref() == "identify.pag.envelope" && d.message.contains("cases=2")
+        }),
+        "envelope diagnostic must report the multi-atom mix, not a one-completion MAG"
+    );
+}
+
+#[test]
+fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
+    let n = 800usize;
+    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut r = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        r[i] = standard_normal(&mut rng);
+        z[i] = standard_normal(&mut rng);
+        t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(0.7 * r[i] + 0.4 * z[i])).exp()));
+        y[i] = 1.2 * t[i] + 0.6 * z[i] + 0.3 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+    // Shielded Z—T: two identified MAGs and one unidentified completion in one class.
+    let mut pag = Pag::with_variables(4);
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_circle_circle(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(
+            &pag,
+            &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+        )
+        .unwrap();
+    assert!(env.cases.len() >= 2);
+    assert!(env.unidentified_weight.0 > 0.0, "this fixture must retain unidentified completions");
+    assert!(env.identified_weight.0 > 0.0, "this fixture must keep at least one identified atom");
+    let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let mixed = Study::tabular(data.clone())
+        .graph(pag)
+        .query(CausalQuery::Response(response.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(213))
+        .unwrap();
+    let mut primary_pag = Pag::with_variables(4);
+    primary_pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
+    primary_pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    primary_pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    primary_pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    primary_pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let primary = Study::tabular(data)
+        .graph(primary_pag)
+        .query(CausalQuery::Response(response))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(213))
+        .unwrap();
+    assert!(mixed.estimate.ate.is_finite(), "identified-mass response level is still published");
+    assert!(
+        !mixed.estimate.se_analytic.is_finite(),
+        "unidentified completions must not publish an identified-atom SE as the envelope; mixed se={} primary se={}",
+        mixed.estimate.se_analytic,
+        primary.estimate.se_analytic
+    );
+    assert!(
+        primary.estimate.se_analytic.is_finite(),
+        "the identified MAG still has its own SE; the envelope must not reuse it"
+    );
+    assert!(
+        mixed
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
+        "omitted envelope SE must be disclosed"
+    );
+}
+
+#[test]
+fn quantile_treatment_effect_inverts_aipw_cdf() {
+    let n = 2_400usize;
+    let mut rng = ExecutionContext::for_tests(215).rng.stream(0x51);
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for i in 0..n {
+        z[i] = standard_normal(&mut rng);
+        t[i] = f64::from(rng.next_f64() < 0.5);
+        y[i] = 2.0 * t[i] + 0.3 * z[i] + 0.4 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z)]);
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_outcome_functional(OutcomeFunctional::quantile(0.5));
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(215))
+        .unwrap();
+    assert!(
+        (result.estimate.ate - 2.0).abs() < 0.25,
+        "median QTE should recover the location shift, ate={}",
+        result.estimate.ate
+    );
+    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.quantile"),
+        "quantile inversion must be disclosed on the result"
+    );
+}
+
+#[test]
+fn pag_front_door_response_uses_general_id() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    let columns: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
+        for (i, name) in columns.iter().enumerate() {
+            values[i].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
+        }
+    }
+    let pairs: Vec<(&str, &[f64])> =
+        columns.iter().zip(values.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    let data = TabularData::from_f64_columns(pairs).unwrap();
+    let mut pag = Pag::with_variables(3);
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+    assert!(env.identified_weight.0 > 0.0);
+    assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), "general.id");
+    let result = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(216))
+        .unwrap();
+    assert!(
+        (result.estimate.ate - 0.3).abs() < 1e-9,
+        "front-door MAG response must recover the ID functional, ate={}",
+        result.estimate.ate
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
+        "general-ID provenance must be visible"
     );
 }

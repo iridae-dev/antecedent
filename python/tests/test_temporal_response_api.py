@@ -203,5 +203,5 @@ def test_prepared_temporal_rejects_wrong_identifier_and_refute_click():
     with pytest.raises(CausalValueError, match="temporal.backdoor.unfolded"):
         PreparedAnalysis.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
     prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False)
-    with pytest.raises(CausalUnsupportedError, match="AverageEffect-only"):
+    with pytest.raises(CausalUnsupportedError, match="ResponseCurve cheap/full/placebo"):
         prepared.refute(data)

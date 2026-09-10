@@ -554,7 +554,8 @@ mod tests {
             }
         }
         for graph in ["TemporalDag", "Cpdag", "Pag"] {
-            let status = classify(cell("InterventionResponse", graph, "explicit", "Frequentist", "cheap"));
+            let status =
+                classify(cell("InterventionResponse", graph, "explicit", "Frequentist", "cheap"));
             assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
         }
     }

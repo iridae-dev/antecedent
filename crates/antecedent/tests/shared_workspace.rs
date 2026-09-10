@@ -218,6 +218,9 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     assert!(ws.propensity.propensity.scores_grow_count >= score_grows);
     assert!(ws.propensity.propensity.ols.grow_count >= ols_grows);
 
+    // ATT uses the legacy residualized fit and its reusable propensity workspace.
+    // AllObserved iid AIPW now cross-fits per-fold nuisances instead.
+    let query = query.with_target_population(antecedent_core::TargetPopulation::Treated);
     let mut ws2 = StaticEstimateWorkspaces::default();
     let aipw = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::Aipw),
