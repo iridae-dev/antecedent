@@ -12,11 +12,13 @@ use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity,
+    AssumptionStatus, AverageEffectQuery, CausalQuery, CausalSchema, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, IdentificationStatus, ResponseQuery,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{Admg, TieredBackground, WithinTier};
+
+use crate::generalized::GeneralizedAdjustmentIdentifier;
 
 use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
@@ -26,6 +28,13 @@ use crate::result::{
 
 /// Named premise: no latent path into the outcome from outside the tier order.
 pub const NO_LATENT_TO_OUTCOME: &str = "tiered.no_latent_to_outcome";
+
+/// A specific CoDetermined pair has no joint generalized-adjustment set on the
+/// known closure ADMG (open back-door, or a drawn treatment↔outcome edge).
+pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge";
+
+/// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
+pub const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
 
 /// Identify an average effect under a declared tier background.
 ///
@@ -131,6 +140,59 @@ pub fn identify_tiered_envelope(
         GraphIdentificationCase { graph: before, result: pre_id, weight: ProbabilityMass(0.5) },
         GraphIdentificationCase { graph: after, result: clo_id, weight: ProbabilityMass(0.5) },
     ]))
+}
+
+/// Joint `do(T…)` on the [`WithinTier::CoDetermined`] closure ADMG.
+///
+/// CoDetermined is background, not a MAG Markov equivalence class: earlier→later
+/// arrows are asserted, same-tier edges are bidirected, and there is no latent
+/// path into Y beyond what the tier graph draws. Identification is ordinary
+/// ADMG generalized adjustment for the joint treatment set on that known graph
+/// ([`GeneralizedAdjustmentIdentifier::identify_joint_admg_response`]).
+/// Unknown tiers refuse: two canonical scenarios are not a single ADMG.
+///
+/// # Errors
+///
+/// Unknown within-tier interpretation, invalid query, or graph errors.
+pub fn identify_tiered_joint(
+    background: &TieredBackground,
+    schema: &CausalSchema,
+    query: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    match background.within_tier {
+        WithinTier::Unknown => Err(IdentificationError::unsupported(TIERED_JOINT_UNKNOWN_REFUSE)),
+        WithinTier::CoDetermined => {
+            let admg = background.to_admg(schema)?;
+            let mut result = GeneralizedAdjustmentIdentifier::new()
+                .identify_joint_admg_response(&admg, query)?;
+            let identified = joint_identified(&result);
+            result.derivation.push(
+                "tiered.joint.closure_admg",
+                if identified {
+                    "joint ADMG generalized adjustment on the CoDetermined closure (known ancestral ADMG, not a MAG Markov equivalence class)"
+                } else {
+                    TIERED_JOINT_ADJUSTMENT_REFUSE
+                },
+            );
+            if !identified {
+                result.diagnostics.push(Diagnostic::new(
+                    "identify.tiered.joint.adjustment",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    TIERED_JOINT_ADJUSTMENT_REFUSE,
+                ));
+            }
+            Ok(result)
+        }
+    }
+}
+
+pub(crate) fn joint_identified(result: &IdentificationResult) -> bool {
+    matches!(
+        result.status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::PartiallyIdentified
+    ) && !result.estimands.is_empty()
 }
 
 fn identify_closure(
@@ -244,8 +306,25 @@ fn no_latent_diagnostic() -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::{CausalSchemaBuilder, VariableId};
+    use antecedent_core::{
+        CausalSchemaBuilder, Intervention, ResponseFunctional, Value, VariableId,
+    };
     use antecedent_graph::WithinTier;
+
+    fn joint_query(
+        schema: &antecedent_core::CausalSchema,
+        t1: &str,
+        t2: &str,
+        y: &str,
+    ) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: schema.id_of(y).unwrap(),
+            interventions: Arc::from([
+                Intervention::set(schema.id_of(t1).unwrap(), Value::f64(1.0)),
+                Intervention::set(schema.id_of(t2).unwrap(), Value::f64(1.0)),
+            ]),
+        })
+    }
 
     fn bg() -> (antecedent_core::CausalSchema, TieredBackground) {
         let schema = CausalSchemaBuilder::new()
@@ -369,5 +448,133 @@ mod tests {
             started.elapsed()
         );
         assert!(!id.estimands[0].adjustment_set.is_empty());
+    }
+
+    #[test]
+    fn same_tier_pair_is_joint_admg_adjustment() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let admg = background.to_admg(&schema).unwrap();
+        let t1 = antecedent_graph::DenseNodeId::from_raw(schema.id_of("t1").unwrap().raw());
+        let t2 = antecedent_graph::DenseNodeId::from_raw(schema.id_of("t2").unwrap().raw());
+        let mut descendants = antecedent_graph::BitSet::default();
+        let mut ws = antecedent_graph::GraphWorkspace::default();
+        admg.descendants_of(&[t1], &mut descendants, &mut ws);
+        assert!(
+            !descendants.contains(t2),
+            "walking ↔ as a directed path would put t2 in De(t1)"
+        );
+        let id =
+            identify_tiered_joint(&background, &schema, &joint_query(&schema, "t1", "t2", "y"))
+                .unwrap();
+        assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(id.estimands[0].adjustment_set.as_ref(), &[schema.id_of("z").unwrap()]);
+        assert!(!id.estimands[0].adjustment_set.iter().any(|&v| v == schema.id_of("t2").unwrap()));
+        assert!(id.derivation.steps.iter().any(|s| s.rule.as_ref() == "tiered.joint.closure_admg"));
+        let direct = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &joint_query(&schema, "t1", "t2", "y"))
+            .unwrap();
+        assert_eq!(direct.estimands[0].adjustment_set, id.estimands[0].adjustment_set);
+    }
+
+    #[test]
+    fn treatment_sibling_and_cross_tier_pairs_also_identify() {
+        let sibling_schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t")
+            .finish()
+            .continuous("u")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let sibling = TieredBackground::from_named(
+            &sibling_schema,
+            &[vec!["z"], vec!["t", "u"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let sibling_id = identify_tiered_joint(
+            &sibling,
+            &sibling_schema,
+            &joint_query(&sibling_schema, "t", "u", "y"),
+        )
+        .unwrap();
+        assert_eq!(sibling_id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(
+            sibling_id.estimands[0].adjustment_set.as_ref(),
+            &[sibling_schema.id_of("z").unwrap()]
+        );
+
+        let cross_schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let cross = TieredBackground::from_named(
+            &cross_schema,
+            &[vec!["z"], vec!["t1"], vec!["t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let cross_id = identify_tiered_joint(
+            &cross,
+            &cross_schema,
+            &joint_query(&cross_schema, "t1", "t2", "y"),
+        )
+        .unwrap();
+        assert_eq!(cross_id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(
+            cross_id.estimands[0].adjustment_set.as_ref(),
+            &[cross_schema.id_of("z").unwrap()]
+        );
+    }
+
+    #[test]
+    fn unknown_joint_has_no_single_admg() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::Unknown,
+        )
+        .unwrap();
+        let err =
+            identify_tiered_joint(&background, &schema, &joint_query(&schema, "t1", "t2", "y"))
+                .unwrap_err();
+        assert!(err.to_string().contains("no single ADMG"));
     }
 }

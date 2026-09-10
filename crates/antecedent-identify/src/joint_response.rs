@@ -69,7 +69,25 @@ impl GeneralizedAdjustmentIdentifier {
                 admg.insert_directed(from, to)?;
             }
         }
-        identify_joint(&admg, dag.nodes(), query, self.config.max_candidates, |_, _| true)
+        self.identify_joint_admg_response(&admg, query)
+    }
+
+    /// Certify one common joint back-door set on a **known** ADMG.
+    ///
+    /// This is ordinary generalized adjustment after mutilating outgoing
+    /// directed edges from each treatment (Pearl / Perkovic Def. 20 on a
+    /// single graph). It is not MAG/PAG identification: there is no Markov
+    /// equivalence class and no visibility witness. A drawn treatment↔outcome
+    /// edge, or any other open back-door, refuses that pair.
+    ///
+    /// # Errors
+    /// Invalid query, unsupported observation/temporal policy, or graph error.
+    pub fn identify_joint_admg_response(
+        &self,
+        graph: &Admg,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        identify_joint(graph, graph.nodes(), query, self.config.max_candidates, |_, _| true)
     }
 }
 
@@ -283,9 +301,25 @@ fn joint_result(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_graph::MarkedEdge;
+    use crate::generalized::mag_to_admg;
+    use antecedent_core::{
+        CausalSchemaBuilder, IdentificationStatus, Intervention, ResponseFunctional, Value,
+        VariableId,
+    };
+    use antecedent_graph::{BitSet, GraphWorkspace, MarkedEdge, TieredBackground, WithinTier};
+
     fn n(i: u32) -> DenseNodeId {
         DenseNodeId::from_raw(i)
+    }
+
+    fn joint(t1: VariableId, t2: VariableId, y: VariableId) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([
+                Intervention::set(t1, Value::f64(1.0)),
+                Intervention::set(t2, Value::f64(1.0)),
+            ]),
+        })
     }
 
     #[test]
@@ -298,5 +332,91 @@ mod tests {
         assert!(!visible(&mag, n(0), n(1)));
         mag.insert_marked(MarkedEdge::directed(n(3), n(2))).unwrap();
         assert!(visible(&mag, n(0), n(1)));
+    }
+
+    #[test]
+    fn mag_visibility_is_the_wrong_object_for_a_known_closure_admg() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let pag = background.to_pag(&schema).unwrap();
+        let admg = mag_to_admg(&pag).expect("CoDetermined closure is an ancestral ADMG");
+        let t1 = n(schema.id_of("t1").unwrap().raw());
+        let t2 = n(schema.id_of("t2").unwrap().raw());
+        let y = n(schema.id_of("y").unwrap().raw());
+        let z = schema.id_of("z").unwrap();
+        assert!(admg.bidirected_neighbors(t1).contains(&t2));
+        let mut descendants = BitSet::default();
+        let mut ws = GraphWorkspace::default();
+        admg.descendants_of(&[t1], &mut descendants, &mut ws);
+        assert!(
+            !descendants.contains(t2),
+            "walking ↔ as a directed path would put t2 in De(t1)"
+        );
+        assert!(
+            !visible(&pag, t1, y) && !visible(&pag, t2, y),
+            "complete earlier→later MAG has no visibility witness — that is MAG-as-MEC, not CoDetermined"
+        );
+
+        let query = joint(
+            schema.id_of("t1").unwrap(),
+            schema.id_of("t2").unwrap(),
+            schema.id_of("y").unwrap(),
+        );
+        let mag_path =
+            identify_joint(&admg, pag.nodes(), &query, 16, |from, to| visible(&pag, from, to))
+                .unwrap();
+        assert_eq!(
+            mag_path.status,
+            IdentificationStatus::NotIdentified,
+            "MAG visibility must not be the CoDetermined license: {:?}",
+            mag_path.derivation
+        );
+        let known = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            known.status,
+            IdentificationStatus::NonparametricallyIdentified,
+            "known-ADMG joint adjustment must accept Z={{z}}: {:?}",
+            known.derivation
+        );
+        assert_eq!(known.estimands[0].adjustment_set.as_ref(), &[z]);
+    }
+
+    #[test]
+    fn drawn_treatment_outcome_bidirected_refuses_that_pair() {
+        let mut admg = Admg::with_variables(4);
+        admg.insert_directed(n(0), n(1)).unwrap();
+        admg.insert_directed(n(0), n(2)).unwrap();
+        admg.insert_directed(n(0), n(3)).unwrap();
+        admg.insert_directed(n(1), n(3)).unwrap();
+        admg.insert_directed(n(2), n(3)).unwrap();
+        admg.insert_bidirected(n(1), n(2)).unwrap();
+        admg.insert_bidirected(n(1), n(3)).unwrap();
+        let query = joint(VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(3));
+        let id = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            id.status,
+            IdentificationStatus::NotIdentified,
+            "drawn T↔Y is an open back-door: {:?}",
+            id.derivation
+        );
     }
 }
