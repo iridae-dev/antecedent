@@ -229,6 +229,8 @@ _EXPECTED_STAGE_ALL = {
         "PosteriorView",
         "PredictiveCheckReport",
         "PreparedAnalysis",
+        "PreparedBatch",
+        "CandidateScreen",
         "PriorSensitivityReport",
         "RefutationReport",
         "ValidationView",
@@ -253,6 +255,8 @@ _EXPECTED_STAGE_ALL = {
         "TemporalPag",
         "cpdag_oriented_edges",
         "discovery_to_dag",
+        "TieredBackground",
+        "WithinTier",
     },
     "priors": {
         "BetaHyperparameters",

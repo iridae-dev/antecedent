@@ -135,6 +135,7 @@ fn finish_static_ate(
     include_posterior_artifact: bool,
     pop_spec: Option<antecedent_core::TargetPopulation>,
     registry: Option<antecedent_core::PopulationRegistry>,
+    outcome_functional: Option<antecedent_core::OutcomeFunctional>,
 ) -> PyResult<AteAnalysisResult> {
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -142,6 +143,9 @@ fn finish_static_ate(
     let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
     if let Some(pop) = pop_spec {
         query = query.with_target_population(pop);
+    }
+    if let Some(functional) = outcome_functional {
+        query = query.with_outcome_functional(functional);
     }
     let crate::estimator_config::ParsedEstimatorConfig {
         spec: configured_spec,
@@ -555,6 +559,40 @@ fn parse_target_population(spec: Option<&Bound<'_, PyDict>>) -> PyResult<Option<
     }))
 }
 
+pub(crate) fn parse_outcome_functional(
+    spec: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<antecedent_core::OutcomeFunctional>> {
+    let Some(d) = spec else {
+        return Ok(None);
+    };
+    let kind: String = d
+        .get_item("kind")?
+        .ok_or_else(|| PyValueError::new_err("outcome_functional requires 'kind'"))?
+        .extract()?;
+    Ok(Some(match kind.to_ascii_lowercase().as_str() {
+        "mean" => antecedent_core::OutcomeFunctional::Mean,
+        "exceedance" => {
+            let threshold: f64 = d
+                .get_item("threshold")?
+                .ok_or_else(|| PyValueError::new_err("exceedance requires 'threshold'"))?
+                .extract()?;
+            antecedent_core::OutcomeFunctional::exceedance(threshold)
+        }
+        "exceedance_grid" | "grid" => {
+            let thresholds: Vec<f64> = d
+                .get_item("thresholds")?
+                .ok_or_else(|| PyValueError::new_err("exceedance_grid requires 'thresholds'"))?
+                .extract()?;
+            antecedent_core::OutcomeFunctional::exceedance_grid(thresholds)
+        }
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown outcome_functional kind {other:?}"
+            )));
+        }
+    }))
+}
+
 /// Build a [`PopulationRegistry`] from optional predicate/distribution dicts.
 fn parse_population_registry(
     predicates: Option<&Bound<'_, PyDict>>,
@@ -574,8 +612,27 @@ fn parse_population_registry(
     if let Some(dists) = distributions {
         for (k, v) in dists.iter() {
             let id: u32 = k.extract()?;
-            let weights: Vec<f64> = v.extract()?;
-            reg.insert_distribution(DistributionRef::from_raw(id), weights);
+            if let Ok(spec) = v.cast::<PyDict>() {
+                let weights: Vec<f64> = spec
+                    .get_item("weights")?
+                    .ok_or_else(|| PyValueError::new_err("missing weights"))?
+                    .extract()?;
+                let depends: Vec<u32> = spec
+                    .get_item("depends_on")?
+                    .ok_or_else(|| PyValueError::new_err("missing depends_on"))?
+                    .extract()?;
+                reg.insert_distribution_with_dependence(
+                    DistributionRef::from_raw(id),
+                    weights,
+                    depends
+                        .into_iter()
+                        .map(antecedent_core::VariableId::from_raw)
+                        .collect::<Vec<_>>(),
+                );
+            } else {
+                let weights: Vec<f64> = v.extract()?;
+                reg.insert_distribution(DistributionRef::from_raw(id), weights);
+            }
         }
     }
     Ok(Some(reg))
@@ -616,6 +673,7 @@ fn parse_population_registry(
     bootstrap=50,
     threads=1,
     target_population=None,
+    outcome_functional=None,
     population_predicates=None,
     population_distributions=None,
     latency=None,
@@ -652,6 +710,7 @@ fn analyze_ate(
     bootstrap: u32,
     threads: u32,
     target_population: Option<Bound<'_, PyDict>>,
+    outcome_functional: Option<Bound<'_, PyDict>>,
     population_predicates: Option<Bound<'_, PyDict>>,
     population_distributions: Option<Bound<'_, PyDict>>,
     latency: Option<String>,
@@ -662,6 +721,7 @@ fn analyze_ate(
     accepted: bool,
 ) -> PyResult<AteAnalysisResult> {
     let pop_spec = parse_target_population(target_population.as_ref())?;
+    let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
     let registry = parse_population_registry(
         population_predicates.as_ref(),
         population_distributions.as_ref(),
@@ -708,6 +768,7 @@ fn analyze_ate(
             return_posterior_artifact,
             pop_spec,
             registry,
+            outcome_functional,
         )
     })
 }
@@ -821,6 +882,7 @@ fn analyze_ate_arrow_c(
             return_posterior_artifact,
             None,
             None,
+            None,
         )
     })
 }
@@ -840,6 +902,10 @@ fn analyze_ate_arrow_c(
     bootstrap=50,
     threads=1,
     latency=None,
+    screen_id=None,
+    screen_procedure=None,
+    screen_rows=None,
+    estimate_rows=None,
 ))]
 fn analyze_ate_many(
     py: Python<'_>,
@@ -854,6 +920,10 @@ fn analyze_ate_many(
     bootstrap: u32,
     threads: u32,
     latency: Option<String>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -887,6 +957,14 @@ fn analyze_ate_many(
                 est.parse::<antecedent::EstimatorId>()
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
+        }
+        if let Some(screen) = parse_candidate_screen(
+            screen_id,
+            screen_procedure,
+            screen_rows,
+            estimate_rows,
+        )? {
+            batch = batch.candidate_screen(screen);
         }
         let ctx = py_execution_context(seed, threads);
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
@@ -1881,13 +1959,6 @@ pub(crate) fn ate_result_from_analysis(
             .collect(),
     );
 
-    let refutation_ran = !result.refutations.is_empty();
-    let refutation_passed = if refutation_ran {
-        result.refutations.iter().all(|r| r.passed)
-    } else {
-        // Do not claim pass when no validators ran (e.g. refute=False or empty suite).
-        false
-    };
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
@@ -1945,6 +2016,75 @@ pub(crate) fn ate_result_from_analysis(
         method: method.clone(),
         overlap_ess,
         overlap_propensity_min,
+        functional_means: result
+            .estimate
+            .score_inference
+            .as_ref()
+            .map(|s| s.raw_means.clone())
+            .or_else(|| {
+                result
+                    .estimate
+                    .score_table
+                    .as_ref()
+                    .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
+            }),
+        joint_covariance: result
+            .estimate
+            .joint_covariance
+            .as_ref()
+            .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
+        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: result.estimate.monotone_rearranged,
+        interaction_structurally_zero: result
+            .response
+            .as_ref()
+            .map(|r| r.interaction_structurally_zero)
+            .or(Some(result.estimate.interaction_structurally_zero)),
+        score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
+            n_rows: t.n_rows,
+            n_folds: t.n_folds,
+            provenance: t.nuisance_provenance.to_string(),
+            columns: t.columns.iter().map(|c| (c.arm, c.threshold)).collect(),
+            scores: t.scores.to_vec(),
+            row_index: t.row_index.to_vec(),
+            fold_ids: t.fold_ids.to_vec(),
+            adjustment_set: t.adjustment_set.iter().map(|v| v.raw()).collect(),
+            observed_arm: t.observed_arm.to_vec(),
+            propensities: t.propensities.to_vec(),
+            observed_outcome: t.observed_outcome.to_vec(),
+            treatment: t.treatment.raw(),
+            intervened: t.intervened.iter().map(|v| v.raw()).collect(),
+        }),
+        simultaneous_interval: result.estimate.simultaneous_interval,
+        adjusted_p_values: result.estimate.adjusted_p_values,
+        candidate_selection: result
+            .estimate
+            .candidate_selection
+            .as_ref()
+            .map(|s| CandidateSelectionSection {
+                screen_id: s.screen_id.to_string(),
+                procedure: s.procedure.to_string(),
+                winner_index: s.winner_index,
+                family_size: s.family_size,
+                screen_rows: s.screen_rows.to_vec(),
+                estimate_rows: s.estimate_rows.to_vec(),
+                disjoint: s.disjoint,
+            })
+            .or_else(|| {
+                result.candidate_selection.as_ref().map(|s| CandidateSelectionSection {
+                    screen_id: s.screen_id.to_string(),
+                    procedure: s.procedure.as_str().to_string(),
+                    winner_index: s.winner_index,
+                    family_size: s.family_size,
+                    screen_rows: s.screen_rows.to_vec(),
+                    estimate_rows: s.estimate_rows.to_vec(),
+                    disjoint: s.disjoint,
+                })
+            }),
+        evalue: result.estimate.evalue,
     };
     let posterior = PosteriorSection {
         effect_mean: posterior_effect_mean,
@@ -1957,7 +2097,7 @@ pub(crate) fn ate_result_from_analysis(
         artifact: posterior_artifact.clone(),
         unidentified_mass: posterior_unidentified_mass,
     };
-    let validation = ValidationSection::from_reports(refutations.clone());
+    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
         plan_id: plan_id.clone(),
         modality: modality.clone(),
@@ -1984,9 +2124,9 @@ pub(crate) fn ate_result_from_analysis(
         bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
         adjustment_set,
         identification_status,
-        refutation_passed,
-        refutation_ran,
-        refutation_count: refutations.len(),
+        refutation_passed: validation.passed,
+        refutation_ran: validation.ran,
+        refutation_count: validation.count,
         refutations,
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
@@ -2113,7 +2253,8 @@ pub(crate) struct GraphEdge {
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, modifier, *,
     control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=50, threads=1, accepted=false
+    refute=None, validators=None, seed=1, bootstrap=50, threads=1, accepted=false,
+    outcome_functional=None,
 ))]
 fn analyze_conditional(
     py: Python<'_>,
@@ -2131,7 +2272,9 @@ fn analyze_conditional(
     bootstrap: u32,
     threads: u32,
     accepted: bool,
+    outcome_functional: Option<Bound<'_, PyDict>>,
 ) -> PyResult<AteAnalysisResult> {
+    let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -2140,8 +2283,11 @@ fn analyze_conditional(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
-        let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+        let mut inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
             .with_effect_modifiers([w_id]);
+        if let Some(functional) = outcome_functional {
+            inner = inner.with_outcome_functional(functional);
+        }
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -2611,8 +2757,240 @@ fn analyze_ate_graph_posterior(
     })
 }
 
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    tiers,
+    within_tier,
+    treatment,
+    outcome,
+    *,
+    control_level=0.0,
+    active_level=1.0,
+    estimator=None,
+    refute=None,
+    seed=1,
+    bootstrap=0,
+    threads=1,
+))]
+fn analyze_ate_tiered(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    tiers: Vec<Vec<String>>,
+    within_tier: String,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    estimator: Option<String>,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let suite = suite_from_refute(refute.as_ref())?;
+    let data = tabular_from_numpy(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let within = match within_tier.to_ascii_lowercase().as_str() {
+            "codetermined" => antecedent_graph::WithinTier::CoDetermined,
+            "unknown" => antecedent_graph::WithinTier::Unknown,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "within_tier must be codetermined|unknown, got {other}"
+                )));
+            }
+        };
+        let named: Vec<Vec<&str>> =
+            tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+        let background =
+            antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                .map_err(py_err)?;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        let mut builder = Study::tabular(data)
+            .tiered_background(background)
+            .map_err(py_err)?
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        if let Some(est) = estimator {
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
+        }
+        let ctx = crate::py_execution_context_ext(
+            seed,
+            threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let result = builder.build().map_err(py_err)?.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result, false)
+    })
+}
+
+fn parse_candidate_screen(
+    screen_id: Option<String>,
+    procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+) -> PyResult<Option<antecedent::CandidateScreen>> {
+    if screen_id.is_none()
+        && procedure.is_none()
+        && screen_rows.is_none()
+        && estimate_rows.is_none()
+    {
+        return Ok(None);
+    }
+    let screen_id = screen_id.ok_or_else(|| {
+        PyValueError::new_err("candidate screen requires screen_id, procedure, screen_rows, and estimate_rows")
+    })?;
+    let procedure = match procedure.as_deref().unwrap_or("unrecorded") {
+        "max_t" => antecedent::CandidateProcedure::MaxT,
+        "bh" => antecedent::CandidateProcedure::BenjaminiHochberg,
+        "by" => antecedent::CandidateProcedure::BenjaminiYekutieli,
+        "unrecorded" => antecedent::CandidateProcedure::Unrecorded,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown screen procedure {other:?}; use max_t|bh|by|unrecorded"
+            )));
+        }
+    };
+    Ok(Some(antecedent::CandidateScreen {
+        screen_id: std::sync::Arc::from(screen_id),
+        procedure,
+        screen_rows: std::sync::Arc::from(screen_rows.unwrap_or_default()),
+        estimate_rows: std::sync::Arc::from(estimate_rows.unwrap_or_default()),
+    }))
+}
+
+/// Frozen multi-query batch: identify once, estimate on later tables.
+#[pyclass(name = "PreparedBatch")]
+pub struct PyPreparedBatch {
+    inner: std::sync::Arc<antecedent::PreparedBatch>,
+    names: Vec<String>,
+}
+
+#[pymethods]
+impl PyPreparedBatch {
+    fn n_plans(&self) -> usize {
+        self.inner.plans().len()
+    }
+
+    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    fn estimate(
+        &self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<Vec<AteAnalysisResult>> {
+        if names != self.names {
+            return Err(PyValueError::new_err(
+                "prepared batch estimate requires the same column names (order) as prepare",
+            ));
+        }
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let inner = std::sync::Arc::clone(&self.inner);
+        detach_catch(py, move || {
+            let ctx = py_execution_context(seed, threads);
+            let results = inner.estimate(&data, &ctx).map_err(py_err)?;
+            results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
+        })
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    queries,
+    *,
+    identifier=None,
+    estimator=None,
+    refute=None,
+    seed=1,
+    bootstrap=50,
+    threads=1,
+    latency=None,
+    screen_id=None,
+    screen_procedure=None,
+    screen_rows=None,
+    estimate_rows=None,
+))]
+fn prepare_ate_batch(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    edges: Vec<(String, String)>,
+    queries: Vec<(String, String, f64, f64)>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    latency: Option<String>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+) -> PyResult<PyPreparedBatch> {
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
+    };
+    detach_catch(py, move || {
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
+        let mut ate_queries = Vec::with_capacity(queries.len());
+        for (treatment, outcome, control, active) in &queries {
+            let t_id = data.schema().id_of(treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(outcome).map_err(py_err)?;
+            ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
+        }
+        let mut batch =
+            antecedent::BatchStudy::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
+        if let Some(mode) = latency_mode {
+            batch = batch.latency_mode(mode);
+        }
+        if let Some(id) = identifier {
+            batch = batch.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
+        }
+        if let Some(est) = estimator {
+            batch = batch.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
+        }
+        if let Some(screen) =
+            parse_candidate_screen(screen_id, screen_procedure, screen_rows, estimate_rows)?
+        {
+            batch = batch.candidate_screen(screen);
+        }
+        let ctx = py_execution_context(seed, threads);
+        let prepared = batch.prepare(&ate_queries, &ctx).map_err(py_err)?;
+        Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
+    })
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_tiered, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_pag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_cpdag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_admg, m)?)?;
@@ -2621,6 +2999,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_cpdag_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_admg_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_many, m)?)?;
+    m.add_function(wrap_pyfunction!(prepare_ate_batch, m)?)?;
+    m.add_class::<PyPreparedBatch>()?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;

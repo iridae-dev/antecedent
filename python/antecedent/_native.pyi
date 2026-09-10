@@ -274,6 +274,36 @@ class IdentificationSection:
     assumption_count: int
     derivation_step_count: int
 
+class ScoreTableSection:
+    """Cross-fitted AIPW score-table payload on an estimate section."""
+
+    n_rows: int
+    n_folds: int
+    provenance: str
+    columns: list[tuple[int, float | None]]
+    scores: list[float]
+    row_index: list[int]
+    fold_ids: list[int]
+    adjustment_set: list[int]
+    observed_arm: list[int]
+    propensities: list[float]
+    observed_outcome: list[float]
+    treatment: int
+    intervened: list[int]
+
+class ScoreInferenceSection:
+    raw_means: list[float]
+    lower: list[float]
+    upper: list[float]
+    level: float
+    critical_value: float
+    event_n_eff: list[float]
+    threshold_supported: list[bool]
+    n_eff: float
+    n_eff_by_arm: list[float]
+    propensity_range: tuple[float, float] | None
+    overlap_ok: bool
+
 class EstimateSection:
     """Nested estimate section (top-level scalar fields only)."""
 
@@ -284,6 +314,28 @@ class EstimateSection:
     method: str
     overlap_ess: float | None
     overlap_propensity_min: float | None
+    functional_means: list[float] | None
+    exceedance_cdf: list[float] | None
+    monotone_rearranged: bool
+    interaction_structurally_zero: bool | None
+    score_table: ScoreTableSection | None
+    joint_covariance: list[list[float]] | None
+    score_inference: ScoreInferenceSection | None
+    scenario_effects: list[float] | None
+    scenario_intervals: list[tuple[float, float]] | None
+    simultaneous_interval: tuple[float, float, float] | None
+    adjusted_p_values: tuple[float, float] | None
+    candidate_selection: CandidateSelectionSection | None
+    evalue: float | None
+
+class CandidateSelectionSection:
+    screen_id: str
+    procedure: str
+    winner_index: int
+    family_size: int
+    screen_rows: list[int]
+    estimate_rows: list[int]
+    disjoint: bool
 
 class PosteriorSection:
     """Nested posterior section. Every field is `None` when no posterior was
@@ -299,6 +351,10 @@ class PosteriorSection:
     artifact: bytes | list[int] | None
     unidentified_mass: float | None
 
+class ValidationFailureSection:
+    validator: str
+    reason: str
+
 class ValidationSection:
     """Nested validation section. `passed`/`ran` follow the shared aggregate rule:
     `ran` is whether any refuter ran, `passed` is `ran and all(r.passed for r in reports)`
@@ -308,6 +364,7 @@ class ValidationSection:
     ran: bool
     count: int
     reports: list[RefutationReportView]
+    computation_failures: list[ValidationFailureSection]
 
 class PerformanceSection:
     """Nested performance section. Most fields mirror `StudyResult.performance`,
@@ -566,6 +623,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        outcome_functional: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_pag(
@@ -655,6 +713,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        outcome_functional: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_pag_conditional(
@@ -678,6 +737,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        outcome_functional: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_cpdag_response(
@@ -914,6 +974,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        outcome_functional: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_path_specific(
@@ -972,6 +1033,14 @@ class PreparedAnalysis:
         self, *, artifact_id: str = "prepared-result", payload: str = "result"
     ) -> bytes: ...
     def plan_summary(self) -> dict[str, str]: ...
+    def retarget(
+        self,
+        weights: list[float],
+        depends_on: list[str],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
     def estimate(
         self,
         names: list[str],
@@ -1275,7 +1344,39 @@ def analyze_ate_many(
     bootstrap: int | None = 50,
     threads: int = 1,
     latency: str | None = None,
+    screen_id: str | None = None,
+    screen_procedure: str | None = None,
+    screen_rows: list[int] | None = None,
+    estimate_rows: list[int] | None = None,
 ) -> list[AteAnalysisResult]: ...
+class PreparedBatch:
+    def n_plans(self) -> int: ...
+    def estimate(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> list[AteAnalysisResult]: ...
+def prepare_ate_batch(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    queries: list[tuple[str, str, float, float]],
+    *,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+    latency: str | None = None,
+    screen_id: str | None = None,
+    screen_procedure: str | None = None,
+    screen_rows: list[int] | None = None,
+    estimate_rows: list[int] | None = None,
+) -> PreparedBatch: ...
 def analyze_ate(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1303,6 +1404,7 @@ def analyze_ate(
     bootstrap: int | None = 50,
     threads: int = 1,
     target_population: dict[str, Any] | None = None,
+    outcome_functional: dict[str, Any] | None = None,
     population_predicates: dict[str, list[int]] | None = None,
     population_distributions: dict[int, list[float]] | None = None,
     latency: str | None = None,
@@ -1311,6 +1413,22 @@ def analyze_ate(
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
     accepted: bool = False,
+) -> AteAnalysisResult: ...
+def analyze_ate_tiered(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    tiers: list[list[str]],
+    within_tier: str,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    estimator: str | None = None,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_arrow_c(
     names: list[str],
@@ -1743,6 +1861,7 @@ def analyze_conditional(
     bootstrap: int | None = 50,
     threads: int = 1,
     accepted: bool = False,
+    outcome_functional: dict[str, Any] | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_mediation(
     names: list[str],
