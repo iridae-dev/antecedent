@@ -13,11 +13,12 @@
 //! by increasing set size and stops at the first valid set (minimal-first). Completions
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
 //! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
-//! *also* folded into unidentified mass (enumeration was never attempted, so it can't be
-//! proven identified or not) but is additionally counted in
+//! folded into unidentified mass as [`IdentificationStatus::Undetermined`] (enumeration
+//! was never attempted, so it can't be proven identified or not). That is not
+//! [`IdentificationStatus::NotIdentified`]. It is additionally counted in
 //! [`IdentificationEnvelope::truncated_completions`] and tagged with
-//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], so callers can tell "the search was cut short"
-//! apart from "the search completed and proved non-identifiability".
+//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], so a budget miss stays distinct from a
+//! proven non-identifiable completion.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -57,12 +58,12 @@ use crate::result::{
 
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
-/// searching exhaustively and finding no valid set. Both cases surface as
-/// [`IdentificationStatus::NotIdentified`] and fold into
-/// [`IdentificationEnvelope::unidentified_weight`] identically (unidentified mass is
-/// preserved either way), but [`IdentificationEnvelope::truncated_completions`] counts only
-/// this diagnostic so a caller can tell "the search was cut short" apart from "the search
-/// completed and proved non-identifiability".
+/// searching exhaustively and finding no valid set. A cap is
+/// [`IdentificationStatus::Undetermined`] with an execution diagnostic, not
+/// [`IdentificationStatus::NotIdentified`] and not a scientific open-back-door.
+/// Both cases still fold into [`IdentificationEnvelope::unidentified_weight`]
+/// (unidentified mass is preserved either way); [`IdentificationEnvelope::truncated_completions`]
+/// counts only this diagnostic.
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
 
@@ -819,11 +820,10 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Not-identified result for a completion whose candidate set exceeded `max_candidates`
+/// Undetermined result for a completion whose candidate set exceeded `max_candidates`
 /// before enumeration could even start. Distinguished from a genuinely-searched, genuinely-
-/// blocked completion via [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment); the
-/// derivation text is kept human-readable and consistent with the other not-identified
-/// branches in this function.
+/// blocked completion via [`IdentificationStatus::Undetermined`] and
+/// [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment).
 pub(crate) fn capped_completion_result(
     query: CausalQuery,
     n_candidates: usize,
@@ -846,7 +846,7 @@ pub(crate) fn capped_completion_result(
         ),
     );
     IdentificationResult::from_parts(
-        IdentificationStatus::NotIdentified,
+        IdentificationStatus::Undetermined,
         query,
         Vec::new(),
         CausalExprArena::new(),
@@ -1076,6 +1076,12 @@ mod tests {
             capped_env.cases.len(),
             "every case in this fixture should be capped"
         );
+        assert_eq!(
+            capped_env.cases[0].result.status,
+            IdentificationStatus::Undetermined,
+            "cap is undetermined, not proven non-ID"
+        );
+        assert_eq!(capped_env.status, IdentificationStatus::Undetermined);
         assert!(
             capped_env.cases[0]
                 .result

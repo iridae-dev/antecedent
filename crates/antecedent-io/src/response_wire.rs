@@ -612,6 +612,7 @@ pub enum IdentificationStatusWire {
     IdentifiedUnderPriorRestrictions,
     PartiallyIdentified,
     GraphDependent,
+    Undetermined,
     NotIdentified,
 }
 
@@ -737,6 +738,7 @@ fn status_to_wire(s: IdentificationStatus) -> IdentificationStatusWire {
         }
         IdentificationStatus::PartiallyIdentified => IdentificationStatusWire::PartiallyIdentified,
         IdentificationStatus::GraphDependent => IdentificationStatusWire::GraphDependent,
+        IdentificationStatus::Undetermined => IdentificationStatusWire::Undetermined,
         IdentificationStatus::NotIdentified => IdentificationStatusWire::NotIdentified,
     }
 }
@@ -753,6 +755,7 @@ fn status_from_wire(s: IdentificationStatusWire) -> IdentificationStatus {
         }
         IdentificationStatusWire::PartiallyIdentified => IdentificationStatus::PartiallyIdentified,
         IdentificationStatusWire::GraphDependent => IdentificationStatus::GraphDependent,
+        IdentificationStatusWire::Undetermined => IdentificationStatus::Undetermined,
         IdentificationStatusWire::NotIdentified => IdentificationStatus::NotIdentified,
     }
 }

@@ -697,6 +697,7 @@ pub fn identification_to_wire(
             }
             IdentificationStatus::PartiallyIdentified => "partially_identified".into(),
             IdentificationStatus::GraphDependent => "graph_dependent".into(),
+            IdentificationStatus::Undetermined => "undetermined".into(),
             IdentificationStatus::NotIdentified => "not_identified".into(),
         },
         query: causal_query_to_wire(&r.query)?,
@@ -748,6 +749,7 @@ pub fn identification_from_wire(
         }
         "partially_identified" => IdentificationStatus::PartiallyIdentified,
         "graph_dependent" => IdentificationStatus::GraphDependent,
+        "undetermined" => IdentificationStatus::Undetermined,
         "not_identified" => IdentificationStatus::NotIdentified,
         other => {
             return Err(IoError::Convert(format!("unknown IdentificationStatus `{other}`")));

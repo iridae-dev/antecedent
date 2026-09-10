@@ -881,7 +881,11 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
 ///
 /// Effect not identified or no estimand returned.
 pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalError> {
-    if result.status == IdentificationStatus::NotIdentified || result.estimands.is_empty() {
+    if matches!(
+        result.status,
+        IdentificationStatus::NotIdentified | IdentificationStatus::Undetermined
+    ) || result.estimands.is_empty()
+    {
         return Err(CausalError::Compile { message: "effect not identified".into() });
     }
     if !identification_status_acceptable(result.status) {

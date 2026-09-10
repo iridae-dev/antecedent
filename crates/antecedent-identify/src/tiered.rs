@@ -13,12 +13,13 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, AverageEffectQuery, CausalQuery, CausalSchema, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, IdentificationStatus, ResponseQuery,
+    DiagnosticSeverity, ResponseQuery,
 };
 use antecedent_expr::CausalExprArena;
-use antecedent_graph::{Admg, TieredBackground, WithinTier};
+use antecedent_graph::{Admg, DenseNodeId, TieredBackground, WithinTier};
 
-use crate::generalized::GeneralizedAdjustmentIdentifier;
+use crate::generalized::not_identified;
+use crate::joint_response::{joint_adjustment_holds, joint_result, prepare_joint_response};
 
 use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
@@ -146,9 +147,10 @@ pub fn identify_tiered_envelope(
 ///
 /// CoDetermined is background, not a MAG Markov equivalence class: earlier→later
 /// arrows are asserted, same-tier edges are bidirected, and there is no latent
-/// path into Y beyond what the tier graph draws. Identification is ordinary
-/// ADMG generalized adjustment for the joint treatment set on that known graph
-/// ([`GeneralizedAdjustmentIdentifier::identify_joint_admg_response`]).
+/// path into Y beyond what the tier graph draws. Identification is the `O(p)`
+/// treatment-set closure (all non-treatment nodes in tiers `≤` the latest
+/// treatment), verified with one generalized-adjustment check per treatment.
+/// This is not subset search and does not call the generic candidate enumerator.
 /// Unknown tiers refuse: two canonical scenarios are not a single ADMG.
 ///
 /// # Errors
@@ -161,38 +163,56 @@ pub fn identify_tiered_joint(
 ) -> Result<IdentificationResult, IdentificationError> {
     match background.within_tier {
         WithinTier::Unknown => Err(IdentificationError::unsupported(TIERED_JOINT_UNKNOWN_REFUSE)),
-        WithinTier::CoDetermined => {
-            let admg = background.to_admg(schema)?;
-            let mut result = GeneralizedAdjustmentIdentifier::new()
-                .identify_joint_admg_response(&admg, query)?;
-            let identified = joint_identified(&result);
-            result.derivation.push(
-                "tiered.joint.closure_admg",
-                if identified {
-                    "joint ADMG generalized adjustment on the CoDetermined closure (known ancestral ADMG, not a MAG Markov equivalence class)"
-                } else {
-                    TIERED_JOINT_ADJUSTMENT_REFUSE
-                },
-            );
-            if !identified {
-                result.diagnostics.push(Diagnostic::new(
-                    "identify.tiered.joint.adjustment",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    TIERED_JOINT_ADJUSTMENT_REFUSE,
-                ));
-            }
-            Ok(result)
-        }
+        WithinTier::CoDetermined => identify_joint_closure(background, schema, query),
     }
 }
 
-pub(crate) fn joint_identified(result: &IdentificationResult) -> bool {
-    matches!(
-        result.status,
-        IdentificationStatus::NonparametricallyIdentified
-            | IdentificationStatus::PartiallyIdentified
-    ) && !result.estimands.is_empty()
+fn identify_joint_closure(
+    background: &TieredBackground,
+    schema: &CausalSchema,
+    query: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    let admg = background.to_admg(schema)?;
+    let prepared = prepare_joint_response(admg.nodes(), query)?;
+    let set = background.tier_closure_set(&prepared.treatments, prepared.outcome)?;
+    let z: Vec<DenseNodeId> = set.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
+    let holds = joint_adjustment_holds(&admg, &prepared.targets, prepared.y, &z, |_, _| true)?;
+    if !holds {
+        let mut result = not_identified(prepared.query, TIERED_JOINT_ADJUSTMENT_REFUSE);
+        result.required_assumptions = named_no_latent_assumption();
+        result.derivation.push("tiered.joint.closure_admg", TIERED_JOINT_ADJUSTMENT_REFUSE);
+        result.diagnostics.push(no_latent_diagnostic());
+        result.diagnostics.push(Diagnostic::new(
+            "identify.tiered.joint.adjustment",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            TIERED_JOINT_ADJUSTMENT_REFUSE,
+        ));
+        result.performance.candidates_examined = prepared.treatments.len() as u64;
+        return Ok(result);
+    }
+    let mut result = joint_result(
+        prepared.query,
+        admg.nodes(),
+        &z,
+        &prepared.treatments,
+        prepared.outcome,
+        prepared.treatments.len() as u64,
+    );
+    result.required_assumptions = named_no_latent_assumption();
+    result.derivation.push(
+        "tiered.joint.closure",
+        format!(
+            "O(p) treatment-set closure |Z|={} certified with one m-separation check per treatment; not subset search",
+            set.len()
+        ),
+    );
+    result.derivation.push(
+        "tiered.joint.closure_admg",
+        "joint ADMG generalized adjustment on the CoDetermined closure (known ancestral ADMG, not a MAG Markov equivalence class)",
+    );
+    result.diagnostics.push(no_latent_diagnostic());
+    Ok(result)
 }
 
 fn identify_closure(
@@ -306,8 +326,10 @@ fn no_latent_diagnostic() -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::generalized::GeneralizedAdjustmentIdentifier;
     use antecedent_core::{
-        CausalSchemaBuilder, Intervention, ResponseFunctional, Value, VariableId,
+        CausalSchemaBuilder, IdentificationStatus, Intervention, ResponseFunctional, Value,
+        VariableId,
     };
     use antecedent_graph::WithinTier;
 
@@ -475,10 +497,7 @@ mod tests {
         let mut descendants = antecedent_graph::BitSet::default();
         let mut ws = antecedent_graph::GraphWorkspace::default();
         admg.descendants_of(&[t1], &mut descendants, &mut ws);
-        assert!(
-            !descendants.contains(t2),
-            "walking ↔ as a directed path would put t2 in De(t1)"
-        );
+        assert!(!descendants.contains(t2), "walking ↔ as a directed path would put t2 in De(t1)");
         let id =
             identify_tiered_joint(&background, &schema, &joint_query(&schema, "t1", "t2", "y"))
                 .unwrap();
@@ -486,6 +505,12 @@ mod tests {
         assert_eq!(id.estimands[0].adjustment_set.as_ref(), &[schema.id_of("z").unwrap()]);
         assert!(!id.estimands[0].adjustment_set.iter().any(|&v| v == schema.id_of("t2").unwrap()));
         assert!(id.derivation.steps.iter().any(|s| s.rule.as_ref() == "tiered.joint.closure_admg"));
+        assert!(id.derivation.steps.iter().any(|s| s.rule.as_ref() == "tiered.joint.closure"));
+        assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+            &a.assumption,
+            Assumption::Custom { id, .. } if id.as_ref() == NO_LATENT_TO_OUTCOME
+        )));
+        assert!(id.diagnostics.iter().any(|d| d.code.as_ref() == NO_LATENT_TO_OUTCOME));
         let direct = GeneralizedAdjustmentIdentifier::new()
             .identify_joint_admg_response(&admg, &joint_query(&schema, "t1", "t2", "y"))
             .unwrap();
@@ -576,5 +601,142 @@ mod tests {
             identify_tiered_joint(&background, &schema, &joint_query(&schema, "t1", "t2", "y"))
                 .unwrap_err();
         assert!(err.to_string().contains("no single ADMG"));
+    }
+
+    /// 20 same-tier co-facets plus an earlier confounder: generic subset search
+    /// caps at 16 candidates; the O(p) closure shortcut must still identify.
+    const JOINT_COFACETS: usize = 20;
+
+    fn many_cofacet_joint() -> (antecedent_core::CausalSchema, TieredBackground, Vec<String>) {
+        let mut b = CausalSchemaBuilder::new();
+        b = b.continuous("z").finish();
+        b = b.continuous("t1").finish();
+        b = b.continuous("t2").finish();
+        let mut facets = Vec::new();
+        for i in 0..JOINT_COFACETS {
+            let name = format!("f{i}");
+            b = b.continuous(name.clone()).finish();
+            facets.push(name);
+        }
+        b = b.continuous("y").finish();
+        let schema = b.build().unwrap();
+        let mut treatment_tier = vec!["t1", "t2"];
+        treatment_tier.extend(facets.iter().map(String::as_str));
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], treatment_tier, vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        (schema, background, facets)
+    }
+
+    #[test]
+    fn many_cofacets_use_closure_shortcut_not_subset_search() {
+        let (schema, background, facets) = many_cofacet_joint();
+        let expected = background
+            .tier_closure_set(
+                &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
+                schema.id_of("y").unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            expected.len(),
+            1 + JOINT_COFACETS,
+            "Z = earlier confounder + {JOINT_COFACETS} co-facets"
+        );
+        assert!(expected.iter().any(|&v| v == schema.id_of("z").unwrap()));
+        for name in &facets {
+            assert!(expected.iter().any(|&v| v == schema.id_of(name).unwrap()), "{name}");
+        }
+
+        let admg = background.to_admg(&schema).unwrap();
+        let query = joint_query(&schema, "t1", "t2", "y");
+        // Generic subset search lists z + every co-facet (> max_candidates=16) and caps.
+        let generic = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            generic.status,
+            IdentificationStatus::Undetermined,
+            "generic search must cap on this graph: {:?}",
+            generic.diagnostics
+        );
+        assert!(
+            generic.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            })
+        );
+
+        let started = std::time::Instant::now();
+        let id = identify_tiered_joint(&background, &schema, &query).unwrap();
+        assert!(
+            started.elapsed().as_millis() < 200,
+            "O(p) joint closure took {:?}",
+            started.elapsed()
+        );
+        assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(id.estimands[0].adjustment_set.as_ref(), expected.as_ref());
+        assert_eq!(id.performance.candidates_examined, 2);
+        assert!(id.derivation.steps.iter().any(|s| s.rule.as_ref() == "tiered.joint.closure"));
+        assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+            &a.assumption,
+            Assumption::Custom { id, .. } if id.as_ref() == NO_LATENT_TO_OUTCOME
+        )));
+        assert!(id.diagnostics.iter().any(|d| d.code.as_ref() == NO_LATENT_TO_OUTCOME));
+        assert!(!id.diagnostics.iter().any(|d| {
+            d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                || d.kind == DiagnosticKind::Scientific
+                    && d.code.as_ref() == "identify.tiered.joint.adjustment"
+        }));
+    }
+
+    #[test]
+    fn drawn_treatment_outcome_on_closure_admg_is_scientific() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let mut admg = background.to_admg(&schema).unwrap();
+        let t1 = DenseNodeId::from_raw(schema.id_of("t1").unwrap().raw());
+        let y = DenseNodeId::from_raw(schema.id_of("y").unwrap().raw());
+        admg.insert_bidirected(t1, y).unwrap();
+        let set = background
+            .tier_closure_set(
+                &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
+                schema.id_of("y").unwrap(),
+            )
+            .unwrap();
+        let z: Vec<_> = set.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
+        let prepared =
+            prepare_joint_response(admg.nodes(), &joint_query(&schema, "t1", "t2", "y")).unwrap();
+        assert!(
+            !joint_adjustment_holds(&admg, &prepared.targets, prepared.y, &z, |_, _| true).unwrap(),
+            "drawn T↔Y must fail the closure check"
+        );
+        let id = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &joint_query(&schema, "t1", "t2", "y"))
+            .unwrap();
+        assert_eq!(id.status, IdentificationStatus::NotIdentified);
+        assert_ne!(id.status, IdentificationStatus::Undetermined);
+        assert!(id.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific));
+        assert!(
+            !id.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            })
+        );
     }
 }
