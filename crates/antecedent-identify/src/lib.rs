@@ -41,6 +41,7 @@ pub mod temporal_backdoor;
 pub mod temporal_generalized;
 mod temporal_mag;
 pub mod temporal_mediation;
+pub mod tiered;
 pub mod transport;
 
 #[cfg(test)]
@@ -77,6 +78,7 @@ pub use result::{
 pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
+pub use tiered::{NO_LATENT_TO_OUTCOME, identify_tiered, identify_tiered_envelope};
 pub use transport::{
     NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     TransportIdentification, TransportIdentifier,
