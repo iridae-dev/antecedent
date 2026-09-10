@@ -16,8 +16,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, BufferMaterialization, ConditionalEffectQuery, Diagnostic,
-    DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, Intervention,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, Intervention,
     InterventionSequence, LogicalAnalysisPlanRecord, OutcomeFunctional,
     PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, SequencedIntervention, VERSION,
     VariableId,
@@ -25,7 +24,8 @@ use antecedent_core::{
 use antecedent_data::{IdRemap, TableView, TabularData, dedupe_variable_ids};
 use antecedent_estimate::{
     AipwAte, CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy, ScoreTable,
-    crossfit_binary_scores, exceedance_cdf_values, summarize_functional,
+    crossfit_binary_scores, exceedance_cdf_values, inference_from_influence_columns,
+    summarize_functional,
 };
 use antecedent_expr::{IdentifiedEstimand, RdDesignParams};
 use antecedent_validate::{RefutationProblem, RefutationReport, ValidationSuite};
@@ -269,8 +269,7 @@ pub(crate) fn run_plugin_level_refuters(
     estimator: &str,
     custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    let problem =
-        RefutationProblem::new(data, estimand, query, estimate, Some(estimator), None);
+    let problem = RefutationProblem::new(data, estimand, query, estimate, Some(estimator), None);
     let mut validation = match suite {
         RefuteSuite::None => {
             if custom.is_empty() {
@@ -343,7 +342,7 @@ pub(crate) fn apply_outcome_functional(
         OutcomeFunctional::ExceedanceGrid(_) => Err(CausalError::Unsupported {
             message: "exceedance grids cannot be reduced to the first threshold; use the score-table or per-threshold path",
         }),
-        _ => Ok(data.clone()),
+        OutcomeFunctional::Quantile(_) | OutcomeFunctional::Mean | _ => Ok(data.clone()),
     }
 }
 
@@ -366,10 +365,13 @@ pub(crate) fn maybe_build_functional_scores(
     query: &AverageEffectQuery,
     estimand: &IdentifiedEstimand,
     est: &AipwAte,
+    shared: Option<&super::batch::SharedBatchDesign>,
 ) -> Result<Option<ScoreTable>, CausalError> {
     if !matches!(
         query.outcome_functional,
-        OutcomeFunctional::Exceedance(_) | OutcomeFunctional::ExceedanceGrid(_)
+        OutcomeFunctional::Exceedance(_)
+            | OutcomeFunctional::ExceedanceGrid(_)
+            | OutcomeFunctional::Quantile(_)
     ) {
         return Ok(None);
     }
@@ -380,7 +382,22 @@ pub(crate) fn maybe_build_functional_scores(
     {
         return Ok(None);
     }
-    let problem = est.prepare(data, estimand, query)?;
+    let mut problem = est.prepare(data, estimand, query)?;
+    if let Some(shared) = shared {
+        shared.apply_to_propensity(&mut problem)?;
+    }
+    if matches!(query.outcome_functional, OutcomeFunctional::Quantile(_)) {
+        let y = data.float64_values(query.outcome).map_err(CausalError::from)?;
+        let grid = antecedent_estimate::empirical_threshold_grid(&y, 19)?;
+        return Ok(Some(antecedent_estimate::build_binary_scores(
+            &problem,
+            query.treatment,
+            &grid.iter().copied().map(Some).collect::<Vec<_>>(),
+            antecedent_estimate::DEFAULT_AIPW_FOLDS,
+            &est.glm_options,
+            est.backend,
+        )?));
+    }
     Ok(Some(crossfit_binary_scores(
         &problem,
         query,
@@ -453,7 +470,7 @@ pub(crate) fn attach_score_functional_grid(
 fn distinct_threshold_count(table: &ScoreTable) -> usize {
     let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
     thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| *a == *b);
+    thresholds.dedup_by(|a, b| a.total_cmp(b).is_eq());
     thresholds.len()
 }
 
@@ -470,6 +487,17 @@ pub(crate) fn attach_average_functional_grid(
     if estimator_id != crate::strategy_table::EstimatorId::Aipw
         || !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
     {
+        if estimator_id == crate::strategy_table::EstimatorId::Aipw
+            && matches!(
+                query.outcome_functional,
+                OutcomeFunctional::ExceedanceGrid(_) | OutcomeFunctional::Quantile(_)
+            )
+            && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+        {
+            return Err(CausalError::Unsupported {
+                message: "exceedance grids and quantiles require AllObserved AIPW scores; apply target weights with prepare + retarget",
+            });
+        }
         return Ok(estimate);
     }
     let mut config = match study.estimator_spec.as_ref() {
@@ -487,7 +515,14 @@ pub(crate) fn attach_average_functional_grid(
             message: "cross-fitted functional scores require iid inference without propensity trimming",
         });
     }
-    let Some(table) = maybe_build_functional_scores(data, query, estimand, &config)? else {
+    let Some(table) = maybe_build_functional_scores(
+        data,
+        query,
+        estimand,
+        &config,
+        study.shared_batch_design.as_deref(),
+    )?
+    else {
         if !query.outcome_functional.is_mean() {
             return Err(CausalError::Unsupported {
                 message: "exceedance requires cross-fitted AIPW scores; refusing a first-threshold or mean substitute",
@@ -495,9 +530,77 @@ pub(crate) fn attach_average_functional_grid(
         }
         return Ok(estimate);
     };
+    if let Some(tau) = query.outcome_functional.quantile_level() {
+        let (estimate, diagnostics) = attach_quantile_from_table(estimate, table, tau)?;
+        extra_diagnostics.extend(diagnostics);
+        return Ok(estimate);
+    }
     let (estimate, diagnostics) = attach_score_functional_grid(estimate, table)?;
     extra_diagnostics.extend(diagnostics);
     Ok(estimate)
+}
+
+fn attach_quantile_from_table(
+    mut estimate: EffectEstimate,
+    table: ScoreTable,
+    tau: f64,
+) -> Result<(EffectEstimate, Vec<Diagnostic>), CausalError> {
+    let (summary, _, mut diagnostics) = summarize_functional(&table, None)?;
+    let mut by_arm: [Vec<(f64, f64, Vec<f64>)>; 2] = [Vec::new(), Vec::new()];
+    for (j, col) in table.columns.iter().enumerate() {
+        let Some(c) = col.threshold else {
+            continue;
+        };
+        let arm = col.arm as usize;
+        if arm > 1 {
+            continue;
+        }
+        let phi_f: Vec<f64> = table.column(j)?.iter().map(|v| -v).collect();
+        by_arm[arm].push((c, 1.0 - summary.means[j], phi_f));
+    }
+    if by_arm[0].len() < 2 || by_arm[0].len() != by_arm[1].len() {
+        return Err(CausalError::Unsupported {
+            message: "quantile treatment effects require aligned per-arm CDF grids",
+        });
+    }
+    let invert = |arm: usize| -> Result<(f64, Vec<f64>, f64), CausalError> {
+        let thresholds: Vec<f64> = by_arm[arm].iter().map(|x| x.0).collect();
+        let f_le: Vec<f64> = by_arm[arm].iter().map(|x| x.1).collect();
+        let phi: Vec<Vec<f64>> = by_arm[arm].iter().map(|x| x.2.clone()).collect();
+        Ok(antecedent_estimate::invert_cdf_quantile(&thresholds, &f_le, &phi, tau)?)
+    };
+    let (q0, if0, d0) = invert(0)?;
+    let (q1, if1, d1) = invert(1)?;
+    if if0.len() != if1.len() {
+        return Err(CausalError::Unsupported {
+            message: "quantile arm influence lengths do not match",
+        });
+    }
+    let influence: Vec<f64> = if1.iter().zip(&if0).map(|(a, b)| a - b).collect();
+    let n = influence.len() as f64;
+    let mean = influence.iter().sum::<f64>() / n;
+    let var = influence.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    estimate.ate = q1 - q0;
+    estimate.se_analytic = (var / n).sqrt();
+    estimate.influence = Some(influence.into());
+    estimate.se_bootstrap = None;
+    diagnostics.push(Diagnostic::new(
+        "estimate.functional.quantile",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "QTE at τ={tau}: Q_0={q0:.6} Q_1={q1:.6}; densities ({d0:.6}, {d1:.6}); \
+             inversion of the AIPW CDF, not a new identification theory"
+        ),
+    ));
+    let (estimate, grid_diags) = attach_score_functional_grid(estimate, table)?;
+    diagnostics.extend(grid_diags);
+    // attach_score_functional_grid clears multi-threshold ate; restore the QTE.
+    let mut estimate = estimate;
+    estimate.ate = q1 - q0;
+    estimate.se_analytic = (var / n).sqrt();
+    estimate.influence = Some(if1.iter().zip(&if0).map(|(a, b)| a - b).collect::<Vec<_>>().into());
+    Ok((estimate, diagnostics))
 }
 
 /// Attach a point E-value for the tier-closure no-latent-to-outcome premise.
@@ -585,7 +688,30 @@ pub(crate) fn attach_tiered_evalue(
     diagnostics.push(report);
 }
 
+/// Bound and monotonize threshold-major two-arm CDF values. Covariance
+/// remains covariance of the raw fitted contrasts, not these projected CDFs.
+pub(crate) fn project_conditional_cdf(cdf: &mut [f64]) -> Result<bool, CausalError> {
+    if cdf.len() % 2 != 0 || cdf.iter().any(|x| !x.is_finite()) {
+        return Err(CausalError::Compile { message: "invalid conditional CDF grid".into() });
+    }
+    let mut changed = false;
+    for arm in 0..2 {
+        let raw: Vec<_> = cdf.iter().skip(arm).step_by(2).copied().collect();
+        let projected = antecedent_estimate::monotone_increasing(&raw);
+        for (slot, value) in cdf.iter_mut().skip(arm).step_by(2).zip(projected) {
+            let bounded = value.clamp(0.0, 1.0);
+            changed |= slot.total_cmp(&bounded).is_ne();
+            *slot = bounded;
+        }
+    }
+    Ok(changed)
+}
+
 /// Evaluate each exceedance threshold on ConditionalEffect and attach `F_a(c)`.
+///
+/// Joint covariance and simultaneous bands are the 2K raw per-arm CDF
+/// coordinates. Sparse tails refuse a finite band rather than publishing an
+/// empty-cell or first-threshold SE.
 pub(crate) fn attach_conditional_functional_grid(
     estimate: EffectEstimate,
     data: &TabularData,
@@ -597,35 +723,67 @@ pub(crate) fn attach_conditional_functional_grid(
     let Some(thresholds) = query.inner.outcome_functional.thresholds() else {
         return Ok(estimate);
     };
+    let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
     let est = antecedent_estimate::ConditionalLinearAdjustment::new();
-    let mut cdf = Vec::with_capacity(thresholds.len() * 2);
-    let mut columns = Vec::with_capacity(thresholds.len());
+    let mut raw_cdf = Vec::with_capacity(thresholds.len() * 2);
+    let mut columns = Vec::with_capacity(thresholds.len() * 2);
+    let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);
+    let mut threshold_supported = Vec::with_capacity(thresholds.len() * 2);
     let mut first = None;
+    let mut n_eff_by_arm = [0.0, 0.0];
     for &threshold in &thresholds {
         let data_c = apply_outcome_functional(
             data,
             query.inner.outcome,
             &OutcomeFunctional::exceedance(threshold),
         )?;
-        let (point, arms) = est.estimate_with_means(&data_c, estimand, query)?;
-        cdf.extend([1.0 - arms[0], 1.0 - arms[1]]);
-        if let Some(inf) = point.influence.as_ref() {
-            columns.push(inf.to_vec());
+        let (point, scores) = est.estimate_with_arm_scores(&data_c, estimand, query)?;
+        raw_cdf.extend([1.0 - scores.means[0], 1.0 - scores.means[1]]);
+        if scores.influence[0].len() != scores.influence[1].len()
+            || scores.influence[0].len() != scores.row_index.len()
+        {
+            return Err(CausalError::Unsupported {
+                message: "ConditionalEffect grid refused: missing per-arm influence for joint covariance",
+            });
         }
+        for arm in 0..2 {
+            columns.push(scores.influence[arm].iter().map(|v| -v).collect::<Vec<_>>());
+            let (events, supported) =
+                tail_event_support(&scores.treatment, &scores.row_index, &y_orig, arm, threshold);
+            event_n_eff.push(events);
+            threshold_supported.push(supported);
+        }
+        n_eff_by_arm = arm_n_eff(&scores.treatment);
         if first.is_none() {
             first = Some(point);
         }
     }
     let mut out = first.unwrap_or(estimate);
-    if columns.len() != thresholds.len() {
+    if columns.len() != thresholds.len() * 2 {
         return Err(CausalError::Unsupported {
             message: "ConditionalEffect grid refused: missing influence columns for joint covariance",
         });
     }
-    if columns.len() >= 2 {
-        let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
-        out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
-    }
+    let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+    out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
+    let n_eff = n_eff_by_arm[0] + n_eff_by_arm[1];
+    out.score_inference = Some(inference_from_influence_columns(
+        &raw_cdf,
+        &refs,
+        &event_n_eff,
+        &threshold_supported,
+        antecedent_estimate::WeightedSupport {
+            n_eff,
+            n_eff_by_arm: n_eff_by_arm.to_vec(),
+            propensity_range: None,
+            overlap_ok: n_eff_by_arm
+                .iter()
+                .all(|n| *n >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS),
+        },
+    )?);
+    let mut cdf = raw_cdf;
+    let rearranged = project_conditional_cdf(&mut cdf)?;
+    out = out.with_monotone_rearranged(rearranged);
     out.exceedance_cdf = Some(Arc::from(cdf));
     if thresholds.len() > 1 {
         out.ate = f64::NAN;
@@ -635,6 +793,54 @@ pub(crate) fn attach_conditional_functional_grid(
         out.simultaneous_interval = None;
     }
     Ok(out)
+}
+
+pub(crate) fn tail_event_support(
+    treatment: &[f64],
+    row_index: &[u32],
+    outcome: &[f64],
+    arm: usize,
+    threshold: f64,
+) -> (f64, bool) {
+    let target = if arm == 0 { 0.0 } else { 1.0 };
+    let mut events = 0.0;
+    let mut non_events = 0.0;
+    for (i, &row) in row_index.iter().enumerate() {
+        let Some(&t) = treatment.get(i) else {
+            continue;
+        };
+        if (t - target).abs() > 1e-12 {
+            continue;
+        }
+        let Some(&y) = outcome.get(row as usize) else {
+            continue;
+        };
+        if !y.is_finite() {
+            continue;
+        }
+        if y > threshold {
+            events += 1.0;
+        } else {
+            non_events += 1.0;
+        }
+    }
+    (
+        events,
+        events >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS
+            && non_events >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS,
+    )
+}
+
+fn arm_n_eff(treatment: &[f64]) -> [f64; 2] {
+    let mut counts = [0.0, 0.0];
+    for &t in treatment {
+        if t.abs() <= 1e-12 {
+            counts[0] += 1.0;
+        } else if (t - 1.0).abs() <= 1e-12 {
+            counts[1] += 1.0;
+        }
+    }
+    counts
 }
 
 /// Surface applied external-prior alphas after conflict shrink.
@@ -839,5 +1045,19 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
         let sens = PriorSensitivity::standard_grid();
         let (summary, _) = sens.evaluate(est, prep, status, ws, ctx).map_err(CausalError::from)?;
         Ok((summary, sens))
+    }
+}
+
+#[cfg(test)]
+mod cdf_review_tests {
+    #[test]
+    fn conditional_cdf_is_bounded_and_monotone_in_each_arm() {
+        let mut values = [-0.2, 0.8, 0.7, 0.3, 1.3, 1.2];
+        assert!(super::project_conditional_cdf(&mut values).unwrap());
+        assert!(
+            values.iter().zip([0.0, 0.55, 0.7, 0.55, 1.0, 1.0]).all(|(a, b)| (a - b).abs() < 1e-12)
+        );
+        assert!(!super::project_conditional_cdf(&mut values).unwrap());
+        assert!(super::project_conditional_cdf(&mut [f64::NAN, 0.5]).is_err());
     }
 }

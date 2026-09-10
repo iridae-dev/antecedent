@@ -859,7 +859,11 @@ impl super::Study {
         }
         if query.inner.outcome_functional.thresholds().is_some() {
             estimate = super::attach_class_conditional_functional_grid(
-                estimate, data, query, &grid_atoms, ctx,
+                estimate,
+                data,
+                query,
+                &grid_atoms,
+                ctx,
             )?;
         }
         let mut refute_ws = EstimationWorkspace::default();
@@ -1140,17 +1144,16 @@ impl super::Study {
         let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
         let mut extra_diagnostics = Vec::new();
         let covariance = if refs.len() == scenarios.len() && refs.len() >= 2 {
-            match antecedent_estimate::joint_influence_covariance(&refs, None) {
-                Ok(cov) => Some(cov),
-                Err(_) => {
-                    extra_diagnostics.push(Diagnostic::new(
+            if let Ok(cov) = antecedent_estimate::joint_influence_covariance(&refs, None) {
+                Some(cov)
+            } else {
+                extra_diagnostics.push(Diagnostic::new(
                         "tiered.unknown.joint_if.unavailable",
                         DiagnosticKind::Scientific,
                         DiagnosticSeverity::Warning,
                         "tiered Unknown joint IF covariance could not be formed; scenario intervals are omitted",
                     ));
-                    None
-                }
+                None
             }
         } else {
             if !refs.is_empty() && refs.len() != scenarios.len() {

@@ -105,7 +105,7 @@ pub struct CandidateSelectionWire {
     /// Procedure wire name.
     pub procedure: String,
     /// Winning family index.
-    pub winner_index: usize,
+    pub winner_index: Option<usize>,
     /// Family size.
     pub family_size: usize,
     /// Screen-half row indexes.
@@ -471,13 +471,7 @@ fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
 ///
 /// Invalid assumption labels or scopes.
 pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
-    let overlap = match w.overlap_policy.as_str() {
-        "require_diagnostics" => {
-            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
-        }
-        "explicit_override" => OverlapPolicy::ExplicitOverride,
-        other => return Err(IoError::Convert(format!("unknown overlap policy `{other}`"))),
-    };
+    let overlap = overlap_policy_from_wire(w)?;
     let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
     let first_stage = w
         .first_stage_diagnostics
@@ -566,21 +560,47 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.simultaneous_interval = w.simultaneous_interval;
     estimate.adjusted_p_values = w.adjusted_p_values;
     estimate.evalue = w.evalue;
-    estimate.candidate_selection = w.candidate_selection.as_ref().map(|s| {
-        antecedent_estimate::CandidateSelectionRecord {
-            screen_id: std::sync::Arc::from(s.screen_id.as_str()),
-            procedure: std::sync::Arc::from(s.procedure.as_str()),
-            winner_index: s.winner_index,
-            family_size: s.family_size,
-            screen_rows: std::sync::Arc::from(s.screen_rows.as_slice()),
-            estimate_rows: std::sync::Arc::from(s.estimate_rows.as_slice()),
-            disjoint: s.disjoint,
-        }
-    });
+    estimate.candidate_selection =
+        w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
     estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     Ok(estimate)
+}
+
+fn overlap_policy_from_wire(w: &EffectEstimateWire) -> Result<OverlapPolicy, IoError> {
+    let overlap = match w.overlap_policy.as_str() {
+        "require_diagnostics" => {
+            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
+        }
+        "explicit_override" => OverlapPolicy::ExplicitOverride,
+        other => return Err(IoError::Convert(format!("unknown overlap policy `{other}`"))),
+    };
+    Ok(overlap)
+}
+
+fn candidate_selection_from_wire(
+    s: &CandidateSelectionWire,
+) -> Result<antecedent_estimate::CandidateSelectionRecord, IoError> {
+    let screen: std::collections::BTreeSet<_> = s.screen_rows.iter().collect();
+    let estimate: std::collections::BTreeSet<_> = s.estimate_rows.iter().collect();
+    if s.winner_index.is_some_and(|i| i >= s.family_size)
+        || screen.len() != s.screen_rows.len()
+        || estimate.len() != s.estimate_rows.len()
+        || (s.disjoint
+            && (screen.is_empty() || estimate.is_empty() || !screen.is_disjoint(&estimate)))
+    {
+        return Err(IoError::Convert("invalid candidate selection provenance".into()));
+    }
+    Ok(antecedent_estimate::CandidateSelectionRecord {
+        screen_id: std::sync::Arc::from(s.screen_id.as_str()),
+        procedure: std::sync::Arc::from(s.procedure.as_str()),
+        winner_index: s.winner_index,
+        family_size: s.family_size,
+        screen_rows: std::sync::Arc::from(s.screen_rows.as_slice()),
+        estimate_rows: std::sync::Arc::from(s.estimate_rows.as_slice()),
+        disjoint: s.disjoint,
+    })
 }
 
 fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, IoError> {

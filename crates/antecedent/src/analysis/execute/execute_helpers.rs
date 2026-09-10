@@ -359,20 +359,30 @@ pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
 
 /// Embed complete-case influences into the original row universe before mixing.
 /// Equal vector lengths do not establish common observations.
-pub(super) fn static_aligned_influence(data: &TabularData, query: &AverageEffectQuery,
-    estimand: &IdentifiedEstimand, influence: &[f64]) -> Option<Vec<f64>> {
-    if !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved) { return None; }
+pub(super) fn static_aligned_influence(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    estimand: &IdentifiedEstimand,
+    influence: &[f64],
+) -> Option<Vec<f64>> {
+    if !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved) {
+        return None;
+    }
     let mut ids = vec![query.treatment, query.outcome];
     ids.extend(query.effect_modifiers.iter().copied());
     ids.extend(estimand.adjustment_set.iter().copied());
     ids.extend(estimand.instruments.iter().copied());
     ids.extend(estimand.mediators.iter().copied());
     let mask = data.complete_case_mask(&ids).ok()?;
-    let rows: Vec<_> = mask.iter().enumerate().filter_map(|(i,&keep)| keep.then_some(i)).collect();
-    if rows.len() != influence.len() || rows.len() < 2 { return None; }
+    let rows: Vec<_> = mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+    if rows.len() != influence.len() || rows.len() < 2 {
+        return None;
+    }
     let mean = influence.iter().sum::<f64>() / influence.len() as f64;
     let mut full = vec![0.0; mask.len()];
-    for (&i,&v) in rows.iter().zip(influence) { full[i] = (v-mean)*mask.len() as f64/influence.len() as f64; }
+    for (&i, &v) in rows.iter().zip(influence) {
+        full[i] = (v - mean) * mask.len() as f64 / influence.len() as f64;
+    }
     Some(full)
 }
 
@@ -396,8 +406,12 @@ pub(super) fn attach_class_conditional_functional_grid(
         return Ok(estimate);
     }
     let est = ConditionalLinearAdjustment::new();
+    let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
     let mut mixed_cdf = Vec::with_capacity(thresholds.len() * 2);
-    let mut mixed_columns = Vec::with_capacity(thresholds.len());
+    let mut mixed_columns = Vec::with_capacity(thresholds.len() * 2);
+    let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);
+    let mut threshold_supported = Vec::with_capacity(thresholds.len() * 2);
+    let mut n_eff_by_arm = [0.0, 0.0];
     for &threshold in &thresholds {
         let data_c = super::helpers::apply_outcome_functional(
             data,
@@ -408,24 +422,32 @@ pub(super) fn attach_class_conditional_functional_grid(
         let mut arm1 = 0.0;
         let mut mass = 0.0;
         let mut contributing = 0usize;
-        let mut atom_ifs = Vec::new();
+        let mut atom_if0 = Vec::new();
+        let mut atom_if1 = Vec::new();
         let mut atom_weights = Vec::new();
+        let mut tail_treatment = None;
+        let mut tail_rows = None;
         for &(w, ref estimand) in atoms {
             if !w.is_finite() || w <= 0.0 {
                 continue;
             }
-            let (point, arms) = est.estimate_with_means(&data_c, estimand, query)?;
-            arm0 += w * (1.0 - arms[0]);
-            arm1 += w * (1.0 - arms[1]);
+            let (_point, scores) = est.estimate_with_arm_scores(&data_c, estimand, query)?;
+            arm0 += w * (1.0 - scores.means[0]);
+            arm1 += w * (1.0 - scores.means[1]);
             mass += w;
             contributing += 1;
-            if let Some(inf) = point
-                .influence
-                .as_deref()
-                .and_then(|inf| static_aligned_influence(data, &query.inner, estimand, inf))
-            {
-                atom_ifs.push(inf);
+            let aligned0 =
+                static_aligned_influence(data, &query.inner, estimand, &scores.influence[0]);
+            let aligned1 =
+                static_aligned_influence(data, &query.inner, estimand, &scores.influence[1]);
+            if let (Some(if0), Some(if1)) = (aligned0, aligned1) {
+                atom_if0.push(if0.into_iter().map(|v| -v).collect::<Vec<_>>());
+                atom_if1.push(if1.into_iter().map(|v| -v).collect::<Vec<_>>());
                 atom_weights.push(w);
+            }
+            if tail_treatment.is_none() {
+                tail_treatment = Some(scores.treatment);
+                tail_rows = Some(scores.row_index);
             }
         }
         if !matches!(mass.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -435,27 +457,59 @@ pub(super) fn attach_class_conditional_functional_grid(
         }
         mixed_cdf.push(arm0 / mass);
         mixed_cdf.push(arm1 / mass);
-        if atom_ifs.len() != contributing {
+        if atom_if0.len() != contributing || atom_if1.len() != contributing {
             return Err(CausalError::Unsupported {
-                message: "class-aware ConditionalEffect grid refused: every contributing atom must supply an aligned influence function; refusing a covariance from a subset of atoms",
+                message: "class-aware ConditionalEffect grid refused: every contributing atom must supply an aligned per-arm influence function; refusing a covariance from a subset of atoms",
             });
         }
-        let refs: Vec<&[f64]> = atom_ifs.iter().map(Vec::as_slice).collect();
-        mixed_columns.push(antecedent_estimate::frozen_weight_mixture_scores(
-            &refs,
-            &atom_weights,
-        )?);
+        let refs0: Vec<&[f64]> = atom_if0.iter().map(Vec::as_slice).collect();
+        let refs1: Vec<&[f64]> = atom_if1.iter().map(Vec::as_slice).collect();
+        mixed_columns
+            .push(antecedent_estimate::frozen_weight_mixture_scores(&refs0, &atom_weights)?);
+        mixed_columns
+            .push(antecedent_estimate::frozen_weight_mixture_scores(&refs1, &atom_weights)?);
+        if let (Some(treatment), Some(rows)) = (tail_treatment.as_ref(), tail_rows.as_ref()) {
+            n_eff_by_arm = [
+                treatment.iter().filter(|&&t| t.abs() <= 1e-12).count() as f64,
+                treatment.iter().filter(|&&t| (t - 1.0).abs() <= 1e-12).count() as f64,
+            ];
+            for arm in 0..2 {
+                let (events, supported) =
+                    super::helpers::tail_event_support(treatment, rows, &y_orig, arm, threshold);
+                event_n_eff.push(events);
+                threshold_supported.push(supported);
+            }
+        } else {
+            return Err(CausalError::Unsupported {
+                message: "class-aware ConditionalEffect grid refused: missing threshold tail-support evidence",
+            });
+        }
     }
     let mut out = estimate;
-    if mixed_columns.len() != thresholds.len() {
+    if mixed_columns.len() != thresholds.len() * 2 {
         return Err(CausalError::Unsupported {
-            message: "class-aware ConditionalEffect grid refused: joint IF columns must match the declared threshold grid",
+            message: "class-aware ConditionalEffect grid refused: joint IF columns must match the declared per-arm threshold grid",
         });
     }
-    if mixed_columns.len() >= 2 {
-        let refs: Vec<&[f64]> = mixed_columns.iter().map(Vec::as_slice).collect();
-        out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
-    }
+    let refs: Vec<&[f64]> = mixed_columns.iter().map(Vec::as_slice).collect();
+    out.joint_covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
+    let n_eff = n_eff_by_arm[0] + n_eff_by_arm[1];
+    out.score_inference = Some(antecedent_estimate::inference_from_influence_columns(
+        &mixed_cdf,
+        &refs,
+        &event_n_eff,
+        &threshold_supported,
+        antecedent_estimate::WeightedSupport {
+            n_eff,
+            n_eff_by_arm: n_eff_by_arm.to_vec(),
+            propensity_range: None,
+            overlap_ok: n_eff_by_arm
+                .iter()
+                .all(|n| *n >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS),
+        },
+    )?);
+    let rearranged = super::helpers::project_conditional_cdf(&mut mixed_cdf)?;
+    out = out.with_monotone_rearranged(rearranged);
     out.exceedance_cdf = Some(Arc::from(mixed_cdf));
     if thresholds.len() > 1 {
         out.ate = f64::NAN;
@@ -1091,10 +1145,45 @@ fn push_aipw_score_kind(
 }
 
 fn push_grid_scalar_cleared(diagnostics: &mut Vec<Diagnostic>, estimate: &EffectEstimate) {
+    if let Some(inf) = estimate.score_inference.as_ref() {
+        if !diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.cdf_inference") {
+            diagnostics.push(Diagnostic::new(
+                "estimate.functional.cdf_inference",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "per-arm F_a(c) simultaneous bands describe raw CDF coordinates; rearranged exceedance_cdf values are not mixed with those intervals",
+            ));
+        }
+        if inf.threshold_supported.iter().any(|ok| !ok)
+            && !diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported")
+        {
+            diagnostics.push(Diagnostic::new(
+                "estimate.functional.threshold_tail.unsupported",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "at least one threshold tail lacks enough treated/control events for a tail probability; that coordinate's band is non-finite rather than an empty-cell or first-threshold SE",
+            ));
+        }
+    } else if estimate.score_table.is_none()
+        && estimate.exceedance_cdf.is_some()
+        && !diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.functional.cdf_inference.unavailable")
+    {
+        diagnostics.push(Diagnostic::new(
+            "estimate.functional.cdf_inference.unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "conditional CDF values have no per-arm simultaneous bands or threshold tail-support evidence; joint covariance, when present, describes raw threshold contrasts, not the projected per-arm CDF",
+        ));
+    }
     if diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared") {
         return;
     }
-    if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2) && !estimate.ate.is_finite()
+    if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
+        && !estimate.ate.is_finite()
     {
         diagnostics.push(Diagnostic::new(
             "estimate.functional.grid_scalar_cleared",
