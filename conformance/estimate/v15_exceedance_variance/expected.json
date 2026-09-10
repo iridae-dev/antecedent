@@ -1,0 +1,9 @@
+{
+  "mean_ate": 0.0,
+  "mean_tolerance": 0.06,
+  "exceedance_delta": 0.08,
+  "threshold": 1.2815515655446004,
+  "identifier": "backdoor.adjustment",
+  "estimator": "aipw",
+  "notes": "Variance-only SCM: mean ATE is 0; true ΔP(Y > q90) ≈ +0.08. Consumed by v15_numeric_pins::variance_only_exceedance_covers_and_mean_misses."
+}
