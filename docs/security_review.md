@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-08
-Scope: workspace crates + `python` extension (package version **1.3.0**)
+Date: 2026-09-10
+Scope: workspace crates + `python` extension (package version **1.4.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -30,6 +30,15 @@ JSON crossings retain exact binary float values. No external dependency,
 unsafe block, artifact decoder, or workflow permission is added.
 Artifact export uses the existing bounded canonical writers. New provenance
 cards record independent implementations and their statistical restrictions.
+
+The 1.4.0 diff adds class-preserving graph completion and estimation routes
+and Python handoff APIs. Its lockfile changes are workspace version updates;
+no external dependency, unsafe block, or artifact decoder was added. Temporal
+handoffs export certified offsets and trim series boundaries; incomplete
+graph results retain their identification limitations. The local CodeQL gate passed on
+2026-09-10 with zero Rust, Python, and Actions findings under the existing
+documented query exclusions. A redundant test import was removed and Python
+rescanned before the final combined findings audit passed.
 
 ## Unsafe code policy
 

@@ -16,6 +16,8 @@ fn main() -> Result<(), CausalError> {
         .context()
         .build()?;
     // Dummy data required by the builder; identify_only ignores rows.
+    // For Cpdag / Pag / temporal classes use `identify(&AcceptedGraph::from(graph), &query)` —
+    // that path takes no data.
     let data = TabularData::from_f64_columns([
         ("t", &[0.0_f64, 1.0][..]),
         ("y", &[0.0_f64, 1.0][..]),

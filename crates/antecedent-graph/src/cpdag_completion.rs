@@ -75,6 +75,19 @@ impl CpdagCompletionSampler {
         self.undirected.len()
     }
 
+    /// Whether the retention cap stopped the stream before every orientation
+    /// mask was examined. Local validity still holds for yielded DAGs; the
+    /// unexamined suffix is not certified empty of further MEC members.
+    #[must_use]
+    pub fn hit_cap(&self) -> bool {
+        self.next_index >= self.max_completions && self.assign < self.total_masks()
+    }
+
+    fn total_masks(&self) -> u64 {
+        let n = self.undirected.len();
+        if n == 0 { 1 } else { 1u64 << n }
+    }
+
     fn build_completion(&self, mask: u64) -> Option<Dag> {
         let mut g = self.base.clone();
         for (i, &(a, b)) in self.undirected.iter().enumerate() {
@@ -196,8 +209,7 @@ impl Iterator for CpdagCompletionSampler {
         if self.next_index >= self.max_completions {
             return None;
         }
-        let n = self.undirected.len();
-        let total = if n == 0 { 1u64 } else { 1u64 << n };
+        let total = self.total_masks();
         while self.assign < total {
             let mask = self.assign;
             self.assign += 1;
@@ -252,8 +264,10 @@ mod tests {
         let mut g = Cpdag::with_variables(3);
         g.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-        let collected: Vec<_> = CpdagCompletionSampler::new(g, 2).unwrap().collect();
+        let mut sampler = CpdagCompletionSampler::new(g, 2).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
         assert_eq!(collected.len(), 2);
+        assert!(sampler.hit_cap());
     }
 
     #[test]

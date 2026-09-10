@@ -200,7 +200,23 @@ impl BackdoorIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone(), workspace)
+        let mut result = match self.identify_ate(prepared, ate, query.clone(), workspace) {
+            Ok(result) => result,
+            Err(IdentificationError::NotCertified { .. }) if !ate.effect_modifiers.is_empty() => {
+                crate::generalized::not_identified(
+                    query.clone(),
+                    "marginal search capped; attempting modifier-constrained search",
+                )
+            }
+            Err(error) => return Err(error),
+        };
+        crate::generalized::validate_dag_conditional_adjustment(
+            prepared.dag(),
+            ate,
+            &mut result,
+            &self.config,
+        )?;
+        Ok(result)
     }
 
     #[allow(clippy::too_many_lines)]

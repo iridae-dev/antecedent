@@ -8,25 +8,32 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::CausalQuery;
+#[cfg(test)]
+use std::sync::Arc;
+
+use antecedent_core::{AverageEffectQuery, CausalQuery, TemporalIndexer};
 use antecedent_graph::Pag;
-use antecedent_identify::{IdentificationEnvelope, IdentificationResult, IdentifiedEstimand};
+use antecedent_identify::{
+    IdentificationEnvelope, IdentificationResult, IdentifiedEstimand, TemporalBackdoorIdentifier,
+    TemporalClassEnvelope,
+};
 
 use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
 use crate::strategy_table::{
     self, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_IDENTIFIER_ID,
-    IdentifierId, identify_admg, identify_pag, identify_static_query,
+    IdentifierId, identify_admg, identify_cpdag, identify_pag, identify_static_query,
+    identify_temporal_cpdag, identify_temporal_pag,
 };
 
 /// Identification outcome.
 ///
 /// Point and envelope stay distinct: uncertainty sources are not collapsed into one
-/// number. A [`Self::Point`] result comes from a single-graph identifier (DAG, ADMG,
-/// or a fully-oriented CPDAG reinterpreted as a DAG). A [`Self::Envelope`] result comes
-/// from class-aware identification over a PAG's equivalence class, where some MAG
-/// completions may identify and others may not — that split is preserved rather than
-/// averaged away.
+/// number. A [`Self::Point`] result comes from a single-graph identifier (DAG or
+/// ADMG). A [`Self::Envelope`] / [`Self::CpdagEnvelope`] result comes from
+/// class-aware identification over a PAG or CPDAG equivalence class, where some
+/// completions may identify and others may not — that split is preserved rather
+/// than averaged away.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum Identification {
@@ -34,6 +41,9 @@ pub enum Identification {
     Point {
         /// Underlying identification result.
         result: IdentificationResult,
+        /// Unfolding coordinates for a temporal point result. Estimand variable
+        /// ids remain in the expression arena's coordinate system.
+        temporal_indexer: Option<TemporalIndexer>,
         /// Identifier strategy that produced this result.
         strategy: IdentifierId,
         /// [`AcceptedGraph::version`] of the structure identification ran against.
@@ -48,6 +58,24 @@ pub enum Identification {
         /// [`AcceptedGraph::version`] of the structure identification ran against.
         structure_version: u32,
     },
+    /// Class-aware (CPDAG MEC) identification envelope. Completions are DAGs.
+    CpdagEnvelope {
+        /// Underlying identification envelope over MEC DAG completions.
+        envelope: IdentificationEnvelope<antecedent_graph::Dag>,
+        /// Identifier strategy that produced this result.
+        strategy: IdentifierId,
+        /// [`AcceptedGraph::version`] of the structure identification ran against.
+        structure_version: u32,
+    },
+    /// Class-aware temporal envelope over `TemporalDag` completions.
+    TemporalEnvelope {
+        /// Underlying identification envelope plus unfold indexers.
+        envelope: TemporalClassEnvelope,
+        /// Identifier strategy that produced this result.
+        strategy: IdentifierId,
+        /// [`AcceptedGraph::version`] of the structure identification ran against.
+        structure_version: u32,
+    },
 }
 
 impl Identification {
@@ -57,6 +85,8 @@ impl Identification {
         match self {
             Self::Point { result, .. } => result.status,
             Self::Envelope { envelope, .. } => envelope.status,
+            Self::CpdagEnvelope { envelope, .. } => envelope.status,
+            Self::TemporalEnvelope { envelope, .. } => envelope.envelope.status,
         }
     }
 
@@ -64,7 +94,10 @@ impl Identification {
     #[must_use]
     pub fn strategy(&self) -> IdentifierId {
         match self {
-            Self::Point { strategy, .. } | Self::Envelope { strategy, .. } => *strategy,
+            Self::Point { strategy, .. }
+            | Self::Envelope { strategy, .. }
+            | Self::CpdagEnvelope { strategy, .. }
+            | Self::TemporalEnvelope { strategy, .. } => *strategy,
         }
     }
 
@@ -72,9 +105,10 @@ impl Identification {
     #[must_use]
     pub fn structure_version(&self) -> u32 {
         match self {
-            Self::Point { structure_version, .. } | Self::Envelope { structure_version, .. } => {
-                *structure_version
-            }
+            Self::Point { structure_version, .. }
+            | Self::Envelope { structure_version, .. }
+            | Self::CpdagEnvelope { structure_version, .. }
+            | Self::TemporalEnvelope { structure_version, .. } => *structure_version,
         }
     }
 
@@ -96,6 +130,14 @@ impl Identification {
         match self {
             Self::Point { result, .. } => &result.estimands,
             Self::Envelope { envelope, .. } => match &envelope.invariant {
+                Some(estimand) => std::slice::from_ref(estimand),
+                None => &[],
+            },
+            Self::CpdagEnvelope { envelope, .. } => match &envelope.invariant {
+                Some(estimand) => std::slice::from_ref(estimand),
+                None => &[],
+            },
+            Self::TemporalEnvelope { envelope, .. } => match &envelope.envelope.invariant {
                 Some(estimand) => std::slice::from_ref(estimand),
                 None => &[],
             },
@@ -190,27 +232,31 @@ fn identify_with_source(
     match structure.class() {
         GraphClass::Dag => {
             let dag = structure.as_dag().expect("class() == Dag implies as_dag() is Some");
-            let result = identify_static_query(strategy, dag, query)?;
-            Ok(Identification::Point { result, strategy, structure_version })
+            let id_query = static_identify_query(query);
+            let result = identify_static_query(strategy, dag, &id_query)?;
+            Ok(Identification::Point {
+                result,
+                temporal_indexer: None,
+                strategy,
+                structure_version,
+            })
         }
         GraphClass::Cpdag => {
             let cpdag = structure.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
-            // `AcceptedGraph::cpdag` / the CpdagReview review gate already refused any
-            // Cpdag carrying undirected or conflict marks, so `try_into_dag` here is a
-            // lossless structural reinterpretation of already-fully-oriented data —
-            // never a choice among members of an otherwise-unresolved equivalence class.
-            let dag = cpdag.try_into_dag()?;
-            let result = identify_static_query(strategy, &dag, query)?;
-            Ok(Identification::Point { result, strategy, structure_version })
+            let envelope = if let CausalQuery::Response(response) = query {
+                strategy_table::identify_cpdag_response(strategy, cpdag, response)?
+            } else {
+                identify_cpdag(strategy, cpdag, &class_ate_witness(query, "CPDAG")?)?
+            };
+            Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
         }
         GraphClass::Pag => {
             let pag = structure.as_pag().expect("class() == Pag implies as_pag() is Some");
-            let CausalQuery::AverageEffect(average_effect) = query else {
-                return Err(CausalError::Unsupported {
-                    message: "PAG identification supports only CausalQuery::AverageEffect",
-                });
+            let envelope = if let CausalQuery::Response(response) = query {
+                strategy_table::identify_pag_response(strategy, pag, response)?
+            } else {
+                identify_pag(strategy, pag, &class_ate_witness(query, "PAG")?)?
             };
-            let envelope = identify_pag(strategy, pag, average_effect)?;
             Ok(Identification::Envelope { envelope, strategy, structure_version })
         }
         GraphClass::Admg => {
@@ -221,20 +267,80 @@ fn identify_with_source(
                 });
             };
             let result = identify_admg(strategy, admg, average_effect)?;
-            Ok(Identification::Point { result, strategy, structure_version })
-        }
-        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
-            // `strategy_table` exposes no temporal-graph identify entry point among the
-            // three this module is allowed to call (`identify_static_query` takes
-            // `&Dag`, `identify_pag` takes `&Pag`, `identify_admg` takes `&Admg`; none
-            // accept a temporal graph type). Refusing here — rather than guessing a
-            // conversion — keeps this free function from silently picking a resolution
-            // strategy for temporal structure it was never wired to identify.
-            Err(CausalError::Unsupported {
-                message: "temporal graph classes have no wired free-identify() entry point; \
-                          use Study for the temporal path",
+            Ok(Identification::Point {
+                result,
+                temporal_indexer: None,
+                strategy,
+                structure_version,
             })
         }
+        GraphClass::TemporalDag => {
+            let dag = structure
+                .as_temporal_dag()
+                .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+            let CausalQuery::TemporalEffect(q) = query else {
+                return Err(CausalError::Unsupported {
+                    message: "TemporalDag identification supports only CausalQuery::TemporalEffect",
+                });
+            };
+            let identified = TemporalBackdoorIdentifier::new()
+                .identify_temporal(dag, q)
+                .map_err(CausalError::from)?;
+            Ok(Identification::Point {
+                result: identified.result,
+                temporal_indexer: Some(identified.indexer),
+                strategy,
+                structure_version,
+            })
+        }
+        GraphClass::TemporalCpdag => {
+            let cpdag = structure
+                .as_temporal_cpdag()
+                .expect("class() == TemporalCpdag implies as_temporal_cpdag() is Some");
+            let CausalQuery::TemporalEffect(q) = query else {
+                return Err(CausalError::Unsupported {
+                    message: "TemporalCpdag identification supports only CausalQuery::TemporalEffect",
+                });
+            };
+            let envelope = identify_temporal_cpdag(strategy, cpdag, q)?;
+            Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
+        }
+        GraphClass::TemporalPag => {
+            let pag = structure
+                .as_temporal_pag()
+                .expect("class() == TemporalPag implies as_temporal_pag() is Some");
+            let CausalQuery::TemporalEffect(q) = query else {
+                return Err(CausalError::Unsupported {
+                    message: "TemporalPag identification supports only CausalQuery::TemporalEffect",
+                });
+            };
+            let envelope = identify_temporal_pag(strategy, pag, q)?;
+            Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
+        }
+    }
+}
+
+fn static_identify_query(query: &CausalQuery) -> CausalQuery {
+    match query {
+        CausalQuery::ConditionalEffect(q) => CausalQuery::AverageEffect(q.inner.clone()),
+        other => other.clone(),
+    }
+}
+
+fn class_ate_witness(
+    query: &CausalQuery,
+    class_tag: &str,
+) -> Result<AverageEffectQuery, CausalError> {
+    match query {
+        CausalQuery::AverageEffect(q) => Ok(q.clone()),
+        CausalQuery::Response(q) => crate::analysis::response_witness_ate(q),
+        CausalQuery::ConditionalEffect(q) => Ok(q.inner.clone()),
+        _ => Err(CausalError::Compile {
+            message: format!(
+                "{class_tag} identification supports AverageEffect, static Response, \
+                 and ConditionalEffect"
+            ),
+        }),
     }
 }
 
@@ -242,14 +348,14 @@ fn identify_with_source(
 /// constants rather than hardcoding wire strings.
 fn default_strategy(class: GraphClass) -> IdentifierId {
     match class {
-        GraphClass::Dag | GraphClass::Cpdag => DEFAULT_IDENTIFIER_ID,
-        GraphClass::Pag => DEFAULT_PAG_IDENTIFIER_ID,
+        GraphClass::Dag => DEFAULT_IDENTIFIER_ID,
+
         GraphClass::Admg => DEFAULT_ADMG_IDENTIFIER_ID,
-        // No supported temporal path; any value is fine here since `identify_with`
-        // refuses temporal classes before consulting `strategy`.
-        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
-            DEFAULT_IDENTIFIER_ID
-        }
+        GraphClass::TemporalDag => IdentifierId::TemporalBackdoorUnfolded,
+        GraphClass::Cpdag
+        | GraphClass::Pag
+        | GraphClass::TemporalCpdag
+        | GraphClass::TemporalPag => DEFAULT_PAG_IDENTIFIER_ID,
     }
 }
 
@@ -276,7 +382,11 @@ mod tests {
         let identification = identify(&structure, &query).unwrap();
         match &identification {
             Identification::Point { .. } => {}
-            Identification::Envelope { .. } => panic!("expected Point for a Dag structure"),
+            Identification::Envelope { .. }
+            | Identification::CpdagEnvelope { .. }
+            | Identification::TemporalEnvelope { .. } => {
+                panic!("expected Point for a Dag structure")
+            }
         }
         assert!(identification.is_identified());
         assert_eq!(identification.structure_version(), 1);
@@ -299,5 +409,70 @@ mod tests {
             ),
             "{err}"
         );
+    }
+
+    #[test]
+    fn identify_cpdag_average_effect_returns_envelope() {
+        let mut cpdag = antecedent_graph::Cpdag::with_variables(3);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        cpdag.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let structure = AcceptedGraph::from(cpdag);
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            antecedent_core::VariableId::from_raw(1),
+            antecedent_core::VariableId::from_raw(2),
+        ));
+        let identification = identify(&structure, &query).unwrap();
+        match identification {
+            Identification::CpdagEnvelope { .. } => {}
+            other => panic!("expected CpdagEnvelope, got {other:?}"),
+        }
+        assert_eq!(identification.strategy(), DEFAULT_PAG_IDENTIFIER_ID);
+    }
+
+    #[test]
+    fn identify_cpdag_response_uses_ate_witness() {
+        use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+        let mut cpdag = antecedent_graph::Cpdag::with_variables(3);
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        cpdag.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let structure = AcceptedGraph::from(cpdag);
+        let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: antecedent_core::VariableId::from_raw(2),
+            treatment: ContinuousDomain::new(
+                antecedent_core::VariableId::from_raw(1),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        }));
+        let identification = identify(&structure, &query).unwrap();
+        match identification {
+            Identification::CpdagEnvelope { .. } => {}
+            other => panic!("expected CpdagEnvelope, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn identify_temporal_dag_pulse_is_point() {
+        use antecedent_core::Lag;
+        use antecedent_graph::TemporalDag;
+        let mut dag = TemporalDag::empty();
+        let t_lag =
+            dag.add_lagged(antecedent_core::VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y_now =
+            dag.add_lagged(antecedent_core::VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        dag.insert_directed(t_lag, y_now).unwrap();
+        let structure = AcceptedGraph::from(dag);
+        let query = CausalQuery::TemporalEffect(antecedent_core::TemporalEffectQuery::pulse(
+            antecedent_core::VariableId::from_raw(0),
+            antecedent_core::VariableId::from_raw(1),
+            1.0,
+        ));
+        let identification = identify(&structure, &query).unwrap();
+        match identification {
+            Identification::Point { .. } => {}
+            other => panic!("expected Point for TemporalDag, got {other:?}"),
+        }
+        assert_eq!(identification.strategy(), IdentifierId::TemporalBackdoorUnfolded);
     }
 }

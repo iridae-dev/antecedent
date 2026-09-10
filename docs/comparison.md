@@ -15,7 +15,26 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 1.3 matrix licenses the 1.2 families plus:
+The 1.4 matrix licenses the 1.3 families plus:
+
+- `AverageEffect` on explicit or accepted `Cpdag` under Frequentist or
+  Bayesian inference with validation `none` / `cheap` / `full`, as a MEC
+  envelope whose runtime class stays `Cpdag`;
+- `ResponseCurve` / `InterventionResponse` on explicit or accepted `Cpdag` /
+  `Pag` under Frequentist or Bayesian inference with validation `none`, via
+  the same generalized-adjustment envelope (not a licensed MAG/PAG
+  response-identification theory);
+- `ConditionalEffect` on explicit or accepted `Cpdag` / `Pag` under
+  Frequentist or Bayesian inference with all three validation values, after a
+  pre-treatment and augmented backdoor check;
+- Frequentist Pulse / single-step Sustained on explicit or accepted
+  `TemporalCpdag` / `TemporalPag` with all three validation values
+  (`TemporalPag` retains directed/bidirected MAG completions; finite-window
+  equivalence audits cannot confer class-wide point identification);
+- Frequentist graph-posterior `AverageEffect` on DAG atoms, the sibling of
+  the 1.1 Bayesian envelope.
+
+The 1.3 matrix added:
 
 - Frequentist `PointDerivative` / `Elasticity` / `SemiElasticity` /
   `AverageDerivative` / `DirectionalDerivative` / `ResponseJacobian` on
@@ -56,15 +75,16 @@ mediation requires one mediator with treatment at lag one and mediator/outcome
 contemporaneous, adjusting for observed baseline parents. Multi-step sustained
 uses sequential g-computation; Bayesian time copies share stationary mechanism
 draws. These restrictions are part of each licensed form; see the
-[1.2 evidence ledger](v1.2-evidence.md) and
-[1.3 evidence ledger](v1.3-evidence.md).
+[1.2 evidence ledger](v1.2-evidence.md),
+[1.3 evidence ledger](v1.3-evidence.md), and
+[1.4 evidence ledger](v1.4-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
-`AverageEffect × Dag × graph_posterior × Bayesian` with validation
-`none`/`cheap`/`full`. Temporal graph-posterior support is pulse and
-single-step sustained effect on `TemporalDag` with validation `none`, `cheap`,
-or `full`.
-Frequentist graph-posterior combinations, response mixtures, and
+`AverageEffect × Dag × graph_posterior` under Bayesian or Frequentist
+inference with validation `none`/`cheap`/`full`. Temporal graph-posterior
+support is pulse and single-step sustained effect on `TemporalDag` with
+Bayesian inference and validation `none`, `cheap`, or `full`.
+Frequentist DBN-posterior mixing, response mixtures, and
 ADMG/CPDAG/PAG posterior atoms are refused. Unidentified atom mass is retained;
 priors do not upgrade identification.
 
@@ -121,10 +141,12 @@ effects and policy-oriented workflows. Antecedent's licensed
 `ConditionalEffect` path is a linear interaction model; it does not provide
 causal forests, meta-learners, or a general ML CATE surface.
 
-There is no built-in EconML handoff. Graph interchange or a backdoor adjustment
-set can be moved manually when that estimand actually is an adjustment estimand.
-Front-door, IV, general-ID, partial-identification, and graph-posterior results
-cannot be reduced to "pass this adjustment set to another estimator."
+`antecedent.handoff.econml(result)` emits the adjustment set and identification
+status for point-identified backdoor / generalized-adjustment estimands,
+including lag-aligned temporal columns when the certificate carries offsets.
+Front-door, IV, general-ID, partial-identification, and graph-posterior
+results refuse rather than pretending they are a set. The adapter does not
+wrap EconML learners or absorb ML CATE.
 
 ### Tigramite
 
@@ -154,15 +176,14 @@ downstream analysis is licensed, not applicable, or refused.
 
 The following are current product boundaries or explicit matrix refusals:
 
-- no ML-based CATE estimators or built-in EconML integration;
+- no ML-based CATE estimators (the EconML adapter emits a set, not a learner);
 - no plotting module;
-- no R, Julia, or JavaScript bindings in 1.2;
+- no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no response mixtures over graph posteriors or Bayesian nonlinear responses;
+- no Frequentist DBN-posterior mixing (1.7) or response mixtures over graph posteriors;
 - no Bayesian or partial-graph derivative cells;
-- no class-aware temporal effect identification on incomplete
-  `TemporalCpdag`/`TemporalPag`;
+- no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.
 

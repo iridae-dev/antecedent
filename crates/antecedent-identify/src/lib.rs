@@ -38,6 +38,8 @@ pub mod rd;
 pub mod response;
 pub mod result;
 pub mod temporal_backdoor;
+pub mod temporal_generalized;
+mod temporal_mag;
 pub mod temporal_mediation;
 pub mod transport;
 
@@ -73,8 +75,11 @@ pub use result::{
     IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
+pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use transport::{
     NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     TransportIdentification, TransportIdentifier,
 };
+
+mod joint_response;

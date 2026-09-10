@@ -19,26 +19,32 @@ calls the native identify-only entry point.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
+from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
-from .graph import Admg, Dag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageDerivative,
     AverageEffect,
+    ConditionalEffect,
     Counterfactual,
     DirectionalDerivative,
     Elasticity,
+    InterventionResponse,
     MediationEffect,
     PointDerivative,
+    PulseEffect,
     ResponseCurve,
     ResponseJacobian,
     SemiElasticity,
+    SustainedEffect,
 )
 from .results import IdentificationView
 
@@ -47,20 +53,31 @@ from .results import IdentificationView
 class Identification:
     """A resolved identification strategy, staged for ``.estimate()`` / ``.validate()``.
 
-    Produced by :func:`identify` (identify-only — ``assumption_count`` /
-    ``derivation_step_count`` are unset, ``None``, since the identify-only
-    native call doesn't compute them) or by :meth:`from_view` (from a
-    completed analysis's identification section, where those counts are
-    known). Conceptually immutable, like :class:`antecedent.AcceptedGraph`.
+    Produced by :func:`identify` or :meth:`from_view`. Typed-structure
+    certificates retain each case's assumptions, derivation and search diagnostics;
+    aggregate counts remain unset when there is no single point certificate. Conceptually immutable, like :class:`antecedent.AcceptedGraph`.
     """
 
     status: str
     method: str
     adjustment_set: list[str]
-    graph: Dag | Admg | Sequence[tuple[str, str]]
+    graph: (
+        Dag
+        | Admg
+        | Cpdag
+        | Pag
+        | TemporalDag
+        | TemporalCpdag
+        | TemporalPag
+        | Sequence[tuple[str, str]]
+    )
     query: (
         AverageEffect
         | ResponseCurve
+        | InterventionResponse
+        | ConditionalEffect
+        | PulseEffect
+        | SustainedEffect
         | PointDerivative
         | Elasticity
         | SemiElasticity
@@ -74,6 +91,9 @@ class Identification:
     identifier: str | None = None
     assumption_count: int | None = None
     derivation_step_count: int | None = None
+    # Complete native certificate: per-completion wire records, coordinates,
+    # weights, derivations, assumptions, expression arenas, and search limits.
+    certificate: dict[str, Any] | None = None
 
     def __bool__(self) -> bool:
         """``True`` when the estimand is identified.
@@ -106,6 +126,7 @@ class Identification:
             status=self.status,
             method=self.method,
             adjustment_set=list(self.adjustment_set),
+            query=self.query,
         )
 
     @classmethod
@@ -194,11 +215,161 @@ class Identification:
         return self.estimate(data, refute=refute, seed=seed, threads=threads)
 
 
+_STRUCTURE_GRAPHS = (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)
+
+
+def _uses_structure_identify(graph: object, query: object) -> bool:
+    if isinstance(graph, _STRUCTURE_GRAPHS):
+        return True
+    if isinstance(graph, Dag) and isinstance(
+        query, (ConditionalEffect, PulseEffect, SustainedEffect, InterventionResponse)
+    ):
+        return True
+    return isinstance(query, (ResponseCurve, InterventionResponse)) and isinstance(
+        graph, (Cpdag, Pag)
+    )
+
+
+class _IdentifyStructureKwargs(TypedDict, total=False):
+    modifier: str
+    policy: str
+    treatment_lag: int
+    horizon_steps: int
+    active_level: float
+    window: tuple[int, int] | None
+    treatments: list[str]
+
+
+def _identify_typed_graph(
+    *,
+    graph: Dag
+    | Admg
+    | Cpdag
+    | Pag
+    | TemporalDag
+    | TemporalCpdag
+    | TemporalPag
+    | Sequence[tuple[str, str]],
+    supplied: object,
+    query: object,
+    identifier: str | None,
+    names: Sequence[str] | None,
+) -> Identification:
+    from ._native import identify_structure as _identify_structure
+
+    if not isinstance(supplied, (Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)):
+        raise TypeError("typed-graph identify() requires a supported graph class")
+    if isinstance(query, (ResponseCurve, InterventionResponse)):
+        from .observation import Complete
+
+        if query.is_temporal or (
+            query.observation is not None and not isinstance(query.observation, Complete)
+        ):
+            raise CausalUnsupportedError(
+                "typed-graph response identification supports complete-observation static queries only"
+            )
+    if isinstance(query, AverageEffect):
+        kind = "average_effect"
+        treatment, outcome = query.treatment, query.outcome
+        extra: _IdentifyStructureKwargs = {}
+    elif isinstance(query, ResponseCurve):
+        kind = "response"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {}
+    elif isinstance(query, InterventionResponse):
+        kind = "intervention_response"
+        spec = query.intervention
+        specs = (
+            list(spec)
+            if isinstance(spec, Sequence) and not isinstance(spec, (str, bytes))
+            else [spec]
+        )
+        if not specs:
+            raise CausalValueError("InterventionResponse requires at least one intervention")
+        treatments = []
+        for item in specs:
+            variable = getattr(item, "variable", None)
+            if not isinstance(variable, str):
+                raise TypeError("InterventionResponse identify() needs a treatment variable")
+            treatments.append(variable)
+        treatment = treatments[0]
+        outcome = query.outcome
+        extra = {"treatments": treatments}
+    elif isinstance(query, ConditionalEffect):
+        kind = "conditional"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {"modifier": query.modifier}
+    elif isinstance(query, PulseEffect):
+        kind = "pulse"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "policy": "pulse",
+            "treatment_lag": query.treatment_lag,
+            "horizon_steps": query.horizon_steps,
+            "active_level": query.active_level,
+        }
+    elif isinstance(query, SustainedEffect):
+        kind = "sustained"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "policy": "sustained",
+            "treatment_lag": query.treatment_lag,
+            "horizon_steps": query.horizon_steps,
+            "active_level": query.active_level,
+            "window": query.window,
+        }
+    else:
+        raise TypeError(f"typed-graph identify() does not support {type(query).__name__}")
+    raw = _identify_structure(
+        supplied,
+        kind,
+        treatment,
+        outcome,
+        identifier=identifier,
+        include_details=True,
+        **extra,
+    )
+    if not isinstance(raw, str):
+        raise TypeError("native identification certificate was not returned")
+    certificate = json.loads(raw)
+    status, method = certificate["status"], certificate["method"]
+    cases = certificate["cases"]
+    sets = [case["adjustment_coordinates"][0] for case in cases if case["adjustment_coordinates"]]
+    shared = sets[0] if sets and all(item == sets[0] for item in sets) else []
+    adjustment = list(dict.fromkeys(item["name"] for item in shared))
+    resolved_names = list(names) if names is not None else None
+    if resolved_names is None and isinstance(supplied, (Dag, Cpdag, Pag)):
+        nodes = supplied.nodes()
+        if nodes and isinstance(nodes[0], str):
+            resolved_names = list(nodes)
+    return Identification(
+        status=status,
+        method=method,
+        adjustment_set=list(adjustment),
+        graph=graph,
+        query=query,
+        names=resolved_names,
+        identifier=identifier or method,
+        certificate=certificate,
+    )
+
+
 def identify(
     *,
-    graph: Dag | Admg | Sequence[tuple[str, str]],
+    graph: Dag
+    | Admg
+    | Cpdag
+    | Pag
+    | TemporalDag
+    | TemporalCpdag
+    | TemporalPag
+    | Sequence[tuple[str, str]],
     query: AverageEffect
     | ResponseCurve
+    | InterventionResponse
+    | ConditionalEffect
+    | PulseEffect
+    | SustainedEffect
     | PointDerivative
     | Elasticity
     | SemiElasticity
@@ -224,8 +395,14 @@ def identify(
     ``ResponseCurve`` uses the same pairwise backdoor identification contract
     as the complete-observation response estimator; the original curve query
     is retained so ``.estimate(data)`` executes the requested grid.
-    Staged ``ResponseCurve`` identification currently requires a ``Dag`` (or
-    directed edge list); ``Admg`` is refused on that path.
+    Staged ``ResponseCurve`` identification on a ``Dag`` (or directed edge
+    list) uses pairwise backdoor; ``Admg`` is refused on that path. ``Cpdag``
+    and ``Pag`` response, ``ConditionalEffect`` on ``Dag`` / ``Cpdag`` /
+    ``Pag``, and temporal pulse / sustained on temporal classes use the
+    typed-graph identifier (generalized adjustment or temporal backdoor).
+    Joint ``InterventionResponse`` uses a common adjustment set certified for
+    every target in each graph completion. This is sufficient adjustment
+    identification, not general response ID.
 
     For ``AverageEffect``, accepts an ``Admg`` as well as a ``Dag``. Prefer an
     ``Admg`` whenever a confounder is unmeasured: a ``Dag`` cannot express
@@ -234,6 +411,17 @@ def identify(
     ``Dag.latent_project(observed)`` builds the ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
+    from .accepted_graph import AcceptedGraph as _AcceptedGraph
+
+    supplied = graph.graph if isinstance(graph, _AcceptedGraph) else graph
+    if _uses_structure_identify(supplied, query):
+        return _identify_typed_graph(
+            graph=graph,
+            supplied=supplied,
+            query=query,
+            identifier=identifier_s,
+            names=names,
+        )
     if isinstance(
         query,
         (
@@ -326,6 +514,8 @@ def identify(
     # pairwise backdoor search is identical, but its ATE strategy id must not be
     # confused with the response strategy retained by this staged object.
     native_identifier = "backdoor.adjustment" if isinstance(query, ResponseCurve) else identifier
+    if isinstance(graph, (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)):
+        raise TypeError("this query is not supported on the supplied graph class")
     result = _identify_native(
         graph=graph,
         query=identification_query,

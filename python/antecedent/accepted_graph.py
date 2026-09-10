@@ -384,14 +384,9 @@ class AcceptedGraph:
         return analyze(data, query=query, **kwargs)
 
     def prepare(self, data: Any, *, query: Any, **kwargs: Any) -> Any:
-        """Compile-once prepared handle on the held static DAG/edges."""
+        """Compile-once prepared handle on the held graph."""
         from .estimation import PreparedAnalysis
 
-        if isinstance(self._graph, (Cpdag, Pag, Admg, TemporalCpdag, TemporalPag)):
-            raise CausalUnsupportedError(
-                "PreparedAnalysis requires a fully oriented Dag/TemporalDag (or edge list); "
-                "complete CPDAG/PAG review first, then AcceptedGraph.from_graph(...)"
-            )
         kwargs.setdefault("latency", "interactive")
         return PreparedAnalysis.prepare(data, query=query, graph=self, **kwargs)
 

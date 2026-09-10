@@ -128,10 +128,11 @@ def test_coerce_graph_temporal_dag():
     assert edges == [("x", 1, "y", 0)]
 
 
-def test_coerce_graph_temporal_cpdag_fully_oriented():
+def test_coerce_graph_temporal_cpdag_passthrough():
     tcpdag = TemporalCpdag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)], None)
-    edges = _coerce.coerce_graph(tcpdag)
-    assert edges == [("x", 1, "y", 0)]
+    assert _coerce.coerce_graph(tcpdag) is tcpdag
+    incomplete = TemporalCpdag.from_lagged_edges(["x", "y"], [], [("x", 0, "y", 0)])
+    assert _coerce.coerce_graph(incomplete) is incomplete
 
 
 def test_coerce_graph_pag_passthrough():

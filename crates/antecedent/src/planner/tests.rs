@@ -361,7 +361,7 @@ fn refuses_temporal_query_vars_not_in_temporal_dag() {
         panic!("expected CausalError::Compile, got {err:?}");
     };
     assert!(
-        message.contains("not in temporal DAG"),
+        message.contains("not in temporal graph"),
         "expected a temporal-DAG membership error, got: {message}"
     );
 }

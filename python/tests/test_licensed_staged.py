@@ -26,9 +26,11 @@ _EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 _DAG = antecedent.Dag.from_edges(["z", "t", "y"], _EDGES)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _ATE = antecedent.AverageEffect(treatment="t", outcome="y")
+_PAG_DATA = {**_ATE_DATA, "r": np.arange(len(_ATE_DATA["t"]), dtype=float) % 2}
 _PAG = antecedent.Pag.from_marked_edges(
-    ["t", "y", "z"],
+    ["t", "y", "z", "r"],
     [
+        ("r", "t", "tail", "arrow"),
         ("z", "t", "tail", "arrow"),
         ("z", "y", "tail", "arrow"),
         ("t", "y", "tail", "arrow"),
@@ -230,18 +232,18 @@ _MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
         (_ATE_DATA, _ACCEPTED, _ATE, False, _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "cheap", _BAYES),
         (_ATE_DATA, _ACCEPTED, _ATE, "full", _BAYES),
-        (_ATE_DATA, _PAG, _ATE, False, None),
-        (_ATE_DATA, _PAG, _ATE, "cheap", None),
-        (_ATE_DATA, _PAG, _ATE, "full", None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", None),
-        (_ATE_DATA, _PAG, _ATE, False, _BAYES),
-        (_ATE_DATA, _PAG, _ATE, "cheap", _BAYES),
-        (_ATE_DATA, _PAG, _ATE, "full", _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
-        (_ATE_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, False, None),
+        (_PAG_DATA, _PAG, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG, _ATE, "full", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", None),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", None),
+        (_PAG_DATA, _PAG, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG, _ATE, "full", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, False, _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "cheap", _BAYES),
+        (_PAG_DATA, _PAG_ACCEPTED, _ATE, "full", _BAYES),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, False, None),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, "cheap", None),
         (_ADMG_DATA, _ADMG, _ADMG_ATE, "full", None),
@@ -530,6 +532,43 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
         float(STATIC["expected_unidentified_mass"]), abs=1e-12
     )
     # 1.1: prepare freezes per-atom identification; only the click reuses it.
+    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
+    from known_truth import FREQ, STATIC, static_data, static_posterior
+
+    data = static_data(int(STATIC["n"]))
+    posterior = static_posterior()
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    # lgtm[py/call/wrong-named-argument]
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        seed=1,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=1)
+    expected = float(STATIC["expected_effect_given_identified"])
+    assert prepared.evidence_status == "licensed"
+    assert click.evidence_status == "licensed"
+    assert click.ate == pytest.approx(expected, abs=1e-8)
+    assert abs(click.ate - fresh.ate) < 1e-12
+    assert fresh.posterior is None and click.posterior is None
+    assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
     assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 

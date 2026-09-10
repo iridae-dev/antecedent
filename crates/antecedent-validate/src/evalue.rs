@@ -60,10 +60,15 @@ impl EValue {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<RefutationReport, ValidationError> {
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
-        let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?;
+        let sd_y = if problem.temporal.is_some() {
+            let prep = crate::common::temporal_diagnostic_design(problem)?;
+            crate::common::sample_sd(&prep.design.outcome)
+        } else {
+            let mut ids = vec![problem.treatment(), problem.outcome()];
+            ids.extend_from_slice(&problem.estimand.adjustment_set);
+            let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
+            masked_sample_sd(problem.data, problem.outcome(), &mask)?
+        };
         if !(sd_y.is_finite() && sd_y > 0.0) {
             return Err(ValidationError::NotApplicable {
                 message: "e-value requires a finite, positive outcome standard deviation",

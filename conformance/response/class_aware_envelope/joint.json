@@ -1,0 +1,12 @@
+{
+  "description": "Joint do(t=1,z=1), y=1+2t+3z+4w, E[w]=0.5. First-target adjustment is empty; joint adjustment requires w.",
+  "columns": ["t", "z", "y", "w", "r", "v"],
+  "directed": [[0, 2], [1, 2], [3, 1], [3, 2], [4, 0], [5, 1]],
+  "intervention": [1.0, 1.0],
+  "adjustment": [3],
+  "mean": 8.0,
+  "unadjusted_mean": 9.2,
+  "tolerance": 0.0001,
+  "bayesian_tolerance": 0.05,
+  "generator": "Enumerate binary t,z,w,r,v. Repeat 8 times when z=w and 2 otherwise, with y=1+2t+3z+4w. r and v are independent instrument witnesses (zero structural coefficients allowed); they make both treatment-to-outcome edges visible in the MAG. Repeat each row 20 times for posterior concentration."
+}

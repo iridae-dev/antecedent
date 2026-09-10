@@ -48,78 +48,27 @@ _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 
 
-def test_response_curve_pag_literal_matches_support_closed_toml():
-    """`_analyze.py`'s remaining hand-rolled ResponseCurve/Pag refusal must not drift.
-
-    This check has to stay in Python (see the comment in `handle_response`): it is
-    the routing gate deciding whether the call reaches `_analyze_response` at all
-    versus `_analyze_response_pag`, so it fires before the native support-matrix
-    consultation ever runs. Since it can't be derived from the TOML across the
-    language boundary, pin it here so a TOML edit fails this test loudly instead
-    of silently drifting.
-    """
+def test_admg_response_literal_matches_support_closed_toml():
+    """`handle_response`'s Admg refuse is a routing gate and must match the TOML."""
     rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
     matches = [
         rule
         for rule in rules
-        if rule.get("queries") == ["ResponseCurve"]
-        and set(rule.get("graph_classes", [])) == {"Pag", "Cpdag", "Admg"}
+        if set(rule.get("queries", [])) == {"ResponseCurve", "InterventionResponse"}
+        and set(rule.get("graph_classes", [])) == {"Admg"}
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
-    assert reason == (
-        "ResponseCurve is licensed only on a static Dag or a temporal TemporalDag attachment."
-    )
 
     from antecedent._analyze import handle_response
     from antecedent.errors import CausalUnsupportedError
 
+    admg = antecedent.Admg.from_edges(["t", "y"], directed=[("t", "y")], bidirected=[])
     with pytest.raises(CausalUnsupportedError) as ei:
         handle_response(
             _DATA,
             _CURVE,
-            graph=antecedent.Pag.from_marked_edges(["t", "y"], [("t", "y", "circle", "arrow")]),
-            discovery=None,
-            inference=antecedent.Frequentist(),
-            identifier=None,
-            estimator=None,
-            estimator_config=None,
-            validators=None,
-            refute_requested=False,
-            refute=False,
-            bootstrap_requested=False,
-            seed=1,
-            threads=1,
-        )
-    assert str(ei.value) == f"refused: {reason}"
-
-
-def test_intervention_response_pag_literal_matches_support_closed_toml():
-    """`_analyze.py`'s hand-rolled InterventionResponse/off-Dag refusal must not drift.
-
-    Same routing gate as `test_response_curve_pag_literal_matches_support_closed_toml`
-    (`handle_response`'s `isinstance(graph, (Admg, Cpdag, Pag))` check), but
-    `InterventionResponse` gets its own closed-rule text so the raised message doesn't
-    misdescribe the query as `ResponseCurve`.
-    """
-    rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
-    matches = [
-        rule
-        for rule in rules
-        if rule.get("queries") == ["InterventionResponse"]
-        and set(rule.get("graph_classes", [])) == {"Pag", "Cpdag", "Admg"}
-    ]
-    assert len(matches) == 1, matches
-    reason = matches[0]["reason"]
-
-    from antecedent._analyze import handle_response
-    from antecedent.errors import CausalUnsupportedError
-
-    with pytest.raises(CausalUnsupportedError) as ei:
-        handle_response(
-            _DATA,
-            antecedent.InterventionResponse("y", intervention={"t": 1.0}),
-            graph=antecedent.Pag.from_marked_edges(["t", "y"], [("t", "y", "circle", "arrow")]),
+            graph=admg,
             discovery=None,
             inference=antecedent.Frequentist(),
             identifier=None,
@@ -138,10 +87,8 @@ def test_intervention_response_pag_literal_matches_support_closed_toml():
 def test_accepted_graph_analyze_response_curve_threads_accepted(monkeypatch):
     """`AcceptedGraph.analyze` with a ResponseCurve must reach native with accepted=True.
 
-    `analyze()`'s one-shot result has no exposed `structure_source` field (unlike
-    `PreparedAnalysis.structure_source`, asserted in test_accepted_graph.py /
-    test_licensed_staged.py), so the only way to observe the marker on this path
-    is at the native call boundary itself.
+    The Dag response sidecar still has no `plan.structure_source` (staged ATE
+    and class-aware results do). Observe `accepted=` at the native call.
     """
     captured: dict[str, object] = {}
     real = antecedent._analyze._analyze_response

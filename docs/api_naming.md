@@ -44,7 +44,7 @@ Each of those twelve modules has an explicit, separately frozen `__all__`
 surface. The 49-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**14** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**15** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -58,7 +58,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other nine are left off because they're a narrower surface than the twelve stage
+The other ten are left off because they're a narrower surface than the twelve stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -69,6 +69,10 @@ directly:
 - ``antecedent.estimators`` — the typed `estimator_config=` front-end; a real,
   documented stage module, but its content (per-estimator dataclasses) has no
   root-level re-export the way queries/selectors do.
+- ``antecedent.handoff`` — EconML adjustment-set export. Antecedent identifies;
+  the adapter refuses front-door, IV, general ID, partial ID, and
+  graph-posterior results rather than inventing a set. Temporal results export
+  certified offsets and trim boundaries.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
@@ -106,7 +110,9 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 |---|---|---|
 | Day-1 import | `use antecedent::prelude::*` (`cargo add antecedent`) | `import antecedent` |
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
-| Identify only (staged) | `Study::tabular(data)…build()?.identify_only()` | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` |
+| Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
+| Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
+| EconML handoff | — | `antecedent.handoff.econml(result)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
 | Continuous response | `ResponseQuery` / `ResponseFunctional` | `ResponseCurve` / `AverageDerivative` / `PointDerivative` / `Elasticity` / `SemiElasticity` |
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |

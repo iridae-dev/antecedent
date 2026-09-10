@@ -331,13 +331,12 @@ impl StudyBuilder {
     ///
     /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare
     /// [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
-    /// [`antecedent_graph::Pag`], or [`antecedent_graph::TemporalDag`] is
-    /// `explicit`. A [`antecedent_graph::Cpdag`] or
+    /// [`antecedent_graph::Pag`], [`antecedent_graph::Cpdag`], or
+    /// [`antecedent_graph::TemporalDag`] is `explicit`. A
     /// [`antecedent_graph::TemporalCpdag`] is not [`crate::IntoGraphInput`]
-    /// (they can carry unresolved marks) — build one via the fallible
-    /// [`AcceptedGraph::cpdag`] / [`AcceptedGraph::temporal_cpdag`] first.
-    /// [`antecedent_graph::TemporalPag`] is the same: use
-    /// [`AcceptedGraph::temporal_pag`].
+    /// until the class-preserving temporal identifier lands — use the fallible
+    /// [`AcceptedGraph::temporal_cpdag`] first. [`antecedent_graph::TemporalPag`]
+    /// is the same: use [`AcceptedGraph::temporal_pag`].
     #[must_use]
     pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
         let (graph, source) = structure.into_graph_input();
@@ -773,7 +772,9 @@ impl StudyBuilder {
             identification_cache: None,
             mediation_adjustment_cache: None,
             pag_identification_cache: None,
+            cpdag_identification_cache: None,
             temporal_identification_cache: None,
+            temporal_class_identification_cache: None,
             graph_posterior_identification_cache: None,
             dbn_posterior_identification_cache: None,
         })

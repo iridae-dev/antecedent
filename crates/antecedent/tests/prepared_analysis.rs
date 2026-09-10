@@ -727,9 +727,9 @@ fn prepared_distribution_reestimate_matches_fresh() {
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) now refuses these
 /// three query kinds at `.build()` itself: `parity/support_closed.toml` closes
-/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Cpdag / Admg /
-/// Pag (they are staged Dag-only), so the matrix catches the mismatch before `.prepare()`
-/// would otherwise have to.
+/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Admg
+/// (`ConditionalEffect` on Cpdag/Pag is licensed). The matrix catches the mismatch
+/// before `.prepare()` would otherwise have to.
 #[test]
 fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
     let mut admg = Admg::with_variables(3);
@@ -978,25 +978,34 @@ fn prepared_temporal_mediation_reuses_identification() {
 
 #[test]
 fn prepared_pag_ate_reuses_identification_envelope() {
-    // Known-truth pin: clean-room generalized-adjustment oracle. The PAG built
-    // below (Z->T, Z->Y, T->Y) is exactly the fixture's "observed_confounder"
-    // case, so we can assert the identifier's status and adjustment set
-    // against the recorded oracle rather than just naming the fixture.
+    // Visibility witness R -> T is required in the MAG interpretation.
     let pin = include_str!("../../../conformance/identify/generalized_adjustment/expected.json");
     let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
     let case = expected["cases"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["id"] == "observed_confounder")
+        .find(|c| c["id"] == "visible_observed_confounder")
         .unwrap();
     assert_eq!(case["status"], "identified");
     let expected_adjustment_set = case["adjustment_set"].as_array().unwrap();
     assert_eq!(expected_adjustment_set.len(), 1);
     assert_eq!(expected_adjustment_set[0], "Z");
 
-    let (data, _, query) = confounded_scm(80, 3);
-    let mut pag = Pag::with_variables(3);
+    let t: Vec<_> = (0..80).map(|i| f64::from(i % 2)).collect();
+    let z: Vec<_> = (0..80).map(|i| f64::from((i / 2) % 2)).collect();
+    let r: Vec<_> = (0..80).map(|i| f64::from((i / 4) % 2)).collect();
+    let y: Vec<_> = t.iter().zip(&z).map(|(t, z)| 2.0 * t + z).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+        ("r", r.as_slice()),
+    ])
+    .unwrap();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut pag = Pag::with_variables(4);
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();

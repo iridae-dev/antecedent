@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, TargetPopulation,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
@@ -126,8 +127,10 @@ impl ConditionalLinearAdjustment {
         }
 
         let w_id = query.effect_modifiers[0];
+        let extra_z: Vec<VariableId> =
+            estimand.adjustment_set.iter().copied().filter(|&z| z != w_id).collect();
         let mut ids = vec![query.treatment, query.outcome, w_id];
-        ids.extend_from_slice(&estimand.adjustment_set);
+        ids.extend_from_slice(&extra_z);
         let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
@@ -137,8 +140,8 @@ impl ConditionalLinearAdjustment {
             return Err(EstimationError::data_msg("too few complete rows for conditional ATE"));
         }
 
-        // Design: [1, T, W, T*W, Z...]
-        let n_z = estimand.adjustment_set.len();
+        // Design: [1, T, W, T*W, Z...]; skip Z that is already the modifier.
+        let n_z = extra_z.len();
         let ncols = 4 + n_z;
         let mut design = vec![0.0; n * ncols];
         for i in 0..n {
@@ -147,7 +150,7 @@ impl ConditionalLinearAdjustment {
             design[2 * n + i] = w[i];
             design[3 * n + i] = t[i] * w[i];
         }
-        for (k, &z) in estimand.adjustment_set.iter().enumerate() {
+        for (k, &z) in extra_z.iter().enumerate() {
             let zcol = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
             let base = (4 + k) * n;
             design[base..base + n].copy_from_slice(&zcol);
