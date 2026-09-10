@@ -38,6 +38,7 @@ pub mod overlap;
 pub mod prediction;
 pub mod prepare;
 pub mod propensity;
+pub mod quantile;
 pub mod rd;
 pub mod response;
 pub mod retarget;
@@ -70,7 +71,7 @@ pub use bayesian::{
 pub use cell_aipw::{
     CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, contrast_named, interaction_contrast,
 };
-pub use conditional::ConditionalLinearAdjustment;
+pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use crossfit_aipw::{
     AIPW_CROSSFIT_PROVENANCE, DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores,
     crossfit_binary_scores, thresholds_of, weighted_support,
@@ -102,15 +103,17 @@ pub use propensity::{
     PropensityMatching, PropensityModel, PropensityStratification, PropensityWeighting,
     default_propensity_overlap,
 };
+pub use quantile::{MIN_QUANTILE_DENSITY, empirical_threshold_grid, invert_cdf_quantile};
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
-pub use response::{
-    ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence,
-};
+pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
-    MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, check_depends_on,
+    DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, check_depends_on,
     exceedance_cdf_values, retarget, summarize_functional,
 };
-pub use scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable, ScoreTableWire};
+pub use scores::{
+    LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreTable, ScoreTableWire,
+    inference_from_influence_columns,
+};
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use temporal_adjustment::TemporalLinearAdjustment;

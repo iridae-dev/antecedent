@@ -96,7 +96,8 @@ impl ScoreTable {
             cols.push(col);
             means.push(weighted_mean(col, weights)?);
         }
-        let covariance = joint_influence_covariance(&cols, weights)?;
+        let covariance =
+            crate::joint_if::joint_influence_covariance_with_means(&cols, weights, &means)?;
         let n_eff = match weights {
             Some(w) => kish_n_eff(w),
             None => self.n_rows as f64,
@@ -170,12 +171,120 @@ pub struct ScoreInference {
     pub support: crate::crossfit_aipw::WeightedSupport,
 }
 
+/// Minimum Kish/count events and non-events required to support a tail probability.
+pub const MIN_THRESHOLD_EVENTS: f64 = 10.0;
+
+fn kish_threshold_support(
+    arms: &[u32],
+    outcome: &[f64],
+    weights: &[f64],
+    arm: u32,
+    threshold: Option<f64>,
+) -> (f64, f64) {
+    let mut e_sum = 0.0;
+    let mut e_sq = 0.0;
+    let mut n_sum = 0.0;
+    let mut n_sq = 0.0;
+    for ((&a, &y), &weight) in arms.iter().zip(outcome).zip(weights) {
+        if a != arm || !(weight > 0.0 && weight.is_finite()) {
+            continue;
+        }
+        if threshold.is_none_or(|c| y > c) {
+            e_sum += weight;
+            e_sq += weight * weight;
+        } else {
+            n_sum += weight;
+            n_sq += weight * weight;
+        }
+    }
+    (
+        if e_sq <= 0.0 { 0.0 } else { (e_sum * e_sum) / e_sq },
+        if n_sq <= 0.0 { 0.0 } else { (n_sum * n_sum) / n_sq },
+    )
+}
+
+/// Simultaneous bands from aligned influence columns (threshold-major, two arms).
+///
+/// Unsupported tails receive non-finite band endpoints rather than a silent
+/// empty-cell or first-threshold standard error. Covariance is the raw-score
+/// joint IF; rearranged CDF values must not be mixed with these intervals.
+///
+/// # Errors
+///
+/// Shape mismatch, empty family, or invalid covariance.
+pub fn inference_from_influence_columns(
+    raw_means: &[f64],
+    columns: &[&[f64]],
+    event_n_eff: &[f64],
+    threshold_supported: &[bool],
+    support: crate::crossfit_aipw::WeightedSupport,
+) -> Result<ScoreInference, EstimationError> {
+    if raw_means.len() != columns.len()
+        || event_n_eff.len() != columns.len()
+        || threshold_supported.len() != columns.len()
+        || columns.is_empty()
+        || raw_means.iter().any(|v| !v.is_finite())
+        || event_n_eff.iter().any(|v| !v.is_finite() || *v < 0.0)
+    {
+        return Err(EstimationError::data_msg(
+            "per-arm CDF inference requires aligned finite means, IF columns, and tail counts",
+        ));
+    }
+    let covariance = joint_influence_covariance(columns, None)?;
+    let active: Vec<_> =
+        (0..columns.len()).filter(|&j| threshold_supported[j] && covariance.se(j) > 0.0).collect();
+    let critical_value = if active.is_empty() {
+        0.0
+    } else {
+        let mut values = Vec::new();
+        for &j in &active {
+            for &i in &active {
+                values.push(covariance.get(i, j));
+            }
+        }
+        crate::joint_if::max_t_critical(
+            &crate::joint_if::JointCovariance { dim: active.len(), values: values.into() },
+            0.95,
+            4096,
+            0x15,
+        )?
+    };
+    let mut lower = Vec::with_capacity(columns.len());
+    let mut upper = Vec::with_capacity(columns.len());
+    for (j, &supported) in threshold_supported.iter().enumerate() {
+        if !supported {
+            lower.push(f64::NAN);
+            upper.push(f64::NAN);
+            continue;
+        }
+        let radius = critical_value * covariance.se(j);
+        lower.push(raw_means[j] - radius);
+        upper.push(raw_means[j] + radius);
+    }
+    Ok(ScoreInference {
+        raw_means: raw_means.to_vec(),
+        lower,
+        upper,
+        level: 0.95,
+        critical_value,
+        event_n_eff: event_n_eff.to_vec(),
+        threshold_supported: threshold_supported.to_vec(),
+        support,
+    })
+}
+
 impl ScoreTable {
     /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
     pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
         let summary = self.summarize(weights)?;
-        let w = weights.map_or_else(|| vec![1.0; self.n_rows], <[f64]>::to_vec);
-        let support = crate::retarget::score_weighted_support(self, &w);
+        let ones;
+        let w: &[f64] = if let Some(weights) = weights {
+            weights
+        } else {
+            ones = vec![1.0; self.n_rows];
+            &ones
+        };
+        let support = crate::retarget::score_weighted_support(self, w);
         // Degenerate coordinates have a zero-width plug-in band. The support
         // flags prevent interpreting an empty observed tail as established zero risk.
         let active: Vec<_> =
@@ -204,23 +313,18 @@ impl ScoreTable {
             let radius = critical_value * summary.covariance.se(j);
             lower.push(summary.means[j] - radius);
             upper.push(summary.means[j] + radius);
-            let mut events = Vec::new();
-            let mut non_events = Vec::new();
-            for ((&arm, &y), &weight) in
-                self.observed_arm.iter().zip(self.observed_outcome.iter()).zip(&w)
-            {
-                if arm == col.arm {
-                    if col.threshold.is_none_or(|c| y > c) {
-                        events.push(weight);
-                    } else {
-                        non_events.push(weight);
-                    }
-                }
-            }
-            let ne = kish_n_eff(&events);
+            let (ne, n_non) = kish_threshold_support(
+                &self.observed_arm,
+                &self.observed_outcome,
+                w,
+                col.arm,
+                col.threshold,
+            );
             event_n_eff.push(ne);
-            threshold_supported
-                .push(ne >= 10.0 && (col.threshold.is_none() || kish_n_eff(&non_events) >= 10.0));
+            threshold_supported.push(
+                ne >= MIN_THRESHOLD_EVENTS
+                    && (col.threshold.is_none() || n_non >= MIN_THRESHOLD_EVENTS),
+            );
         }
         Ok(ScoreInference {
             raw_means: summary.means.to_vec(),

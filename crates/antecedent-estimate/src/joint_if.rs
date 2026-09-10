@@ -141,6 +141,33 @@ pub fn joint_influence_covariance(
     for col in scores {
         means.push(weighted_mean(col, weights)?);
     }
+    joint_influence_covariance_with_means(scores, weights, &means)
+}
+
+/// [`joint_influence_covariance`] when column means are already known.
+pub(crate) fn joint_influence_covariance_with_means(
+    scores: &[&[f64]],
+    weights: Option<&[f64]>,
+    means: &[f64],
+) -> Result<JointCovariance, EstimationError> {
+    let dim = scores.len();
+    if dim == 0 || means.len() != dim {
+        return Err(EstimationError::data_msg("joint IF requires aligned means"));
+    }
+    let n = scores[0].len();
+    if n < 2 {
+        return Err(EstimationError::data_msg("joint IF requires at least two rows"));
+    }
+    for col in scores {
+        if col.len() != n {
+            return Err(EstimationError::data_msg("score columns must share a row count"));
+        }
+    }
+    if let Some(w) = weights {
+        if w.len() != n {
+            return Err(EstimationError::data_msg("weight length does not match scores"));
+        }
+    }
 
     let mut values = vec![0.0; dim * dim];
     let nf = n as f64;
