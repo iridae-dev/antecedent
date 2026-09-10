@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
-use crate::expr_wire::{expr_arena_from_wire, expr_arena_to_wire, ExprArenaWire};
-use crate::query_wire::{causal_query_from_wire, causal_query_to_wire, CausalQueryWire};
+use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
+use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
 use crate::trace::{
-    assumptions_from_wire, assumptions_to_wire, AssumptionRecordWire, DerivationStepWire,
+    AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
 };
 
 /// Effect estimate wire.

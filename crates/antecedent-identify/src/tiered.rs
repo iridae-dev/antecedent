@@ -740,10 +740,11 @@ mod tests {
             "cap is execution, not a third status: {:?}",
             generic.diagnostics
         );
-        assert!(generic
-            .diagnostics
-            .iter()
-            .any(|d| { d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
+        assert!(
+            generic.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            })
+        );
 
         let started = std::time::Instant::now();
         let id = identify_tiered_joint(&background, &schema, &query).unwrap();
@@ -809,9 +810,10 @@ mod tests {
             .unwrap();
         assert_eq!(id.status, IdentificationStatus::NotIdentified);
         assert!(id.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific));
-        assert!(!id
-            .diagnostics
-            .iter()
-            .any(|d| { d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
+        assert!(
+            !id.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            })
+        );
     }
 }

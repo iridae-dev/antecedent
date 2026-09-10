@@ -12,8 +12,8 @@ use antecedent_prob::PosteriorQuantityKind;
 use crate::container::EncodedArtifact;
 use crate::error::IoError;
 use crate::posterior::{
-    decode_posterior_artifact, encode_posterior_artifact, CausalPosteriorWire,
-    PosteriorQuantityWire,
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
+    encode_posterior_artifact,
 };
 
 /// Which posterior payload to serialize across the FFI / artifact boundary.
