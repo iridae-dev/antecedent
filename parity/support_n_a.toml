@@ -30,11 +30,26 @@ graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 reason = "TransportQuery and InterferenceQuery are typed against static graphs; they do not denote on a temporal graph class."
 
 [[n_a]]
-queries = ["ResponseCurve", "InterventionResponse"]
+queries = ["ResponseCurve"]
 graph_classes = ["Dag", "TemporalDag", "Cpdag", "Pag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
-reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued estimand has no such state."
+reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
+
+[[n_a]]
+queries = ["InterventionResponse"]
+graph_classes = ["TemporalDag", "Cpdag", "Pag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state."
+
+[[n_a]]
+queries = ["InterventionResponse"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+inferences = ["Bayesian"]
+validations = ["cheap", "full"]
+reason = "Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite."
 
 [[n_a]]
 queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]

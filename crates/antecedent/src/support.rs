@@ -532,6 +532,34 @@ mod tests {
     }
 
     #[test]
+    fn dag_intervention_response_cheap_and_full_are_licensed() {
+        for structure in ["explicit", "accepted"] {
+            for validation in ["cheap", "full"] {
+                let status = classify(cell(
+                    "InterventionResponse",
+                    "Dag",
+                    structure,
+                    "Frequentist",
+                    validation,
+                ));
+                assert_eq!(status, CellStatus::Licensed, "{structure}/{validation}");
+                refuse_if_not_applicable(cell(
+                    "InterventionResponse",
+                    "Dag",
+                    structure,
+                    "Frequentist",
+                    validation,
+                ))
+                .unwrap();
+            }
+        }
+        for graph in ["TemporalDag", "Cpdag", "Pag"] {
+            let status = classify(cell("InterventionResponse", graph, "explicit", "Frequentist", "cheap"));
+            assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
+        }
+    }
+
+    #[test]
     fn pag_average_effect_is_licensed() {
         assert_eq!(
             classify(cell("AverageEffect", "Pag", "explicit", "Frequentist", "none")),

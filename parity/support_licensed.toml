@@ -245,6 +245,54 @@ limitations = "response.intervention_gcomp only; Set/Shift/Bernoulli/Gaussian/Ca
 
 [[cell]]
 query = "InterventionResponse"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "dag_intervention_response_cheap_runs_overlap_and_evalue"
+limitations = "Scalar cell mean on a supplied Dag. Cheap, cell.aipw: overlap + E-value on the requested-cell minus control-cell (arm 0) contrast, not the intervention level. Cheap, plugin g-comp: overlap only; E-value is not licensed for a plugin intervention level. Function-valued ResponseCurve stays n/a. Class-aware and temporal InterventionResponse cheap stay n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "dag_intervention_response_cheap_runs_overlap_and_evalue"
+limitations = "Scalar cell mean on an accepted Dag. Cheap, cell.aipw: overlap + E-value on the requested-cell minus control-cell (arm 0) contrast, not the intervention level. Cheap, plugin g-comp: overlap only; E-value is not licensed for a plugin intervention level. Function-valued ResponseCurve stays n/a. Class-aware and temporal InterventionResponse cheap stay n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "dag_intervention_response_full_runs_effect_refuters"
+limitations = "Scalar cell mean on a supplied Dag. Full, cell.aipw: the effect-refuter suite on the requested-cell minus control-cell contrast. Full, plugin g-comp: overlap plus sampling-stability of the g-comp intervention level (bootstrap, data-subset, graph). Contrast-shaped refuters (placebo, dummy outcome, RCC/UCC, E-value, sensitivity, Riesz) are not licensed for a plugin level. Function-valued ResponseCurve stays n/a. Class-aware and temporal InterventionResponse full stay n/a."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "dag_intervention_response_full_runs_effect_refuters"
+limitations = "Scalar cell mean on an accepted Dag. Full, cell.aipw: the effect-refuter suite on the requested-cell minus control-cell contrast. Full, plugin g-comp: overlap plus sampling-stability of the g-comp intervention level (bootstrap, data-subset, graph). Contrast-shaped refuters (placebo, dummy outcome, RCC/UCC, E-value, sensitivity, Riesz) are not licensed for a plugin level. Function-valued ResponseCurve stays n/a. Class-aware and temporal InterventionResponse full stay n/a."
+
+[[cell]]
+query = "InterventionResponse"
 graph_class = "TemporalDag"
 structure = "explicit"
 inference = "Frequentist"
@@ -604,8 +652,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
-
+limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -615,8 +662,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -626,8 +672,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -637,8 +682,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares execute_pag and the same frozen three-completion mass-weighted ATE pin. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
-
+limitations = "Accepted PAG shares execute_pag and the same frozen three-completion mass-weighted ATE pin. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -648,8 +692,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -659,8 +702,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -736,8 +778,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
-
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -747,8 +788,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -758,8 +798,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -769,8 +808,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares execute_cpdag and the same frozen two-completion mass-weighted ATE pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
-
+limitations = "Accepted CPDAG shares execute_cpdag and the same frozen two-completion mass-weighted ATE pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -780,8 +818,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -791,8 +828,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
-
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -868,8 +904,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Same generalized-adjustment MEC envelope as the CPDAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Cpdag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID."
-
+limitations = "Same generalized-adjustment MEC envelope as the CPDAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Cpdag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ResponseCurve"
 graph_class = "Cpdag"
@@ -879,8 +914,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Accepted Cpdag uses the same mass-weighted Kennedy-DR envelope as explicit Cpdag. The two-point contrast is pinned against the CPDAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
-
+limitations = "Accepted Cpdag uses the same mass-weighted Kennedy-DR envelope as explicit Cpdag. The two-point contrast is pinned against the CPDAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ResponseCurve"
 graph_class = "Pag"
@@ -890,8 +924,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Same generalized-adjustment envelope as the PAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Pag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID."
-
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, evaluated pointwise with Kennedy-DR and mass-weighted. The two-point [0,1] contrast is pinned against that ATE fixture. Runtime class stays Pag. Prepared handles freeze and reuse the envelope; estimate clicks emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. This is not MAG/PAG response ID. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ResponseCurve"
 graph_class = "Pag"
@@ -901,8 +934,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Accepted Pag uses the same mass-weighted Kennedy-DR envelope as explicit Pag. The two-point contrast is pinned against the PAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached."
-
+limitations = "Accepted Pag uses the same mass-weighted Kennedy-DR envelope as explicit Pag. The two-point contrast is pinned against the PAG ATE cell. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "InterventionResponse"
 graph_class = "Cpdag"
@@ -912,8 +944,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Same MEC envelope as the CPDAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Cpdag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a."
-
+limitations = "Same MEC envelope as the CPDAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Cpdag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "InterventionResponse"
 graph_class = "Cpdag"
@@ -923,8 +954,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Accepted Cpdag uses the same mass-weighted intervention g-computation envelope as explicit Cpdag. The do(T=1) − do(T=0) contrast is pinned against the CPDAG ATE cell."
-
+limitations = "Accepted Cpdag uses the same mass-weighted intervention g-computation envelope as explicit Cpdag. The do(T=1) − do(T=0) contrast is pinned against the CPDAG ATE cell. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "InterventionResponse"
 graph_class = "Pag"
@@ -934,8 +964,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Same generalized-adjustment envelope as the PAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Pag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a."
-
+limitations = "Same generalized-adjustment envelope as the PAG ATE cell, estimated with intervention g-computation per completion and mass-weighted. do(T=1) − do(T=0) is pinned against the ATE fixture. Runtime class stays Pag. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian class-aware response is licensed separately; cheap/full are n/a. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "InterventionResponse"
 graph_class = "Pag"
@@ -945,9 +974,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/class_aware_envelope"
-limitations = "Accepted Pag uses the same mass-weighted intervention g-computation envelope as explicit Pag. The do(T=1) − do(T=0) contrast is pinned against the PAG ATE cell."
-
-
+limitations = "Accepted Pag uses the same mass-weighted intervention g-computation envelope as explicit Pag. The do(T=1) − do(T=0) contrast is pinned against the PAG ATE cell. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ResponseCurve"
 graph_class = "Cpdag"
@@ -1045,8 +1072,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalCpdag stays TemporalCpdag, including a fully oriented supplied graph. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian remains refused."
-
+limitations = "Incomplete TemporalCpdag stays TemporalCpdag, including a fully oriented supplied graph. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Bayesian remains refused. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1056,8 +1082,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag uses the same mass-weighted temporal-backdoor envelope as explicit. Prepared clicks reuse the frozen envelope."
-
+limitations = "Accepted TemporalCpdag uses the same mass-weighted temporal-backdoor envelope as explicit. Prepared clicks reuse the frozen envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1067,8 +1092,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite runs on the mass-weighted pulse; OverlapRefuter is NotApplicable on a temporal-unfolded design. The fixture pins the pulse, not the E-value."
-
+limitations = "Cheap suite runs on the mass-weighted pulse; OverlapRefuter is NotApplicable on a temporal-unfolded design. The fixture pins the pulse, not the E-value. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1078,8 +1102,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point, not the refuter numbers."
-
+limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point, not the refuter numbers. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1089,8 +1112,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag cheap suite shares the explicit envelope estimator."
-
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit envelope estimator. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1100,8 +1122,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag full suite shares the explicit envelope estimator."
-
+limitations = "Accepted TemporalCpdag full suite shares the explicit envelope estimator. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1111,8 +1132,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Bayesian remains refused."
-
+limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Bayesian remains refused. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1122,8 +1142,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit."
-
+limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1133,8 +1152,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite runs on the mass-weighted pulse. The fixture pins the pulse, not the E-value."
-
+limitations = "Cheap suite runs on the mass-weighted pulse. The fixture pins the pulse, not the E-value. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1144,8 +1162,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point."
-
+limitations = "Full suite runs on the mass-weighted pulse. The fixture pins the pulse point. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1155,8 +1172,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator."
-
+limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1166,8 +1182,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator."
-
+limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1177,8 +1192,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Single-step Sustained only. Same TemporalCpdag envelope as Pulse. Multi-step Sustained stays TemporalDag. Prepared clicks reuse the frozen envelope."
-
+limitations = "Single-step Sustained only. Same TemporalCpdag envelope as Pulse. Multi-step Sustained stays TemporalDag. Prepared clicks reuse the frozen envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1188,8 +1202,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag single-step Sustained shares the explicit Pulse envelope."
-
+limitations = "Accepted TemporalCpdag single-step Sustained shares the explicit Pulse envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1199,8 +1212,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite on the mass-weighted single-step Sustained. Multi-step remains TemporalDag-only."
-
+limitations = "Cheap suite on the mass-weighted single-step Sustained. Multi-step remains TemporalDag-only. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1210,8 +1222,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite on the mass-weighted single-step Sustained."
-
+limitations = "Full suite on the mass-weighted single-step Sustained. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1221,8 +1232,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag cheap single-step Sustained shares the explicit envelope."
-
+limitations = "Accepted TemporalCpdag cheap single-step Sustained shares the explicit envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1232,8 +1242,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag full single-step Sustained shares the explicit envelope."
-
+limitations = "Accepted TemporalCpdag full single-step Sustained shares the explicit envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1243,8 +1252,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Single-step Sustained only. Same TemporalPag envelope as Pulse. Multi-step Sustained stays TemporalDag."
-
+limitations = "Single-step Sustained only. Same TemporalPag envelope as Pulse. Multi-step Sustained stays TemporalDag. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1254,8 +1262,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope."
-
+limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1265,8 +1272,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite on the mass-weighted single-step Sustained."
-
+limitations = "Cheap suite on the mass-weighted single-step Sustained. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1276,8 +1282,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite on the mass-weighted single-step Sustained."
-
+limitations = "Full suite on the mass-weighted single-step Sustained. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1287,8 +1292,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope."
-
+limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1298,8 +1302,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope."
-
+limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Admg"
@@ -1377,8 +1380,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same known-truth DGP as the Bayesian mixture: E[tau | identified]=2.625 from identified atom effects 3 and 2 at weights 0.5 and 0.3. The Frequentist aggregator is mass-weighted linear.adjustment.ate; a valid reverse-causal atom's 0.2 weight remains unidentified and the public status is GraphDependent. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification."
-
+limitations = "Same known-truth DGP as the Bayesian mixture: E[tau | identified]=2.625 from identified atom effects 3 and 2 at weights 0.5 and 0.3. The Frequentist aggregator is mass-weighted linear.adjustment.ate; a valid reverse-causal atom's 0.2 weight remains unidentified and the public status is GraphDependent. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
@@ -1390,8 +1392,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Cheap runs the ATE-shaped overlap/E-value suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned."
-
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Cheap runs the ATE-shaped overlap/E-value suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
@@ -1403,8 +1404,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Full runs the ATE-shaped refuter suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned."
-
+limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Full runs the ATE-shaped refuter suite on every contributing atom against the mixture effect and mixes those reports by envelope mass; validator values are not numerically pinned. Multi-atom Frequentist uncertainty is unavailable."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
@@ -1656,8 +1656,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
-
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1667,8 +1666,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
-
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1678,8 +1676,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
-
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1722,8 +1719,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate."
-
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1733,8 +1729,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
-
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1744,8 +1739,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
-
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -1788,8 +1782,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate."
-
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -1799,8 +1792,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
-
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -1810,8 +1802,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
-
+limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -1854,8 +1845,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate."
-
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -1865,8 +1855,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE."
-
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -1876,8 +1865,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE."
-
+limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms against the mixture CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
