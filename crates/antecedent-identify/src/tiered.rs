@@ -333,6 +333,59 @@ mod tests {
     };
     use antecedent_graph::WithinTier;
 
+    /// CoDetermined facet tier: earlier confounder, bidirected clique, outcome.
+    /// `n` is the node count (`z` + `t1` + `t2` + co-facets + `y`).
+    fn facet_width_joint(n: u32) -> (antecedent_core::CausalSchema, TieredBackground) {
+        assert!(n >= 4);
+        let mut b = CausalSchemaBuilder::new();
+        b = b.continuous("z").finish();
+        b = b.continuous("t1").finish();
+        b = b.continuous("t2").finish();
+        let mut treatment_tier = vec!["t1".to_string(), "t2".to_string()];
+        for i in 0..(n - 4) {
+            let name = format!("f{i}");
+            b = b.continuous(name.clone()).finish();
+            treatment_tier.push(name);
+        }
+        b = b.continuous("y").finish();
+        let schema = b.build().unwrap();
+        let tier_refs: Vec<&str> = treatment_tier.iter().map(String::as_str).collect();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], tier_refs, vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        (schema, background)
+    }
+
+    fn assert_joint_width_identified(n: u32, elapsed_ok: impl Fn(std::time::Duration) -> bool) {
+        let (schema, background) = facet_width_joint(n);
+        let query = joint_query(&schema, "t1", "t2", "y");
+        let expected = background
+            .tier_closure_set(
+                &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
+                schema.id_of("y").unwrap(),
+            )
+            .unwrap();
+        assert_eq!(expected.len(), n as usize - 3, "Z = closure minus treatments");
+        assert!(expected.iter().any(|&v| v == schema.id_of("z").unwrap()));
+        assert!(!expected.iter().any(|&v| v == schema.id_of("t1").unwrap()));
+        assert!(!expected.iter().any(|&v| v == schema.id_of("t2").unwrap()));
+        let started = std::time::Instant::now();
+        let id = identify_tiered_joint(&background, &schema, &query).unwrap();
+        let elapsed = started.elapsed();
+        assert!(elapsed_ok(elapsed), "{n}-node joint closure took {elapsed:?}");
+        assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(id.estimands[0].adjustment_set.as_ref(), expected.as_ref());
+        assert_eq!(id.performance.candidates_examined, 2);
+        assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+            &a.assumption,
+            Assumption::Custom { id, .. } if id.as_ref() == NO_LATENT_TO_OUTCOME
+        )));
+        assert!(id.diagnostics.iter().any(|d| d.code.as_ref() == NO_LATENT_TO_OUTCOME));
+    }
+
     fn joint_query(
         schema: &antecedent_core::CausalSchema,
         t1: &str,
@@ -470,6 +523,23 @@ mod tests {
             started.elapsed()
         );
         assert!(!id.estimands[0].adjustment_set.is_empty());
+    }
+
+    #[test]
+    fn joint_closure_is_linear_in_p() {
+        // Unoptimized measurement: ~230 ms on the 200-node facet clique
+        // (bidirected C(198,2) plus earlier confounder and Y). Single-lever
+        // 200-node is chunked tiers and stays under 200 ms; this is the
+        // recorded joint-path bound.
+        assert_joint_width_identified(200, |elapsed| elapsed.as_millis() < 500);
+    }
+
+    #[test]
+    fn joint_identification_p667_under_recorded_bound() {
+        // Unoptimized measurement: ~8.1 s on the p=667 facet clique
+        // (~221k bidirected edges). Single-lever p=667 is chunked and stays
+        // under 1 s; this is the recorded joint-path bound, not that bench.
+        assert_joint_width_identified(667, |elapsed| elapsed.as_secs_f64() < 16.0);
     }
 
     #[test]

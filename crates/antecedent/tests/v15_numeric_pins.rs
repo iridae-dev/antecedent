@@ -2422,6 +2422,58 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
         .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE }));
 }
 
+/// Same evidence class as the single-lever 200-node ID pin: `do(t1,t2)` on a
+/// CoDetermined facet clique + earlier confounder + Y. p=667 lives in the
+/// identify-crate lib bench (`joint_identification_p667_under_recorded_bound`).
+#[test]
+fn codetermined_joint_200_node_uses_closure_shortcut() {
+    const N: u32 = 200;
+    let mut b = antecedent_core::CausalSchemaBuilder::new();
+    b = b.continuous("z").finish().continuous("t1").finish().continuous("t2").finish();
+    let mut treatment_tier = vec!["t1".to_string(), "t2".to_string()];
+    for i in 0..(N - 4) {
+        let name = format!("f{i}");
+        b = b.continuous(name.clone()).finish();
+        treatment_tier.push(name);
+    }
+    let schema = b.continuous("y").finish().build().unwrap();
+    let tier_refs: Vec<&str> = treatment_tier.iter().map(String::as_str).collect();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], tier_refs, vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let query = same_tier_joint_query(&schema);
+    let expected = background
+        .tier_closure_set(
+            &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
+            schema.id_of("y").unwrap(),
+        )
+        .unwrap();
+    assert_eq!(expected.len(), N as usize - 3, "Z = closure minus treatments");
+
+    let started = std::time::Instant::now();
+    let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
+    assert!(
+        started.elapsed().as_millis() < 1000,
+        "200-node joint closure took {:?} (recorded bound 1 s under suite contention; isolated ~230 ms)",
+        started.elapsed()
+    );
+    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(id.estimands[0].adjustment_set.as_ref(), expected.as_ref());
+    assert_eq!(id.performance.candidates_examined, 2);
+    assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+        &a.assumption,
+        antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
+    )));
+    assert!(id
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME));
+}
+
 /// Cap vs scientific refuse stay distinct on the 1.4 artifact wire: same
 /// `not_identified` status, different diagnostic kind/code/text. No new enum value.
 #[test]
