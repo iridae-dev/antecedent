@@ -73,6 +73,20 @@ class ExceedanceGrid:
             prev = float(value)
 
 
+@dataclass(frozen=True, slots=True)
+class Quantile:
+    """Quantile ``F_a^{-1}(tau)``; the contrast is a quantile treatment effect."""
+
+    tau: float
+    _: KW_ONLY
+    kind: Literal["quantile"] = field(default="quantile", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _require_finite("tau", self.tau)
+        if not 0.0 < float(self.tau) < 1.0:
+            raise CausalValueError("tau must lie in (0, 1)")
+
+
 def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
     """Normalize an outcome functional to the native wire dict."""
     if spec is None or isinstance(spec, Mean) or spec == "mean":
@@ -81,6 +95,8 @@ def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
         return {"kind": "exceedance", "threshold": float(spec.threshold)}
     if isinstance(spec, ExceedanceGrid):
         return {"kind": "exceedance_grid", "thresholds": [float(c) for c in spec.thresholds]}
+    if isinstance(spec, Quantile):
+        return {"kind": "quantile", "tau": float(spec.tau)}
     if isinstance(spec, Mapping):
         kind = str(spec.get("kind", "mean")).lower()
         if kind == "mean":
@@ -92,6 +108,8 @@ def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
                 "kind": "exceedance_grid",
                 "thresholds": [float(c) for c in spec["thresholds"]],
             }
+        if kind == "quantile":
+            return {"kind": "quantile", "tau": float(spec["tau"])}
         raise CausalValueError(f"unknown outcome_functional kind {kind!r}")
     raise CausalValueError(f"unsupported outcome_functional type: {type(spec)!r}")
 
@@ -552,6 +570,7 @@ __all__ = [
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "Quantile",
     "PointDerivative",
     "ResponseCurve",
     "ResponseJacobian",

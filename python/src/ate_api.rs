@@ -14,7 +14,7 @@ use antecedent_graph::Dag;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
+use pyo3::types::{PyAny, PyDict};
 
 fn bind_dag(builder: StudyBuilder, dag: Dag, accepted: bool) -> StudyBuilder {
     if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) }
@@ -585,6 +585,13 @@ pub(crate) fn parse_outcome_functional(
                 .extract()?;
             antecedent_core::OutcomeFunctional::exceedance_grid(thresholds)
         }
+        "quantile" => {
+            let tau: f64 = d
+                .get_item("tau")?
+                .ok_or_else(|| PyValueError::new_err("quantile requires 'tau'"))?
+                .extract()?;
+            antecedent_core::OutcomeFunctional::quantile(tau)
+        }
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown outcome_functional kind {other:?}"
@@ -887,6 +894,105 @@ fn analyze_ate_arrow_c(
     })
 }
 
+fn parse_latency_mode(latency: Option<&str>) -> PyResult<Option<antecedent::LatencyMode>> {
+    match latency {
+        None => Ok(None),
+        Some(s) => Ok(Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?)),
+    }
+}
+
+type AteBatchQuerySpec = (String, String, f64, f64, Option<antecedent_core::OutcomeFunctional>);
+
+fn parse_ate_batch_query_specs(
+    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
+) -> PyResult<Vec<AteBatchQuerySpec>> {
+    let mut parsed = Vec::with_capacity(queries.len());
+    for (treatment, outcome, control, active, functional) in queries {
+        parsed.push((
+            treatment,
+            outcome,
+            control,
+            active,
+            parse_outcome_functional(functional.as_ref())?,
+        ));
+    }
+    Ok(parsed)
+}
+
+fn compile_ate_batch(
+    data: antecedent_data::TabularData,
+    edges: Vec<(String, String)>,
+    parsed_queries: Vec<AteBatchQuerySpec>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    suite: antecedent::RefuteSuite,
+    bootstrap: u32,
+    latency_mode: Option<antecedent::LatencyMode>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
+) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
+    let mut ate_queries = Vec::with_capacity(parsed_queries.len());
+    for (treatment, outcome, control, active, functional) in &parsed_queries {
+        let t_id = data.schema().id_of(treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(outcome).map_err(py_err)?;
+        let mut query = AverageEffectQuery::with_levels(t_id, y_id, *control, *active);
+        if let Some(functional) = functional.clone() {
+            query = query.with_outcome_functional(functional);
+        }
+        ate_queries.push(query);
+    }
+    let mut batch = if let Some(tiers) = tiers {
+        let within =
+            match within_tier.as_deref().unwrap_or("codetermined").to_ascii_lowercase().as_str() {
+                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
+                "unknown" => antecedent_graph::WithinTier::Unknown,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "within_tier must be codetermined|unknown, got {other}"
+                    )));
+                }
+            };
+        let named: Vec<Vec<&str>> =
+            tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+        let background =
+            antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                .map_err(py_err)?;
+        antecedent::BatchStudy::tiered(data, background)
+    } else {
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
+        antecedent::BatchStudy::new(data, dag)
+    }
+    .bootstrap_replicates(bootstrap)
+    .refute(suite);
+    if let Some(mode) = latency_mode {
+        batch = batch.latency_mode(mode);
+    }
+    if let Some(id) = identifier {
+        batch = batch.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(est) = estimator {
+        batch = batch.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(screen) =
+        parse_candidate_screen(screen_id, screen_procedure, screen_rows, estimate_rows)?
+    {
+        batch = batch.candidate_screen(screen);
+    }
+    Ok((batch, ate_queries))
+}
+
 /// Batch static ATE: one table ingest, N average-effect queries.
 #[pyfunction]
 #[pyo3(signature = (
@@ -906,13 +1012,15 @@ fn analyze_ate_arrow_c(
     screen_procedure=None,
     screen_rows=None,
     estimate_rows=None,
+    tiers=None,
+    within_tier=None,
 ))]
 fn analyze_ate_many(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
-    queries: Vec<(String, String, f64, f64)>,
+    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
     identifier: Option<String>,
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
@@ -924,48 +1032,30 @@ fn analyze_ate_many(
     screen_procedure: Option<String>,
     screen_rows: Option<Vec<u32>>,
     estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let latency_mode = match latency.as_deref() {
-        None => None,
-        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
-        })?),
-    };
+    let latency_mode = parse_latency_mode(latency.as_deref())?;
+    let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut ate_queries = Vec::with_capacity(queries.len());
-        for (treatment, outcome, control, active) in &queries {
-            let t_id = data.schema().id_of(treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(outcome).map_err(py_err)?;
-            ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
-        }
-        let mut batch =
-            antecedent::BatchStudy::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
-        if let Some(mode) = latency_mode {
-            batch = batch.latency_mode(mode);
-        }
-        if let Some(id) = identifier {
-            batch = batch.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(est) = estimator {
-            batch = batch.estimator(
-                est.parse::<antecedent::EstimatorId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(screen) = parse_candidate_screen(
+        let (batch, ate_queries) = compile_ate_batch(
+            data,
+            edges,
+            parsed_queries,
+            identifier,
+            estimator,
+            suite,
+            bootstrap,
+            latency_mode,
             screen_id,
             screen_procedure,
             screen_rows,
             estimate_rows,
-        )? {
-            batch = batch.candidate_screen(screen);
-        }
+            tiers,
+            within_tier,
+        )?;
         let ctx = py_execution_context(seed, threads);
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
         results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
@@ -2773,6 +2863,7 @@ fn analyze_ate_graph_posterior(
     seed=1,
     bootstrap=0,
     threads=1,
+    outcome_functional=None,
 ))]
 fn analyze_ate_tiered(
     py: Python<'_>,
@@ -2789,8 +2880,10 @@ fn analyze_ate_tiered(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<AteAnalysisResult> {
     let suite = suite_from_refute(refute.as_ref())?;
+    let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -2810,7 +2903,10 @@ fn analyze_ate_tiered(
                 .map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        if let Some(functional) = outcome_functional {
+            query = query.with_outcome_functional(functional);
+        }
         let mut builder = Study::tabular(data)
             .tiered_background(background)
             .map_err(py_err)?
@@ -2849,7 +2945,9 @@ fn parse_candidate_screen(
         return Ok(None);
     }
     let screen_id = screen_id.ok_or_else(|| {
-        PyValueError::new_err("candidate screen requires screen_id, procedure, screen_rows, and estimate_rows")
+        PyValueError::new_err(
+            "candidate screen requires screen_id, procedure, screen_rows, and estimate_rows",
+        )
     })?;
     let procedure = match procedure.as_deref().unwrap_or("unrecorded") {
         "max_t" => antecedent::CandidateProcedure::MaxT,
@@ -2881,6 +2979,25 @@ pub struct PyPreparedBatch {
 impl PyPreparedBatch {
     fn n_plans(&self) -> usize {
         self.inner.plans().len()
+    }
+
+    fn shares_covariates(&self) -> bool {
+        self.inner.shared_design().and_then(|d| d.covariate.as_ref()).is_some()
+    }
+
+    fn shared_n_folds(&self) -> Option<u32> {
+        self.inner.shared_design().map(|d| d.n_folds)
+    }
+
+    fn shared_fold_ids(&self) -> Option<Vec<u32>> {
+        self.inner.shared_design().map(|d| d.fold_ids.to_vec())
+    }
+
+    fn shared_adjustment_set(&self) -> Option<Vec<u32>> {
+        self.inner
+            .shared_design()
+            .and_then(|d| d.covariate.as_ref())
+            .map(|c| c.adjustment_set.iter().map(|v| v.raw()).collect())
     }
 
     #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
@@ -2925,13 +3042,15 @@ impl PyPreparedBatch {
     screen_procedure=None,
     screen_rows=None,
     estimate_rows=None,
+    tiers=None,
+    within_tier=None,
 ))]
 fn prepare_ate_batch(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
-    queries: Vec<(String, String, f64, f64)>,
+    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
     identifier: Option<String>,
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
@@ -2943,45 +3062,30 @@ fn prepare_ate_batch(
     screen_procedure: Option<String>,
     screen_rows: Option<Vec<u32>>,
     estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let latency_mode = match latency.as_deref() {
-        None => None,
-        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
-        })?),
-    };
+    let latency_mode = parse_latency_mode(latency.as_deref())?;
+    let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut ate_queries = Vec::with_capacity(queries.len());
-        for (treatment, outcome, control, active) in &queries {
-            let t_id = data.schema().id_of(treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(outcome).map_err(py_err)?;
-            ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
-        }
-        let mut batch =
-            antecedent::BatchStudy::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
-        if let Some(mode) = latency_mode {
-            batch = batch.latency_mode(mode);
-        }
-        if let Some(id) = identifier {
-            batch = batch.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(est) = estimator {
-            batch = batch.estimator(
-                est.parse::<antecedent::EstimatorId>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
-        if let Some(screen) =
-            parse_candidate_screen(screen_id, screen_procedure, screen_rows, estimate_rows)?
-        {
-            batch = batch.candidate_screen(screen);
-        }
+        let (batch, ate_queries) = compile_ate_batch(
+            data,
+            edges,
+            parsed_queries,
+            identifier,
+            estimator,
+            suite,
+            bootstrap,
+            latency_mode,
+            screen_id,
+            screen_procedure,
+            screen_rows,
+            estimate_rows,
+            tiers,
+            within_tier,
+        )?;
         let ctx = py_execution_context(seed, threads);
         let prepared = batch.prepare(&ate_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })

@@ -326,6 +326,106 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Compile once for AverageEffect on a CoDetermined / Unknown tier background.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        tiers,
+        within_tier,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        estimator=None,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        latency=None,
+        outcome_functional=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_tiered(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        tiers: Vec<Vec<String>>,
+        within_tier: String,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        estimator: Option<String>,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+    ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        detach_catch(py, move || {
+            let within = match within_tier.to_ascii_lowercase().as_str() {
+                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
+                "unknown" => antecedent_graph::WithinTier::Unknown,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "within_tier must be codetermined|unknown, got {other}"
+                    )));
+                }
+            };
+            let named: Vec<Vec<&str>> =
+                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+            let background =
+                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    .map_err(py_err)?;
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let mut query =
+                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            if let Some(functional) = functional {
+                query = query.with_outcome_functional(functional);
+            }
+            let mut builder = Study::tabular(data)
+                .tiered_background(background)
+                .map_err(py_err)?
+                .query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
     /// Compile once for AverageEffect on a supplied PAG (generalized adjustment).
     #[staticmethod]
     #[pyo3(signature = (

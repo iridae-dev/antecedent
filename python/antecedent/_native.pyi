@@ -331,7 +331,7 @@ class EstimateSection:
 class CandidateSelectionSection:
     screen_id: str
     procedure: str
-    winner_index: int
+    winner_index: int | None
     family_size: int
     screen_rows: list[int]
     estimate_rows: list[int]
@@ -623,6 +623,25 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        outcome_functional: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_tiered(
+        names: list[str],
+        columns: Sequence[Any],
+        tiers: list[list[str]],
+        within_tier: str,
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        estimator: str | None = None,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        latency: str | None = None,
         outcome_functional: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1009,6 +1028,7 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        refute: bool | str | None = None,
         seed: int = 1,
         threads: int = 1,
         latency: str | None = None,
@@ -1335,7 +1355,7 @@ def analyze_ate_many(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float]],
+    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
@@ -1348,9 +1368,16 @@ def analyze_ate_many(
     screen_procedure: str | None = None,
     screen_rows: list[int] | None = None,
     estimate_rows: list[int] | None = None,
+    tiers: list[list[str]] | None = None,
+    within_tier: str | None = None,
 ) -> list[AteAnalysisResult]: ...
+
 class PreparedBatch:
     def n_plans(self) -> int: ...
+    def shares_covariates(self) -> bool: ...
+    def shared_n_folds(self) -> int | None: ...
+    def shared_fold_ids(self) -> list[int] | None: ...
+    def shared_adjustment_set(self) -> list[int] | None: ...
     def estimate(
         self,
         names: list[str],
@@ -1359,11 +1386,12 @@ class PreparedBatch:
         seed: int = 1,
         threads: int = 1,
     ) -> list[AteAnalysisResult]: ...
+
 def prepare_ate_batch(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float]],
+    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
@@ -1376,6 +1404,8 @@ def prepare_ate_batch(
     screen_procedure: str | None = None,
     screen_rows: list[int] | None = None,
     estimate_rows: list[int] | None = None,
+    tiers: list[list[str]] | None = None,
+    within_tier: str | None = None,
 ) -> PreparedBatch: ...
 def analyze_ate(
     names: list[str],
@@ -1429,6 +1459,7 @@ def analyze_ate_tiered(
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+    outcome_functional: dict[str, Any] | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_arrow_c(
     names: list[str],
