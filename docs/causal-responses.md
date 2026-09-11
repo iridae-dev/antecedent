@@ -1,5 +1,9 @@
 # Causal responses
 
+For the 1.5 workflows, see [local targets, outcome distributions, and joint
+interventions](local-distributional-joint.md): prepare/retarget, raw CDF bands,
+unsupported tails, and non-additive joint-cell estimation.
+
 Antecedent treats a continuous causal response as more than a collection of
 binary contrasts. The scalar Python constructors retain the established
 positional convention:

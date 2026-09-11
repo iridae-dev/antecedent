@@ -60,12 +60,17 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The working package version is **1.5.0**. Its checklist is not yet complete.
+The working package version is **1.5.0**, in release preparation. The scoped
+implementation has been reviewed and locally tested; clean-tree release gates,
+CI, and packaging verification remain before the release cut.
 Implemented additions include
 retargetable prepared plans, exceedance functionals, cell-saturated joint
 AIPW, and tier-background identification on the existing licensed cells. The
 [1.5.0 release notes](docs/release-notes/v1.5.0.md) and
-[evidence ledger](docs/v1.5-evidence.md) describe their implemented scope and remaining release requirements.
+[evidence ledger](docs/v1.5-evidence.md) describe the implemented scope and
+verification limits. Start with the [1.5 Python walkthrough](docs/local-distributional-joint.md)
+for retargeting, CDFs, and joint interventions; see the
+[release checklist](docs/development.md#releases) for release requirements.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·
