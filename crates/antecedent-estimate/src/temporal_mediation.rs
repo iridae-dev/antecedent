@@ -95,7 +95,8 @@ impl TemporalMediationEstimator {
 
     /// Estimate mediation contrasts from lag-aligned series.
     ///
-    /// Treatment at lag 1, mediator and outcome contemporaneous (linear SEM path).
+    /// Treatment at lag `h` (the query's first requested horizon; default 1),
+    /// mediator and outcome contemporaneous unless the unfolded path says otherwise.
     ///
     /// # Errors
     ///
@@ -167,8 +168,9 @@ impl TemporalMediationEstimator {
             ));
         }
 
+        let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
         let mut cols = vec![
-            LaggedColumn { variable: query.treatment, lag: Lag::from_raw(1) },
+            LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag) },
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
         ];

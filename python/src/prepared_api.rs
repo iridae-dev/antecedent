@@ -25,7 +25,7 @@ use crate::response_api::{
 use crate::temporal_api::{TemporalClassGraph, bind_temporal_class};
 use crate::{
     AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs,
-    py_err, py_execution_context_ext, require_named_graph_order, series_from_tabular,
+    py_err, py_execution_context_ext, py_msg, require_named_graph_order, series_from_tabular,
     suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy, tabular_from_py_columns,
     temporal_dag_from_schema_edges,
 };
@@ -1505,6 +1505,7 @@ impl PyPreparedAnalysis {
         contrast="mediated",
         control_level=0.0,
         active_level=1.0,
+        horizons=None,
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
@@ -1526,6 +1527,7 @@ impl PyPreparedAnalysis {
         contrast: &str,
         control_level: f64,
         active_level: f64,
+        horizons: Option<Vec<u32>>,
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
@@ -1556,6 +1558,9 @@ impl PyPreparedAnalysis {
             let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
             q.control = Intervention::set(t_id, Value::f64(control_level));
             q.active = Intervention::set(t_id, Value::f64(active_level));
+            if let Some(hs) = horizons {
+                q = q.with_horizons(hs).map_err(py_msg)?;
+            }
             let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
             let mut builder = Study::series(series);
             builder = if accepted {

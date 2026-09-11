@@ -629,6 +629,9 @@ pub enum CausalQueryWire {
         active: InterventionWire,
         /// Population.
         target_population: TargetPopulationWire,
+        /// Outcome horizons; omitted older payloads default to `[1]`.
+        #[serde(default = "default_mediation_horizons")]
+        horizons: Vec<u32>,
     },
     /// Conditional effect.
     ConditionalEffect {
@@ -725,6 +728,10 @@ pub enum InterferenceFunctionalWire {
 
 const fn default_probability_draws() -> u32 {
     10_000
+}
+
+fn default_mediation_horizons() -> Vec<u32> {
+    vec![1]
 }
 
 /// Randomized interference query wire form.
@@ -1011,6 +1018,7 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
             target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+            horizons: q.horizons.iter().copied().collect(),
         },
         CausalQuery::ConditionalEffect(q) => CausalQueryWire::ConditionalEffect {
             inner: Box::new(causal_query_to_wire(&CausalQuery::AverageEffect(q.inner.clone()))?),
@@ -1157,15 +1165,21 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             control,
             active,
             target_population,
-        } => CausalQuery::Mediation(MediationQuery {
-            treatment: VariableId::from_raw(*treatment),
-            outcome: VariableId::from_raw(*outcome),
-            mediators: vars_from_raw(mediators),
-            contrast: mediation_contrast_from_str(contrast)?,
-            control: control.to_domain(),
-            active: active.to_domain(),
-            target_population: target_population.to_domain()?,
-        }),
+            horizons,
+        } => {
+            let query = MediationQuery {
+                treatment: VariableId::from_raw(*treatment),
+                outcome: VariableId::from_raw(*outcome),
+                mediators: vars_from_raw(mediators),
+                contrast: mediation_contrast_from_str(contrast)?,
+                control: control.to_domain(),
+                active: active.to_domain(),
+                target_population: target_population.to_domain()?,
+                horizons: Arc::from(horizons.as_slice()),
+            };
+            query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::Mediation(query)
+        }
         CausalQueryWire::ConditionalEffect { inner } => {
             let CausalQuery::AverageEffect(inner_q) = causal_query_from_wire(inner)? else {
                 return Err(IoError::Convert(

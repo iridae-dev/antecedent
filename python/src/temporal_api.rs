@@ -1981,6 +1981,7 @@ pub(crate) fn apply_temporal_inference(
 #[pyo3(signature = (
     names, columns, edges, treatment, mediator, outcome, *,
     contrast="mediated", control_level=0.0, active_level=1.0,
+    horizons=None,
     seed=1, bootstrap=0, threads=1
 ))]
 fn analyze_temporal_mediation(
@@ -1994,6 +1995,7 @@ fn analyze_temporal_mediation(
     contrast: &str,
     control_level: f64,
     active_level: f64,
+    horizons: Option<Vec<u32>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -2018,6 +2020,9 @@ fn analyze_temporal_mediation(
         let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
+        if let Some(hs) = horizons {
+            q = q.with_horizons(hs).map_err(py_msg)?;
+        }
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
         let analysis = Study::series(series)
             .graph(g)

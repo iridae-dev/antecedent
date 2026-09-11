@@ -65,8 +65,41 @@ impl TemporalMediationIdentifier {
             ));
         }
         Self::ensure_mediators_intercept(template, query)?;
-        let adjustment = Self::adjustment_nodes(template, query)?;
+        // Template premises (one mediator, T@lag-1 and M/Y contemporaneous)
+        // stay required for the linear path-product. They are not I(h).
+        let _premises = Self::adjustment_nodes(template, query)?;
+        let horizon = query.horizons.first().copied().unwrap_or(1);
+        let temporal = self.identify_backdoor(template, query, horizon)?;
+        Self::mediation_result(query, Some((horizon, &temporal)))
+    }
 
+    fn identify_backdoor(
+        &self,
+        template: &TemporalDag,
+        mediation: &MediationQuery,
+        horizon_steps: u32,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        // Pulse at -1, outcome at h-1: treatment is h steps before the
+        // outcome (estimator lag h). This is the temporal_confounded_pulse
+        // convention — I(1)={Z@-1}, I(2) typically empty — not Pulse at 0
+        // (T@0, Y@h-1), which would break the lag-1 mediation pins.
+        let te = TemporalEffectQuery {
+            treatment: mediation.treatment,
+            outcome: mediation.outcome,
+            policy: TemporalPolicy::Pulse { at: -1 },
+            control: mediation.control.clone(),
+            active: mediation.active.clone(),
+            horizon_steps,
+            max_history_lag: None,
+            target_population: mediation.target_population.clone(),
+        };
+        self.temporal.identify_temporal(template, &te)
+    }
+
+    fn mediation_result(
+        query: &MediationQuery,
+        horizon_backdoor: Option<(u32, &TemporalIdentificationResult)>,
+    ) -> Result<IdentificationResult, IdentificationError> {
         let method: Arc<str> = match query.contrast {
             MediationContrast::Total => Arc::from("temporal_mediation.total"),
             MediationContrast::Direct | MediationContrast::NaturalDirect => {
@@ -97,11 +130,16 @@ impl TemporalMediationIdentifier {
             active,
             control,
         );
-        let estimand = IdentifiedEstimand::temporal_mediation(
+        let mut estimand = IdentifiedEstimand::temporal_mediation(
             Arc::clone(&method),
             Arc::clone(&query.mediators),
             functional,
         );
+        if let Some((_, temporal)) = horizon_backdoor {
+            if let Some(backdoor) = temporal.result.estimands.first() {
+                estimand.adjustment_set = backdoor.adjustment_set.clone();
+            }
+        }
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(AssumptionRecord {
@@ -144,14 +182,28 @@ impl TemporalMediationIdentifier {
         }
 
         let mut derivation = DerivationTrace::default();
-        derivation
-            .push("temporal_mediation.adjustment", format!("baseline parents={adjustment:?}"));
+        if let Some((horizon, temporal)) = horizon_backdoor {
+            let keys: Vec<_> = temporal
+                .result
+                .estimands
+                .first()
+                .map(|e| {
+                    e.adjustment_set
+                        .iter()
+                        .filter_map(|&dense| temporal.indexer.key_of(dense.raw()).ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            derivation
+                .push("temporal.backdoor.unfolded", format!("I({horizon}) adjustment={keys:?}"));
+        }
         derivation.push(
             method.as_ref(),
             format!(
-                "mediators={:?} contrast={:?}",
+                "mediators={:?} contrast={:?} horizons={:?}",
                 query.mediators.iter().map(|v| v.raw()).collect::<Vec<_>>(),
-                query.contrast
+                query.contrast,
+                query.horizons.as_ref(),
             ),
         );
 
@@ -182,18 +234,23 @@ impl TemporalMediationIdentifier {
         mediation: &MediationQuery,
         horizon_steps: u32,
     ) -> Result<(IdentificationResult, TemporalIdentificationResult), IdentificationError> {
-        let te = TemporalEffectQuery {
-            treatment: mediation.treatment,
-            outcome: mediation.outcome,
-            policy: TemporalPolicy::Pulse { at: 0 },
-            control: mediation.control.clone(),
-            active: mediation.active.clone(),
-            horizon_steps,
-            max_history_lag: None,
-            target_population: mediation.target_population.clone(),
-        };
-        let temporal = self.temporal.identify_temporal(template, &te)?;
-        let id = self.identify(template, mediation)?;
+        mediation.validate().map_err(|_| IdentificationError::UnsupportedQuery {
+            message: "invalid mediation query",
+        })?;
+        if matches!(
+            mediation.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) && !self.allow_natural_controlled_alias
+        {
+            return Err(IdentificationError::unsupported(
+                "NaturalDirect/NaturalIndirect require allow_natural_controlled_alias; \
+                 natural effects alias controlled effects in linear temporal mediation",
+            ));
+        }
+        Self::ensure_mediators_intercept(template, mediation)?;
+        let _premises = Self::adjustment_nodes(template, mediation)?;
+        let temporal = self.identify_backdoor(template, mediation, horizon_steps)?;
+        let id = Self::mediation_result(mediation, Some((horizon_steps, &temporal)))?;
         Ok((id, temporal))
     }
 
@@ -414,5 +471,72 @@ mod tests {
             &a.assumption,
             Assumption::Custom { id, .. } if id.as_ref() == "natural_controlled_alias"
         )));
+    }
+
+    fn confounded_mediator_template() -> TemporalDag {
+        let mut g = TemporalDag::empty();
+        let t0 = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let y0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let z0 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        let z1 = g.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+        // Same geometry as temporal_confounded_pulse, plus T→M→Y.
+        g.insert_directed(z0, t0).unwrap();
+        g.insert_directed(z1, y0).unwrap();
+        g.insert_directed(t1, y0).unwrap();
+        g.insert_directed(t1, m0).unwrap();
+        g.insert_directed(m0, y0).unwrap();
+        g
+    }
+
+    fn named_z(temporal: &TemporalIdentificationResult) -> Vec<(u32, i32)> {
+        temporal
+            .result
+            .estimands
+            .first()
+            .map(|e| {
+                e.adjustment_set
+                    .iter()
+                    .filter_map(|&dense| {
+                        let key = temporal.indexer.key_of(dense.raw()).ok()?;
+                        Some((key.variable.raw(), key.offset))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn identifies_i1_not_equal_i2_on_confounded_mediator() {
+        let g = confounded_mediator_template();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let ider = TemporalMediationIdentifier::new();
+        let (id1, t1) = ider.identify_with_horizon(&g, &q, 1).unwrap();
+        let (id2, t2) = ider.identify_with_horizon(&g, &q, 2).unwrap();
+        assert!(id1.estimands[0].method.as_ref().starts_with("temporal_mediation."));
+        assert!(id2.estimands[0].method.as_ref().starts_with("temporal_mediation."));
+        let z1 = named_z(&t1);
+        let z2 = named_z(&t2);
+        assert_eq!(z1, vec![(3, -1)], "I(1) must be Z@-1, got {z1:?}");
+        assert!(z2.is_empty(), "I(2) must be empty, got {z2:?}");
+        assert_ne!(z1, z2, "I(1)={z1:?} must differ from I(2)={z2:?}");
+        assert_eq!(
+            id1.estimands[0].adjustment_set.as_ref(),
+            t1.result.estimands[0].adjustment_set.as_ref()
+        );
+        assert_eq!(
+            id2.estimands[0].adjustment_set.as_ref(),
+            t2.result.estimands[0].adjustment_set.as_ref()
+        );
+        assert!(
+            id1.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.backdoor.unfolded"),
+            "certificate must show I(h) via temporal.backdoor.unfolded"
+        );
     }
 }

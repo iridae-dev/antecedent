@@ -147,6 +147,23 @@ def _load_temporal_response_spec() -> TemporalResponseSpec:
 temporal_response_spec = _load_temporal_response_spec()
 
 
+def _validate_horizons(horizons: Sequence[int]) -> None:
+    """Nonempty, ≥1, strictly increasing, capped — shared with TemporalResponseSpec."""
+    if not horizons:
+        raise CausalValueError("horizons must be non-empty")
+    if len(horizons) > temporal_response_spec.max_horizons:
+        raise CausalValueError(
+            f"horizons must contain at most {temporal_response_spec.max_horizons} entries"
+        )
+    prev_h: int | None = None
+    for h in horizons:
+        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
+            raise CausalValueError("horizons must be positive integers")
+        if prev_h is not None and h <= prev_h:
+            raise CausalValueError("horizons must be strictly increasing")
+        prev_h = h
+
+
 def _validate_temporal(
     horizons: Sequence[int] | None,
     policy: str,
@@ -160,19 +177,7 @@ def _validate_temporal(
     """
     if horizons is None:
         return
-    if not horizons:
-        raise CausalValueError("horizons must be non-empty when provided")
-    if len(horizons) > temporal_response_spec.max_horizons:
-        raise CausalValueError(
-            f"horizons must contain at most {temporal_response_spec.max_horizons} entries"
-        )
-    prev_h: int | None = None
-    for h in horizons:
-        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
-            raise CausalValueError("horizons must be positive integers")
-        if prev_h is not None and h <= prev_h:
-            raise CausalValueError("horizons must be strictly increasing")
-        prev_h = h
+    _validate_horizons(horizons)
     if policy not in temporal_response_spec.allowed_policies:
         allowed = "' or '".join(temporal_response_spec.allowed_policies)
         raise CausalValueError(f"policy must be '{allowed}'")
@@ -332,7 +337,12 @@ class Counterfactual:
 
 @dataclass(frozen=True, slots=True)
 class TemporalMediationEffect:
-    """Temporal linear mediation (treatment → mediator → outcome)."""
+    """Temporal linear mediation (treatment → mediator → outcome).
+
+    ``horizons=None`` defaults to ``[1]``. ``horizons=[1, 2]`` requests
+    per-horizon identification ``I(h)``; each estimate clicks its own
+    unfolded backdoor ``Z``, not a union.
+    """
 
     treatment: str
     mediator: str
@@ -341,9 +351,15 @@ class TemporalMediationEffect:
     contrast: Literal["total", "direct", "mediated"] = "mediated"
     control_level: float = 0.0
     active_level: float = 1.0
+    horizons: Sequence[int] | None = None
     kind: Literal["temporal_mediation"] = field(
         default="temporal_mediation", init=False, repr=False
     )
+
+    def __post_init__(self) -> None:
+        hs = (1,) if self.horizons is None else tuple(self.horizons)
+        _validate_horizons(hs)
+        object.__setattr__(self, "horizons", hs)
 
 
 @dataclass(frozen=True, slots=True)
