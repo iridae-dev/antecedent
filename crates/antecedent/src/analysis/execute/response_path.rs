@@ -63,7 +63,7 @@ impl super::Study {
                 "identify.response.general_id",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "response contrast identified by Shpitser–Pearl ID; levels are the \
+                "intervention mean identified by Shpitser–Pearl ID; levels are the \
                  discrete functional.effect plug-in, not an adjustment g-formula",
             ));
             if identify_cached {
@@ -277,18 +277,17 @@ impl super::Study {
         let estimator_id: EstimatorId = estimator.parse()?;
         if estimator_id != EstimatorId::CellAipw {
             return Err(CausalError::Unsupported {
-                message: "CoDetermined joint cells require estimator cell.aipw".into(),
+                message: "CoDetermined joint cells require estimator cell.aipw",
             });
         }
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification =
                     antecedent_identify::identify_tiered_joint(background, data.schema(), query)?;
-                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                    CausalError::Unsupported {
-                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
-                    }
-                })?;
+                let estimand =
+                    identification.estimands.first().cloned().ok_or(CausalError::Unsupported {
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
+                    })?;
                 Ok((identification, estimand))
             })?;
         self.execute_cell_aipw_response(
@@ -354,7 +353,7 @@ impl super::Study {
         }
         if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
-                message: antecedent_estimate::POINT_CDE_UNLICENSED.into(),
+                message: antecedent_estimate::POINT_CDE_UNLICENSED,
             });
         }
         if treatments.len() < 2 {
@@ -396,7 +395,17 @@ impl super::Study {
             value: summary.means[column],
             se: summary.covariance.se(column),
         };
-        let (scalar, se) = if n_thresholds > 1 {
+        let quantile = query
+            .outcome_functional
+            .quantile_level()
+            .map(|tau| {
+                antecedent_estimate::quantile::quantile_arm(&table, None, tau, requested_arm)
+            })
+            .transpose()?;
+        let (scalar, se) = if let Some(q) = &quantile {
+            functional_diagnostics.push(super::super::helpers::quantile_scope_diagnostic());
+            (q.value, antecedent_estimate::joint_influence_covariance(&[&q.influence], None)?.se(0))
+        } else if n_thresholds > 1 {
             functional_diagnostics.push(Diagnostic::new(
                 "estimate.functional.grid_scalar_cleared",
                 DiagnosticKind::Scientific,
@@ -408,7 +417,10 @@ impl super::Study {
             (contrast.value, contrast.se)
         };
         let cdf = antecedent_estimate::exceedance_cdf_values(&summary, &table);
-        let influence = Arc::from(table.column(column)?);
+        let influence = match quantile {
+            Some(q) => Arc::from(q.influence),
+            None => Arc::from(table.column(column)?),
+        };
         let response = CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
@@ -1265,15 +1277,31 @@ fn estimate_general_id_response(
     if !matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
         return Err(CausalError::Unsupported {
             message: "general-ID MAG/PAG/DAG response atoms are licensed for \
-                      InterventionResponse Set contrasts; MeanCurve stays on the \
+                      InterventionResponse Set means; MeanCurve stays on the \
                       adjustment envelope",
         });
     }
+    if !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+        || !matches!(
+            query.outcome_functional,
+            antecedent_core::OutcomeFunctional::Mean
+                | antecedent_core::OutcomeFunctional::Exceedance(_)
+        )
+    {
+        return Err(CausalError::Unsupported {
+            message: "general-ID response estimation supports AllObserved scalar mean or exceedance outcomes",
+        });
+    }
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
+    let data_est = super::super::helpers::apply_scalar_outcome_functional(
+        data,
+        outcome,
+        &query.outcome_functional,
+    )?;
     let est = FunctionalEffect::new();
     let prepared = est
         .prepare(
-            data,
+            &data_est,
             estimand,
             &identification.arena,
             identification.required_assumptions.clone(),
