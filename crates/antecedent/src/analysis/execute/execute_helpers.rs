@@ -399,7 +399,9 @@ pub(super) fn attach_class_conditional_functional_grid(
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
     let _ = ctx;
-    let Some(thresholds) = query.inner.outcome_functional.thresholds() else {
+    let Some(thresholds) = super::helpers::conditional_thresholds(
+        data, query, atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
+    )? else {
         return Ok(estimate);
     };
     if atoms.is_empty() {
@@ -425,13 +427,16 @@ pub(super) fn attach_class_conditional_functional_grid(
         let mut atom_if0 = Vec::new();
         let mut atom_if1 = Vec::new();
         let mut atom_weights = Vec::new();
-        let mut tail_treatment = None;
-        let mut tail_rows = None;
+        let mut minimum_events = [f64::INFINITY; 2];
+        let mut supported_in_all = [true; 2];
+        let mut minimum_arm_counts = [f64::INFINITY; 2];
         for &(w, ref estimand) in atoms {
             if !w.is_finite() || w <= 0.0 {
                 continue;
             }
-            let (_point, scores) = est.estimate_with_arm_scores(&data_c, estimand, query)?;
+            let mut transformed_query = query.clone();
+            transformed_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+            let (_point, scores) = est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
             arm0 += w * (1.0 - scores.means[0]);
             arm1 += w * (1.0 - scores.means[1]);
             mass += w;
@@ -445,9 +450,15 @@ pub(super) fn attach_class_conditional_functional_grid(
                 atom_if1.push(if1.into_iter().map(|v| -v).collect::<Vec<_>>());
                 atom_weights.push(w);
             }
-            if tail_treatment.is_none() {
-                tail_treatment = Some(scores.treatment);
-                tail_rows = Some(scores.row_index);
+            for arm in 0..2 {
+                let (events, supported) = super::helpers::tail_event_support(
+                    &scores.treatment, &scores.row_index, &y_orig, arm, threshold,
+                );
+                minimum_events[arm] = minimum_events[arm].min(events);
+                supported_in_all[arm] &= supported;
+                let count = scores.treatment.iter()
+                    .filter(|&&t| (t - arm as f64).abs() <= 1e-12).count() as f64;
+                minimum_arm_counts[arm] = minimum_arm_counts[arm].min(count);
             }
         }
         if !matches!(mass.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -468,22 +479,9 @@ pub(super) fn attach_class_conditional_functional_grid(
             .push(antecedent_estimate::frozen_weight_mixture_scores(&refs0, &atom_weights)?);
         mixed_columns
             .push(antecedent_estimate::frozen_weight_mixture_scores(&refs1, &atom_weights)?);
-        if let (Some(treatment), Some(rows)) = (tail_treatment.as_ref(), tail_rows.as_ref()) {
-            n_eff_by_arm = [
-                treatment.iter().filter(|&&t| t.abs() <= 1e-12).count() as f64,
-                treatment.iter().filter(|&&t| (t - 1.0).abs() <= 1e-12).count() as f64,
-            ];
-            for arm in 0..2 {
-                let (events, supported) =
-                    super::helpers::tail_event_support(treatment, rows, &y_orig, arm, threshold);
-                event_n_eff.push(events);
-                threshold_supported.push(supported);
-            }
-        } else {
-            return Err(CausalError::Unsupported {
-                message: "class-aware ConditionalEffect grid refused: missing threshold tail-support evidence",
-            });
-        }
+        n_eff_by_arm = minimum_arm_counts;
+        event_n_eff.extend(minimum_events);
+        threshold_supported.extend(supported_in_all);
     }
     let mut out = estimate;
     if mixed_columns.len() != thresholds.len() * 2 {
@@ -508,6 +506,20 @@ pub(super) fn attach_class_conditional_functional_grid(
                 .all(|n| *n >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS),
         },
     )?);
+    if thresholds.len() == 1 {
+        // Scalar exceedance and its CDFs must describe the same fitted functional.
+        out.ate = mixed_cdf[0] - mixed_cdf[1];
+        let contrast: Vec<_> = mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
+        out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
+        out.influence = Some(contrast.into());
+        out.se_bootstrap = None;
+        out.simultaneous_interval = None;
+        if threshold_supported.iter().any(|&supported| !supported) {
+            out.se_analytic = f64::NAN;
+            out.influence = None;
+        }
+    }
+    let raw_cdf = mixed_cdf.clone();
     let rearranged = super::helpers::project_conditional_cdf(&mut mixed_cdf)?;
     out = out.with_monotone_rearranged(rearranged);
     out.exceedance_cdf = Some(Arc::from(mixed_cdf));
@@ -517,6 +529,9 @@ pub(super) fn attach_class_conditional_functional_grid(
         out.se_bootstrap = None;
         out.influence = None;
         out.simultaneous_interval = None;
+    }
+    if let Some(tau) = query.inner.outcome_functional.quantile_level() {
+        super::helpers::attach_conditional_quantile(&mut out, &thresholds, &raw_cdf, &mixed_columns, &threshold_supported, tau)?;
     }
     Ok(out)
 }
@@ -1316,11 +1331,26 @@ impl super::Study {
             query: self.query.clone(),
             graph_class: self.graph.class(),
         });
+        let is_quantile = match &self.query {
+            CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
+            CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
+            CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
+            _ => false,
+        };
+        if is_quantile {
+            result.estimate.evalue = None;
+            result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
+            if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
+                result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
+                    DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                    "quantile contrast inverts arm CDFs standardized over the retained modifier distribution; this is not a pointwise conditional-quantile surface or an average of individual quantile effects"));
+            }
+        }
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
-        if self
+        if !is_quantile && self
             .tiered
             .as_ref()
             .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
