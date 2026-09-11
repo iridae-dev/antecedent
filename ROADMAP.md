@@ -264,7 +264,7 @@ coordinates, and verify all advertised temporal validation modes.
 
 ## 1.5 — Local, distributional, joint
 
-Implemented and locally verified on the `1.5.0` branch. See the
+Released as [1.5.0](docs/release-notes/v1.5.0.md). See the
 [evidence ledger](docs/v1.5-evidence.md). It sits ahead of the temporal and
 Bayesian minors (1.6–1.10) because its consumer question needs none of them.
 

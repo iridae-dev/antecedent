@@ -60,9 +60,7 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The working package version is **1.5.0**, in release preparation. The scoped
-implementation has been reviewed and locally tested; clean-tree release gates,
-CI, and packaging verification remain before the release cut.
+The current package version is **1.5.0**.
 Implemented additions include
 retargetable prepared plans, exceedance functionals, cell-saturated joint
 AIPW, and tier-background identification on the existing licensed cells. The

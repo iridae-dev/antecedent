@@ -56,7 +56,7 @@ observation-aware pricing. The Rust entry point is
 `Study::tabular()` (or `::series` / `::series_multi` / `::panel` / `::events`) in the
 [`antecedent` crate](https://docs.rs/antecedent).
 
-Package version is **1.5.0**, in release preparation; see
+Package version is **1.5.0**; see
 [ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md),
 the [1.5.0 notes](release-notes/v1.5.0.md),
 the [1.4.0 notes](release-notes/v1.4.0.md),

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-11
+
 ### Added
 
 - Retargetable prepared AIPW and joint-cell AIPW score tables, with declared
@@ -51,8 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retargeting standardizes within one population. Point interventions on a
   continuous mediator and Unknown-tier joint cells remain unsupported.
 - Temporal/DBN multi-atom Frequentist uncertainty remains deferred to 1.9.
-  Local validation is recorded in the [evidence ledger](docs/v1.5-evidence.md);
-  release gates and packaging checks remain required before the release cut.
+  Local validation is recorded in the [evidence ledger](docs/v1.5-evidence.md).
 
 ## [1.4.0] — 2026-09-11
 
@@ -1820,7 +1821,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/iridae-dev/antecedent/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/iridae-dev/antecedent/compare/v1.1.0...v1.2.0

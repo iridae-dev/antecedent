@@ -161,9 +161,9 @@ committing. The generator rewrites live licensed-cell markers only in
 
 ## Releases
 
-For 1.5.0, keep the changelog under **Unreleased** until the cut is approved and
-its date is known. Package versions already say 1.5.0; a version bump is not
-proof that a release has been published.
+Keep the changelog under **Unreleased** until a cut is approved and
+its date is known. A package version bump is not proof that a release has been
+published.
 
 Before merging the release PR:
 

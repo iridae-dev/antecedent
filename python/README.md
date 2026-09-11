@@ -48,13 +48,13 @@ mediation, counterfactuals, and root-cause attribution — see the
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
 full API.
 
-## Preparing for 1.5.0
+## 1.5.0
 
-The working version is 1.5.0, in release preparation. The
+The
 [Python walkthrough](https://github.com/iridae-dev/antecedent/blob/main/docs/local-distributional-joint.md)
 covers prepared retargeting, CDF bands and unsupported tails, and non-additive
-joint-cell responses. Use a built 1.5 checkout until the release is published;
-see the [release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.5.0.md)
+joint-cell responses. See the
+[release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.5.0.md)
 for estimator restrictions and uncertainty limits.
 
 ## Development
