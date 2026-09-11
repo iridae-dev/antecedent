@@ -784,7 +784,7 @@ mod tests {
         );
         assert!(matches!(a.node(id), ExprNode::Expectation { .. }));
         let pretty = a.pretty(id);
-        assert!(pretty.contains("do(") && pretty.contains("0"), "{pretty}");
+        assert!(pretty.contains("do(") && pretty.contains('0'), "{pretty}");
         assert!(!pretty.contains('−'), "{pretty}");
     }
 

@@ -741,9 +741,9 @@ fn mag_adjustment_identified(
     functional: antecedent_expr::ExprId,
     arena: CausalExprArena,
 ) -> IdentificationResult {
-    let label =
-        if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
-    let estimand = IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional);
+    let n_z = z_vars.len();
+    let label = if n_z == 0 { "generalized.adjustment.empty" } else { "generalized.adjustment" };
+    let estimand = IdentifiedEstimand::backdoor(label, z_vars, functional);
     let mut assumptions = AssumptionSet::default();
     assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.mag"));
     IdentificationResult::identified(
@@ -755,8 +755,7 @@ fn mag_adjustment_identified(
             d.push(
                 "generalized.adjustment",
                 format!(
-                    "Z (size {}) m-separates T from Y in the proper back-door graph after MAG amenability and forbidden-set checks",
-                    z_vars.len()
+                    "Z (size {n_z}) m-separates T from Y in the proper back-door graph after MAG amenability and forbidden-set checks"
                 ),
             );
             d

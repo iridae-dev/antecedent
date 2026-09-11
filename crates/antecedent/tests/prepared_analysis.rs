@@ -1252,7 +1252,10 @@ fn functional_validation_staged_known_truth() {
             let result = prepared.estimate(&data, &ctx).unwrap();
             assert!(
                 (result.estimate.ate - pin["path_effect"].as_f64().unwrap()).abs()
-                    < pin["tolerance"].as_f64().unwrap()
+                    < pin["tolerance"].as_f64().unwrap(),
+                "path-specific ate={} expected={} suite={suite:?} accepted={accepted}",
+                result.estimate.ate,
+                pin["path_effect"].as_f64().unwrap()
             );
             let count = match suite {
                 RefuteSuite::None => 0,
