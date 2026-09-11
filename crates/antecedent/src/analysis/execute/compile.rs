@@ -322,6 +322,7 @@ impl super::Study {
                     } else {
                         "temporal.mediation"
                     }));
+                plan.record.validation_suite = self.validation_suite_id();
                 plan.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)

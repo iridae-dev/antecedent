@@ -13,8 +13,9 @@ use antecedent::discovery::GraphPosterior;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag, MeasurementSpec, RoleHint,
-    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy,
+    ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -22,7 +23,9 @@ use antecedent_data::{
 };
 use antecedent_discovery::{mask_is_dag, temporal_dag_from_dbn_masks};
 use antecedent_graph::{TemporalDag, ensure_lagged};
-use antecedent_identify::{IdentificationError, TemporalBackdoorIdentifier};
+use antecedent_identify::{
+    IdentificationError, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
+};
 use antecedent_prob::InferenceDiagnostics;
 
 /// Records every progress label so a test can prove identification was
@@ -272,11 +275,21 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
             assert_eq!(at, i32::try_from(pin["pulse_at"].as_i64().unwrap()).unwrap());
         }
         TemporalPolicy::Sustained { from, until } => {
-            assert_eq!(from, i32::try_from(pin["sustained_from"].as_i64().unwrap()).unwrap());
-            assert_eq!(until, i32::try_from(pin["sustained_until"].as_i64().unwrap()).unwrap());
-            assert_eq!(from, until, "only the licensed single-step Sustained form is pinned");
+            let pin_from = i32::try_from(pin["sustained_from"].as_i64().unwrap()).unwrap();
+            let pin_until = i32::try_from(pin["sustained_until"].as_i64().unwrap()).unwrap();
+            if from == until {
+                assert_eq!(from, pin_from);
+                assert_eq!(until, pin_until);
+            } else {
+                let multi = &expected["temporal_sustained_multistep"];
+                assert_eq!(from, i32::try_from(multi["sustained_from"].as_i64().unwrap()).unwrap());
+                assert_eq!(
+                    until,
+                    i32::try_from(multi["sustained_until"].as_i64().unwrap()).unwrap()
+                );
+            }
         }
-        _ => panic!("known-truth DBN fixture covers Pulse and single-step Sustained only"),
+        _ => panic!("known-truth DBN fixture covers Pulse and Sustained only"),
     }
 
     let (series, _g, q) = white_noise_pulse_series(n, seed);
@@ -360,6 +373,263 @@ fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
         assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1), suite);
     }
+}
+
+#[test]
+fn manufacturing_dbn_posterior_bayesian_sustained_multistep_envelope() {
+    assert_manufacturing_dbn_known_truth_mixture(
+        TemporalPolicy::sustained(-2, -1),
+        RefuteSuite::None,
+    );
+}
+
+#[test]
+fn manufacturing_dbn_posterior_multistep_sustained_refuses_cheap_rather_than_collapse() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_effect"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let seed = pin["seed"].as_u64().unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, _g, q) = white_noise_pulse_series(n, seed);
+    let q = q.with_policy(TemporalPolicy::sustained(-2, -1));
+    let gp = known_truth_dbn_posterior(pin, &weights, &q);
+    let ctx = ExecutionContext::for_tests(11);
+    let err = Study::series(series)
+        .graph_posterior(gp)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
+        ))
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap_err();
+    let message = err.to_string();
+    assert!(
+        message.contains("validation=none") && !message.contains("one-node"),
+        "multi-step DBN cheap must refuse rather than collapse, got {message}"
+    );
+}
+
+fn mediation_series(n: usize) -> (TimeSeriesData, MediationQuery) {
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut t = vec![0.0; n];
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for (i, slot) in t.iter_mut().enumerate() {
+        *slot = (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos();
+    }
+    for i in 1..n {
+        m[i] = 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin();
+        y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let q = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    );
+    (series, q)
+}
+
+fn known_truth_dbn_mediation_posterior(pin: &serde_json::Value, weights: &[f64]) -> GraphPosterior {
+    let identified_c = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let unidentified_c = pin["unidentified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let identified_l = pin["identified_atom"]["lag_mask"].as_u64().unwrap();
+    let unidentified_l = pin["unidentified_atom"]["lag_mask"].as_u64().unwrap();
+    assert!(mask_is_dag(identified_c, 3));
+    assert!(mask_is_dag(unidentified_c, 3));
+    assert_eq!(pin["unidentified_atom"]["identification_error"], "NotCertified");
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let unidentified_graph =
+        temporal_dag_from_dbn_masks(unidentified_c, unidentified_l, 3, 1, &variables).unwrap();
+    let q = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    );
+    let error = TemporalMediationIdentifier {
+        allow_natural_controlled_alias: true,
+        ..TemporalMediationIdentifier::new()
+    }
+    .identify_with_horizon(&unidentified_graph, &q, 1)
+    .unwrap_err();
+    assert!(
+        matches!(error, IdentificationError::NotCertified { .. }),
+        "autoregressive mediation atom must remain unidentified, got {error:?}"
+    );
+    let contemporaneous_marginals = vec![0.0; 9];
+    let lagged_marginals: Vec<f64> = pin["lagged_edge_marginals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![identified_c, unidentified_c],
+        contemporaneous_marginals.clone(),
+        contemporaneous_marginals,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, lagged_marginals)
+    .unwrap()
+    .with_lag_masks(vec![identified_l, unidentified_l])
+    .unwrap()
+    .with_algorithm("known_truth_fixture")
+}
+
+fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let effect_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    let (series, q) = mediation_series(n);
+    let gp = known_truth_dbn_mediation_posterior(pin, &weights);
+
+    let (ctx, sink) = recording_ctx(pin["seed"].as_u64().unwrap());
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(2048).prior_scale(10.0),
+        ))
+        .refute(suite)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let mut prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert_eq!(cached_count(&fresh), 0);
+    assert_eq!(cached_count(&click), 1);
+    assert_eq!(cached_count(&refreshed), 1);
+    let post = fresh.posterior.as_ref().expect("DBN mediation mixture posterior");
+    assert_eq!(post.identification, IdentificationStatus::GraphDependent);
+    assert!((post.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    let eq = post.effect_column().unwrap();
+    assert!(
+        (post.summaries.mean[eq] - effect_truth).abs() < tolerance,
+        "posterior mean={} truth={effect_truth}",
+        post.summaries.mean[eq]
+    );
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "identify.dbn_posterior.per_atom_horizon")
+    );
+    let mediation = fresh.mediation.as_ref().expect("mediation envelope");
+    assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
+    if suite != RefuteSuite::None {
+        assert!(!click.refutations.is_empty());
+        assert!(!click.predictive_checks.is_empty());
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture")
+        );
+    }
+    if suite == RefuteSuite::Full {
+        assert!(click.posterior.as_ref().unwrap().prior_sensitivity.is_some());
+    }
+}
+
+#[test]
+fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
+    for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+        assert_dbn_mediation_known_truth_mixture(suite);
+    }
+}
+
+#[test]
+fn dbn_posterior_response_curve_stays_refused() {
+    let (series, _g, q) = white_noise_pulse_series(64, 1);
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let weights = vec![0.7, 0.3];
+    let gp = known_truth_dbn_posterior(&pin["temporal_effect"], &weights, &q);
+    let response =
+        antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {
+            outcome: q.outcome,
+            treatment: antecedent_core::ContinuousDomain::new(
+                q.treatment,
+                antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            antecedent_core::TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None)
+                .unwrap(),
+        );
+    let err = Study::series(series)
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(response))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    assert!(
+        matches!(err, antecedent::CausalError::Support { .. })
+            || err.to_string().contains("response"),
+        "{err}"
+    );
 }
 
 #[test]

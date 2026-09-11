@@ -1399,4 +1399,14 @@ mod tests {
             assert!(refusal_reason(c).is_none());
         }
     }
+
+    #[test]
+    fn temporal_mediation_dbn_posterior_all_suites_are_licensed() {
+        for v in ["none", "cheap", "full"] {
+            let c =
+                cell("TemporalMediationEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
+            assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+            assert!(refusal_reason(c).is_none());
+        }
+    }
 }

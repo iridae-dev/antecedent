@@ -115,6 +115,10 @@ pub(crate) struct CachedDbnPosteriorAtomIdentification {
     pub identification: IdentificationResult,
     /// Finite-unfolding indexer produced with [`Self::identification`].
     pub indexer: TemporalIndexer,
+    /// Per-horizon `I(h)` for a mediation atom. Contrast atoms leave this empty
+    /// and use [`Self::identification`] / [`Self::indexer`] for the query horizon.
+    /// A union of these sets across atoms is not a shared adjustment set.
+    pub horizons: Option<CachedTemporalIdentification>,
 }
 
 /// Why identification-time DBN atoms were marked unidentified.
@@ -267,7 +271,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
     query: &TemporalEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
-    use crate::strategy_table::{EstimatorId, select_estimand};
+    use crate::strategy_table::select_estimand;
 
     let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
@@ -330,8 +334,8 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             identify_demotion.no_estimand += 1;
             continue;
         }
-        let Ok(estimand) = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)
-        else {
+        let estimator = dbn_temporal_effect_estimator(query);
+        let Ok(estimand) = select_estimand(&identification, estimator) else {
             flags.push(GraphIdentFlag::Unidentified);
             identify_demotion.no_estimand += 1;
             continue;
@@ -342,6 +346,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             estimand,
             identification,
             indexer: temporal.indexer,
+            horizons: None,
         });
     }
     if ctx.cancellation.is_cancelled() {
@@ -351,6 +356,139 @@ pub(crate) fn build_dbn_posterior_identification_cache(
     let graphs = WeightedGraphSamples::new(weights, flags, keys)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
     Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms), identify_demotion })
+}
+
+/// Identify every DBN atom for [`CausalQuery::Mediation`] (`TemporalMediationEffect`).
+///
+/// Each atom gets its own `I(h)` cache from that atom's reconstructed
+/// [`TemporalDag`]. Adjustment sets are not unioned across atoms or horizons.
+/// Identification failures stay unidentified; priors are not consulted.
+pub(crate) fn build_dbn_posterior_mediation_identification_cache(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &MediationQuery,
+    ctx: &ExecutionContext,
+) -> Result<CachedDbnPosteriorIdentification, CausalError> {
+    use crate::strategy_table::EstimatorId;
+
+    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "DBN posterior missing per-atom lag masks".into(),
+    })?;
+    let max_lag = posterior
+        .max_lag
+        .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
+    super::execute::report_identify_compute(ctx);
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    let mut identify_demotion = DbnIdentifyDemotion::default();
+
+    for i in 0..posterior.n_graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        let key = dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        let Ok(graph) = temporal_dag_from_dbn_masks(
+            posterior.adjacency[i],
+            lag_masks[i],
+            posterior.n_vars,
+            max_lag,
+            variables,
+        ) else {
+            flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.invalid_graph += 1;
+            continue;
+        };
+        let Ok(horizons) = identify_temporal_mediation_horizons(
+            &graph,
+            query,
+            EstimatorId::BayesianTemporalMediation,
+        ) else {
+            flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.identify_failed += 1;
+            continue;
+        };
+        let Some(first) = horizons.by_horizon.first() else {
+            flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.no_estimand += 1;
+            continue;
+        };
+        if !horizons.by_horizon.iter().all(|entry| {
+            super::execute::identification_status_ok_for_case(entry.identification.status)
+                && !entry.identification.estimands.is_empty()
+        }) {
+            flags.push(GraphIdentFlag::Unidentified);
+            identify_demotion.not_identified += 1;
+            continue;
+        }
+        flags.push(GraphIdentFlag::Identified);
+        atoms.push(CachedDbnPosteriorAtomIdentification {
+            key,
+            estimand: first.estimand.clone(),
+            identification: first.identification.clone(),
+            indexer: first.indexer.clone(),
+            horizons: Some(horizons),
+        });
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
+
+    let graphs = WeightedGraphSamples::new(weights, flags, keys)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms), identify_demotion })
+}
+
+fn dbn_temporal_effect_estimator(
+    query: &TemporalEffectQuery,
+) -> crate::strategy_table::EstimatorId {
+    use crate::strategy_table::EstimatorId;
+    if matches!(
+        query.policy,
+        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
+    ) {
+        EstimatorId::TemporalSequentialGcomp
+    } else {
+        EstimatorId::TemporalLinearAdjustment
+    }
+}
+
+/// Reconstruct the [`TemporalDag`] for a DBN envelope key (posterior index).
+pub(crate) fn temporal_dag_from_dbn_atom(
+    posterior: &GraphPosterior,
+    key: u64,
+    variables: &[antecedent_core::VariableId],
+) -> Result<TemporalDag, CausalError> {
+    let index = usize::try_from(key).map_err(|_| CausalError::Compile {
+        message: "DBN envelope key does not fit a posterior index".into(),
+    })?;
+    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "DBN posterior missing per-atom lag masks".into(),
+    })?;
+    let max_lag = posterior
+        .max_lag
+        .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
+    if index >= posterior.n_graphs || index >= lag_masks.len() {
+        return Err(CausalError::Compile { message: "DBN envelope key is out of range".into() });
+    }
+    temporal_dag_from_dbn_masks(
+        posterior.adjacency[index],
+        lag_masks[index],
+        posterior.n_vars,
+        max_lag,
+        variables,
+    )
+    .map_err(|error| CausalError::Compile { message: error.to_string() })
 }
 
 fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
@@ -1043,10 +1181,12 @@ impl Study {
     /// - series temporal [`CausalQuery::Response`] on a supplied [`GraphClass::TemporalDag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
     ///   on a supplied [`GraphClass::TemporalDag`]
-    /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
-    ///   on a supplied DBN graph posterior
+    /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step or
+    ///   multi-step Sustained) on a supplied DBN graph posterior
     /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
     ///   supplied [`GraphClass::TemporalDag`] (one `I(h)` per requested horizon)
+    /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
+    ///   supplied DBN graph posterior (per-atom `I(h)`, unidentified mass retained)
     ///
     /// Discovery inputs and review-required compiles are refused.
     ///
@@ -1085,6 +1225,18 @@ impl Study {
                     build_dbn_posterior_identification_cache(posterior, &variables, query, ctx)?,
                 ));
             }
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::Mediation(query),
+                Some(posterior),
+            ) => {
+                let variables: Vec<_> =
+                    data.schema().variables().iter().map(|variable| variable.id).collect();
+                analysis.dbn_posterior_identification_cache =
+                    Some(Arc::new(build_dbn_posterior_mediation_identification_cache(
+                        posterior, &variables, query, ctx,
+                    )?));
+            }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
@@ -1109,8 +1261,8 @@ impl Study {
                 return Err(CausalError::Support {
                     id: crate::support::SupportRefusal::Refused,
                     message: "graph_posterior on the prepared handle is licensed only for \
-                        tabular AverageEffect and series TemporalEffect (Pulse / single-step \
-                        Sustained)",
+                        tabular AverageEffect and series TemporalEffect or \
+                        TemporalMediationEffect",
                 });
             }
         }
@@ -1870,14 +2022,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
         return match (&analysis.data, &analysis.query) {
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_))
-            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
-                Ok(())
-            }
+            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_))
+            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => Ok(()),
             _ => Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: "graph_posterior on the prepared handle is licensed only for \
-                    tabular AverageEffect and series TemporalEffect (Pulse / single-step \
-                    Sustained)",
+                    tabular AverageEffect and series TemporalEffect or \
+                    TemporalMediationEffect",
             }),
         };
     }

@@ -148,13 +148,6 @@ structures = ["explicit"]
 inferences = ["Bayesian"]
 reason = "PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
 
-[[closed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run."
-
 # -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
 
 [[closed]]

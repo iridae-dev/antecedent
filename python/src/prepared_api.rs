@@ -1684,6 +1684,7 @@ impl PyPreparedAnalysis {
         outcome,
         *,
         policy="pulse",
+        window=None,
         treatment_lag=1,
         horizon_steps=1,
         active_level=1.0,
@@ -1708,6 +1709,7 @@ impl PyPreparedAnalysis {
         treatment: String,
         outcome: String,
         policy: &str,
+        window: Option<(i32, i32)>,
         treatment_lag: u32,
         horizon_steps: u32,
         active_level: f64,
@@ -1738,7 +1740,7 @@ impl PyPreparedAnalysis {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-            let q = crate::temporal_api::temporal_query_from_policy(
+            let mut q = crate::temporal_api::temporal_query_from_policy(
                 &policy,
                 t_id,
                 y_id,
@@ -1746,6 +1748,12 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 active_level,
             )?;
+            if let Some((from, until)) = window {
+                if policy != "sustained" {
+                    return Err(PyValueError::new_err("window requires policy='sustained'"));
+                }
+                q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+            }
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -1773,6 +1781,130 @@ impl PyPreparedAnalysis {
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .temporal_query(q)
+                .refute(suite)
+                .bootstrap_replicates(0);
+            builder = crate::temporal_api::apply_temporal_inference(
+                builder,
+                Some(inference.as_deref().unwrap_or("conjugate")),
+                n_draws,
+                prior_scale,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+        })
+    }
+
+    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior × Bayesian.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        mediator,
+        outcome,
+        *,
+        contrast="mediated",
+        control_level=0.0,
+        active_level=1.0,
+        horizons=None,
+        max_lag=1,
+        force_mcmc=false,
+        n_chains=2,
+        n_warmup=200,
+        mcmc_draws=400,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        threads=1,
+        posterior=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_dbn_posterior_mediation(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        mediator: String,
+        outcome: String,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        horizons: Option<Vec<u32>>,
+        max_lag: u32,
+        force_mcmc: bool,
+        n_chains: u32,
+        n_warmup: u32,
+        mcmc_draws: u32,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let supplied = posterior
+            .map(|bound| {
+                let posterior = bound.borrow();
+                posterior.require_bound_to(&names)?;
+                posterior.to_rust()
+            })
+            .transpose()?;
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let contrast = contrast.to_string();
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+            let m_id = series.schema().id_of(&mediator).map_err(py_err)?;
+            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+            let contrast = match contrast.to_ascii_lowercase().as_str() {
+                "total" => MediationContrast::Total,
+                "direct" => MediationContrast::Direct,
+                "mediated" | "indirect" => MediationContrast::Mediated,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown mediation contrast {other:?}; use total|direct|mediated"
+                    )));
+                }
+            };
+            let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
+            q.control = Intervention::set(t_id, Value::f64(control_level));
+            q.active = Intervention::set(t_id, Value::f64(active_level));
+            if let Some(hs) = horizons {
+                q = q.with_horizons(hs).map_err(py_msg)?;
+            }
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let gp = if let Some(gp) = supplied {
+                gp
+            } else {
+                let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+                let schedule =
+                    GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+                discover_dbn_posterior(
+                    &series,
+                    &vars,
+                    &BayesianDiscoverParams::default(),
+                    max_lag,
+                    force_mcmc,
+                    &schedule,
+                    &ctx,
+                )
+                .map_err(py_err)?
+            };
+            let mut builder = Study::series(series)
+                .graph_posterior(gp)
+                .query(CausalQuery::Mediation(q))
                 .refute(suite)
                 .bootstrap_replicates(0);
             builder = crate::temporal_api::apply_temporal_inference(

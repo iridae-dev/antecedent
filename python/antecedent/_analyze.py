@@ -83,6 +83,9 @@ from ._native import (
     analyze_temporal_graph_posterior as _analyze_temporal_graph_posterior,
 )
 from ._native import (
+    analyze_temporal_graph_posterior_mediation as _analyze_temporal_graph_posterior_mediation,
+)
+from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
 )
 from ._native import (
@@ -280,6 +283,56 @@ def handle_temporal_mediation(
 ) -> Any:
     from .estimation import _lagged_edges, _wrap_temporal
 
+    if isinstance(discovery, (GraphPosterior, DbnPosterior)):
+        if not isinstance(inference, Bayesian):
+            raise TypeError(
+                "graph-posterior discovery requires inference=Bayesian(...) "
+                "for temporal mediation mixture"
+            )
+        from .estimation import PreparedAnalysis, _bayesian_inference_kwargs, _wrap_ate
+
+        if isinstance(discovery, DbnPosterior):
+            prepared = PreparedAnalysis.prepare(
+                data,
+                query=query,
+                discovery=discovery,
+                inference=inference,
+                refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return prepared.estimate(data, seed=seed, threads=threads)
+        names, columns = ingest_columns(data)
+        bayes_kw = _bayesian_inference_kwargs(inference)
+        unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
+        if unsupported:
+            raise CausalUnsupportedError(
+                "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
+                f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
+            )
+        return _wrap_ate(
+            _analyze_temporal_graph_posterior_mediation(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.mediator,
+                query.outcome,
+                contrast=query.contrast,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                horizons=list(query.horizons or (1,)),
+                inference=bayes_kw["inference"],
+                n_draws=bayes_kw["n_draws"],
+                prior_scale=bayes_kw["prior_scale"],
+                refute=refute,
+                seed=seed,
+                bootstrap=0 if bootstrap is None else bootstrap,
+                threads=threads,
+            ),
+            query=query,
+        )
     if discovery is not None:
         raise ValueError("TemporalMediationEffect does not support discovery=")
     if isinstance(inference, Bayesian):
@@ -1146,6 +1199,7 @@ def handle_supplied_graph_posterior(
             query.treatment,
             query.outcome,
             policy=query.kind,
+            window=getattr(query, "window", None),
             treatment_lag=query.treatment_lag,
             horizon_steps=query.horizon_steps,
             active_level=query.active_level,
@@ -1833,6 +1887,20 @@ def _handle_series_discover(
                 "discovery=DbnPosterior(...) requires inference=Bayesian(...) "
                 "for temporal effect mixture"
             )
+        if getattr(query, "window", None) is not None:
+            from .estimation import PreparedAnalysis
+
+            prepared = PreparedAnalysis.prepare(
+                data,
+                query=query,
+                discovery=discovery,
+                inference=inference,
+                refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return prepared.estimate(data, seed=seed, threads=threads)
         cfg = _discovery_algorithm(discovery)
         names, columns = as_columns(data)
         raw = _analyze_temporal_discover(

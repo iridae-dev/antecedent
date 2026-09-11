@@ -1468,7 +1468,46 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_sustained_envelope"
-limitations = "Frozen structural mixture pins the single-step Sustained effect at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately: effect refuters run on every contributing atom against the mixture mean and mix by posterior mass, plus PPC on cheap; full adds prior-sensitivity aggregating contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Frozen structural mixture pins single-step Sustained and two-step Sustained [-2, -1] at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. Multi-step uses sequential g-computation with no last-step collapse. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed for the single-step form with 1.2 DBN refuters (effect refuters on every contributing atom against the mixture mean, mix by posterior mass, plus PPC; full adds prior-sensitivity). Multi-step windows require validation=none."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_bayesian_mediation_envelope"
+limitations = "Known-truth DBN mediation mixture pins the mediated effect at 0.44; a valid autoregressive atom is NotCertified, so its 0.3 weight remains unidentified and priors do not upgrade ID. Each atom uses that atom's I(h) cache rather than a union Z. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately with the 1.2 mediation suite (placebo-mediator, RCC, mechanism PPC; full adds contiguous-window stability and contrast prior sensitivity) mixed by posterior mass."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_bayesian_mediation_envelope"
+limitations = "Same frozen mediation mixture as none: mediated E[tau | identified]=0.44 with 0.3 unidentified mass retained and per-atom I(h). Cheap runs the 1.2 mediation suite on every contributing atom against the mixture effect using that atom's I(h), mixes reports by posterior mass, and adds mechanism PPC."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_bayesian_mediation_envelope"
+limitations = "Same frozen mediation mixture as none: mediated E[tau | identified]=0.44 with 0.3 unidentified mass retained and per-atom I(h). Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC, mixed by posterior mass."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -1974,7 +2013,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Cheap/full are licensed for the single-step form; multi-step windows require validation=none."
 
 [[cell]]
 query = "SustainedEffect"
@@ -1985,7 +2024,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Cheap/full are licensed for the single-step form; multi-step windows require validation=none."
 
 [[cell]]
 query = "TemporalMediationEffect"

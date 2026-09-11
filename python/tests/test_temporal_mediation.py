@@ -18,7 +18,6 @@ def test_temporal_mediation_decomposition():
         y[i] = 0.5 * m[i] + 0.02 * np.sin(i)
     data = {"t": t, "m": m, "y": y}
     edges = [
-        ("t", 1, "t", 0),
         ("t", 1, "m", 0),
         ("m", 0, "y", 0),
     ]
@@ -57,7 +56,7 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
     data = {"t": t, "m": m, "y": y}
     graph = antecedent.TemporalDag.from_lagged_edges(
         ["t", "m", "y"],
-        [("t", 1, "t", 0), ("t", 1, "m", 0), ("m", 0, "y", 0)],
+        [("t", 1, "m", 0), ("m", 0, "y", 0)],
     )
     result = handle_temporal_mediation(
         data,

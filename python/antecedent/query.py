@@ -239,7 +239,8 @@ class SustainedEffect:
     By default the intervention is at ``-treatment_lag``. ``window=(from_, until)``
     replaces that default with inclusive signed time offsets. Multi-step windows
     use sequential Gaussian g-computation on an explicit or accepted TemporalDag,
-    with ``refute="none"``; the outcome is at ``horizon_steps - 1``.
+    or a Bayesian DBN graph-posterior mixture, with ``refute="none"``; the
+    outcome is at ``horizon_steps - 1``. Cheap/full stay single-step.
     """
 
     treatment: str
