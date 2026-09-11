@@ -8,6 +8,7 @@ use crate::intervention::TemporalPolicy;
 use crate::{Intervention, TargetPopulation, VariableId};
 
 use super::QueryError;
+use super::functional::OutcomeFunctional;
 
 /// Maximum number of discrete horizons a temporal response may request.
 pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
@@ -489,6 +490,8 @@ pub struct ResponseQuery {
     pub observation_assumptions: Arc<[ObservationAssumption]>,
     /// Optional temporal attachment (ADR 0021). `None` = static response cell.
     pub temporal: Option<TemporalResponseSpec>,
+    /// Outcome functional (mean or exceedance). Identification is unchanged.
+    pub outcome_functional: OutcomeFunctional,
 }
 
 impl ResponseQuery {
@@ -501,7 +504,15 @@ impl ResponseQuery {
             observation: ObservationSpec::Complete,
             observation_assumptions: Arc::from([]),
             temporal: None,
+            outcome_functional: OutcomeFunctional::Mean,
         }
+    }
+
+    /// Set the outcome functional. Identification uses the same adjustment set.
+    #[must_use]
+    pub fn with_outcome_functional(mut self, functional: OutcomeFunctional) -> Self {
+        self.outcome_functional = functional;
+        self
     }
 
     /// Attach an explicit observation process and its assumptions.
@@ -542,6 +553,7 @@ impl ResponseQuery {
     ///
     /// [`QueryError`] when variables, dimensions, values, or observation semantics are invalid.
     pub fn validate(&self) -> Result<(), QueryError> {
+        self.outcome_functional.validate()?;
         self.validate_temporal_attachment()?;
         match &self.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
@@ -638,6 +650,7 @@ impl ResponseQuery {
             }
         }
         self.target_population.validate()?;
+        self.outcome_functional.validate()?;
         Ok(())
     }
 

@@ -15,6 +15,7 @@ use super::target::{PredicateExpr, TargetPopulation};
 pub struct PopulationRegistry {
     predicates: BTreeMap<Arc<str>, Arc<[usize]>>,
     distributions: BTreeMap<u32, Arc<[f64]>>,
+    distribution_dependencies: BTreeMap<u32, Arc<[crate::VariableId]>>,
 }
 
 impl PopulationRegistry {
@@ -32,6 +33,24 @@ impl PopulationRegistry {
     /// Bind a custom distribution handle to non-negative row weights (length = `n`).
     pub fn insert_distribution(&mut self, id: DistributionRef, weights: impl Into<Arc<[f64]>>) {
         self.distributions.insert(id.raw(), weights.into());
+        self.distribution_dependencies.remove(&id.raw());
+    }
+
+    /// Bind known standardization weights and their caller-declared covariate parents.
+    pub fn insert_distribution_with_dependence(
+        &mut self,
+        id: DistributionRef,
+        weights: impl Into<Arc<[f64]>>,
+        depends_on: impl Into<Arc<[crate::VariableId]>>,
+    ) {
+        self.distributions.insert(id.raw(), weights.into());
+        self.distribution_dependencies.insert(id.raw(), depends_on.into());
+    }
+
+    /// Declared parents of known standardization weights (empty means constant weights).
+    #[must_use]
+    pub fn distribution_dependencies(&self, id: DistributionRef) -> Option<&[crate::VariableId]> {
+        self.distribution_dependencies.get(&id.raw()).map(std::convert::AsRef::as_ref)
     }
 
     /// Look up a named predicate.

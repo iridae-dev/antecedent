@@ -176,6 +176,8 @@ impl super::Study {
 
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
         let mut total_w = 0.0;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -186,12 +188,7 @@ impl super::Study {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id)?;
-            // Generalized-adjustment estimands are backdoor-shaped; estimators expect
-            // the canonical backdoor method tag.
-            if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                estimand.method = Arc::from("backdoor.adjustment");
-            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
             let mut case_ws = StaticEstimateWorkspaces::default();
             // Honour a caller-configured estimator across every equivalence-class case,
             // falling back to id-only selection when none was supplied.
@@ -214,6 +211,14 @@ impl super::Study {
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
+            if let Some(inf) = estimate
+                .influence
+                .as_deref()
+                .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
+            {
+                atom_ifs.push(inf);
+                atom_weights.push(w);
+            }
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
@@ -234,12 +239,23 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "PAG envelope missing estimand".into(),
         })?;
-        let estimate = EffectEstimate::new(
+        let n_contributing = se_items.len();
+        let se = if atom_ifs.len() == n_contributing {
+            mix_static_envelope_se(&atom_ifs, &atom_weights)
+        } else {
+            mix_weighted_analytic_se(se_items)
+        };
+        let mut estimate = EffectEstimate::new(
             weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
+            se,
             assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
+        if atom_ifs.len() == n_contributing {
+            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
+                estimate.influence = Some(inf);
+            }
+        }
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
@@ -259,7 +275,9 @@ impl super::Study {
         diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(envelope_se_omits_between_atom_variance());
+        if !estimate.se_analytic.is_finite() {
+            diagnostics.push(envelope_se_omits_between_atom_variance());
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -370,6 +388,8 @@ impl super::Study {
 
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
         let mut total_w = 0.0;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -380,10 +400,7 @@ impl super::Study {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id)?;
-            if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                estimand.method = Arc::from("backdoor.adjustment");
-            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
             let mut case_ws = StaticEstimateWorkspaces::default();
             let case_spec = self
                 .estimator_spec
@@ -404,6 +421,14 @@ impl super::Study {
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
+            if let Some(inf) = estimate
+                .influence
+                .as_deref()
+                .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
+            {
+                atom_ifs.push(inf);
+                atom_weights.push(w);
+            }
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
@@ -424,12 +449,23 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "CPDAG envelope missing estimand".into(),
         })?;
-        let estimate = EffectEstimate::new(
+        let n_contributing = se_items.len();
+        let se = if atom_ifs.len() == n_contributing {
+            mix_static_envelope_se(&atom_ifs, &atom_weights)
+        } else {
+            mix_weighted_analytic_se(se_items)
+        };
+        let mut estimate = EffectEstimate::new(
             weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
+            se,
             assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
+        if atom_ifs.len() == n_contributing {
+            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
+                estimate.influence = Some(inf);
+            }
+        }
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
@@ -449,7 +485,9 @@ impl super::Study {
         diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(envelope_se_omits_between_atom_variance());
+        if !estimate.se_analytic.is_finite() {
+            diagnostics.push(envelope_se_omits_between_atom_variance());
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,

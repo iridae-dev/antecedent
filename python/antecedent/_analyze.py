@@ -50,6 +50,9 @@ from ._native import (
     analyze_ate_pag_arrow_c as _analyze_ate_pag_arrow_c,
 )
 from ._native import (
+    analyze_ate_tiered as _analyze_ate_tiered,
+)
+from ._native import (
     analyze_conditional as _analyze_conditional,
 )
 from ._native import (
@@ -110,7 +113,7 @@ from .estimation import (
     AnalysisResult,
     _resolve_latency_budget,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .observation import Complete as _ObservationComplete
@@ -219,6 +222,7 @@ def handle_conditional(
     structure_accepted: bool = False,
 ) -> Any:
     from .estimation import _static_edges, _wrap_ate
+    from .query import coerce_outcome_functional
 
     if discovery is not None:
         raise ValueError("ConditionalEffect does not support discovery=")
@@ -251,6 +255,7 @@ def handle_conditional(
         query.modifier,
         control_level=query.control_level,
         active_level=query.active_level,
+        outcome_functional=coerce_outcome_functional(getattr(query, "outcome_functional", None)),
         refute=refute,
         validators=list(validators) if validators is not None else None,
         seed=seed,
@@ -366,6 +371,7 @@ def handle_response(
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
     from .estimation import _response_support_bounds, _static_edges, _support_point_status
+    from .query import coerce_outcome_functional
     from .results import (
         CausalResponseView,
         IdentificationView,
@@ -376,6 +382,22 @@ def handle_response(
         SupportReport,
     )
     from .results.response import SupportStatus, UncertaintyKind
+
+    functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+    if (
+        functional is not None
+        and functional.get("kind") == "quantile"
+        and (
+            not isinstance(query, InterventionResponse)
+            or getattr(query, "is_temporal", False)
+            or isinstance(inference, Bayesian)
+            or estimator
+            not in ((None, "cell.aipw") if isinstance(graph, TieredBackground) else ("cell.aipw",))
+        )
+    ):
+        raise CausalUnsupportedError(
+            "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights"
+        )
 
     if discovery is not None:
         if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
@@ -515,6 +537,46 @@ def handle_response(
             refute=refute if refute_requested else False,
         )
         return _wrap_prepared_response(temporal_raw, query)
+    if estimator == "cell.aipw" and isinstance(query, InterventionResponse):
+        if estimator_config is not None:
+            raise CausalUnsupportedError("cell.aipw does not accept response estimator_config")
+        if bootstrap_requested:
+            raise CausalUnsupportedError(
+                "cell.aipw uses analytic influence uncertainty, not bootstrap"
+            )
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            validators=validators,
+            refute="none" if not refute_requested else refute,
+            seed=seed,
+            bootstrap=None,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
+    if isinstance(graph, TieredBackground):
+        if not isinstance(query, InterventionResponse):
+            raise CausalUnsupportedError(
+                "TieredBackground response cells are licensed for joint InterventionResponse"
+            )
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            validators=validators,
+            refute="none" if not refute_requested else refute,
+            seed=seed,
+            bootstrap=None,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
     if (
         graph is not None
         and not isinstance(graph, (Dag, Pag))
@@ -1267,14 +1329,49 @@ def handle_static_ate(
         common["on_stage"] = on_stage
 
     pop = coerce_target_population(getattr(query, "target_population", None))
+    from .query import coerce_outcome_functional
+
+    functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
     preds, dists = registry_wire(population_registry)
     pop_kw: dict[str, Any] = {}
     if pop is not None:
         pop_kw["target_population"] = pop
+    if functional is not None:
+        pop_kw["outcome_functional"] = functional
     if preds:
         pop_kw["population_predicates"] = preds
     if dists:
         pop_kw["population_distributions"] = dists
+    if isinstance(graph, TieredBackground):
+        if pop is not None or preds or dists:
+            raise CausalUnsupportedError(
+                "tiered Python execution does not yet accept target populations"
+            )
+        names, columns = ingest_columns(data)
+        return _wrap_ate(
+            _analyze_ate_tiered(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                bootstrap=bootstrap or 0,
+                threads=threads,
+                outcome_functional=functional,
+                latency=latency,
+                identifier=identifier,
+                validators=list(validators) if validators is not None else None,
+                cancel=cancel,
+                on_progress=on_progress,
+            ),
+            query=query,
+        )
     if pop_kw and isinstance(graph, (Pag, Cpdag, Admg)):
         raise ValueError(
             "target_population / population_registry currently require a Dag "
@@ -1971,6 +2068,7 @@ def analyze(
         | TemporalDag
         | TemporalCpdag
         | TemporalPag
+        | TieredBackground
         | Sequence[tuple[str, str]]
         | Sequence[tuple[str, int, str, int]]
         | None
@@ -2049,7 +2147,8 @@ def analyze(
         ``"none"``) / :class:`antecedent.Refute` member. Leave unset (``None``)
         to run the default suite — passing the literal ``True`` raises
         ``TypeError`` (it carried no information beyond "unset" and was easy
-        to confuse with an explicit choice).
+        to confuse with an explicit choice). ``PreparedBatch`` / ``prepare``
+        default ``refute`` off (``none``); this one-shot path defaults on.
     cancel:
         Optional ``CancellationToken`` from ``antecedent._native``. Refused
         with live discovery strategies; supported on compatible ``graph=``
@@ -2172,6 +2271,11 @@ def analyze(
         )
         if graph is None:
             raise ValueError("this query requires graph=")
+        if isinstance(graph, TieredBackground):
+            raise CausalUnsupportedError(
+                "staged Bayesian / path-specific prepare does not take TieredBackground; "
+                "joint CoDetermined cells use Frequentist cell.aipw"
+            )
         from .estimation import PreparedAnalysis
 
         unsupported = [

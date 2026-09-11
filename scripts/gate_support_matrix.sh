@@ -105,10 +105,24 @@ if not m:
     live_graphs: list[str] = []
 else:
     live_graphs = re.findall(r"^\s+([A-Z][A-Za-z0-9]+),", m.group(1), re.M)
-if sorted(graph_classes) != sorted(live_graphs):
+# GraphClass must be on the axis. Classification-only extras (tier-rule
+# backgrounds) may appear in addition; they are not GraphClass variants.
+TIER_EXTRAS = {"CoDetermined", "Unknown"}
+if not set(live_graphs) <= set(graph_classes):
     fail.append(
-        "parity/support_axes.toml graph_classes != GraphClass: "
+        "parity/support_axes.toml graph_classes must contain GraphClass: "
         f"axes={sorted(graph_classes)} live={sorted(live_graphs)}"
+    )
+unknown_extras = set(graph_classes) - set(live_graphs) - TIER_EXTRAS
+if unknown_extras:
+    fail.append(
+        "parity/support_axes.toml graph_classes has extras that are not "
+        f"GraphClass or tier-rule axes: {sorted(unknown_extras)}"
+    )
+if not TIER_EXTRAS <= set(graph_classes):
+    fail.append(
+        "parity/support_axes.toml graph_classes must include "
+        f"{sorted(TIER_EXTRAS)} (classification-only tier-rule axes)"
     )
 
 expected_structures = {"explicit", "accepted", "graph_posterior"}

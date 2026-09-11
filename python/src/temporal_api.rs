@@ -1783,6 +1783,43 @@ fn analysis_result_from_run(
         // this stays correct if a temporal path ever computes one.
         overlap_ess: result.estimate.overlap_report.as_ref().and_then(|r| r.ess),
         overlap_propensity_min: result.estimate.overlap_report.as_ref().map(|r| r.propensity_min),
+        // Mirror the static DTO: read whatever the estimate actually holds.
+        // 1.9 temporal paths do not license these 1.5 grid/score payloads; when
+        // they are absent the StudyResult fields are already empty.
+        functional_means: result
+            .estimate
+            .score_inference
+            .as_ref()
+            .map(|s| s.raw_means.clone())
+            .or_else(|| {
+                result
+                    .estimate
+                    .score_table
+                    .as_ref()
+                    .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
+            }),
+        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: result.estimate.monotone_rearranged,
+        interaction_structurally_zero: result
+            .response
+            .as_ref()
+            .map(|r| r.interaction_structurally_zero)
+            .or(Some(result.estimate.interaction_structurally_zero)),
+        score_table: None,
+        joint_covariance: result
+            .estimate
+            .joint_covariance
+            .as_ref()
+            .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
+        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        simultaneous_interval: None,
+        adjusted_p_values: None,
+        family_contrast: None,
+        family_contrast_interval: None,
+        candidate_selection: None,
+        evalue: None,
     };
     let posterior_section = PosteriorSection {
         effect_mean: posterior_effect_mean,
@@ -1795,7 +1832,7 @@ fn analysis_result_from_run(
         artifact: posterior_artifact.clone(),
         unidentified_mass: posterior_unidentified_mass,
     };
-    let validation = ValidationSection::from_reports(refutations.clone());
+    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
         plan_id: plan_id.clone(),
         modality: modality.clone(),
@@ -1873,7 +1910,7 @@ fn analysis_result_from_run(
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        refutation_count: refutations.len(),
+        refutation_count: validation.count,
         refutations,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,

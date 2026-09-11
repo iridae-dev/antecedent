@@ -1,0 +1,7 @@
+{
+  "true_effect": 1.5,
+  "tolerance": 0.1,
+  "identifier": "response.backdoor",
+  "estimator": "cell.aipw",
+  "notes": "Pure-interaction DGP: additive g-comp interaction is structurally zero; cell-AIPW recovers 1.5. Consumed by v15_numeric_pins::joint_response_honors_requested_cell_and_retarget."
+}

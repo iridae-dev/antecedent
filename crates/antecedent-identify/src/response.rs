@@ -47,6 +47,7 @@ impl ResponseIdentifier {
     }
 
     /// Identify every treatment/outcome pair required by a response functional.
+    #[allow(clippy::too_many_lines)]
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -104,18 +105,33 @@ impl ResponseIdentifier {
                 .saturating_add(result.performance.candidates_examined);
             performance.sets_returned =
                 performance.sets_returned.saturating_add(result.performance.sets_returned);
-            if result.status != IdentificationStatus::NonparametricallyIdentified {
-                derivation.push(
-                    "response.backdoor",
-                    format!("pair ({treatment},{outcome}) was not identified"),
-                );
-                return Ok(IdentificationResult::not_identified(
-                    query.clone(),
-                    derivation,
-                    assumptions,
-                    performance,
-                ));
-            }
+            let result = if result.status == IdentificationStatus::NonparametricallyIdentified {
+                result
+            } else {
+                match crate::response_id::identify_dag_via_id(prepared.dag(), response)? {
+                    id if id.status == IdentificationStatus::NonparametricallyIdentified => {
+                        derivation.push(
+                            "identify.response.general_id",
+                            format!(
+                                "pair ({treatment},{outcome}) identified by Shpitser–Pearl ID after back-door failed"
+                            ),
+                        );
+                        id
+                    }
+                    _ => {
+                        derivation.push(
+                            "response.backdoor",
+                            format!("pair ({treatment},{outcome}) was not identified"),
+                        );
+                        return Ok(IdentificationResult::not_identified(
+                            query.clone(),
+                            derivation,
+                            assumptions,
+                            performance,
+                        ));
+                    }
+                }
+            };
             let Some(first) = result.estimands.first() else {
                 return Ok(IdentificationResult::not_identified(
                     query.clone(),
@@ -124,13 +140,45 @@ impl ResponseIdentifier {
                     performance,
                 ));
             };
-            let functional = arena.backdoor_ate(
-                treatment,
-                outcome,
-                first.adjustment_set.as_ref(),
-                Value::f64(1.0),
-                Value::f64(0.0),
-            );
+            if first.method_kind().ok() == Some(antecedent_expr::EstimandMethod::GeneralId) {
+                let mut identified = result;
+                identified.query = query.clone();
+                return Ok(identified);
+            }
+            let functional = match &response.functional {
+                ResponseFunctional::InterventionResponse { interventions, .. } => {
+                    let level = interventions.iter().find_map(|iv| match iv {
+                        antecedent_core::Intervention::Set { variable, value }
+                            if *variable == treatment =>
+                        {
+                            Some(value.clone())
+                        }
+                        _ => None,
+                    });
+                    match level {
+                        Some(level) => arena.backdoor_mean(
+                            treatment,
+                            outcome,
+                            first.adjustment_set.as_ref(),
+                            level,
+                        ),
+                        None => arena.backdoor_ate(
+                            treatment,
+                            outcome,
+                            first.adjustment_set.as_ref(),
+                            Value::f64(1.0),
+                            Value::f64(0.0),
+                        ),
+                    }
+                }
+                _ => arena.backdoor_ate(
+                    treatment,
+                    outcome,
+                    first.adjustment_set.as_ref(),
+                    Value::f64(1.0),
+                    Value::f64(0.0),
+                ),
+            };
             estimands.push(IdentifiedEstimand::backdoor(
                 "backdoor.adjustment",
                 Arc::clone(&first.adjustment_set),

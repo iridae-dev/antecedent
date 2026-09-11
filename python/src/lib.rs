@@ -56,6 +56,21 @@ pub(crate) use temporal_api::{
     RpcmciDiscoverySummary,
 };
 
+pub(crate) fn parse_within_tier(
+    within_tier: Option<&str>,
+) -> PyResult<antecedent_graph::WithinTier> {
+    let Some(raw) = within_tier else {
+        return Err(PyValueError::new_err("within_tier is required when tiers are supplied"));
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "codetermined" => Ok(antecedent_graph::WithinTier::CoDetermined),
+        "unknown" => Ok(antecedent_graph::WithinTier::Unknown),
+        other => Err(PyValueError::new_err(format!(
+            "within_tier must be codetermined|unknown, got {other}"
+        ))),
+    }
+}
+
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
 type PriorSensitivityFields =
@@ -909,6 +924,139 @@ struct EstimateSection {
     /// Minimum estimated propensity score. `None` on the temporal DTO.
     #[pyo3(get)]
     overlap_propensity_min: Option<f64>,
+    /// Per-arm / per-threshold interventional means or exceedance probabilities.
+    #[pyo3(get)]
+    functional_means: Option<Vec<f64>>,
+    /// Rearranged `F_a(c)` when an exceedance grid was estimated.
+    #[pyo3(get)]
+    exceedance_cdf: Option<Vec<f64>>,
+    /// Whether `exceedance_cdf` was isotonically rearranged (cov/bands stay raw).
+    #[pyo3(get)]
+    monotone_rearranged: bool,
+    /// Additive joint-response disclosure.
+    #[pyo3(get)]
+    interaction_structurally_zero: Option<bool>,
+    /// Score-table metadata (n, folds, provenance). Full scores stay on the artifact.
+    #[pyo3(get)]
+    score_table: Option<ScoreTableSection>,
+    #[pyo3(get)]
+    joint_covariance: Option<Vec<Vec<f64>>>,
+    #[pyo3(get)]
+    score_inference: Option<ScoreInferenceSection>,
+    #[pyo3(get)]
+    scenario_effects: Option<Vec<f64>>,
+    #[pyo3(get)]
+    scenario_intervals: Option<Vec<(f64, f64)>>,
+    #[pyo3(get)]
+    simultaneous_interval: Option<(f64, f64, f64)>,
+    #[pyo3(get)]
+    adjusted_p_values: Option<(f64, f64)>,
+    #[pyo3(get)]
+    family_contrast: Option<(f64, f64)>,
+    #[pyo3(get)]
+    family_contrast_interval: Option<(f64, f64, f64)>,
+    #[pyo3(get)]
+    candidate_selection: Option<CandidateSelectionSection>,
+    #[pyo3(get)]
+    evalue: Option<f64>,
+}
+
+/// Typed candidate-selection provenance on a batch result.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CandidateSelectionSection {
+    #[pyo3(get)]
+    screen_id: String,
+    #[pyo3(get)]
+    procedure: String,
+    #[pyo3(get)]
+    winner_index: Option<usize>,
+    #[pyo3(get)]
+    family_size: usize,
+    #[pyo3(get)]
+    screen_rows: Vec<u32>,
+    #[pyo3(get)]
+    estimate_rows: Vec<u32>,
+    #[pyo3(get)]
+    disjoint: bool,
+}
+
+/// Typed score-table payload on an estimate section.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ScoreTableSection {
+    #[pyo3(get)]
+    n_rows: usize,
+    #[pyo3(get)]
+    n_folds: u32,
+    #[pyo3(get)]
+    provenance: String,
+    #[pyo3(get)]
+    columns: Vec<(u32, Option<f64>)>,
+    #[pyo3(get)]
+    scores: Vec<f64>,
+    #[pyo3(get)]
+    row_index: Vec<u32>,
+    #[pyo3(get)]
+    fold_ids: Vec<u32>,
+    #[pyo3(get)]
+    adjustment_set: Vec<u32>,
+    #[pyo3(get)]
+    observed_arm: Vec<u32>,
+    #[pyo3(get)]
+    propensities: Vec<f64>,
+    #[pyo3(get)]
+    observed_outcome: Vec<f64>,
+    #[pyo3(get)]
+    treatment: u32,
+    #[pyo3(get)]
+    intervened: Vec<u32>,
+}
+
+/// Typed simultaneous inference and weighted support for score columns.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ScoreInferenceSection {
+    #[pyo3(get)]
+    raw_means: Vec<f64>,
+    #[pyo3(get)]
+    lower: Vec<f64>,
+    #[pyo3(get)]
+    upper: Vec<f64>,
+    #[pyo3(get)]
+    level: f64,
+    #[pyo3(get)]
+    critical_value: f64,
+    #[pyo3(get)]
+    event_n_eff: Vec<f64>,
+    #[pyo3(get)]
+    threshold_supported: Vec<bool>,
+    #[pyo3(get)]
+    n_eff: f64,
+    #[pyo3(get)]
+    n_eff_by_arm: Vec<f64>,
+    #[pyo3(get)]
+    propensity_range: Option<(f64, f64)>,
+    #[pyo3(get)]
+    overlap_ok: bool,
+}
+
+impl From<&antecedent_estimate::scores::ScoreInference> for ScoreInferenceSection {
+    fn from(s: &antecedent_estimate::scores::ScoreInference) -> Self {
+        Self {
+            raw_means: s.raw_means.clone(),
+            lower: s.lower.clone(),
+            upper: s.upper.clone(),
+            level: s.level,
+            critical_value: s.critical_value,
+            event_n_eff: s.event_n_eff.clone(),
+            threshold_supported: s.threshold_supported.clone(),
+            n_eff: s.support.n_eff,
+            n_eff_by_arm: s.support.n_eff_by_arm.clone(),
+            propensity_range: s.support.propensity_range,
+            overlap_ok: s.support.overlap_ok,
+        }
+    }
 }
 
 /// Posterior section (mirrors the top-level scalar fields of
@@ -963,6 +1111,18 @@ struct ValidationSection {
     /// Per-refuter records, one per validator run.
     #[pyo3(get)]
     reports: Vec<RefutationReportView>,
+    #[pyo3(get)]
+    computation_failures: Vec<ValidationFailureSection>,
+}
+
+/// A validator attempted computation but could not produce a scientific verdict.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct ValidationFailureSection {
+    #[pyo3(get)]
+    validator: String,
+    #[pyo3(get)]
+    reason: String,
 }
 
 impl ValidationSection {
@@ -972,11 +1132,28 @@ impl ValidationSection {
     /// rule. Kept as a plain function (not tied to `RefutationReport` internals) so
     /// both `ate_result_from_analysis` and `analysis_result_from_run` call the exact
     /// same logic instead of maintaining two copies of the aggregate rule.
-    fn from_reports(reports: Vec<RefutationReportView>) -> Self {
-        let ran = !reports.is_empty();
-        let passed = ran && reports.iter().all(|r| r.passed);
-        let count = reports.len();
-        Self { passed, ran, count, reports }
+    fn from_reports(
+        reports: Vec<RefutationReportView>,
+        diagnostics: &[antecedent_core::Diagnostic],
+    ) -> Self {
+        let computation_failures: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.code.as_ref() == "refute.validator.failed")
+            .map(|d| {
+                let field = |name: &str| {
+                    d.fields
+                        .iter()
+                        .find(|(k, _)| k.as_ref() == name)
+                        .map(|(_, v)| v.to_string())
+                        .unwrap_or_default()
+                };
+                ValidationFailureSection { validator: field("validator"), reason: field("reason") }
+            })
+            .collect();
+        let count = reports.len() + computation_failures.len();
+        let ran = count > 0;
+        let passed = ran && computation_failures.is_empty() && reports.iter().all(|r| r.passed);
+        Self { passed, ran, count, reports, computation_failures }
     }
 }
 
@@ -1313,7 +1490,9 @@ pub(crate) fn columns_to_batch(
         .iter()
         .map(|c| {
             let slice = c.as_array();
-            let values: Vec<f64> = slice.iter().copied().collect();
+            // NumPy has no validity bitmap: NaN is its missing-value sentinel.
+            let values: Vec<Option<f64>> =
+                slice.iter().map(|&v| (!v.is_nan()).then_some(v)).collect();
             Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
         })
         .collect();
@@ -1584,8 +1763,12 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RefutationReportView>()?;
     m.add_class::<IdentificationSection>()?;
     m.add_class::<EstimateSection>()?;
+    m.add_class::<CandidateSelectionSection>()?;
+    m.add_class::<ScoreTableSection>()?;
+    m.add_class::<ScoreInferenceSection>()?;
     m.add_class::<PosteriorSection>()?;
     m.add_class::<ValidationSection>()?;
+    m.add_class::<ValidationFailureSection>()?;
     m.add_class::<PerformanceSection>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
@@ -1612,6 +1795,29 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::panic_payload_msg;
     use std::any::Any;
+
+    #[test]
+    fn computation_failure_cannot_be_a_validation_pass() {
+        use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
+        use std::sync::Arc;
+        let mut d = Diagnostic::new(
+            "refute.validator.failed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "failed fit",
+        );
+        d.fields = Arc::from([
+            (Arc::from("validator"), Arc::from("overlap")),
+            (Arc::from("reason"), Arc::from("singular fit")),
+        ]);
+        let result = super::ValidationSection::from_reports(vec![], &[d]);
+        assert!(result.ran);
+        assert!(!result.passed);
+        assert_eq!(result.count, 1);
+        assert!(result.reports.is_empty());
+        assert_eq!(result.computation_failures[0].validator, "overlap");
+        assert_eq!(result.computation_failures[0].reason, "singular fit");
+    }
 
     #[test]
     fn panic_payload_formats_str_and_string() {

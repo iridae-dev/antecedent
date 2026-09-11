@@ -36,6 +36,91 @@ def _require_finite(field_name: str, value: float) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class Mean:
+    """Default outcome functional ``E[Y(a)]``."""
+
+    kind: Literal["mean"] = field(default="mean", init=False, repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class Exceedance:
+    """Tail probability ``P(Y(a) > threshold)``."""
+
+    threshold: float
+    _: KW_ONLY
+    kind: Literal["exceedance"] = field(default="exceedance", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _require_finite("threshold", self.threshold)
+
+
+@dataclass(frozen=True, slots=True)
+class ExceedanceGrid:
+    """Exceedance on a strictly increasing threshold grid."""
+
+    thresholds: Sequence[float]
+    _: KW_ONLY
+    kind: Literal["exceedance_grid"] = field(default="exceedance_grid", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not self.thresholds:
+            raise CausalValueError("exceedance grid must be non-empty")
+        prev = float("-inf")
+        for value in self.thresholds:
+            _require_finite("thresholds", float(value))
+            if float(value) <= prev:
+                raise CausalValueError("exceedance grid must be strictly increasing")
+            prev = float(value)
+
+
+@dataclass(frozen=True, slots=True)
+class Quantile:
+    """Finite-grid quantile ``F_a^{-1}(tau)`` on licensed Frequentist CDF paths.
+
+    Effect queries return active minus control quantiles. ConditionalEffect
+    standardizes arm CDFs over the retained modifier distribution before inversion.
+    Joint InterventionResponse returns the requested cell's quantile level.
+    Requires no refutation; uncertainty excludes grid selection and interpolation bias.
+    """
+
+    tau: float
+    _: KW_ONLY
+    kind: Literal["quantile"] = field(default="quantile", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _require_finite("tau", self.tau)
+        if not 0.0 < float(self.tau) < 1.0:
+            raise CausalValueError("tau must lie in (0, 1)")
+
+
+def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
+    """Normalize an outcome functional to the native wire dict."""
+    if spec is None or isinstance(spec, Mean) or spec == "mean":
+        return None
+    if isinstance(spec, Exceedance):
+        return {"kind": "exceedance", "threshold": float(spec.threshold)}
+    if isinstance(spec, ExceedanceGrid):
+        return {"kind": "exceedance_grid", "thresholds": [float(c) for c in spec.thresholds]}
+    if isinstance(spec, Quantile):
+        return {"kind": "quantile", "tau": float(spec.tau)}
+    if isinstance(spec, Mapping):
+        kind = str(spec.get("kind", "mean")).lower()
+        if kind == "mean":
+            return None
+        if kind == "exceedance":
+            return {"kind": "exceedance", "threshold": float(spec["threshold"])}
+        if kind in {"exceedance_grid", "grid"}:
+            return {
+                "kind": "exceedance_grid",
+                "thresholds": [float(c) for c in spec["thresholds"]],
+            }
+        if kind == "quantile":
+            return {"kind": "quantile", "tau": float(spec["tau"])}
+        raise CausalValueError(f"unknown outcome_functional kind {kind!r}")
+    raise CausalValueError(f"unsupported outcome_functional type: {type(spec)!r}")
+
+
+@dataclass(frozen=True, slots=True)
 class TemporalResponseSpec:
     """Licensed temporal-response query policy, supplied by Rust.
 
@@ -125,6 +210,7 @@ class AverageEffect:
     control_level: float = 0.0
     active_level: float = 1.0
     target_population: object | None = None
+    outcome_functional: object | None = None
     kind: Literal["average"] = field(default="average", init=False, repr=False)
 
 
@@ -204,6 +290,7 @@ class ConditionalEffect:
     _: KW_ONLY
     control_level: float = 0.0
     active_level: float = 1.0
+    outcome_functional: object | None = None
     kind: Literal["conditional"] = field(default="conditional", init=False, repr=False)
 
 
@@ -458,6 +545,7 @@ class InterventionResponse:
     policy: str = temporal_response_spec.default_policy
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     max_history_lag: int | None = None
+    outcome_functional: object | None = None
     kind: Literal["intervention_response"] = field(
         default="intervention_response", init=False, repr=False
     )
@@ -480,11 +568,15 @@ __all__ = [
     "Counterfactual",
     "DirectionalDerivative",
     "Elasticity",
+    "Exceedance",
+    "ExceedanceGrid",
     "InterventionalDistribution",
     "InterventionResponse",
+    "Mean",
     "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
+    "Quantile",
     "PointDerivative",
     "ResponseCurve",
     "ResponseJacobian",
@@ -492,5 +584,6 @@ __all__ = [
     "SustainedEffect",
     "TemporalMediationEffect",
     "TemporalResponseSpec",
+    "coerce_outcome_functional",
     "temporal_response_spec",
 ]

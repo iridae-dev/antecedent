@@ -16,7 +16,7 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
+use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
     LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
@@ -25,7 +25,9 @@ use antecedent_stats::{
 
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::prepare::{require_method, treatment_contrast, validate_ate_query_with_targets};
+use crate::prepare::{
+    require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
+};
 use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
@@ -61,8 +63,15 @@ pub struct EstimationWorkspace {
 /// Point estimate with uncertainty.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(clippy::struct_excessive_bools)]
 pub struct EffectEstimate {
-    /// Point estimate: ATE, or mean ITE for the counterfactual cell.
+    /// Reported scalar.
+    ///
+    /// For average-effect claims this is the ATE contrast. For `cell.aipw`
+    /// joint cells it is the requested interventional **level**
+    /// (`E[Y | do(A=a,…)]` or a single-threshold `F_a(c)`), not a contrast.
+    /// Testing this field against zero is only valid when it is a contrast.
+    /// Family p-values on joint cells use [`Self::family_contrast`].
     pub ate: f64,
     /// Analytic IID standard error (homoskedastic).
     pub se_analytic: f64,
@@ -87,6 +96,65 @@ pub struct EffectEstimate {
     pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// Cross-fitted AIPW score table when the estimator exported one.
+    pub score_table: Option<crate::scores::ScoreTable>,
+    /// Simultaneous score-family bands and target-local support.
+    pub score_inference: Option<crate::scores::ScoreInference>,
+    /// Effects under declared canonical orientation scenarios, in estimand order.
+    pub scenario_effects: Option<Arc<[f64]>>,
+    /// Simultaneous batch interval (lower, upper, level).
+    ///
+    /// Joint-cell batches keep this on cell **levels**. Contrast-family bands
+    /// live on [`Self::family_contrast_interval`].
+    pub simultaneous_interval: Option<(f64, f64, f64)>,
+    /// BH and BY adjusted p-values for the fixed batch family.
+    pub adjusted_p_values: Option<(f64, f64)>,
+    /// Declared family contrast `(value, se)` when batch inference tested a
+    /// contrast rather than [`Self::ate`]. `None` for average-effect claims
+    /// (`ate` is already the contrast) and when no cell contrast was declared.
+    pub family_contrast: Option<(f64, f64)>,
+    /// Simultaneous interval `(lower, upper, level)` for [`Self::family_contrast`].
+    ///
+    /// Formed from contrast-family max-t, not the cell-level covariance used
+    /// by [`Self::simultaneous_interval`]. `None` when no contrast was declared
+    /// or contrast max-t could not form.
+    pub family_contrast_interval: Option<(f64, f64, f64)>,
+    /// Simultaneous intervals for canonical scenarios; not bounds on all completions.
+    pub scenario_intervals: Option<Arc<[(f64, f64)]>>,
+    /// Joint IF covariance across arms / thresholds / cells / claims.
+    pub joint_covariance: Option<crate::joint_if::JointCovariance>,
+    /// Per-threshold `F_a(c) = 1 - P(Y(a) > c)` after monotone rearrangement.
+    pub exceedance_cdf: Option<Arc<[f64]>>,
+    /// `true` when `exceedance_cdf` / grid means were isotonically rearranged.
+    /// Joint covariance and score-inference bands always describe the raw AIPW scores.
+    pub monotone_rearranged: bool,
+    /// Whether an additive joint path makes the interaction contrast structurally zero.
+    pub interaction_structurally_zero: bool,
+    /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
+    pub influence: Option<Arc<[f64]>>,
+    /// Point E-value for the reported effect when a named no-latent premise is in force.
+    pub evalue: Option<f64>,
+    /// Candidate-selection screen recorded on a batch family (artifact payload).
+    pub candidate_selection: Option<CandidateSelectionRecord>,
+}
+
+/// Screen / estimate split recorded on a batch result artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CandidateSelectionRecord {
+    /// Caller-stable screen run id, or `"unrecorded"`.
+    pub screen_id: Arc<str>,
+    /// Selection rule wire name (`max_t`, `bh`, `by`, `unrecorded`).
+    pub procedure: Arc<str>,
+    /// Winning query index in the supplied family, or `None` when ranking is unavailable.
+    pub winner_index: Option<usize>,
+    /// Family size.
+    pub family_size: usize,
+    /// Row indexes used to screen candidates.
+    pub screen_rows: Arc<[u32]>,
+    /// Row indexes used to estimate the surfaced family.
+    pub estimate_rows: Arc<[u32]>,
+    /// Whether the two halves are disjoint.
+    pub disjoint: bool,
 }
 
 impl EffectEstimate {
@@ -111,6 +179,21 @@ impl EffectEstimate {
             overlap_report: None,
             first_stage_diagnostics: None,
             retained_memory_bytes: None,
+            score_table: None,
+            score_inference: None,
+            scenario_effects: None,
+            simultaneous_interval: None,
+            adjusted_p_values: None,
+            family_contrast: None,
+            family_contrast_interval: None,
+            scenario_intervals: None,
+            joint_covariance: None,
+            exceedance_cdf: None,
+            monotone_rearranged: false,
+            interaction_structurally_zero: false,
+            influence: None,
+            evalue: None,
+            candidate_selection: None,
         }
     }
 
@@ -143,6 +226,21 @@ impl EffectEstimate {
             overlap_report,
             first_stage_diagnostics: None,
             retained_memory_bytes,
+            score_table: None,
+            score_inference: None,
+            scenario_effects: None,
+            simultaneous_interval: None,
+            adjusted_p_values: None,
+            family_contrast: None,
+            family_contrast_interval: None,
+            scenario_intervals: None,
+            joint_covariance: None,
+            exceedance_cdf: None,
+            monotone_rearranged: false,
+            interaction_structurally_zero: false,
+            influence: None,
+            evalue: None,
+            candidate_selection: None,
         }
     }
 
@@ -160,6 +258,78 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
         self.overlap_report = overlap_report;
+        self
+    }
+
+    /// Attach a cross-fitted score table.
+    #[must_use]
+    pub fn with_score_table(mut self, table: Option<crate::scores::ScoreTable>) -> Self {
+        self.score_table = table;
+        self
+    }
+
+    /// Attach joint IF covariance.
+    #[must_use]
+    pub fn with_joint_covariance(mut self, cov: Option<crate::joint_if::JointCovariance>) -> Self {
+        self.joint_covariance = cov;
+        self
+    }
+
+    /// Attach per-threshold CDF values `F_a(c)`.
+    #[must_use]
+    pub fn with_exceedance_cdf(mut self, cdf: Option<Arc<[f64]>>) -> Self {
+        self.exceedance_cdf = cdf;
+        self
+    }
+
+    /// Record whether exceedance means were isotonically rearranged.
+    ///
+    /// When `true`, [`Self::simultaneous_interval`] is cleared: those intervals
+    /// must not mix rearranged means with raw covariance.
+    #[must_use]
+    pub fn with_monotone_rearranged(mut self, rearranged: bool) -> Self {
+        self.monotone_rearranged = rearranged;
+        if rearranged {
+            self.simultaneous_interval = None;
+        }
+        self
+    }
+
+    /// Mark that a joint interaction contrast is structurally zero on this path.
+    #[must_use]
+    pub fn with_interaction_structurally_zero(mut self, zero: bool) -> Self {
+        self.interaction_structurally_zero = zero;
+        self
+    }
+
+    /// Attach a per-row influence sequence for the reported scalar.
+    #[must_use]
+    pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
+        self.influence = influence;
+        self
+    }
+
+    /// Attach a point E-value for a named no-latent / unmeasured-confounding premise.
+    #[must_use]
+    pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
+        self.evalue = evalue;
+        self
+    }
+
+    /// Attach the declared family contrast `(value, se)` used for batch FDR.
+    #[must_use]
+    pub fn with_family_contrast(mut self, contrast: Option<(f64, f64)>) -> Self {
+        self.family_contrast = contrast;
+        if contrast.is_none() {
+            self.family_contrast_interval = None;
+        }
+        self
+    }
+
+    /// Attach the contrast-family simultaneous interval `(lower, upper, level)`.
+    #[must_use]
+    pub fn with_family_contrast_interval(mut self, interval: Option<(f64, f64, f64)>) -> Self {
+        self.family_contrast_interval = interval;
         self
     }
 
@@ -365,10 +535,9 @@ impl LinearAdjustmentAte {
             self.overlap,
             "LinearAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        require_method(
+        require_adjustment_shaped(
             estimand,
-            &[EstimandMethod::BackdoorAdjustment],
-            "LinearAdjustmentAte expects backdoor.adjustment",
+            "LinearAdjustmentAte expects an adjustment-shaped estimand",
         )?;
         validate_ate_query_with_targets(query)?;
         let treatment = query.treatment;
@@ -472,8 +641,17 @@ impl LinearAdjustmentAte {
             )
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
+        let influence = treatment_coef_influence(
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            t_col,
+            &residuals,
+            problem.treatment_delta,
+        );
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_influence(Some(Arc::from(influence))))
     }
 
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
@@ -580,6 +758,114 @@ impl LinearAdjustmentAte {
         }
     }
 
+    /// ATE from the configured linear fit on a row-resample of a prepared design.
+    ///
+    /// `row_src[r]` copies design row `row_src[r]` onto output row `r`. Length must
+    /// equal `problem.design.nrows`. For `AllObserved` / `Predicate` the ATE is
+    /// `β_T · Δ` and does not reread treatment labels.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, out-of-range source row, or fit failure.
+    pub fn ate_on_row_indices(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+    ) -> Result<f64, EstimationError> {
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        if row_src.len() != n {
+            return Err(EstimationError::data_msg(
+                "row resample length must match the prepared design",
+            ));
+        }
+        let mut x_boot = vec![0.0; n * p];
+        let mut y_boot = vec![0.0; n];
+        self.ate_on_row_indices_into(problem, workspace, row_src, &mut x_boot, &mut y_boot)
+    }
+
+    /// [`Self::ate_on_row_indices`] using caller-owned gather buffers.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, out-of-range source row, or fit failure.
+    pub fn ate_on_row_indices_into(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+        x_boot: &mut [f64],
+        y_boot: &mut [f64],
+    ) -> Result<f64, EstimationError> {
+        let t_col = problem
+            .design
+            .treatment_column()
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
+        let coefs = self.fit_resampled_coefficients(problem, workspace, row_src, x_boot, y_boot)?;
+        gcomp_or_coef_ate(problem, &coefs, t_col)
+    }
+
+    fn fit_resampled_coefficients(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+        x_boot: &mut [f64],
+        y_boot: &mut [f64],
+    ) -> Result<Vec<f64>, EstimationError> {
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        if row_src.len() != n || y_boot.len() != n || x_boot.len() != n * p {
+            return Err(EstimationError::data_msg("row resample buffers must match the design"));
+        }
+        for (r, &src) in row_src.iter().enumerate() {
+            if src >= n {
+                return Err(EstimationError::data_msg("row resample index out of range"));
+            }
+            y_boot[r] = problem.design.outcome[src];
+            for c in 0..p {
+                x_boot[c * n + r] = problem.design.matrix[c * n + src];
+            }
+        }
+        match self.fit_kind {
+            LinearFitKind::Ols => {
+                let fit = self
+                    .backend
+                    .least_squares(x_boot, n, p, y_boot, &mut workspace.ols)
+                    .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+            LinearFitKind::Ridge { lambda } => {
+                let fit =
+                    fit_ridge(x_boot, n, p, y_boot, lambda, &self.backend, &mut workspace.ols)
+                        .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+            LinearFitKind::Lasso { lambda } => {
+                let fit = fit_lasso_with_ones_column(
+                    x_boot,
+                    n,
+                    p,
+                    y_boot,
+                    &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
+                )
+                .map_err(EstimationError::from)?;
+                let mut coefficients = Vec::with_capacity(p);
+                coefficients.push(fit.intercept);
+                coefficients.extend_from_slice(&fit.coefficients);
+                Ok(coefficients)
+            }
+            LinearFitKind::Huber { c } => {
+                let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
+                let fit =
+                    fit_huber_m(x_boot, n, p, y_boot, &opts, &self.backend, &mut workspace.ols)
+                        .map_err(EstimationError::from)?;
+                Ok(fit.coefficients)
+            }
+        }
+    }
+
     fn bootstrap_se(
         &self,
         problem: &PreparedEstimationProblem,
@@ -592,67 +878,11 @@ impl LinearAdjustmentAte {
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
         crate::util::bootstrap_se(self.bootstrap_replicates, ctx, 0xA7E_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                y_boot[r] = problem.design.outcome[src];
-                for c in 0..p {
-                    x_boot[c * n + r] = problem.design.matrix[c * n + src];
-                }
+            match self.fit_resampled_coefficients(problem, workspace, idx, &mut x_boot, &mut y_boot)
+            {
+                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
+                Err(_) => Ok(None),
             }
-            let coefs = match self.fit_kind {
-                LinearFitKind::Ols => {
-                    match self.backend.least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Ridge { lambda } => {
-                    match fit_ridge(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        lambda,
-                        &self.backend,
-                        &mut workspace.ols,
-                    ) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Lasso { lambda } => {
-                    match fit_lasso_with_ones_column(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
-                    ) {
-                        Ok(fit) => {
-                            let mut coefficients = Vec::with_capacity(p);
-                            coefficients.push(fit.intercept);
-                            coefficients.extend_from_slice(&fit.coefficients);
-                            coefficients
-                        }
-                        Err(_) => return Ok(None),
-                    }
-                }
-                LinearFitKind::Huber { c } => {
-                    let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-                    match fit_huber_m(
-                        &x_boot,
-                        n,
-                        p,
-                        &y_boot,
-                        &opts,
-                        &self.backend,
-                        &mut workspace.ols,
-                    ) {
-                        Ok(fit) => fit.coefficients,
-                        Err(_) => return Ok(None),
-                    }
-                }
-            };
-            Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?))
         })
     }
 }
@@ -728,6 +958,32 @@ fn analytic_se_treatment(
         return f64::NAN;
     };
     (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+}
+
+/// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
+fn treatment_coef_influence(
+    matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    residuals: &[f64],
+    delta: f64,
+) -> Vec<f64> {
+    if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
+        return vec![0.0; residuals.len()];
+    }
+    let t = &matrix[t_col * nrows..t_col * nrows + nrows];
+    let t_mean = t.iter().sum::<f64>() / nrows as f64;
+    let mut ss = 0.0;
+    for &ti in t {
+        let d = ti - t_mean;
+        ss += d * d;
+    }
+    if ss <= 0.0 {
+        return vec![0.0; nrows];
+    }
+    let scale = delta * nrows as f64 / ss;
+    residuals.iter().zip(t.iter()).map(|(&e, &ti)| e * (ti - t_mean) * scale).collect()
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
@@ -891,6 +1147,9 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-8);
         assert!(effect.se_bootstrap.is_some());
+        let identity: Vec<usize> = (0..prep.design.nrows).collect();
+        let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
+        assert!((resampled - effect.ate).abs() < 1e-12);
     }
 
     #[test]

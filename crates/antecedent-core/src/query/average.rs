@@ -10,6 +10,7 @@ use crate::value::Value;
 
 use super::TargetPopulation;
 use super::error::QueryError;
+use super::functional::OutcomeFunctional;
 
 /// Average treatment effect (ATE / ATT-style) query.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -27,6 +28,8 @@ pub struct AverageEffectQuery {
     pub active: Intervention,
     /// Target population.
     pub target_population: TargetPopulation,
+    /// Outcome functional (mean or exceedance). Identification is unchanged.
+    pub outcome_functional: OutcomeFunctional,
 }
 
 impl AverageEffectQuery {
@@ -47,6 +50,7 @@ impl AverageEffectQuery {
             control,
             active,
             target_population,
+            outcome_functional: OutcomeFunctional::Mean,
         }
     }
 
@@ -87,6 +91,7 @@ impl AverageEffectQuery {
             control: Intervention::set(treatment, Value::f64(control_level)),
             active: Intervention::set(treatment, Value::f64(active_level)),
             target_population: TargetPopulation::AllObserved,
+            outcome_functional: OutcomeFunctional::Mean,
         }
     }
 
@@ -101,6 +106,13 @@ impl AverageEffectQuery {
     #[must_use]
     pub fn with_target_population(mut self, population: TargetPopulation) -> Self {
         self.target_population = population;
+        self
+    }
+
+    /// Set the outcome functional. Identification uses the same adjustment set.
+    #[must_use]
+    pub fn with_outcome_functional(mut self, functional: OutcomeFunctional) -> Self {
+        self.outcome_functional = functional;
         self
     }
 
@@ -133,6 +145,7 @@ impl AverageEffectQuery {
             return Err(QueryError::ModifierOverlapsTreatmentOrOutcome);
         }
         self.target_population.validate()?;
+        self.outcome_functional.validate()?;
         Ok(())
     }
 }

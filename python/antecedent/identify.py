@@ -383,6 +383,9 @@ def identify(
 ) -> Identification:
     """Identify without estimating; returns a stageable :class:`Identification`.
 
+    ``TieredBackground`` is Rust-only in 1.5 (``identify_tiered`` /
+    ``identify_tiered_joint``). This Python entry does not accept a tier rule.
+
     Same parameters as the one-shot identify-only call
     (:func:`antecedent.estimation.identify`, still available unchanged for
     callers that only want the ``IdentifyResult`` shape) — the difference is

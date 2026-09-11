@@ -16,9 +16,9 @@ pub(super) use std::time::Instant;
 
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec, PopulationRegistry,
-    ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
+    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
@@ -33,10 +33,12 @@ pub(super) use antecedent_estimate::{
     FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
     OverlapPolicy, PreparedBayesianProblem, RdWorkspace, SharpRegressionDiscontinuity,
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    TemporalResponseEstimator, aggregate_effect_envelope, nonidentified_with_prior,
+    TemporalResponseEstimator, aggregate_effect_envelope, functional_cell_unevaluable,
+    nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
+    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalContext, EvalError, ExprNode,
+    IdentifiedEstimand, OutcomeExprId,
 };
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
 pub(super) use antecedent_identify::{
@@ -67,12 +69,13 @@ pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
     StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
     StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
-    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
-    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
-    compile_logical_static_pag_ate, compile_logical_static_pag_response,
-    compile_logical_static_response, compile_logical_temporal_class_effect,
-    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
-    compile_logical_temporal_response, reject_dag_only_on_pag,
+    compile_logical_codetermined_joint, compile_logical_distribution,
+    compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
+    compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
+    compile_logical_static_pag_response, compile_logical_static_response,
+    compile_logical_temporal_class_effect, compile_logical_temporal_effect,
+    compile_logical_temporal_effect_classified, compile_logical_temporal_response,
+    reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
@@ -94,8 +97,8 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, refute_outcomes, run_refuters, validator_not_applicable_diagnostic,
-    validator_not_applicable_diagnostics,
+    push_conflict_diagnostics, refute_outcomes, run_plugin_level_refuters, run_refuters,
+    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -164,13 +167,21 @@ pub struct Study {
     /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
     pub(crate) dbn_posterior_identification_cache:
         Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
+    /// Optional tier-rule background for O(p) closure certification.
+    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
+    /// Refused: coarsened continuous coordinate is not a point CDE.
+    pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
+    /// Shared fold assignment / covariate design when this study is part of a batch.
+    pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
 }
 
 impl std::fmt::Debug for Study {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Study")
+            .field("continuous_cell", &self.continuous_cell)
             .field("data", &"<data>")
             .field("graph", &self.graph)
+            .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
             .field("structure_source", &self.structure_source)
             .field("support_status", &self.support_status)
@@ -212,6 +223,7 @@ impl std::fmt::Debug for Study {
                 "dbn_posterior_identification_cache_is_some",
                 &self.dbn_posterior_identification_cache.is_some(),
             )
+            .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
             .finish()
     }
 }

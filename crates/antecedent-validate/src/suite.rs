@@ -165,6 +165,13 @@ impl std::fmt::Display for ValidatorId {
 pub enum ValidationOutcome {
     /// Validator ran and produced a report.
     Report(RefutationReport),
+    /// Validator could not compute a scientific verdict.
+    Failed {
+        /// Stable validator name (built-in or custom).
+        validator: Arc<str>,
+        /// Operational or numerical failure (not evidence against the claim).
+        reason: Arc<str>,
+    },
     /// Validator was requested but is incompatible with this problem.
     NotApplicable {
         /// Validator id.
@@ -223,6 +230,12 @@ impl ValidationSuite {
         Self::new().with(ValidatorId::Overlap).with(ValidatorId::EValue)
     }
 
+    /// Overlap only. Used when an E-value would be applied to a level, not a contrast.
+    #[must_use]
+    pub fn overlap_only() -> Self {
+        Self::new().with(ValidatorId::Overlap)
+    }
+
     /// Falsifiers of the causal claim (placebo, dummy outcome, RCC, UCC, overlap, E-value,
     /// sensitivity, Riesz). Does not include sampling-stability checks.
     #[must_use]
@@ -258,6 +271,19 @@ impl ValidationSuite {
         s
     }
 
+    /// Overlap + sampling-stability of a reported *level* (not a treatment contrast).
+    ///
+    /// Omits placebo, dummy outcome, RCC/UCC, E-value, sensitivity, and Riesz.
+    #[must_use]
+    pub fn plugin_level_full() -> Self {
+        Self::new()
+            .with(ValidatorId::Overlap)
+            .with(ValidatorId::OverlapRule)
+            .with(ValidatorId::Bootstrap)
+            .with(ValidatorId::DataSubset)
+            .with(ValidatorId::Graph)
+    }
+
     /// Run all configured validators.
     ///
     /// # Errors
@@ -271,10 +297,19 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            out.push(self.run_one(id, problem, workspace, ctx)?);
+            out.push(computation_outcome(id, self.run_one(id, problem, workspace, ctx))?);
         }
         for custom in &self.custom {
-            out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));
+            out.push(match custom.validate(problem, ctx) {
+                Ok(report) => ValidationOutcome::Report(report),
+                Err(
+                    error @ (ValidationError::Cancelled | ValidationError::NotApplicable { .. }),
+                ) => return Err(error),
+                Err(error) => ValidationOutcome::Failed {
+                    validator: Arc::from(custom.name()),
+                    reason: Arc::from(error.to_string()),
+                },
+            });
         }
         Ok(out)
     }
@@ -298,29 +333,43 @@ impl ValidationSuite {
         for &id in &self.validators {
             // Temporal designs fall through to `run_one`, which returns the same
             // `NotApplicable` outcomes as the plain `run` path for these validators.
-            let outcome = match id {
-                ValidatorId::Overlap if problem.temporal.is_none() => ValidationOutcome::Report(
-                    crate::overlap::OverlapRefuter::new()
-                        .refute_with_propensity(problem, propensity)?,
-                ),
-                ValidatorId::OverlapRule if problem.temporal.is_none() => {
-                    ValidationOutcome::Report(
-                        OverlapRuleRefuter::new().refute_with_propensity(problem, propensity)?,
-                    )
-                }
-                ValidatorId::Riesz
-                    if problem.temporal.is_none() && crate::common::binary_treatment(problem)? =>
-                {
-                    ValidationOutcome::Report(
-                        RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
-                    )
-                }
-                _ => self.run_one(id, problem, workspace, ctx)?,
-            };
-            out.push(outcome);
+            let outcome = (|| -> Result<ValidationOutcome, ValidationError> {
+                Ok(match id {
+                    ValidatorId::Overlap if problem.temporal.is_none() => overlap_as_outcome(
+                        crate::overlap::OverlapRefuter::new()
+                            .refute_with_propensity(problem, propensity),
+                        problem,
+                    ),
+                    ValidatorId::OverlapRule if problem.temporal.is_none() => {
+                        ValidationOutcome::Report(
+                            OverlapRuleRefuter::new()
+                                .refute_with_propensity(problem, propensity)?,
+                        )
+                    }
+                    ValidatorId::Riesz
+                        if problem.temporal.is_none()
+                            && crate::common::binary_treatment(problem)? =>
+                    {
+                        ValidationOutcome::Report(
+                            RieszSensitivity::new().refute_with_propensity(problem, propensity)?,
+                        )
+                    }
+                    _ => self.run_one(id, problem, workspace, ctx)?,
+                })
+            })();
+            out.push(computation_outcome(id, outcome)?);
         }
         for custom in &self.custom {
-            out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));
+            out.push(match custom.validate(problem, ctx) {
+                Ok(report) => ValidationOutcome::Report(report),
+                Err(
+                    error @ (ValidationError::Cancelled | ValidationError::NotApplicable { .. }),
+                ) => return Err(error),
+                Err(error) => ValidationOutcome::Failed {
+                    validator: Arc::from(custom.name()),
+                    reason: Arc::from(error.to_string()),
+                },
+            });
         }
         Ok(out)
     }
@@ -332,7 +381,7 @@ impl ValidationSuite {
             .iter()
             .filter_map(|o| match o {
                 ValidationOutcome::Report(r) => Some(r.clone()),
-                ValidationOutcome::NotApplicable { .. } => None,
+                ValidationOutcome::NotApplicable { .. } | ValidationOutcome::Failed { .. } => None,
             })
             .collect()
     }
@@ -353,7 +402,7 @@ impl ValidationSuite {
         outcomes
             .iter()
             .filter_map(|o| match o {
-                ValidationOutcome::Report(_) => None,
+                ValidationOutcome::Report(_) | ValidationOutcome::Failed { .. } => None,
                 ValidationOutcome::NotApplicable { validator, reason } => {
                     Some((*validator, Arc::clone(reason)))
                 }
@@ -376,7 +425,7 @@ impl ValidationSuite {
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
-            out.push(self.run_one_bayesian(id, bayes, ctx)?);
+            out.push(computation_outcome(id, self.run_one_bayesian(id, bayes, ctx))?);
         }
         // Custom validators need a RefutationProblem; Bayesian path leaves them unused here.
         let _ = &self.custom;
@@ -391,7 +440,7 @@ impl ValidationSuite {
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
         let method = problem.estimand.method_kind().ok();
-        let static_linear = method == Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
+        let static_linear = problem.estimand.is_adjustment_shaped()
             && problem.estimator.is_none_or(|e| {
                 // Conditional's licensed number is the interaction-model scalar at Ē[W].
                 // That is an effect, so the effect suite runs; skipping it because the
@@ -473,12 +522,10 @@ impl ValidationSuite {
                          (propensity uses schema adjustment columns)",
                     ));
                 }
-                Ok(ValidationOutcome::Report(run_validator(
-                    &OverlapRefuter::new(),
+                Ok(overlap_as_outcome(
+                    run_validator(&OverlapRefuter::new(), problem, workspace, ctx),
                     problem,
-                    workspace,
-                    ctx,
-                )?))
+                ))
             }
             ValidatorId::OverlapRule => {
                 if problem.temporal.is_some() {
@@ -682,6 +729,62 @@ fn na(id: ValidatorId, reason: &str) -> ValidationOutcome {
     ValidationOutcome::NotApplicable { validator: id, reason: Arc::from(reason) }
 }
 
+fn computation_outcome(
+    id: ValidatorId,
+    result: Result<ValidationOutcome, ValidationError>,
+) -> Result<ValidationOutcome, ValidationError> {
+    match result {
+        Ok(outcome) => Ok(outcome),
+        Err(ValidationError::Cancelled) => Err(ValidationError::Cancelled),
+        Err(ValidationError::NotApplicable { message }) => Ok(na(id, message)),
+        Err(error) => Ok(ValidationOutcome::Failed {
+            validator: Arc::from(id.as_str()),
+            reason: Arc::from(error.to_string()),
+        }),
+    }
+}
+
+/// Overlap propensity failures are typed per-validator results, not claim aborts.
+fn overlap_as_outcome(
+    result: Result<RefutationReport, ValidationError>,
+    _problem: &RefutationProblem<'_>,
+) -> ValidationOutcome {
+    match result {
+        Ok(report) => ValidationOutcome::Report(report),
+        Err(err) => ValidationOutcome::Failed {
+            validator: Arc::from(ValidatorId::Overlap.as_str()),
+            reason: Arc::from(err.to_string()),
+        },
+    }
+}
+
+#[cfg(test)]
+mod failure_tests {
+    use super::*;
+
+    #[test]
+    fn computation_failures_keep_cancellation_and_incompatibility_distinct() {
+        assert!(matches!(
+            computation_outcome(ValidatorId::Overlap, Err(ValidationError::Cancelled)),
+            Err(ValidationError::Cancelled)
+        ));
+        assert!(matches!(
+            computation_outcome(
+                ValidatorId::EValue,
+                Err(ValidationError::NotApplicable { message: "constant outcome" })
+            ),
+            Ok(ValidationOutcome::NotApplicable { .. })
+        ));
+        assert!(matches!(
+            computation_outcome(
+                ValidatorId::Overlap,
+                Err(ValidationError::estimation_msg("singular fit"))
+            ),
+            Ok(ValidationOutcome::Failed { .. })
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
@@ -789,5 +892,25 @@ mod tests {
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);
         assert!(reports.len() >= 10, "reports={}", reports.len());
+    }
+
+    #[test]
+    fn plugin_level_full_omits_contrast_shaped_validators() {
+        let ids: Vec<_> = ValidationSuite::plugin_level_full().validators;
+        assert!(ids.contains(&ValidatorId::Overlap));
+        assert!(ids.contains(&ValidatorId::Bootstrap));
+        for banned in [
+            ValidatorId::Placebo,
+            ValidatorId::RandomCommonCause,
+            ValidatorId::UnobservedCommonCause,
+            ValidatorId::DummyOutcome,
+            ValidatorId::EValue,
+            ValidatorId::LinearSensitivity,
+            ValidatorId::PartialLinearSensitivity,
+            ValidatorId::NonparametricSensitivity,
+            ValidatorId::Riesz,
+        ] {
+            assert!(!ids.contains(&banned), "plugin_level_full must omit {banned:?}");
+        }
     }
 }

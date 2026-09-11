@@ -18,7 +18,10 @@ mod latency;
 mod prepared;
 mod stage;
 
-pub use batch::BatchStudy;
+pub use batch::{
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
+    CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
+};
 pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
 pub use execute::Study;
 pub use latency::{

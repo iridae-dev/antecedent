@@ -492,11 +492,20 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     let mut t_vals = Vec::new();
     let mut m_vals = Vec::new();
     let mut y_vals = Vec::new();
-    for t in [0.0, 1.0] {
-        for _ in 0..50 {
+    for (t, m, y, count) in [
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ] {
+        for _ in 0..count {
             t_vals.push(t);
-            m_vals.push(t);
-            y_vals.push(t);
+            m_vals.push(m);
+            y_vals.push(y);
         }
     }
     let n = t_vals.len();
@@ -1243,7 +1252,10 @@ fn functional_validation_staged_known_truth() {
             let result = prepared.estimate(&data, &ctx).unwrap();
             assert!(
                 (result.estimate.ate - pin["path_effect"].as_f64().unwrap()).abs()
-                    < pin["tolerance"].as_f64().unwrap()
+                    < pin["tolerance"].as_f64().unwrap(),
+                "path-specific ate={} expected={} suite={suite:?} accepted={accepted}",
+                result.estimate.ate,
+                pin["path_effect"].as_f64().unwrap()
             );
             let count = match suite {
                 RefuteSuite::None => 0,

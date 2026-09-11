@@ -38,6 +38,30 @@ def check_moments(mean, variance, expected):
     assert variance == pytest.approx(expected[1], rel=0.06)
 
 
+def _path_specific_chain():
+    t_vals: list[float] = []
+    m_vals: list[float] = []
+    y_vals: list[float] = []
+    for t, m, y, count in (
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ):
+        t_vals.extend([t] * count)
+        m_vals.extend([m] * count)
+        y_vals.extend([y] * count)
+    return {
+        "t": np.asarray(t_vals, dtype=np.float64),
+        "m": np.asarray(m_vals, dtype=np.float64),
+        "y": np.asarray(y_vals, dtype=np.float64),
+    }
+
+
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("scale", [0.1, 10.0])
 @pytest.mark.parametrize(
@@ -336,8 +360,7 @@ def test_composed_hmc_refuses_without_derived_chain_diagnostics(window):
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("suite", ["none", "cheap", "full"])
 def test_path_functional_and_query_artifact(accepted, suite):
-    t = np.resize([0.0, 1.0], 200)
-    data = {"t": t, "m": t.copy(), "y": t.copy()}
+    data = _path_specific_chain()
     prepared = prepare(
         data,
         [("t", "m"), ("m", "y")],
@@ -347,7 +370,7 @@ def test_path_functional_and_query_artifact(accepted, suite):
         bayesian=False,
     )
     result = prepared.estimate(data)
-    assert result.ate == pytest.approx(1.0)
+    assert result.ate == pytest.approx(0.3)
     assert len(result.validation.reports) == {"none": 0, "cheap": 1, "full": 2}[suite]
     artifact = artifacts.loads(prepared.export_artifact(payload="query"))
     assert (

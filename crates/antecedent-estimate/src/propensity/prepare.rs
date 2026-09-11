@@ -48,6 +48,12 @@ pub struct PreparedPropensityProblem {
     ///
     /// `None` for all other target populations. Length equals [`Self::nrows`] when present.
     pub target_weights: Option<Arc<[f64]>>,
+    /// Original data-frame row index of each complete-case row.
+    pub row_index: Arc<[u32]>,
+    /// Treatment variable id (for score-table provenance).
+    pub treatment_id: VariableId,
+    /// Optional complete-case fold ids. `None` uses `row_index % n_folds`.
+    pub fold_assignment: Option<Arc<[u32]>>,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -212,15 +218,9 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
     )?;
-    if !matches!(
-        estimand.method_kind().ok(),
-        Some(
-            antecedent_expr::EstimandMethod::BackdoorAdjustment
-                | antecedent_expr::EstimandMethod::BackdoorEfficient
-        )
-    ) {
+    if !estimand.is_adjustment_shaped() {
         return Err(EstimationError::IncompatibleEstimand {
-            message: "propensity estimators expect backdoor.adjustment or backdoor.efficient",
+            message: "propensity estimators expect an adjustment-shaped estimand",
         });
     }
     query.validate()?;
@@ -331,6 +331,17 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         target_population: query.target_population.clone(),
         target_weights,
+        row_index: {
+            let mut idx = Vec::with_capacity(nrows);
+            for (i, &keep) in row_mask.iter().enumerate() {
+                if keep {
+                    idx.push(u32::try_from(i).unwrap_or(u32::MAX));
+                }
+            }
+            Arc::from(idx)
+        },
+        treatment_id: treatment,
+        fold_assignment: None,
     })
 }
 

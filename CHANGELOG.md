@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Retargetable prepared AIPW and joint-cell AIPW score tables, with declared
+  covariate weight parents, weighted support, and joint influence covariance.
+- Exceedance/CDF grids, including class-aware ConditionalEffect envelopes;
+  finite-grid quantile treatment effects on the licensed AIPW paths, including
+  modifier-standardized conditional quantiles and requested joint-cell quantile levels.
+- Non-additive discrete joint-cell estimation, CoDetermined tier identification,
+  prepared batches, and estimate-artifact candidate-selection provenance.
+- Scalar DAG InterventionResponse cheap/full validation with estimator-specific
+  level-versus-contrast semantics. See the [1.5.0 notes](docs/release-notes/v1.5.0.md)
+  and [Python walkthrough](docs/local-distributional-joint.md).
+
+### Fixed
+
+- General-ID intervention responses return the requested intervention mean,
+  rather than a binary ATE contrast. Identify-only curve witnesses are retained.
+- Conditional CDF paths transform outcomes once; translating outcomes and
+  thresholds together preserves the CDF.
+- Prepared batches and extracted plans rebind covariates and folds to new data.
+- Python DAG cell-AIPW now routes through prepared estimation; DAG and CoDetermined
+  joint responses preserve outcome functionals through the native bridge.
+- Prepared quantile estimation and retargeting preserve threshold scores and
+  perform quantile inversion instead of silently returning a mean.
+- Unsupported tails publish unavailable uncertainty; CBOR decoding preserves
+  those bands. Invalid shared fold IDs refuse rather than leave zero scores.
+- Joint-cell family max-t uses the contrast covariance and publishes
+  contrast simultaneous intervals; the printed critical value is not the
+  cell-level family's.
+- The `functional_validation` PathSpecificEffect cell was frozen in 1.2
+  (`7c5b91a8`) at `path_effect` 1.0 and shipped that number through 1.4.
+  On that table `P(y|t=1)=0.8` and `P(y|t=0)=0.5`; g-formula through `m`
+  recovers the same `0.8−0.5`. A difference of binary means cannot be 1.0.
+  1.5 returns 0.3. Comparing numbers against 1.2–1.4: that difference is
+  an intended correction.
+
+### Limitations
+
+- Quantile uncertainty conditions on the finite CDF grid; interpolation bias and
+  grid-selection uncertainty are excluded. Unsupported or projection-altered
+  crossings refuse.
+- Retargeting standardizes within one population. Point interventions on a
+  continuous mediator and Unknown-tier joint cells remain unsupported.
+- Temporal/DBN multi-atom Frequentist uncertainty remains deferred to 1.9.
+  Local validation is recorded in the [evidence ledger](docs/v1.5-evidence.md);
+  release gates and packaging checks remain required before the release cut.
+
 ## [1.4.0] — 2026-09-11
 
 ### Added

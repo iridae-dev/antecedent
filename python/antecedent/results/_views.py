@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
 
 from ..ids import Refute
 from ._format import fmt_float, fmt_pct, fmt_se
@@ -91,6 +94,21 @@ class EstimateView:
     overlap_ess: float | None = None
     overlap_propensity_min: float | None = None
     mediation: MediationView | None = None
+    functional_means: tuple[float, ...] | None = None
+    exceedance_cdf: tuple[float, ...] | None = None
+    monotone_rearranged: bool = False
+    interaction_structurally_zero: bool | None = None
+    score_table: ScoreTableSection | None = None
+    joint_covariance: list[list[float]] | None = None
+    score_inference: ScoreInferenceSection | None = None
+    scenario_effects: list[float] | None = None
+    scenario_intervals: list[tuple[float, float]] | None = None
+    simultaneous_interval: tuple[float, float, float] | None = None
+    adjusted_p_values: tuple[float, float] | None = None
+    family_contrast: tuple[float, float] | None = None
+    family_contrast_interval: tuple[float, float, float] | None = None
+    candidate_selection: Any = None
+    evalue: float | None = None
 
     def __repr__(self) -> str:
         se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
@@ -279,6 +297,7 @@ class ValidationView:
     posterior_predictive: PredictiveCheckReport | None = None
     prior_sensitivity: PriorSensitivityReport | None = None
     reports: list[RefutationReport] = field(default_factory=list)
+    computation_failures: list[ValidationFailureSection] = field(default_factory=list)
 
     def __repr__(self) -> str:
         if not self.ran:

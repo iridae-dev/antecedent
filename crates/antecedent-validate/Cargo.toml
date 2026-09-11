@@ -17,16 +17,16 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "1.4.0", path = "../antecedent-core" }
-antecedent-data = { version = "1.4.0", path = "../antecedent-data" }
-antecedent-estimate = { version = "1.4.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "1.4.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "1.4.0", path = "../antecedent-identify" }
-antecedent-discovery = { version = "1.4.0", path = "../antecedent-discovery" }
-antecedent-graph = { version = "1.4.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "1.4.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "1.4.0", path = "../antecedent-stats" }
-antecedent-kernels = { version = "1.4.0", path = "../antecedent-kernels" }
+antecedent-core = { version = "1.5.0", path = "../antecedent-core" }
+antecedent-data = { version = "1.5.0", path = "../antecedent-data" }
+antecedent-estimate = { version = "1.5.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "1.5.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "1.5.0", path = "../antecedent-identify" }
+antecedent-discovery = { version = "1.5.0", path = "../antecedent-discovery" }
+antecedent-graph = { version = "1.5.0", path = "../antecedent-graph" }
+antecedent-prob = { version = "1.5.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "1.5.0", path = "../antecedent-stats" }
+antecedent-kernels = { version = "1.5.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

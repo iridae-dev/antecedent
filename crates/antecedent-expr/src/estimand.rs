@@ -179,6 +179,20 @@ impl IdentifiedEstimand {
         EstimandMethod::from_str(self.method.as_ref())
     }
 
+    /// Whether AIPW / linear / propensity estimators may consume this estimand.
+    ///
+    /// Gate on the identifier family and the presence of an adjustment set, not
+    /// by rewriting [`Self::method`] to `backdoor.adjustment`.
+    #[must_use]
+    pub fn is_adjustment_shaped(&self) -> bool {
+        let method = self.method.as_ref();
+        (method == "backdoor.adjustment"
+            || method == "backdoor.efficient"
+            || method.starts_with("generalized.adjustment")
+            || method.starts_with("tiered."))
+            && self.rd_design.is_none()
+    }
+
     /// Backdoor-style estimand with an adjustment set and empty IV/mediator roles.
     #[must_use]
     pub fn backdoor(

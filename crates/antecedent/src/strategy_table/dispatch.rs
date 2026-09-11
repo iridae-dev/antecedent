@@ -532,7 +532,13 @@ pub fn identify_cpdag_response(
 ) -> Result<IdentificationEnvelope<Dag>, CausalError> {
     let witness = crate::analysis::response_witness_ate(query)?;
     if query.functional.treatment_ids().len() == 1 {
-        return identify_cpdag(identifier, graph, &witness);
+        if identifier != IdentifierId::GeneralizedAdjustment
+            && identifier != IdentifierId::GeneralId
+        {
+            return identify_cpdag(identifier, graph, &witness);
+        }
+        return antecedent_identify::identify_cpdag_response_general(graph, query)
+            .map_err(identify_err);
     }
     if identifier != IdentifierId::GeneralizedAdjustment {
         return Err(CausalError::Unsupported {
@@ -555,7 +561,14 @@ pub fn identify_pag_response(
 ) -> Result<IdentificationEnvelope<Pag>, CausalError> {
     let witness = crate::analysis::response_witness_ate(query)?;
     if query.functional.treatment_ids().len() == 1 {
-        return identify_pag(identifier, graph, &witness);
+        let _ = witness;
+        if identifier != IdentifierId::GeneralizedAdjustment
+            && identifier != IdentifierId::GeneralId
+        {
+            return identify_pag(identifier, graph, &witness);
+        }
+        return antecedent_identify::identify_pag_response_general(graph, query)
+            .map_err(identify_err);
     }
     if identifier != IdentifierId::GeneralizedAdjustment {
         return Err(CausalError::Unsupported {
