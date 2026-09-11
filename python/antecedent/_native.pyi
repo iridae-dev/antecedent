@@ -1426,6 +1426,26 @@ def prepare_ate_batch(
     tiers: list[list[str]] | None = None,
     within_tier: str | None = None,
 ) -> PreparedBatch: ...
+def prepare_cells_batch(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    queries: list[tuple[str, list[str], list[str], list[list[float]], dict[str, object] | None]],
+    *,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+    latency: str | None = None,
+    screen_id: str | None = None,
+    screen_procedure: str | None = None,
+    screen_rows: list[int] | None = None,
+    estimate_rows: list[int] | None = None,
+    tiers: list[list[str]] | None = None,
+    within_tier: str | None = None,
+) -> PreparedBatch: ...
 def analyze_ate(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
