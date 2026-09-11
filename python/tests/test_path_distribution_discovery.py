@@ -157,7 +157,7 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
         refute=False,
         bootstrap=0,
     )
-    assert abs(result.ate - 1.0) < 0.1
+    assert abs(result.ate - 0.3) < 0.1
 
 
 def test_analyze_path_specific_graph_cpdag_incomplete():

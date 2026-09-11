@@ -1366,7 +1366,7 @@ def handle_static_ate(
                 outcome_functional=functional,
                 latency=latency,
                 identifier=identifier,
-                validators=validators,
+                validators=list(validators) if validators is not None else None,
                 cancel=cancel,
                 on_progress=on_progress,
             ),

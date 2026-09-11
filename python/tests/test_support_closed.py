@@ -225,10 +225,20 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
 
 
 def test_path_specific_cheap_refute_runs_native_suite():
-    t = np.array([0.0, 1.0] * 40)
-    m = t.copy()
-    y = t.copy()
-    data = {"t": t, "m": m, "y": y}
+    data = {
+        "t": np.array([0.0] * 100 + [1.0] * 100),
+        "m": np.array([0.0] * 50 + [1.0] * 50 + [0.0] * 20 + [1.0] * 80),
+        "y": np.array(
+            [0.0] * 40
+            + [1.0] * 10
+            + [0.0] * 10
+            + [1.0] * 40
+            + [0.0] * 10
+            + [1.0] * 10
+            + [0.0] * 10
+            + [1.0] * 70
+        ),
+    }
     dag = antecedent.Dag.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")])
     result = antecedent.analyze(
         data,
@@ -239,7 +249,7 @@ def test_path_specific_cheap_refute_runs_native_suite():
         seed=1,
     )
 
-    assert result.ate == pytest.approx(1.0)
+    assert result.ate == pytest.approx(0.3)
     assert len(result.validation.reports) == 1
 
 

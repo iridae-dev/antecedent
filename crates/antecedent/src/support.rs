@@ -374,7 +374,7 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
 
 /// Matrix graph axis, including classification-only tier-rule extras.
 ///
-/// A `TieredBackground` is not a supplied `Admg`/`Pag`. CoDetermined is a known
+/// A `TieredBackground` is not a supplied `Admg`/`Pag`. `CoDetermined` is a known
 /// closure; Unknown is a two-scenario envelope. Classification only — execute
 /// still materializes the closure ADMG or PAG.
 #[must_use]

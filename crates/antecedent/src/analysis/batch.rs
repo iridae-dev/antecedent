@@ -1061,6 +1061,7 @@ fn embed_centered_influence(inf: &[f64], rows: &[usize], full_n: usize) -> Vec<f
     col
 }
 
+#[allow(clippy::float_cmp)] // discrete Set levels are exact 0/1, not estimated floats
 fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
     let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional else {
         return None;
@@ -1303,24 +1304,8 @@ fn attach_candidate_selection(
                     .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
                     .map(|(i, _)| i),
                 CandidateProcedure::Unrecorded => None,
-                CandidateProcedure::MaxT => rank_stats
-                    .map(|stats| {
-                        stats
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, (value, se))| {
-                                value.is_finite() && se.is_finite() && *se >= 0.0
-                            })
-                            .max_by(|a, b| {
-                                let sa = a.1.1.abs().max(1e-12);
-                                let sb = b.1.1.abs().max(1e-12);
-                                (a.1.0.abs() / sa)
-                                    .partial_cmp(&(b.1.0.abs() / sb))
-                                    .unwrap_or(std::cmp::Ordering::Equal)
-                            })
-                            .map(|(i, _)| i)
-                    })
-                    .unwrap_or_else(|| {
+                CandidateProcedure::MaxT => rank_stats.map_or_else(
+                    || {
                         results
                             .iter()
                             .enumerate()
@@ -1337,7 +1322,24 @@ fn attach_candidate_selection(
                                     .unwrap_or(std::cmp::Ordering::Equal)
                             })
                             .map(|(i, _)| i)
-                    }),
+                    },
+                    |stats| {
+                        stats
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, (value, se))| {
+                                value.is_finite() && se.is_finite() && *se >= 0.0
+                            })
+                            .max_by(|a, b| {
+                                let sa = a.1.1.abs().max(1e-12);
+                                let sb = b.1.1.abs().max(1e-12);
+                                (a.1.0.abs() / sa)
+                                    .partial_cmp(&(b.1.0.abs() / sb))
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(i, _)| i)
+                    },
+                ),
             };
             (
                 CandidateSelection {
