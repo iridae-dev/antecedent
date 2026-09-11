@@ -1388,16 +1388,17 @@ class PreparedAnalysis:
             from .observation import Complete
             from .population import coerce_target_population
 
-            if (
-                query.observation is not None
-                and not isinstance(query.observation, Complete)
-                and (
-                    isinstance(inference, Bayesian)
-                    or getattr(query, "is_temporal", False)
-                    or isinstance(query, InterventionResponse)
-                )
-            ):
-                raise CausalUnsupportedError("these response cells require complete observations")
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                if isinstance(inference, Bayesian):
+                    raise CausalUnsupportedError(
+                        "Bayesian temporal response requires complete observations"
+                        if getattr(query, "is_temporal", False)
+                        else "these response cells require complete observations"
+                    )
+                if not getattr(query, "is_temporal", False) and (
+                    isinstance(query, InterventionResponse)
+                ):
+                    raise CausalUnsupportedError("these response cells require complete observations")
             if query.observation_assumptions and (
                 query.observation is None or isinstance(query.observation, Complete)
             ):
@@ -2557,6 +2558,13 @@ class PreparedAnalysis:
             )
         lagged = _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_interventions
+        from .observation import Complete, _ensure_latent_schema_column, _temporal_observation_kwargs
+
+        if getattr(query, "observation", None) is not None and not isinstance(
+            query.observation, Complete
+        ):
+            names, columns = _ensure_latent_schema_column(names, columns, query.observation)
+        observation_kwargs = _temporal_observation_kwargs(query)
 
         if isinstance(query, InterventionResponse):
             supplied = query.intervention
@@ -2591,6 +2599,7 @@ class PreparedAnalysis:
                 seed=seed,
                 threads=threads,
                 accepted=structure_accepted,
+                **observation_kwargs,
             )
             return cls(native, kind="intervention_response", query=query)
         native = _NativePreparedAnalysis.prepare_temporal_response(
@@ -2611,6 +2620,7 @@ class PreparedAnalysis:
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
+            **observation_kwargs,
         )
         return cls(native, kind="response_curve", query=query)
 

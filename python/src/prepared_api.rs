@@ -1178,6 +1178,17 @@ impl PyPreparedAnalysis {
         seed=1,
         threads=1,
         accepted=false,
+        observation_kind=None,
+        latent=None,
+        observed=None,
+        censoring=None,
+        event=None,
+        lower=None,
+        upper=None,
+        indicator=None,
+        assumption_kind=None,
+        assumption_variables=Vec::new(),
+        structural_model=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_temporal_response(
@@ -1201,6 +1212,17 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
         accepted: bool,
+        observation_kind: Option<String>,
+        latent: Option<String>,
+        observed: Option<String>,
+        censoring: Option<String>,
+        event: Option<String>,
+        lower: Option<String>,
+        upper: Option<String>,
+        indicator: Option<String>,
+        assumption_kind: Option<String>,
+        assumption_variables: Vec<String>,
+        structural_model: Option<String>,
     ) -> PyResult<Self> {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
@@ -1234,8 +1256,25 @@ impl PyPreparedAnalysis {
             let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let query =
-                CausalQuery::Response(ResponseQuery::new(functional).with_temporal(temporal));
+            let observation =
+                observation_kind.map(|kind| crate::observation_api::ObservationArgs {
+                    kind,
+                    latent: latent.unwrap_or_default(),
+                    observed,
+                    censoring,
+                    event,
+                    lower,
+                    upper,
+                    indicator,
+                    assumption_kind: assumption_kind.unwrap_or_default(),
+                    assumption_variables,
+                    structural_model,
+                });
+            let query = CausalQuery::Response(crate::observation_api::maybe_with_observation(
+                ResponseQuery::new(functional).with_temporal(temporal),
+                series.schema(),
+                observation.as_ref(),
+            )?);
             let mut builder = Study::series(series);
             builder = if accepted {
                 builder.graph(antecedent::AcceptedGraph::from(dag))

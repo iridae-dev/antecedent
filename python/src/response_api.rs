@@ -884,7 +884,10 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, threads=1, accepted=false, refute=None
+    seed=1, threads=1, accepted=false, refute=None,
+    observation_kind=None, latent=None, observed=None, censoring=None, event=None,
+    lower=None, upper=None, indicator=None, assumption_kind=None,
+    assumption_variables=Vec::new(), structural_model=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_temporal_response(
@@ -906,6 +909,17 @@ fn analyze_temporal_response(
     threads: u32,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
+    observation_kind: Option<String>,
+    latent: Option<String>,
+    observed: Option<String>,
+    censoring: Option<String>,
+    event: Option<String>,
+    lower: Option<String>,
+    upper: Option<String>,
+    indicator: Option<String>,
+    assumption_kind: Option<String>,
+    assumption_variables: Vec<String>,
+    structural_model: Option<String>,
 ) -> PyResult<ResponseAnalysisResult> {
     let suite = match refute.as_ref() {
         None => RefuteSuite::None,
@@ -939,7 +953,24 @@ fn analyze_temporal_response(
         let functional = wrap_temporal_sequence_steps(functional, origin)?;
         let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let query = ResponseQuery::new(functional).with_temporal(temporal);
+        let observation = observation_kind.map(|kind| crate::observation_api::ObservationArgs {
+            kind,
+            latent: latent.unwrap_or_default(),
+            observed,
+            censoring,
+            event,
+            lower,
+            upper,
+            indicator,
+            assumption_kind: assumption_kind.unwrap_or_default(),
+            assumption_variables,
+            structural_model,
+        });
+        let query = crate::observation_api::maybe_with_observation(
+            ResponseQuery::new(functional).with_temporal(temporal),
+            series.schema(),
+            observation.as_ref(),
+        )?;
         let causal_query = CausalQuery::Response(query.clone());
         if let Some(cell) = support_cell(
             &causal_query,

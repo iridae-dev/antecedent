@@ -835,6 +835,9 @@ pub fn compile_logical_temporal_response(
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query
+        .require_licensed_temporal_observation()
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;
