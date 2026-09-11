@@ -1816,6 +1816,7 @@ fn analysis_result_from_run(
         scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
         simultaneous_interval: None,
         adjusted_p_values: None,
+        family_contrast: None,
         candidate_selection: None,
         evalue: None,
     };

@@ -325,6 +325,7 @@ class EstimateSection:
     scenario_intervals: list[tuple[float, float]] | None
     simultaneous_interval: tuple[float, float, float] | None
     adjusted_p_values: tuple[float, float] | None
+    family_contrast: tuple[float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
 
@@ -1445,6 +1446,7 @@ def prepare_cells_batch(
     estimate_rows: list[int] | None = None,
     tiers: list[list[str]] | None = None,
     within_tier: str | None = None,
+    family_contrast: str | None = "cell_minus_control",
 ) -> PreparedBatch: ...
 def analyze_ate(
     names: list[str],

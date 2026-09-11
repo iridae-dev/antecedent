@@ -105,6 +105,7 @@ class EstimateView:
     scenario_intervals: list[tuple[float, float]] | None = None
     simultaneous_interval: tuple[float, float, float] | None = None
     adjusted_p_values: tuple[float, float] | None = None
+    family_contrast: tuple[float, float] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
 

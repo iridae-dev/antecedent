@@ -551,6 +551,125 @@ pub fn interaction_contrast(table: &ScoreTable) -> Result<LinearContrast, Estima
     contrast_named(table, "interaction")
 }
 
+/// Requested-cell minus all-zero control, with score-difference influence.
+///
+/// # Errors
+///
+/// Missing cells, an exceedance grid, or a contrast that cannot be formed.
+pub fn cell_minus_control_contrast(
+    table: &ScoreTable,
+    requested_arm: u32,
+) -> Result<(LinearContrast, Vec<f64>), EstimationError> {
+    family_cell_contrast(table, requested_arm, "cell_minus_control")
+}
+
+/// Named cell contrast and its per-row score-difference influence.
+///
+/// `cell_minus_control` is requested cell minus arm 0. `interaction` is
+/// `+μ00 −μ10 −μ01 +μ11` on a 2×2 table.
+///
+/// # Errors
+///
+/// Unknown name, a grid, or an unsupported cell.
+pub fn family_cell_contrast(
+    table: &ScoreTable,
+    requested_arm: u32,
+    spec: &str,
+) -> Result<(LinearContrast, Vec<f64>), EstimationError> {
+    let summary = table.summarize(None)?;
+    let coeffs = match spec {
+        "cell_minus_control" => cell_minus_control_coefficients(table, requested_arm)?,
+        "interaction" => {
+            let coeffs = interaction_coefficients(table)?;
+            let first = table.columns.first().and_then(|c| c.threshold);
+            let n_mean = table.columns.iter().filter(|c| c.threshold == first).count();
+            if n_mean != 4 {
+                return Err(EstimationError::unsupported(
+                    "family interaction contrast requires a 2×2 cell table",
+                ));
+            }
+            coeffs
+        }
+        _ => {
+            return Err(EstimationError::unsupported("unknown cell contrast"));
+        }
+    };
+    let contrast = table.linear_contrast(&summary, &coeffs)?;
+    let scores = table.combine_scores(&coeffs)?;
+    Ok((contrast, scores))
+}
+
+/// Coefficients for requested cell minus the all-zero control on the first
+/// threshold slice.
+///
+/// # Errors
+///
+/// Missing cells or an exceedance grid.
+pub fn cell_minus_control_coefficients(
+    table: &ScoreTable,
+    requested_arm: u32,
+) -> Result<Vec<f64>, EstimationError> {
+    if distinct_threshold_count(table) > 1 {
+        return Err(EstimationError::unsupported(
+            "cell_minus_control on an exceedance grid is not licensed; request a single threshold",
+        ));
+    }
+    let first = table.columns.first().and_then(|c| c.threshold);
+    let req = table
+        .columns
+        .iter()
+        .position(|c| c.arm == requested_arm && c.threshold == first)
+        .ok_or(EstimationError::unsupported("unsupported requested cell"))?;
+    let ctl = table
+        .columns
+        .iter()
+        .position(|c| c.arm == 0 && c.threshold == first)
+        .ok_or(EstimationError::unsupported("control cell is missing"))?;
+    let mut coeffs = vec![0.0; table.n_columns()];
+    if req != ctl {
+        coeffs[ctl] = -1.0;
+        coeffs[req] = 1.0;
+    }
+    Ok(coeffs)
+}
+
+/// Coefficients `+μ00 −μ10 −μ01 +μ11` on the first four mean cells.
+///
+/// # Errors
+///
+/// An exceedance grid or fewer than four mean columns.
+pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, EstimationError> {
+    if distinct_threshold_count(table) > 1 {
+        return Err(EstimationError::unsupported(
+            "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
+        ));
+    }
+    let first_threshold = table.columns.first().and_then(|c| c.threshold);
+    let mean_cols: Vec<usize> = table
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.threshold == first_threshold)
+        .map(|(i, _)| i)
+        .collect();
+    if mean_cols.len() < 4 {
+        return Err(EstimationError::unsupported("interaction contrast requires a 2×2 cell table"));
+    }
+    let mut coeffs = vec![0.0; table.n_columns()];
+    coeffs[mean_cols[0]] = 1.0;
+    coeffs[mean_cols[1]] = -1.0;
+    coeffs[mean_cols[2]] = -1.0;
+    coeffs[mean_cols[3]] = 1.0;
+    Ok(coeffs)
+}
+
+fn distinct_threshold_count(table: &ScoreTable) -> usize {
+    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
+    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
+    thresholds.len()
+}
+
 /// Named or raw linear cell contrast.
 ///
 /// `interaction` is the 2×2 interaction on cells `00,01,10,11`.
@@ -570,34 +689,12 @@ pub fn contrast_from_summary(
     summary: &ScoreSummary,
     spec: &str,
 ) -> Result<LinearContrast, EstimationError> {
-    let first_threshold = table.columns.first().and_then(|c| c.threshold);
-    let mean_cols: Vec<usize> = table
-        .columns
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| c.threshold == first_threshold)
-        .map(|(i, _)| i)
-        .collect();
     let coeffs = if spec == "interaction" {
-        let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-        thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
-        if thresholds.len() > 1 {
-            return Err(EstimationError::unsupported(
-                "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
-            ));
-        }
-        if mean_cols.len() < 4 {
-            return Err(EstimationError::unsupported(
-                "interaction contrast requires a 2×2 cell table",
-            ));
-        }
-        let mut c = vec![0.0; table.n_columns()];
-        c[mean_cols[0]] = 1.0;
-        c[mean_cols[1]] = -1.0;
-        c[mean_cols[2]] = -1.0;
-        c[mean_cols[3]] = 1.0;
-        c
+        interaction_coefficients(table)?
+    } else if spec == "cell_minus_control" {
+        return Err(EstimationError::unsupported(
+            "cell_minus_control requires a requested arm; use family_cell_contrast",
+        ));
     } else if let Some(raw) = parse_coefficients(spec) {
         if raw.len() != table.n_columns() {
             return Err(EstimationError::data_msg("contrast length must match score columns"));
@@ -727,6 +824,28 @@ mod tests {
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
         assert!(err.to_string().contains("training fold"));
+    }
+
+    #[test]
+    fn cell_minus_control_is_requested_minus_arm_zero() {
+        let data = interaction_dgp(2_000);
+        let table = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                VariableId::from_raw(2),
+                &[VariableId::from_raw(3)],
+                &OutcomeFunctional::Mean,
+                None,
+            )
+            .unwrap();
+        let summary = table.summarize(None).unwrap();
+        let arm11 = table.columns.iter().position(|c| c.arm == 3).unwrap();
+        let (contrast, scores) = cell_minus_control_contrast(&table, 3).unwrap();
+        assert!((contrast.value - (summary.means[arm11] - summary.means[0])).abs() < 1e-12);
+        assert_eq!(scores.len(), table.n_rows);
+        let expected = table.combine_scores(&cell_minus_control_coefficients(&table, 3).unwrap());
+        assert_eq!(scores, expected.unwrap());
     }
 
     #[test]
