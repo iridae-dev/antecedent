@@ -30,7 +30,7 @@ use crate::result::{
 /// Named premise: no latent path into the outcome from outside the tier order.
 pub const NO_LATENT_TO_OUTCOME: &str = "tiered.no_latent_to_outcome";
 
-/// A specific CoDetermined pair has no joint generalized-adjustment set on the
+/// A specific `CoDetermined` pair has no joint generalized-adjustment set on the
 /// known closure ADMG (open back-door, or a drawn treatment↔outcome edge).
 pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge";
 
@@ -145,7 +145,7 @@ pub fn identify_tiered_envelope(
 
 /// Joint `do(T…)` on the [`WithinTier::CoDetermined`] closure ADMG.
 ///
-/// CoDetermined is background, not a MAG Markov equivalence class: earlier→later
+/// `CoDetermined` is background, not a MAG Markov equivalence class: earlier→later
 /// arrows are asserted, same-tier edges are bidirected, and there is no latent
 /// path into Y beyond what the tier graph draws. Identification is the `O(p)`
 /// treatment-set closure (all non-treatment nodes in tiers `≤` the latest
@@ -333,7 +333,7 @@ mod tests {
     };
     use antecedent_graph::WithinTier;
 
-    /// CoDetermined facet tier: earlier confounder, bidirected clique, outcome.
+    /// `CoDetermined` facet tier: earlier confounder, bidirected clique, outcome.
     /// `n` is the node count (`z` + `t1` + `t2` + co-facets + `y`).
     fn facet_width_joint(n: u32) -> (antecedent_core::CausalSchema, TieredBackground) {
         assert!(n >= 4);
