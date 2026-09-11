@@ -485,7 +485,8 @@ impl BatchStudy {
     ///
     /// # Errors
     ///
-    /// Empty query list, a non-DAG graph, a non-Set intervention bundle, or any per-query prepare failure.
+    /// Empty query list, Unknown-tier joint (no single ADMG), a non-Set
+    /// intervention bundle, or any per-query prepare failure.
     pub fn prepare_cells(
         &self,
         queries: &[ResponseQuery],
@@ -785,23 +786,40 @@ fn attach_prepared_batch_joint_inference(
     queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
 ) {
-    let mut averages = Vec::with_capacity(queries.len());
-    for query in queries {
-        match query {
-            BatchQuery::Average(q) => averages.push(q.clone()),
-            BatchQuery::Response(_) => {
-                attach_candidate_selection(results, screen, &[], &[]);
-                return;
-            }
-        }
-    }
-    attach_batch_joint_inference(results, data, &averages, screen);
+    attach_batch_family_joint_inference(results, data, queries, screen);
 }
 
 fn attach_batch_joint_inference(
     results: &mut [StudyResult],
     data: &TabularData,
     queries: &[AverageEffectQuery],
+    screen: Option<&CandidateScreen>,
+) {
+    let family: Vec<BatchQuery> = queries.iter().cloned().map(BatchQuery::Average).collect();
+    attach_batch_family_joint_inference(results, data, &family, screen);
+}
+
+fn batch_claim_alignment(
+    query: &BatchQuery,
+) -> (antecedent_core::TargetPopulation, Vec<VariableId>) {
+    match query {
+        BatchQuery::Average(q) => {
+            let mut ids = vec![q.treatment, q.outcome];
+            ids.extend(q.effect_modifiers.iter().copied());
+            (q.target_population.clone(), ids)
+        }
+        BatchQuery::Response(q) => {
+            let mut ids = q.functional.treatment_ids();
+            ids.extend(q.functional.outcome_ids());
+            (q.target_population.clone(), ids)
+        }
+    }
+}
+
+fn attach_batch_family_joint_inference(
+    results: &mut [StudyResult],
+    data: &TabularData,
+    queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
 ) {
     if results.len() < 2 {
@@ -813,7 +831,8 @@ fn attach_batch_joint_inference(
     let mut aligned = Vec::new();
     let full_n = data.row_count();
     for (result, query) in results.iter().zip(queries) {
-        if !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved) {
+        let (target_population, mut ids) = batch_claim_alignment(query);
+        if !matches!(target_population, antecedent_core::TargetPopulation::AllObserved) {
             attach_batch_inference_unavailable(
                 results,
                 screen,
@@ -829,8 +848,6 @@ fn attach_batch_joint_inference(
             );
             return;
         };
-        let mut ids = vec![query.treatment, query.outcome];
-        ids.extend(query.effect_modifiers.iter().copied());
         ids.extend(result.estimand.adjustment_set.iter().copied());
         ids.extend(result.estimand.instruments.iter().copied());
         ids.extend(result.estimand.mediators.iter().copied());

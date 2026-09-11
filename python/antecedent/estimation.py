@@ -34,6 +34,9 @@ from ._native import (
 from ._native import (
     prepare_ate_batch as _prepare_ate_batch,
 )
+from ._native import (
+    prepare_cells_batch as _prepare_cells_batch,
+)
 from .discovery import (
     FCI,
     GES,
@@ -804,6 +807,49 @@ def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
     }
 
 
+def _joint_cell_batch_specs(
+    queries: Sequence[InterventionResponse],
+) -> list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]]:
+    from . import intervention as intervention_specs
+    from .query import coerce_outcome_functional
+
+    specs: list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]] = []
+    for query in queries:
+        if getattr(query, "is_temporal", False):
+            raise CausalUnsupportedError(
+                "PreparedBatch.prepare_cells is licensed for static joint InterventionResponse"
+            )
+        supplied = query.intervention
+        interventions = (
+            list(supplied)
+            if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+            else [supplied]
+        )
+        if len(interventions) < 2:
+            raise CausalUnsupportedError(
+                "prepare_cells requires joint InterventionResponse"
+            )
+        treatments: list[str] = []
+        kinds: list[str] = []
+        parameters: list[list[float]] = []
+        for spec in interventions:
+            if not isinstance(spec, intervention_specs.Set):
+                raise CausalUnsupportedError("prepare_cells requires binary Set interventions")
+            treatments.append(spec.variable)
+            kinds.append("set")
+            parameters.append([spec.value])
+        specs.append(
+            (
+                query.outcome,
+                treatments,
+                kinds,
+                parameters,
+                coerce_outcome_functional(query.outcome_functional),
+            )
+        )
+    return specs
+
+
 @dataclass(frozen=True)
 class SharedBatchDesign:
     """Fold assignment and covariate design frozen on a prepared batch.
@@ -822,15 +868,16 @@ class SharedBatchDesign:
 
 @dataclass
 class PreparedBatch:
-    """Compile-once batch of average-effect plans with shared-row joint inference.
+    """Compile-once batch of average-effect or joint-cell plans.
 
-    ``prepare`` freezes one fold-assignment object and, when every query shares
-    a certified adjustment set, one covariate design. Propensity and outcome
-    residualization are still fit per query.
+    ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
+    when every query shares a certified adjustment set, one covariate design.
+    Propensity and outcome residualization are still fit per query. A family
+    of two or more claims attaches joint IF covariance and max-t / BH / BY.
     """
 
     _native: Any
-    _queries: tuple[AverageEffect, ...]
+    _queries: tuple[AverageEffect | InterventionResponse, ...]
     _names: tuple[str, ...]
 
     @property
@@ -866,7 +913,10 @@ class PreparedBatch:
         if not queries:
             raise CausalValueError("PreparedBatch.prepare requires at least one query")
         if not all(isinstance(q, AverageEffect) for q in queries):
-            raise CausalTypeError("PreparedBatch currently supports AverageEffect queries only")
+            raise CausalTypeError(
+                "PreparedBatch.prepare supports AverageEffect queries only; "
+                "use prepare_cells for joint InterventionResponse"
+            )
         resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
@@ -906,6 +956,68 @@ class PreparedBatch:
             native = _prepare_ate_batch(names, columns, _static_edges(graph), specs, **kwargs)
         return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
 
+    @classmethod
+    def prepare_cells(
+        cls,
+        data: Mapping[str, Any] | Any,
+        *,
+        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
+        queries: Sequence[InterventionResponse],
+        identifier: str | None = None,
+        estimator: str | None = None,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        seed: int = 1,
+        bootstrap: int | None = 0,
+        threads: int = 1,
+        latency: Literal["interactive", "standard", "report"] | None = None,
+        candidate_screen: CandidateScreen | None = None,
+    ) -> PreparedBatch:
+        """Compile discrete joint ``InterventionResponse`` cells into one batch.
+
+        Licensed on a DAG and on CoDetermined ``TieredBackground``. Unknown-tier
+        joint has no single ADMG and refuses. Pair families share folds and, when
+        adjustment sets agree, the covariate design; estimation attaches joint
+        IF covariance and max-t / BH / BY over the family.
+        """
+        if not queries:
+            raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
+        if not all(isinstance(q, InterventionResponse) for q in queries):
+            raise CausalTypeError("PreparedBatch.prepare_cells supports InterventionResponse only")
+        if isinstance(graph, TieredBackground):
+            if identifier not in (None, "generalized.adjustment"):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells require identifier generalized.adjustment"
+                )
+            if estimator not in (None, "cell.aipw"):
+                raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
+        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        names, columns = ingest_columns(data)
+        specs = _joint_cell_batch_specs(queries)
+        kwargs: dict[str, Any] = dict(
+            identifier=None if isinstance(graph, TieredBackground) else identifier,
+            estimator=estimator,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=0 if bootstrap is None else bootstrap,
+            threads=threads,
+        )
+        if latency is not None:
+            kwargs["latency"] = latency
+        kwargs.update(_screen_kwargs(candidate_screen))
+        if isinstance(graph, TieredBackground):
+            native = _prepare_cells_batch(
+                names,
+                columns,
+                [],
+                specs,
+                tiers=[list(tier) for tier in graph.tiers],
+                within_tier=str(graph.within_tier),
+                **kwargs,
+            )
+        else:
+            native = _prepare_cells_batch(names, columns, _static_edges(graph), specs, **kwargs)
+        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
+
     def estimate(
         self,
         data: Mapping[str, Any] | Any,
@@ -941,8 +1053,10 @@ def identify(
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
-    ``TieredBackground`` identification and ``BatchStudy.prepare_cells`` stay
-    Rust-only in 1.5; the Python bridge does not bind them.
+    ``identify(TieredBackground)`` stays Rust-only in 1.5
+    (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
+    already returns the certificate; this entry does not accept a tier rule.
+    Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
 
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
     to say a variable cannot be observed, so a latent common cause flattened

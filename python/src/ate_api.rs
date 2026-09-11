@@ -9,7 +9,9 @@
 use crate::graphs;
 use crate::*;
 use antecedent::{AcceptedGraph, StudyBuilder};
-use antecedent_core::{AverageEffectQuery, CausalQuery, ConditionalEffectQuery, VariableId};
+use antecedent_core::{
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ResponseQuery, VariableId,
+};
 use antecedent_graph::Dag;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
@@ -922,10 +924,9 @@ fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<A
     Ok(parsed)
 }
 
-fn compile_ate_batch(
+fn compile_batch_study(
     data: antecedent_data::TabularData,
     edges: Vec<(String, String)>,
-    parsed_queries: Vec<AteBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
     suite: antecedent::RefuteSuite,
@@ -937,17 +938,7 @@ fn compile_ate_batch(
     estimate_rows: Option<Vec<u32>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
-) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
-    let mut ate_queries = Vec::with_capacity(parsed_queries.len());
-    for (treatment, outcome, control, active, functional) in &parsed_queries {
-        let t_id = data.schema().id_of(treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(outcome).map_err(py_err)?;
-        let mut query = AverageEffectQuery::with_levels(t_id, y_id, *control, *active);
-        if let Some(functional) = functional.clone() {
-            query = query.with_outcome_functional(functional);
-        }
-        ate_queries.push(query);
-    }
+) -> PyResult<antecedent::BatchStudy> {
     let mut batch = if let Some(tiers) = tiers {
         let within = crate::parse_within_tier(within_tier.as_deref())?;
         let named: Vec<Vec<&str>> =
@@ -982,7 +973,129 @@ fn compile_ate_batch(
     {
         batch = batch.candidate_screen(screen);
     }
+    Ok(batch)
+}
+
+fn compile_ate_batch(
+    data: antecedent_data::TabularData,
+    edges: Vec<(String, String)>,
+    parsed_queries: Vec<AteBatchQuerySpec>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    suite: antecedent::RefuteSuite,
+    bootstrap: u32,
+    latency_mode: Option<antecedent::LatencyMode>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
+) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
+    let mut ate_queries = Vec::with_capacity(parsed_queries.len());
+    for (treatment, outcome, control, active, functional) in &parsed_queries {
+        let t_id = data.schema().id_of(treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(outcome).map_err(py_err)?;
+        let mut query = AverageEffectQuery::with_levels(t_id, y_id, *control, *active);
+        if let Some(functional) = functional.clone() {
+            query = query.with_outcome_functional(functional);
+        }
+        ate_queries.push(query);
+    }
+    let batch = compile_batch_study(
+        data,
+        edges,
+        identifier,
+        estimator,
+        suite,
+        bootstrap,
+        latency_mode,
+        screen_id,
+        screen_procedure,
+        screen_rows,
+        estimate_rows,
+        tiers,
+        within_tier,
+    )?;
     Ok((batch, ate_queries))
+}
+
+type CellBatchQuerySpec =
+    (String, Vec<String>, Vec<String>, Vec<Vec<f64>>, Option<antecedent_core::OutcomeFunctional>);
+type PyCellBatchQuery<'py> =
+    (String, Vec<String>, Vec<String>, Vec<Vec<f64>>, Option<Bound<'py, PyDict>>);
+
+fn parse_cell_batch_query_specs(
+    queries: Vec<PyCellBatchQuery<'_>>,
+) -> PyResult<Vec<CellBatchQuerySpec>> {
+    let mut parsed = Vec::with_capacity(queries.len());
+    for (outcome, treatments, kinds, parameters, functional) in queries {
+        parsed.push((
+            outcome,
+            treatments,
+            kinds,
+            parameters,
+            parse_outcome_functional(functional.as_ref())?,
+        ));
+    }
+    Ok(parsed)
+}
+
+fn compile_cell_batch(
+    data: antecedent_data::TabularData,
+    edges: Vec<(String, String)>,
+    parsed_queries: Vec<CellBatchQuerySpec>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    suite: antecedent::RefuteSuite,
+    bootstrap: u32,
+    latency_mode: Option<antecedent::LatencyMode>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
+) -> PyResult<(antecedent::BatchStudy, Vec<ResponseQuery>)> {
+    let mut cell_queries = Vec::with_capacity(parsed_queries.len());
+    for (outcome, treatments, kinds, parameters, functional) in &parsed_queries {
+        let treatment_ids = crate::response_api::resolve_names(data.schema(), treatments)?;
+        let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome.clone()])?;
+        let built = crate::response_api::build_functional(
+            "intervention_response",
+            &treatment_ids,
+            &outcome_ids,
+            None,
+            None,
+            None,
+            Some(kinds.clone()),
+            Some(parameters.clone()),
+            1,
+            antecedent_core::DerivativeScale::Identity,
+            antecedent_core::DerivativeWeighting::Observed,
+        )?;
+        let mut query = ResponseQuery::new(built);
+        if let Some(functional) = functional.clone() {
+            query = query.with_outcome_functional(functional);
+        }
+        cell_queries.push(query);
+    }
+    let batch = compile_batch_study(
+        data,
+        edges,
+        identifier,
+        estimator,
+        suite,
+        bootstrap,
+        latency_mode,
+        screen_id,
+        screen_procedure,
+        screen_rows,
+        estimate_rows,
+        tiers,
+        within_tier,
+    )?;
+    Ok((batch, cell_queries))
 }
 
 /// Batch static ATE: one table ingest, N average-effect queries.
@@ -3108,6 +3221,74 @@ fn prepare_ate_batch(
     })
 }
 
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    queries,
+    *,
+    identifier=None,
+    estimator=None,
+    refute=None,
+    seed=1,
+    bootstrap=50,
+    threads=1,
+    latency=None,
+    screen_id=None,
+    screen_procedure=None,
+    screen_rows=None,
+    estimate_rows=None,
+    tiers=None,
+    within_tier=None,
+))]
+fn prepare_cells_batch(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    edges: Vec<(String, String)>,
+    queries: Vec<PyCellBatchQuery<'_>>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    latency: Option<String>,
+    screen_id: Option<String>,
+    screen_procedure: Option<String>,
+    screen_rows: Option<Vec<u32>>,
+    estimate_rows: Option<Vec<u32>>,
+    tiers: Option<Vec<Vec<String>>>,
+    within_tier: Option<String>,
+) -> PyResult<PyPreparedBatch> {
+    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let latency_mode = parse_latency_mode(latency.as_deref())?;
+    let parsed_queries = parse_cell_batch_query_specs(queries)?;
+    detach_catch(py, move || {
+        let (batch, cell_queries) = compile_cell_batch(
+            data,
+            edges,
+            parsed_queries,
+            identifier,
+            estimator,
+            suite,
+            bootstrap,
+            latency_mode,
+            screen_id,
+            screen_procedure,
+            screen_rows,
+            estimate_rows,
+            tiers,
+            within_tier,
+        )?;
+        let ctx = py_execution_context(seed, threads);
+        let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;
+        Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
+    })
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_tiered, m)?)?;
@@ -3120,6 +3301,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_admg_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_many, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_ate_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(prepare_cells_batch, m)?)?;
     m.add_class::<PyPreparedBatch>()?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_graph_posterior, m)?)?;
