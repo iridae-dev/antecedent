@@ -387,8 +387,7 @@ pub(crate) fn maybe_build_functional_scores(
         shared.apply_to_propensity(&mut problem)?;
     }
     if matches!(query.outcome_functional, OutcomeFunctional::Quantile(_)) {
-        let y = data.float64_values(query.outcome).map_err(CausalError::from)?;
-        let grid = antecedent_estimate::empirical_threshold_grid(&y, 19)?;
+        let grid = antecedent_estimate::empirical_threshold_grid(&problem.outcome, 19)?;
         return Ok(Some(antecedent_estimate::build_binary_scores(
             &problem,
             query.treatment,
@@ -540,49 +539,22 @@ pub(crate) fn attach_average_functional_grid(
     Ok(estimate)
 }
 
-fn attach_quantile_from_table(
+pub(crate) fn attach_quantile_from_table(
     mut estimate: EffectEstimate,
     table: ScoreTable,
     tau: f64,
 ) -> Result<(EffectEstimate, Vec<Diagnostic>), CausalError> {
-    let (summary, _, mut diagnostics) = summarize_functional(&table, None)?;
-    let mut by_arm: [Vec<(f64, f64, Vec<f64>)>; 2] = [Vec::new(), Vec::new()];
-    for (j, col) in table.columns.iter().enumerate() {
-        let Some(c) = col.threshold else {
-            continue;
-        };
-        let arm = col.arm as usize;
-        if arm > 1 {
-            continue;
-        }
-        let phi_f: Vec<f64> = table.column(j)?.iter().map(|v| -v).collect();
-        by_arm[arm].push((c, 1.0 - summary.means[j], phi_f));
-    }
-    if by_arm[0].len() < 2 || by_arm[0].len() != by_arm[1].len() {
-        return Err(CausalError::Unsupported {
-            message: "quantile treatment effects require aligned per-arm CDF grids",
-        });
-    }
-    let invert = |arm: usize| -> Result<(f64, Vec<f64>, f64), CausalError> {
-        let thresholds: Vec<f64> = by_arm[arm].iter().map(|x| x.0).collect();
-        let f_le: Vec<f64> = by_arm[arm].iter().map(|x| x.1).collect();
-        let phi: Vec<Vec<f64>> = by_arm[arm].iter().map(|x| x.2.clone()).collect();
-        Ok(antecedent_estimate::invert_cdf_quantile(&thresholds, &f_le, &phi, tau)?)
-    };
-    let (q0, if0, d0) = invert(0)?;
-    let (q1, if1, d1) = invert(1)?;
-    if if0.len() != if1.len() {
-        return Err(CausalError::Unsupported {
-            message: "quantile arm influence lengths do not match",
-        });
-    }
-    let influence: Vec<f64> = if1.iter().zip(&if0).map(|(a, b)| a - b).collect();
+    let qte = antecedent_estimate::quantile::quantile_contrast(&table, None, tau)?;
+    let [q0, q1] = qte.quantiles;
+    let [d0, d1] = qte.densities;
+    let influence = qte.influence;
+    let mut diagnostics = Vec::new();
     let n = influence.len() as f64;
     let mean = influence.iter().sum::<f64>() / n;
     let var = influence.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
     estimate.ate = q1 - q0;
     estimate.se_analytic = (var / n).sqrt();
-    estimate.influence = Some(influence.into());
+    estimate.influence = Some(influence.clone().into());
     estimate.se_bootstrap = None;
     diagnostics.push(Diagnostic::new(
         "estimate.functional.quantile",
@@ -590,17 +562,79 @@ fn attach_quantile_from_table(
         DiagnosticSeverity::Info,
         format!(
             "QTE at τ={tau}: Q_0={q0:.6} Q_1={q1:.6}; densities ({d0:.6}, {d1:.6}); \
-             inversion of the AIPW CDF, not a new identification theory"
+             piecewise-linear AIPW CDF inversion conditional on the estimation grid; grid-selection uncertainty and interpolation bias are excluded"
         ),
     ));
     let (estimate, grid_diags) = attach_score_functional_grid(estimate, table)?;
-    diagnostics.extend(grid_diags);
+    diagnostics.extend(
+        grid_diags
+            .into_iter()
+            .filter(|d| d.code.as_ref() != "estimate.functional.grid_scalar_cleared"),
+    );
     // attach_score_functional_grid clears multi-threshold ate; restore the QTE.
     let mut estimate = estimate;
     estimate.ate = q1 - q0;
     estimate.se_analytic = (var / n).sqrt();
-    estimate.influence = Some(if1.iter().zip(&if0).map(|(a, b)| a - b).collect::<Vec<_>>().into());
+    estimate.influence = Some(influence.into());
     Ok((estimate, diagnostics))
+}
+
+pub(crate) fn requested_joint_arm(
+    query: &antecedent_core::ResponseQuery,
+) -> Result<u32, CausalError> {
+    let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
+        &query.functional
+    else {
+        return Err(CausalError::Unsupported { message: "joint quantile requires Set response" });
+    };
+    let mut arm = 0u32;
+    for (j, iv) in interventions.iter().enumerate() {
+        let Intervention::Set { value, .. } = iv else {
+            return Err(CausalError::Unsupported {
+                message: "joint quantile requires binary Set levels",
+            });
+        };
+        let v = value.as_f64();
+        if j >= 3 || !matches!(v, Some(0.0 | 1.0)) {
+            return Err(CausalError::Unsupported {
+                message: "joint quantile requires at most three binary Set levels",
+            });
+        }
+        arm |= u32::from(v == Some(1.0)) << j;
+    }
+    Ok(arm)
+}
+
+pub(crate) fn attach_joint_quantile_from_table(
+    estimate: EffectEstimate,
+    table: ScoreTable,
+    query: &antecedent_core::ResponseQuery,
+    tau: f64,
+) -> Result<(EffectEstimate, Vec<Diagnostic>), CausalError> {
+    let q = antecedent_estimate::quantile::quantile_arm(
+        &table,
+        None,
+        tau,
+        requested_joint_arm(query)?,
+    )?;
+    let (mut out, mut diagnostics) = attach_score_functional_grid(estimate, table)?;
+    out.ate = q.value;
+    out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&q.influence], None)?.se(0);
+    out.influence = Some(q.influence.into());
+    out.se_bootstrap = None;
+    out.simultaneous_interval = None;
+    diagnostics.retain(|d| d.code.as_ref() != "estimate.functional.grid_scalar_cleared");
+    diagnostics.push(quantile_scope_diagnostic());
+    Ok((out, diagnostics))
+}
+
+pub(crate) fn quantile_scope_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.functional.quantile",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "piecewise-linear CDF inversion conditional on the frozen grid; interpolation bias and grid-selection uncertainty are excluded; a response quantile is a level, not an arm contrast",
+    )
 }
 
 /// Attach a point E-value for the tier-closure no-latent-to-outcome premise.
@@ -707,6 +741,90 @@ pub(crate) fn project_conditional_cdf(cdf: &mut [f64]) -> Result<bool, CausalErr
     Ok(changed)
 }
 
+/// Choose one outcome grid from complete rows for every contributing conditional atom.
+pub(crate) fn conditional_thresholds(
+    data: &TabularData,
+    query: &ConditionalEffectQuery,
+    adjustment: impl Iterator<Item = VariableId>,
+) -> Result<Option<Vec<f64>>, CausalError> {
+    if query.inner.outcome_functional.quantile_level().is_none() {
+        return Ok(query.inner.outcome_functional.thresholds());
+    }
+    if !matches!((&query.inner.control, &query.inner.active),
+        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
+        if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0))
+    {
+        return Err(CausalError::Unsupported {
+            message: "conditional quantiles require binary 0/1 arms; a linear mean model is not a distribution model",
+        });
+    }
+    let mut ids: Vec<_> = adjustment.chain(query.inner.effect_modifiers.iter().copied()).collect();
+    ids.extend([query.inner.treatment, query.inner.outcome]);
+    let mask = data.complete_case_mask(&ids)?;
+    let y = data.float64_masked(query.inner.outcome, &mask)?;
+    Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
+}
+
+/// Publish the actual conditional grid, whose coordinates have no score-table payload.
+pub(crate) fn conditional_quantile_grid_diagnostic(
+    data: &TabularData,
+    query: &ConditionalEffectQuery,
+    adjustment: impl Iterator<Item = VariableId>,
+) -> Result<Option<Diagnostic>, CausalError> {
+    if query.inner.outcome_functional.quantile_level().is_none() {
+        return Ok(None);
+    }
+    let thresholds = conditional_thresholds(data, query, adjustment)?.unwrap_or_default();
+    Ok(Some(Diagnostic::new(
+        "estimate.functional.quantile_grid",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "frozen empirical thresholds: {thresholds:?}; CDF coordinates are threshold-major, control then active"
+        ),
+    )))
+}
+
+/// Invert the two raw CDF arms, after any frozen-weight atom mixture.
+pub(crate) fn attach_conditional_quantile(
+    out: &mut EffectEstimate,
+    thresholds: &[f64],
+    raw_cdf: &[f64],
+    columns: &[Vec<f64>],
+    supported: &[bool],
+    tau: f64,
+) -> Result<(), CausalError> {
+    let mut arms = Vec::new();
+    for arm in 0..2 {
+        let means: Vec<_> = raw_cdf.iter().skip(arm).step_by(2).copied().collect();
+        let support: Vec<_> = supported.iter().skip(arm).step_by(2).copied().collect();
+        let influences: Vec<Vec<f64>> = columns
+            .iter()
+            .skip(arm)
+            .step_by(2)
+            .map(|c| {
+                let mean = c.iter().sum::<f64>() / c.len() as f64;
+                c.iter().map(|v| v - mean).collect()
+            })
+            .collect();
+        arms.push(antecedent_estimate::quantile::invert_supported_cdf(
+            thresholds,
+            &means,
+            &influences,
+            &support,
+            tau,
+        )?);
+    }
+    let influence: Vec<_> =
+        arms[1].influence.iter().zip(&arms[0].influence).map(|(a, b)| a - b).collect();
+    out.ate = arms[1].value - arms[0].value;
+    out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&influence], None)?.se(0);
+    out.influence = Some(influence.into());
+    out.se_bootstrap = None;
+    out.simultaneous_interval = None;
+    Ok(())
+}
+
 /// Evaluate each exceedance threshold on ConditionalEffect and attach `F_a(c)`.
 ///
 /// Joint covariance and simultaneous bands are the 2K raw per-arm CDF
@@ -720,7 +838,9 @@ pub(crate) fn attach_conditional_functional_grid(
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
     let _ = ctx;
-    let Some(thresholds) = query.inner.outcome_functional.thresholds() else {
+    let Some(thresholds) =
+        conditional_thresholds(data, query, estimand.adjustment_set.iter().copied())?
+    else {
         return Ok(estimate);
     };
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
@@ -737,7 +857,10 @@ pub(crate) fn attach_conditional_functional_grid(
             query.inner.outcome,
             &OutcomeFunctional::exceedance(threshold),
         )?;
-        let (point, scores) = est.estimate_with_arm_scores(&data_c, estimand, query)?;
+        let mut transformed_query = query.clone();
+        transformed_query.inner.outcome_functional = OutcomeFunctional::Mean;
+        let (point, scores) =
+            est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
         raw_cdf.extend([1.0 - scores.means[0], 1.0 - scores.means[1]]);
         if scores.influence[0].len() != scores.influence[1].len()
             || scores.influence[0].len() != scores.row_index.len()
@@ -781,7 +904,13 @@ pub(crate) fn attach_conditional_functional_grid(
                 .all(|n| *n >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS),
         },
     )?);
-    let mut cdf = raw_cdf;
+    if thresholds.len() == 1 && threshold_supported.iter().any(|&supported| !supported) {
+        out.se_analytic = f64::NAN;
+        out.se_bootstrap = None;
+        out.influence = None;
+        out.simultaneous_interval = None;
+    }
+    let mut cdf = raw_cdf.clone();
     let rearranged = project_conditional_cdf(&mut cdf)?;
     out = out.with_monotone_rearranged(rearranged);
     out.exceedance_cdf = Some(Arc::from(cdf));
@@ -791,6 +920,16 @@ pub(crate) fn attach_conditional_functional_grid(
         out.se_bootstrap = None;
         out.influence = None;
         out.simultaneous_interval = None;
+    }
+    if let Some(tau) = query.inner.outcome_functional.quantile_level() {
+        attach_conditional_quantile(
+            &mut out,
+            &thresholds,
+            &raw_cdf,
+            &columns,
+            &threshold_supported,
+            tau,
+        )?;
     }
     Ok(out)
 }
