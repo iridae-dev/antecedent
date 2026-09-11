@@ -33,11 +33,12 @@ pub(super) use antecedent_estimate::{
     FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
     OverlapPolicy, PreparedBayesianProblem, RdWorkspace, SharpRegressionDiscontinuity,
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    TemporalResponseEstimator, aggregate_effect_envelope, nonidentified_with_prior,
+    TemporalResponseEstimator, aggregate_effect_envelope, functional_cell_unevaluable,
+    nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, ExprNode, IdentifiedEstimand,
-    OutcomeExprId,
+    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalContext, EvalError, ExprNode,
+    IdentifiedEstimand, OutcomeExprId,
 };
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
 pub(super) use antecedent_identify::{

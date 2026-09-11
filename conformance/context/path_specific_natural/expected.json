@@ -1,5 +1,5 @@
 {
   "method": "path_specific.natural",
-  "ate": 1.0,
-  "tolerance": 0.05
+  "ate": 0.3,
+  "tolerance": 1e-12
 }

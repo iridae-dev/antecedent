@@ -85,6 +85,7 @@ pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProb
 pub use functional_distribution::{
     DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
     InterventionalDistributionEstimate, PreparedFunctionalDistribution, PreparedFunctionalEffect,
+    functional_cell_unevaluable, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use interference::{InterferenceEstimate, estimate_interference, own_treatment_level};

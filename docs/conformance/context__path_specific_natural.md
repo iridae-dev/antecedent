@@ -3,7 +3,7 @@
 **Suite path:** `conformance/context/path_specific_natural`
 
 Pinned smoke for path-specific natural effects: `PathSpecificIdentifier` + `functional.effect`
-on a discrete T→M→Y chain (ATE along mediated path = 1).
+on a discrete T→M→Y chain (ATE along mediated path = 0.3).
 
 ## Expected summary
 

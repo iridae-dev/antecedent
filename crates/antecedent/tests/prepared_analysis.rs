@@ -492,11 +492,20 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     let mut t_vals = Vec::new();
     let mut m_vals = Vec::new();
     let mut y_vals = Vec::new();
-    for t in [0.0, 1.0] {
-        for _ in 0..50 {
+    for (t, m, y, count) in [
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ] {
+        for _ in 0..count {
             t_vals.push(t);
-            m_vals.push(t);
-            y_vals.push(t);
+            m_vals.push(m);
+            y_vals.push(y);
         }
     }
     let n = t_vals.len();
