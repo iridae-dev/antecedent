@@ -1817,6 +1817,7 @@ fn analysis_result_from_run(
         simultaneous_interval: None,
         adjusted_p_values: None,
         family_contrast: None,
+        family_contrast_interval: None,
         candidate_selection: None,
         evalue: None,
     };

@@ -1416,6 +1416,51 @@ fn assert_family_p_non_significant(result: &antecedent::StudyResult) {
     );
 }
 
+fn assert_contrast_max_t_not_from_level_family(results: &[antecedent::StudyResult]) {
+    for (i, result) in results.iter().enumerate() {
+        let level_cov = result.estimate.joint_covariance.as_ref().expect("level covariance");
+        let (_, lhi, _) = result.estimate.simultaneous_interval.expect("level interval");
+        let level_se = level_cov.se(i);
+        let level_crit = (lhi - result.estimate.ate) / level_se;
+        let (value, se) = result.estimate.family_contrast.expect("family contrast");
+        let (clo, chi, level) =
+            result.estimate.family_contrast_interval.expect("contrast simultaneous interval");
+        assert!((level - 0.95).abs() < 1e-12);
+        let contrast_crit = (chi - value) / se;
+        assert!(
+            (contrast_crit - level_crit).abs() > 1e-4,
+            "pin requires distinct max-t families: level={level_crit} contrast={contrast_crit}"
+        );
+        assert!(
+            ((value - contrast_crit * se) - clo).abs() < 1e-9,
+            "contrast interval must be value ± contrast max-t × contrast SE"
+        );
+        assert!(
+            (value + level_crit * se - chi).abs() > 1e-6,
+            "contrast interval must not use the level critical value on the contrast SE"
+        );
+        let diag = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "batch.joint_if")
+            .expect("joint IF diagnostic");
+        assert!(
+            diag.message.contains(&format!("max-t_0.95={contrast_crit:.3}")),
+            "diagnostic must print contrast max-t, got {}",
+            diag.message
+        );
+        let level_printed = format!("max-t_0.95={level_crit:.3}");
+        let contrast_printed = format!("max-t_0.95={contrast_crit:.3}");
+        if level_printed != contrast_printed {
+            assert!(
+                !diag.message.contains(&level_printed),
+                "diagnostic must not print level max-t next to a contrast: {}",
+                diag.message
+            );
+        }
+    }
+}
+
 #[test]
 fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
     let (data, graph) = zero_effect_pair_dgp(2_400, 221);
@@ -1445,6 +1490,7 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         assert_family_p_non_significant(result);
         assert!(result.estimate.simultaneous_interval.is_some());
     }
+    assert_contrast_max_t_not_from_level_family(&results);
 
     let none = BatchStudy::new(data.clone(), graph.clone())
         .refute(RefuteSuite::None)
@@ -1456,6 +1502,7 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         .unwrap();
     assert!(none.iter().all(|r| r.estimate.adjusted_p_values.is_none()));
     assert!(none.iter().all(|r| r.estimate.family_contrast.is_none()));
+    assert!(none.iter().all(|r| r.estimate.family_contrast_interval.is_none()));
     assert!(none.iter().all(|r| r.estimate.simultaneous_interval.is_some()));
     assert!(none.iter().all(|r| r.estimate.ate.abs() > 1.0));
 
@@ -1471,6 +1518,7 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
     }
+    assert_contrast_max_t_not_from_level_family(&interaction);
 }
 
 #[test]

@@ -189,6 +189,7 @@ def _section_estimate(raw: Any) -> Any:
         simultaneous_interval=getattr(raw, "simultaneous_interval", None),
         adjusted_p_values=getattr(raw, "adjusted_p_values", None),
         family_contrast=getattr(raw, "family_contrast", None),
+        family_contrast_interval=getattr(raw, "family_contrast_interval", None),
         candidate_selection=getattr(raw, "candidate_selection", None),
         evalue=getattr(raw, "evalue", None),
         joint_covariance=getattr(raw, "joint_covariance", None),
@@ -408,6 +409,7 @@ def _wrap_ate(
             simultaneous_interval=getattr(sec_estimate, "simultaneous_interval", None),
             adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
             family_contrast=getattr(sec_estimate, "family_contrast", None),
+            family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
         ),
@@ -875,9 +877,11 @@ class PreparedBatch:
     ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
     when every query shares a certified adjustment set, one covariate design.
     Propensity and outcome residualization are still fit per query.     A family of two or more average-effect claims attaches joint IF covariance
-    and max-t / BH / BY on those contrasts. Joint-cell families keep intervals
-    on cell levels and, unless ``family_contrast`` is ``None``, test a declared
-    score-difference contrast (default ``cell_minus_control``).
+    and max-t / BH / BY on those contrasts. Joint-cell families keep
+    ``simultaneous_interval`` on cell levels and, unless ``family_contrast``
+    is ``None``, test a declared score-difference contrast (default
+    ``cell_minus_control``) with max-t and ``family_contrast_interval`` on
+    that contrast family.
     """
 
     _native: Any
@@ -984,8 +988,10 @@ class PreparedBatch:
         adjustment sets agree, the covariate design; estimation attaches joint
         IF covariance on cell **levels**. Family p-values / FDR use
         ``family_contrast`` (default ``cell_minus_control``, the same contrast
-        as cell.aipw refuters). ``family_contrast=None`` publishes no p-values.
-        ``estimate.ate`` remains the requested cell level, not a contrast.
+        as cell.aipw refuters). Max-t and ``family_contrast_interval`` are
+        formed on that contrast family. ``family_contrast=None`` publishes no
+        p-values. ``estimate.ate`` remains the requested cell level, not a
+        contrast.
         """
         if not queries:
             raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")

@@ -2261,6 +2261,7 @@ pub(crate) fn ate_result_from_analysis(
         simultaneous_interval: result.estimate.simultaneous_interval,
         adjusted_p_values: result.estimate.adjusted_p_values,
         family_contrast: result.estimate.family_contrast,
+        family_contrast_interval: result.estimate.family_contrast_interval,
         candidate_selection: result
             .estimate
             .candidate_selection

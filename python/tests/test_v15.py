@@ -674,13 +674,21 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
         data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
-    for result in (first, second):
+    for i, result in enumerate((first, second)):
         assert result.estimate.ate > 1.0
         assert abs(result.estimate.ate) / result.estimate.se_analytic > 8.0
         bh, by_q = result.estimate.adjusted_p_values
         assert bh > 0.05 and by_q > 0.05
-        value, _se = result.estimate.family_contrast
+        value, se = result.estimate.family_contrast
         assert abs(value) < 0.25
+        _clo, chi, clevel = result.estimate.family_contrast_interval
+        assert clevel == pytest.approx(0.95)
+        contrast_crit = (chi - value) / se
+        _llo, lhi, _ = result.estimate.simultaneous_interval
+        level_se = result.estimate.joint_covariance[i][i] ** 0.5
+        level_crit = (lhi - result.estimate.ate) / level_se
+        assert abs(contrast_crit - level_crit) > 1e-4
+        assert abs(value + level_crit * se - chi) > 1e-6
     omitted = antecedent.estimation.PreparedBatch.prepare_cells(
         data,
         graph=graph,
@@ -692,6 +700,7 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
     ).estimate(data)
     assert all(r.estimate.adjusted_p_values is None for r in omitted)
     assert all(r.estimate.family_contrast is None for r in omitted)
+    assert all(r.estimate.family_contrast_interval is None for r in omitted)
     assert all(r.estimate.simultaneous_interval is not None for r in omitted)
 
 

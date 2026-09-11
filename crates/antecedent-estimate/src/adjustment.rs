@@ -103,6 +103,9 @@ pub struct EffectEstimate {
     /// Effects under declared canonical orientation scenarios, in estimand order.
     pub scenario_effects: Option<Arc<[f64]>>,
     /// Simultaneous batch interval (lower, upper, level).
+    ///
+    /// Joint-cell batches keep this on cell **levels**. Contrast-family bands
+    /// live on [`Self::family_contrast_interval`].
     pub simultaneous_interval: Option<(f64, f64, f64)>,
     /// BH and BY adjusted p-values for the fixed batch family.
     pub adjusted_p_values: Option<(f64, f64)>,
@@ -110,6 +113,12 @@ pub struct EffectEstimate {
     /// contrast rather than [`Self::ate`]. `None` for average-effect claims
     /// (`ate` is already the contrast) and when no cell contrast was declared.
     pub family_contrast: Option<(f64, f64)>,
+    /// Simultaneous interval `(lower, upper, level)` for [`Self::family_contrast`].
+    ///
+    /// Formed from contrast-family max-t, not the cell-level covariance used
+    /// by [`Self::simultaneous_interval`]. `None` when no contrast was declared
+    /// or contrast max-t could not form.
+    pub family_contrast_interval: Option<(f64, f64, f64)>,
     /// Simultaneous intervals for canonical scenarios; not bounds on all completions.
     pub scenario_intervals: Option<Arc<[(f64, f64)]>>,
     /// Joint IF covariance across arms / thresholds / cells / claims.
@@ -176,6 +185,7 @@ impl EffectEstimate {
             simultaneous_interval: None,
             adjusted_p_values: None,
             family_contrast: None,
+            family_contrast_interval: None,
             scenario_intervals: None,
             joint_covariance: None,
             exceedance_cdf: None,
@@ -222,6 +232,7 @@ impl EffectEstimate {
             simultaneous_interval: None,
             adjusted_p_values: None,
             family_contrast: None,
+            family_contrast_interval: None,
             scenario_intervals: None,
             joint_covariance: None,
             exceedance_cdf: None,
@@ -309,6 +320,16 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_family_contrast(mut self, contrast: Option<(f64, f64)>) -> Self {
         self.family_contrast = contrast;
+        if contrast.is_none() {
+            self.family_contrast_interval = None;
+        }
+        self
+    }
+
+    /// Attach the contrast-family simultaneous interval `(lower, upper, level)`.
+    #[must_use]
+    pub fn with_family_contrast_interval(mut self, interval: Option<(f64, f64, f64)>) -> Self {
+        self.family_contrast_interval = interval;
         self
     }
 

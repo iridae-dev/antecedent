@@ -86,6 +86,9 @@ pub struct EffectEstimateWire {
     /// Declared family contrast `(value, se)` when batch FDR tested a contrast.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family_contrast: Option<(f64, f64)>,
+    /// Contrast-family simultaneous interval `(lower, upper, level)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_contrast_interval: Option<(f64, f64, f64)>,
     /// Simultaneous scenario intervals.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scenario_intervals: Option<Vec<(f64, f64)>>,
@@ -359,6 +362,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         simultaneous_interval: e.simultaneous_interval,
         adjusted_p_values: e.adjusted_p_values,
         family_contrast: e.family_contrast,
+        family_contrast_interval: e.family_contrast_interval,
         evalue: e.evalue,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
             screen_id: s.screen_id.to_string(),
@@ -536,6 +540,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.simultaneous_interval = w.simultaneous_interval;
     estimate.adjusted_p_values = w.adjusted_p_values;
     estimate.family_contrast = w.family_contrast;
+    estimate.family_contrast_interval = w.family_contrast_interval;
     estimate.evalue = w.evalue;
     estimate.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
@@ -1004,6 +1009,7 @@ mod tests {
             simultaneous_interval: None,
             adjusted_p_values: None,
             family_contrast: None,
+            family_contrast_interval: None,
             scenario_intervals: None,
             exceedance_cdf: None,
             monotone_rearranged: false,
