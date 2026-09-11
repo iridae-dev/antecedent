@@ -5,6 +5,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, IdentificationStatus, Intervention, ResponseQuery, Value,
 };
@@ -13,7 +15,8 @@ use antecedent_graph::{Cpdag, Dag, Pag};
 use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
 use crate::generalized::{
-    GeneralizedAdjustmentIdentifier, identify_on_mag_completion, mag_to_admg, pag_var_to_dense,
+    GeneralizedAdjustmentIdentifier, identify_on_mag_completion, identify_on_mag_completion_mean,
+    mag_to_admg, pag_var_to_dense,
 };
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
@@ -35,12 +38,39 @@ pub(crate) fn response_ate_witness(
     Ok(AverageEffectQuery::binary_ate(treatment, outcome))
 }
 
+/// Requested Set level for a single-treatment InterventionResponse.
+pub(crate) fn intervention_response_set(
+    query: &ResponseQuery,
+) -> Option<(antecedent_core::VariableId, antecedent_core::VariableId, Value)> {
+    match &query.functional {
+        antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions }
+            if interventions.len() == 1 =>
+        {
+            match &interventions[0] {
+                Intervention::Set { variable, value } => Some((*variable, *outcome, value.clone())),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Identify a MAG completion: generalized adjustment, then ADMG ID.
 pub(crate) fn identify_mag_response(
     mag: &Pag,
     query: &ResponseQuery,
     max_candidates: usize,
 ) -> Result<IdentificationResult, IdentificationError> {
+    if let Some((t, y, level)) = intervention_response_set(query) {
+        let t_d = pag_var_to_dense(mag, t)?;
+        let y_d = pag_var_to_dense(mag, y)?;
+        let mut result =
+            identify_on_mag_completion_mean(mag, t, y, t_d, y_d, level, max_candidates, query)?;
+        if !is_identified(&result) {
+            result = identify_admg_response(mag, query)?;
+        }
+        return Ok(result);
+    }
     let witness = response_ate_witness(query)?;
     let t = witness.treatment;
     let y = witness.outcome;
@@ -177,6 +207,12 @@ pub fn identify_cpdag_response_general(
         let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
         if !is_identified(&result) {
             result = identify_dag_via_id(dag, query)?;
+        } else if let Some((t, y, level)) = intervention_response_set(query) {
+            if let Some(first) = result.estimands.first() {
+                let z = Arc::clone(&first.adjustment_set);
+                let functional = result.arena.backdoor_mean(t, y, &z, level);
+                result.estimands[0].functional = functional;
+            }
         }
         result.query = CausalQuery::Response(query.clone());
         Ok(result)
@@ -251,5 +287,59 @@ mod tests {
             "front-door MAG must be identified by general ID, not adjustment"
         );
         assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), "general.id");
+        let id = env.cases[0].result.estimands[0].functional;
+        assert!(
+            !matches!(
+                env.cases[0].result.arena.node(id),
+                antecedent_expr::ExprNode::Contrast { .. }
+            ),
+            "front-door MAG response must stage a single-arm mean"
+        );
+    }
+
+    fn adjustment_mag() -> Pag {
+        // R→T witnesses visibility of T→Y. Z is the backdoor (Z→T, Z→Y).
+        let mut pag = Pag::with_variables(4);
+        pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        pag
+    }
+
+    #[test]
+    fn adjustment_mag_response_stages_single_arm_mean() {
+        let mag = adjustment_mag();
+        for level in [0.0, 1.0] {
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(1),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(level),
+                )]),
+            });
+            let env = identify_pag_response_general(&mag, &query).unwrap();
+            let result = &env.cases[0].result;
+            assert!(matches!(result.query, CausalQuery::Response(_)));
+            assert!(
+                result.estimands[0].method.as_ref().starts_with("generalized.adjustment"),
+                "method={} status={:?} derivation={:?}",
+                result.estimands[0].method,
+                result.status,
+                result.derivation
+            );
+            let id = result.estimands[0].functional;
+            assert!(
+                !matches!(result.arena.node(id), antecedent_expr::ExprNode::Contrast { .. }),
+                "adjustment MAG must not persist an ATE contrast as a Response"
+            );
+            let pretty = result.arena.pretty(id);
+            assert!(pretty.contains("do("), "{pretty}");
+            assert!(
+                pretty.contains(&level.to_string()) || pretty.contains("0") || pretty.contains("1"),
+                "{pretty}"
+            );
+            assert!(!pretty.contains('−'), "{pretty}");
+        }
     }
 }

@@ -448,6 +448,32 @@ impl CausalExprArena {
         contrast
     }
 
+    /// Build the backdoor adjustment functional for a single-arm intervention mean:
+    /// `E[Y | do(T=level)]` under adjustment by Z.
+    ///
+    /// This is the staged object for a requested [`antecedent_core::Intervention::Set`],
+    /// not an active−control contrast with the query label swapped.
+    pub fn backdoor_mean(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        adjustment: &[VariableId],
+        level: Value,
+    ) -> ExprId {
+        let mean = self.backdoor_potential_outcome(treatment, outcome, adjustment, level);
+        self.set_derivation(
+            mean,
+            DerivationMeta {
+                rule: Arc::from("backdoor.adjustment"),
+                note: Some(Arc::from(format!(
+                    "single-arm intervention mean, adjustment set size {}",
+                    adjustment.len()
+                ))),
+            },
+        );
+        mean
+    }
+
     fn backdoor_potential_outcome(
         &mut self,
         treatment: VariableId,
@@ -741,6 +767,25 @@ mod tests {
         let latex = a.latex(id);
         assert!(latex.contains("\\mathbb{E}") || latex.contains("\\mathrm{do}"));
         assert!(latex.contains('-'));
+    }
+
+    #[test]
+    fn backdoor_mean_is_expectation_not_contrast() {
+        let mut a = CausalExprArena::new();
+        let id = a.backdoor_mean(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(0.0),
+        );
+        assert!(
+            !matches!(a.node(id), ExprNode::Contrast { .. }),
+            "single-arm mean must not persist as an ATE contrast"
+        );
+        assert!(matches!(a.node(id), ExprNode::Expectation { .. }));
+        let pretty = a.pretty(id);
+        assert!(pretty.contains("do(") && pretty.contains("0"), "{pretty}");
+        assert!(!pretty.contains('−'), "{pretty}");
     }
 
     #[test]

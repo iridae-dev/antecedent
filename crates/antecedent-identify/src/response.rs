@@ -145,13 +145,40 @@ impl ResponseIdentifier {
                 identified.query = query.clone();
                 return Ok(identified);
             }
-            let functional = arena.backdoor_ate(
-                treatment,
-                outcome,
-                first.adjustment_set.as_ref(),
-                Value::f64(1.0),
-                Value::f64(0.0),
-            );
+            let functional = match &response.functional {
+                ResponseFunctional::InterventionResponse { interventions, .. } => {
+                    let level = interventions.iter().find_map(|iv| match iv {
+                        antecedent_core::Intervention::Set { variable, value }
+                            if *variable == treatment =>
+                        {
+                            Some(value.clone())
+                        }
+                        _ => None,
+                    });
+                    match level {
+                        Some(level) => arena.backdoor_mean(
+                            treatment,
+                            outcome,
+                            first.adjustment_set.as_ref(),
+                            level,
+                        ),
+                        None => arena.backdoor_ate(
+                            treatment,
+                            outcome,
+                            first.adjustment_set.as_ref(),
+                            Value::f64(1.0),
+                            Value::f64(0.0),
+                        ),
+                    }
+                }
+                _ => arena.backdoor_ate(
+                    treatment,
+                    outcome,
+                    first.adjustment_set.as_ref(),
+                    Value::f64(1.0),
+                    Value::f64(0.0),
+                ),
+            };
             estimands.push(IdentifiedEstimand::backdoor(
                 "backdoor.adjustment",
                 Arc::clone(&first.adjustment_set),

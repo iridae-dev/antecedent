@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    Value, VariableId,
+    ResponseQuery, Value, VariableId,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
@@ -645,37 +645,40 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
     Some(cut)
 }
 
-pub(crate) fn identify_on_mag_completion(
+enum MagAdjustment {
+    Found { z_vars: Arc<[VariableId]>, examined: u64 },
+    Failed(IdentificationResult),
+}
+
+fn mag_adjustment_search(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
+    _t: VariableId,
+    _y: VariableId,
     t_d: DenseNodeId,
     y_d: DenseNodeId,
-    active: Value,
-    control: Value,
+    query: CausalQuery,
     max_candidates: usize,
-) -> Result<IdentificationResult, IdentificationError> {
-    let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
-        t,
-        y,
-        Arc::from([]),
-        antecedent_core::Intervention::set(t, control.clone()),
-        antecedent_core::Intervention::set(t, active.clone()),
-        antecedent_core::TargetPopulation::AllObserved,
-    ));
+) -> Result<MagAdjustment, IdentificationError> {
     let Some(admg) = mag_to_admg(mag) else {
-        return Ok(not_identified(query, "completion is not a MAG (undirected marks remain)"));
+        return Ok(MagAdjustment::Failed(not_identified(
+            query,
+            "completion is not a MAG (undirected marks remain)",
+        )));
     };
 
     let Some(mutilated) = proper_backdoor_mag(mag, t_d, y_d) else {
-        return Ok(not_identified(
+        return Ok(MagAdjustment::Failed(not_identified(
             query,
             "MAG is not adjustment amenable: a causal path starts with an invisible edge; no adjustment set identifies this effect",
-        ));
+        )));
     };
     let candidates = adjustment_candidates(&admg, t_d, y_d);
     if candidates.len() > max_candidates {
-        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
+        return Ok(MagAdjustment::Failed(capped_completion_result(
+            query,
+            candidates.len(),
+            max_candidates,
+        )));
     }
 
     let mut ws = DSeparationWorkspace::default();
@@ -711,7 +714,7 @@ pub(crate) fn identify_on_mag_completion(
     }
 
     let Some(z_dense) = found else {
-        return Ok(IdentificationResult::not_identified(
+        return Ok(MagAdjustment::Failed(IdentificationResult::not_identified(
             query,
             {
                 let mut d = DerivationTrace::default();
@@ -723,19 +726,27 @@ pub(crate) fn identify_on_mag_completion(
             },
             AssumptionSet::default(),
             IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-        ));
+        )));
     };
 
     let z_vars: Arc<[VariableId]> =
         z_dense.iter().map(|&d| mag_dense_to_var(mag, d)).collect::<Result<Vec<_>, _>>()?.into();
-    let mut arena = CausalExprArena::new();
-    let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
+    Ok(MagAdjustment::Found { z_vars, examined })
+}
+
+fn mag_adjustment_identified(
+    query: CausalQuery,
+    z_vars: Arc<[VariableId]>,
+    examined: u64,
+    functional: antecedent_expr::ExprId,
+    arena: CausalExprArena,
+) -> IdentificationResult {
     let label =
         if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
     let estimand = IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional);
     let mut assumptions = AssumptionSet::default();
     assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.mag"));
-    Ok(IdentificationResult::identified(
+    IdentificationResult::identified(
         query,
         vec![estimand],
         arena,
@@ -752,7 +763,57 @@ pub(crate) fn identify_on_mag_completion(
         },
         assumptions,
         IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
-    ))
+    )
+}
+
+pub(crate) fn identify_on_mag_completion(
+    mag: &Pag,
+    t: VariableId,
+    y: VariableId,
+    t_d: DenseNodeId,
+    y_d: DenseNodeId,
+    active: Value,
+    control: Value,
+    max_candidates: usize,
+) -> Result<IdentificationResult, IdentificationError> {
+    let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
+        t,
+        y,
+        Arc::from([]),
+        antecedent_core::Intervention::set(t, control.clone()),
+        antecedent_core::Intervention::set(t, active.clone()),
+        antecedent_core::TargetPopulation::AllObserved,
+    ));
+    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+        MagAdjustment::Failed(result) => Ok(result),
+        MagAdjustment::Found { z_vars, examined } => {
+            let mut arena = CausalExprArena::new();
+            let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
+            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+        }
+    }
+}
+
+/// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
+pub(crate) fn identify_on_mag_completion_mean(
+    mag: &Pag,
+    t: VariableId,
+    y: VariableId,
+    t_d: DenseNodeId,
+    y_d: DenseNodeId,
+    level: Value,
+    max_candidates: usize,
+    response: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    let query = CausalQuery::Response(response.clone());
+    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+        MagAdjustment::Failed(result) => Ok(result),
+        MagAdjustment::Found { z_vars, examined } => {
+            let mut arena = CausalExprArena::new();
+            let functional = arena.backdoor_mean(t, y, &z_vars, level);
+            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+        }
+    }
 }
 
 fn mag_dense_to_var(mag: &Pag, id: DenseNodeId) -> Result<VariableId, IdentificationError> {
