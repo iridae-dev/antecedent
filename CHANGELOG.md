@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Local validation is recorded in the [evidence ledger](docs/v1.5-evidence.md);
   release gates and packaging checks remain required before the release cut.
 
-## [1.4.0] — 2026-09-10
+## [1.4.0] — 2026-09-11
 
 ### Added
 
