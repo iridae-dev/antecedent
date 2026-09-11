@@ -3268,12 +3268,13 @@ fn prepare_cells_batch(
     estimate_rows: Option<Vec<u32>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
-    family_contrast: Option<String>,
+    family_contrast: Option<&str>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;
+    let family_contrast = family_contrast.map(str::to_owned);
     detach_catch(py, move || {
         let (batch, cell_queries) = compile_cell_batch(
             data,
