@@ -594,7 +594,7 @@ pub fn compile_logical_path_specific(
     Ok(plan)
 }
 
-/// Compile a CoDetermined joint `InterventionResponse` on the closure ADMG.
+/// Compile a `CoDetermined` joint `InterventionResponse` on the closure ADMG.
 ///
 /// # Errors
 /// Invalid query or identifier/estimator pair.
