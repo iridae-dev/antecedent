@@ -1434,6 +1434,7 @@ impl Study {
                     query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                         message: "response query has no treatment/outcome pair".into(),
                     })?;
+                let schedule = sequence_identification_schedule(query)?;
                 Ok(Some(identify_temporal_response_horizons(
                     graph,
                     treatment,
@@ -1445,6 +1446,7 @@ impl Study {
                     } else {
                         EstimatorId::TemporalResponseGcomp
                     },
+                    schedule.as_deref(),
                 )?))
             }
             CausalQuery::TemporalEffect(query) => {
@@ -1762,6 +1764,18 @@ fn overlay_prepared_score_functional(
     Ok(())
 }
 
+fn sequence_identification_schedule(
+    query: &antecedent_core::ResponseQuery,
+) -> Result<Option<Vec<(antecedent_core::VariableId, i32)>>, CausalError> {
+    match antecedent_estimate::plan_from_response_query(query) {
+        Ok(Some(antecedent_estimate::TemporalInterventionPlan::Sequential { overlays })) => {
+            Ok(Some(overlays.iter().map(|o| (o.variable, o.offset)).collect()))
+        }
+        Ok(_) => Ok(None),
+        Err(error) => Err(CausalError::from(error)),
+    }
+}
+
 pub(crate) fn identify_temporal_response_horizons(
     graph: &TemporalDag,
     treatment: antecedent_core::VariableId,
@@ -1769,6 +1783,7 @@ pub(crate) fn identify_temporal_response_horizons(
     temporal: &TemporalResponseSpec,
     target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
+    schedule: Option<&[(antecedent_core::VariableId, i32)]>,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
     if temporal.horizons.is_empty() {
@@ -1776,21 +1791,39 @@ pub(crate) fn identify_temporal_response_horizons(
             message: "temporal response requires at least one horizon".into(),
         });
     }
+    let origin =
+        temporal.treatment_offset().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let sequential =
+        schedule.is_some_and(|nodes| nodes.len() != 1 || nodes[0] != (treatment, origin));
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
     for &horizon in temporal.horizons.iter() {
-        let id_query = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, Value::f64(0.0)),
-            active: Intervention::set(treatment, Value::f64(1.0)),
-            horizon_steps: horizon,
-            max_history_lag: temporal.max_history_lag,
-            target_population: target_population.clone(),
+        let id_res = if sequential {
+            let outcome_at = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
+            TemporalBackdoorIdentifier::new()
+                .identify_temporal_schedule(
+                    graph,
+                    outcome,
+                    outcome_at,
+                    schedule.expect("sequential schedule"),
+                    temporal.max_history_lag,
+                    target_population.clone(),
+                )
+                .map_err(CausalError::from)?
+        } else {
+            let id_query = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, Value::f64(0.0)),
+                active: Intervention::set(treatment, Value::f64(1.0)),
+                horizon_steps: horizon,
+                max_history_lag: temporal.max_history_lag,
+                target_population: target_population.clone(),
+            };
+            TemporalBackdoorIdentifier::new()
+                .identify_temporal(graph, &id_query)
+                .map_err(CausalError::from)?
         };
-        let id_res = TemporalBackdoorIdentifier::new()
-            .identify_temporal(graph, &id_query)
-            .map_err(CausalError::from)?;
         let estimand = select_estimand(&id_res.result, estimator_id)?;
         by_horizon.push(CachedTemporalHorizonIdentification {
             horizon,

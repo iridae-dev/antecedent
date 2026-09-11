@@ -314,27 +314,14 @@ def handle_temporal_mediation(
 
 
 def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
-    """Map a temporal InterventionResponse step to native (variable, kind, params).
-
-    Licensed single-step :class:`~antecedent.intervention.Sequence` unwraps to its
-    inner Set/Shift/Soft. Multi-step and nested Sequence refuse closed.
-    """
+    """Map one Set/Shift/Soft leaf to native (variable, kind, params)."""
     from . import intervention as intervention_specs
 
     if isinstance(spec, intervention_specs.Sequence):
-        if len(spec.steps) != 1:
-            raise CausalUnsupportedError(
-                "refused: multi-step Sequence intervention policies are not licensed "
-                "for temporal InterventionResponse; use a single-step Sequence or a "
-                "bare Set/Shift/Soft"
-            )
-        inner = spec.steps[0]
-        if isinstance(inner, intervention_specs.Sequence):
-            raise CausalUnsupportedError(
-                "refused: nested Sequence interventions are not licensed for temporal "
-                "InterventionResponse"
-            )
-        return _encode_temporal_intervention(inner)
+        raise CausalUnsupportedError(
+            "refused: nested Sequence interventions are not licensed for temporal "
+            "InterventionResponse"
+        )
     if isinstance(spec, intervention_specs.Set):
         return spec.variable, "set", [spec.value]
     if isinstance(spec, intervention_specs.Shift):
@@ -348,8 +335,22 @@ def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
             f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
         )
     raise TypeError(
-        "temporal InterventionResponse supports Set/Shift/Soft and a single-step Sequence"
+        "temporal InterventionResponse supports Set/Shift/Soft and Sequence of those steps"
     )
+
+
+def _encode_temporal_interventions(spec: Any) -> list[tuple[str, str, list[float]]]:
+    """Flatten a licensed Sequence or a single Set/Shift/Soft into overlay steps."""
+    from . import intervention as intervention_specs
+
+    if isinstance(spec, intervention_specs.Sequence):
+        if any(isinstance(step, intervention_specs.Sequence) for step in spec.steps):
+            raise CausalUnsupportedError(
+                "refused: nested Sequence interventions are not licensed for temporal "
+                "InterventionResponse"
+            )
+        return [_encode_temporal_intervention(step) for step in spec.steps]
+    return [_encode_temporal_intervention(spec)]
 
 
 def handle_response(
@@ -507,10 +508,10 @@ def handle_response(
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                variable, kind, parameters = _encode_temporal_intervention(spec)
-                temporal_treatments.append(variable)
-                kinds.append(kind)
-                parameters_list.append(parameters)
+                for variable, kind, parameters in _encode_temporal_interventions(spec):
+                    temporal_treatments.append(variable)
+                    kinds.append(kind)
+                    parameters_list.append(parameters)
             temporal_intervention_kinds = kinds
             temporal_intervention_parameters = parameters_list
             temporal_grid = None

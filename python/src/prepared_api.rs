@@ -1229,6 +1229,9 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
             let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let origin = -i32::try_from(treatment_lag)
+                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+            let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             let query =

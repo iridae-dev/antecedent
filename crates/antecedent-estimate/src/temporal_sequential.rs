@@ -1,4 +1,9 @@
-//! Linear sequential g-computation for a sustained intervention window.
+//! Linear sequential g-computation on an identified unfolded DAG.
+//!
+//! Multi-step Sustained and multi-step / joint `Sequence` overlays share this
+//! engine. Sustained is the active-minus-control contrast over a window;
+//! Sequence evaluates the interventional level under per-node Set / Soft
+//! constant / Soft shift overlays. No second identifier.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -27,6 +32,36 @@ use crate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
     EstimationError, OverlapPolicy, PreparedBayesianProblem,
 };
+
+/// One intervened unfolded node and the licensed overlay applied there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SequentialNodeOverlay {
+    /// Template variable.
+    pub variable: VariableId,
+    /// Absolute time offset of the intervened copy.
+    pub offset: i32,
+    /// Hard `Set` / Soft `constant` level. `None` means an additive shift.
+    pub level: Option<f64>,
+    /// Additive shift applied to the factual mean when [`Self::level`] is `None`.
+    pub shift: f64,
+}
+
+impl SequentialNodeOverlay {
+    /// Assigned value under a linear additive mechanism.
+    #[must_use]
+    pub fn assigned(self, factual_mean: f64) -> f64 {
+        self.level.unwrap_or(factual_mean + self.shift)
+    }
+}
+
+/// What the sequential engine returns for one outcome node.
+#[derive(Clone, Copy, Debug)]
+enum SequentialEval {
+    /// Active-minus-control contrast; every intervened node is overwritten by `delta`.
+    Contrast { delta: f64 },
+    /// Interventional outcome level under the per-node overlays.
+    Level,
+}
 
 /// Fit every non-intervened ancestor's linear mechanism in the identified
 /// unfolded DAG. Propagate the active-minus-control difference in topological
@@ -75,20 +110,128 @@ pub fn estimate_sustained_window(
             "composed sustained HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
-    let delta = crate::adjustment::intervention_f64(&query.active)?
-        - crate::adjustment::intervention_f64(&query.control)?;
+    let active = crate::adjustment::intervention_f64(&query.active)?;
+    let delta = active - crate::adjustment::intervention_f64(&query.control)?;
+    let overlays: Vec<SequentialNodeOverlay> = (from..=until)
+        .map(|offset| SequentialNodeOverlay {
+            variable: query.treatment,
+            offset,
+            level: Some(active),
+            shift: 0.0,
+        })
+        .collect();
+    estimate_sequential(
+        data,
+        graph,
+        indexer,
+        estimand,
+        query.outcome,
+        query.outcome_offset(),
+        &overlays,
+        SequentialEval::Contrast { delta },
+        status,
+        assumptions,
+        bootstrap_replicates,
+        bayesian,
+        ctx,
+    )
+}
+
+/// Sequential g-computation of the interventional **level** under per-node
+/// Set / Soft constant / Soft shift overlays. Shares the Sustained engine.
+///
+/// # Errors
+///
+/// Empty or duplicate overlays, unidentified estimand, or fit failures.
+pub fn estimate_sequence_overlays(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    indexer: &TemporalIndexer,
+    estimand: &IdentifiedEstimand,
+    outcome: VariableId,
+    outcome_offset: i32,
+    overlays: &[SequentialNodeOverlay],
+    status: IdentificationStatus,
+    assumptions: AssumptionSet,
+    bootstrap_replicates: u32,
+    bayesian: Option<&BayesianGComputationAte>,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    if overlays.is_empty() {
+        return Err(EstimationError::unsupported("sequential overlay requires at least one step"));
+    }
+    if estimand.method_kind().ok() != Some(EstimandMethod::TemporalBackdoorUnfolded)
+        || !matches!(
+            status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        )
+    {
+        return Err(EstimationError::unsupported(
+            "sequential overlay requires an identified unfolded design",
+        ));
+    }
+    if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
+        return Err(EstimationError::unsupported(
+            "sequential Bayesian g-computation requires GaussianIdentity",
+        ));
+    }
+    if bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
+        return Err(EstimationError::unsupported(
+            "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
+        ));
+    }
+    estimate_sequential(
+        data,
+        graph,
+        indexer,
+        estimand,
+        outcome,
+        outcome_offset,
+        overlays,
+        SequentialEval::Level,
+        status,
+        assumptions,
+        bootstrap_replicates,
+        bayesian,
+        ctx,
+    )
+}
+
+fn estimate_sequential(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    indexer: &TemporalIndexer,
+    estimand: &IdentifiedEstimand,
+    outcome: VariableId,
+    outcome_offset: i32,
+    overlays: &[SequentialNodeOverlay],
+    eval: SequentialEval,
+    status: IdentificationStatus,
+    assumptions: AssumptionSet,
+    bootstrap_replicates: u32,
+    bayesian: Option<&BayesianGComputationAte>,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     let unfolded =
         graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
     let dag = &unfolded.dag;
     let outcome = indexer
-        .dense_id(TemporalNodeKey { variable: query.outcome, offset: query.outcome_offset() })
+        .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })
         .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
     let mut intervention = vec![false; dag.node_count()];
-    for offset in from..=until {
-        intervention[indexer
-            .dense_id(TemporalNodeKey { variable: query.treatment, offset })
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?
-            as usize] = true;
+    let mut overlay_at = vec![None; dag.node_count()];
+    for &overlay in overlays {
+        let dense = indexer
+            .dense_id(TemporalNodeKey { variable: overlay.variable, offset: overlay.offset })
+            .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+        if intervention[dense] {
+            return Err(EstimationError::unsupported(
+                "Sequence assigns the same (variable, time) twice; refuse rather than collapse",
+            ));
+        }
+        intervention[dense] = true;
+        overlay_at[dense] = Some(overlay);
     }
     let mut needed = vec![false; dag.node_count()];
     let mut pending = vec![outcome];
@@ -162,20 +305,45 @@ pub fn estimate_sustained_window(
         designs[i] =
             Some(CompiledDesign::linear_adjustment(t, &covs, sample.column(column_of[i]), &[])?);
     }
-    let propagate = |coefficients: &[Vec<f64>]| {
-        let mut differences = vec![0.0; dag.node_count()];
-        for &i in &order {
-            differences[i] = if intervention[i] {
-                delta
-            } else {
-                parents[i]
-                    .iter()
-                    .enumerate()
-                    .map(|(p, &node)| coefficients[i][p + 1] * differences[node])
-                    .sum()
-            };
+    let mut factual = vec![0.0; dag.node_count()];
+    for &i in &order {
+        let col = sample.column(column_of[i]);
+        factual[i] = col.iter().sum::<f64>() / n as f64;
+    }
+    let propagate = |coefficients: &[Vec<f64>]| match eval {
+        SequentialEval::Contrast { delta } => {
+            let mut differences = vec![0.0; dag.node_count()];
+            for &i in &order {
+                differences[i] = if intervention[i] {
+                    delta
+                } else {
+                    parents[i]
+                        .iter()
+                        .enumerate()
+                        .map(|(p, &node)| coefficients[i][p + 1] * differences[node])
+                        .sum()
+                };
+            }
+            differences[outcome]
         }
-        differences[outcome]
+        SequentialEval::Level => {
+            let mut values = vec![0.0; dag.node_count()];
+            for &i in &order {
+                values[i] = if let Some(overlay) = overlay_at[i] {
+                    overlay.assigned(factual[i])
+                } else if coefficients[i].is_empty() {
+                    factual[i]
+                } else {
+                    coefficients[i][0]
+                        + parents[i]
+                            .iter()
+                            .enumerate()
+                            .map(|(p, &node)| coefficients[i][p + 1] * values[node])
+                            .sum::<f64>()
+                };
+            }
+            values[outcome]
+        }
     };
     let mut ls_ws = LeastSquaresWorkspace::default();
     let mut fit_ols = |rows: Option<&[usize]>| -> Result<Vec<Vec<f64>>, EstimationError> {

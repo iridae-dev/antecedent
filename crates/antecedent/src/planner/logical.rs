@@ -839,7 +839,9 @@ pub fn compile_logical_temporal_response(
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
-    validate_query_vars_in_temporal_dag(graph, treatment, outcome)?;
+    for variable in query.functional.treatment_ids() {
+        validate_query_vars_in_temporal_dag(graph, variable, outcome)?;
+    }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: format!(
