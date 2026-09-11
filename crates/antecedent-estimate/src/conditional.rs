@@ -147,6 +147,18 @@ impl ConditionalLinearAdjustment {
             "ConditionalLinearAdjustment requires ExplicitOverride overlap policy",
         )?;
         query.validate()?;
+        if query.inner.target_population != TargetPopulation::AllObserved
+            || query.inner.effect_modifiers.len() != 1
+        {
+            return Err(EstimationError::unsupported(
+                "conditional arm scores require AllObserved and exactly one modifier",
+            ));
+        }
+        if !matches!(query.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean) {
+            return Err(EstimationError::unsupported(
+                "conditional arm scores require an already transformed outcome and the Mean functional",
+            ));
+        }
         if binary_zero_one(&query.inner)? {
             let scores = aipw_conditional_arm_scores(data, estimand, &query.inner)?;
             let n = scores.influence[0].len() as f64;
@@ -179,6 +191,11 @@ impl ConditionalLinearAdjustment {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<(EffectEstimate, [f64; 2], ConditionalArmScores), EstimationError> {
+        if query.outcome_functional.quantile_level().is_some() {
+            return Err(EstimationError::unsupported(
+                "conditional quantiles require CDF-grid inversion through Study; a mean regression cannot estimate a quantile",
+            ));
+        }
         if query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported(
                 "ConditionalLinearAdjustment requires effect modifiers",
@@ -428,6 +445,11 @@ fn aipw_conditional_arm_scores(
         &antecedent_stats::GlmOptions::default(),
         FaerBackend,
     )?;
+    if !crate::retarget::score_weighted_support(&table, &vec![1.0; table.n_rows]).overlap_ok {
+        return Err(EstimationError::unsupported(
+            "conditional AIPW arm scores require supported out-of-fold propensity overlap",
+        ));
+    }
     let c0 = table.column(0)?;
     let c1 = table.column(1)?;
     let n = table.n_rows as f64;

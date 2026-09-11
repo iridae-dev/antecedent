@@ -74,10 +74,9 @@ impl OutcomeFunctional {
     #[must_use]
     pub fn thresholds(&self) -> Option<Vec<f64>> {
         match self {
-            Self::Mean => None,
+            Self::Mean | Self::Quantile(_) => None,
             Self::Exceedance(c) => Some(vec![c.to_f64()]),
             Self::ExceedanceGrid(grid) => Some(grid.iter().map(|c| c.to_f64()).collect()),
-            Self::Quantile(_) => None,
         }
     }
 

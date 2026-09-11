@@ -137,7 +137,14 @@ impl CellSaturatedAipw {
             prepared.design = shared.to_vec();
             prepared.shared_design = true;
         }
-        let thresholds = thresholds_of(functional);
+        let thresholds = if functional.quantile_level().is_some() {
+            crate::quantile::empirical_threshold_grid(&prepared.outcome, 19)?
+                .into_iter()
+                .map(Some)
+                .collect()
+        } else {
+            thresholds_of(functional)
+        };
         crossfit_cell_scores(&prepared, &thresholds, self)
     }
 }
@@ -318,6 +325,10 @@ fn crossfit_cell_scores(
         }
         None => (0..n).map(|i| (prepared.row_index[i] as usize % folds) as u32).collect(),
     };
+
+    if fold_ids.iter().any(|&id| id as usize >= folds) {
+        return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
+    }
     let clip = clip_of(est.overlap);
     let mut out_ws = crate::aipw::AipwWorkspace::default();
 

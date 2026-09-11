@@ -46,7 +46,14 @@ pub fn crossfit_binary_scores(
     glm_options: &GlmOptions,
     backend: FaerBackend,
 ) -> Result<ScoreTable, EstimationError> {
-    let thresholds = thresholds_of(&query.outcome_functional);
+    let thresholds = if query.outcome_functional.quantile_level().is_some() {
+        crate::quantile::empirical_threshold_grid(&problem.outcome, 19)?
+            .into_iter()
+            .map(Some)
+            .collect()
+    } else {
+        thresholds_of(&query.outcome_functional)
+    };
     build_binary_scores(problem, query.treatment, &thresholds, folds, glm_options, backend)
 }
 
@@ -85,6 +92,10 @@ pub fn build_binary_scores(
         }
         None => (0..n).map(|i| (problem.row_index[i] as usize % folds) as u32).collect(),
     };
+
+    if fold_ids.iter().any(|&id| id as usize >= folds) {
+        return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
+    }
 
     let mut columns = Vec::new();
     for &c in thresholds {
@@ -344,6 +355,21 @@ mod tests {
         assert!((ate - 2.0).abs() < 0.35, "crossfit ate={ate}");
         assert_eq!(table.n_folds, 5);
         assert_eq!(table.columns.len(), 2);
+    }
+
+    #[test]
+    fn invalid_shared_fold_cannot_leave_unscored_rows() {
+        let (data, estimand) = confounded(200, 317);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let mut prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ids: Vec<_> = (0..prep.nrows).map(|i| u32::try_from(i % 5).unwrap()).collect();
+        ids[0] = 5;
+        prep.fold_assignment = Some(ids.into());
+        let error =
+            crossfit_binary_scores(&prep, &query, 5, &est.glm_options, est.backend).unwrap_err();
+        assert!(error.to_string().contains("fold ids"));
     }
 
     #[test]
