@@ -5,7 +5,7 @@ evidence synthesis. Historical sections record earlier release intentions;
 [TODO.md](TODO.md) owns the detailed 1.x working roadmap. This document defines
 the goals and release boundary for 2.0, not a checklist for an in-flight cut.
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 ## How to read this
 
@@ -264,7 +264,7 @@ coordinates, and verify all advertised temporal validation modes.
 
 ## 1.5 — Local, distributional, joint
 
-In completion on the `1.5.0` branch. See the
+Implemented and locally verified on the `1.5.0` branch. See the
 [evidence ledger](docs/v1.5-evidence.md). It sits ahead of the temporal and
 Bayesian minors (1.6–1.10) because its consumer question needs none of them.
 
@@ -315,7 +315,7 @@ plan freezes, what a call may vary, and `retarget` as a method on that plan.
 redesigning it.
 
 PN/PS/PNS bounds are new estimands and stay unscheduled post-1.x work.
-[TODO.md](TODO.md) holds the fixtures and the remaining completion items.
+[TODO.md](TODO.md) holds later 1.x work.
 
 ## 1.x — Compatible cells
 

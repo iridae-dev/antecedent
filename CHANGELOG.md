@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Joint-cell family max-t uses the contrast covariance and publishes
   contrast simultaneous intervals; the printed critical value is not the
   cell-level family's.
+- The `functional_validation` PathSpecificEffect cell was frozen in 1.2
+  (`7c5b91a8`) at `path_effect` 1.0 and shipped that number through 1.4.
+  On that table `P(y|t=1)=0.8` and `P(y|t=0)=0.5`; g-formula through `m`
+  recovers the same `0.8−0.5`. A difference of binary means cannot be 1.0.
+  1.5 returns 0.3. Comparing numbers against 1.2–1.4: that difference is
+  an intended correction.
 
 ### Limitations
 
