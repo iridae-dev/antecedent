@@ -17,7 +17,7 @@ use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule};
+use pyo3::types::{PyAny, PyDict, PyModule};
 
 use crate::response_api::{
     ResponseAnalysisResult, attach_study_response_meta, build_functional, response_result,
@@ -1175,6 +1175,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         seed=1,
         threads=1,
         accepted=false,
@@ -1209,6 +1212,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
         threads: u32,
         accepted: bool,
@@ -1226,6 +1232,14 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
+        let prior_mapping = match prior_mapping {
+            Some(d) => Some(crate::prior_bank::mapping_from_dict(d)?),
+            None => None,
+        };
+        let composed_prior = match composed_prior {
+            Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+            None => None,
+        };
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
@@ -1283,11 +1297,14 @@ impl PyPreparedAnalysis {
             };
             builder =
                 builder.query(query).refute(antecedent::RefuteSuite::None).bootstrap_replicates(0);
-            builder = apply_inference(
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
-                inference.as_deref().unwrap_or("frequentist"),
+                Some(inference.as_deref().unwrap_or("frequentist")),
                 n_draws,
                 prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -1319,6 +1336,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         refute=None,
         seed=1,
         bootstrap=0,
@@ -1341,6 +1361,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
@@ -1350,6 +1373,14 @@ impl PyPreparedAnalysis {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
         let suite = suite_from_refute(refute.as_ref())?;
+        let prior_mapping = match prior_mapping {
+            Some(d) => Some(crate::prior_bank::mapping_from_dict(d)?),
+            None => None,
+        };
+        let composed_prior = match composed_prior {
+            Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+            None => None,
+        };
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
@@ -1376,12 +1407,14 @@ impl PyPreparedAnalysis {
                 builder.graph(dag)
             };
             builder = builder.temporal_query(q).refute(suite).bootstrap_replicates(bootstrap);
-            builder = crate::temporal_api::apply_temporal_inference(
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
                 inference.as_deref(),
                 n_draws,
                 prior_scale,
-                None,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(

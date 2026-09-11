@@ -388,7 +388,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_pulse"
-limitations = "BayesianTemporalGcomp on the lag-aligned design; fixture n=400 pins the effect mean."
+limitations = "BayesianTemporalGcomp on the lag-aligned design; fixture n=400 pins the effect mean. Same-design and mapped prior transfer may ride this cell via conformance/bayesian/temporal_prior_transfer (named source/target + PriorCatalog.filter_compatible); incompatible catalogs fail closed. Not a matrix axis."
 
 [[cell]]
 query = "PulseEffect"
@@ -520,7 +520,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments. Same-design and mapped prior transfer may ride the single-step cell via conformance/bayesian/temporal_prior_transfer; incompatible catalogs fail closed. Multi-step windows keep isotropic per-mechanism priors."
 
 [[cell]]
 query = "SustainedEffect"
@@ -553,7 +553,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Bayesian conjugate/Laplace fit each stationary Gaussian mechanism once on its complete observed rows and reuse its coefficient draws across time copies. HMC composition requires derived-contrast diagnostics and is refused. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments. Same-design and mapped prior transfer may ride the single-step cell via conformance/bayesian/temporal_prior_transfer; incompatible catalogs fail closed. Multi-step windows keep isotropic per-mechanism priors."
 
 [[cell]]
 query = "SustainedEffect"
@@ -2123,7 +2123,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis."
 
 [[cell]]
 query = "ResponseCurve"
@@ -2134,7 +2134,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2167,7 +2167,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors)."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2178,7 +2178,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors)."
 
 [[cell]]
 query = "PointDerivative"

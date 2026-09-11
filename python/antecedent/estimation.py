@@ -608,10 +608,14 @@ def _prepared_inference_kwargs(inference: Frequentist | Bayesian | None) -> dict
     return {"inference": "frequentist"}
 
 
-def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
+def _prepared_bayesian_args(
+    inference: Bayesian, *, allow_prior_transfer: bool = False
+) -> tuple[str, dict[str, Any]]:
     """Return prepared-native Bayesian arguments, refusing silently dropped options."""
     kw = _bayesian_inference_kwargs(inference)
     inference_mode = str(kw.pop("inference"))
+    if allow_prior_transfer:
+        return inference_mode, kw
     unsupported = sorted(set(kw) - {"n_draws", "prior_scale"})
     if unsupported:
         options = ", ".join(unsupported)
@@ -620,6 +624,17 @@ def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
             f"({options}); use analyze(...) for these options"
         )
     return inference_mode, kw
+
+
+def _prepared_temporal_inference_kwargs(
+    inference: Frequentist | Bayesian | None,
+) -> dict[str, Any]:
+    if isinstance(inference, Bayesian):
+        mode, options = _prepared_bayesian_args(inference, allow_prior_transfer=True)
+        return {"inference": mode, **options}
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("inference must be Frequentist or Bayesian")
+    return {"inference": "frequentist"}
 
 
 def _temporal_inference_kwargs(
@@ -1477,7 +1492,9 @@ class PreparedAnalysis:
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             temporal_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                inference_mode, temporal_bayes_kw = _prepared_bayesian_args(inference)
+                inference_mode, temporal_bayes_kw = _prepared_bayesian_args(
+                    inference, allow_prior_transfer=True
+                )
             else:
                 inference_mode = "frequentist"
             temporal_kwargs: _TemporalPrepareKwargs = {
@@ -1495,6 +1512,16 @@ class PreparedAnalysis:
                 "threads": threads,
                 "accepted": structure_accepted,
             }
+            transfer_kw = {
+                key: temporal_bayes_kw[key]
+                for key in ("prior_artifact", "prior_mapping", "composed_prior")
+                if key in temporal_bayes_kw
+            }
+            if transfer_kw and isinstance(graph, (TemporalCpdag, TemporalPag)):
+                raise CausalUnsupportedError(
+                    "Bayesian prior transfer rides licensed TemporalDag cells; "
+                    "TemporalCpdag/TemporalPag prepare does not accept prior transfer"
+                )
             if isinstance(graph, TemporalCpdag):
                 native = _NativePreparedAnalysis.prepare_temporal_cpdag_effect(
                     names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
@@ -1508,7 +1535,13 @@ class PreparedAnalysis:
                     cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph)
                 )
                 native = _NativePreparedAnalysis.prepare_temporal_effect(
-                    names, columns, lagged, query.treatment, query.outcome, **temporal_kwargs
+                    names,
+                    columns,
+                    lagged,
+                    query.treatment,
+                    query.outcome,
+                    **temporal_kwargs,
+                    **transfer_kw,
                 )
             return cls(native, kind="average", query=query)
         if isinstance(query, TemporalMediationEffect):
@@ -2595,7 +2628,7 @@ class PreparedAnalysis:
                 policy=query.policy,
                 treatment_lag=query.treatment_lag,
                 max_history_lag=query.max_history_lag,
-                **_prepared_inference_kwargs(inference),
+                **_prepared_temporal_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 accepted=structure_accepted,
@@ -2616,7 +2649,7 @@ class PreparedAnalysis:
             policy=query.policy,
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
-            **_prepared_inference_kwargs(inference),
+            **_prepared_temporal_inference_kwargs(inference),
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
