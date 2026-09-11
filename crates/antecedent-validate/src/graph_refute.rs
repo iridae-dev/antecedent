@@ -60,9 +60,7 @@ impl GraphRefuter {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if problem.estimand.method_kind().ok()
-            != Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
-        {
+        if !problem.estimand.is_adjustment_shaped() {
             return Err(ValidationError::NotApplicable {
                 message: "adjustment drop-covariate requires backdoor.adjustment estimand",
             });

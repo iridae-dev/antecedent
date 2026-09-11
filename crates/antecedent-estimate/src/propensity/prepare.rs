@@ -218,15 +218,9 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
     )?;
-    if !matches!(
-        estimand.method_kind().ok(),
-        Some(
-            antecedent_expr::EstimandMethod::BackdoorAdjustment
-                | antecedent_expr::EstimandMethod::BackdoorEfficient
-        )
-    ) {
+    if !estimand.is_adjustment_shaped() {
         return Err(EstimationError::IncompatibleEstimand {
-            message: "propensity estimators expect backdoor.adjustment or backdoor.efficient",
+            message: "propensity estimators expect an adjustment-shaped estimand",
         });
     }
     query.validate()?;

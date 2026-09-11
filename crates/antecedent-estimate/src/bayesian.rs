@@ -571,15 +571,9 @@ impl BayesianGComputationAte {
             self.overlap,
             "BayesianGComputationAte requires ExplicitOverride overlap policy",
         )?;
-        if !matches!(
-            estimand.method_kind().ok(),
-            Some(
-                antecedent_expr::EstimandMethod::BackdoorAdjustment
-                    | antecedent_expr::EstimandMethod::BackdoorEfficient
-            )
-        ) {
+        if !estimand.is_adjustment_shaped() {
             return Err(EstimationError::IncompatibleEstimand {
-                message: "BayesianGComputationAte expects backdoor.adjustment/efficient",
+                message: "BayesianGComputationAte expects an adjustment-shaped estimand",
             });
         }
         query.validate()?;

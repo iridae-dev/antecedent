@@ -2349,3 +2349,39 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
 limitations = "One-treatment, one-outcome two-world ITE Y(a)-Y(a0) under fitted GCM mechanisms and abducted disturbances, not a factual-versus-counterfactual residual. Control lives on the query (default hard set of treatment to 0). Mechanisms refit on each data click. Sampling uncertainty is unavailable. Identification is parametric (gcm.parametric). Execution records estimator `gcm.fit`, not linear ATE. A second confounded SCM (`conformance/estimate/staged_static_kinds/confounded.json`) pins mean ITE against a DGP whose unadjusted Y~A association differs. Nested, temporal, accepted, Bayesian, and cheap/full remain refused."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "CoDetermined"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "codetermined_same_tier_joint_cell_aipw_matches_closure_admg"
+limitations = "Same-tier joint do(T1,T2) on the CoDetermined closure ADMG via Frequentist cell.aipw. Identification is joint ADMG adjustment on the known closure, not a supplied Admg response plug-in. Cheap/full, Bayesian, accepted, and graph-posterior stay n/a."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "CoDetermined"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "retarget_succeeds_on_codetermined_tiered_admg"
+limitations = "Binary ATE / ExceedanceGrid on the CoDetermined tier-closure ADMG. Certified Z is the O(p) closure, not a supplied Admg search. Cheap/full, Bayesian, accepted, and graph-posterior stay n/a."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Unknown"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
+evidence_assertion = "unknown_tier_envelope_straddles_zero"
+limitations = "Two-scenario envelope (CoDetermined vs independent-within-tier). The headline ATE is NaN; scenario_effects / scenario_intervals hold the pair. Not a Pag ATE. Cheap/full, Bayesian, ConditionalEffect, and Response stay n/a."

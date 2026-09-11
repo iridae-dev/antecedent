@@ -59,7 +59,7 @@ impl RandomCommonCause {
             });
         }
         let method = problem.estimand.method_kind().ok();
-        let static_ok = method == Some(antecedent_expr::EstimandMethod::BackdoorAdjustment);
+        let static_ok = problem.estimand.is_adjustment_shaped();
         let temporal_ok = method == Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
             && problem.temporal.is_some();
         if !static_ok && !temporal_ok {

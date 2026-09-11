@@ -234,10 +234,7 @@ impl super::Study {
                 && !case.result.estimands.is_empty()
             {
                 flags.push(GraphIdentFlag::Identified);
-                let mut estimand = select_estimand(&case.result, estimator_id)?;
-                if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                    estimand.method = Arc::from("backdoor.adjustment");
-                }
+                let estimand = select_estimand(&case.result, estimator_id)?;
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand.clone());
                 }

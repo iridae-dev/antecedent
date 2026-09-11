@@ -217,15 +217,9 @@ impl GlmAdjustmentAte {
             self.overlap,
             "GlmAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        if !matches!(
-            estimand.method_kind().ok(),
-            Some(
-                antecedent_expr::EstimandMethod::BackdoorAdjustment
-                    | antecedent_expr::EstimandMethod::BackdoorEfficient
-            )
-        ) {
+        if !estimand.is_adjustment_shaped() {
             return Err(EstimationError::IncompatibleEstimand {
-                message: "GlmAdjustmentAte expects backdoor.adjustment or backdoor.efficient",
+                message: "GlmAdjustmentAte expects an adjustment-shaped estimand",
             });
         }
         query.validate()?;

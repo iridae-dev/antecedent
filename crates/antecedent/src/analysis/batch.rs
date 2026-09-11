@@ -11,9 +11,17 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
-    ResponseQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
 };
+
+/// Query frozen on a [`PreparedBatch`] handle.
+#[derive(Clone, Debug)]
+pub enum BatchQuery {
+    /// Average-effect claim.
+    Average(AverageEffectQuery),
+    /// Discrete joint / cell `InterventionResponse`.
+    Response(ResponseQuery),
+}
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
 use antecedent_estimate::{DEFAULT_AIPW_FOLDS, PreparedPropensityProblem};
 use antecedent_graph::{Dag, TieredBackground};
@@ -462,7 +470,7 @@ impl BatchStudy {
         }
         Ok(PreparedBatch {
             plans,
-            queries: queries.to_vec(),
+            queries: queries.iter().cloned().map(BatchQuery::Average).collect(),
             screen: self.screen.clone(),
             shared_design: shared,
         })
@@ -491,16 +499,16 @@ impl BatchStudy {
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_cells(&data, queries)?;
         let mut plans = Vec::with_capacity(queries.len());
-        let mut proxies = Vec::with_capacity(queries.len());
+        let mut frozen = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_response_on(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
             plans.push(study.prepare(ctx)?);
-            proxies.push(cell_ate_proxy(query)?);
+            frozen.push(BatchQuery::Response(query.clone()));
         }
         Ok(PreparedBatch {
             plans,
-            queries: proxies,
+            queries: frozen,
             screen: self.screen.clone(),
             shared_design: shared,
         })
@@ -641,7 +649,7 @@ impl BatchStudy {
 #[derive(Clone, Debug)]
 pub struct PreparedBatch {
     plans: Vec<PreparedStudy>,
-    queries: Vec<AverageEffectQuery>,
+    queries: Vec<BatchQuery>,
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
 }
@@ -649,7 +657,7 @@ pub struct PreparedBatch {
 impl PreparedBatch {
     /// Queries frozen on this handle.
     #[must_use]
-    pub fn queries(&self) -> &[AverageEffectQuery] {
+    pub fn queries(&self) -> &[BatchQuery] {
         &self.queries
     }
 
@@ -696,7 +704,7 @@ impl PreparedBatch {
                 Ok::<(), CausalError>(())
             })?;
         }
-        attach_batch_joint_inference(&mut out, &data, &self.queries, self.screen.as_ref());
+        attach_prepared_batch_joint_inference(&mut out, &data, &self.queries, self.screen.as_ref());
         attach_shared_design_diagnostics(&mut out, shared.as_ref());
         Ok(out)
     }
@@ -766,6 +774,25 @@ fn attach_shared_design_diagnostics(
         ]);
         result.diagnostics.push(d);
     }
+}
+
+fn attach_prepared_batch_joint_inference(
+    results: &mut [StudyResult],
+    data: &TabularData,
+    queries: &[BatchQuery],
+    screen: Option<&CandidateScreen>,
+) {
+    let mut averages = Vec::with_capacity(queries.len());
+    for query in queries {
+        match query {
+            BatchQuery::Average(q) => averages.push(q.clone()),
+            BatchQuery::Response(_) => {
+                attach_candidate_selection(results, screen, &[], &[]);
+                return;
+            }
+        }
+    }
+    attach_batch_joint_inference(results, data, &averages, screen);
 }
 
 fn attach_batch_joint_inference(
@@ -950,23 +977,6 @@ fn attach_batch_inference_unavailable(
         ));
     }
     attach_candidate_selection(results, screen, &[], &[]);
-}
-
-fn cell_ate_proxy(query: &ResponseQuery) -> Result<AverageEffectQuery, CausalError> {
-    match &query.functional {
-        ResponseFunctional::InterventionResponse { outcome, interventions } => {
-            let Some(Intervention::Set { variable, .. }) = interventions.first() else {
-                return Err(CausalError::Compile {
-                    message: "batch prepare_cells requires a Set intervention".into(),
-                });
-            };
-            Ok(AverageEffectQuery::binary_ate(*variable, *outcome))
-        }
-        _ => Err(CausalError::Compile {
-            message: "batch prepare_cells is licensed for discrete joint InterventionResponse"
-                .into(),
-        }),
-    }
 }
 
 fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {

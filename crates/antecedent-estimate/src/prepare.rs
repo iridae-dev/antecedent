@@ -25,6 +25,21 @@ pub fn require_method(
     Ok(kind)
 }
 
+/// Require an adjustment-shaped estimand (`backdoor.*` / `generalized.adjustment*` / `tiered.*`).
+///
+/// # Errors
+///
+/// Incompatible estimand.
+pub fn require_adjustment_shaped(
+    estimand: &IdentifiedEstimand,
+    message: &'static str,
+) -> Result<(), EstimationError> {
+    if !estimand.is_adjustment_shaped() {
+        return Err(EstimationError::IncompatibleEstimand { message });
+    }
+    Ok(())
+}
+
 /// Validate an ATE query allowing `AllObserved` / Treated / Untreated targets.
 pub fn validate_ate_query_with_targets(query: &AverageEffectQuery) -> Result<(), EstimationError> {
     query.validate()?;

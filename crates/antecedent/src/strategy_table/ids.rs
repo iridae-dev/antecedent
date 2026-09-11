@@ -955,6 +955,12 @@ pub fn select_estimand(
     let matches: Vec<&IdentifiedEstimand> = estimands
         .iter()
         .filter(|e| {
+            if e.is_adjustment_shaped() {
+                return estimand_compatible_with_estimator(
+                    EstimandMethod::BackdoorAdjustment,
+                    &estimator,
+                );
+            }
             e.method_kind()
                 .map(|m| estimand_compatible_with_estimator(m, &estimator))
                 .unwrap_or(false)

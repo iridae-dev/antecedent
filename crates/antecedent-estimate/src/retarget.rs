@@ -361,13 +361,19 @@ fn rearrange_exceedance(
         return false;
     }
     let mut means = summary.means.to_vec();
+    let mut changed = false;
     for grid in by_arm.values_mut() {
         grid.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         let raw: Vec<f64> = grid.iter().map(|(j, _)| means[*j]).collect();
         let adj = monotone_decreasing(&raw);
         for (slot, value) in grid.iter().zip(adj) {
-            means[slot.0] = value.clamp(0.0, 1.0);
+            let bounded = value.clamp(0.0, 1.0);
+            changed |= means[slot.0].total_cmp(&bounded).is_ne();
+            means[slot.0] = bounded;
         }
+    }
+    if !changed {
+        return false;
     }
     summary.means = Arc::from(means);
     diagnostics.push(Diagnostic::new(

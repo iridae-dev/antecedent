@@ -36,7 +36,7 @@ pub struct LicensedCell {
 pub static NA_RULES: &[NaRule] = &[
     NaRule {
         queries: Some(&["PulseEffect", "SustainedEffect", "TemporalMediationEffect"]),
-        graph_classes: Some(&["Dag", "Admg", "Cpdag", "Pag"]),
+        graph_classes: Some(&["Dag", "Admg", "Cpdag", "Pag", "CoDetermined", "Unknown"]),
         structures: None,
         inferences: None,
         validations: None,
@@ -89,6 +89,46 @@ pub static NA_RULES: &[NaRule] = &[
         inferences: None,
         validations: Some(&["cheap", "full"]),
         reason: "Derivative-native validation is not implemented; ATE refuters do not apply.",
+    },
+    NaRule {
+        queries: Some(&["AverageDerivative", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        graph_classes: Some(&["Unknown"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "Unknown-tier cells license the two-scenario AverageEffect envelope only.",
+    },
+    NaRule {
+        queries: Some(&["AverageDerivative", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        graph_classes: Some(&["CoDetermined"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "CoDetermined cells license AverageEffect and joint InterventionResponse only.",
+    },
+    NaRule {
+        queries: None,
+        graph_classes: Some(&["CoDetermined", "Unknown"]),
+        structures: Some(&["accepted", "graph_posterior"]),
+        inferences: None,
+        validations: None,
+        reason: "Tier-rule backgrounds are an explicit structure source.",
+    },
+    NaRule {
+        queries: None,
+        graph_classes: Some(&["CoDetermined", "Unknown"]),
+        structures: None,
+        inferences: Some(&["Bayesian"]),
+        validations: None,
+        reason: "Tier-rule cells are Frequentist (cell.aipw joint / two-scenario envelope).",
+    },
+    NaRule {
+        queries: Some(&["AverageEffect", "InterventionResponse"]),
+        graph_classes: Some(&["CoDetermined", "Unknown"]),
+        structures: None,
+        inferences: None,
+        validations: Some(&["cheap", "full"]),
+        reason: "cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no licensed scalar-refuter state.",
     }
 ];
 
@@ -247,7 +287,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
     },
     NaRule {
         queries: Some(&["ResponseCurve", "InterventionResponse"]),
-        graph_classes: None,
+        graph_classes: Some(&["Dag", "Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"]),
         structures: Some(&["graph_posterior"]),
         inferences: None,
         validations: None,
@@ -1879,6 +1919,27 @@ pub static LICENSED: &[LicensedCell] = &[
     LicensedCell {
         query: "Counterfactual",
         graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "CoDetermined",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "CoDetermined",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "AverageEffect",
+        graph_class: "Unknown",
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",

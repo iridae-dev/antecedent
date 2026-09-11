@@ -440,7 +440,7 @@ impl ValidationSuite {
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
         let method = problem.estimand.method_kind().ok();
-        let static_linear = method == Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
+        let static_linear = problem.estimand.is_adjustment_shaped()
             && problem.estimator.is_none_or(|e| {
                 // Conditional's licensed number is the interaction-model scalar at Ē[W].
                 // That is an effect, so the effect suite runs; skipping it because the
