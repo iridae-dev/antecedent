@@ -1807,9 +1807,11 @@ impl PyPreparedAnalysis {
         intervention_kinds,
         intervention_parameters,
         *,
+        estimator=None,
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        outcome_functional=None,
         refute=None,
         seed=1,
         threads=1,
@@ -1826,15 +1828,19 @@ impl PyPreparedAnalysis {
         treatments: Vec<String>,
         intervention_kinds: Vec<String>,
         intervention_parameters: Vec<Vec<f64>>,
+        estimator: Option<String>,
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         threads: u32,
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
+        let outcome_functional =
+            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -1863,7 +1869,11 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let mut response_query = ResponseQuery::new(functional);
+            if let Some(functional) = outcome_functional {
+                response_query = response_query.with_outcome_functional(functional);
+            }
+            let query = CausalQuery::Response(response_query);
             let mut builder = if accepted {
                 Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
             } else {
@@ -1874,6 +1884,12 @@ impl PyPreparedAnalysis {
             .bootstrap_replicates(0);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             builder = apply_inference(
                 builder,
@@ -1906,6 +1922,7 @@ impl PyPreparedAnalysis {
         intervention_kinds,
         intervention_parameters,
         *,
+        outcome_functional=None,
         refute=None,
         seed=1,
         threads=1,
@@ -1922,11 +1939,14 @@ impl PyPreparedAnalysis {
         treatments: Vec<String>,
         intervention_kinds: Vec<String>,
         intervention_parameters: Vec<Vec<f64>>,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         threads: u32,
         latency: Option<String>,
     ) -> PyResult<Self> {
+        let outcome_functional =
+            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -1968,7 +1988,11 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeScale::Identity,
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
-            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let mut response_query = ResponseQuery::new(functional);
+            if let Some(functional) = outcome_functional {
+                response_query = response_query.with_outcome_functional(functional);
+            }
+            let query = CausalQuery::Response(response_query);
             let mut builder = Study::tabular(data)
                 .tiered_background(background)
                 .map_err(py_err)?

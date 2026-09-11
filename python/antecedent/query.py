@@ -75,7 +75,13 @@ class ExceedanceGrid:
 
 @dataclass(frozen=True, slots=True)
 class Quantile:
-    """Quantile ``F_a^{-1}(tau)``; the contrast is a quantile treatment effect."""
+    """Finite-grid quantile ``F_a^{-1}(tau)`` on licensed Frequentist CDF paths.
+
+    Effect queries return active minus control quantiles. ConditionalEffect
+    standardizes arm CDFs over the retained modifier distribution before inversion.
+    Joint InterventionResponse returns the requested cell's quantile level.
+    Requires no refutation; uncertainty excludes grid selection and interpolation bias.
+    """
 
     tau: float
     _: KW_ONLY

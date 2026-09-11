@@ -1232,6 +1232,25 @@ class PreparedAnalysis:
         (Bayesian AverageEffect / Pulse / Sustained).
         """
         if isinstance(query, (ResponseCurve, InterventionResponse)):
+            from .query import coerce_outcome_functional
+
+            functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+            if (
+                functional is not None
+                and functional.get("kind") == "quantile"
+                and (
+                    not isinstance(query, InterventionResponse)
+                    or getattr(query, "is_temporal", False)
+                    or isinstance(inference, Bayesian)
+                    or (
+                        str(estimator) != "cell.aipw"
+                        and not (estimator is None and isinstance(graph, TieredBackground))
+                    )
+                )
+            ):
+                raise CausalUnsupportedError(
+                    "response quantiles require static Frequentist cell.aipw joint cells"
+                )
             from .observation import Complete
             from .population import coerce_target_population
 
@@ -1549,17 +1568,13 @@ class PreparedAnalysis:
             )
         if isinstance(query, InterventionResponse) and isinstance(graph, TieredBackground):
             if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalUnsupportedError(
-                    "CoDetermined joint cells are Frequentist cell.aipw"
-                )
+                raise CausalUnsupportedError("CoDetermined joint cells are Frequentist cell.aipw")
             if identifier not in (None, "generalized.adjustment"):
                 raise CausalUnsupportedError(
                     "CoDetermined joint cells require identifier generalized.adjustment"
                 )
             if estimator not in (None, "cell.aipw"):
-                raise CausalUnsupportedError(
-                    "CoDetermined joint cells require estimator cell.aipw"
-                )
+                raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             from . import intervention as intervention_specs
@@ -1585,6 +1600,8 @@ class PreparedAnalysis:
                 treatments.append(spec.variable)
                 intervention_kinds.append("set")
                 intervention_parameters.append([spec.value])
+            from .query import coerce_outcome_functional
+
             native = _NativePreparedAnalysis.prepare_tiered_intervention_response(
                 names,
                 columns,
@@ -1594,6 +1611,7 @@ class PreparedAnalysis:
                 treatments,
                 intervention_kinds,
                 intervention_parameters,
+                outcome_functional=coerce_outcome_functional(query.outcome_functional),
                 refute=refute,
                 seed=seed,
                 threads=threads,
@@ -1913,12 +1931,20 @@ class PreparedAnalysis:
                 if isinstance(inference, Bayesian)
                 else "response.intervention_gcomp"
             )
-            if identifier not in (None, "response.backdoor") or estimator not in (
-                None,
-                expected_estimator,
+            cell_aipw = estimator == "cell.aipw" and not isinstance(inference, Bayesian)
+            allowed_identifiers = (
+                (None, "generalized.adjustment") if cell_aipw else (None, "response.backdoor")
+            )
+            if identifier not in allowed_identifiers or (
+                not cell_aipw and estimator not in (None, expected_estimator)
             ):
                 raise CausalUnsupportedError(
-                    f"InterventionResponse requires response.backdoor and {expected_estimator}"
+                    f"InterventionResponse requires response.backdoor and {expected_estimator}, "
+                    "or Frequentist cell.aipw with generalized.adjustment"
+                )
+            if cell_aipw and bootstrap not in (None, 0):
+                raise CausalUnsupportedError(
+                    "cell.aipw uses analytic influence uncertainty, not bootstrap"
                 )
             if isinstance(inference, Bayesian) and refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
@@ -1936,9 +1962,9 @@ class PreparedAnalysis:
             )
             if not interventions:
                 raise CausalValueError("InterventionResponse requires at least one intervention")
-            treatments: list[str] = []
-            intervention_kinds: list[str] = []
-            intervention_parameters: list[list[float]] = []
+            treatments = []
+            intervention_kinds = []
+            intervention_parameters = []
             for spec in interventions:
                 if isinstance(spec, intervention_specs.Set):
                     kind, parameters = "set", [spec.value]
@@ -1963,6 +1989,8 @@ class PreparedAnalysis:
                 treatments.append(spec.variable)
                 intervention_kinds.append(kind)
                 intervention_parameters.append(parameters)
+            from .query import coerce_outcome_functional
+
             native = _NativePreparedAnalysis.prepare_intervention_response(
                 names,
                 columns,
@@ -1972,6 +2000,8 @@ class PreparedAnalysis:
                 intervention_kinds,
                 intervention_parameters,
                 **_prepared_inference_kwargs(inference),
+                outcome_functional=coerce_outcome_functional(query.outcome_functional),
+                estimator=estimator,
                 refute=refute,
                 seed=seed,
                 threads=threads,
