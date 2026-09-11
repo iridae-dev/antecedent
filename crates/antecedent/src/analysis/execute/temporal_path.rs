@@ -718,14 +718,34 @@ impl super::Study {
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
         let mut estimator = TemporalResponseEstimator::new();
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
+        let mut conflict_summary = None;
         let mut response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                return Err(CausalError::Unsupported { message: "Bayesian temporal response prior transfer requires a horizon-specific mapping" });
-            }
             let mut bayes = bayesian_gcomp(cfg, ctx);
-            bayes.prior.clone_from(&cfg.prior);
-            estimator.estimate_bayesian(data, &identifications, &working_query, aggregate_status, aggregate_assumptions, &bayes, ctx)
-        } else { estimator.estimate(data, &identifications, &working_query, aggregate_status, aggregate_assumptions, ctx) }.map_err(CausalError::from)?;
+            let (resolved, conflict) = resolve_temporal_response_prior(
+                cfg, data, temporal, &aligned, treatment, outcome, ctx,
+            )?;
+            bayes.prior = resolved;
+            conflict_summary = conflict;
+            estimator.estimate_bayesian(
+                data,
+                &identifications,
+                &working_query,
+                aggregate_status,
+                aggregate_assumptions,
+                &bayes,
+                ctx,
+            )
+        } else {
+            estimator.estimate(
+                data,
+                &identifications,
+                &working_query,
+                aggregate_status,
+                aggregate_assumptions,
+                ctx,
+            )
+        }
+        .map_err(CausalError::from)?;
         if let Some(adjusted) = observation_adjusted.as_ref() {
             apply_temporal_observation_result(&mut response, adjusted);
         }
@@ -761,6 +781,9 @@ impl super::Study {
         }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
+        }
+        if let Some(summary) = conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, summary);
         }
         diagnostics.push(Diagnostic::new(
             "refute.temporal_response.skipped",
@@ -1500,6 +1523,63 @@ fn apply_temporal_observation_result(
         DiagnosticSeverity::Info,
         adjusted.method.clone(),
     ));
+}
+
+/// Hydrate a shared coefficient prior into the unfolded design at every horizon.
+///
+/// Same-design and mapped transfer use the existing
+/// [`resolve_bayesian_prior_with_conflict`] filter. Horizons whose designs
+/// differ in column count fail closed — they need a horizon-specific mapping
+/// that this cell does not invent.
+fn resolve_temporal_response_prior(
+    cfg: &BayesianConfig,
+    data: &TimeSeriesData,
+    temporal: &antecedent_core::TemporalResponseSpec,
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &ExecutionContext,
+) -> Result<(Option<PriorSet>, Option<antecedent_prob::ConflictSummary>), CausalError> {
+    if cfg.prior.is_none() && cfg.prior_artifact.is_none() && cfg.external_compose.is_none() {
+        return Ok((None, None));
+    }
+    let mut resolved = None;
+    let mut conflict = None;
+    let mut expected_ncols = None;
+    for entry in aligned {
+        let pulse = TemporalEffectQuery {
+            treatment,
+            outcome,
+            policy: temporal.policy.clone(),
+            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+            horizon_steps: entry.horizon,
+            max_history_lag: temporal.max_history_lag,
+            target_population: antecedent_core::TargetPopulation::AllObserved,
+        };
+        let prep = TemporalLinearAdjustment::new()
+            .prepare(data, &entry.estimand, &pulse, &entry.indexer, None, &ctx.kernel_policy)
+            .map_err(CausalError::from)?;
+        let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+        match expected_ncols {
+            None => {
+                expected_ncols = Some(bprep.design.ncols);
+                let (prior, summary) =
+                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+                resolved = prior;
+                conflict = summary;
+            }
+            Some(ncols) if bprep.design.ncols == ncols => {}
+            Some(_) => {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian temporal response prior transfer requires a \
+                              horizon-specific mapping"
+                        .into(),
+                });
+            }
+        }
+    }
+    Ok((resolved, conflict))
 }
 
 #[cfg(test)]

@@ -1948,6 +1948,26 @@ pub(crate) fn apply_temporal_inference(
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
 ) -> PyResult<antecedent::StudyBuilder> {
+    apply_temporal_inference_transfer(
+        builder,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        None,
+        None,
+    )
+}
+
+pub(crate) fn apply_temporal_inference_transfer(
+    builder: antecedent::StudyBuilder,
+    inference: Option<&str>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<&[u8]>,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
     };
@@ -1968,9 +1988,10 @@ pub(crate) fn apply_temporal_inference(
             )));
         }
     };
-    if let Some(bytes) = prior_artifact {
-        // Temporal path: identical-subspace default (mapping deferred hydrate).
-        cfg = cfg.prior_from_artifact(bytes.to_vec(), None);
+    if let Some(comp) = composed_prior {
+        cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
+    } else if let Some(bytes) = prior_artifact {
+        cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
     }
     Ok(builder.inference(InferenceMode::Bayesian(cfg)))
 }

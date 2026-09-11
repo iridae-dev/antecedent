@@ -852,6 +852,77 @@ class PriorCatalog:
         raw = _filter(payload, target)
         return [CompatibilityReport.from_dict(r) for r in raw]
 
+    def require_compatible(
+        self,
+        *,
+        query: Any,
+        variables: Sequence[str] = (),
+        tags: Mapping[str, str] | None = None,
+        allow_unidentified: bool = False,
+    ) -> PriorSource:
+        """Return the first Compatible source, or refuse the catalog."""
+        return self._require_source(
+            compatible_only=True,
+            query=query,
+            variables=variables,
+            tags=tags,
+            allow_unidentified=allow_unidentified,
+        )
+
+    def require_usable(
+        self,
+        *,
+        query: Any,
+        variables: Sequence[str] = (),
+        tags: Mapping[str, str] | None = None,
+        allow_unidentified: bool = False,
+    ) -> PriorSource:
+        """Return the first usable (Compatible or Partial) source, or refuse."""
+        return self._require_source(
+            compatible_only=False,
+            query=query,
+            variables=variables,
+            tags=tags,
+            allow_unidentified=allow_unidentified,
+        )
+
+    def _require_source(
+        self,
+        *,
+        compatible_only: bool,
+        query: Any,
+        variables: Sequence[str],
+        tags: Mapping[str, str] | None,
+        allow_unidentified: bool,
+    ) -> PriorSource:
+        from .errors import CausalUnsupportedError
+
+        reports = self.compatible_with(
+            query=query,
+            variables=variables,
+            tags=tags,
+            allow_unidentified=allow_unidentified,
+        )
+        chosen = next(
+            (
+                report
+                for report in reports
+                if report.status == "compatible" or (not compatible_only and report.is_usable)
+            ),
+            None,
+        )
+        if chosen is None:
+            detail = ", ".join(
+                f"{report.artifact_id}:{report.status}"
+                + (f"/{report.reason.get('code')}" if report.reason else "")
+                for report in reports
+            ) or "empty catalog"
+            raise CausalUnsupportedError(
+                "prior catalog is incompatible with the target cell; "
+                f"PriorCatalog.filter_compatible refused every source ({detail})"
+            )
+        return next(src for src in self._sources if src.meta.artifact_id == chosen.artifact_id)
+
     def rank(
         self,
         reports: Sequence[CompatibilityReport],
