@@ -30,10 +30,12 @@ Temporal dose-over-horizon and policy-path queries live on
   optional `max_history_lag`. When present, the public query name remains
   `ResponseCurve`.
 - `ResponseFunctional::InterventionResponse` on a `TemporalDag` accepts
-  Soft(`constant` / `additive_shift`) and a single-step `Sequence` policy
-  under the licensed temporal path. Unsupported Soft families, multi-step
-  `Sequence`, and nested sequences fail closed with a stable error; a
-  multi-step sequence is refused, not silently collapsed to its last step.
+  Soft(`constant` / `additive_shift`) and `Sequence` of those overlays
+  (multi-step on one variable, or joint at one time when identification
+  covers every intervened coordinate). The identifier stays
+  `temporal.backdoor.unfolded`; estimation is the same unfolded sequential
+  g-computation as multi-step Sustained. Nested `Sequence` and other Soft
+  families fail closed. Multi-step never collapses to the last step.
 - Positional `(treatment, outcome)` arguments are unchanged. Temporal
   fields are keyword-only on the Python dataclasses.
 

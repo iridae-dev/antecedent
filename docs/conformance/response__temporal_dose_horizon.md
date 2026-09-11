@@ -31,17 +31,25 @@ stores coordinate pairs `[dose, horizon]` in the same order.
 
 This truth matches `TemporalResponseEstimator`: each horizon is re-anchored as
 a lagged OLS design, then linear g-computation replaces the treatment column
-with the requested dose and averages the fitted rows. It does not claim a
-recursive simulator or a multi-step longitudinal g-formula.
+with the requested dose and averages the fitted rows. Multi-step `Sequence`
+uses the same unfolded sequential g-computation as multi-step Sustained
+(`temporal.backdoor.unfolded`), not a second identifier.
 
 `Soft(constant=1)` has the same path `[3, 4]` as `Set(1)`.
 `Soft(additive_shift=1)` averages g-computation at each observed treatment plus
 one; the aligned treatment means are zero here, so its path is also `[3, 4]`.
-A single-step, one-variable `Sequence` resolves to the same overlay and is
-the only licensed `Sequence` shape. A multi-step or nested `Sequence` fails
-closed with a stable error rather than collapsing to one step; longer
-sequences and multi-step temporal policies are not evidenced by this
-fixture.
+A single-step, one-variable `Sequence` resolves to the same overlay.
+A two-step `Sequence([Set(1), Set(1)])` at consecutive times ending at the
+pulse origin (`T_{-2}` then `T_{-1}`) is
+
+```text
+E[Y_0 | do(T_{-2}=1, T_{-1}=1)] = 1 + 2 + 3 = 6
+E[Y_1 | do(T_{-2}=1, T_{-1}=1)] = 1 + 2 E[T_0] + 3 = 4
+```
+
+so the path is `[6, 4]`. Last-step-only `Set(1)` remains `[3, 4]`; the two
+must not agree. Nested `Sequence` and Soft families other than
+`constant` / `additive_shift` stay refused.
 
 At horizon 1, the two-point surface contrast
 `mean(dose=1) - mean(dose=0) = 2` matches the `PulseEffect` value for

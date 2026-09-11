@@ -391,6 +391,28 @@ impl Intervention {
         Self::Sequence(seq)
     }
 
+    /// Every variable this intervention assigns, including Sequence steps.
+    #[must_use]
+    pub fn target_variables(&self) -> Vec<VariableId> {
+        match self {
+            Self::Set { variable, .. }
+            | Self::Shift { variable, .. }
+            | Self::Stochastic { variable, .. }
+            | Self::Soft { variable, .. } => vec![*variable],
+            Self::Sequence(seq) => {
+                let mut variables = Vec::new();
+                for step in seq.steps.iter() {
+                    for variable in step.intervention.target_variables() {
+                        if !variables.contains(&variable) {
+                            variables.push(variable);
+                        }
+                    }
+                }
+                variables
+            }
+        }
+    }
+
     /// Variable targeted by this intervention, when unique (not a multi-target sequence).
     #[must_use]
     pub fn primary_variable(&self) -> Option<VariableId> {

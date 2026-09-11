@@ -104,16 +104,40 @@ def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
     np.testing.assert_allclose(_response_means(click), _SET_PATH, atol=_ATOL)
 
 
-def test_multi_step_sequence_refuses():
+def test_multi_step_sequence_matches_two_step_truth_and_does_not_collapse():
+    data = _fixture_data()
+    two_step = np.asarray(
+        _FIXTURE["contract"]["intervention_paths"]["sequence_two_step_set_1"], dtype=float
+    )
+    last_step = _SET_PATH
+    np.testing.assert_raises(AssertionError, np.testing.assert_allclose, two_step, last_step)
+    query = antecedent.InterventionResponse(
+        "y",
+        intervention=Sequence([Set("t", 1.0), Set("t", 1.0)]),
+        horizons=[1, 2],
+        policy="pulse",
+        treatment_lag=1,
+    )
+    result = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=22)
+    np.testing.assert_allclose(_response_means(result), two_step, atol=_ATOL)
+    np.testing.assert_raises(
+        AssertionError, np.testing.assert_allclose, _response_means(result), last_step
+    )
+    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=22)
+    click = prepared.estimate(data, seed=22)
+    np.testing.assert_allclose(_response_means(click), two_step, atol=_ATOL)
+
+
+def test_nested_sequence_refuses():
     data = _fixture_data()
     query = antecedent.InterventionResponse(
         "y",
-        intervention=Sequence([Set("t", 0.0), Set("t", 1.0)]),
+        intervention=Sequence([Sequence([Set("t", 1.0)])]),
         horizons=[1],
         policy="pulse",
         treatment_lag=1,
     )
-    with pytest.raises(CausalUnsupportedError, match="multi-step Sequence"):
+    with pytest.raises(CausalUnsupportedError, match="nested Sequence"):
         antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
 
 

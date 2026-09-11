@@ -6,9 +6,10 @@ use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cel
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportStatus, TemporalResponseSpec, Value, VariableId,
+    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    SequencedIntervention, StochasticPolicy, SupportStatus, TemporalPolicy, TemporalResponseSpec,
+    Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -488,6 +489,53 @@ pub(crate) fn build_functional(
     }
 }
 
+pub(crate) fn wrap_temporal_sequence_steps(
+    functional: ResponseFunctional,
+    origin: i32,
+) -> PyResult<ResponseFunctional> {
+    let ResponseFunctional::InterventionResponse { outcome, interventions } = functional else {
+        return Ok(functional);
+    };
+    if interventions.len() <= 1 {
+        return Ok(ResponseFunctional::InterventionResponse { outcome, interventions });
+    }
+    let vars: Vec<VariableId> =
+        interventions.iter().filter_map(Intervention::primary_variable).collect();
+    if vars.len() != interventions.len() {
+        return Err(PyValueError::new_err("each Sequence step must name one treatment variable"));
+    }
+    let same_var = vars.iter().all(|variable| *variable == vars[0]);
+    let unique = {
+        let mut seen = vars.clone();
+        seen.sort_by_key(|variable| variable.raw());
+        seen.dedup();
+        seen.len() == vars.len()
+    };
+    let offsets: Vec<i32> = if same_var {
+        let n =
+            i32::try_from(vars.len()).map_err(|_| PyValueError::new_err("Sequence is too long"))?;
+        (0..n).map(|i| origin - (n - 1 - i)).collect()
+    } else if unique {
+        vec![origin; vars.len()]
+    } else {
+        return Err(PyValueError::new_err(
+            "Sequence schedule is ambiguous; use one variable for a multi-step policy \
+             or distinct variables for a joint single-time policy",
+        ));
+    };
+    let steps: Vec<SequencedIntervention> = interventions
+        .iter()
+        .zip(offsets)
+        .map(|(intervention, at)| {
+            SequencedIntervention::new(intervention.clone(), TemporalPolicy::pulse(at))
+        })
+        .collect();
+    Ok(ResponseFunctional::InterventionResponse {
+        outcome,
+        interventions: Arc::from([Intervention::sequence(InterventionSequence::new(steps))]),
+    })
+}
+
 fn intervention_from_parts(
     variable: VariableId,
     kind: &str,
@@ -591,9 +639,15 @@ pub(crate) fn response_result(
     let support_status = support_status_name(response.support.status).to_owned();
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(evidence);
+    let mut unique_treatments = Vec::new();
+    for name in treatments {
+        if !unique_treatments.contains(&name) {
+            unique_treatments.push(name);
+        }
+    }
     Ok(ResponseAnalysisResult {
         certificate_json: None,
-        treatments,
+        treatments: unique_treatments,
         outcomes,
         points,
         values,
@@ -880,6 +934,9 @@ fn analyze_temporal_response(
         // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
         // `-treatment_lag`. Licensed sustained is the single-step window.
         let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+        let origin = -i32::try_from(treatment_lag)
+            .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+        let functional = wrap_temporal_sequence_steps(functional, origin)?;
         let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let query = ResponseQuery::new(functional).with_temporal(temporal);

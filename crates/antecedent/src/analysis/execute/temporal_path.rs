@@ -609,6 +609,13 @@ impl super::Study {
             });
         };
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let schedule = match antecedent_estimate::plan_from_response_query(query) {
+            Ok(Some(antecedent_estimate::TemporalInterventionPlan::Sequential { overlays })) => {
+                Some(overlays.iter().map(|o| (o.variable, o.offset)).collect::<Vec<_>>())
+            }
+            Ok(_) => None,
+            Err(error) => return Err(CausalError::from(error)),
+        };
         let (cache, identify_cached) =
             if let Some(cache) = self.temporal_identification_cache.clone() {
                 (cache, true)
@@ -625,6 +632,7 @@ impl super::Study {
                         } else {
                             EstimatorId::TemporalResponseGcomp
                         },
+                        schedule.as_deref(),
                     )?),
                     false,
                 )
@@ -646,6 +654,29 @@ impl super::Study {
         let estimand = first.estimand.clone();
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
+
+        if let Some(antecedent_estimate::TemporalInterventionPlan::Sequential { overlays }) =
+            antecedent_estimate::plan_from_response_query(query).map_err(CausalError::from)?
+        {
+            return self.execute_temporal_sequence_response(
+                data,
+                graph,
+                query,
+                temporal,
+                &overlays,
+                &aligned,
+                identification,
+                estimand,
+                treatment,
+                outcome,
+                aggregate_status,
+                aggregate_assumptions,
+                identify_cached,
+                physical,
+                started,
+                ctx,
+            );
+        }
 
         // Surface SEs follow the Study bootstrap / replicate contract so Pulse,
         // single-step Sustained, and the dose × horizon surface report comparable
@@ -745,6 +776,230 @@ impl super::Study {
                 )),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            },
+        }))
+    }
+
+    fn execute_temporal_sequence_response(
+        &self,
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+        overlays: &[antecedent_estimate::SequentialNodeOverlay],
+        aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+        identification: IdentificationResult,
+        estimand: IdentifiedEstimand,
+        treatment: VariableId,
+        outcome: VariableId,
+        aggregate_status: IdentificationStatus,
+        mut assumptions: antecedent_core::AssumptionSet,
+        identify_cached: bool,
+        physical: &PhysicalExecutionPlan,
+        started: Instant,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if self.split.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "multi-step Sequence overlays require no discovery-estimation split",
+            });
+        }
+        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "multi-step Sequence inference requires isotropic per-mechanism priors",
+                });
+            }
+            Some(bayesian_gcomp(cfg, ctx))
+        } else {
+            None
+        };
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: Arc::from("temporal.sequential.linear_sem"),
+                    description: Arc::from(
+                        "linear additive mechanisms on the identified unfolded DAG; each Sequence \
+                         step is a Set / Soft constant / Soft shift overlay; no last-step collapse",
+                    ),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("temporal.sequential.gcomp"),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+        let mut mean = Vec::with_capacity(temporal.horizons.len());
+        let mut lower = Vec::with_capacity(temporal.horizons.len());
+        let mut upper = Vec::with_capacity(temporal.horizons.len());
+        let mut horizons = Vec::with_capacity(temporal.horizons.len());
+        let mut last_posterior = None;
+        let z = 1.959963984540054;
+        for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
+            require_identified(&entry.identification)?;
+            let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
+            let (effect, posterior) = antecedent_estimate::estimate_sequence_overlays(
+                data,
+                graph,
+                &entry.indexer,
+                &entry.estimand,
+                outcome,
+                outcome_offset,
+                overlays,
+                entry.identification.status,
+                assumptions.clone(),
+                self.bootstrap_replicates,
+                bayes.as_ref(),
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+            last_posterior = posterior.clone();
+            let (point, se) = if let Some(post) = posterior {
+                let eq = 0;
+                (post.summaries.mean[eq], post.summaries.sd[eq])
+            } else {
+                (effect.ate, effect.se_bootstrap.unwrap_or(effect.se_analytic))
+            };
+            mean.push(point);
+            if se.is_finite() {
+                lower.push(point - z * se);
+                upper.push(point + z * se);
+            } else {
+                lower.push(f64::NAN);
+                upper.push(f64::NAN);
+            }
+            horizons.push(antecedent_core::HorizonIdentification {
+                horizon: horizon_steps,
+                status: entry.identification.status,
+                method: Arc::clone(&entry.estimand.method),
+                adjustment: Arc::from(named_adjustment_keys(entry)),
+            });
+        }
+        let eval_level = overlays
+            .iter()
+            .find(|overlay| overlay.variable == treatment)
+            .map(|overlay| overlay.assigned(0.0))
+            .or_else(|| overlays.first().map(|overlay| overlay.assigned(0.0)))
+            .unwrap_or(0.0);
+        let support = antecedent_core::SupportReport {
+            status: antecedent_core::SupportStatus::Supported,
+            query_region: antecedent_core::SupportRegion {
+                minima: Arc::from([
+                    eval_level,
+                    f64::from(temporal.horizons.first().copied().unwrap_or(1)),
+                ]),
+                maxima: Arc::from([
+                    eval_level,
+                    f64::from(temporal.horizons.last().copied().unwrap_or(1)),
+                ]),
+            },
+            diagnostics: vec![antecedent_core::SupportDiagnostic {
+                id: Arc::from("response.temporal.sequence_overlay"),
+                values: Arc::from(
+                    overlays
+                        .iter()
+                        .flat_map(|overlay| {
+                            [
+                                f64::from(overlay.variable.raw()),
+                                f64::from(overlay.offset),
+                                overlay.assigned(0.0),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                detail: Arc::from(
+                    "sequential Sequence overlays as [variable, offset, assigned, …]; \
+                     not a last-step collapse",
+                ),
+            }],
+            warnings: Vec::new(),
+            point_status: Some(Arc::from(vec![
+                antecedent_core::SupportStatus::Supported;
+                temporal.horizons.len()
+            ])),
+        };
+        let response = CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status: aggregate_status,
+            estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: Arc::from(
+                    temporal.horizons.iter().map(|&h| f64::from(h)).collect::<Vec<_>>(),
+                ),
+                dimension: 1,
+                mean: Arc::from(mean.clone()),
+            }),
+            uncertainty: ResponseUncertainty::PointwiseBand {
+                level: 0.95,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+            },
+            support,
+            assumptions,
+            provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
+            horizon_identification: Some(Arc::from(horizons)),
+            interaction_structurally_zero: false,
+        };
+        let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.temporal.sequence_overlay",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "multi-step / joint Sequence runs as overlays on unfolded sequential g-computation; \
+             identifier remains temporal.backdoor.unfolded; no last-step collapse",
+        )];
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.push(Diagnostic::new(
+            "refute.temporal_response.skipped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "scalar ATE refuters are not applicable to a function-valued temporal response",
+        ));
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                EstimatorId::TemporalResponseBayesian
+            } else {
+                EstimatorId::TemporalResponseGcomp
+            },
+            treatment,
+            outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids(
+                    "identify.temporal_backdoor",
+                    "identify.temporal.backdoor.unfolded",
+                )),
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&response.provenance_id),
+                    Arc::clone(&response.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                posterior: last_posterior,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             },

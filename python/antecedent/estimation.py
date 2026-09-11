@@ -2509,7 +2509,7 @@ class PreparedAnalysis:
                 "suite and a function-valued estimand has no such state. Use refute='none'."
             )
         lagged = _lagged_edges(graph)
-        from antecedent._analyze import _encode_temporal_intervention
+        from antecedent._analyze import _encode_temporal_interventions
 
         if isinstance(query, InterventionResponse):
             supplied = query.intervention
@@ -2522,10 +2522,10 @@ class PreparedAnalysis:
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                variable, kind, parameters = _encode_temporal_intervention(spec)
-                treatments.append(variable)
-                kinds.append(kind)
-                parameters_list.append(parameters)
+                for variable, kind, parameters in _encode_temporal_interventions(spec):
+                    treatments.append(variable)
+                    kinds.append(kind)
+                    parameters_list.append(parameters)
             native = _NativePreparedAnalysis.prepare_temporal_response(
                 names,
                 columns,

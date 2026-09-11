@@ -89,6 +89,14 @@
       "soft_additive_shift_1": [
         3.0,
         4.0
+      ],
+      "sequence_two_step_set_1": [
+        6.0,
+        4.0
+      ],
+      "sequence_two_step_soft_constant_1": [
+        6.0,
+        4.0
       ]
     },
     "support": {
@@ -119,7 +127,7 @@
   "estimator_contract": {
     "estimator": "temporal response linear g-computation over horizon-specific lag-aligned OLS designs",
     "claim": "the deterministic finite sample makes the omitted treatment lag orthogonal to each fitted treatment column, so the estimator recovers the analytic structural surface",
-    "not_claimed": "no external-package parity, recursive simulation, multi-step sustained policy, or longitudinal sequence equivalence"
+    "not_claimed": "no external-package parity or recursive simulation; multiplicative and truncated Soft remain refused; nested Sequence remains refused"
   },
   "tolerance": {
     "class": "absolute",

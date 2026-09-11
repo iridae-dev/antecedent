@@ -449,7 +449,15 @@ impl ResponseFunctional {
                 treatments.to_vec()
             }
             Self::InterventionResponse { interventions, .. } => {
-                interventions.iter().filter_map(Intervention::primary_variable).collect()
+                let mut ids = Vec::new();
+                for intervention in interventions.iter() {
+                    for variable in intervention.target_variables() {
+                        if !ids.contains(&variable) {
+                            ids.push(variable);
+                        }
+                    }
+                }
+                ids
             }
         }
     }
@@ -643,7 +651,7 @@ impl ResponseQuery {
                     intervention
                         .validate()
                         .map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
-                    if intervention.primary_variable() == Some(*outcome) {
+                    if intervention.target_variables().contains(outcome) {
                         return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                     }
                 }

@@ -544,9 +544,10 @@ class InterventionResponse:
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
     (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
-    Soft(``constant``/``additive_shift``) and a single-step ``Sequence``.
-    Multi-step and nested ``Sequence`` policies fail closed with a stable
-    error rather than silently collapsing to one step. ``treatment_lag``
+    Soft(``constant``/``additive_shift``) and ``Sequence`` of those overlays
+    (multi-step on one variable, or joint at one time when every coordinate
+    is identified). Nested ``Sequence`` and other Soft families fail closed.
+    Multi-step never collapses to the last step. ``treatment_lag``
     defaults to :attr:`temporal_response_spec.default_treatment_lag`, matching
     :class:`PulseEffect`.
     """

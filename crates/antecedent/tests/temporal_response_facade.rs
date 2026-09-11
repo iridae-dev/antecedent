@@ -568,33 +568,48 @@ fn temporal_single_step_sequence_matches_bare_intervention() {
     assert_surface(&result, &expected, atol, "estimate.temporal_response.intervention_gcomp");
 }
 
-// ---- GAP2: refusal paths were unasserted (end-to-end through the facade) ----
+// ---- GAP2: multi-step Sequence is a sequential overlay, never last-step collapse ----
 
-/// (a) Multi-step `Sequence` (>1 step, same variable) must refuse. Before the fix this
-/// silently collapsed to the last step, so `Sequence([Set(t=0), Set(t=5)])` returned the
-/// same answer as `Set(t=5)` instead of erroring. If that collapse ever returns, `.unwrap_err()`
-/// below panics instead of silently passing.
+fn sequence_steps(variable: VariableId, values: &[f64]) -> Intervention {
+    Intervention::Sequence(InterventionSequence::new(
+        values
+            .iter()
+            .map(|&value| SequencedIntervention {
+                intervention: Intervention::set(variable, Value::f64(value)),
+                temporal: TemporalPolicy::pulse(0),
+            })
+            .collect::<Vec<_>>(),
+    ))
+}
+
+/// Two-step `Set(1)` at consecutive times ending at the pulse origin is
+/// `Y_s = 1 + 2 T_{s-1} + 3 T_{s-2}` with both lagged treatments set: `[6, 4]`.
+/// Last-step-only `Set(1)` is `[3, 4]`. Collapse to the last step fails this pin.
 #[test]
-fn multi_step_sequence_refuses_end_to_end() {
+fn multi_step_sequence_matches_two_step_truth_and_does_not_collapse() {
     let fixture = fixture();
     let (series, graph) = temporal_fixture_series();
-    let v = VariableId::from_raw(0);
-    let seq = InterventionSequence::new(vec![
-        SequencedIntervention {
-            intervention: Intervention::set(v, Value::f64(0.0)),
-            temporal: TemporalPolicy::pulse(0),
-        },
-        SequencedIntervention {
-            intervention: Intervention::set(v, Value::f64(5.0)),
-            temporal: TemporalPolicy::pulse(0),
-        },
-    ]);
+    let expected: Vec<f64> = fixture["contract"]["intervention_paths"]["sequence_two_step_set_1"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let last_step: Vec<f64> = fixture["contract"]["intervention_paths"]["set_1"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    assert_ne!(expected.as_slice(), last_step.as_slice());
+
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
-        interventions: Arc::from([Intervention::Sequence(seq)]),
+        interventions: Arc::from([sequence_steps(VariableId::from_raw(0), &[1.0, 1.0])]),
     })
     .with_temporal(temporal_spec(&fixture));
-    let err = Study::series(series)
+    let result = Study::series(series)
         .graph(graph)
         .query(CausalQuery::Response(query))
         .refute(RefuteSuite::None)
@@ -602,12 +617,14 @@ fn multi_step_sequence_refuses_end_to_end() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(22))
-        .unwrap_err();
-    let msg = err.to_string();
+        .unwrap();
+    assert_surface(&result, &expected, atol, "estimate.temporal_response.intervention_gcomp");
     assert!(
-        msg.contains("multi-step Sequence") && msg.contains("not licensed"),
-        "unexpected error content: {msg}"
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.temporal.sequence_overlay"),
+        "sequential overlay diagnostic missing: {:?}",
+        result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
     );
+    assert_eq!(result.identification.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
 }
 
 /// (b) A `Sequence` nested inside a `Sequence` must refuse via the depth guard rather
@@ -705,14 +722,174 @@ fn target_population_other_than_all_observed_refuses_end_to_end() {
     assert!(msg.contains("AllObserved"), "unexpected error content: {msg}");
 }
 
-// (f) A `Sequence` spanning multiple target variables must refuse. Note: at the
-// facade level this is actually caught even earlier than temporal resolution — a
-// `Sequence` whose steps target different variables has no unique `primary_variable`,
-// so `Study` refuses with "response query has no treatment/outcome pair" before ever
-// reaching the temporal estimator. The estimator-level "multiple target variables"
-// refusal in `resolve_sequence` is covered directly (with the private helper it lives
-// on) by `sequence_multiple_target_variables_fails_closed` in
-// `crates/antecedent-estimate/src/temporal_response.rs`.
+fn joint_ab_series() -> (TimeSeriesData, TemporalDag) {
+    let n = 242;
+    let a: Vec<f64> = (0..n)
+        .map(|i| match i % 4 {
+            0 | 2 => 0.0,
+            1 => 1.0,
+            3 => -1.0,
+            _ => unreachable!(),
+        })
+        .collect();
+    let b: Vec<f64> = (0..n)
+        .map(|i| match i % 4 {
+            0 | 1 => 0.0,
+            2 => 1.0,
+            3 => -1.0,
+            _ => unreachable!(),
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i: usize| {
+            1.0 + 2.0 * i.checked_sub(1).map_or(0.0, |j| a[j])
+                + 4.0 * i.checked_sub(1).map_or(0.0, |j| b[j])
+        })
+        .collect();
+    let mut builder = CausalSchemaBuilder::new();
+    for (name, hint) in [
+        ("a", RoleHint::TreatmentCandidate),
+        ("b", RoleHint::TreatmentCandidate),
+        ("y", RoleHint::OutcomeCandidate),
+    ] {
+        builder
+            .add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = builder.build().unwrap();
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(a), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(b), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let a1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let b1 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(a1, y0).unwrap();
+    graph.insert_directed(b1, y0).unwrap();
+    (series, graph)
+}
+
+/// Joint single-time Sequence: `Y_s = 1 + 2 A_{s-1} + 4 B_{s-1}`, both set to 1 → 7.
+#[test]
+fn joint_sequence_matches_structural_level() {
+    let (series, graph) = joint_ab_series();
+    let seq = InterventionSequence::new(vec![
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+    ]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::Sequence(seq)]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let result = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap();
+    assert_surface(&result, &[7.0], 1e-10, "estimate.temporal_response.intervention_gcomp");
+    assert_eq!(result.identification.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
+}
+
+#[test]
+fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph() {
+    let (series, graph) = joint_ab_series();
+    let seq = InterventionSequence::new(vec![
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(3), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+    ]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::Sequence(seq)]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let err = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not in temporal graph")
+            || msg.contains("UnknownVariable")
+            || msg.contains("unknown"),
+        "unexpected error content: {msg}"
+    );
+}
+
+#[test]
+fn joint_sequence_refuses_when_a_coordinate_is_the_outcome() {
+    let (series, graph) = joint_ab_series();
+    let seq = InterventionSequence::new(vec![
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(2), Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+    ]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::Sequence(seq)]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let err = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap_err();
+    assert!(err.to_string().contains("same variable"), "unexpected error content: {err}");
+}
 
 #[test]
 fn temporal_dose_horizon_bands_match_fixture() {
@@ -868,5 +1045,49 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
             );
             assert_eq!(result.posterior.is_some(), bayesian);
         }
+        let seq_query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([sequence_steps(VariableId::from_raw(0), &[1.0, 1.0])]),
+        })
+        .with_temporal(temporal_spec(&fixture()));
+        let builder = Study::series(series.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let seq_result = builder
+            .query(seq_query)
+            .inference(antecedent::InferenceMode::Bayesian(
+                antecedent::BayesianConfig::conjugate().n_draws(4096),
+            ))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate_series(&series, &ctx)
+            .unwrap();
+        let two_step: Vec<f64> =
+            fixture()["contract"]["intervention_paths"]["sequence_two_step_set_1"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_f64().unwrap())
+                .collect();
+        assert_surface(
+            &seq_result,
+            &two_step,
+            pin["temporal_tolerance"].as_f64().unwrap(),
+            "estimate.temporal_response.intervention_gcomp",
+        );
+        assert!(seq_result.posterior.is_some());
+        assert!(
+            seq_result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.temporal.sequence_overlay")
+        );
+        assert_ne!(seq_result.estimand.method.as_ref(), "bayesian.gcomp");
     }
 }

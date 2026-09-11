@@ -35,7 +35,44 @@ use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::temporal_adjustment::TemporalLinearAdjustment;
+use crate::temporal_sequential::SequentialNodeOverlay;
 use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, range, sample_std};
+
+/// Licensed temporal InterventionResponse overlay.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemporalInterventionPlan {
+    /// One treatment time from [`TemporalResponseSpec::policy`] (Set / Soft / single-step Sequence).
+    Single {
+        /// Intervened variable.
+        treatment: VariableId,
+        /// Hard set / Soft constant.
+        level: Option<f64>,
+        /// Additive shift when `level` is `None`.
+        shift: f64,
+    },
+    /// Multi-step or joint Sequence: one overlay per intervened unfolded node.
+    Sequential {
+        /// Licensed Set / Soft constant / Soft shift overlays.
+        overlays: Vec<SequentialNodeOverlay>,
+    },
+}
+
+impl TemporalInterventionPlan {
+    /// Treatment nodes the identifier must cover.
+    #[must_use]
+    pub fn identification_schedule(&self, spec: &TemporalResponseSpec) -> Vec<(VariableId, i32)> {
+        match self {
+            Self::Single { treatment, .. } => spec
+                .policy
+                .active_offsets()
+                .map(|offsets| offsets.iter().map(|&offset| (*treatment, offset)).collect())
+                .unwrap_or_default(),
+            Self::Sequential { overlays } => {
+                overlays.iter().map(|overlay| (overlay.variable, overlay.offset)).collect()
+            }
+        }
+    }
+}
 
 /// Resample stream base for the per-horizon coefficient bootstrap.
 ///
@@ -209,19 +246,27 @@ impl TemporalResponseEstimator {
                 ctx,
             ),
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                let (treatment, level, shift) = resolve_temporal_intervention(interventions)?;
-                self.estimate_intervention_curve(
-                    data,
-                    identifications,
-                    *outcome,
-                    treatment,
-                    level,
-                    shift,
-                    temporal,
-                    identification_status,
-                    assumptions,
-                    ctx,
-                )
+                match plan_temporal_intervention(interventions, temporal)? {
+                    TemporalInterventionPlan::Single { treatment, level, shift } => self
+                        .estimate_intervention_curve(
+                            data,
+                            identifications,
+                            *outcome,
+                            treatment,
+                            level,
+                            shift,
+                            temporal,
+                            identification_status,
+                            assumptions,
+                            ctx,
+                        ),
+                    TemporalInterventionPlan::Sequential { .. } => {
+                        Err(EstimationError::unsupported(
+                            "multi-step and joint Sequence overlays require the unfolded \
+                             sequential estimator (Study temporal response path)",
+                        ))
+                    }
+                }
             }
             _ => Err(EstimationError::unsupported(
                 "temporal response is licensed only for MeanCurve and InterventionResponse",
@@ -276,8 +321,17 @@ impl TemporalResponseEstimator {
                 (*outcome, treatment.variable, treatment.grid.values()?, None)
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                let (t, level, shift) = resolve_temporal_intervention(interventions)?;
-                (*outcome, t, Vec::new(), Some((level, shift)))
+                match plan_temporal_intervention(interventions, temporal)? {
+                    TemporalInterventionPlan::Single { treatment, level, shift } => {
+                        (*outcome, treatment, Vec::new(), Some((level, shift)))
+                    }
+                    TemporalInterventionPlan::Sequential { .. } => {
+                        return Err(EstimationError::unsupported(
+                            "Bayesian multi-step Sequence uses sequential mechanism overlays, \
+                             not response.temporal.bayesian / bayesian.gcomp",
+                        ));
+                    }
+                }
             }
             _ => {
                 return Err(EstimationError::unsupported(
@@ -1064,9 +1118,36 @@ fn assemble_temporal_support(
     }
 }
 
-pub(crate) fn resolve_temporal_intervention(
+/// Plan overlays for a temporal [`ResponseQuery`], if it is an InterventionResponse.
+///
+/// # Errors
+///
+/// Unlicensed Sequence / Soft forms.
+pub fn plan_from_response_query(
+    query: &ResponseQuery,
+) -> Result<Option<TemporalInterventionPlan>, EstimationError> {
+    let Some(temporal) = query.temporal.as_ref() else {
+        return Ok(None);
+    };
+    match &query.functional {
+        ResponseFunctional::InterventionResponse { interventions, .. } => {
+            Ok(Some(plan_temporal_intervention(interventions, temporal)?))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Classify a temporal InterventionResponse as a single-node overlay or a
+/// sequential schedule. Nested Sequence stays refused. Multi-step never
+/// collapses to the last step.
+///
+/// # Errors
+///
+/// Empty, nested, stochastic, unlicensed Soft, or ambiguous schedules.
+pub fn plan_temporal_intervention(
     interventions: &[Intervention],
-) -> Result<(VariableId, Option<f64>, f64), EstimationError> {
+    spec: &TemporalResponseSpec,
+) -> Result<TemporalInterventionPlan, EstimationError> {
     if interventions.is_empty() {
         return Err(EstimationError::unsupported(
             "intervention response requires at least one intervention",
@@ -1075,10 +1156,16 @@ pub(crate) fn resolve_temporal_intervention(
     if interventions.len() > 1 {
         return Err(EstimationError::unsupported(
             "temporal InterventionResponse supports one primary intervention \
-             (use Sequence for multi-step policies on one variable)",
+             (use Sequence for multi-step or joint policies)",
         ));
     }
-    resolve_one(&interventions[0], 0)
+    match &interventions[0] {
+        Intervention::Sequence(seq) => plan_sequence(seq, spec, 0),
+        other => {
+            let (treatment, level, shift) = resolve_one(other, 0)?;
+            Ok(TemporalInterventionPlan::Single { treatment, level, shift })
+        }
+    }
 }
 
 /// `depth` counts levels of `Intervention::Sequence` nesting already entered.
@@ -1136,7 +1223,13 @@ fn resolve_one(
                      temporal InterventionResponse",
                 ));
             }
-            resolve_sequence(seq, depth + 1)
+            if seq.steps.len() != 1 {
+                return Err(EstimationError::unsupported(
+                    "multi-step Sequence must be planned as sequential overlays; \
+                     refuse rather than collapse to the last step",
+                ));
+            }
+            resolve_one(&seq.steps[0].intervention, depth + 1)
         }
         Intervention::Stochastic { .. } => Err(EstimationError::unsupported(
             "stochastic interventions are not licensed on the temporal InterventionResponse path",
@@ -1147,43 +1240,114 @@ fn resolve_one(
     }
 }
 
-/// A single-step `Sequence` is licensed and resolves as its one step. More than one step
-/// must fail closed rather than silently collapsing to the last step's (level, shift) —
-/// see ADR 0021's "multi-step policies are refused" contract. The original cross-variable
-/// diagnostic is preserved when it applies (checked before the generic multi-step refusal).
-fn resolve_sequence(
+fn plan_sequence(
     seq: &InterventionSequence,
+    spec: &TemporalResponseSpec,
     depth: usize,
-) -> Result<(VariableId, Option<f64>, f64), EstimationError> {
+) -> Result<TemporalInterventionPlan, EstimationError> {
     if seq.is_empty() {
         return Err(EstimationError::unsupported("empty Intervention::Sequence"));
     }
-    if seq.steps.len() > 1 {
-        let mut first_var: Option<VariableId> = None;
-        for step in seq.steps.iter() {
-            let (var, _, _) = resolve_one(&step.intervention, depth)?;
-            if let Some(fv) = first_var {
-                if fv != var {
-                    return Err(EstimationError::unsupported(
-                        "Sequence with multiple target variables is not licensed for temporal \
-                         InterventionResponse",
-                    ));
-                }
-            } else {
-                first_var = Some(var);
-            }
-        }
+    if depth > 0 {
         return Err(EstimationError::unsupported(
-            "multi-step Sequence intervention policies are not licensed for temporal \
-             InterventionResponse (ADR 0021 fail-closed contract)",
+            "Intervention::Sequence nested inside a Sequence is not licensed for \
+             temporal InterventionResponse",
         ));
     }
-    resolve_one(&seq.steps[0].intervention, depth)
+    let origin = spec.treatment_offset()?;
+    let mut leaves = Vec::with_capacity(seq.steps.len());
+    for step in seq.steps.iter() {
+        if matches!(step.intervention, Intervention::Sequence(_)) {
+            return Err(EstimationError::unsupported(
+                "Intervention::Sequence nested inside a Sequence is not licensed for \
+                 temporal InterventionResponse",
+            ));
+        }
+        let (variable, level, shift) = resolve_one(&step.intervention, depth + 1)?;
+        let offsets =
+            step.temporal.active_offsets().map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        leaves.push((variable, level, shift, offsets));
+    }
+    if leaves.len() == 1 {
+        let (treatment, level, shift, _) = leaves[0].clone();
+        return Ok(TemporalInterventionPlan::Single { treatment, level, shift });
+    }
+    let offsets = sequence_overlay_offsets(origin, &leaves)?;
+    let mut overlays = Vec::with_capacity(leaves.len());
+    let mut seen = Vec::new();
+    for ((variable, level, shift, _), offset) in leaves.iter().zip(offsets) {
+        let key = (*variable, offset);
+        if seen.contains(&key) {
+            return Err(EstimationError::unsupported(
+                "Sequence assigns the same (variable, time) twice; refuse rather than collapse",
+            ));
+        }
+        seen.push(key);
+        overlays.push(SequentialNodeOverlay {
+            variable: *variable,
+            offset,
+            level: *level,
+            shift: *shift,
+        });
+    }
+    Ok(TemporalInterventionPlan::Sequential { overlays })
+}
+
+/// Multi-step same variable → consecutive times ending at the spec origin.
+/// Distinct variables, each once → joint at the origin.
+/// Explicit distinct Pulse offsets are honored.
+fn sequence_overlay_offsets(
+    origin: i32,
+    leaves: &[(VariableId, Option<f64>, f64, Arc<[i32]>)],
+) -> Result<Vec<i32>, EstimationError> {
+    let n = i32::try_from(leaves.len())
+        .map_err(|_| EstimationError::unsupported("Sequence is too long"))?;
+    let mut explicit = Vec::with_capacity(leaves.len());
+    for (_, _, _, offsets) in leaves {
+        let [at] = offsets.as_ref() else {
+            return Err(EstimationError::unsupported(
+                "each Sequence step must be a Pulse or single-time window",
+            ));
+        };
+        explicit.push(*at);
+    }
+    let same_var = leaves.iter().all(|(variable, _, _, _)| *variable == leaves[0].0);
+    let all_default = explicit.iter().all(|&at| at == 0);
+    let all_origin = explicit.iter().all(|&at| at == origin);
+    let distinct_explicit = {
+        let mut seen = explicit.clone();
+        seen.sort_unstable();
+        seen.dedup();
+        seen.len() == explicit.len() && !(all_default || all_origin)
+    };
+    if distinct_explicit {
+        return Ok(explicit);
+    }
+    if same_var && (all_default || all_origin) {
+        // Consecutive times ending at the policy origin. Two Pulse{0} (or
+        // Pulse{origin}) steps are a two-step policy, not last-step collapse.
+        return Ok((0..n).map(|i| origin - (n - 1 - i)).collect());
+    }
+    let unique_vars = {
+        let mut vars: Vec<VariableId> =
+            leaves.iter().map(|(variable, _, _, _)| *variable).collect();
+        vars.sort_by_key(|variable| variable.raw());
+        vars.dedup();
+        vars.len() == leaves.len()
+    };
+    if unique_vars && (all_default || all_origin) {
+        return Ok(vec![origin; leaves.len()]);
+    }
+    Err(EstimationError::unsupported(
+        "Sequence schedule is ambiguous; use distinct Pulse offsets or a same-variable \
+         consecutive policy",
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::TemporalPolicy;
 
     #[test]
     fn soft_constant_resolves_to_set() {
@@ -1221,24 +1385,34 @@ mod tests {
     }
 
     #[test]
-    fn multi_step_sequence_fails_closed() {
+    fn multi_step_sequence_is_consecutive_overlays_not_last_step() {
         use antecedent_core::SequencedIntervention;
 
         let v = VariableId::from_raw(0);
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
         let seq = InterventionSequence {
             steps: Arc::from(vec![
                 SequencedIntervention {
                     intervention: Intervention::set(v, Value::f64(0.0)),
-                    temporal: antecedent_core::TemporalPolicy::pulse(0),
+                    temporal: TemporalPolicy::pulse(0),
                 },
                 SequencedIntervention {
                     intervention: Intervention::set(v, Value::f64(5.0)),
-                    temporal: antecedent_core::TemporalPolicy::pulse(0),
+                    temporal: TemporalPolicy::pulse(0),
                 },
             ]),
         };
-        let err = resolve_sequence(&seq, 0).unwrap_err();
-        assert!(err.to_string().contains("not licensed"));
+        let TemporalInterventionPlan::Sequential { overlays } =
+            plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+        else {
+            panic!("expected sequential overlays");
+        };
+        assert_eq!(overlays.len(), 2);
+        assert_eq!(overlays[0].offset, -2);
+        assert_eq!(overlays[0].level, Some(0.0));
+        assert_eq!(overlays[1].offset, -1);
+        assert_eq!(overlays[1].level, Some(5.0));
+        assert_ne!(overlays[0].level, overlays[1].level);
     }
 
     #[test]
@@ -1258,7 +1432,8 @@ mod tests {
                 temporal: antecedent_core::TemporalPolicy::pulse(0),
             }]),
         };
-        let err = resolve_one(&Intervention::Sequence(outer), 0).unwrap_err();
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let err = plan_temporal_intervention(&[Intervention::Sequence(outer)], &spec).unwrap_err();
         assert!(err.to_string().contains("not licensed"));
     }
 
@@ -1269,8 +1444,7 @@ mod tests {
     // variance `cbar(a)' Sigma cbar(a)`. These tests would fail against the old formula.
 
     use antecedent_core::{
-        CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalPolicy,
-        ValueType,
+        CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -1637,8 +1811,17 @@ mod tests {
                 },
             ]),
         };
-        let err = resolve_sequence(&seq, 0).unwrap_err();
-        assert!(err.to_string().contains("multiple target variables"), "unexpected error: {err}");
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let TemporalInterventionPlan::Sequential { overlays } =
+            plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+        else {
+            panic!("joint Sequence must be sequential overlays");
+        };
+        assert_eq!(overlays.len(), 2);
+        assert_eq!(overlays[0].variable, v0);
+        assert_eq!(overlays[1].variable, v1);
+        assert_eq!(overlays[0].offset, -1);
+        assert_eq!(overlays[1].offset, -1);
     }
 
     /// (d) Empty dose grid must refuse with a specific message, not silently produce an
