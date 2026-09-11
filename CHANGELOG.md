@@ -9,10 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `TemporalMediationEffect` stores `I(h)` per requested horizon. Estimate
+  clicks reuse that atom's unfolded backdoor, not a union adjustment set.
+- Multi-step and joint `Sequence` overlays run on sequential g-computation.
+  Nested Sequence stays refused rather than collapsing to the last step.
+- DBN-posterior Bayesian `TemporalMediationEffect` mixes per-atom `I(h)`.
+  Unidentified atoms stay in the envelope; priors do not upgrade ID.
+- DBN-posterior multi-step `SustainedEffect` uses sequential g-computation
+  at `validation=none`. Cheap/full refuse rather than collapsing the window.
 - Licensed 1.3 observation pairs (selected AIPW, marginal KM IPCW, Cox IPCW)
   ride Frequentist temporal `ResponseCurve` / `InterventionResponse`. Each pair
   consumes `conformance/response/temporal_observation`. Unlicensed
   non-`Complete` pairs refuse at compile.
+- Same-design and mapped prior transfer ride licensed Bayesian Pulse,
+  single-step Sustained, and temporal `ResponseCurve` on explicit
+  `TemporalDag` when a fixture names the source cell, target cell, and
+  `PriorCatalog.filter_compatible`. Incompatible catalogs fail closed.
+  Conflict-sensitive weights stay diagnostic. Multi-step Sequence keeps
+  isotropic per-mechanism priors (the same filter does not apply).
 
 ## [1.5.0] — 2026-09-11
 
