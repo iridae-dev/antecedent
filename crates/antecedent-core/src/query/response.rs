@@ -675,14 +675,59 @@ impl ResponseQuery {
                     ));
                 }
             }
-            if self.observation != ObservationSpec::Complete {
-                return Err(QueryError::InvalidResponse(
-                    "temporal response requires complete observation in 0.7".into(),
-                ));
-            }
         }
         Ok(())
     }
+
+    /// Licensed 1.3 static pairs that may ride a temporal curve. Anything else
+    /// refuses with [`TEMPORAL_OBSERVATION_UNLICENSED`].
+    ///
+    /// # Errors
+    ///
+    /// Unlicensed mechanism/assumption pair on a temporal attachment.
+    pub fn require_licensed_temporal_observation(&self) -> Result<(), QueryError> {
+        if self.temporal.is_none() {
+            return Ok(());
+        }
+        match &self.observation {
+            ObservationSpec::Complete => {
+                if self.observation_assumptions.is_empty() {
+                    Ok(())
+                } else {
+                    Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+                }
+            }
+            ObservationSpec::Selected { .. } => match single_observation_assumption(self) {
+                Some(ObservationAssumption::OutcomeIndependentGiven(_)) => Ok(()),
+                _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+            },
+            ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
+                match single_observation_assumption(self) {
+                    Some(ObservationAssumption::IndependentGiven(_)) => Ok(()),
+                    Some(ObservationAssumption::OutcomeIndependentGiven(vars))
+                        if vars.is_empty() =>
+                    {
+                        Ok(())
+                    }
+                    _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+                }
+            }
+            ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
+                Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+            }
+        }
+    }
+}
+
+/// Stable compile/execute refusal for an unlicensed temporal observation pair.
+pub const TEMPORAL_OBSERVATION_UNLICENSED: &str =
+    "temporal response observation pair is not licensed";
+
+fn single_observation_assumption(query: &ResponseQuery) -> Option<&ObservationAssumption> {
+    if query.observation_assumptions.len() != 1 {
+        return None;
+    }
+    query.observation_assumptions.first()
 }
 
 fn response_sets_are_distinct(outcomes: &[VariableId], treatments: &[VariableId]) -> bool {
@@ -767,5 +812,70 @@ mod tests {
         let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: 4_000_000_000 };
         let err = grid.validate().unwrap_err();
         assert!(matches!(err, QueryError::InvalidResponse(_)));
+    }
+
+    fn temporal_curve() -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        )
+    }
+
+    #[test]
+    fn temporal_observation_license_matches_static_1_3_pairs() {
+        let query = temporal_curve();
+        assert!(query.validate().is_ok());
+        assert!(query.require_licensed_temporal_observation().is_ok());
+
+        let selected = query.clone().with_observation(
+            ObservationSpec::Selected {
+                latent: VariableId::from_raw(1),
+                observed: VariableId::from_raw(1),
+                indicator: VariableId::from_raw(2),
+            },
+            [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
+        );
+        assert!(selected.validate().is_ok());
+        assert!(selected.require_licensed_temporal_observation().is_ok());
+
+        let right = query.clone().with_observation(
+            ObservationSpec::RightCensored {
+                latent: VariableId::from_raw(1),
+                observed: VariableId::from_raw(1),
+                censoring: VariableId::from_raw(2),
+                event: VariableId::from_raw(3),
+            },
+            [ObservationAssumption::IndependentGiven(Arc::from([]))],
+        );
+        assert!(right.require_licensed_temporal_observation().is_ok());
+
+        let cox = query.clone().with_observation(
+            ObservationSpec::LeftCensored {
+                latent: VariableId::from_raw(1),
+                observed: VariableId::from_raw(1),
+                censoring: VariableId::from_raw(2),
+                event: VariableId::from_raw(3),
+            },
+            [ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(0)]))],
+        );
+        assert!(cox.require_licensed_temporal_observation().is_ok());
+
+        let interval = query.with_observation(
+            ObservationSpec::IntervalCensored {
+                latent: VariableId::from_raw(1),
+                lower: VariableId::from_raw(1),
+                upper: VariableId::from_raw(2),
+            },
+            [ObservationAssumption::IndependentGiven(Arc::from([]))],
+        );
+        assert!(interval.validate().is_ok());
+        let err = interval.require_licensed_temporal_observation().unwrap_err();
+        assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED));
     }
 }

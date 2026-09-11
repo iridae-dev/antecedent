@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Licensed 1.3 observation pairs (selected AIPW, marginal KM IPCW, Cox IPCW)
+  ride Frequentist temporal `ResponseCurve` / `InterventionResponse`. Each pair
+  consumes `conformance/response/temporal_observation`. Unlicensed
+  non-`Complete` pairs refuse at compile.
+
 ## [1.5.0] — 2026-09-11
 
 ### Added

@@ -646,7 +646,7 @@ impl super::Study {
             aligned.push(entry);
         }
         let first = aligned[0];
-        let (aggregate_status, aggregate_assumptions) =
+        let (aggregate_status, mut aggregate_assumptions) =
             aggregate_temporal_horizon_evidence(aligned.iter().map(|entry| &entry.identification))?;
         let mut identification = first.identification.clone();
         identification.status = aggregate_status;
@@ -654,6 +654,40 @@ impl super::Study {
         let estimand = first.estimand.clone();
         let identifications: Vec<_> =
             aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
+
+        query
+            .require_licensed_temporal_observation()
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let mut working_query = query.clone();
+        let mut observation_adjusted = None;
+        let series_owned = if query.observation == ObservationSpec::Complete {
+            None
+        } else {
+            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian temporal response requires complete observations",
+                });
+            }
+            if self.observation_delayed_entry.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "delayed entry is not licensed for temporal observation",
+                });
+            }
+            let adjustment = contemporaneous_adjustment_variables(&aligned);
+            let (series, adjusted) = ObservationMechanismEstimator::new(self.observation_options)
+                .adjust_temporal_series(data, query, &adjustment)
+                .map_err(CausalError::from)?;
+            append_temporal_observation_assumptions(
+                query,
+                &mut identification.required_assumptions,
+            );
+            append_temporal_observation_assumptions(query, &mut aggregate_assumptions);
+            working_query.observation = ObservationSpec::Complete;
+            working_query.observation_assumptions = Arc::from([]);
+            observation_adjusted = Some(adjusted);
+            Some(series)
+        };
+        let data = series_owned.as_ref().unwrap_or(data);
 
         if let Some(antecedent_estimate::TemporalInterventionPlan::Sequential { overlays }) =
             antecedent_estimate::plan_from_response_query(query).map_err(CausalError::from)?
@@ -675,6 +709,7 @@ impl super::Study {
                 physical,
                 started,
                 ctx,
+                observation_adjusted.as_ref(),
             );
         }
 
@@ -689,8 +724,11 @@ impl super::Study {
             }
             let mut bayes = bayesian_gcomp(cfg, ctx);
             bayes.prior.clone_from(&cfg.prior);
-            estimator.estimate_bayesian(data, &identifications, query, aggregate_status, aggregate_assumptions, &bayes, ctx)
-        } else { estimator.estimate(data, &identifications, query, aggregate_status, aggregate_assumptions, ctx) }.map_err(CausalError::from)?;
+            estimator.estimate_bayesian(data, &identifications, &working_query, aggregate_status, aggregate_assumptions, &bayes, ctx)
+        } else { estimator.estimate(data, &identifications, &working_query, aggregate_status, aggregate_assumptions, ctx) }.map_err(CausalError::from)?;
+        if let Some(adjusted) = observation_adjusted.as_ref() {
+            apply_temporal_observation_result(&mut response, adjusted);
+        }
         // The estimator's public API accepts one aggregate status for callers
         // that have a homogeneous set of horizon witnesses. This execution path
         // has the richer per-horizon records, so retain their actual statuses
@@ -800,6 +838,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         started: Instant,
         ctx: &ExecutionContext,
+        observation_adjusted: Option<&antecedent_estimate::ObservationAdjustedOutcome>,
     ) -> Result<StudyResult, CausalError> {
         if self.split.is_some() {
             return Err(CausalError::Unsupported {
@@ -922,7 +961,7 @@ impl super::Study {
                 temporal.horizons.len()
             ])),
         };
-        let response = CausalResponse {
+        let mut response = CausalResponse {
             estimand: query.functional.clone(),
             identification_status: aggregate_status,
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
@@ -943,6 +982,9 @@ impl super::Study {
             horizon_identification: Some(Arc::from(horizons)),
             interaction_structurally_zero: false,
         };
+        if let Some(adjusted) = observation_adjusted {
+            apply_temporal_observation_result(&mut response, adjusted);
+        }
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -1360,6 +1402,23 @@ fn horizon_adjustment_sets_differ(
     entries.iter().skip(1).any(|entry| named_adjustment_keys(entry) != first_z)
 }
 
+fn contemporaneous_adjustment_variables(
+    entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+) -> Vec<VariableId> {
+    let mut adjustment = Vec::new();
+    for entry in entries {
+        for &dense in entry.estimand.adjustment_set.iter() {
+            let Ok(key) = entry.indexer.key_of(dense.raw()) else {
+                continue;
+            };
+            if !adjustment.contains(&key.variable) {
+                adjustment.push(key.variable);
+            }
+        }
+    }
+    adjustment
+}
+
 fn named_adjustment_keys(
     entry: &crate::analysis::prepared::CachedTemporalHorizonIdentification,
 ) -> Vec<antecedent_core::TemporalNodeKey> {
@@ -1371,6 +1430,76 @@ fn named_adjustment_keys(
         .collect();
     keys.sort();
     keys
+}
+
+fn append_temporal_observation_assumptions(
+    query: &ResponseQuery,
+    assumptions: &mut antecedent_core::AssumptionSet,
+) {
+    for claim in query.observation_assumptions.iter() {
+        let (id, description) = match claim {
+            ObservationAssumption::IndependentGiven(vars) => (
+                "observation.independent_given",
+                format!("observation/censoring independent given {vars:?}"),
+            ),
+            ObservationAssumption::OutcomeIndependentGiven(vars) => (
+                "observation.outcome_independent_given",
+                format!("observation independent of latent outcome given {vars:?}"),
+            ),
+            ObservationAssumption::Structural(model) => {
+                ("observation.structural", format!("structural observation model {model}"))
+            }
+        };
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: id.into(),
+                description: description.into(),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
+        });
+    }
+}
+
+fn apply_temporal_observation_result(
+    response: &mut CausalResponse,
+    adjusted: &antecedent_estimate::ObservationAdjustedOutcome,
+) {
+    let (minimum_weight, maximum_weight, effective_sample_size) = {
+        let minimum = adjusted
+            .weights
+            .iter()
+            .copied()
+            .filter(|weight| *weight > 0.0)
+            .fold(f64::INFINITY, f64::min);
+        let maximum = adjusted.weights.iter().copied().fold(0.0_f64, f64::max);
+        let sum = adjusted.weights.iter().sum::<f64>();
+        let sum_squares = adjusted.weights.iter().map(|weight| weight * weight).sum::<f64>();
+        let ess = if sum_squares > 0.0 { sum * sum / sum_squares } else { 0.0 };
+        (if minimum.is_finite() { minimum } else { 0.0 }, maximum, ess)
+    };
+    response.uncertainty = ResponseUncertainty::None;
+    response.provenance_id = Arc::from("estimate.temporal_response.observation_adjusted");
+    response.support.diagnostics.push(antecedent_core::SupportDiagnostic {
+        id: Arc::from("response.observation_adjustment_weights"),
+        values: Arc::from([minimum_weight, maximum_weight, effective_sample_size]),
+        detail: Arc::from(
+            "minimum positive weight, maximum weight, and Kish effective sample size; weights are diagnostic only and were already incorporated into the pseudo-outcome",
+        ),
+    });
+    response.support.warnings.push(Diagnostic::new(
+        "response.observation_joint_uncertainty_unavailable",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "point estimate includes observation correction; uncertainty is omitted because complete-data curve bands do not account for the estimated observation mechanism",
+    ));
+    response.support.warnings.push(Diagnostic::new(
+        "response.observation_adjustment_method",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        adjusted.method.clone(),
+    ));
 }
 
 #[cfg(test)]

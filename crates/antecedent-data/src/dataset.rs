@@ -204,6 +204,20 @@ impl TimeSeriesData {
         &self.storage
     }
 
+    /// Replace one float64 column; preserve time index, other columns, mask, and weights.
+    ///
+    /// # Errors
+    ///
+    /// Unknown id, length mismatch, or non-float target.
+    pub fn with_replaced_float(
+        &self,
+        id: VariableId,
+        values: Arc<[f64]>,
+    ) -> Result<Self, DataError> {
+        let replaced = TabularData::new(self.storage.clone()).with_replaced_float(id, values)?;
+        Self::try_new(replaced.storage().clone(), self.time_index.clone())
+    }
+
     /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
     #[cfg(test)]
     #[must_use]

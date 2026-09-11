@@ -286,6 +286,20 @@ def _mechanism_kwargs(mechanism: object) -> dict[str, object]:
     raise CausalValueError(f"unsupported observation mechanism {type(mechanism).__name__}")
 
 
+def _temporal_observation_kwargs(query: Any) -> dict[str, object]:
+    """Native kwargs for a licensed temporal observation pair, or empty."""
+
+    mechanism = getattr(query, "observation", None)
+    if mechanism is None or isinstance(mechanism, Complete):
+        return {}
+    assumptions = tuple(getattr(query, "observation_assumptions", ()))
+    if len(assumptions) != 1:
+        raise CausalValueError("observation-aware response requires exactly one explicit assumption")
+    kwargs = _mechanism_kwargs(mechanism)
+    kwargs.update(_assumption_kwargs(assumptions[0]))
+    return kwargs
+
+
 def _assumption_kwargs(assumption: object) -> dict[str, object]:
     if isinstance(assumption, IndependentGiven):
         return {

@@ -153,6 +153,12 @@ for _fn in (
     _PARAM_DEFAULT_EXEMPT[(_fn, "treatment_lag")] = _LICENSE_DEFAULT_REASON
     _PARAM_DEFAULT_EXEMPT[(_fn, "policy")] = _LICENSE_DEFAULT_REASON
 
+_PARAM_DEFAULT_EXEMPT[("analyze_temporal_response", "assumption_variables")] = (
+    "the Rust default is `Vec::new()` in `#[pyo3(signature = ...)]`, which PyO3 "
+    "renders as `...` (`Ellipsis`) rather than `[]`. The stub keeps the empty-list "
+    "literal so callers see the licensed default."
+)
+
 # The functions Defect C fixed. The signature sweep below must actually compare these —
 # if introspection ever silently stopped covering them (e.g. by falling into
 # `_SIGNATURE_UNAVAILABLE` without anyone noticing), this test would stop being able to

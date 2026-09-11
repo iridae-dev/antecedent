@@ -54,4 +54,32 @@ Marginal delayed entry retains its existing contract. Conditional delayed entry,
 interval-censored/truncated response MLE, and joint observation/curve intervals
 remain unavailable. Observation-adjusted results omit uncertainty rather than
 reuse complete-data intervals. These cells do not extend to derivatives,
-Bayesian responses, temporal responses, or partial graphs.
+Bayesian responses, or partial graphs.
+
+# Temporal response observation contract (1.6)
+
+The same pairs ride Frequentist `TemporalDag` `ResponseCurve` /
+`InterventionResponse` at validation `none`. Each pair consumes
+`conformance/response/temporal_observation`, not
+`conformance/response/observation_primitives`.
+
+| ObservationSpec | ObservationAssumption | Estimation | Consuming fixture |
+|---|---|---|---|
+| Complete | None | Existing temporal g-comp | `conformance/response/temporal_dose_horizon` |
+| Selected | OutcomeIndependentGiven(Z), including treatment and every causal adjustment process | Cross-fitted logistic AIPW on the lag-aligned series | `conformance/response/temporal_observation` |
+| RightCensored | IndependentGiven([]) | Marginal KM IPCW | same |
+| LeftCensored | IndependentGiven([]) | Marginal KM IPCW after sign reversal | same |
+| RightCensored | IndependentGiven(Z), nonempty and including treatment and every causal adjustment process | Cox IPCW, Z lag-aligned at the policy treatment offset | same |
+| LeftCensored | IndependentGiven(Z), same requirement | Cox IPCW after sign reversal, same lag alignment | same |
+
+The historical empty `OutcomeIndependentGiven([])` marginal-censoring alias
+remains accepted. Containment uses contemporaneous process ids (unfolded
+adjustment nodes map back through the temporal indexer). Nonempty Z is never
+the contemporaneous column: the Cox/AIPW design uses Z at
+`TemporalResponseSpec::treatment_offset()` (typically −1).
+
+Until a pair is licensed, `compile_logical_temporal_response` refuses
+non-`Complete` with `temporal response observation pair is not licensed`.
+Bayesian temporal response, delayed entry, interval/truncation, cheap/full,
+and `TemporalCpdag` / `TemporalPag` observation rides stay refused.
+Observation-adjusted temporal surfaces omit uncertainty.

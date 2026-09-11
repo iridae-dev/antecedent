@@ -19,7 +19,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
-    Intervention, InterventionSequence, MechanismOverride, ParametricAssumption,
+    Intervention, InterventionSequence, MechanismOverride, ObservationSpec, ParametricAssumption,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
     SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
     TemporalEffectQuery, TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
@@ -209,6 +209,11 @@ impl TemporalResponseEstimator {
         // contract here so callers cannot bypass treatment/outcome, observation,
         // or intervention validation and still receive a numerical response.
         query.validate()?;
+        if query.observation != ObservationSpec::Complete {
+            return Err(EstimationError::unsupported(
+                "TemporalResponseEstimator requires complete observations; apply a licensed observation correction first",
+            ));
+        }
         if !matches!(
             identification_status,
             IdentificationStatus::NonparametricallyIdentified

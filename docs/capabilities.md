@@ -205,7 +205,9 @@ certificates are outside the 0.9 transport contract.
   intervention responses;
 * selected-outcome IPW and cross-fitted AIPW, plus marginal right/left Kaplan–Meier
   IPCW and conditional right/left Cox IPCW, composed into point-only response
-  curves under explicit observation assumptions.
+  curves under explicit observation assumptions. The same selected / KM /
+  Cox pairs ride Frequentist `TemporalDag` curves at validation `none`;
+  unlicensed non-Complete pairs refuse at compile.
 
 Response results keep structural identification, empirical support, and
 uncertainty kind as separate axes. Pointwise and simultaneous bands are not

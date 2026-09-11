@@ -845,6 +845,17 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int = 1,
         accepted: bool = False,
+        observation_kind: str | None = None,
+        latent: str | None = None,
+        observed: str | None = None,
+        censoring: str | None = None,
+        event: str | None = None,
+        lower: str | None = None,
+        upper: str | None = None,
+        indicator: str | None = None,
+        assumption_kind: str | None = None,
+        assumption_variables: list[str] = [],
+        structural_model: str | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_effect(
@@ -1779,6 +1790,17 @@ def analyze_temporal_response(
     threads: int = 1,
     accepted: bool = False,
     refute: bool | str | None = None,
+    observation_kind: str | None = None,
+    latent: str | None = None,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str | None = None,
+    assumption_variables: list[str] = [],
+    structural_model: str | None = None,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],

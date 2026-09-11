@@ -541,6 +541,20 @@ def handle_response(
                 f"temporal response requires estimator='temporal.response.gcomp'; got {estimator!r}"
             )
         names, columns = ingest_columns(data)
+        from .observation import Complete as _ObsComplete
+        from .observation import _ensure_latent_schema_column, _temporal_observation_kwargs
+
+        mechanism = getattr(query, "observation", None)
+        if isinstance(mechanism, _ObsComplete):
+            mechanism = None
+        if mechanism is not None:
+            if refute_requested:
+                raise ValueError(
+                    "observation-aware curve validation is unavailable because subset refits must "
+                    "re-estimate both the observation correction and response jointly"
+                )
+            names, columns = _ensure_latent_schema_column(names, columns, mechanism)
+        observation_kwargs = _temporal_observation_kwargs(query)
         lagged = _lagged_edges(graph)
         temporal_treatments: list[str]
         temporal_outcomes: list[str]
@@ -590,6 +604,7 @@ def handle_response(
             threads=threads,
             accepted=structure_accepted,
             refute=refute if refute_requested else False,
+            **observation_kwargs,
         )
         return _wrap_prepared_response(temporal_raw, query)
     if estimator == "cell.aipw" and isinstance(query, InterventionResponse):

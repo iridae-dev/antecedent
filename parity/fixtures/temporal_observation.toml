@@ -1,0 +1,8 @@
+id = "antecedent.temporal_response.observation_adjusted"
+capability_ids = [
+  "estimate.temporal_response.observation_adjusted",
+]
+fixture_dir = "conformance/response/temporal_observation"
+tolerance_class = "StableFloat"
+generator = "stationary linear SCM plus selection / independent / informative censoring recorded in expected.json"
+baseline_pin = "structural dose × horizon surface; Complete-on-recorded-proxy must miss"

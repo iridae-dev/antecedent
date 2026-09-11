@@ -17,9 +17,10 @@ pub(super) use std::time::Instant;
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
-    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationAssumption,
+    ObservationSpec, PopulationRegistry, ProvenanceGraph, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, TemporalEffectQuery,
+    VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TemporalIndexer, TimeIndex,

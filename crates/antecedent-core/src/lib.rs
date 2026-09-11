@@ -86,8 +86,8 @@ pub use query::{
     ObservationAssumption, ObservationSpec, OrderedFloatBits, OutcomeFunctional,
     PathSpecificEffectQuery, PopulationRegistry, PopulationSelection, PopulationSelector,
     PredicateExpr, QueryError, ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode,
-    TargetPopulation, TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec,
-    TransportQuery, UnitChangeQuery,
+    TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TemporalEffectQuery,
+    TemporalResponseLicense, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
 };
 pub use response::{
     CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,

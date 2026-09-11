@@ -169,6 +169,12 @@ impl super::Study {
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
                 let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
                 if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    if q.observation != ObservationSpec::Complete {
+                        return Err(CausalError::Compile {
+                            message: "Bayesian temporal response requires complete observations"
+                                .into(),
+                        });
+                    }
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
                 }
