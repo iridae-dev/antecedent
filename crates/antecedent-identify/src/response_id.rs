@@ -58,7 +58,7 @@ pub(crate) fn identify_mag_response(
         max_candidates,
     )?;
     if !is_identified(&result) {
-        result = identify_admg_response(mag, &witness, query)?;
+        result = identify_admg_response(mag, query)?;
     }
     result.query = CausalQuery::Response(query.clone());
     Ok(result)
@@ -67,11 +67,11 @@ pub(crate) fn identify_mag_response(
 /// Identify a DAG response: backdoor first (caller), then ID on the DAG-as-ADMG.
 pub(crate) fn identify_dag_via_id(
     dag: &Dag,
-    query: &AverageEffectQuery,
+    query: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let prepared = IdIdentifier::new().prepare_dag(dag)?;
     let mut workspace = IdentificationWorkspace::default();
-    let mut result = IdIdentifier::new().identify_ate(&prepared, query, &mut workspace)?;
+    let mut result = IdIdentifier::new().identify_response(&prepared, query, &mut workspace)?;
     result.derivation.push(
         "identify.response.general_id",
         "back-door search failed; Shpitser–Pearl ID on the DAG-as-ADMG",
@@ -81,7 +81,6 @@ pub(crate) fn identify_dag_via_id(
 
 fn identify_admg_response(
     mag: &Pag,
-    witness: &AverageEffectQuery,
     query: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let Some(admg) = mag_to_admg(mag) else {
@@ -92,7 +91,7 @@ fn identify_admg_response(
     };
     let prepared = IdIdentifier::new().prepare(&admg)?;
     let mut workspace = IdentificationWorkspace::default();
-    let mut result = IdIdentifier::new().identify_ate(&prepared, witness, &mut workspace)?;
+    let mut result = IdIdentifier::new().identify_response(&prepared, query, &mut workspace)?;
     result.derivation.push(
         "identify.response.general_id",
         "generalized adjustment failed; Shpitser–Pearl ID on the MAG-as-ADMG",
@@ -145,7 +144,9 @@ pub fn identify_pag_response_general(
 
 fn pag_has_circles(pag: &Pag) -> bool {
     for i in 0..pag.node_count() {
-        let a = antecedent_graph::DenseNodeId::from_raw(i as u32);
+        let a = antecedent_graph::DenseNodeId::from_raw(
+            u32::try_from(i).expect("graph node count fits u32"),
+        );
         for (_, at_a, at_b) in pag.neighbors(a) {
             if matches!(at_a, antecedent_graph::Endpoint::Circle)
                 || matches!(at_b, antecedent_graph::Endpoint::Circle)
@@ -175,7 +176,7 @@ pub fn identify_cpdag_response_general(
         let prepared = backdoor.prepare(dag)?;
         let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
         if !is_identified(&result) {
-            result = identify_dag_via_id(dag, &witness)?;
+            result = identify_dag_via_id(dag, query)?;
         }
         result.query = CausalQuery::Response(query.clone());
         Ok(result)
