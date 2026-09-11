@@ -5,7 +5,7 @@ evidence synthesis. Historical sections record earlier release intentions;
 [TODO.md](TODO.md) owns the detailed 1.x working roadmap. This document defines
 the goals and release boundary for 2.0, not a checklist for an in-flight cut.
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 ## How to read this
 
@@ -226,8 +226,9 @@ graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
 lag-aligned temporal adjustment designs, including all joint targets.
 Joint interventions certify a common adjustment set for all targets per
 completion; they do not inherit the first target's ATE certificate.
-See the [evidence ledger](docs/v1.4-evidence.md). Multi-atom Frequentist
-uncertainty is unavailable. The temporal PAG mixed-graph implementation is verified, with finite-window
+See the [evidence ledger](docs/v1.4-evidence.md). Static multi-atom
+Frequentist uncertainty moves to 1.5; temporal / DBN stays unavailable until
+1.9. The temporal PAG mixed-graph implementation is verified, with finite-window
 audit limits explicit.
 Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
 mixing stay 1.7.
@@ -263,37 +264,49 @@ coordinates, and verify all advertised temporal validation modes.
 
 ## 1.5 — Local, distributional, joint
 
-Planned; inserted ahead of the temporal and Bayesian minors, which move to
-1.6–1.10.
+Implemented and locally verified on the `1.5.0` branch. See the
+[evidence ledger](docs/v1.5-evidence.md). It sits ahead of the temporal and
+Bayesian minors (1.6–1.10) because its consumer question needs none of them.
 
 The consumer question is inverse forecasting: which conditions move a target
-population toward the upper tail of an outcome distribution. The licensed
-surface answers with means, over the sample, one lever at a time. 1.5 adds no
-query kinds and no identification theory. It adds estimators, a functional
-parameter, and an execution contract on kinds the staged handle already runs:
+population toward the upper tail of an outcome distribution. The 1.4 surface
+answers with means, over the sample, one lever at a time. 1.5 adds no query
+kinds and no identification theory. It adds estimators, functional
+parameters, and an execution contract on kinds the staged handle already
+runs:
 
 - **Retargetable prepared plans.** Cross-fitted AIPW scores exported from a
   prepared `AverageEffect` or discrete joint `InterventionResponse`, and
   `retarget(weights, depends_on=...)` estimating the effect in a declared
-  covariate-defined target population without refitting. Valid only when the
-  weights are a function of the certified adjustment set. Weights that depend
-  on treatment or its descendants are refused. This is standardization to a
+  covariate-defined target population without refitting. The weights must be
+  a function of the certified adjustment set. Declared parents that name the
+  treatment or a directed descendant refuse (on a `Dag` or an `Admg`), and
+  nonconstant weights require a declaration. This is standardization to a
   declared target, not ML CATE; no heterogeneity model is learned.
-- **Exceedance functionals.** `Exceedance(c)` / `ExceedanceGrid` on
-  `AverageEffect`, `ConditionalEffect`, and discrete joint
-  `InterventionResponse`: the interventional CDF on a threshold grid, with
-  bands simultaneous over the grid and support per threshold.
+- **Exceedance, CDF, and quantile functionals.** `Exceedance(c)`,
+  `ExceedanceGrid`, and `Quantile(τ)` on `AverageEffect`,
+  `ConditionalEffect`, and discrete joint `InterventionResponse`: the
+  interventional CDF on a threshold grid, with raw-score bands simultaneous
+  over the grid and support per threshold. Quantile treatment effects invert
+  that CDF; they share its identification.
 - **Non-additive joint estimation.** A cell-saturated AIPW estimator on the
-  common adjustment set 1.4 certifies, with a first-class interaction contrast.
-  The additive estimators report on the result that their interaction is
-  structurally zero.
+  common adjustment set, with a first-class interaction contrast. The additive
+  estimators report on the result that their interaction is structurally
+  zero. A continuous coordinate enters as a coarsened treatment grid, not a
+  point intervention.
 - **Tier-rule identification at width.** A tiered background-knowledge
-  constructor over existing `Admg` / `Pag` semantics that certifies the
-  tier-closure adjustment set without enumerating completions. If the owner
-  rules this a new identification theory, it leaves 1.5 for its own minor.
-- **Batch execution and claim hygiene.** Parallel prepared batches with
-  simultaneous inference over the claim family, typed per-validator failures,
-  and candidate-selection provenance on the artifact.
+  constructor over existing `Admg` / `Pag` semantics. `CoDetermined` tiers
+  certify the tier-closure adjustment set in O(p) under a named no-latent
+  premise, for single levers and, as ordinary joint adjustment on the known
+  closure ADMG, for lever pairs. It is a fast path on existing semantics, not
+  a new identification theory. `Unknown` tiers report separate
+  canonical-scenario effects and never collapse them.
+- **Class-aware response identification.** Responses on `Cpdag` / `Pag`
+  run generalized adjustment first, then Shpitser–Pearl ID on each
+  MAG-as-ADMG completion. This is complete-then-ID, not PAG-native ID/IDC.
+- **Batch execution and claim hygiene.** Parallel prepared batches with a
+  shared design, simultaneous inference over the claim family, typed
+  per-validator failures, and candidate-selection provenance on the artifact.
 
 1.5 owns the joint influence-covariance machinery (static multi-atom
 aggregates, as above) and the `PreparedStudy` handle shape: what a prepared
@@ -301,9 +314,8 @@ plan freezes, what a call may vary, and `retarget` as a method on that plan.
 1.10 composes prior transfer and design ranking onto that shape rather than
 redesigning it.
 
-Quantile treatment effects and PN/PS/PNS bounds are new estimands. They stay
-unscheduled post-1.x work. [TODO.md](TODO.md) holds the fixtures and
-completion items.
+PN/PS/PNS bounds are new estimands and stay unscheduled post-1.x work.
+[TODO.md](TODO.md) holds later 1.x work.
 
 ## 1.x — Compatible cells
 

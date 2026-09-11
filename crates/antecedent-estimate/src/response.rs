@@ -31,9 +31,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    FaerBackend, GamOptions, GamWorkspace, LocalQuadraticWorkspace, SmoothSpec, StatsError,
-    fit_gam, gaussian_density, gaussian_local_quadratic_influence_prechecked, normal_ppf,
-    silverman_bandwidth,
+    DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, LeastSquaresWorkspace,
+    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, gaussian_density,
+    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -148,6 +148,18 @@ impl Default for ContinuousResponseOptions {
     }
 }
 
+/// Per-row influence columns for a fitted response functional.
+///
+/// One column per reported coordinate (a scalar intervention, or each
+/// `MeanCurve` grid point). Rows are complete-case rows in `row_index`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResponseInfluence {
+    /// Influence of each retained row on each reported coordinate.
+    pub columns: Vec<Vec<f64>>,
+    /// Original data-frame row index of each complete-case row.
+    pub row_index: Arc<[u32]>,
+}
+
 /// Continuous-response estimator with a caller-supplied valid adjustment set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseEstimator {
@@ -184,11 +196,29 @@ impl ContinuousResponseEstimator {
         identification_status: IdentificationStatus,
         assumptions: AssumptionSet,
     ) -> Result<CausalResponse, EstimationError> {
+        self.estimate_identified_scored(data, query, identification_status, assumptions)
+            .map(|(response, _)| response)
+    }
+
+    /// Estimate and retain the response-functional influence columns.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate_identified`].
+    pub fn estimate_identified_scored(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        identification_status: IdentificationStatus,
+        assumptions: AssumptionSet,
+    ) -> Result<(CausalResponse, Option<ResponseInfluence>), EstimationError> {
         self.validate(query, identification_status)?;
+        let mut influence = None;
         let (value, uncertainty, support, provenance_id) = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => {
-                let (value, uncertainty, support) =
+                let (value, uncertainty, support, scores) =
                     self.mean_curve(data, *outcome, treatment.variable, &treatment.grid.values()?)?;
+                influence = Some(scores);
                 let provenance =
                     if matches!(uncertainty, ResponseUncertainty::SimultaneousBand { .. }) {
                         "estimate.response.kennedy_dr_simultaneous"
@@ -218,22 +248,31 @@ impl ContinuousResponseEstimator {
                 (value, uncertainty, support, "estimate.response.gam_derivative")
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                let (value, uncertainty, support) =
+                let (value, uncertainty, support, scores) =
                     self.intervention_response(data, *outcome, interventions)?;
+                influence = Some(scores);
                 (value, uncertainty, support, "estimate.response.intervention_gcomp")
             }
         };
         let assumptions = with_estimation_assumptions(assumptions, &query.functional);
-        Ok(CausalResponse {
-            estimand: query.functional.clone(),
-            identification_status,
-            estimate: ResponseIdentification::PointIdentified(value),
-            uncertainty,
-            support,
-            assumptions,
-            provenance_id: Arc::from(provenance_id),
-            horizon_identification: None,
-        })
+        let interaction_structurally_zero = matches!(
+            &query.functional,
+            ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() > 1
+        );
+        Ok((
+            CausalResponse {
+                estimand: query.functional.clone(),
+                identification_status,
+                estimate: ResponseIdentification::PointIdentified(value),
+                uncertainty,
+                support,
+                assumptions,
+                provenance_id: Arc::from(provenance_id),
+                horizon_identification: None,
+                interaction_structurally_zero,
+            },
+            influence,
+        ))
     }
 
     /// Bayesian Gaussian linear-additive response levels, with posterior
@@ -439,6 +478,10 @@ impl ContinuousResponseEstimator {
             assumptions,
             provenance_id: Arc::from("estimate.response.bayesian"),
             horizon_identification: None,
+            interaction_structurally_zero: matches!(
+                &query.functional,
+                ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() > 1
+            ),
         })
     }
 
@@ -507,7 +550,10 @@ impl ContinuousResponseEstimator {
         outcome: VariableId,
         treatment: VariableId,
         grid: &[f64],
-    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+    ) -> Result<
+        (ResponseValue, ResponseUncertainty, SupportReport, ResponseInfluence),
+        EstimationError,
+    > {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
         let PseudoOutcome { values: pseudo, density_floor_rows } =
             self.cross_fitted_pseudo_outcome(&sample)?;
@@ -616,6 +662,15 @@ impl ContinuousResponseEstimator {
                 upper: Arc::from(upper),
             }
         };
+        let row_index: Arc<[u32]> =
+            sample.keep.iter().map(|&i| u32::try_from(i).unwrap_or(u32::MAX)).collect();
+        // Local-polynomial exports are contributions to the estimate (order 1/n).
+        // Shared IF covariance expects unnormalised row scores (order 1).
+        let columns = influences
+            .into_iter()
+            .map(|col| col.into_iter().map(|v| v * sample.len() as f64).collect())
+            .collect();
+        let scores = ResponseInfluence { columns, row_index };
         Ok((
             ResponseValue::Surface {
                 grid: Arc::from(grid.to_vec()),
@@ -624,6 +679,7 @@ impl ContinuousResponseEstimator {
             },
             uncertainty,
             support,
+            scores,
         ))
     }
 
@@ -632,7 +688,10 @@ impl ContinuousResponseEstimator {
         data: &TabularData,
         outcome: VariableId,
         interventions: &[Intervention],
-    ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+    ) -> Result<
+        (ResponseValue, ResponseUncertainty, SupportReport, ResponseInfluence),
+        EstimationError,
+    > {
         let mut treatments = Vec::with_capacity(interventions.len());
         for intervention in interventions {
             let Some(variable) = intervention.primary_variable() else {
@@ -659,13 +718,14 @@ impl ContinuousResponseEstimator {
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
-        let estimate = if interventions.iter().any(intervention_needs_monte_carlo) {
+        let row_means = if interventions.iter().any(intervention_needs_monte_carlo) {
             let draws = 256;
-            let mut total = 0.0;
+            let mut means = vec![0.0; sample.len()];
             let mut factual = vec![0.0; sample.raw_cols];
             let mut row = vec![0.0; sample.raw_cols];
-            for row_index in 0..sample.len() {
+            for (row_index, mean) in means.iter_mut().enumerate() {
                 sample.write_raw_row(row_index, &mut factual);
+                let mut total = 0.0;
                 for draw in 0..draws {
                     row.copy_from_slice(&factual);
                     for (column, intervention) in interventions.iter().enumerate() {
@@ -674,10 +734,25 @@ impl ContinuousResponseEstimator {
                     }
                     total += predict_one(&fit, &row)?;
                 }
+                *mean = total / draws as f64;
             }
-            total / (sample.len() * draws) as f64
+            means
         } else {
-            exact_discrete_intervention_mean(&fit, &sample, interventions)?
+            exact_discrete_intervention_rows(&fit, &sample, interventions)?
+        };
+        let n = row_means.len() as f64;
+        let estimate = row_means.iter().sum::<f64>() / n;
+        let psi = intervention_plugin_influence(&fit, &sample, interventions, &row_means)?;
+        let se = if n > 1.0 {
+            (psi.iter().map(|x| x * x).sum::<f64>() / (n * (n - 1.0))).sqrt()
+        } else {
+            f64::NAN
+        };
+        let level = self.options.confidence_level;
+        let z = normal_ppf(0.5 + level / 2.0);
+        let scores = ResponseInfluence {
+            columns: vec![psi],
+            row_index: sample.keep.iter().map(|&i| u32::try_from(i).unwrap_or(u32::MAX)).collect(),
         };
         let minima: Vec<f64> =
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).0).collect();
@@ -685,7 +760,12 @@ impl ContinuousResponseEstimator {
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).1).collect();
         Ok((
             ResponseValue::Scalar(estimate),
-            ResponseUncertainty::None,
+            ResponseUncertainty::Scalar {
+                standard_error: se,
+                level,
+                lower: estimate - z * se,
+                upper: estimate + z * se,
+            },
             SupportReport {
                 status: SupportStatus::Extrapolative,
                 query_region: SupportRegion {
@@ -703,10 +783,11 @@ impl ContinuousResponseEstimator {
                     "response.intervention_plugin_model_dependent",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
-                    "intervention response uses additive-GAM g-computation; joint policy support and statistical uncertainty are not certified",
+                    "intervention response uses additive-GAM g-computation; SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and penalty; it excludes knot-selection, smoothing-bias, and policy-integration error",
                 )],
                 point_status: None,
             },
+            scores,
         ))
     }
 
@@ -1508,11 +1589,11 @@ enum DiscreteAtom {
 /// Bernoulli and Categorical are summed over their support with the declared probabilities
 /// rather than Monte-Carlo sampled through a continuous smoother. That avoids treating
 /// unordered category codes as ordered coordinates along a spline.
-fn exact_discrete_intervention_mean(
+fn exact_discrete_intervention_rows(
     fit: &antecedent_stats::GamFit,
     sample: &CompleteSample,
     interventions: &[Intervention],
-) -> Result<f64, EstimationError> {
+) -> Result<Vec<f64>, EstimationError> {
     let supports: Vec<Vec<DiscreteAtom>> =
         interventions.iter().map(discrete_intervention_support).collect::<Result<_, _>>()?;
     // The mixture is a cartesian product across interventions, so its cost is exponential in
@@ -1529,13 +1610,129 @@ fn exact_discrete_intervention_mean(
             "joint discrete intervention support exceeds the exact-mixture budget; intervene on fewer variables or coarsen the category supports",
         ));
     }
-    let mut total = 0.0;
+    let mut out = Vec::with_capacity(sample.len());
     let mut row = vec![0.0; sample.raw_cols];
     for row_index in 0..sample.len() {
         sample.write_raw_row(row_index, &mut row);
-        total += mixture_expectation(fit, &mut row, &supports, 0, 1.0)?;
+        out.push(mixture_expectation(fit, &mut row, &supports, 0, 1.0)?);
     }
-    Ok(total / sample.len() as f64)
+    Ok(out)
+}
+
+// Fixed-basis penalized g-computation sandwich. Dropping the last basis
+// in each smooth removes the partition-of-unity alias with the intercept.
+// The D2 penalty is invariant to the corresponding constant coefficient shift.
+fn intervention_plugin_influence(
+    fit: &antecedent_stats::GamFit,
+    sample: &CompleteSample,
+    interventions: &[Intervention],
+    row_means: &[f64],
+) -> Result<Vec<f64>, EstimationError> {
+    let n = sample.len();
+    let nf = n as f64;
+    let p = 1 + fit.smooths.iter().map(|s| s.n_basis - 1).sum::<usize>();
+    let mut design = vec![1.0; n];
+    let mut gradient = vec![1.0];
+    let mut penalty = vec![0.0; p * p];
+    let monte_carlo = interventions.iter().any(intervention_needs_monte_carlo);
+    let mut offset = 1;
+    for raw_col in 0..sample.raw_cols {
+        let smooth = &fit.smooths[fit.smooth_for_raw_col(raw_col).ok_or_else(|| {
+            EstimationError::unsupported("missing GAM smooth in response influence")
+        })?];
+        let observed: Vec<f64> = (0..n)
+            .map(|i| {
+                if raw_col < interventions.len() {
+                    sample.treatment_matrix[raw_col * n + i]
+                } else {
+                    sample.adjustment[(raw_col - interventions.len()) * n + i]
+                }
+            })
+            .collect();
+        let (basis, _) =
+            antecedent_stats::expand_bspline(&observed, smooth.n_basis, Some(&smooth.knots))?;
+        design.extend_from_slice(&basis[..n * (smooth.n_basis - 1)]);
+        let (points, weights): (Vec<f64>, Vec<f64>) = if let Some(iv) = interventions.get(raw_col) {
+            if let Intervention::Shift { .. } = iv {
+                (
+                    observed
+                        .iter()
+                        .map(|&v| intervention_level(iv, v, 0, raw_col))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    vec![1.0 / nf; n],
+                )
+            } else if monte_carlo {
+                (
+                    (0..256)
+                        .map(|draw| intervention_level(iv, 0.0, draw, raw_col))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    vec![1.0 / 256.0; 256],
+                )
+            } else {
+                discrete_intervention_support(iv)?
+                    .into_iter()
+                    .map(|atom| match atom {
+                        DiscreteAtom::Level { value, weight } => (value, weight),
+                        DiscreteAtom::Shift { delta } => (delta, 1.0),
+                    })
+                    .unzip()
+            }
+        } else {
+            (observed, vec![1.0 / nf; n])
+        };
+        let (counterfactual, _) =
+            antecedent_stats::expand_bspline(&points, smooth.n_basis, Some(&smooth.knots))?;
+        for j in 0..smooth.n_basis - 1 {
+            gradient.push(
+                counterfactual[j * points.len()..(j + 1) * points.len()]
+                    .iter()
+                    .zip(&weights)
+                    .map(|(v, w)| v * w)
+                    .sum(),
+            );
+        }
+        for r in 0..smooth.n_basis - 2 {
+            for (a, da) in [1.0, -2.0, 1.0].iter().enumerate() {
+                for (b, db) in [1.0, -2.0, 1.0].iter().enumerate() {
+                    if r + a < smooth.n_basis - 1 && r + b < smooth.n_basis - 1 {
+                        penalty[(offset + r + b) * p + offset + r + a] += smooth.lambda * da * db;
+                    }
+                }
+            }
+        }
+        offset += smooth.n_basis - 1;
+    }
+    for j in 0..p {
+        for k in 0..p {
+            penalty[j * p + k] +=
+                (0..n).map(|i| design[j * n + i] * design[k * n + i]).sum::<f64>();
+        }
+    }
+    let solve = FaerBackend.least_squares(
+        &penalty,
+        p,
+        p,
+        &gradient,
+        &mut LeastSquaresWorkspace::default(),
+    )?;
+    if solve.rank < p {
+        return Err(EstimationError::unsupported(
+            "response influence requires an identifiable penalized design",
+        ));
+    }
+    let mean = row_means.iter().sum::<f64>() / nf;
+    let mut psi: Vec<_> = (0..n)
+        .map(|i| {
+            row_means[i] - mean
+                + nf * fit.residuals[i]
+                    * (0..p).map(|j| design[j * n + i] * solve.coefficients[j]).sum::<f64>()
+        })
+        .collect();
+    let center = psi.iter().sum::<f64>() / nf;
+    for v in &mut psi {
+        *v -= center;
+    }
+    Ok(psi)
 }
 
 fn discrete_intervention_support(

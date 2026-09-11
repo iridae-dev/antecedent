@@ -8,6 +8,10 @@ representation — no separate integer-index free-function codecs.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import StrEnum
+
 from ._native import (
     Admg,
     Cpdag,
@@ -19,6 +23,33 @@ from ._native import (
 )
 from ._native import PcmciDiscoveryResult as _PcmciDiscoveryResult
 from .errors import CausalTypeError, CausalValueError
+
+
+class WithinTier(StrEnum):
+    """How same-tier nodes are interpreted."""
+
+    CODETERMINED = "codetermined"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class TieredBackground:
+    """Declared tier order over existing ADMG / PAG semantics."""
+
+    tiers: Sequence[Sequence[str]]
+    within_tier: WithinTier = WithinTier.CODETERMINED
+
+    def __post_init__(self) -> None:
+        if not self.tiers or any(not tier for tier in self.tiers):
+            raise CausalValueError("TieredBackground requires non-empty tiers")
+        seen: set[str] = set()
+        for tier in self.tiers:
+            for name in tier:
+                if not name or not str(name).strip():
+                    raise CausalValueError("tier variable names must be non-empty")
+                if name in seen:
+                    raise CausalValueError("TieredBackground variables must be unique across tiers")
+                seen.add(str(name))
 
 
 def discovery_to_dag(result: _PcmciDiscoveryResult) -> Dag:
@@ -86,4 +117,6 @@ __all__ = [
     "TemporalCpdag",
     "TemporalDag",
     "TemporalPag",
+    "TieredBackground",
+    "WithinTier",
 ]

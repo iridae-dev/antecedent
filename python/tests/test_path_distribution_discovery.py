@@ -17,11 +17,19 @@ def _discrete_chain():
     t_vals: list[float] = []
     m_vals: list[float] = []
     y_vals: list[float] = []
-    for t in (0.0, 1.0):
-        for _ in range(50):
-            t_vals.append(t)
-            m_vals.append(t)
-            y_vals.append(t)
+    for t, m, y, count in (
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ):
+        t_vals.extend([t] * count)
+        m_vals.extend([m] * count)
+        y_vals.extend([y] * count)
     return {
         "t": np.asarray(t_vals, dtype=np.float64),
         "m": np.asarray(m_vals, dtype=np.float64),
@@ -149,7 +157,7 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
         refute=False,
         bootstrap=0,
     )
-    assert abs(result.ate - 1.0) < 0.1
+    assert abs(result.ate - 0.3) < 0.1
 
 
 def test_analyze_path_specific_graph_cpdag_incomplete():

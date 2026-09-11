@@ -36,5 +36,11 @@ pub enum IdentificationStatus {
     /// Identification depends on which graph in an equivalence class / ensemble.
     GraphDependent,
     /// Not identified.
+    ///
+    /// Exhaustive search with no set, or a certificate of non-ID, is the
+    /// scientific case. A search that could not finish (candidate-family cap,
+    /// history bound) keeps this status for the 1.0 public-API / artifact
+    /// freeze — there is no third variant — and is marked by an Execution
+    /// diagnostic, not a scientific open-back-door.
     NotIdentified,
 }

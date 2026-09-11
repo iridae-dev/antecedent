@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalQuery, NodeRef, ResponseQuery};
+use antecedent_core::{
+    CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, NodeRef, ResponseQuery,
+};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprNode, OutcomeExprId};
 use antecedent_graph::{Admg, Cpdag, DSeparationWorkspace, Dag, DenseNodeId, Endpoint, Pag};
 
@@ -69,7 +71,25 @@ impl GeneralizedAdjustmentIdentifier {
                 admg.insert_directed(from, to)?;
             }
         }
-        identify_joint(&admg, dag.nodes(), query, self.config.max_candidates, |_, _| true)
+        self.identify_joint_admg_response(&admg, query)
+    }
+
+    /// Certify one common joint back-door set on a **known** ADMG.
+    ///
+    /// This is ordinary generalized adjustment after mutilating outgoing
+    /// directed edges from each treatment (Pearl / Perkovic Def. 20 on a
+    /// single graph). It is not MAG/PAG identification: there is no Markov
+    /// equivalence class and no visibility witness. A drawn treatment↔outcome
+    /// edge, or any other open back-door, refuses that pair.
+    ///
+    /// # Errors
+    /// Invalid query, unsupported observation/temporal policy, or graph error.
+    pub fn identify_joint_admg_response(
+        &self,
+        graph: &Admg,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        identify_joint(graph, graph.nodes(), query, self.config.max_candidates, |_, _| true)
     }
 }
 
@@ -101,13 +121,18 @@ pub(crate) fn visible(mag: &Pag, from: DenseNodeId, to: DenseNodeId) -> bool {
     false
 }
 
-fn identify_joint(
-    graph: &Admg,
+pub(crate) struct PreparedJointResponse {
+    pub query: CausalQuery,
+    pub treatments: Vec<antecedent_core::VariableId>,
+    pub outcome: antecedent_core::VariableId,
+    pub targets: Vec<DenseNodeId>,
+    pub y: DenseNodeId,
+}
+
+pub(crate) fn prepare_joint_response(
     nodes: &[NodeRef],
     response: &ResponseQuery,
-    max_candidates: usize,
-    visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
-) -> Result<IdentificationResult, IdentificationError> {
+) -> Result<PreparedJointResponse, IdentificationError> {
     response
         .validate()
         .map_err(|_| IdentificationError::unsupported("invalid joint response query"))?;
@@ -126,7 +151,6 @@ fn identify_joint(
             "joint adjustment requires InterventionResponse",
         ));
     }
-    let query = CausalQuery::Response(response.clone());
     let treatments = response.functional.treatment_ids();
     if treatments.len() < 2
         || treatments.iter().enumerate().any(|(i, t)| treatments[..i].contains(t))
@@ -135,7 +159,6 @@ fn identify_joint(
             "joint response requires at least two distinct treatment targets",
         ));
     }
-
     let (_, outcome) = response
         .functional
         .primary_pair()
@@ -149,6 +172,24 @@ fn identify_joint(
     };
     let targets: Vec<_> = treatments.iter().copied().map(dense).collect::<Result<_, _>>()?;
     let y = dense(outcome)?;
+    Ok(PreparedJointResponse {
+        query: CausalQuery::Response(response.clone()),
+        treatments,
+        outcome,
+        targets,
+        y,
+    })
+}
+
+fn identify_joint(
+    graph: &Admg,
+    nodes: &[NodeRef],
+    response: &ResponseQuery,
+    max_candidates: usize,
+    visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
+) -> Result<IdentificationResult, IdentificationError> {
+    let PreparedJointResponse { query, treatments, outcome, targets, y } =
+        prepare_joint_response(nodes, response)?;
     let descendants = directed_closure(graph, &targets, false);
     let mut seeds = targets.clone();
     seeds.push(y);
@@ -195,14 +236,61 @@ fn identify_joint(
         }
     }
     let Some(z) = found else {
-        let mut result = not_identified(
-            query,
-            "no joint generalized back-door set found; general response ID not attempted",
-        );
-        result.performance.candidates_examined = examined;
-        return Ok(result);
+        return Ok(joint_scientifically_unidentified(query, examined));
     };
     Ok(joint_result(query, nodes, &z, &treatments, outcome, examined))
+}
+
+/// Proven non-ID after an exhaustive joint search (not a budget miss).
+pub(crate) fn joint_scientifically_unidentified(
+    query: CausalQuery,
+    examined: u64,
+) -> IdentificationResult {
+    let mut result = not_identified(
+        query,
+        "no joint generalized back-door set found; general response ID not attempted",
+    );
+    result.performance.candidates_examined = examined;
+    result.diagnostics.push(Diagnostic::new(
+        "identify.joint.adjustment",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "no joint generalized back-door set found; open back-door or a drawn treatment↔outcome edge",
+    ));
+    result
+}
+
+/// Perkovic Def. 20 on a proposed common set: no descendants of any target in `z`,
+/// and one m-separation check per treatment in that treatment's back-door graph.
+pub(crate) fn joint_adjustment_holds(
+    graph: &Admg,
+    targets: &[DenseNodeId],
+    y: DenseNodeId,
+    z: &[DenseNodeId],
+    visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
+) -> Result<bool, IdentificationError> {
+    if z.iter().any(|&v| v == y || targets.contains(&v)) {
+        return Ok(false);
+    }
+    let descendants = directed_closure(graph, targets, false);
+    if z.iter().any(|&v| descendants.contains(v)) {
+        return Ok(false);
+    }
+    let backdoor_graphs = targets
+        .iter()
+        .map(|&target| backdoor_graph(graph, target, &visible_edge))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut workspace = DSeparationWorkspace::default();
+    for (index, &target) in targets.iter().enumerate() {
+        let mut conditioned = z.to_vec();
+        conditioned.extend(targets.iter().copied().filter(|&v| v != target));
+        match backdoor_graphs[index].is_m_separated(target, y, &conditioned, &mut workspace) {
+            Ok(true) => {}
+            Ok(false) => return Ok(false),
+            Err(e) => return Err(IdentificationError::from(e)),
+        }
+    }
+    Ok(true)
 }
 
 fn backdoor_graph(
@@ -227,7 +315,7 @@ fn backdoor_graph(
     Ok(cut)
 }
 
-fn joint_result(
+pub(crate) fn joint_result(
     query: CausalQuery,
     nodes: &[NodeRef],
     z: &[DenseNodeId],
@@ -283,9 +371,25 @@ fn joint_result(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_graph::MarkedEdge;
+    use crate::generalized::mag_to_admg;
+    use antecedent_core::{
+        CausalSchemaBuilder, IdentificationStatus, Intervention, ResponseFunctional, Value,
+        VariableId,
+    };
+    use antecedent_graph::{BitSet, GraphWorkspace, MarkedEdge, TieredBackground, WithinTier};
+
     fn n(i: u32) -> DenseNodeId {
         DenseNodeId::from_raw(i)
+    }
+
+    fn joint(t1: VariableId, t2: VariableId, y: VariableId) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([
+                Intervention::set(t1, Value::f64(1.0)),
+                Intervention::set(t2, Value::f64(1.0)),
+            ]),
+        })
     }
 
     #[test]
@@ -298,5 +402,141 @@ mod tests {
         assert!(!visible(&mag, n(0), n(1)));
         mag.insert_marked(MarkedEdge::directed(n(3), n(2))).unwrap();
         assert!(visible(&mag, n(0), n(1)));
+    }
+
+    #[test]
+    fn mag_visibility_is_the_wrong_object_for_a_known_closure_admg() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let pag = background.to_pag(&schema).unwrap();
+        let admg = mag_to_admg(&pag).expect("CoDetermined closure is an ancestral ADMG");
+        let t1 = n(schema.id_of("t1").unwrap().raw());
+        let t2 = n(schema.id_of("t2").unwrap().raw());
+        let y = n(schema.id_of("y").unwrap().raw());
+        let z = schema.id_of("z").unwrap();
+        assert!(admg.bidirected_neighbors(t1).contains(&t2));
+        let mut descendants = BitSet::default();
+        let mut ws = GraphWorkspace::default();
+        admg.descendants_of(&[t1], &mut descendants, &mut ws);
+        assert!(!descendants.contains(t2), "walking ↔ as a directed path would put t2 in De(t1)");
+        assert!(
+            !visible(&pag, t1, y) && !visible(&pag, t2, y),
+            "complete earlier→later MAG has no visibility witness — that is MAG-as-MEC, not CoDetermined"
+        );
+
+        let query = joint(
+            schema.id_of("t1").unwrap(),
+            schema.id_of("t2").unwrap(),
+            schema.id_of("y").unwrap(),
+        );
+        let mag_path =
+            identify_joint(&admg, pag.nodes(), &query, 16, |from, to| visible(&pag, from, to))
+                .unwrap();
+        assert_eq!(
+            mag_path.status,
+            IdentificationStatus::NotIdentified,
+            "MAG visibility must not be the CoDetermined license: {:?}",
+            mag_path.derivation
+        );
+        let known = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            known.status,
+            IdentificationStatus::NonparametricallyIdentified,
+            "known-ADMG joint adjustment must accept Z={{z}}: {:?}",
+            known.derivation
+        );
+        assert_eq!(known.estimands[0].adjustment_set.as_ref(), &[z]);
+    }
+
+    #[test]
+    fn drawn_treatment_outcome_bidirected_refuses_that_pair() {
+        let mut admg = Admg::with_variables(4);
+        admg.insert_directed(n(0), n(1)).unwrap();
+        admg.insert_directed(n(0), n(2)).unwrap();
+        admg.insert_directed(n(0), n(3)).unwrap();
+        admg.insert_directed(n(1), n(3)).unwrap();
+        admg.insert_directed(n(2), n(3)).unwrap();
+        admg.insert_bidirected(n(1), n(2)).unwrap();
+        admg.insert_bidirected(n(1), n(3)).unwrap();
+        let query =
+            joint(VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(3));
+        let id = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            id.status,
+            IdentificationStatus::NotIdentified,
+            "drawn T↔Y is an open back-door: {:?}",
+            id.derivation
+        );
+        assert!(
+            id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific
+                && d.code.as_ref() != crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE),
+            "drawn T↔Y must be a scientific refuse, not a budget miss: {:?}",
+            id.diagnostics
+        );
+        assert!(
+            !id.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            }),
+            "drawn T↔Y must not carry the cap diagnostic"
+        );
+    }
+
+    #[test]
+    fn joint_candidate_cap_is_execution_not_scientific() {
+        let mut admg = Admg::with_variables(20);
+        let t1 = n(0);
+        let t2 = n(1);
+        let y = n(2);
+        admg.insert_directed(t1, y).unwrap();
+        admg.insert_directed(t2, y).unwrap();
+        for i in 3..20 {
+            let z = n(i);
+            admg.insert_directed(z, t1).unwrap();
+            admg.insert_directed(z, t2).unwrap();
+            admg.insert_directed(z, y).unwrap();
+        }
+        let query =
+            joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let id = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&admg, &query)
+            .unwrap();
+        assert_eq!(
+            id.status,
+            IdentificationStatus::NotIdentified,
+            "1.0 freeze: cap keeps NotIdentified: {:?}",
+            id.derivation
+        );
+        assert!(
+            id.diagnostics.iter().any(|d| {
+                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                    && d.kind == antecedent_core::DiagnosticKind::Execution
+            }),
+            "cap must be an execution diagnostic: {:?}",
+            id.diagnostics
+        );
+        assert!(
+            !id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific),
+            "cap must not be stamped scientific: {:?}",
+            id.diagnostics
+        );
     }
 }

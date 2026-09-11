@@ -7,7 +7,7 @@ use antecedent_core::VariableId;
 use crate::algo::{bfs_reaches, is_dag};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
-use crate::workspace::GraphWorkspace;
+use crate::workspace::{BitSet, GraphWorkspace};
 
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
 #[derive(Clone, Debug)]
@@ -226,6 +226,33 @@ impl Admg {
         bfs_reaches(&self.children, from, to, ws)
     }
 
+    /// Collect directed descendants of `nodes` (including `nodes`) into `out`.
+    ///
+    /// Walks [`Self::children`] only. Bidirected edges are ignored.
+    pub fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        let n = self.node_count();
+        out.resize(n);
+        out.clear();
+        ws.prepare(n);
+        for &v in nodes {
+            if v.as_usize() >= n {
+                continue;
+            }
+            if !out.contains(v) {
+                out.insert(v);
+                ws.frontier.push(v);
+            }
+        }
+        while let Some(u) = ws.frontier.pop() {
+            for &c in self.children(u) {
+                if !out.contains(c) {
+                    out.insert(c);
+                    ws.frontier.push(c);
+                }
+            }
+        }
+    }
+
     /// Connected components under bidirected edges (districts).
     ///
     /// Returns a district id per dense node (`0..n_districts-1`).
@@ -299,6 +326,22 @@ mod tests {
         let mut g = Admg::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).is_err());
+    }
+
+    #[test]
+    fn descendants_follow_directed_edges_only() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let mut out = BitSet::default();
+        let mut ws = GraphWorkspace::default();
+        g.descendants_of(&[DenseNodeId::from_raw(0)], &mut out, &mut ws);
+        assert!(out.contains(DenseNodeId::from_raw(0)));
+        assert!(out.contains(DenseNodeId::from_raw(1)));
+        assert!(
+            !out.contains(DenseNodeId::from_raw(2)),
+            "bidirected neighbor must not become a directed descendant"
+        );
     }
 
     #[test]

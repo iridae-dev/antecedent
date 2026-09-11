@@ -16,8 +16,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, ExecutionContext, Intervention, InterventionalDistributionQuery,
-    TargetPopulation, Value, VariableId,
+    AssumptionSet, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention,
+    InterventionalDistributionQuery, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{ColumnView, TableView, TabularData};
 use antecedent_expr::{
@@ -532,6 +533,55 @@ impl FunctionalEffect {
     }
 }
 
+/// Whether `err` is the evaluator refusing a required empirical CPT cell.
+#[must_use]
+pub const fn functional_cell_unevaluable(err: &EvalError) -> bool {
+    matches!(
+        err,
+        EvalError::MissingTableEntry | EvalError::EmptySupport(_) | EvalError::DivisionByZero
+    )
+}
+
+/// Map a functional-evaluator cell decision onto the shared [`SupportReport`].
+///
+/// `None` means every required empirical CPT / conditioning cell was evaluable,
+/// so [`SupportStatus::Supported`] is earned. A missing, empty, or undefined
+/// (ratio-zero) required cell is [`SupportStatus::OutsideEmpiricalSupport`] —
+/// the same report type other estimators use, not a new positivity theory.
+/// Other eval failures stay with the caller.
+///
+/// # Errors
+///
+/// Eval failures that are not cell-support refusals.
+pub fn support_from_functional_eval(err: Option<&EvalError>) -> Result<SupportReport, EvalError> {
+    match err {
+        None => Ok(SupportReport {
+            status: SupportStatus::Supported,
+            query_region: SupportRegion { minima: Arc::from([]), maxima: Arc::from([]) },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            point_status: None,
+        }),
+        Some(e) if functional_cell_unevaluable(e) => Ok(SupportReport {
+            status: SupportStatus::OutsideEmpiricalSupport,
+            query_region: SupportRegion { minima: Arc::from([]), maxima: Arc::from([]) },
+            diagnostics: vec![SupportDiagnostic {
+                id: Arc::from("functional.required_cell"),
+                values: Arc::from([]),
+                detail: Arc::from(e.to_string()),
+            }],
+            warnings: vec![Diagnostic::new(
+                "functional.required_cell",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                e.to_string(),
+            )],
+            point_status: None,
+        }),
+        Some(e) => Err(e.clone()),
+    }
+}
+
 fn set_assignments(
     interventions: &[Intervention],
 ) -> Result<Vec<InterventionAssignment>, EstimationError> {
@@ -893,11 +943,17 @@ fn insert_cpt(
         let cond_rows = cartesian_domain(&domains_for_insert(columns, cond)?, cond)?;
         for cond_vals in &cond_rows {
             let cond_count = marg.get(cond_vals).copied().unwrap_or(0);
+            // An unobserved conditioning cell is not P=0. Leave it absent so
+            // `probability()` returns `MissingTableEntry` — the evaluator's
+            // existing "can I evaluate this cell?" contract.
+            if cond_count == 0 {
+                continue;
+            }
             for var_vals in &var_rows {
                 let mut key = var_vals.clone();
                 key.extend(cond_vals.iter().cloned());
                 let count = joint.get(&key).copied().unwrap_or(0);
-                let p = if cond_count == 0 { 0.0 } else { count as f64 / cond_count as f64 };
+                let p = count as f64 / cond_count as f64;
                 let assign = Assignment::from_pairs(
                     vars.iter()
                         .copied()
@@ -1237,5 +1293,42 @@ mod tests {
             out.bootstrap_replicates_failed
         );
         assert!(out.se_bootstrap.is_none());
+    }
+
+    #[test]
+    fn empty_required_conditioning_cell_is_missing_table_entry() {
+        // Front-door needs P(M | T=1). Data never observes T=1, so that cell
+        // must stay absent and evaluate as MissingTableEntry — not P=0.
+        let mut arena = CausalExprArena::new();
+        let t = VariableId::from_raw(0);
+        let m = VariableId::from_raw(1);
+        let y = VariableId::from_raw(2);
+        let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
+        let estimand = IdentifiedEstimand::frontdoor("general.id", Arc::from([m]), functional);
+
+        let t_col = vec![0.0; 20];
+        let m_col: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
+        let y_col: Vec<f64> = (0..20).map(|i| f64::from((i / 2) % 2)).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t_col.as_slice()),
+            ("m", m_col.as_slice()),
+            ("y", y_col.as_slice()),
+        ])
+        .unwrap();
+
+        let est = FunctionalEffect::new();
+        let prepared =
+            est.prepare(&data, &estimand, &arena, AssumptionSet::default(), &[t, y]).unwrap();
+        let mut ews = FunctionalDistributionWorkspace::default();
+        let err = est.estimate(&prepared, &mut ews, &ExecutionContext::for_tests(0)).unwrap_err();
+        assert!(err.to_string().contains("missing probability table entry"), "{err}");
+        let eval_err = prepared
+            .compiled
+            .evaluate(&prepared.arena, &prepared.provider, &EvalContext::default())
+            .unwrap_err();
+        assert!(functional_cell_unevaluable(&eval_err));
+        let support = support_from_functional_eval(Some(&eval_err)).unwrap();
+        assert_eq!(support.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(support_from_functional_eval(None).unwrap().status, SupportStatus::Supported);
     }
 }

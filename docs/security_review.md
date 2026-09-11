@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
 Date: 2026-09-10
-Scope: workspace crates + `python` extension (package version **1.4.0**)
+Scope: workspace crates + `python` extension (package version **1.5.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -39,6 +39,15 @@ graph results retain their identification limitations. The local CodeQL gate pas
 2026-09-10 with zero Rust, Python, and Actions findings under the existing
 documented query exclusions. A redundant test import was removed and Python
 rescanned before the final combined findings audit passed.
+
+The 1.5.0 diff adds retargetable score tables, exceedance functionals,
+cell-saturated joint AIPW, tier-background identification as a fast path, and
+joint influence-function mixing for static envelopes. It adds no external
+dependency, unsafe block, artifact decoder, or workflow permission. New Python
+entry points (`analyze_ate_tiered`, `PreparedAnalysis.retarget`, outcome
+functional kwargs) validate declared `depends_on` names and refuse weights that
+depend on treatment. Score-table payloads reuse the existing bounded artifact
+writers.
 
 ## Unsafe code policy
 

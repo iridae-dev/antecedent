@@ -539,6 +539,7 @@ mod tests {
                 value: crate::query_wire::ValueWire::Float64(1.0),
             },
             target_population: crate::query_wire::TargetPopulationWire::AllObserved,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
         };
         let art = encode_model_bundle(&ModelBundleEncode {
             header: ModelBundleHeaderWire {

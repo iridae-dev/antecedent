@@ -16,10 +16,14 @@
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
 //! propensity-based estimators in [`crate::propensity`].
 //!
-//! Analytic SEs residualize ψ on the concatenated propensity and outcome-model
-//! scores (first-stage correction for parametric nuisances). They are still not
-//! valid for flexible / nonparametric nuisances; default inference is the 200-replicate
-//! bootstrap, which refits ê, μ̂₀, and μ̂₁ on every resample.
+//! `AllObserved` iid fits (no trim, homoskedastic SE, no cluster/panel) use the
+//! same cross-fitted score table as `retarget`. ATT/ATC, trim, and clustered SE
+//! stay on the residualized full-sample path and do not export that table.
+//!
+//! Analytic SEs on the residualized path correct ψ for parametric nuisances.
+//! They are still not valid for flexible / nonparametric nuisances; default
+//! inference is the 200-replicate bootstrap, which refits ê, μ̂₀, and μ̂₁ on
+//! every resample.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -31,6 +35,7 @@
 )]
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
@@ -66,8 +71,8 @@ pub struct AipwWorkspace {
     treated_outcome: Vec<f64>,
     control_design: Vec<f64>,
     control_outcome: Vec<f64>,
-    mu0: Vec<f64>,
-    mu1: Vec<f64>,
+    pub(crate) mu0: Vec<f64>,
+    pub(crate) mu1: Vec<f64>,
     psi: Vec<f64>,
 }
 
@@ -206,6 +211,16 @@ impl AipwAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        if let TargetPopulation::CustomDistribution(id) = query.target_population {
+            let depends = self.population_registry.as_ref().and_then(|r| r.distribution_dependencies(id))
+                .ok_or_else(|| EstimationError::unsupported("AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
+            if depends.iter().any(|v| *v == query.treatment || !estimand.adjustment_set.contains(v))
+            {
+                return Err(EstimationError::unsupported(
+                    "AIPW custom weights must depend only on the certified adjustment set",
+                ));
+            }
+        }
         prepare_propensity_problem_with_registry(
             data,
             estimand,
@@ -236,10 +251,24 @@ impl AipwAte {
                 | TargetPopulation::Treated
                 | TargetPopulation::Untreated
                 | TargetPopulation::Predicate(_)
+                | TargetPopulation::CustomDistribution(_)
         ) {
             return Err(EstimationError::unsupported(
-                "AIPW supports AllObserved, Treated, Untreated, or Predicate target populations",
+                "AIPW supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
             ));
+        }
+
+        if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+            return self.fit_custom(problem, ctx, assumptions);
+        }
+        if matches!(problem.target_population, TargetPopulation::AllObserved)
+            && trim_of(problem.overlap).is_none()
+            && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+            && self.cluster_ids.is_none()
+            && self.multiway_ids.is_none()
+            && self.panel_times.is_none()
+        {
+            return self.fit_crossfit_scores(problem, ctx, assumptions, None, false);
         }
 
         let model = PropensityModel::fit(
@@ -287,16 +316,26 @@ impl AipwAte {
         )?;
         predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
+        let psi_target =
+            if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+                TargetPopulation::AllObserved
+            } else {
+                problem.target_population.clone()
+            };
         aipw_psi(
             &t_used,
             &y_used,
             &e_used,
             &workspace.mu0,
             &workspace.mu1,
-            &problem.target_population,
+            &psi_target,
             &mut workspace.psi,
         )?;
-        let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
+        let ate = if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+            crate::joint_if::weighted_mean(&workspace.psi, problem.target_weights.as_deref())?
+        } else {
+            workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64
+        };
         residualize_aipw_psi(&mut workspace.psi, &t_used, &e_used, &design_used, ncols)?;
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
@@ -318,9 +357,121 @@ impl AipwAte {
             None,
             IpwTarget::from_population(&problem.target_population).ok(),
         ));
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_overlap_report(overlap_report)
-            .with_bootstrap(boot))
+            .with_bootstrap(boot)
+            .with_influence(Some(Arc::from(workspace.psi.as_slice())));
+        Ok(estimate)
+    }
+
+    fn fit_custom(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if trim_of(problem.overlap).is_some()
+            || !matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(EstimationError::unsupported(
+                "cross-fitted custom AIPW currently requires iid rows and no data-dependent trimming",
+            ));
+        }
+        let weights = problem
+            .target_weights
+            .as_deref()
+            .ok_or_else(|| EstimationError::data_msg("missing custom target weights"))?;
+        self.fit_crossfit_scores(problem, ctx, assumptions, Some(weights), true)
+    }
+
+    /// Cross-fitted binary AIPW contrast. Uniform weights (`None`) are the
+    /// `AllObserved` retarget(`1`) object.
+    fn fit_crossfit_scores(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        weights: Option<&[f64]>,
+        refuse_overlap: bool,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let build = |p: &PreparedPropensityProblem| {
+            crate::crossfit_aipw::build_binary_scores(
+                p,
+                p.treatment_id,
+                &[None],
+                crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+                &self.glm_options,
+                self.backend,
+            )
+        };
+        let table = build(problem)?;
+        let summary = table.summarize(weights)?;
+        let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
+        let n = table.n_rows as f64;
+        let influence: Vec<f64> = match weights {
+            Some(w) => {
+                let mass: f64 = w.iter().sum();
+                table
+                    .column(0)?
+                    .iter()
+                    .zip(table.column(1)?)
+                    .zip(w)
+                    .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast.value))
+                    .collect()
+            }
+            None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
+        };
+        let boot = if self.bootstrap_replicates == 0 {
+            None
+        } else {
+            Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
+                let mut p = problem.clone();
+                let mut design = Vec::new();
+                select_rows_colmajor(
+                    &problem.design_matrix,
+                    problem.nrows,
+                    problem.design_ncols,
+                    idx,
+                    &mut design,
+                );
+                p.design_matrix = design.into();
+                p.treatment = gather(&problem.treatment, idx).into();
+                p.outcome = gather(&problem.outcome, idx).into();
+                if let Some(w) = weights {
+                    p.target_weights = Some(gather(w, idx).into());
+                }
+                let Ok(t) = build(&p) else {
+                    return Ok(None);
+                };
+                let ss = t.summarize(p.target_weights.as_deref())?;
+                Ok(Some(ss.means[1] - ss.means[0]))
+            })?)
+        };
+        let inference = table.inference(weights)?;
+        if refuse_overlap && !inference.support.overlap_ok {
+            return Err(EstimationError::unsupported("custom target weighted overlap failed"));
+        }
+        let e_hat =
+            table.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none()).and_then(
+                |col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows),
+            );
+        let overlap_report = e_hat.map(|scores| {
+            crate::propensity::propensity_overlap_report(
+                problem,
+                scores,
+                None,
+                IpwTarget::from_population(&problem.target_population).ok(),
+            )
+        });
+        let mut result =
+            EffectEstimate::new(contrast.value, contrast.se, assumptions, problem.overlap)
+                .with_overlap_report(overlap_report)
+                .with_joint_covariance(Some(summary.covariance))
+                .with_bootstrap(boot)
+                .with_influence(Some(influence.into()))
+                .with_score_table(Some(table));
+        result.score_inference = Some(inference);
+        Ok(result)
     }
 
     fn bootstrap_se(
@@ -421,7 +572,7 @@ impl AipwAte {
 
 /// Extract rows `idx` from a column-major `nrows × ncols` matrix into a fresh column-major
 /// `idx.len() × ncols` buffer.
-fn select_rows_colmajor(
+pub(crate) fn select_rows_colmajor(
     matrix: &[f64],
     nrows: usize,
     ncols: usize,
@@ -451,7 +602,7 @@ fn select_values(values: &[f64], idx: &[usize], out: &mut Vec<f64>) {
 /// # Errors
 ///
 /// Empty treated/control arm, or an OLS backend failure (e.g. rank deficiency within an arm).
-fn fit_outcome_models(
+pub(crate) fn fit_outcome_models(
     design_matrix: &[f64],
     nrows: usize,
     ncols: usize,
@@ -497,7 +648,7 @@ fn fit_outcome_models(
 }
 
 /// Predict `design · coef` for every row of a column-major `nrows × ncols` design.
-fn predict_colmajor(
+pub(crate) fn predict_colmajor(
     design_matrix: &[f64],
     nrows: usize,
     ncols: usize,

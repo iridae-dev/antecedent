@@ -79,8 +79,10 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    BatchStudy, ComputeBudget, LatencyMode, PreparedStudy, RdConfig, RefuteSuite, StageEvent,
-    StageResultSink, Study, StudyBuilder,
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
+    CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy, RdConfig,
+    RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study,
+    StudyBuilder,
 };
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
@@ -489,15 +491,25 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        // Deterministic: T~Bernoulli(0.5), M=T, Y=M  → ATE = 1
+        // Complete binary chain: every (t,m,y) cell is observed so the ID
+        // plug-in can evaluate required CPT entries. E[Y|T=1]−E[Y|T=0] = 0.3.
         let mut t_vals = Vec::new();
         let mut m_vals = Vec::new();
         let mut y_vals = Vec::new();
-        for t in [0.0, 1.0] {
-            for _ in 0..50 {
+        for (t, m, y, count) in [
+            (0.0, 0.0, 0.0, 40),
+            (0.0, 0.0, 1.0, 10),
+            (0.0, 1.0, 0.0, 10),
+            (0.0, 1.0, 1.0, 40),
+            (1.0, 0.0, 0.0, 10),
+            (1.0, 0.0, 1.0, 10),
+            (1.0, 1.0, 0.0, 10),
+            (1.0, 1.0, 1.0, 70),
+        ] {
+            for _ in 0..count {
                 t_vals.push(t);
-                m_vals.push(t);
-                y_vals.push(t);
+                m_vals.push(m);
+                y_vals.push(y);
             }
         }
         let n = t_vals.len();

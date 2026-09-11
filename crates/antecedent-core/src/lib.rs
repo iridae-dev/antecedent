@@ -83,11 +83,11 @@ pub use query::{
     EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM,
     MAX_TEMPORAL_RESPONSE_HORIZONS, MechanismChangeQuery, MediationContrast, MediationQuery,
-    ObservationAssumption, ObservationSpec, OrderedFloatBits, PathSpecificEffectQuery,
-    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
-    ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode, TargetPopulation,
-    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TransportQuery,
-    UnitChangeQuery,
+    ObservationAssumption, ObservationSpec, OrderedFloatBits, OutcomeFunctional,
+    PathSpecificEffectQuery, PopulationRegistry, PopulationSelection, PopulationSelector,
+    PredicateExpr, QueryError, ResponseFunctional, ResponseQuery, ShapleyConfig, ShapleyMode,
+    TargetPopulation, TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec,
+    TransportQuery, UnitChangeQuery,
 };
 pub use response::{
     CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,

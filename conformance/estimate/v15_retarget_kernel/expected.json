@@ -1,0 +1,8 @@
+{
+  "true_effect": 1.4026845637583893,
+  "formula": "1 + 0.6 / (1 + 0.7^2)",
+  "tolerance": 0.15,
+  "identifier": "backdoor.adjustment",
+  "estimator": "aipw",
+  "notes": "1.5 kernel-target population functional for AIPW retarget. Consumed by v15_numeric_pins::kernel_target_population_coverage_over_seed_grid."
+}

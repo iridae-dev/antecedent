@@ -51,6 +51,7 @@ class Estimator(StrEnum):
     RESPONSE_RIESZ_ADE = "response.riesz_ade"
     RESPONSE_GAM_DERIVATIVE = "response.gam_derivative"
     RESPONSE_INTERVENTION_GCOMP = "response.intervention_gcomp"
+    CELL_AIPW = "cell.aipw"
     GCM_FIT = "gcm.fit"
     MEDIATION_LINEAR = "mediation.linear"
 

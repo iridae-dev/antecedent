@@ -6,6 +6,7 @@ pub use antecedent_core::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
     ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery, ExposureLevel,
     ExposureMapping, InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
-    MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
-    ResponseFunctional, ResponseQuery, TemporalEffectQuery, TransportQuery, UnitChangeQuery,
+    MechanismChangeQuery, MediationContrast, MediationQuery, OutcomeFunctional,
+    PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalEffectQuery,
+    TransportQuery, UnitChangeQuery,
 };

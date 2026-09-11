@@ -13,11 +13,13 @@
 //! by increasing set size and stops at the first valid set (minimal-first). Completions
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
 //! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
-//! *also* folded into unidentified mass (enumeration was never attempted, so it can't be
-//! proven identified or not) but is additionally counted in
-//! [`IdentificationEnvelope::truncated_completions`] and tagged with
-//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], so callers can tell "the search was cut short"
-//! apart from "the search completed and proved non-identifiability".
+//! folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
+//! (the 1.0 public surface; there is no third identification outcome). Enumeration
+//! was never attempted, so this is not a scientific open-back-door: the result
+//! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
+//! counted in [`IdentificationEnvelope::truncated_completions`]. A completed
+//! search that finds no set is also [`IdentificationStatus::NotIdentified`], but
+//! with a Scientific diagnostic.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -35,7 +37,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    Value, VariableId,
+    ResponseQuery, Value, VariableId,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
@@ -57,12 +59,12 @@ use crate::result::{
 
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
-/// searching exhaustively and finding no valid set. Both cases surface as
-/// [`IdentificationStatus::NotIdentified`] and fold into
-/// [`IdentificationEnvelope::unidentified_weight`] identically (unidentified mass is
-/// preserved either way), but [`IdentificationEnvelope::truncated_completions`] counts only
-/// this diagnostic so a caller can tell "the search was cut short" apart from "the search
-/// completed and proved non-identifiability".
+/// searching exhaustively and finding no valid set. A cap keeps
+/// [`IdentificationStatus::NotIdentified`] for the 1.0 freeze and is an
+/// Execution diagnostic, not a scientific open-back-door. Both cases still fold
+/// into [`IdentificationEnvelope::unidentified_weight`] (unidentified mass is
+/// preserved either way); [`IdentificationEnvelope::truncated_completions`]
+/// counts only this diagnostic.
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
 
@@ -320,7 +322,10 @@ fn pag_circle_features(pag: &Pag) -> Vec<GraphFeature> {
     }]
 }
 
-fn pag_var_to_dense(pag: &Pag, id: VariableId) -> Result<DenseNodeId, IdentificationError> {
+pub(crate) fn pag_var_to_dense(
+    pag: &Pag,
+    id: VariableId,
+) -> Result<DenseNodeId, IdentificationError> {
     for (i, node) in pag.nodes().iter().enumerate() {
         if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == id {
@@ -640,37 +645,40 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
     Some(cut)
 }
 
-pub(crate) fn identify_on_mag_completion(
+enum MagAdjustment {
+    Found { z_vars: Arc<[VariableId]>, examined: u64 },
+    Failed(IdentificationResult),
+}
+
+fn mag_adjustment_search(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
+    _t: VariableId,
+    _y: VariableId,
     t_d: DenseNodeId,
     y_d: DenseNodeId,
-    active: Value,
-    control: Value,
+    query: CausalQuery,
     max_candidates: usize,
-) -> Result<IdentificationResult, IdentificationError> {
-    let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
-        t,
-        y,
-        Arc::from([]),
-        antecedent_core::Intervention::set(t, control.clone()),
-        antecedent_core::Intervention::set(t, active.clone()),
-        antecedent_core::TargetPopulation::AllObserved,
-    ));
+) -> Result<MagAdjustment, IdentificationError> {
     let Some(admg) = mag_to_admg(mag) else {
-        return Ok(not_identified(query, "completion is not a MAG (undirected marks remain)"));
+        return Ok(MagAdjustment::Failed(not_identified(
+            query,
+            "completion is not a MAG (undirected marks remain)",
+        )));
     };
 
     let Some(mutilated) = proper_backdoor_mag(mag, t_d, y_d) else {
-        return Ok(not_identified(
+        return Ok(MagAdjustment::Failed(not_identified(
             query,
             "MAG is not adjustment amenable: a causal path starts with an invisible edge; no adjustment set identifies this effect",
-        ));
+        )));
     };
     let candidates = adjustment_candidates(&admg, t_d, y_d);
     if candidates.len() > max_candidates {
-        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
+        return Ok(MagAdjustment::Failed(capped_completion_result(
+            query,
+            candidates.len(),
+            max_candidates,
+        )));
     }
 
     let mut ws = DSeparationWorkspace::default();
@@ -706,7 +714,7 @@ pub(crate) fn identify_on_mag_completion(
     }
 
     let Some(z_dense) = found else {
-        return Ok(IdentificationResult::not_identified(
+        return Ok(MagAdjustment::Failed(IdentificationResult::not_identified(
             query,
             {
                 let mut d = DerivationTrace::default();
@@ -718,19 +726,27 @@ pub(crate) fn identify_on_mag_completion(
             },
             AssumptionSet::default(),
             IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-        ));
+        )));
     };
 
     let z_vars: Arc<[VariableId]> =
         z_dense.iter().map(|&d| mag_dense_to_var(mag, d)).collect::<Result<Vec<_>, _>>()?.into();
-    let mut arena = CausalExprArena::new();
-    let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
-    let label =
-        if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
-    let estimand = IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional);
+    Ok(MagAdjustment::Found { z_vars, examined })
+}
+
+fn mag_adjustment_identified(
+    query: CausalQuery,
+    z_vars: Arc<[VariableId]>,
+    examined: u64,
+    functional: antecedent_expr::ExprId,
+    arena: CausalExprArena,
+) -> IdentificationResult {
+    let n_z = z_vars.len();
+    let label = if n_z == 0 { "generalized.adjustment.empty" } else { "generalized.adjustment" };
+    let estimand = IdentifiedEstimand::backdoor(label, z_vars, functional);
     let mut assumptions = AssumptionSet::default();
     assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.mag"));
-    Ok(IdentificationResult::identified(
+    IdentificationResult::identified(
         query,
         vec![estimand],
         arena,
@@ -739,15 +755,64 @@ pub(crate) fn identify_on_mag_completion(
             d.push(
                 "generalized.adjustment",
                 format!(
-                    "Z (size {}) m-separates T from Y in the proper back-door graph after MAG amenability and forbidden-set checks",
-                    z_vars.len()
+                    "Z (size {n_z}) m-separates T from Y in the proper back-door graph after MAG amenability and forbidden-set checks"
                 ),
             );
             d
         },
         assumptions,
         IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
-    ))
+    )
+}
+
+pub(crate) fn identify_on_mag_completion(
+    mag: &Pag,
+    t: VariableId,
+    y: VariableId,
+    t_d: DenseNodeId,
+    y_d: DenseNodeId,
+    active: Value,
+    control: Value,
+    max_candidates: usize,
+) -> Result<IdentificationResult, IdentificationError> {
+    let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
+        t,
+        y,
+        Arc::from([]),
+        antecedent_core::Intervention::set(t, control.clone()),
+        antecedent_core::Intervention::set(t, active.clone()),
+        antecedent_core::TargetPopulation::AllObserved,
+    ));
+    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+        MagAdjustment::Failed(result) => Ok(result),
+        MagAdjustment::Found { z_vars, examined } => {
+            let mut arena = CausalExprArena::new();
+            let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
+            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+        }
+    }
+}
+
+/// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
+pub(crate) fn identify_on_mag_completion_mean(
+    mag: &Pag,
+    t: VariableId,
+    y: VariableId,
+    t_d: DenseNodeId,
+    y_d: DenseNodeId,
+    level: Value,
+    max_candidates: usize,
+    response: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    let query = CausalQuery::Response(response.clone());
+    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+        MagAdjustment::Failed(result) => Ok(result),
+        MagAdjustment::Found { z_vars, examined } => {
+            let mut arena = CausalExprArena::new();
+            let functional = arena.backdoor_mean(t, y, &z_vars, level);
+            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+        }
+    }
 }
 
 fn mag_dense_to_var(mag: &Pag, id: DenseNodeId) -> Result<VariableId, IdentificationError> {
@@ -816,22 +881,18 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Not-identified result for a completion whose candidate set exceeded `max_candidates`
-/// before enumeration could even start. Distinguished from a genuinely-searched, genuinely-
-/// blocked completion via [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment); the
-/// derivation text is kept human-readable and consistent with the other not-identified
-/// branches in this function.
+/// Execution-capped result: candidate family exceeded `max_candidates` before
+/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`]
+/// (1.0 freeze). Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
+/// [`DiagnosticKind::Execution`], not a scientific open-back-door.
 pub(crate) fn capped_completion_result(
     query: CausalQuery,
     n_candidates: usize,
     max_candidates: usize,
 ) -> IdentificationResult {
-    let mut derivation = DerivationTrace::default();
-    derivation.push(
-        "generalized.adjustment",
-        "generalized adjustment candidate set exceeds enumeration limit",
-    );
-    let diagnostic = Diagnostic::new(
+    let mut result =
+        not_identified(query, "generalized adjustment candidate set exceeds enumeration limit");
+    result.diagnostics.push(Diagnostic::new(
         CAPPED_COMPLETION_DIAGNOSTIC_CODE,
         DiagnosticKind::Execution,
         DiagnosticSeverity::Warning,
@@ -841,18 +902,8 @@ pub(crate) fn capped_completion_result(
              identifiability could not be determined (not the same as a proven non-\
              identifiable completion)"
         ),
-    );
-    IdentificationResult::from_parts(
-        IdentificationStatus::NotIdentified,
-        query,
-        Vec::new(),
-        CausalExprArena::new(),
-        derivation,
-        AssumptionSet::default(),
-        vec![diagnostic],
-        IdentificationPerformanceRecord::default(),
-        None,
-    )
+    ));
+    result
 }
 
 pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
@@ -1073,13 +1124,27 @@ mod tests {
             capped_env.cases.len(),
             "every case in this fixture should be capped"
         );
+        assert_eq!(
+            capped_env.cases[0].result.status,
+            IdentificationStatus::NotIdentified,
+            "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic"
+        );
+        assert_eq!(capped_env.status, IdentificationStatus::NotIdentified);
         assert!(
-            capped_env.cases[0]
+            capped_env.cases[0].result.diagnostics.iter().any(|d| {
+                d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                    && d.kind == DiagnosticKind::Execution
+            }),
+            "capped case should carry the capped-completion execution diagnostic"
+        );
+        assert!(
+            !capped_env.cases[0]
                 .result
                 .diagnostics
                 .iter()
-                .any(|d| d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE),
-            "capped case should carry the capped-completion diagnostic"
+                .any(|d| d.kind == DiagnosticKind::Scientific),
+            "cap must not be stamped scientific: {:?}",
+            capped_env.cases[0].result.diagnostics
         );
 
         // Case B: bare T ↔ Y (unmeasured confounding, no other variables). The search is

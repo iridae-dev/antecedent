@@ -246,6 +246,7 @@ pub(crate) fn fit_once(
     if !query.effect_modifiers.is_empty() {
         return ConditionalLinearAdjustment::new()
             .estimate_ate(data, estimand, query)
+            .map(|(estimate, _, _)| estimate)
             .map_err(ValidationError::from);
     }
     let prep = estimator.prepare(data, estimand, query).map_err(ValidationError::from)?;

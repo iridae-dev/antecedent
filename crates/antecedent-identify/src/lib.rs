@@ -36,11 +36,13 @@ pub mod path_specific;
 pub mod prepared;
 pub mod rd;
 pub mod response;
+pub(crate) mod response_id;
 pub mod result;
 pub mod temporal_backdoor;
 pub mod temporal_generalized;
 mod temporal_mag;
 pub mod temporal_mediation;
+pub mod tiered;
 pub mod transport;
 
 #[cfg(test)]
@@ -60,7 +62,9 @@ pub use envelope::{
 };
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
-pub use generalized::{GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier};
+pub use generalized::{
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+};
 pub use hedge::HedgeCertificate;
 pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;
@@ -70,6 +74,7 @@ pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
+pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,
@@ -77,6 +82,10 @@ pub use result::{
 pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
+pub use tiered::{
+    NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, TIERED_JOINT_UNKNOWN_REFUSE,
+    identify_tiered, identify_tiered_envelope, identify_tiered_joint, identify_tiered_joint_on,
+};
 pub use transport::{
     NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     TransportIdentification, TransportIdentifier,

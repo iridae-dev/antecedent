@@ -7,9 +7,9 @@ ML CATE.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -50,6 +50,8 @@ class EconMLSpec:
     confounder_offsets: tuple[int, ...] = ()
     modifiers: tuple[str, ...] = ()
     temporal: bool = False
+    target_weights: Any | None = None
+    outcome_functional: Any | None = None
 
     @property
     def treatments(self) -> tuple[str, ...]:
@@ -98,6 +100,33 @@ class EconMLSpec:
         }
         if self.modifiers:
             cols["X"] = np.column_stack([arrays[name][origins] for name in self.modifiers])
+        if self.outcome_functional is not None:
+            from .query import coerce_outcome_functional
+
+            functional = coerce_outcome_functional(self.outcome_functional)
+            if functional is not None:
+                y = np.asarray(cols["Y"])
+                if functional["kind"] == "exceedance":
+                    cols["Y"] = (y > float(cast(float, functional["threshold"]))).astype(float)
+                elif functional["kind"] == "exceedance_grid":
+                    cols["Y"] = np.column_stack(
+                        [(y > c).astype(float) for c in cast(list[float], functional["thresholds"])]
+                    )
+        if self.target_weights is not None:
+            weights = np.asarray(self.target_weights, dtype=float)
+            if (
+                weights.ndim != 1
+                or len(weights) != n
+                or not np.isfinite(weights).all()
+                or (weights < 0).any()
+            ):
+                raise CausalValueError(
+                    "target weights must be finite non-negative weights aligned to input rows"
+                )
+            aligned = weights[origins]
+            if aligned.sum() <= 0:
+                raise CausalValueError("target weights have no mass on aligned rows")
+            cols["sample_weight"] = aligned
         if self.temporal:
             cols["origins"] = origins
         return cols
@@ -109,6 +138,10 @@ def econml(
     treatment: str | tuple[str, ...] | None = None,
     outcome: str | None = None,
     structure_source: str | None = None,
+    modifiers: str | tuple[str, ...] | Sequence[str] | None = None,
+    target_weights: Any | None = None,
+    target_depends_on: Sequence[str] = (),
+    outcome_functional: Any | None = None,
 ) -> EconMLSpec:
     """Emit an EconML adjustment-set spec, or refuse.
 
@@ -173,17 +206,62 @@ def econml(
             "EconML handoff needs an identification certificate preserving temporal offsets; "
             "use identify(graph=..., query=...)"
         )
-    modifier = getattr(query, "modifier", None)
+    declared = _modifier_set(query, modifiers)
+    forbidden = {treatment} if isinstance(treatment, str) else set(treatment)
+    forbidden.add(outcome)
+    if any(name in forbidden for name in declared):
+        raise CausalValueError("EconML modifiers must be pre-treatment and not the outcome")
+    certified_modifiers = set(adjustment) | set(_modifier_set(query, None))
+    if any(name not in certified_modifiers for name in declared):
+        raise CausalUnsupportedError(
+            "EconML modifiers need a pre-treatment certificate: identify the modifier context first or use certified adjustment variables"
+        )
+    if any(name not in set(adjustment) or name in forbidden for name in target_depends_on):
+        raise CausalValueError("target weights must depend only on certified adjustment variables")
+    if target_weights is not None:
+        weights = np.asarray(target_weights, dtype=float)
+        if (
+            weights.ndim != 1
+            or not weights.size
+            or not np.isfinite(weights).all()
+            or (weights < 0).any()
+            or weights.sum() <= 0
+        ):
+            raise CausalValueError(
+                "target weights must be a finite non-negative vector with positive mass"
+            )
+        if not target_depends_on and not np.all(weights == weights[0]):
+            raise CausalValueError("nonconstant target weights require declared target_depends_on")
+    if outcome_functional is None:
+        outcome_functional = getattr(query, "outcome_functional", None)
     return EconMLSpec(
         treatment=treatment,
         outcome=outcome,
         confounders=tuple(adjustment),
         identifier=resolved,
         status=status,
-        modifiers=(modifier,) if isinstance(modifier, str) else (),
+        modifiers=declared,
         temporal=temporal,
+        target_weights=None if target_weights is None else np.asarray(target_weights),
+        outcome_functional=outcome_functional,
         **kwargs,
     )
+
+
+def _modifier_set(
+    query: Any, modifiers: str | tuple[str, ...] | Sequence[str] | None
+) -> tuple[str, ...]:
+    if modifiers is None:
+        single = getattr(query, "modifier", None)
+        many = getattr(query, "effect_modifiers", None)
+        if isinstance(single, str):
+            return (single,)
+        if many:
+            return tuple(str(name) for name in many)
+        return ()
+    if isinstance(modifiers, str):
+        return (modifiers,)
+    return tuple(str(name) for name in modifiers)
 
 
 def _unpack(

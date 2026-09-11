@@ -1,5 +1,9 @@
 # Causal responses
 
+For the 1.5 workflows, see [local targets, outcome distributions, and joint
+interventions](local-distributional-joint.md): prepare/retarget, raw CDF bands,
+unsupported tails, and non-additive joint-cell estimation.
+
 Antecedent treats a continuous causal response as more than a collection of
 binary contrasts. The scalar Python constructors retain the established
 positional convention:
@@ -129,7 +133,10 @@ an estimate click.
 
 `Cpdag` and `Pag` response queries are licensed through the same
 generalized-adjustment envelope as ATE: `analyze()` and `PreparedAnalysis`
-mass-weight identified completions and keep the runtime class. That is not
+mass-weight identified completions and keep the runtime class. Influence
+is mixed only when every completion is identified and every contributing
+atom supplies an aligned IF; unidentified mass NaNs the envelope SE
+rather than publishing a primary-atom interval. That is not
 MAG/PAG response identification. `Admg` response, TemporalCpdag/Pag response,
 and mixtures over graph posteriors remain refused by the
 [support matrix](support-matrix.md). See the
@@ -364,3 +371,15 @@ fail closed rather than returning the response of the observed proxy.
 See the runnable, deterministic notebooks for a
 [complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)
 and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb).
+
+### Static intervention-level uncertainty
+
+Additive GAM intervention responses use a fitted-basis sandwich that includes
+coefficient-fitting uncertainty and empirical covariate-average uncertainty.
+Knots and smoothing penalties are held fixed. The interval excludes knot
+selection, smoothing bias, and policy-integration error; it is not a
+nonparametric efficient-influence interval. A Set response can therefore have
+sampling uncertainty even when all counterfactual fitted row means are equal.
+Class-aware static responses combine these scores using frozen graph weights
+and original row IDs. Curve joint-covariance scores are `N` times the local-WLS
+contributions documented above; the diagnostic export itself is unchanged.

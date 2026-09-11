@@ -31,6 +31,12 @@ from ._native import (
 from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
+from ._native import (
+    prepare_ate_batch as _prepare_ate_batch,
+)
+from ._native import (
+    prepare_cells_batch as _prepare_cells_batch,
+)
 from .discovery import (
     FCI,
     GES,
@@ -57,7 +63,7 @@ from .errors import (
     PendingEdge,
     build_review_error,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -175,6 +181,21 @@ def _section_estimate(raw: Any) -> Any:
         method=getattr(raw, "method", "") or "",
         overlap_ess=getattr(raw, "overlap_ess", None),
         overlap_propensity_min=getattr(raw, "overlap_propensity_min", None),
+        functional_means=getattr(raw, "functional_means", None),
+        exceedance_cdf=getattr(raw, "exceedance_cdf", None),
+        monotone_rearranged=bool(getattr(raw, "monotone_rearranged", False)),
+        interaction_structurally_zero=getattr(raw, "interaction_structurally_zero", None),
+        score_table=getattr(raw, "score_table", None),
+        simultaneous_interval=getattr(raw, "simultaneous_interval", None),
+        adjusted_p_values=getattr(raw, "adjusted_p_values", None),
+        family_contrast=getattr(raw, "family_contrast", None),
+        family_contrast_interval=getattr(raw, "family_contrast_interval", None),
+        candidate_selection=getattr(raw, "candidate_selection", None),
+        evalue=getattr(raw, "evalue", None),
+        joint_covariance=getattr(raw, "joint_covariance", None),
+        score_inference=getattr(raw, "score_inference", None),
+        scenario_effects=getattr(raw, "scenario_effects", None),
+        scenario_intervals=getattr(raw, "scenario_intervals", None),
     )
 
 
@@ -370,6 +391,27 @@ def _wrap_ate(
             overlap_ess=sec_estimate.overlap_ess,
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
             mediation=mediation,
+            functional_means=tuple(sec_estimate.functional_means)
+            if getattr(sec_estimate, "functional_means", None) is not None
+            else None,
+            exceedance_cdf=tuple(sec_estimate.exceedance_cdf)
+            if getattr(sec_estimate, "exceedance_cdf", None) is not None
+            else None,
+            monotone_rearranged=bool(getattr(sec_estimate, "monotone_rearranged", False)),
+            interaction_structurally_zero=getattr(
+                sec_estimate, "interaction_structurally_zero", None
+            ),
+            score_table=getattr(sec_estimate, "score_table", None),
+            joint_covariance=getattr(sec_estimate, "joint_covariance", None),
+            score_inference=getattr(sec_estimate, "score_inference", None),
+            scenario_effects=getattr(sec_estimate, "scenario_effects", None),
+            scenario_intervals=getattr(sec_estimate, "scenario_intervals", None),
+            simultaneous_interval=getattr(sec_estimate, "simultaneous_interval", None),
+            adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
+            family_contrast=getattr(sec_estimate, "family_contrast", None),
+            family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
+            candidate_selection=getattr(sec_estimate, "candidate_selection", None),
+            evalue=getattr(sec_estimate, "evalue", None),
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
@@ -384,6 +426,7 @@ def _wrap_ate(
             posterior_predictive=posterior_predictive,
             prior_sensitivity=prior_sensitivity,
             reports=_refutation_reports_from_raw(sec_validation),
+            computation_failures=list(getattr(sec_validation, "computation_failures", [])),
         ),
         performance=PerformanceView(
             plan_id=sec_performance.plan_id,
@@ -673,7 +716,7 @@ def _resolve_static_discovery_edges(
 def analyze_many(
     data: Mapping[str, Any] | Any,
     *,
-    graph: Dag | Sequence[tuple[str, str]],
+    graph: Dag | TieredBackground | Sequence[tuple[str, str]],
     queries: Sequence[AverageEffect],
     identifier: str | None = None,
     estimator: str | None = None,
@@ -682,6 +725,7 @@ def analyze_many(
     bootstrap: int | None = None,
     threads: int = 1,
     latency: Literal["interactive", "standard", "report"] | None = None,
+    candidate_screen: CandidateScreen | None = None,
 ) -> list[AnalysisResult]:
     """Estimate many average effects on one shared table ingest.
 
@@ -690,13 +734,16 @@ def analyze_many(
     data:
         Column mapping / DataFrame (ingested once).
     graph:
-        Static DAG or edge list shared by every query.
+        Static DAG, edge list, or ``TieredBackground`` shared by every query.
     queries:
-        Non-empty sequence of ``AverageEffect`` queries.
+        Non-empty sequence of ``AverageEffect`` queries. Outcome functionals
+        are executed, not dropped to means.
     refute:
         ``False`` or a suite name; leave unset (``None``) for the default
         suite. Explicit ``refute=True`` raises ``TypeError`` — see
         :func:`antecedent._coerce.coerce_refute`.
+    candidate_screen:
+        Optional screen/estimate split recorded on every result.
     """
     if not queries:
         raise CausalValueError("analyze_many requires at least one query")
@@ -705,9 +752,17 @@ def analyze_many(
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
     names, columns = ingest_columns(data)
-    edges = _static_edges(graph)
+    from .query import coerce_outcome_functional
+
     specs = [
-        (q.treatment, q.outcome, float(q.control_level), float(q.active_level)) for q in queries
+        (
+            q.treatment,
+            q.outcome,
+            float(q.control_level),
+            float(q.active_level),
+            coerce_outcome_functional(q.outcome_functional),
+        )
+        for q in queries
     ]
     kwargs: dict[str, Any] = dict(
         identifier=identifier,
@@ -719,8 +774,273 @@ def analyze_many(
     )
     if latency is not None:
         kwargs["latency"] = latency
-    raws = _analyze_ate_many(names, columns, edges, specs, **kwargs)
+    kwargs.update(_screen_kwargs(candidate_screen))
+    if isinstance(graph, TieredBackground):
+        raws = _analyze_ate_many(
+            names,
+            columns,
+            [],
+            specs,
+            tiers=[list(tier) for tier in graph.tiers],
+            within_tier=str(graph.within_tier),
+            **kwargs,
+        )
+    else:
+        raws = _analyze_ate_many(names, columns, _static_edges(graph), specs, **kwargs)
     return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
+
+
+@dataclass(frozen=True)
+class CandidateScreen:
+    """Declared screen/estimate split for a batch family."""
+
+    screen_id: str
+    procedure: Literal["max_t", "bh", "by", "unrecorded"]
+    screen_rows: Sequence[int]
+    estimate_rows: Sequence[int]
+
+
+def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
+    if screen is None:
+        return {}
+    return {
+        "screen_id": screen.screen_id,
+        "screen_procedure": screen.procedure,
+        "screen_rows": [int(i) for i in screen.screen_rows],
+        "estimate_rows": [int(i) for i in screen.estimate_rows],
+    }
+
+
+def _joint_cell_batch_specs(
+    queries: Sequence[InterventionResponse],
+) -> list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]]:
+    from . import intervention as intervention_specs
+    from .query import coerce_outcome_functional
+
+    specs: list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]] = []
+    for query in queries:
+        if getattr(query, "is_temporal", False):
+            raise CausalUnsupportedError(
+                "PreparedBatch.prepare_cells is licensed for static joint InterventionResponse"
+            )
+        supplied = query.intervention
+        interventions = (
+            list(supplied)
+            if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+            else [supplied]
+        )
+        if len(interventions) < 2:
+            raise CausalUnsupportedError("prepare_cells requires joint InterventionResponse")
+        treatments: list[str] = []
+        kinds: list[str] = []
+        parameters: list[list[float]] = []
+        for spec in interventions:
+            if not isinstance(spec, intervention_specs.Set):
+                raise CausalUnsupportedError("prepare_cells requires binary Set interventions")
+            treatments.append(spec.variable)
+            kinds.append("set")
+            parameters.append([spec.value])
+        specs.append(
+            (
+                query.outcome,
+                treatments,
+                kinds,
+                parameters,
+                coerce_outcome_functional(query.outcome_functional),
+            )
+        )
+    return specs
+
+
+@dataclass(frozen=True)
+class SharedBatchDesign:
+    """Fold assignment and covariate design frozen on a prepared batch.
+
+    Folds and, when adjustment sets agree, the ``[1 | Z]`` matrix are shared.
+    Propensity and outcome residualization remain per-query fits on that design.
+    """
+
+    n_folds: int
+    fold_ids: tuple[int, ...]
+    adjustment_set: tuple[int, ...] | None
+    shares_covariates: bool
+    shares_propensity: bool = False
+    shares_outcome_residualization: bool = False
+
+
+@dataclass
+class PreparedBatch:
+    """Compile-once batch of average-effect or joint-cell plans.
+
+    ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
+    when every query shares a certified adjustment set, one covariate design.
+    Propensity and outcome residualization are still fit per query.     A family of two or more average-effect claims attaches joint IF covariance
+    and max-t / BH / BY on those contrasts. Joint-cell families keep
+    ``simultaneous_interval`` on cell levels and, unless ``family_contrast``
+    is ``None``, test a declared score-difference contrast (default
+    ``cell_minus_control``) with max-t and ``family_contrast_interval`` on
+    that contrast family.
+    """
+
+    _native: Any
+    _queries: tuple[AverageEffect | InterventionResponse, ...]
+    _names: tuple[str, ...]
+
+    @property
+    def shared_design(self) -> SharedBatchDesign | None:
+        n_folds = self._native.shared_n_folds()
+        if n_folds is None:
+            return None
+        folds = self._native.shared_fold_ids() or []
+        adj = self._native.shared_adjustment_set()
+        return SharedBatchDesign(
+            n_folds=int(n_folds),
+            fold_ids=tuple(int(i) for i in folds),
+            adjustment_set=None if adj is None else tuple(int(i) for i in adj),
+            shares_covariates=bool(self._native.shares_covariates()),
+        )
+
+    @classmethod
+    def prepare(
+        cls,
+        data: Mapping[str, Any] | Any,
+        *,
+        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
+        queries: Sequence[AverageEffect],
+        identifier: str | None = None,
+        estimator: str | None = None,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        seed: int = 1,
+        bootstrap: int | None = 0,
+        threads: int = 1,
+        latency: Literal["interactive", "standard", "report"] | None = None,
+        candidate_screen: CandidateScreen | None = None,
+    ) -> PreparedBatch:
+        if not queries:
+            raise CausalValueError("PreparedBatch.prepare requires at least one query")
+        if not all(isinstance(q, AverageEffect) for q in queries):
+            raise CausalTypeError(
+                "PreparedBatch.prepare supports AverageEffect queries only; "
+                "use prepare_cells for joint InterventionResponse"
+            )
+        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        names, columns = ingest_columns(data)
+        from .query import coerce_outcome_functional
+
+        specs = [
+            (
+                q.treatment,
+                q.outcome,
+                float(q.control_level),
+                float(q.active_level),
+                coerce_outcome_functional(q.outcome_functional),
+            )
+            for q in queries
+        ]
+        kwargs: dict[str, Any] = dict(
+            identifier=identifier,
+            estimator=estimator,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=0 if bootstrap is None else bootstrap,
+            threads=threads,
+        )
+        if latency is not None:
+            kwargs["latency"] = latency
+        kwargs.update(_screen_kwargs(candidate_screen))
+        if isinstance(graph, TieredBackground):
+            native = _prepare_ate_batch(
+                names,
+                columns,
+                [],
+                specs,
+                tiers=[list(tier) for tier in graph.tiers],
+                within_tier=str(graph.within_tier),
+                **kwargs,
+            )
+        else:
+            native = _prepare_ate_batch(names, columns, _static_edges(graph), specs, **kwargs)
+        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
+
+    @classmethod
+    def prepare_cells(
+        cls,
+        data: Mapping[str, Any] | Any,
+        *,
+        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
+        queries: Sequence[InterventionResponse],
+        identifier: str | None = None,
+        estimator: str | None = None,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        seed: int = 1,
+        bootstrap: int | None = 0,
+        threads: int = 1,
+        latency: Literal["interactive", "standard", "report"] | None = None,
+        candidate_screen: CandidateScreen | None = None,
+        family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
+    ) -> PreparedBatch:
+        """Compile discrete joint ``InterventionResponse`` cells into one batch.
+
+        Licensed on a DAG and on CoDetermined ``TieredBackground``. Unknown-tier
+        joint has no single ADMG and refuses. Pair families share folds and, when
+        adjustment sets agree, the covariate design; estimation attaches joint
+        IF covariance on cell **levels**. Family p-values / FDR use
+        ``family_contrast`` (default ``cell_minus_control``, the same contrast
+        as cell.aipw refuters). Max-t and ``family_contrast_interval`` are
+        formed on that contrast family. ``family_contrast=None`` publishes no
+        p-values. ``estimate.ate`` remains the requested cell level, not a
+        contrast.
+        """
+        if not queries:
+            raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
+        if not all(isinstance(q, InterventionResponse) for q in queries):
+            raise CausalTypeError("PreparedBatch.prepare_cells supports InterventionResponse only")
+        if isinstance(graph, TieredBackground):
+            if identifier not in (None, "generalized.adjustment"):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells require identifier generalized.adjustment"
+                )
+            if estimator not in (None, "cell.aipw"):
+                raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
+        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        names, columns = ingest_columns(data)
+        specs = _joint_cell_batch_specs(queries)
+        kwargs: dict[str, Any] = dict(
+            identifier=None if isinstance(graph, TieredBackground) else identifier,
+            estimator=estimator,
+            refute=resolved_refute,
+            seed=seed,
+            bootstrap=0 if bootstrap is None else bootstrap,
+            threads=threads,
+            family_contrast=family_contrast,
+        )
+        if latency is not None:
+            kwargs["latency"] = latency
+        kwargs.update(_screen_kwargs(candidate_screen))
+        if isinstance(graph, TieredBackground):
+            native = _prepare_cells_batch(
+                names,
+                columns,
+                [],
+                specs,
+                tiers=[list(tier) for tier in graph.tiers],
+                within_tier=str(graph.within_tier),
+                **kwargs,
+            )
+        else:
+            native = _prepare_cells_batch(names, columns, _static_edges(graph), specs, **kwargs)
+        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
+
+    def estimate(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> list[AnalysisResult]:
+        names, columns = ingest_columns(data)
+        raws = self._native.estimate(names, columns, seed=seed, threads=threads)
+        return [_wrap_ate(r, query=q) for r, q in zip(raws, self._queries, strict=True)]
 
 
 @dataclass(frozen=True)
@@ -745,6 +1065,11 @@ def identify(
     Accepts a ``Dag``, an ``Admg``, or an edge list. Pass ``names`` with an edge
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
+
+    ``identify(TieredBackground)`` stays Rust-only in 1.5
+    (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
+    already returns the certificate; this entry does not accept a tier rule.
+    Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
 
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
     to say a variable cannot be observed, so a latent common cause flattened
@@ -944,14 +1269,12 @@ class PreparedAnalysis:
     **Estimate click:** same-schema data; seeds / threads. Does not re-identify
     or recompile the logical plan.
 
-    **Refute click:** AverageEffect only. :meth:`refute` raises
-    ``CausalUnsupportedError``, prefixed with the matrix's own wire id for
-    the cell: ``not_applicable:`` for ResponseCurve / InterventionResponse
-    (cheap/full name the ATE-shaped scalar refuter suite, which a
-    function-valued estimand has no state for), and ``refused:`` for
-    PathSpecificEffect / InterventionalDistribution / TemporalMediationEffect
-    (the suite is licensed elsewhere but these executors return empty
-    refutations). ConditionalEffect's cheap/full refuter suite is licensed.
+    **Refute click:** AverageEffect and scalar Dag ``InterventionResponse``.
+    :meth:`refute` raises ``CausalUnsupportedError``, prefixed with the
+    matrix's own wire id for the cell: ``not_applicable:`` for ResponseCurve
+    and for temporal / class-aware InterventionResponse (those remain
+    function-valued or envelope-mixed surfaces). ConditionalEffect and Dag
+    InterventionResponse cheap/full run the scalar ATE-shaped suite.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
@@ -1043,6 +1366,25 @@ class PreparedAnalysis:
         (Bayesian AverageEffect / Pulse / Sustained).
         """
         if isinstance(query, (ResponseCurve, InterventionResponse)):
+            from .query import coerce_outcome_functional
+
+            functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+            if (
+                functional is not None
+                and functional.get("kind") == "quantile"
+                and (
+                    not isinstance(query, InterventionResponse)
+                    or getattr(query, "is_temporal", False)
+                    or isinstance(inference, Bayesian)
+                    or (
+                        str(estimator) != "cell.aipw"
+                        and not (estimator is None and isinstance(graph, TieredBackground))
+                    )
+                )
+            ):
+                raise CausalUnsupportedError(
+                    "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights"
+                )
             from .observation import Complete
             from .population import coerce_target_population
 
@@ -1282,6 +1624,35 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
             )
             return cls(native, kind="average", query=query)
+        if isinstance(query, AverageEffect) and isinstance(graph, TieredBackground):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalUnsupportedError(
+                    "PreparedAnalysis TieredBackground supports Frequentist only"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            from .query import coerce_outcome_functional
+
+            native = _NativePreparedAnalysis.prepare_tiered(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.treatment,
+                query.outcome,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                estimator=estimator,
+                refute=refute,
+                seed=seed,
+                bootstrap=0 if bootstrap is None else bootstrap,
+                threads=threads,
+                latency=latency,
+                outcome_functional=coerce_outcome_functional(
+                    getattr(query, "outcome_functional", None)
+                ),
+            )
+            return cls(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, Admg):
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
@@ -1329,6 +1700,58 @@ class PreparedAnalysis:
                 latency=latency,
                 structure_accepted=structure_accepted,
             )
+        if isinstance(query, InterventionResponse) and isinstance(graph, TieredBackground):
+            if inference is not None and not isinstance(inference, Frequentist):
+                raise CausalUnsupportedError("CoDetermined joint cells are Frequentist cell.aipw")
+            if identifier not in (None, "generalized.adjustment"):
+                raise CausalUnsupportedError(
+                    "CoDetermined joint cells require identifier generalized.adjustment"
+                )
+            if estimator not in (None, "cell.aipw"):
+                raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+            from . import intervention as intervention_specs
+
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            if len(interventions) < 2:
+                raise CausalUnsupportedError(
+                    "cell-AIPW on a tiered background requires joint InterventionResponse"
+                )
+            treatments: list[str] = []
+            intervention_kinds: list[str] = []
+            intervention_parameters: list[list[float]] = []
+            for spec in interventions:
+                if not isinstance(spec, intervention_specs.Set):
+                    raise CausalUnsupportedError(
+                        "CoDetermined joint cells require binary Set interventions"
+                    )
+                treatments.append(spec.variable)
+                intervention_kinds.append("set")
+                intervention_parameters.append([spec.value])
+            from .query import coerce_outcome_functional
+
+            native = _NativePreparedAnalysis.prepare_tiered_intervention_response(
+                names,
+                columns,
+                [list(tier) for tier in graph.tiers],
+                str(graph.within_tier),
+                query.outcome,
+                treatments,
+                intervention_kinds,
+                intervention_parameters,
+                outcome_functional=coerce_outcome_functional(query.outcome_functional),
+                refute=refute,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+            )
+            return cls(native, kind="intervention_response", query=query)
         if isinstance(query, ConditionalEffect) and isinstance(graph, (Pag, Cpdag)):
             return cls._prepare_class_conditional(
                 names,
@@ -1415,6 +1838,8 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"ConditionalEffect requires backdoor.adjustment and {expected_estimator}"
                 )
+            from .query import coerce_outcome_functional
+
             refute = coerce_refute(refute)  # type: ignore[assignment]
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             native = _NativePreparedAnalysis.prepare_conditional(
@@ -1433,6 +1858,9 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+                outcome_functional=coerce_outcome_functional(
+                    getattr(query, "outcome_functional", None)
+                ),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, PathSpecificEffect):
@@ -1637,19 +2065,27 @@ class PreparedAnalysis:
                 if isinstance(inference, Bayesian)
                 else "response.intervention_gcomp"
             )
-            if identifier not in (None, "response.backdoor") or estimator not in (
-                None,
-                expected_estimator,
+            cell_aipw = estimator == "cell.aipw" and not isinstance(inference, Bayesian)
+            allowed_identifiers = (
+                (None, "generalized.adjustment") if cell_aipw else (None, "response.backdoor")
+            )
+            if identifier not in allowed_identifiers or (
+                not cell_aipw and estimator not in (None, expected_estimator)
             ):
                 raise CausalUnsupportedError(
-                    f"InterventionResponse requires response.backdoor and {expected_estimator}"
+                    f"InterventionResponse requires response.backdoor and {expected_estimator}, "
+                    "or Frequentist cell.aipw with generalized.adjustment"
                 )
-            if refute not in (False, "none", Refute.NONE):
+            if cell_aipw and bootstrap not in (None, 0):
                 raise CausalUnsupportedError(
-                    "not_applicable: PreparedAnalysis InterventionResponse cheap/full does "
-                    "not denote; cheap and full name the ATE-shaped scalar refuter suite and "
-                    "a function-valued estimand has no such state. Use refute='none'."
+                    "cell.aipw uses analytic influence uncertainty, not bootstrap"
                 )
+            if isinstance(inference, Bayesian) and refute not in (False, "none", Refute.NONE):
+                raise CausalUnsupportedError(
+                    "not_applicable: Bayesian InterventionResponse cheap/full does not denote"
+                )
+            refute = coerce_refute(refute)  # type: ignore[assignment]
+            bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             from . import intervention as intervention_specs
 
             supplied = query.intervention
@@ -1660,9 +2096,9 @@ class PreparedAnalysis:
             )
             if not interventions:
                 raise CausalValueError("InterventionResponse requires at least one intervention")
-            treatments: list[str] = []
-            intervention_kinds: list[str] = []
-            intervention_parameters: list[list[float]] = []
+            treatments = []
+            intervention_kinds = []
+            intervention_parameters = []
             for spec in interventions:
                 if isinstance(spec, intervention_specs.Set):
                     kind, parameters = "set", [spec.value]
@@ -1687,6 +2123,8 @@ class PreparedAnalysis:
                 treatments.append(spec.variable)
                 intervention_kinds.append(kind)
                 intervention_parameters.append(parameters)
+            from .query import coerce_outcome_functional
+
             native = _NativePreparedAnalysis.prepare_intervention_response(
                 names,
                 columns,
@@ -1696,6 +2134,9 @@ class PreparedAnalysis:
                 intervention_kinds,
                 intervention_parameters,
                 **_prepared_inference_kwargs(inference),
+                outcome_functional=coerce_outcome_functional(query.outcome_functional),
+                estimator=estimator,
+                refute=refute,
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -1720,6 +2161,8 @@ class PreparedAnalysis:
             inference_mode, average_bayes_kw = _prepared_bayesian_args(inference)
         else:
             inference_mode = "frequentist"
+        from .query import coerce_outcome_functional
+
         native = _NativePreparedAnalysis.prepare(
             names,
             columns,
@@ -1730,6 +2173,9 @@ class PreparedAnalysis:
             active_level=query.active_level,
             identifier=identifier,
             estimator=estimator,
+            outcome_functional=coerce_outcome_functional(
+                getattr(query, "outcome_functional", None)
+            ),
             inference=inference_mode,
             n_draws=int(average_bayes_kw.get("n_draws", 1000)),
             prior_scale=float(average_bayes_kw.get("prior_scale", 10.0)),
@@ -2013,6 +2459,8 @@ class PreparedAnalysis:
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+        from .query import coerce_outcome_functional
+
         native_fn = (
             partial(_NativePreparedAnalysis.prepare_pag_conditional, names, columns, graph)
             if isinstance(graph, Pag)
@@ -2033,6 +2481,9 @@ class PreparedAnalysis:
             threads=threads,
             latency=latency,
             accepted=structure_accepted,
+            outcome_functional=coerce_outcome_functional(
+                getattr(query, "outcome_functional", None)
+            ),
         )
         return cls(native, kind="average", query=query)
 
@@ -2205,6 +2656,31 @@ class PreparedAnalysis:
         raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
+    def retarget(
+        self,
+        weights: Any,
+        depends_on: Sequence[str],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Estimate a declared target population from frozen scores. No refit.
+
+        Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
+        Nonempty ``depends_on`` needs a directed graph (DAG or ADMG) so
+        descendant closure can be checked. Nonconstant weights require a
+        nonempty ``depends_on``. ``analyze()`` does not return a retarget handle.
+        """
+        import numpy as np
+
+        raw = self._native.retarget(
+            np.asarray(weights, dtype=float).tolist(),
+            list(depends_on),
+            seed=seed,
+            threads=threads,
+        )
+        return _wrap_ate(raw, prepared=self)
+
     def refresh(
         self,
         data: Mapping[str, Any] | Any,
@@ -2250,12 +2726,10 @@ class PreparedAnalysis:
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         """
-        if self._kind in ("response_curve", "intervention_response"):
+        if self._kind == "response_curve":
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis.refute is AverageEffect-only; "
-                "ResponseCurve / InterventionResponse cheap/full/placebo do not denote — "
-                "cheap and full name the ATE-shaped scalar refuter suite and a "
-                "function-valued estimand has no such state."
+                "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "
+                "Dag InterventionResponse; ResponseCurve cheap/full/placebo do not denote."
             )
         if isinstance(suite, Refute):
             suite = str(suite)
@@ -2283,6 +2757,9 @@ __all__ = [
     "PosteriorView",
     "PredictiveCheckReport",
     "PreparedAnalysis",
+    "PreparedBatch",
+    "SharedBatchDesign",
+    "CandidateScreen",
     "PriorSensitivityReport",
     "RefutationReport",
     "ValidationView",

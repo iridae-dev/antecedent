@@ -147,6 +147,9 @@ pub struct ResponseQueryWire {
     /// Optional temporal attachment (format ≥ 0.4). Absent/None = static response.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temporal: Option<TemporalResponseSpecWire>,
+    /// Outcome functional. Absent on pre-1.5 artifacts decodes as Mean.
+    #[serde(default, skip_serializing_if = "crate::query_wire::OutcomeFunctionalWire::is_mean")]
+    pub outcome_functional: crate::query_wire::OutcomeFunctionalWire,
 }
 
 /// Temporal dose-over-horizon / policy-path attachment on the wire (format 0.4).
@@ -184,6 +187,9 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
                 max_history_lag: t.max_history_lag,
             }),
         },
+        outcome_functional: crate::query_wire::OutcomeFunctionalWire::from_domain(
+            &q.outcome_functional,
+        ),
     })
 }
 
@@ -205,6 +211,7 @@ pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, 
             .collect::<Vec<_>>()
             .into(),
         temporal: None,
+        outcome_functional: w.outcome_functional.to_domain(),
     };
     if let Some(t) = &w.temporal {
         q.temporal = Some(
@@ -637,6 +644,9 @@ pub struct CausalResponseWire {
     /// Per-horizon identification; omitted on static curves.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub horizon_identification: Option<Vec<HorizonIdentificationWire>>,
+    /// Additive joint path: interaction contrast is structurally zero.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interaction_structurally_zero: bool,
 }
 
 /// Encode a causal response artifact payload.
@@ -671,6 +681,7 @@ pub fn causal_response_to_wire(r: &CausalResponse) -> Result<CausalResponseWire,
                 })
                 .collect()
         }),
+        interaction_structurally_zero: r.interaction_structurally_zero,
     })
 }
 
@@ -709,6 +720,7 @@ pub fn causal_response_from_wire(w: &CausalResponseWire) -> Result<CausalRespons
                     .collect::<Vec<_>>(),
             )
         }),
+        interaction_structurally_zero: w.interaction_structurally_zero,
     })
 }
 
@@ -1118,6 +1130,7 @@ mod tests {
             assumptions,
             provenance_id: Arc::from("response-fit-17"),
             horizon_identification: None,
+            interaction_structurally_zero: false,
         };
         let wire = causal_response_to_wire(&response).unwrap();
         let bytes = to_cbor(&wire).unwrap();

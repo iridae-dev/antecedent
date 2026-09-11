@@ -15,6 +15,22 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
+The 1.5 matrix keeps the 1.4 licensed cells and adds no new query kinds.
+Prepared iid AllObserved `AverageEffect` plans with explicit AIPW and discrete joint
+`InterventionResponse` plans with cell-AIPW export cross-fitted scores and retarget to a declared covariate population.
+`analyze()` does not always return scores. Linear, ATT/trim/clustered AIPW, matching, IV, and Bayesian plans do not export scores. `outcome_functional`
+covers mean and exceedance, including class-aware ConditionalEffect grids mixed
+across envelope atoms. Discrete joint interventions may use `cell.aipw`.
+`TieredBackground` certifies a tier-closure adjustment set as a fast path.
+CoDetermined joint cells are the `O(p)` treatment-set closure shortcut plus
+`cell.aipw`; Unknown-tier joint stays refused.
+Static Cpdag / Pag Frequentist effect and response aggregates publish joint-IF
+standard errors mixed by frozen completion weights. Scalar Dag
+`InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control
+contrast; plugin g-comp cheap is overlap only and full is overlap plus sampling-stability of the g-comp level.
+`ResponseCurve` cheap/full stay n/a. Temporal / DBN multi-atom Frequentist
+uncertainty stays unavailable until 1.9.
+
 The 1.4 matrix licenses the 1.3 families plus:
 
 - `AverageEffect` on explicit or accepted `Cpdag` under Frequentist or
@@ -77,7 +93,8 @@ uses sequential g-computation; Bayesian time copies share stationary mechanism
 draws. These restrictions are part of each licensed form; see the
 [1.2 evidence ledger](v1.2-evidence.md),
 [1.3 evidence ledger](v1.3-evidence.md), and
-[1.4 evidence ledger](v1.4-evidence.md).
+[1.4 evidence ledger](v1.4-evidence.md) and
+[1.5 evidence ledger](v1.5-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior` under Bayesian or Frequentist

@@ -36,6 +36,10 @@ graph_classes = [
   "TemporalDag",
   "TemporalCpdag",
   "TemporalPag",
+  # Classification-only extras (not GraphClass variants). A CoDetermined
+  # background is a known closure ADMG; Unknown is a two-scenario envelope.
+  "CoDetermined",
+  "Unknown",
 ]
 
 structures = [

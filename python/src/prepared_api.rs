@@ -241,6 +241,7 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        outcome_functional=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare(
@@ -263,7 +264,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -279,7 +282,11 @@ impl PyPreparedAnalysis {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            let mut query =
+                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            if let Some(functional) = functional {
+                query = query.with_outcome_functional(functional);
+            }
             let mut builder = if accepted {
                 Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
             } else {
@@ -305,6 +312,98 @@ impl PyPreparedAnalysis {
             }
             if let Some(mode) = inference.as_deref() {
                 builder = apply_inference(builder, mode, n_draws, prior_scale)?;
+            }
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for AverageEffect on a CoDetermined / Unknown tier background.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        tiers,
+        within_tier,
+        treatment,
+        outcome,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        estimator=None,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        latency=None,
+        outcome_functional=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_tiered(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        tiers: Vec<Vec<String>>,
+        within_tier: String,
+        treatment: String,
+        outcome: String,
+        control_level: f64,
+        active_level: f64,
+        estimator: Option<String>,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        latency: Option<String>,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+    ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+        detach_catch(py, move || {
+            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
+            let named: Vec<Vec<&str>> =
+                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+            let background =
+                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    .map_err(py_err)?;
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let mut query =
+                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            if let Some(functional) = functional {
+                query = query.with_outcome_functional(functional);
+            }
+            let mut builder = Study::tabular(data)
+                .tiered_background(background)
+                .map_err(py_err)?
+                .query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -1700,9 +1799,12 @@ impl PyPreparedAnalysis {
         intervention_kinds,
         intervention_parameters,
         *,
+        estimator=None,
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        outcome_functional=None,
+        refute=None,
         seed=1,
         threads=1,
         latency=None,
@@ -1718,15 +1820,21 @@ impl PyPreparedAnalysis {
         treatments: Vec<String>,
         intervention_kinds: Vec<String>,
         intervention_parameters: Vec<Vec<f64>>,
+        estimator: Option<String>,
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+        refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         threads: u32,
         latency: Option<String>,
         accepted: bool,
     ) -> PyResult<Self> {
+        let outcome_functional =
+            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
             Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -1753,17 +1861,27 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let mut response_query = ResponseQuery::new(functional);
+            if let Some(functional) = outcome_functional {
+                response_query = response_query.with_outcome_functional(functional);
+            }
+            let query = CausalQuery::Response(response_query);
             let mut builder = if accepted {
                 Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
             } else {
                 Study::tabular(data).graph(dag)
             }
             .query(query)
-            .refute(antecedent::RefuteSuite::None)
+            .refute(suite)
             .bootstrap_replicates(0);
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
+            }
+            if let Some(est) = estimator {
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             builder = apply_inference(
                 builder,
@@ -1771,6 +1889,104 @@ impl PyPreparedAnalysis {
                 n_draws,
                 prior_scale,
             )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+        })
+    }
+
+    /// Compile once for joint InterventionResponse on a CoDetermined tier closure.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        tiers,
+        within_tier,
+        outcome,
+        treatments,
+        intervention_kinds,
+        intervention_parameters,
+        *,
+        outcome_functional=None,
+        refute=None,
+        seed=1,
+        threads=1,
+        latency=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_tiered_intervention_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        tiers: Vec<Vec<String>>,
+        within_tier: String,
+        outcome: String,
+        treatments: Vec<String>,
+        intervention_kinds: Vec<String>,
+        intervention_parameters: Vec<Vec<f64>>,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+        latency: Option<String>,
+    ) -> PyResult<Self> {
+        let outcome_functional =
+            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let latency_mode = match latency.as_deref() {
+            None => None,
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?),
+        };
+
+        detach_catch(py, move || {
+            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
+            let named: Vec<Vec<&str>> =
+                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+            let background =
+                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    .map_err(py_err)?;
+            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
+            let functional = crate::response_api::build_functional(
+                "intervention_response",
+                &treatment_ids,
+                &outcome_ids,
+                None,
+                None,
+                None,
+                Some(intervention_kinds),
+                Some(intervention_parameters),
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
+            )?;
+            let mut response_query = ResponseQuery::new(functional);
+            if let Some(functional) = outcome_functional {
+                response_query = response_query.with_outcome_functional(functional);
+            }
+            let query = CausalQuery::Response(response_query);
+            let mut builder = Study::tabular(data)
+                .tiered_background(background)
+                .map_err(py_err)?
+                .query(query)
+                .estimator(antecedent::EstimatorId::CellAipw)
+                .refute(suite)
+                .bootstrap_replicates(0);
+            if let Some(mode) = latency_mode {
+                builder = builder.latency_mode(mode);
+            }
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -1805,6 +2021,7 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        outcome_functional=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_conditional(
@@ -1826,7 +2043,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -1842,8 +2061,12 @@ impl PyPreparedAnalysis {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
-            let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
-                .with_effect_modifiers([w_id]);
+            let mut inner =
+                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+                    .with_effect_modifiers([w_id]);
+            if let Some(functional) = functional {
+                inner = inner.with_outcome_functional(functional);
+            }
             let cq = ConditionalEffectQuery::try_new(inner)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -1900,6 +2123,7 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        outcome_functional=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_cpdag_conditional(
@@ -1923,7 +2147,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         require_named_graph_order(&graph.names, &names, "Cpdag")?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
@@ -1950,6 +2176,7 @@ impl PyPreparedAnalysis {
                 threads,
                 latency_mode,
                 accepted,
+                functional,
             )
         })
     }
@@ -1977,6 +2204,7 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        outcome_functional=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_pag_conditional(
@@ -2000,7 +2228,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     ) -> PyResult<Self> {
+        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         require_named_graph_order(&graph.names, &names, "Pag")?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
@@ -2027,6 +2257,7 @@ impl PyPreparedAnalysis {
                 threads,
                 latency_mode,
                 accepted,
+                functional,
             )
         })
     }
@@ -2206,6 +2437,44 @@ impl PyPreparedAnalysis {
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
             Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
         })
+    }
+
+    /// Weighted-mean retarget from the frozen score table. Does not refit.
+    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=1))]
+    fn retarget(
+        &mut self,
+        py: Python<'_>,
+        weights: Vec<f64>,
+        depends_on: Vec<String>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        let inner = Arc::clone(&self.inner);
+        let out_names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let schema_ids = depends_on
+                .iter()
+                .map(|name| {
+                    out_names
+                        .iter()
+                        .position(|n| n == name)
+                        .map(|i| antecedent_core::VariableId::from_raw(i as u32))
+                        .ok_or_else(|| PyValueError::new_err(format!("unknown depends_on {name}")))
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            let result = inner.retarget(&weights, &schema_ids, &ctx).map_err(py_err)?;
+            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            Ok((mapped, result))
+        })?;
+        self.last = Some(result);
+        Ok(mapped)
     }
 
     /// Re-estimate on new columns (same schema) without recompiling.
@@ -2656,12 +2925,16 @@ fn prepare_class_conditional(
     threads: u32,
     latency_mode: Option<antecedent::LatencyMode>,
     accepted: bool,
+    outcome_functional: Option<antecedent_core::OutcomeFunctional>,
 ) -> PyResult<PyPreparedAnalysis> {
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
     let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
-    let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+    let mut inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
         .with_effect_modifiers([w_id]);
+    if let Some(functional) = outcome_functional {
+        inner = inner.with_outcome_functional(functional);
+    }
     let cq =
         ConditionalEffectQuery::try_new(inner).map_err(|e| PyValueError::new_err(e.to_string()))?;
     let mut builder = match graph {
