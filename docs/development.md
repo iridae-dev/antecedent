@@ -161,22 +161,50 @@ committing. The generator rewrites live licensed-cell markers only in
 
 ## Releases
 
+For 1.5.0, keep the changelog under **Unreleased** until the cut is approved and
+its date is known. Package versions already say 1.5.0; a version bump is not
+proof that a release has been published.
+
+Before merging the release PR:
+
+1. Commit the reviewed implementation, tests, and documentation with DCO sign-off.
+   Keep the generated support/conformance output current and the worktree clean.
+2. Run `cargo test --workspace`, strict all-target Clippy, Python tests against
+   the rebuilt extension, Python lint/type checks, and `bash scripts/gate_release.sh`.
+   Run `bash scripts/gate_codeql.sh` with the existing query configuration. Require
+   CI on the same commit; a local partial gate run is not equivalent.
+3. Run `cargo deny check` with a freshly fetched advisory database. A cached
+   offline audit is useful evidence, but does not establish current advisory status.
+4. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
+   `cargo check` for unpublished workspace dependencies: that is not a completed
+   package verification for those crates.
+5. Build wheel and source-distribution artifacts and test installation outside
+   the checkout, without an editable install. Verify the supported OS/Python wheel
+   matrix before publishing; one local extension build covers only that environment.
+6. Check the changelog, release notes, user examples, refusal/compatibility scope,
+   and evidence ledger. Record measured timings separately from test ceilings.
+
+Before tagging, move the Unreleased entries to a dated 1.5.0 section, add its
+comparison link, reset the Unreleased comparison to `v1.5.0...HEAD`, and update
+release-status text. Tag only the approved, clean commit after these checks pass.
+Do not remove the release gate's clean-diff check to accommodate pending edits.
+
 Tagged releases drive wheel + docs publishing (GitHub Release assets and public
 PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 `scripts/set_version.sh` before maturin.
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.4.0
+bash scripts/set_version.sh 1.5.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -m "chore: bump version to 1.4.0"
+git commit -s -m "chore: bump version to 1.5.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.4.0
-git push origin v1.4.0
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.5.0
+git push origin v1.5.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -224,4 +252,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.4.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.5.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
