@@ -272,7 +272,10 @@ not demote `evidence_status` or `support.status`. See
 * HMC GLMs;
 * graph-by-effect posterior envelopes on the exact licensed DAG and
   `TemporalDag` query families described above;
-* same-design prior transfer;
+* same-design prior transfer (including licensed Bayesian Pulse,
+  single-step Sustained, and temporal `ResponseCurve` on explicit
+  `TemporalDag`, when a fixture names source cell, target cell, and
+  `PriorCatalog.filter_compatible`);
 * effect-level and mapped prior transfer;
 * prior catalogs and compatibility filtering;
 * power-prior mixtures;

@@ -317,6 +317,22 @@ redesigning it.
 PN/PS/PNS bounds are new estimands and stay unscheduled post-1.x work.
 [TODO.md](TODO.md) holds later 1.x work.
 
+## 1.6 — Temporal policies and per-horizon ID
+
+In progress on the `1.6.0` branch. See
+[release notes](docs/release-notes/v1.6.0.md). 1.5 is released; this cut is
+the rest of the temporal policy surface on the identification theory the
+handle already runs (`temporal.backdoor.unfolded`). No graph-posterior
+response mixture — that stays 2.0.
+
+Shipped so far on the branch: per-horizon `I(h)` for temporal mediation;
+licensed multi-step and joint Sequence overlays (nested Sequence refused);
+DBN-posterior mediation and multi-step Sustained mixtures that retain
+unidentified mass; licensed 1.3 observation pairs on Frequentist temporal
+curves; same-design and mapped prior transfer onto licensed Bayesian Pulse,
+single-step Sustained, and temporal `ResponseCurve` when a fixture names
+source cell, target cell, and `PriorCatalog.filter_compatible`.
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new
