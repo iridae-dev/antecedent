@@ -1345,6 +1345,22 @@ fn prepared_batch_cells_reuse_joint_plans() {
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
     assert!(results.iter().all(|r| r.estimate.ate.is_finite()));
+    let shared = prepared.shared_design().expect("prepare_cells must freeze SharedBatchDesign");
+    assert_eq!(shared.n_folds, 5);
+    let a = prepared.plans()[0].shared_design().expect("plan 0 shared design");
+    let b = prepared.plans()[1].shared_design().expect("plan 1 shared design");
+    assert!(
+        std::ptr::eq(a, b),
+        "cell pair family must hold one SharedBatchDesign, not isolated plans"
+    );
+    assert!(
+        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
+        "pair-family joint IF must be 2×2, not per-pair arm covariance"
+    );
+    assert!(results.iter().all(|r| r.estimate.adjusted_p_values.is_some()));
+    assert!(
+        results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
+    );
 }
 
 #[test]
@@ -2610,6 +2626,54 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     let batch_table = batch.estimate.score_table.as_ref().expect("batch cell.aipw scores");
     let batch_ix = antecedent_estimate::interaction_contrast(batch_table).unwrap();
     assert!(batch_ix.value.is_finite());
+}
+
+#[test]
+fn codetermined_prepare_cells_pair_family_shares_joint_if() {
+    let (data, background, query) = same_tier_joint_dgp(2_400, 17);
+    let schema = data.schema().clone();
+    let second = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: schema.id_of("y").unwrap(),
+        interventions: Arc::from([
+            Intervention::set(schema.id_of("t1").unwrap(), Value::f64(1.0)),
+            Intervention::set(schema.id_of("t2").unwrap(), Value::f64(0.0)),
+        ]),
+    });
+    let ctx = ExecutionContext::for_tests(17);
+    let solo = Study::tabular(data.clone())
+        .tiered_background(background.clone())
+        .unwrap()
+        .query(CausalQuery::Response(query.clone()))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let prepared = BatchStudy::tiered(data.clone(), background)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare_cells(&[query, second], &ctx)
+        .unwrap();
+    let shared = prepared.shared_design().expect("tiered prepare_cells shares a design");
+    assert_eq!(shared.n_folds, 5);
+    assert!(shared.covariate.is_some(), "same-tier pairs share Z={{z}}");
+    assert!(std::ptr::eq(
+        prepared.plans()[0].shared_design().expect("plan 0"),
+        prepared.plans()[1].shared_design().expect("plan 1"),
+    ));
+    let results = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(results.len(), 2);
+    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    assert!(
+        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
+        "CoDetermined pair family must publish family joint IF, not isolated per-pair plans"
+    );
+    assert!(results.iter().all(|r| r.estimate.adjusted_p_values.is_some()));
+    assert!(
+        results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
+    );
 }
 
 #[test]
