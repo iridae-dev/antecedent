@@ -1504,7 +1504,7 @@ def analyze_ate_tiered(
     outcome_functional: dict[str, Any] | None = None,
     latency: str | None = None,
     identifier: str | None = None,
-    validators: list[str] | None = None,
+    validators: list[Callable[..., Any]] | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
 ) -> AteAnalysisResult: ...
