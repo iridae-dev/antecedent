@@ -792,6 +792,11 @@ impl StudyBuilder {
             }
         }
 
+        if self.tiered.is_some() && self.identifier.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "TieredBackground selects its own identifier; omit identifier",
+            });
+        }
         if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
                 message: antecedent_estimate::POINT_CDE_UNLICENSED,
@@ -813,6 +818,7 @@ impl StudyBuilder {
                             } if interventions.len() >= 2
                         )
             );
+        let mut identification_cache = None;
         let cell_aipw =
             selected == Some(EstimatorId::CellAipw) || (selected.is_none() && codetermined_joint);
         if cell_aipw {
@@ -832,11 +838,16 @@ impl StudyBuilder {
                         message: "CoDetermined joint cells require estimator cell.aipw",
                     });
                 }
-                let identification = antecedent_identify::identify_tiered_joint(
-                    background,
-                    data_schema(&data),
-                    response,
-                )?;
+                let identification = match graph.as_admg() {
+                    Some(admg) => {
+                        antecedent_identify::identify_tiered_joint_on(background, admg, response)?
+                    }
+                    None => antecedent_identify::identify_tiered_joint(
+                        background,
+                        data_schema(&data),
+                        response,
+                    )?,
+                };
                 if !matches!(
                     identification.status,
                     antecedent_core::IdentificationStatus::NonparametricallyIdentified
@@ -847,6 +858,12 @@ impl StudyBuilder {
                         message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
                     });
                 }
+                let estimand = identification.estimands[0].clone();
+                identification_cache =
+                    Some(Arc::new(super::prepared::CachedStaticIdentification {
+                        identification,
+                        estimand,
+                    }));
             } else if graph_class != GraphClass::Dag {
                 return Err(CausalError::Unsupported {
                     message: "cell-AIPW requires a static DAG with one certified common adjustment set",
@@ -1024,7 +1041,7 @@ impl StudyBuilder {
             custom_validators: self.custom_validators,
             latency_mode,
             stage_sink: self.stage_sink,
-            identification_cache: None,
+            identification_cache,
             mediation_adjustment_cache: None,
             pag_identification_cache: None,
             cpdag_identification_cache: None,

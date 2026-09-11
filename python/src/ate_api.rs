@@ -949,16 +949,7 @@ fn compile_ate_batch(
         ate_queries.push(query);
     }
     let mut batch = if let Some(tiers) = tiers {
-        let within =
-            match within_tier.as_deref().unwrap_or("codetermined").to_ascii_lowercase().as_str() {
-                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
-                "unknown" => antecedent_graph::WithinTier::Unknown,
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "within_tier must be codetermined|unknown, got {other}"
-                    )));
-                }
-            };
+        let within = crate::parse_within_tier(within_tier.as_deref())?;
         let named: Vec<Vec<&str>> =
             tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
         let background =
@@ -2865,6 +2856,11 @@ fn analyze_ate_graph_posterior(
     bootstrap=0,
     threads=1,
     outcome_functional=None,
+    latency=None,
+    identifier=None,
+    validators=None,
+    cancel=None,
+    on_progress=None,
 ))]
 fn analyze_ate_tiered(
     py: Python<'_>,
@@ -2882,21 +2878,37 @@ fn analyze_ate_tiered(
     bootstrap: u32,
     threads: u32,
     outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+    latency: Option<String>,
+    identifier: Option<String>,
+    validators: Option<Bound<'_, PyAny>>,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AteAnalysisResult> {
+    if identifier.is_some() {
+        return Err(PyValueError::new_err(
+            "TieredBackground selects its own identifier; omit identifier",
+        ));
+    }
+    if validators.is_some() {
+        return Err(PyValueError::new_err(
+            "analyze_ate_tiered does not take validators; omit validators",
+        ));
+    }
+    if cancel.is_some() {
+        return Err(PyValueError::new_err("analyze_ate_tiered does not take cancel; omit cancel"));
+    }
+    if on_progress.is_some() {
+        return Err(PyValueError::new_err(
+            "analyze_ate_tiered does not take on_progress; omit on_progress",
+        ));
+    }
+    let latency_mode = parse_latency_mode(latency.as_deref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let within = match within_tier.to_ascii_lowercase().as_str() {
-            "codetermined" => antecedent_graph::WithinTier::CoDetermined,
-            "unknown" => antecedent_graph::WithinTier::Unknown,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "within_tier must be codetermined|unknown, got {other}"
-                )));
-            }
-        };
+        let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
         let named: Vec<Vec<&str>> =
             tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
         let background =
@@ -2914,6 +2926,9 @@ fn analyze_ate_tiered(
             .query(query)
             .refute(suite)
             .bootstrap_replicates(bootstrap);
+        if let Some(mode) = latency_mode {
+            builder = builder.latency_mode(mode);
+        }
         if let Some(est) = estimator {
             builder = builder.estimator(
                 est.parse::<antecedent::EstimatorId>()

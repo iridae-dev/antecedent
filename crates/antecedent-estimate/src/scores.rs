@@ -310,9 +310,6 @@ impl ScoreTable {
         let mut event_n_eff = Vec::new();
         let mut threshold_supported = Vec::new();
         for (j, col) in self.columns.iter().enumerate() {
-            let radius = critical_value * summary.covariance.se(j);
-            lower.push(summary.means[j] - radius);
-            upper.push(summary.means[j] + radius);
             let (ne, n_non) = kish_threshold_support(
                 &self.observed_arm,
                 &self.observed_outcome,
@@ -321,10 +318,17 @@ impl ScoreTable {
                 col.threshold,
             );
             event_n_eff.push(ne);
-            threshold_supported.push(
-                ne >= MIN_THRESHOLD_EVENTS
-                    && (col.threshold.is_none() || n_non >= MIN_THRESHOLD_EVENTS),
-            );
+            let supported = ne >= MIN_THRESHOLD_EVENTS
+                && (col.threshold.is_none() || n_non >= MIN_THRESHOLD_EVENTS);
+            threshold_supported.push(supported);
+            if !supported {
+                lower.push(f64::NAN);
+                upper.push(f64::NAN);
+                continue;
+            }
+            let radius = critical_value * summary.covariance.se(j);
+            lower.push(summary.means[j] - radius);
+            upper.push(summary.means[j] + radius);
         }
         Ok(ScoreInference {
             raw_means: summary.means.to_vec(),

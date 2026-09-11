@@ -1479,6 +1479,11 @@ def analyze_ate_tiered(
     bootstrap: int = 0,
     threads: int = 1,
     outcome_functional: dict[str, Any] | None = None,
+    latency: str | None = None,
+    identifier: str | None = None,
+    validators: list[str] | None = None,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_arrow_c(
     names: list[str],

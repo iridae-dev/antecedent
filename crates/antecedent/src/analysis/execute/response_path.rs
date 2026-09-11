@@ -285,8 +285,16 @@ impl super::Study {
         }
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification =
-                    antecedent_identify::identify_tiered_joint(background, data.schema(), query)?;
+                let identification = match self.graph.as_admg() {
+                    Some(admg) => {
+                        antecedent_identify::identify_tiered_joint_on(background, admg, query)?
+                    }
+                    None => antecedent_identify::identify_tiered_joint(
+                        background,
+                        data.schema(),
+                        query,
+                    )?,
+                };
                 let estimand =
                     identification.estimands.first().cloned().ok_or(CausalError::Unsupported {
                         message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
@@ -366,14 +374,45 @@ impl super::Study {
         }
         let est = antecedent_estimate::CellSaturatedAipw::new();
         let continuous = None;
+        let (fold_ids, design) = match self.shared_batch_design.as_ref() {
+            Some(shared) => {
+                let ids: Vec<_> = treatments
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(*outcome))
+                    .chain(estimand.adjustment_set.iter().copied())
+                    .collect();
+                let row_index = match data.complete_case_mask(&ids) {
+                    Ok(mask) => mask
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, &keep)| {
+                            keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
+                        })
+                        .collect::<Vec<_>>(),
+                    Err(_) => Vec::new(),
+                };
+                let folds =
+                    if row_index.is_empty() { None } else { Some(shared.folds_for(&row_index)?) };
+                let design = if row_index.is_empty() {
+                    None
+                } else {
+                    shared.design_for(&estimand.adjustment_set, &row_index)?
+                };
+                (folds, design)
+            }
+            None => (None, None),
+        };
         let table = est
-            .fit_scores(
+            .fit_scores_with_assignment(
                 data,
                 &treatments,
                 *outcome,
                 &estimand.adjustment_set,
                 &query.outcome_functional,
                 continuous,
+                fold_ids.as_deref(),
+                design.as_deref(),
             )
             .map_err(CausalError::from)?;
         let (summary, monotone_rearranged, mut functional_diagnostics) =

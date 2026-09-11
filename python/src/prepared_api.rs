@@ -377,15 +377,7 @@ impl PyPreparedAnalysis {
             })?),
         };
         detach_catch(py, move || {
-            let within = match within_tier.to_ascii_lowercase().as_str() {
-                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
-                "unknown" => antecedent_graph::WithinTier::Unknown,
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "within_tier must be codetermined|unknown, got {other}"
-                    )));
-                }
-            };
+            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
             let named: Vec<Vec<&str>> =
                 tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
             let background =
@@ -1959,15 +1951,7 @@ impl PyPreparedAnalysis {
         };
 
         detach_catch(py, move || {
-            let within = match within_tier.to_ascii_lowercase().as_str() {
-                "codetermined" => antecedent_graph::WithinTier::CoDetermined,
-                "unknown" => antecedent_graph::WithinTier::Unknown,
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "within_tier must be codetermined|unknown, got {other}"
-                    )));
-                }
-            };
+            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
             let named: Vec<Vec<&str>> =
                 tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
             let background =

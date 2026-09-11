@@ -56,6 +56,21 @@ pub(crate) use temporal_api::{
     RpcmciDiscoverySummary,
 };
 
+pub(crate) fn parse_within_tier(
+    within_tier: Option<&str>,
+) -> PyResult<antecedent_graph::WithinTier> {
+    let Some(raw) = within_tier else {
+        return Err(PyValueError::new_err("within_tier is required when tiers are supplied"));
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "codetermined" => Ok(antecedent_graph::WithinTier::CoDetermined),
+        "unknown" => Ok(antecedent_graph::WithinTier::Unknown),
+        other => Err(PyValueError::new_err(format!(
+            "within_tier must be codetermined|unknown, got {other}"
+        ))),
+    }
+}
+
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
 type PriorSensitivityFields =
