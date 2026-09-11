@@ -74,5 +74,5 @@ Unexplained regressions beyond documented budgets block merge.
 
 Cached derivative estimation and refitted GCM unit counterfactual execution are
 measured in `antecedent/benches/staged_handle.rs`.
-[Baseline](../benches/baselines/staged_handle.md). Preparation is excluded from
+[Baseline](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/staged_handle.md). Preparation is excluded from
 these timings; supplied-data estimation remains inside each iteration.
