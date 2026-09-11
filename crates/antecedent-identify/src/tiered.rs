@@ -170,7 +170,7 @@ pub fn identify_tiered_joint(
     }
 }
 
-/// Joint ID on an already-materialized CoDetermined closure ADMG.
+/// Joint ID on an already-materialized `CoDetermined` closure ADMG.
 ///
 /// # Errors
 ///

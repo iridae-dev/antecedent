@@ -830,9 +830,7 @@ def _joint_cell_batch_specs(
             else [supplied]
         )
         if len(interventions) < 2:
-            raise CausalUnsupportedError(
-                "prepare_cells requires joint InterventionResponse"
-            )
+            raise CausalUnsupportedError("prepare_cells requires joint InterventionResponse")
         treatments: list[str] = []
         kinds: list[str] = []
         parameters: list[list[float]] = []

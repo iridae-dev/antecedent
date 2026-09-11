@@ -38,7 +38,7 @@ pub(crate) fn response_ate_witness(
     Ok(AverageEffectQuery::binary_ate(treatment, outcome))
 }
 
-/// Requested Set level for a single-treatment InterventionResponse.
+/// Requested Set level for a single-treatment `InterventionResponse`.
 pub(crate) fn intervention_response_set(
     query: &ResponseQuery,
 ) -> Option<(antecedent_core::VariableId, antecedent_core::VariableId, Value)> {
@@ -336,7 +336,7 @@ mod tests {
             let pretty = result.arena.pretty(id);
             assert!(pretty.contains("do("), "{pretty}");
             assert!(
-                pretty.contains(&level.to_string()) || pretty.contains("0") || pretty.contains("1"),
+                pretty.contains(&level.to_string()) || pretty.contains('0') || pretty.contains('1'),
                 "{pretty}"
             );
             assert!(!pretty.contains('−'), "{pretty}");
