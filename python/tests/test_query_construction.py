@@ -116,6 +116,13 @@ def test_temporal_mediation_effect_three_identifier_prefix():
     assert (q.treatment, q.mediator, q.outcome) == ("t", "m", "y")
     assert q.contrast == "direct"
     assert q.control_level == 0.1
+    assert list(q.horizons) == [1]
+    multi = TemporalMediationEffect("t", "m", "y", horizons=[1, 2])
+    assert list(multi.horizons) == [1, 2]
+    with pytest.raises(CausalValueError, match="non-empty"):
+        TemporalMediationEffect("t", "m", "y", horizons=())
+    with pytest.raises(CausalValueError, match="strictly increasing"):
+        TemporalMediationEffect("t", "m", "y", horizons=[2, 2])
 
 
 @pytest.mark.parametrize("cls, positional, kind, extra", _CASES, ids=_IDS)

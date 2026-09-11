@@ -204,3 +204,23 @@ fn dynamic_policy_and_planned_populations() {
         .with_target_population(TargetPopulation::CustomDistribution(DistributionRef::from_raw(3)));
     dist.validate().unwrap();
 }
+
+#[test]
+fn mediation_binary_defaults_to_horizon_one() {
+    let q = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    );
+    q.validate().unwrap();
+    assert_eq!(q.horizons.as_ref(), &[1]);
+    let multi = q.clone().with_horizons([1u32, 2]).unwrap();
+    assert_eq!(multi.horizons.as_ref(), &[1, 2]);
+    assert!(matches!(
+        q.clone().with_horizons(Vec::<u32>::new()),
+        Err(QueryError::InvalidResponse(_))
+    ));
+    assert!(matches!(q.clone().with_horizons([0u32]), Err(QueryError::NonPositiveHorizon)));
+    assert!(matches!(q.with_horizons([2u32, 2]), Err(QueryError::InvalidResponse(_))));
+}

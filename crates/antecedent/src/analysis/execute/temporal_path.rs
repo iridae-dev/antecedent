@@ -7,20 +7,20 @@ impl super::Study {
         &self,
         graph: &TemporalDag,
         query: &antecedent_core::MediationQuery,
+        horizon: u32,
     ) -> Result<Arc<[antecedent_data::LaggedColumn]>, CausalError> {
-        if let Some(adjustment) = &self.mediation_adjustment_cache {
-            return Ok(Arc::clone(adjustment));
+        if let Some(entry) =
+            self.temporal_identification_cache.as_deref().and_then(|cache| cache.get(horizon))
+        {
+            return Ok(lagged_adjustment_from_entry(entry));
         }
-        let nodes = TemporalMediationIdentifier::adjustment_nodes(graph, query)
-            .map_err(CausalError::from)?;
-        Ok(nodes
-            .iter()
-            .map(|key| antecedent_data::LaggedColumn {
-                variable: key.variable,
-                lag: antecedent_core::Lag::from_raw(key.offset.unsigned_abs()),
-            })
-            .collect::<Vec<_>>()
-            .into())
+        let ider = TemporalMediationIdentifier {
+            allow_natural_controlled_alias: true,
+            ..TemporalMediationIdentifier::new()
+        };
+        let (_, temporal) =
+            ider.identify_with_horizon(graph, query, horizon).map_err(CausalError::from)?;
+        Ok(lagged_adjustment_from_temporal(&temporal))
     }
 
     pub(super) fn execute_temporal(
@@ -303,49 +303,81 @@ impl super::Study {
             return self.execute_bayesian_mediation(data, graph, query, physical, cfg, ctx);
         }
         let started = Instant::now();
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = TemporalMediationIdentifier {
-                    allow_natural_controlled_alias: true,
-                    ..TemporalMediationIdentifier::new()
-                }
-                .identify(graph, query)
-                .map_err(CausalError::from)?;
-                let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
-                Ok((identification, estimand))
-            })?;
-        require_identified(&identification)?;
-        let adjustment = self.mediation_adjustment(graph, query)?;
+        let (cache, identify_cached) =
+            if let Some(cache) = self.temporal_identification_cache.clone() {
+                (cache, true)
+            } else {
+                report_identify_compute(ctx);
+                (
+                    Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
+                        graph,
+                        query,
+                        EstimatorId::TemporalMediation,
+                    )?),
+                    false,
+                )
+            };
+        let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
+            self.mediation_adjustment(graph, query, horizon)
+        })?;
+        let mut extra_diagnostics = Vec::new();
+        if mediation_horizon_z_differs(&clicks) {
+            extra_diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.horizon_dependent",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "adjustment sets differ across requested horizons; each contrast uses I(h) \
+                 identified for that horizon, not a shared max-horizon set",
+            ));
+        }
         let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let mediation = est
-            .estimate_with_adjustment(data, &estimand, query, &adjustment, &[], ctx)
-            .map_err(CausalError::from)?;
+        let mut published = None;
+        for click in &clicks {
+            require_identified(&click.identification)?;
+            let mut qh = query.clone();
+            qh.horizons = Arc::from([click.horizon]);
+            let mediation = est
+                .estimate_with_adjustment(data, &click.estimand, &qh, &click.adjustment, &[], ctx)
+                .map_err(CausalError::from)?;
+            if published.is_none() {
+                published = Some((click, qh, mediation));
+            }
+        }
+        let (click, qh, mediation) = published.ok_or_else(|| CausalError::Compile {
+            message: "temporal mediation requires at least one horizon".into(),
+        })?;
         let estimate = mediation.effect.clone();
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
             antecedent_validate::mediation::refute_temporal_mediation_adjusted(
                 data,
-                &estimand,
-                query,
+                &click.estimand,
+                &qh,
                 &mediation,
                 self.refute == RefuteSuite::Full,
-                &adjustment,
+                &click.adjustment,
                 ctx,
             )
             .map_err(CausalError::from)?
         };
+        let certificate = crate::Identification::Point {
+            result: click.identification.clone(),
+            temporal_indexer: Some(click.indexer.clone()),
+            strategy: IdentifierId::Frontdoor,
+            structure_version: self.graph.version(),
+        };
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            identification,
-            estimand,
+            identification: click.identification.clone(),
+            estimand: click.estimand.clone(),
             estimate,
             identifier_id: IdentifierId::Frontdoor,
             estimator_id: EstimatorId::TemporalMediation,
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics,
             refutations,
             distribution: None,
             mediation: Some(mediation),
@@ -354,6 +386,7 @@ impl super::Study {
             cancelled: false,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
+                certificate: Some(certificate),
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_mediation",
                     "identify.temporal_mediation",
@@ -386,21 +419,64 @@ impl super::Study {
                 message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
             });
         }
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let id = TemporalMediationIdentifier {
-                    allow_natural_controlled_alias: true,
-                    ..TemporalMediationIdentifier::new()
-                }
-                .identify(graph, query)
-                .map_err(CausalError::from)?;
-                let estimand = select_estimand(&id, EstimatorId::BayesianTemporalMediation)?;
-                Ok((id, estimand))
-            })?;
-        let adjustment = self.mediation_adjustment(graph, query)?;
-        let preparations =
-            prepare_temporal_mediation_adjusted(data, &estimand, query, &adjustment, ctx)
-                .map_err(CausalError::from)?;
+        let (cache, identify_cached) =
+            if let Some(cache) = self.temporal_identification_cache.clone() {
+                (cache, true)
+            } else {
+                report_identify_compute(ctx);
+                (
+                    Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
+                        graph,
+                        query,
+                        EstimatorId::BayesianTemporalMediation,
+                    )?),
+                    false,
+                )
+            };
+        let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
+            self.mediation_adjustment(graph, query, horizon)
+        })?;
+        if clicks.is_empty() {
+            return Err(CausalError::Compile {
+                message: "temporal mediation requires at least one horizon".into(),
+            });
+        }
+        let mut extra_diagnostics = Vec::new();
+        if mediation_horizon_z_differs(&clicks) {
+            extra_diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.horizon_dependent",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "adjustment sets differ across requested horizons; each contrast uses I(h) \
+                 identified for that horizon, not a shared max-horizon set",
+            ));
+        }
+        // Click every I(h) so a multi-horizon Bayesian run does not estimate
+        // h=1 under I(2)'s Z. The scalar API publishes the first horizon.
+        let mut published = None;
+        for click in &clicks {
+            require_identified(&click.identification)?;
+            let mut qh = query.clone();
+            qh.horizons = Arc::from([click.horizon]);
+            let preparations = prepare_temporal_mediation_adjusted(
+                data,
+                &click.estimand,
+                &qh,
+                &click.adjustment,
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+            if published.is_none() {
+                published = Some((qh, preparations));
+            }
+        }
+        let click = &clicks[0];
+        let identification = click.identification.clone();
+        let estimand = click.estimand.clone();
+        let adjustment = Arc::clone(&click.adjustment);
+        let (qh, preparations) = published.ok_or_else(|| CausalError::Compile {
+            message: "temporal mediation requires at least one horizon".into(),
+        })?;
         let estimator = bayesian_gcomp(cfg, ctx);
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
         let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
@@ -422,13 +498,9 @@ impl super::Study {
                 .collect()
         };
         let mechanisms = fit(cfg.prior_scale)?;
-        let mut posterior = compose_temporal_mediation(
-            &mechanisms[0],
-            &mechanisms[1],
-            query,
-            identification.status,
-        )
-        .map_err(CausalError::from)?;
+        let mut posterior =
+            compose_temporal_mediation(&mechanisms[0], &mechanisms[1], &qh, identification.status)
+                .map_err(CausalError::from)?;
         let estimate = effect_from_posterior(&posterior)?;
         let mediation = TemporalMediationEstimate {
             effect: estimate.clone(),
@@ -442,7 +514,7 @@ impl super::Study {
             antecedent_validate::mediation::refute_temporal_mediation_adjusted(
                 data,
                 &estimand,
-                query,
+                &qh,
                 &mediation,
                 self.refute == RefuteSuite::Full,
                 &adjustment,
@@ -484,7 +556,7 @@ impl super::Study {
             for &scale in sensitivity.scales.iter() {
                 let posts = fit(scale)?;
                 let post =
-                    compose_temporal_mediation(&posts[0], &posts[1], query, identification.status)
+                    compose_temporal_mediation(&posts[0], &posts[1], &qh, identification.status)
                         .map_err(CausalError::from)?;
                 means.push(post.summaries.mean[0]);
                 sds.push(post.summaries.sd[0]);
@@ -499,15 +571,24 @@ impl super::Study {
             posterior = with_prior_sensitivity(posterior, summary);
         }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical, identification, estimand, estimate,
+            physical, identification: identification.clone(), estimand, estimate,
             identifier_id: IdentifierId::Frontdoor, estimator_id: EstimatorId::BayesianTemporalMediation,
             treatment: query.treatment, outcome: query.outcome, identify_cached,
-            extra_diagnostics: vec![Diagnostic::new("estimate.mediation.bayesian", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; natural effects use the linear no-interaction alias")],
+            extra_diagnostics: {
+                extra_diagnostics.push(Diagnostic::new("estimate.mediation.bayesian", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                    "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; natural effects use the linear no-interaction alias"));
+                extra_diagnostics
+            },
             refutations, distribution: None, mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
             bootstrap_replicates_ok: None, cancelled: false, early_stopped: false,
             extras: IdentifiedExecuteExtras { posterior: Some(posterior), predictive_checks,
+                certificate: Some(crate::Identification::Point {
+                    result: identification.clone(),
+                    temporal_indexer: Some(click.indexer.clone()),
+                    strategy: IdentifierId::Frontdoor,
+                    structure_version: self.graph.version(),
+                }),
                 identify_provenance: Some(provenance_ids("identify.temporal_mediation", "identify.temporal_mediation")),
                 ..Default::default() },
         }))
@@ -911,6 +992,107 @@ fn aggregate_temporal_horizon_evidence<'a>(
         });
     }
     Ok((aggregate_status, assumptions))
+}
+
+struct MediationHorizonClick {
+    horizon: u32,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    indexer: TemporalIndexer,
+    adjustment: Arc<[antecedent_data::LaggedColumn]>,
+}
+
+fn mediation_horizon_clicks(
+    cache: &crate::analysis::prepared::CachedTemporalIdentification,
+    query: &antecedent_core::MediationQuery,
+    mut adjustment_for: impl FnMut(u32) -> Result<Arc<[antecedent_data::LaggedColumn]>, CausalError>,
+) -> Result<Vec<MediationHorizonClick>, CausalError> {
+    let mut clicks = Vec::with_capacity(query.horizons.len());
+    for &horizon in query.horizons.iter() {
+        let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
+            message: format!(
+                "prepared temporal mediation identification missing horizon {horizon}"
+            ),
+        })?;
+        clicks.push(MediationHorizonClick {
+            horizon,
+            identification: entry.identification.clone(),
+            estimand: entry.estimand.clone(),
+            indexer: entry.indexer.clone(),
+            adjustment: adjustment_for(horizon)?,
+        });
+    }
+    if clicks.is_empty() {
+        return Err(CausalError::Compile {
+            message: "temporal mediation requires at least one horizon".into(),
+        });
+    }
+    Ok(clicks)
+}
+
+fn lagged_adjustment_from_entry(
+    entry: &crate::analysis::prepared::CachedTemporalHorizonIdentification,
+) -> Arc<[antecedent_data::LaggedColumn]> {
+    let outcome_offset = i32::try_from(entry.horizon.saturating_sub(1)).unwrap_or(0);
+    entry
+        .estimand
+        .adjustment_set
+        .iter()
+        .filter_map(|&dense| {
+            let key = entry.indexer.key_of(dense.raw()).ok()?;
+            lagged_column_relative_to_outcome(key, outcome_offset)
+        })
+        .collect::<Vec<_>>()
+        .into()
+}
+
+fn lagged_column_relative_to_outcome(
+    key: antecedent_core::TemporalNodeKey,
+    outcome_offset: i32,
+) -> Option<antecedent_data::LaggedColumn> {
+    let lag = outcome_offset.checked_sub(key.offset)?;
+    if lag < 0 {
+        return None;
+    }
+    Some(antecedent_data::LaggedColumn {
+        variable: key.variable,
+        lag: antecedent_core::Lag::from_raw(u32::try_from(lag).ok()?),
+    })
+}
+
+fn mediation_horizon_z_differs(clicks: &[MediationHorizonClick]) -> bool {
+    let Some(first) = clicks.first() else {
+        return false;
+    };
+    clicks.iter().skip(1).any(|click| click.adjustment.as_ref() != first.adjustment.as_ref())
+}
+
+fn lagged_adjustment_from_temporal(
+    temporal: &antecedent_identify::TemporalIdentificationResult,
+) -> Arc<[antecedent_data::LaggedColumn]> {
+    let outcome_offset = match &temporal.result.query {
+        CausalQuery::TemporalEffect(q) => q.outcome_offset(),
+        CausalQuery::Mediation(q) => {
+            i32::try_from(q.horizons.first().copied().unwrap_or(1).saturating_sub(1)).unwrap_or(0)
+        }
+        _ => 0,
+    };
+    temporal
+        .result
+        .estimands
+        .first()
+        .map(|estimand| {
+            estimand
+                .adjustment_set
+                .iter()
+                .filter_map(|&dense| {
+                    let key = temporal.indexer.key_of(dense.raw()).ok()?;
+                    lagged_column_relative_to_outcome(key, outcome_offset)
+                })
+                .collect::<Vec<_>>()
+                .into()
+        })
+        .unwrap_or_else(|| Arc::from([]))
 }
 
 fn horizon_adjustment_sets_differ(

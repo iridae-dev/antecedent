@@ -103,8 +103,12 @@ pub fn refute_temporal_mediation_adjusted(
     }
     // Binary treatment permits a direct empirical mediator-support check. This
     // is a necessary range diagnostic, not a proof of conditional positivity.
+    let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
     let mut columns = vec![
-        LaggedColumn { variable: query.treatment, lag: antecedent_core::Lag::from_raw(1) },
+        LaggedColumn {
+            variable: query.treatment,
+            lag: antecedent_core::Lag::from_raw(treatment_lag),
+        },
         LaggedColumn { variable: mediator, lag: antecedent_core::Lag::CONTEMPORANEOUS },
         LaggedColumn { variable: query.outcome, lag: antecedent_core::Lag::CONTEMPORANEOUS },
     ];

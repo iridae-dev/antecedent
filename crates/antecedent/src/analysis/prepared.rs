@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention,
+    AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention, MediationQuery,
     OutcomeFunctional, TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData, TemporalIndexer, TimeSeriesData};
@@ -377,8 +377,11 @@ pub struct CachedTemporalHorizonIdentification {
 /// For temporal [`CausalQuery::Response`], identification + lag indexer are
 /// frozen once per unique requested horizon. For scalar
 /// [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained), they are
-/// frozen for that query's horizon. Estimate clicks reuse the cache and must
-/// not re-identify. A union of per-horizon adjustment sets is not treated as
+/// frozen for that query's horizon. For [`CausalQuery::Mediation`]
+/// (`TemporalMediationEffect`) the same shape caches one `I(h)` per requested
+/// horizon: path-product method `temporal_mediation.*` with that horizon's
+/// unfolded backdoor `Z`. Estimate clicks reuse the cache and must not
+/// re-identify. A union of per-horizon adjustment sets is not treated as
 /// one shared `Z`.
 #[derive(Clone, Debug)]
 pub struct CachedTemporalIdentification {
@@ -1043,7 +1046,7 @@ impl Study {
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
     ///   on a supplied DBN graph posterior
     /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
-    ///   supplied [`GraphClass::TemporalDag`] (static-style cache, not `I(h)`)
+    ///   supplied [`GraphClass::TemporalDag`] (one `I(h)` per requested horizon)
     ///
     /// Discovery inputs and review-required compiles are refused.
     ///
@@ -1082,13 +1085,9 @@ impl Study {
                     build_dbn_posterior_identification_cache(posterior, &variables, query, ctx)?,
                 ));
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query), None) => {
-                analysis.identification_cache =
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
+                analysis.temporal_identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
-                if let Some(graph) = self.graph.as_temporal_dag() {
-                    analysis.mediation_adjustment_cache =
-                        Some(self.mediation_adjustment(graph, query)?);
-                }
             }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
@@ -1505,14 +1504,11 @@ impl Study {
         Ok(Some(CachedTemporalClassIdentification { envelope }))
     }
 
-    /// Single-shot temporal mediation identification (not per-horizon `I(h)`).
-    ///
-    /// Mirrors `execute_temporal_mediation`'s identify+select step so a prepared
-    /// click reuses [`CachedStaticIdentification`] the same way ConditionalEffect does.
+    /// One `I(h)` per requested mediation horizon (path-product + that horizon's backdoor `Z`).
     fn prepare_temporal_mediation_identification(
         &self,
-    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
-        use crate::strategy_table::{EstimatorId, select_estimand};
+    ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
+        use crate::strategy_table::EstimatorId;
         let CausalQuery::Mediation(query) = &self.query else {
             return Ok(None);
         };
@@ -1522,19 +1518,15 @@ impl Study {
         let graph = self.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
             message: "temporal mediation prepare requires TemporalDag".into(),
         })?;
-        let identification = TemporalMediationIdentifier {
-            allow_natural_controlled_alias: true,
-            ..TemporalMediationIdentifier::new()
-        }
-        .identify(graph, query)
-        .map_err(CausalError::from)?;
-        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            EstimatorId::BayesianTemporalMediation
-        } else {
-            EstimatorId::TemporalMediation
-        };
-        let estimand = select_estimand(&identification, estimator_id)?;
-        Ok(Some(CachedStaticIdentification { identification, estimand }))
+        Ok(Some(identify_temporal_mediation_horizons(
+            graph,
+            query,
+            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                EstimatorId::BayesianTemporalMediation
+            } else {
+                EstimatorId::TemporalMediation
+            },
+        )?))
     }
 
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
@@ -1805,6 +1797,37 @@ pub(crate) fn identify_temporal_response_horizons(
             identification: id_res.result,
             estimand,
             indexer: id_res.indexer,
+        });
+    }
+    Ok(CachedTemporalIdentification { by_horizon: Arc::from(by_horizon) })
+}
+
+pub(crate) fn identify_temporal_mediation_horizons(
+    graph: &TemporalDag,
+    query: &MediationQuery,
+    estimator_id: crate::strategy_table::EstimatorId,
+) -> Result<CachedTemporalIdentification, CausalError> {
+    use crate::strategy_table::select_estimand;
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    if query.horizons.is_empty() {
+        return Err(CausalError::Compile {
+            message: "temporal mediation requires at least one horizon".into(),
+        });
+    }
+    let ider = TemporalMediationIdentifier {
+        allow_natural_controlled_alias: true,
+        ..TemporalMediationIdentifier::new()
+    };
+    let mut by_horizon = Vec::with_capacity(query.horizons.len());
+    for &horizon in query.horizons.iter() {
+        let (identification, temporal) =
+            ider.identify_with_horizon(graph, query, horizon).map_err(CausalError::from)?;
+        let estimand = select_estimand(&identification, estimator_id)?;
+        by_horizon.push(CachedTemporalHorizonIdentification {
+            horizon,
+            identification,
+            estimand,
+            indexer: temporal.indexer,
         });
     }
     Ok(CachedTemporalIdentification { by_horizon: Arc::from(by_horizon) })

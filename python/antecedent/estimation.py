@@ -1527,6 +1527,7 @@ class PreparedAnalysis:
                 contrast=query.contrast,
                 control_level=query.control_level,
                 active_level=query.active_level,
+                horizons=list(query.horizons or (1,)),
                 **_prepared_inference_kwargs(inference),
                 refute=coerce_refute(refute),
                 seed=seed,
