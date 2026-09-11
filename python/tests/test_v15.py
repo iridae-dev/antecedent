@@ -569,6 +569,112 @@ def test_codetermined_joint_cells_are_cell_aipw():
         )
 
 
+def _codetermined_pair_family(n: int = 2000, seed: int = 17):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    latent = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z + 0.7 * latent)))).astype(
+        float
+    )
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z + 0.65 * latent)))).astype(
+        float
+    )
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "t1": t1, "t2": t2, "y": y}
+    background = TieredBackground(
+        tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.CODETERMINED
+    )
+    q11 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
+    q10 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 0.0)])
+    return data, background, q11, q10
+
+
+def test_prepared_batch_prepare_cells_codetermined_pair_family():
+    data, background, q11, q10 = _codetermined_pair_family()
+    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+        data,
+        graph=background,
+        queries=[q11, q10],
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    design = batch.shared_design
+    assert design is not None
+    assert design.n_folds == 5
+    assert design.shares_covariates
+    assert not design.shares_propensity
+    first, second = batch.estimate(data)
+    assert first.estimate.joint_covariance is not None
+    assert len(first.estimate.joint_covariance) == 2
+    assert second.estimate.joint_covariance is not None
+    assert len(second.estimate.joint_covariance) == 2
+    assert first.estimate.adjusted_p_values is not None
+    assert second.estimate.adjusted_p_values is not None
+    assert first.estimate.simultaneous_interval is not None
+    assert any(d.startswith("batch.joint_if:") for d in first.diagnostics)
+    solo = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        query=q11,
+        graph=background,
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    ).estimate(data)
+    fresh = antecedent.analyze(
+        data,
+        graph=background,
+        query=q11,
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
+    assert first.estimate.ate == pytest.approx(fresh.estimate, abs=1e-12)
+    unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
+    with pytest.raises((CausalUnsupportedError, CausalIdentifyError), match="no single ADMG"):
+        antecedent.estimation.PreparedBatch.prepare_cells(
+            data,
+            graph=unknown,
+            queries=[q11],
+            estimator="cell.aipw",
+            refute="none",
+            bootstrap=0,
+        )
+
+
+def test_prepared_batch_prepare_cells_dag_multi_pair():
+    rng = np.random.default_rng(618)
+    n = 3200
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z)))).astype(float)
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.8 * np.exp(rng.normal(size=n)) - 0.8
+    data = {"z": z, "t1": t1, "t2": t2, "y": y}
+    graph = antecedent.Dag.from_edges(
+        ["z", "t1", "t2", "y"],
+        [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+    )
+    q11 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
+    q10 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 0.0)])
+    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+        data,
+        graph=graph,
+        queries=[q11, q10],
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    first, second = batch.estimate(data)
+    assert len(first.estimate.joint_covariance) == 2
+    assert first.estimate.adjusted_p_values is not None
+    solo = antecedent.estimation.PreparedAnalysis.prepare(
+        data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
+    ).estimate(data)
+    assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
+    assert np.isfinite(second.estimate.ate)
+
+
 def test_unrecorded_batch_has_no_invented_winner():
     data = _binary_confounded(300)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
