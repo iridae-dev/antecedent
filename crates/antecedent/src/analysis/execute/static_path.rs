@@ -583,12 +583,15 @@ impl super::Study {
             &query.inner.outcome_functional,
         )?;
         let est = ConditionalLinearAdjustment::new();
-        let estimate = est.estimate(&data_est, &estimand, query, ctx).map_err(CausalError::from)?;
+        let mut mean_query = query.clone();
+        mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+        let estimate =
+            est.estimate(&data_est, &estimand, &mean_query, ctx).map_err(CausalError::from)?;
         let estimate = super::super::helpers::attach_conditional_functional_grid(
             estimate, data, query, &estimand, ctx,
         )?;
         let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, extra_diagnostics) = run_refuters(
+        let (refutations, mut extra_diagnostics) = run_refuters(
             data,
             &estimand,
             &query.inner,
@@ -601,6 +604,13 @@ impl super::Study {
             &self.custom_validators,
             None,
         )?;
+        if let Some(diagnostic) = super::super::helpers::conditional_quantile_grid_diagnostic(
+            data,
+            query,
+            estimand.adjustment_set.iter().copied(),
+        )? {
+            extra_diagnostics.push(diagnostic);
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -739,6 +749,13 @@ impl super::Study {
         started: Instant,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
+        if query.inner.outcome_functional.quantile_level().is_some()
+            && envelope.unidentified_weight.0 > 1e-12
+        {
+            return Err(CausalError::Unsupported {
+                message: "conditional quantile mixture requires zero unidentified completion mass",
+            });
+        }
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
@@ -806,8 +823,10 @@ impl super::Study {
             if estimand.method.as_ref().starts_with("generalized.adjustment") {
                 estimand.method = Arc::from("backdoor.adjustment");
             }
+            let mut mean_query = query.clone();
+            mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
             let estimate =
-                est.estimate(&data_est, &estimand, query, ctx).map_err(CausalError::from)?;
+                est.estimate(&data_est, &estimand, &mean_query, ctx).map_err(CausalError::from)?;
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
@@ -857,7 +876,9 @@ impl super::Study {
                 estimate.influence = Some(inf);
             }
         }
-        if query.inner.outcome_functional.thresholds().is_some() {
+        if query.inner.outcome_functional.thresholds().is_some()
+            || query.inner.outcome_functional.quantile_level().is_some()
+        {
             estimate = super::attach_class_conditional_functional_grid(
                 estimate,
                 data,
@@ -865,6 +886,13 @@ impl super::Study {
                 &grid_atoms,
                 ctx,
             )?;
+        }
+        if let Some(diagnostic) = super::super::helpers::conditional_quantile_grid_diagnostic(
+            data,
+            query,
+            grid_atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
+        )? {
+            diagnostics.push(diagnostic);
         }
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
