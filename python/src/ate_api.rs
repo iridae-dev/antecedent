@@ -1056,6 +1056,7 @@ fn compile_cell_batch(
     estimate_rows: Option<Vec<u32>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
+    family_contrast: Option<String>,
 ) -> PyResult<(antecedent::BatchStudy, Vec<ResponseQuery>)> {
     let mut cell_queries = Vec::with_capacity(parsed_queries.len());
     for (outcome, treatments, kinds, parameters, functional) in &parsed_queries {
@@ -1095,7 +1096,11 @@ fn compile_cell_batch(
         tiers,
         within_tier,
     )?;
-    Ok((batch, cell_queries))
+    let contrast = match family_contrast.as_deref() {
+        None => None,
+        Some(name) => Some(name.parse::<antecedent::CellFamilyContrast>().map_err(py_err)?),
+    };
+    Ok((batch.family_contrast(contrast), cell_queries))
 }
 
 /// Batch static ATE: one table ingest, N average-effect queries.
@@ -2255,6 +2260,7 @@ pub(crate) fn ate_result_from_analysis(
         }),
         simultaneous_interval: result.estimate.simultaneous_interval,
         adjusted_p_values: result.estimate.adjusted_p_values,
+        family_contrast: result.estimate.family_contrast,
         candidate_selection: result
             .estimate
             .candidate_selection
@@ -3241,6 +3247,7 @@ fn prepare_ate_batch(
     estimate_rows=None,
     tiers=None,
     within_tier=None,
+    family_contrast="cell_minus_control",
 ))]
 fn prepare_cells_batch(
     py: Python<'_>,
@@ -3261,6 +3268,7 @@ fn prepare_cells_batch(
     estimate_rows: Option<Vec<u32>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
+    family_contrast: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -3282,6 +3290,7 @@ fn prepare_cells_batch(
             estimate_rows,
             tiers,
             within_tier,
+            family_contrast,
         )?;
         let ctx = py_execution_context(seed, threads);
         let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;

@@ -433,7 +433,7 @@ impl super::Study {
             })
             .or_else(|| table.columns.iter().position(|c| c.arm == requested_arm))
             .ok_or(CausalError::Unsupported { message: "unsupported requested cell" })?;
-        let contrast = antecedent_estimate::LinearContrast {
+        let level = antecedent_estimate::LinearContrast {
             value: summary.means[column],
             se: summary.covariance.se(column),
         };
@@ -456,7 +456,7 @@ impl super::Study {
             ));
             (f64::NAN, f64::NAN)
         } else {
-            (contrast.value, contrast.se)
+            (level.value, level.se)
         };
         let cdf = antecedent_estimate::exceedance_cdf_values(&summary, &table);
         let influence = match quantile {
@@ -1211,23 +1211,13 @@ fn cell_contrast_for_refute(estimate: &EffectEstimate, requested_arm: u32) -> Ef
     let Some(table) = estimate.score_table.as_ref() else {
         return estimate.clone();
     };
-    let first = table.columns.first().and_then(|c| c.threshold);
-    let req = table.columns.iter().position(|c| c.arm == requested_arm && c.threshold == first);
-    let ctl = table.columns.iter().position(|c| c.arm == 0 && c.threshold == first);
-    let (Some(j), Some(i), Ok(summary)) = (req, ctl, table.summarize(None)) else {
+    let Ok((contrast, _)) = antecedent_estimate::cell_minus_control_contrast(table, requested_arm)
+    else {
         return estimate.clone();
     };
-    if i == j {
-        return estimate.clone();
-    }
     let mut out = estimate.clone();
-    out.ate = summary.means[j] - summary.means[i];
-    let mut coeffs = vec![0.0; table.n_columns()];
-    coeffs[i] = -1.0;
-    coeffs[j] = 1.0;
-    if let Ok(contrast) = table.linear_contrast(&summary, &coeffs) {
-        out.se_analytic = contrast.se;
-    }
+    out.ate = contrast.value;
+    out.se_analytic = contrast.se;
     out
 }
 

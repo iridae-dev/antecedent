@@ -8,9 +8,9 @@
 
 pub use crate::accepted::{AcceptedGraph, GraphClass};
 pub use crate::analysis::{
-    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
-    LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign, Study,
-    StudyBuilder,
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
+    CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy, RdConfig,
+    RefuteSuite, SharedBatchDesign, Study, StudyBuilder,
 };
 pub use crate::error::CausalError;
 pub use crate::identify_api::{Identification, identify, identify_with};

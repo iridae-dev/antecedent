@@ -19,8 +19,8 @@ mod prepared;
 mod stage;
 
 pub use batch::{
-    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, PreparedBatch,
-    SharedBatchDesign, SharedCovariateDesign,
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
+    CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
 pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
 pub use execute::Study;

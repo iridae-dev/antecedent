@@ -137,6 +137,28 @@ impl ScoreTable {
         }
         Ok(LinearContrast { value, se: var.max(0.0).sqrt() })
     }
+
+    /// Per-row scores of `Σ c_j φ_j` (same coefficients as [`Self::linear_contrast`]).
+    ///
+    /// # Errors
+    ///
+    /// Contrast length mismatch or a non-finite coefficient.
+    pub fn combine_scores(&self, coefficients: &[f64]) -> Result<Vec<f64>, EstimationError> {
+        if coefficients.len() != self.n_columns() || coefficients.iter().any(|v| !v.is_finite()) {
+            return Err(EstimationError::data_msg("contrast length must match score columns"));
+        }
+        let mut out = vec![0.0; self.n_rows];
+        for (j, &c) in coefficients.iter().enumerate() {
+            if c == 0.0 {
+                continue;
+            }
+            let col = self.column(j)?;
+            for (dst, &src) in out.iter_mut().zip(col) {
+                *dst += c * src;
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Weighted column means and their joint covariance.

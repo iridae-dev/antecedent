@@ -69,8 +69,8 @@ pub use bayesian::{
     nonidentified_with_prior,
 };
 pub use cell_aipw::{
-    CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED, contrast_named,
-    interaction_contrast,
+    CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
+    cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use crossfit_aipw::{

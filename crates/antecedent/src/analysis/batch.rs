@@ -11,7 +11,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
+    ResponseQuery, VariableId,
 };
 
 /// Query frozen on a [`PreparedBatch`] handle.
@@ -21,6 +22,45 @@ pub enum BatchQuery {
     Average(AverageEffectQuery),
     /// Discrete joint / cell `InterventionResponse`.
     Response(ResponseQuery),
+}
+
+/// Contrast used for family p-values / FDR on a joint-cell batch.
+///
+/// `estimate.ate` on `cell.aipw` is the requested interventional **level**, not
+/// a contrast. Family tests use a declared score-difference contrast instead.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CellFamilyContrast {
+    /// Requested cell minus the all-zero control (same contrast as cell.aipw refuters).
+    CellMinusControl,
+    /// 2×2 non-additivity `+μ00 −μ10 −μ01 +μ11`.
+    Interaction,
+}
+
+impl CellFamilyContrast {
+    /// Stable wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CellMinusControl => "cell_minus_control",
+            Self::Interaction => "interaction",
+        }
+    }
+}
+
+impl std::str::FromStr for CellFamilyContrast {
+    type Err = CausalError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "cell_minus_control" => Ok(Self::CellMinusControl),
+            "interaction" => Ok(Self::Interaction),
+            other => Err(CausalError::Compile {
+                message: format!(
+                    "unknown family_contrast={other:?}; use cell_minus_control|interaction"
+                ),
+            }),
+        }
+    }
 }
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
 use antecedent_estimate::{DEFAULT_AIPW_FOLDS, PreparedPropensityProblem};
@@ -309,6 +349,7 @@ pub struct BatchStudy {
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
     screen: Option<CandidateScreen>,
+    family_contrast: Option<CellFamilyContrast>,
 }
 
 impl BatchStudy {
@@ -324,6 +365,7 @@ impl BatchStudy {
             identifier: None,
             estimator: None,
             screen: None,
+            family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
     }
 
@@ -342,6 +384,7 @@ impl BatchStudy {
             identifier: None,
             estimator: None,
             screen: None,
+            family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
     }
 
@@ -388,6 +431,16 @@ impl BatchStudy {
     #[must_use]
     pub const fn estimator(mut self, id: EstimatorId) -> Self {
         self.estimator = Some(id);
+        self
+    }
+
+    /// Contrast used for family p-values on [`Self::prepare_cells`].
+    ///
+    /// Default is [`CellFamilyContrast::CellMinusControl`]. `None` publishes
+    /// simultaneous intervals on cell levels and omits p-values.
+    #[must_use]
+    pub const fn family_contrast(mut self, contrast: Option<CellFamilyContrast>) -> Self {
+        self.family_contrast = contrast;
         self
     }
 
@@ -473,6 +526,7 @@ impl BatchStudy {
             queries: queries.iter().cloned().map(BatchQuery::Average).collect(),
             screen: self.screen.clone(),
             shared_design: shared,
+            family_contrast: None,
         })
     }
 
@@ -482,6 +536,11 @@ impl BatchStudy {
     /// Licensed on a DAG and on CoDetermined via joint ADMG adjustment on the
     /// known closure graph. Unknown has no single ADMG. Bare ADMG
     /// InterventionResponse already refuses.
+    ///
+    /// Family p-values use [`Self::family_contrast`] (default
+    /// [`CellFamilyContrast::CellMinusControl`]), never the cell level stored
+    /// in `estimate.ate`. `family_contrast(None)` keeps intervals on levels
+    /// and publishes no p-values.
     ///
     /// # Errors
     ///
@@ -512,6 +571,7 @@ impl BatchStudy {
             queries: frozen,
             screen: self.screen.clone(),
             shared_design: shared,
+            family_contrast: self.family_contrast,
         })
     }
 
@@ -656,6 +716,7 @@ pub struct PreparedBatch {
     queries: Vec<BatchQuery>,
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
+    family_contrast: Option<CellFamilyContrast>,
 }
 
 impl PreparedBatch {
@@ -708,7 +769,13 @@ impl PreparedBatch {
                 Ok::<(), CausalError>(())
             })?;
         }
-        attach_prepared_batch_joint_inference(&mut out, &data, &self.queries, self.screen.as_ref());
+        attach_prepared_batch_joint_inference(
+            &mut out,
+            &data,
+            &self.queries,
+            self.screen.as_ref(),
+            self.family_contrast,
+        );
         attach_shared_design_diagnostics(&mut out, shared.as_ref());
         Ok(out)
     }
@@ -785,8 +852,9 @@ fn attach_prepared_batch_joint_inference(
     data: &TabularData,
     queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
+    family_contrast: Option<CellFamilyContrast>,
 ) {
-    attach_batch_family_joint_inference(results, data, queries, screen);
+    attach_batch_family_joint_inference(results, data, queries, screen, family_contrast);
 }
 
 fn attach_batch_joint_inference(
@@ -796,7 +864,7 @@ fn attach_batch_joint_inference(
     screen: Option<&CandidateScreen>,
 ) {
     let family: Vec<BatchQuery> = queries.iter().cloned().map(BatchQuery::Average).collect();
-    attach_batch_family_joint_inference(results, data, &family, screen);
+    attach_batch_family_joint_inference(results, data, &family, screen, None);
 }
 
 fn batch_claim_alignment(
@@ -821,67 +889,29 @@ fn attach_batch_family_joint_inference(
     data: &TabularData,
     queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
+    family_contrast: Option<CellFamilyContrast>,
 ) {
     if results.len() < 2 {
-        attach_candidate_selection(results, screen, &[], &[]);
+        attach_candidate_selection(results, screen, &[], &[], None);
         return;
     }
-    // Row count alone is insufficient: different complete-case masks can have
-    // equal sizes. Embed centered influence sequences in the original row universe.
-    let mut aligned = Vec::new();
+    let mut level_aligned = Vec::new();
+    let mut row_sets = Vec::new();
     let full_n = data.row_count();
     for (result, query) in results.iter().zip(queries) {
-        let (target_population, mut ids) = batch_claim_alignment(query);
-        if !matches!(target_population, antecedent_core::TargetPopulation::AllObserved) {
-            attach_batch_inference_unavailable(
-                results,
-                screen,
-                "batch joint IF requires AllObserved",
-            );
-            return;
+        match align_influence_to_rows(data, result, query, result.estimate.influence.as_deref()) {
+            Ok((col, rows)) => {
+                level_aligned.push(col);
+                row_sets.push(rows);
+            }
+            Err(reason) => {
+                attach_batch_inference_unavailable(results, screen, reason);
+                return;
+            }
         }
-        let Some(inf) = result.estimate.influence.as_deref() else {
-            attach_batch_inference_unavailable(
-                results,
-                screen,
-                "batch joint IF requires per-claim influence",
-            );
-            return;
-        };
-        ids.extend(result.estimand.adjustment_set.iter().copied());
-        ids.extend(result.estimand.instruments.iter().copied());
-        ids.extend(result.estimand.mediators.iter().copied());
-        if let Some(table) = result.estimate.score_table.as_ref() {
-            ids.push(table.treatment);
-            ids.extend(table.intervened.iter().copied());
-        }
-        let Ok(mask) = data.complete_case_mask(&ids) else {
-            attach_batch_inference_unavailable(
-                results,
-                screen,
-                "batch joint IF complete-case masks did not align",
-            );
-            return;
-        };
-        let rows: Vec<_> =
-            mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
-        if rows.len() != inf.len() || rows.len() < 2 {
-            attach_batch_inference_unavailable(
-                results,
-                screen,
-                "batch joint IF influence length did not match the complete-case row universe",
-            );
-            return;
-        }
-        let mean = inf.iter().sum::<f64>() / inf.len() as f64;
-        let mut col = vec![0.0; full_n];
-        for (&r, &v) in rows.iter().zip(inf) {
-            col[r] = (v - mean) * full_n as f64 / inf.len() as f64;
-        }
-        aligned.push(col);
     }
-    let cols: Vec<&[f64]> = aligned.iter().map(Vec::as_slice).collect();
-    let Ok(cov) = antecedent_estimate::joint_influence_covariance(&cols, None) else {
+    let cols: Vec<&[f64]> = level_aligned.iter().map(Vec::as_slice).collect();
+    let Ok(level_cov) = antecedent_estimate::joint_influence_covariance(&cols, None) else {
         attach_batch_inference_unavailable(
             results,
             screen,
@@ -889,43 +919,243 @@ fn attach_batch_family_joint_inference(
         );
         return;
     };
-    let crit = antecedent_estimate::max_t_critical(&cov, 0.95, 4096, 1).ok();
-    let mut p_values = Vec::with_capacity(results.len());
-    for (i, result) in results.iter().enumerate() {
-        let se = cov.se(i);
-        let z = if se > 0.0 {
-            result.estimate.ate.abs() / se
-        } else if result.estimate.ate == 0.0 {
-            0.0
-        } else {
-            f64::INFINITY
+    let crit = antecedent_estimate::max_t_critical(&level_cov, 0.95, 4096, 1).ok();
+    for (i, result) in results.iter_mut().enumerate() {
+        result.estimate.joint_covariance = Some(level_cov.clone());
+        if let Some(c) = crit {
+            result.estimate.simultaneous_interval = Some((
+                result.estimate.ate - c * level_cov.se(i),
+                result.estimate.ate + c * level_cov.se(i),
+                0.95,
+            ));
+        }
+    }
+
+    let cell_family = queries.iter().any(|q| matches!(q, BatchQuery::Response(_)));
+    if cell_family {
+        match family_contrast {
+            None => {
+                for result in results.iter_mut() {
+                    result.estimate.adjusted_p_values = None;
+                    result.estimate.family_contrast = None;
+                    result.diagnostics.push(antecedent_core::Diagnostic::new(
+                        "batch.joint_if",
+                        antecedent_core::DiagnosticKind::Scientific,
+                        antecedent_core::DiagnosticSeverity::Info,
+                        "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
+                    ));
+                }
+                attach_candidate_selection(results, screen, &[], &[], None);
+                return;
+            }
+            Some(kind) => {
+                let mut contrast_aligned = Vec::new();
+                let mut contrast_values = Vec::new();
+                for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
+                    let Some((value, scores)) = cell_family_contrast_claim(result, query, kind)
+                    else {
+                        for result in results.iter_mut() {
+                            result.estimate.adjusted_p_values = None;
+                            result.estimate.family_contrast = None;
+                            result.diagnostics.push(antecedent_core::Diagnostic::new(
+                                "batch.joint_if",
+                                antecedent_core::DiagnosticKind::Scientific,
+                                antecedent_core::DiagnosticSeverity::Info,
+                                format!(
+                                    "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
+                                    kind.as_str()
+                                ),
+                            ));
+                        }
+                        attach_candidate_selection(results, screen, &[], &[], None);
+                        return;
+                    };
+                    if scores.len() != rows.len() {
+                        attach_batch_inference_unavailable(
+                            results,
+                            screen,
+                            "batch family contrast influence length did not match the complete-case row universe",
+                        );
+                        return;
+                    }
+                    contrast_aligned.push(embed_centered_influence(&scores, rows, full_n));
+                    contrast_values.push(value);
+                }
+                let contrast_cols: Vec<&[f64]> =
+                    contrast_aligned.iter().map(Vec::as_slice).collect();
+                let Ok(contrast_cov) =
+                    antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
+                else {
+                    for result in results.iter_mut() {
+                        result.estimate.adjusted_p_values = None;
+                        result.estimate.family_contrast = None;
+                        result.diagnostics.push(antecedent_core::Diagnostic::new(
+                            "batch.joint_if",
+                            antecedent_core::DiagnosticKind::Scientific,
+                            antecedent_core::DiagnosticSeverity::Info,
+                            "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
+                        ));
+                    }
+                    attach_candidate_selection(results, screen, &[], &[], None);
+                    return;
+                };
+                attach_family_p_values(
+                    results,
+                    &contrast_values,
+                    &contrast_cov,
+                    crit,
+                    Some(kind),
+                    screen,
+                );
+                return;
+            }
+        }
+    }
+
+    let values: Vec<f64> = results.iter().map(|r| r.estimate.ate).collect();
+    attach_family_p_values(results, &values, &level_cov, crit, None, screen);
+}
+
+fn align_influence_to_rows(
+    data: &TabularData,
+    result: &StudyResult,
+    query: &BatchQuery,
+    inf: Option<&[f64]>,
+) -> Result<(Vec<f64>, Vec<usize>), &'static str> {
+    let (target_population, mut ids) = batch_claim_alignment(query);
+    if !matches!(target_population, antecedent_core::TargetPopulation::AllObserved) {
+        return Err("batch joint IF requires AllObserved");
+    }
+    let Some(inf) = inf else {
+        return Err("batch joint IF requires per-claim influence");
+    };
+    ids.extend(result.estimand.adjustment_set.iter().copied());
+    ids.extend(result.estimand.instruments.iter().copied());
+    ids.extend(result.estimand.mediators.iter().copied());
+    if let Some(table) = result.estimate.score_table.as_ref() {
+        ids.push(table.treatment);
+        ids.extend(table.intervened.iter().copied());
+    }
+    let Ok(mask) = data.complete_case_mask(&ids) else {
+        return Err("batch joint IF complete-case masks did not align");
+    };
+    let rows: Vec<_> = mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+    if rows.len() != inf.len() || rows.len() < 2 {
+        return Err("batch joint IF influence length did not match the complete-case row universe");
+    }
+    Ok((embed_centered_influence(inf, &rows, data.row_count()), rows))
+}
+
+fn embed_centered_influence(inf: &[f64], rows: &[usize], full_n: usize) -> Vec<f64> {
+    let mean = inf.iter().sum::<f64>() / inf.len() as f64;
+    let mut col = vec![0.0; full_n];
+    for (&r, &v) in rows.iter().zip(inf) {
+        col[r] = (v - mean) * full_n as f64 / inf.len() as f64;
+    }
+    col
+}
+
+fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
+    let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional else {
+        return None;
+    };
+    let mut arm = 0u32;
+    for (j, iv) in interventions.iter().enumerate() {
+        let Intervention::Set { value, .. } = iv else {
+            return None;
         };
-        p_values.push(2.0 * antecedent_stats::student_t_sf(z, 1.0e8));
+        let level = value.as_f64()?;
+        if level != 0.0 && level != 1.0 {
+            return None;
+        }
+        if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY {
+            return None;
+        }
+        arm |= u32::from(level == 1.0) << j;
+    }
+    Some(arm)
+}
+
+fn cell_family_contrast_claim(
+    result: &StudyResult,
+    query: &BatchQuery,
+    kind: CellFamilyContrast,
+) -> Option<(f64, Vec<f64>)> {
+    let BatchQuery::Response(query) = query else {
+        return None;
+    };
+    if query.outcome_functional.quantile_level().is_some() {
+        return None;
+    }
+    let table = result.estimate.score_table.as_ref()?;
+    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
+    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
+    if thresholds.len() > 1 {
+        return None;
+    }
+    let arm = response_requested_arm(query)?;
+    let (contrast, scores) =
+        antecedent_estimate::family_cell_contrast(table, arm, kind.as_str()).ok()?;
+    Some((contrast.value, scores))
+}
+
+fn two_sided_p(value: f64, se: f64) -> f64 {
+    let z = if se > 0.0 {
+        value.abs() / se
+    } else if value == 0.0 {
+        0.0
+    } else {
+        f64::INFINITY
+    };
+    2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
+}
+
+fn attach_family_p_values(
+    results: &mut [StudyResult],
+    values: &[f64],
+    cov: &antecedent_estimate::JointCovariance,
+    crit: Option<f64>,
+    contrast: Option<CellFamilyContrast>,
+    screen: Option<&CandidateScreen>,
+) {
+    let mut p_values = Vec::with_capacity(results.len());
+    let mut rank_stats = Vec::with_capacity(results.len());
+    for (i, value) in values.iter().copied().enumerate() {
+        let se = cov.se(i);
+        p_values.push(two_sided_p(value, se));
+        rank_stats.push((value, se));
     }
     let bh = antecedent_stats::benjamini_hochberg(&p_values);
     let by = antecedent_stats::benjamini_yekutieli(&p_values);
     for (i, result) in results.iter_mut().enumerate() {
-        result.estimate.joint_covariance = Some(cov.clone());
-        if let Some(c) = crit {
-            result.estimate.simultaneous_interval = Some((
-                result.estimate.ate - c * cov.se(i),
-                result.estimate.ate + c * cov.se(i),
-                0.95,
-            ));
-        }
         result.estimate.adjusted_p_values = Some((bh[i], by[i]));
+        if contrast.is_some() {
+            result.estimate.family_contrast = Some((values[i], cov.se(i)));
+        }
         let mut d = antecedent_core::Diagnostic::new(
             "batch.joint_if",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
-            format!(
-                "shared-row joint IF; BH={:.4} BY={:.4}{}",
-                bh.get(i).copied().unwrap_or(f64::NAN),
-                by.get(i).copied().unwrap_or(f64::NAN),
-                crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
-            ),
+            match contrast {
+                Some(kind) => format!(
+                    "shared-row joint IF; family contrast {}={:.4} (se={:.4}); BH={:.4} BY={:.4}{}",
+                    kind.as_str(),
+                    values[i],
+                    cov.se(i),
+                    bh.get(i).copied().unwrap_or(f64::NAN),
+                    by.get(i).copied().unwrap_or(f64::NAN),
+                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
+                ),
+                None => format!(
+                    "shared-row joint IF; BH={:.4} BY={:.4}{}",
+                    bh.get(i).copied().unwrap_or(f64::NAN),
+                    by.get(i).copied().unwrap_or(f64::NAN),
+                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
+                ),
+            },
         );
-        d.fields = std::sync::Arc::from([
+        let mut fields = vec![
             (
                 std::sync::Arc::from("bh_q"),
                 std::sync::Arc::from(format!("{}", bh.get(i).copied().unwrap_or(f64::NAN))),
@@ -934,10 +1164,21 @@ fn attach_batch_family_joint_inference(
                 std::sync::Arc::from("by_q"),
                 std::sync::Arc::from(format!("{}", by.get(i).copied().unwrap_or(f64::NAN))),
             ),
-        ]);
+        ];
+        if let Some(kind) = contrast {
+            fields.push((
+                std::sync::Arc::from("family_contrast"),
+                std::sync::Arc::from(kind.as_str()),
+            ));
+            fields.push((
+                std::sync::Arc::from("contrast_value"),
+                std::sync::Arc::from(format!("{}", values[i])),
+            ));
+        }
+        d.fields = std::sync::Arc::from(fields);
         result.diagnostics.push(d);
     }
-    attach_candidate_selection(results, screen, &bh, &by);
+    attach_candidate_selection(results, screen, &bh, &by, Some(&rank_stats));
 }
 
 fn subset_estimate_rows(
@@ -996,7 +1237,7 @@ fn attach_batch_inference_unavailable(
             reason,
         ));
     }
-    attach_candidate_selection(results, screen, &[], &[]);
+    attach_candidate_selection(results, screen, &[], &[], None);
 }
 
 fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {
@@ -1023,6 +1264,7 @@ fn attach_candidate_selection(
     screen: Option<&CandidateScreen>,
     bh: &[f64],
     by: &[f64],
+    rank_stats: Option<&[(f64, f64)]>,
 ) {
     let family_size = results.len();
     let (selection, recorded) = match screen {
@@ -1052,22 +1294,41 @@ fn attach_candidate_selection(
                     .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
                     .map(|(i, _)| i),
                 CandidateProcedure::Unrecorded => None,
-                CandidateProcedure::MaxT => results
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, r)| {
-                        r.estimate.ate.is_finite()
-                            && r.estimate.se_analytic.is_finite()
-                            && r.estimate.se_analytic >= 0.0
+                CandidateProcedure::MaxT => rank_stats
+                    .map(|stats| {
+                        stats
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, (value, se))| {
+                                value.is_finite() && se.is_finite() && *se >= 0.0
+                            })
+                            .max_by(|a, b| {
+                                let sa = a.1.1.abs().max(1e-12);
+                                let sb = b.1.1.abs().max(1e-12);
+                                (a.1.0.abs() / sa)
+                                    .partial_cmp(&(b.1.0.abs() / sb))
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(i, _)| i)
                     })
-                    .max_by(|a, b| {
-                        let sa = a.1.estimate.se_analytic.abs().max(1e-12);
-                        let sb = b.1.estimate.se_analytic.abs().max(1e-12);
-                        (a.1.estimate.ate.abs() / sa)
-                            .partial_cmp(&(b.1.estimate.ate.abs() / sb))
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
-                    .map(|(i, _)| i),
+                    .unwrap_or_else(|| {
+                        results
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, r)| {
+                                r.estimate.ate.is_finite()
+                                    && r.estimate.se_analytic.is_finite()
+                                    && r.estimate.se_analytic >= 0.0
+                            })
+                            .max_by(|a, b| {
+                                let sa = a.1.estimate.se_analytic.abs().max(1e-12);
+                                let sb = b.1.estimate.se_analytic.abs().max(1e-12);
+                                (a.1.estimate.ate.abs() / sa)
+                                    .partial_cmp(&(b.1.estimate.ate.abs() / sb))
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(i, _)| i)
+                    }),
             };
             (
                 CandidateSelection {

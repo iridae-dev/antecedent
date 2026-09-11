@@ -65,7 +65,13 @@ pub struct EstimationWorkspace {
 #[non_exhaustive]
 #[allow(clippy::struct_excessive_bools)]
 pub struct EffectEstimate {
-    /// Point estimate: ATE, or mean ITE for the counterfactual cell.
+    /// Reported scalar.
+    ///
+    /// For average-effect claims this is the ATE contrast. For `cell.aipw`
+    /// joint cells it is the requested interventional **level**
+    /// (`E[Y | do(A=a,…)]` or a single-threshold `F_a(c)`), not a contrast.
+    /// Testing this field against zero is only valid when it is a contrast.
+    /// Family p-values on joint cells use [`Self::family_contrast`].
     pub ate: f64,
     /// Analytic IID standard error (homoskedastic).
     pub se_analytic: f64,
@@ -100,6 +106,10 @@ pub struct EffectEstimate {
     pub simultaneous_interval: Option<(f64, f64, f64)>,
     /// BH and BY adjusted p-values for the fixed batch family.
     pub adjusted_p_values: Option<(f64, f64)>,
+    /// Declared family contrast `(value, se)` when batch inference tested a
+    /// contrast rather than [`Self::ate`]. `None` for average-effect claims
+    /// (`ate` is already the contrast) and when no cell contrast was declared.
+    pub family_contrast: Option<(f64, f64)>,
     /// Simultaneous intervals for canonical scenarios; not bounds on all completions.
     pub scenario_intervals: Option<Arc<[(f64, f64)]>>,
     /// Joint IF covariance across arms / thresholds / cells / claims.
@@ -165,6 +175,7 @@ impl EffectEstimate {
             scenario_effects: None,
             simultaneous_interval: None,
             adjusted_p_values: None,
+            family_contrast: None,
             scenario_intervals: None,
             joint_covariance: None,
             exceedance_cdf: None,
@@ -210,6 +221,7 @@ impl EffectEstimate {
             scenario_effects: None,
             simultaneous_interval: None,
             adjusted_p_values: None,
+            family_contrast: None,
             scenario_intervals: None,
             joint_covariance: None,
             exceedance_cdf: None,
@@ -290,6 +302,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
         self.evalue = evalue;
+        self
+    }
+
+    /// Attach the declared family contrast `(value, se)` used for batch FDR.
+    #[must_use]
+    pub fn with_family_contrast(mut self, contrast: Option<(f64, f64)>) -> Self {
+        self.family_contrast = contrast;
         self
     }
 

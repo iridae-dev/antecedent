@@ -188,6 +188,7 @@ def _section_estimate(raw: Any) -> Any:
         score_table=getattr(raw, "score_table", None),
         simultaneous_interval=getattr(raw, "simultaneous_interval", None),
         adjusted_p_values=getattr(raw, "adjusted_p_values", None),
+        family_contrast=getattr(raw, "family_contrast", None),
         candidate_selection=getattr(raw, "candidate_selection", None),
         evalue=getattr(raw, "evalue", None),
         joint_covariance=getattr(raw, "joint_covariance", None),
@@ -406,6 +407,7 @@ def _wrap_ate(
             scenario_intervals=getattr(sec_estimate, "scenario_intervals", None),
             simultaneous_interval=getattr(sec_estimate, "simultaneous_interval", None),
             adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
+            family_contrast=getattr(sec_estimate, "family_contrast", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
         ),
@@ -872,8 +874,10 @@ class PreparedBatch:
 
     ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
     when every query shares a certified adjustment set, one covariate design.
-    Propensity and outcome residualization are still fit per query. A family
-    of two or more claims attaches joint IF covariance and max-t / BH / BY.
+    Propensity and outcome residualization are still fit per query.     A family of two or more average-effect claims attaches joint IF covariance
+    and max-t / BH / BY on those contrasts. Joint-cell families keep intervals
+    on cell levels and, unless ``family_contrast`` is ``None``, test a declared
+    score-difference contrast (default ``cell_minus_control``).
     """
 
     _native: Any
@@ -971,13 +975,17 @@ class PreparedBatch:
         threads: int = 1,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
+        family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
     ) -> PreparedBatch:
         """Compile discrete joint ``InterventionResponse`` cells into one batch.
 
         Licensed on a DAG and on CoDetermined ``TieredBackground``. Unknown-tier
         joint has no single ADMG and refuses. Pair families share folds and, when
         adjustment sets agree, the covariate design; estimation attaches joint
-        IF covariance and max-t / BH / BY over the family.
+        IF covariance on cell **levels**. Family p-values / FDR use
+        ``family_contrast`` (default ``cell_minus_control``, the same contrast
+        as cell.aipw refuters). ``family_contrast=None`` publishes no p-values.
+        ``estimate.ate`` remains the requested cell level, not a contrast.
         """
         if not queries:
             raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
@@ -1000,6 +1008,7 @@ class PreparedBatch:
             seed=seed,
             bootstrap=0 if bootstrap is None else bootstrap,
             threads=threads,
+            family_contrast=family_contrast,
         )
         if latency is not None:
             kwargs["latency"] = latency
