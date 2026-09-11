@@ -516,7 +516,7 @@ impl PreparedStudy {
             });
         }
         let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference)
+        self.retarget_to_result(out, inference, weights)
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
@@ -524,6 +524,7 @@ impl PreparedStudy {
         &self,
         out: RetargetResult,
         inference: antecedent_estimate::scores::ScoreInference,
+        weights: &[f64],
     ) -> Result<StudyResult, CausalError> {
         let cache =
             self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
@@ -538,6 +539,31 @@ impl PreparedStudy {
             t.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             t.dedup_by(|a, b| *a == *b);
             t.len()
+        };
+        let quantile = match &self.analysis.query {
+            CausalQuery::AverageEffect(q) => q
+                .outcome_functional
+                .quantile_level()
+                .map(|tau| {
+                    antecedent_estimate::quantile::quantile_contrast(table, Some(weights), tau)
+                        .map(|q| (q.value, q.influence))
+                })
+                .transpose()?,
+            CausalQuery::Response(q) => q
+                .outcome_functional
+                .quantile_level()
+                .map(|tau| {
+                    let arm = super::helpers::requested_joint_arm(q)?;
+                    let q = antecedent_estimate::quantile::quantile_arm(
+                        table,
+                        Some(weights),
+                        tau,
+                        arm,
+                    )?;
+                    Ok::<_, CausalError>((q.value, q.influence))
+                })
+                .transpose()?,
+            _ => None,
         };
         let (ate, se) = match &self.analysis.query {
             CausalQuery::AverageEffect(_) | CausalQuery::Response(_) if n_thresholds > 1 => {
@@ -597,6 +623,12 @@ impl PreparedStudy {
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(out.monotone_rearranged);
         estimate.score_inference = Some(inference);
+        if let Some((value, influence)) = quantile.as_ref() {
+            estimate.ate = *value;
+            estimate.se_analytic =
+                antecedent_estimate::joint_influence_covariance(&[influence], None)?.se(0);
+            estimate.influence = Some(influence.clone().into());
+        }
         let (treatment, outcome) = match &self.analysis.query {
             CausalQuery::AverageEffect(q) => (q.treatment, q.outcome),
             CausalQuery::Response(q) => q
@@ -610,7 +642,14 @@ impl PreparedStudy {
             }
         };
         let mut diagnostics = out.diagnostics;
-        if n_thresholds > 1 {
+        if quantile.is_some() {
+            diagnostics.push(antecedent_core::Diagnostic::new(
+                "estimate.functional.quantile", antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "weighted piecewise-linear CDF inversion conditional on the frozen grid; grid-selection uncertainty and interpolation bias are excluded",
+            ));
+        }
+        if n_thresholds > 1 && quantile.is_none() {
             diagnostics.push(antecedent_core::Diagnostic::new(
                 "estimate.functional.grid_scalar_cleared",
                 antecedent_core::DiagnosticKind::Scientific,
@@ -685,12 +724,12 @@ impl PreparedStudy {
                 estimand: q.functional.clone(),
                 identification_status: cache.identification.status,
                 estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                    antecedent_core::ResponseValue::Scalar(ate),
+                    antecedent_core::ResponseValue::Scalar(result.estimate.ate),
                 ),
                 uncertainty: antecedent_core::ResponseUncertainty::Scalar {
-                    standard_error: se,
-                    lower: ate - 1.96 * se,
-                    upper: ate + 1.96 * se,
+                    standard_error: result.estimate.se_analytic,
+                    lower: result.estimate.ate - 1.96 * result.estimate.se_analytic,
+                    upper: result.estimate.ate + 1.96 * result.estimate.se_analytic,
                     level: 0.95,
                 },
                 support: antecedent_core::SupportReport {
@@ -724,10 +763,26 @@ impl PreparedStudy {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let shared = self
+            .analysis
+            .shared_batch_design
+            .as_ref()
+            .map(|s| s.rebind(data).map(Arc::new))
+            .transpose()?;
+        self.estimate_with_shared(data, shared, ctx)
+    }
+
+    pub(crate) fn estimate_with_shared(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<super::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
-        let mut result = self.analysis.execute_tabular(data, &self.plan, ctx)?;
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
+        click_analysis.shared_batch_design = shared;
+        let mut result = click_analysis.execute_tabular(data, &self.plan, ctx)?;
         let click_scores = click_analysis.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(
             &self.analysis.query,
@@ -749,6 +804,11 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
+        refreshed.shared_batch_design = refreshed
+            .shared_batch_design
+            .as_ref()
+            .map(|s| s.rebind(&data).map(Arc::new))
+            .transpose()?;
         refreshed.data = DataInput::Tabular(data);
         let mut result = refreshed.execute(&self.plan, ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
@@ -1168,17 +1228,17 @@ impl Study {
                         DataInput::Tabular(data) => data.schema(),
                         _ => {
                             return Err(CausalError::Unsupported {
-                                message: "CoDetermined joint prepare requires tabular data".into(),
+                                message: "CoDetermined joint prepare requires tabular data",
                             });
                         }
                     };
                     let identification =
                         antecedent_identify::identify_tiered_joint(background, schema, query)?;
-                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    let estimand = identification.estimands.first().cloned().ok_or(
                         CausalError::Unsupported {
-                            message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
-                        }
-                    })?;
+                            message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
+                        },
+                    )?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
                 let Some(graph) = self.graph.as_dag().cloned() else {
@@ -1532,13 +1592,25 @@ impl Study {
                 if let Some(shared) = self.shared_batch_design.as_ref() {
                     shared.apply_to_propensity(&mut problem)?;
                 }
-                let table = crossfit_binary_scores(
-                    &problem,
-                    query,
-                    antecedent_estimate::DEFAULT_AIPW_FOLDS,
-                    &est.glm_options,
-                    est.backend,
-                )?;
+                let table = if query.outcome_functional.quantile_level().is_some() {
+                    let grid = antecedent_estimate::empirical_threshold_grid(&problem.outcome, 19)?;
+                    antecedent_estimate::build_binary_scores(
+                        &problem,
+                        query.treatment,
+                        &grid.into_iter().map(Some).collect::<Vec<_>>(),
+                        antecedent_estimate::DEFAULT_AIPW_FOLDS,
+                        &est.glm_options,
+                        est.backend,
+                    )?
+                } else {
+                    crossfit_binary_scores(
+                        &problem,
+                        query,
+                        antecedent_estimate::DEFAULT_AIPW_FOLDS,
+                        &est.glm_options,
+                        est.backend,
+                    )?
+                };
                 Ok(Some(table))
             }
             CausalQuery::Response(query) => {
@@ -1665,8 +1737,33 @@ fn overlay_prepared_score_functional(
     ) {
         return Ok(());
     }
-    let (estimate, diagnostics) =
-        super::helpers::attach_score_functional_grid(result.estimate.clone(), table.clone())?;
+    let (estimate, diagnostics) = if let Some(tau) = functional.quantile_level() {
+        if let CausalQuery::Response(q) = query {
+            super::helpers::attach_joint_quantile_from_table(
+                result.estimate.clone(),
+                table.clone(),
+                q,
+                tau,
+            )?
+        } else {
+            super::helpers::attach_quantile_from_table(result.estimate.clone(), table.clone(), tau)?
+        }
+    } else {
+        super::helpers::attach_score_functional_grid(result.estimate.clone(), table.clone())?
+    };
+    if functional.quantile_level().is_some() {
+        if let Some(response) = &mut result.response {
+            response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Scalar(estimate.ate),
+            );
+            response.uncertainty = antecedent_core::ResponseUncertainty::Scalar {
+                standard_error: estimate.se_analytic,
+                lower: estimate.ate - 1.96 * estimate.se_analytic,
+                upper: estimate.ate + 1.96 * estimate.se_analytic,
+                level: 0.95,
+            };
+        }
+    }
     result.estimate = estimate;
     result.diagnostics.extend(diagnostics);
     Ok(())
@@ -1741,10 +1838,10 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 .tiered
                 .as_ref()
                 .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined);
-            if !matches!(
+            if !(matches!(
                 analysis.graph.class(),
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
-            ) && !(analysis.graph.class() == GraphClass::Admg && codetermined)
+            ) || analysis.graph.class() == GraphClass::Admg && codetermined)
             {
                 return Err(CausalError::Unsupported {
                     message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, or Pag \
