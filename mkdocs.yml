@@ -33,6 +33,7 @@ nav:
   - Capabilities: capabilities.md
   - Support matrix: support-matrix.md
   - Causal responses: causal-responses.md
+  - Local, distributional, and joint effects: local-distributional-joint.md
   - Observation contract: observation-contract.md
   - Transport and interference: transport-interference.md
   - Comparison: comparison.md
