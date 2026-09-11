@@ -47,6 +47,7 @@ impl ResponseIdentifier {
     }
 
     /// Identify every treatment/outcome pair required by a response functional.
+    #[allow(clippy::too_many_lines)]
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -104,9 +105,11 @@ impl ResponseIdentifier {
                 .saturating_add(result.performance.candidates_examined);
             performance.sets_returned =
                 performance.sets_returned.saturating_add(result.performance.sets_returned);
-            let result = if result.status != IdentificationStatus::NonparametricallyIdentified {
-                match crate::response_id::identify_dag_via_id(prepared.dag(), &witness) {
-                    Ok(id) if id.status == IdentificationStatus::NonparametricallyIdentified => {
+            let result = if result.status == IdentificationStatus::NonparametricallyIdentified {
+                result
+            } else {
+                match crate::response_id::identify_dag_via_id(prepared.dag(), response)? {
+                    id if id.status == IdentificationStatus::NonparametricallyIdentified => {
                         derivation.push(
                             "identify.response.general_id",
                             format!(
@@ -115,7 +118,7 @@ impl ResponseIdentifier {
                         );
                         id
                     }
-                    Ok(_) | Err(_) => {
+                    _ => {
                         derivation.push(
                             "response.backdoor",
                             format!("pair ({treatment},{outcome}) was not identified"),
@@ -128,8 +131,6 @@ impl ResponseIdentifier {
                         ));
                     }
                 }
-            } else {
-                result
             };
             let Some(first) = result.estimands.first() else {
                 return Ok(IdentificationResult::not_identified(

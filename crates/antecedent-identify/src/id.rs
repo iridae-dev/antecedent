@@ -156,22 +156,74 @@ impl IdIdentifier {
                 for &o in q.outcomes.iter() {
                     y.insert(prepared.var_to_dense(o)?);
                 }
-                self.identify_sets(prepared, &y, &x, query.clone(), workspace)
+                self.identify_sets(prepared, &y, &x, query.clone(), workspace, Arc::from([]))
             }
             CausalQuery::Response(response) => {
-                let witness = crate::response_id::response_ate_witness(response)?;
-                let mut result = self.identify_ate(prepared, &witness, workspace)?;
-                result.query = query.clone();
-                result.derivation.push(
-                    "identify.response.general_id",
-                    "Shpitser–Pearl ID of P(Y | do(A)) evaluated as the response contrast",
-                );
-                Ok(result)
+                self.identify_response(prepared, response, workspace)
             }
             _ => Err(IdentificationError::unsupported(
                 "IdIdentifier supports AverageEffect, Distribution, and Response queries",
             )),
         }
+    }
+
+    /// Identify the requested intervention mean, retaining the actual Set levels.
+    pub(crate) fn identify_response(
+        &self,
+        prepared: &PreparedAdmg,
+        response: &antecedent_core::ResponseQuery,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        let antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions } =
+            &response.functional
+        else {
+            let witness = crate::response_id::response_ate_witness(response)?;
+            let mut result = self.identify_ate(prepared, &witness, workspace)?;
+            result.query = CausalQuery::Response(response.clone());
+            result.derivation.push(
+                "identify.response.general_id",
+                "binary contrast is an identification witness only; general-ID curve estimation is not licensed",
+            );
+            return Ok(result);
+        };
+        crate::intervention_support::require_hard_set_interventions(
+            interventions.iter(),
+            "general ID response",
+        )?;
+        let normalized = crate::intervention_support::normalize_intervention_list(
+            interventions.iter().cloned(),
+        )?;
+        let mut x = BitSet::with_len(prepared.admg().node_count());
+        let mut assignments = Vec::new();
+        for intervention in &normalized {
+            let variable = intervention
+                .primary_variable()
+                .ok_or(IdentificationError::unsupported("intervention missing primary variable"))?;
+            let dense = prepared.var_to_dense(variable)?;
+            x.insert(dense);
+            assignments.push((dense, intervention_value(intervention)?));
+        }
+        let mut y = BitSet::with_len(prepared.admg().node_count());
+        y.insert(prepared.var_to_dense(*outcome)?);
+        let mut result = self.identify_sets(
+            prepared,
+            &y,
+            &x,
+            CausalQuery::Response(response.clone()),
+            workspace,
+            Arc::from(assignments),
+        )?;
+        for estimand in &mut result.estimands {
+            estimand.functional = result.arena.intern(ExprNode::Expectation {
+                function: OutcomeExprId::identity(*outcome),
+                distribution: estimand.functional,
+            });
+        }
+        result.derivation.push(
+            "identify.response.general_id",
+            "Shpitser–Pearl ID of the intervention mean at the requested Set levels",
+        );
+        Ok(result)
     }
 
     /// Identify an average treatment effect via ID on `{treatment}` → `{outcome}`.
@@ -407,6 +459,7 @@ impl IdIdentifier {
         x: &BitSet,
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
+        assignments: Arc<[(DenseNodeId, Value)]>,
     ) -> Result<IdentificationResult, IdentificationError> {
         let mut prepared = prepared.clone();
         let mut arena = CausalExprArena::new();
@@ -426,7 +479,7 @@ impl IdIdentifier {
             &mut derivation,
             &mut perf,
             &mut workspace.graph,
-            Arc::from([]),
+            assignments,
         )? {
             IdOutcome::Expr(functional) => {
                 let estimand = IdentifiedEstimand::new(
