@@ -426,6 +426,9 @@ pub(crate) fn panel_multi_dataset_constraints(
     })
 }
 
+// Python batch query: treatment, outcome, control, active, functional specification.
+type PyBatchQuery<'py> = (String, String, f64, f64, Option<Bound<'py, PyDict>>);
+
 /// Run standalone discovery over panel data and return a builder already seeded with the
 /// accepted graph via [`Study::panel`] + [`antecedent::StudyBuilder::graph`].
 ///
@@ -905,9 +908,7 @@ fn parse_latency_mode(latency: Option<&str>) -> PyResult<Option<antecedent::Late
 
 type AteBatchQuerySpec = (String, String, f64, f64, Option<antecedent_core::OutcomeFunctional>);
 
-fn parse_ate_batch_query_specs(
-    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
-) -> PyResult<Vec<AteBatchQuerySpec>> {
+fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<AteBatchQuerySpec>> {
     let mut parsed = Vec::with_capacity(queries.len());
     for (treatment, outcome, control, active, functional) in queries {
         parsed.push((
@@ -1020,7 +1021,7 @@ fn analyze_ate_many(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
-    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
+    queries: Vec<PyBatchQuery<'_>>,
     identifier: Option<String>,
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
@@ -3050,7 +3051,7 @@ fn prepare_ate_batch(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
-    queries: Vec<(String, String, f64, f64, Option<Bound<'_, PyDict>>)>,
+    queries: Vec<PyBatchQuery<'_>>,
     identifier: Option<String>,
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,

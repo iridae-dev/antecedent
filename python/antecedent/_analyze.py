@@ -371,6 +371,7 @@ def handle_response(
 ) -> Any:
     """Identify and estimate a complete-observation continuous response."""
     from .estimation import _response_support_bounds, _static_edges, _support_point_status
+    from .query import coerce_outcome_functional
     from .results import (
         CausalResponseView,
         IdentificationView,
@@ -381,6 +382,22 @@ def handle_response(
         SupportReport,
     )
     from .results.response import SupportStatus, UncertaintyKind
+
+    functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+    if (
+        functional is not None
+        and functional.get("kind") == "quantile"
+        and (
+            not isinstance(query, InterventionResponse)
+            or getattr(query, "is_temporal", False)
+            or isinstance(inference, Bayesian)
+            or estimator
+            not in ((None, "cell.aipw") if isinstance(graph, TieredBackground) else ("cell.aipw",))
+        )
+    ):
+        raise CausalUnsupportedError(
+            "response quantiles require static Frequentist cell.aipw joint cells"
+        )
 
     if discovery is not None:
         if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
@@ -520,6 +537,27 @@ def handle_response(
             refute=refute if refute_requested else False,
         )
         return _wrap_prepared_response(temporal_raw, query)
+    if estimator == "cell.aipw" and isinstance(query, InterventionResponse):
+        if estimator_config is not None:
+            raise CausalUnsupportedError("cell.aipw does not accept response estimator_config")
+        if bootstrap_requested:
+            raise CausalUnsupportedError(
+                "cell.aipw uses analytic influence uncertainty, not bootstrap"
+            )
+        return _staged_prepared_result(
+            data,
+            query,
+            graph=graph,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            validators=validators,
+            refute="none" if not refute_requested else refute,
+            seed=seed,
+            bootstrap=None,
+            threads=threads,
+            structure_accepted=structure_accepted,
+        )
     if isinstance(graph, TieredBackground):
         if not isinstance(query, InterventionResponse):
             raise CausalUnsupportedError(
