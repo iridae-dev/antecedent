@@ -159,6 +159,7 @@ reason = "compile_graph_posterior wires only AverageEffect and TemporalEffect qu
 
 [[closed]]
 queries = ["ResponseCurve", "InterventionResponse"]
+graph_classes = ["Dag", "Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 reason = "Graph-posterior response is a contract choice, not typed impossibility: the ATE envelope (retained unidentified mass) is the same object a curve arm would use. This cut does not license a response mixture."
 

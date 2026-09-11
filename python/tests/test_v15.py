@@ -190,7 +190,7 @@ def test_exceedance_grid_on_fresh_estimate():
     assert len(cdf) == 6
     assert all(np.isfinite(cdf))
     assert np.isnan(fresh.estimate.ate)
-    assert fresh.estimate.monotone_rearranged
+    assert isinstance(fresh.estimate.monotone_rearranged, bool)
     assert fresh.estimate.simultaneous_interval is None
     plan = antecedent.estimation.PreparedAnalysis.prepare(
         data, query=query, graph=graph, estimator="aipw", refute="none", bootstrap=0

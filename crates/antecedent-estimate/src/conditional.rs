@@ -211,10 +211,9 @@ impl ConditionalLinearAdjustment {
                 "ConditionalLinearAdjustment only supports AllObserved",
             ));
         }
-        if estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::BackdoorAdjustment)
-        {
+        if !estimand.is_adjustment_shaped() {
             return Err(EstimationError::IncompatibleEstimand {
-                message: "ConditionalLinearAdjustment expects backdoor.adjustment",
+                message: "ConditionalLinearAdjustment expects an adjustment-shaped estimand",
             });
         }
         let active = intervention_f64(&query.active)?;

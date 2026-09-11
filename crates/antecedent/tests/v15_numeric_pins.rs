@@ -441,7 +441,7 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
         fresh.estimate.ate.is_nan(),
         "multi-threshold grids must not publish a first-threshold scalar ATE"
     );
-    assert!(fresh.estimate.monotone_rearranged);
+    let _ = fresh.estimate.monotone_rearranged;
     assert!(fresh.estimate.simultaneous_interval.is_none());
     assert!(
         fresh
@@ -667,11 +667,47 @@ fn unknown_tier_envelope_straddles_zero() {
         .unwrap()
         .run(&ExecutionContext::for_tests(22))
         .unwrap();
+    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
     assert!(result.estimate.ate.is_nan(), "unknown scenarios must not become a single ATE");
     let scenarios = result.estimate.scenario_effects.as_ref().unwrap();
     assert!(scenarios.iter().any(|v| *v < 0.0) && scenarios.iter().any(|v| *v > 0.0));
     assert_eq!(result.estimate.scenario_intervals.as_ref().unwrap().len(), 2);
     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
+}
+
+#[test]
+fn unknown_tier_conditional_and_single_response_refuse() {
+    let (data, _graph, query, _, _) = confounded_hetero(200, 22);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], vec!["t"], vec!["y"]],
+        WithinTier::Unknown,
+    )
+    .unwrap();
+    let mut inner = query;
+    inner.effect_modifiers = Arc::from([schema.id_of("z").unwrap()]);
+    let ce = ConditionalEffectQuery::try_new(inner).unwrap();
+    let err = Study::tabular(data.clone())
+        .tiered_background(background.clone())
+        .unwrap()
+        .query(CausalQuery::ConditionalEffect(ce))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    assert!(err.to_string().contains("AverageEffect only"), "{err}");
+    let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: schema.id_of("y").unwrap(),
+        interventions: Arc::from([Intervention::set(schema.id_of("t").unwrap(), Value::f64(1.0))]),
+    });
+    let err = Study::tabular(data)
+        .tiered_background(background)
+        .unwrap()
+        .query(CausalQuery::Response(response))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    assert!(err.to_string().contains("AverageEffect only"), "{err}");
 }
 
 #[test]
@@ -1666,6 +1702,7 @@ fn retarget_succeeds_on_codetermined_tiered_admg() {
     );
     let ctx = ExecutionContext::for_tests(214);
     let out = retarget_grid_matches_standalone(&data, background, query, &weights, &[z], &ctx);
+    assert_eq!(out.support_status.unwrap().as_str(), "licensed");
     assert!(out.estimate.exceedance_cdf.is_some());
 
     // {z} | {t, u} | {y}: t↔u. Walking ↔ as descendants from t would mark u
@@ -2110,6 +2147,53 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
 }
 
 #[test]
+fn pag_unidentified_mass_does_not_publish_class_conditional_cdf() {
+    let n = 800usize;
+    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut r = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        r[i] = standard_normal(&mut rng);
+        z[i] = standard_normal(&mut rng);
+        t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(0.7 * r[i] + 0.4 * z[i])).exp()));
+        y[i] = 1.2 * t[i] + 0.6 * z[i] + 0.3 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+    let mut pag = Pag::with_variables(4);
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_circle_circle(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(
+            &pag,
+            &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+        )
+        .unwrap();
+    assert!(env.unidentified_weight.0 > 0.0);
+    let mut inner =
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    inner.effect_modifiers = Arc::from([VariableId::from_raw(2)]);
+    let ce = ConditionalEffectQuery::try_new(
+        inner.with_outcome_functional(OutcomeFunctional::exceedance_grid([0.0, 0.5, 1.0])),
+    )
+    .unwrap();
+    let err = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::ConditionalEffect(ce))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(213))
+        .unwrap_err();
+    assert!(err.to_string().contains("zero unidentified completion mass"), "{err}");
+}
+
+#[test]
 fn quantile_treatment_effect_inverts_aipw_cdf() {
     let n = 2_400usize;
     let mut rng = ExecutionContext::for_tests(215).rng.stream(0x51);
@@ -2305,6 +2389,77 @@ fn pag_front_door_response_empty_required_cell_is_not_supported() {
     }
 }
 
+#[test]
+fn pag_adjustment_response_is_single_arm_mean() {
+    // R→T witnesses visibility of T→Y. Z is the backdoor. Control mean is 0.3, not the ATE (0.6).
+    let n = 4_000;
+    let mut rng = ExecutionContext::for_tests(41).rng.stream(0xA11);
+    let mut r = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let ri = standard_normal(&mut rng);
+        let zi = standard_normal(&mut rng);
+        r[i] = ri;
+        z[i] = zi;
+        t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.2 + 0.8 * ri + 0.9 * zi)).exp()));
+        y[i] = 0.3 + 0.6 * t[i] + 0.4 * zi + 0.15 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+    let mut pag = Pag::with_variables(4);
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    for (level, expected) in [(0.0, 0.3), (1.0, 0.9)] {
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([Intervention::set(
+                VariableId::from_raw(0),
+                Value::f64(level),
+            )]),
+        });
+        let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+        let identified = &env.cases[0].result;
+        assert!(matches!(identified.query, CausalQuery::Response(_)));
+        let fid = identified.estimands[0].functional;
+        assert!(
+            !matches!(identified.arena.node(fid), antecedent_expr::ExprNode::Contrast { .. }),
+            "staged MAG response must be a single-arm mean"
+        );
+        let pretty = identified.arena.pretty(fid);
+        assert!(pretty.contains("do("), "{pretty}");
+        assert!(!pretty.contains('−'), "{pretty}");
+        let wire = antecedent_io::identification_to_wire(identified).unwrap();
+        let back = antecedent_io::identification_from_wire(&wire).unwrap();
+        assert!(matches!(back.query, CausalQuery::Response(_)));
+        assert!(!matches!(
+            back.arena.node(back.estimands[0].functional),
+            antecedent_expr::ExprNode::Contrast { .. }
+        ));
+        let result = Study::tabular(data.clone())
+            .graph(pag.clone())
+            .query(CausalQuery::Response(query))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(41))
+            .unwrap();
+        assert!(
+            (result.estimate.ate - expected).abs() < 0.08,
+            "Set({level}) must recover the intervention mean, ate={} expected={expected}",
+            result.estimate.ate
+        );
+        assert!(
+            (result.estimate.ate - 0.6).abs() > 0.15,
+            "Set({level}) must not be the ATE contrast, ate={}",
+            result.estimate.ate
+        );
+    }
+}
+
 fn same_tier_joint_query(schema: &antecedent_core::CausalSchema) -> ResponseQuery {
     ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: schema.id_of("y").unwrap(),
@@ -2393,6 +2548,7 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
         .unwrap()
         .run(&ctx)
         .unwrap();
+    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
     assert!(result.estimate.ate.is_finite(), "licensed cell must be finite");
     assert!(result.estimate.se_analytic.is_finite(), "cell-AIPW SE requires IFs");
     let table = result.estimate.score_table.as_ref().expect("cell.aipw must freeze scores");
@@ -2435,6 +2591,10 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     assert!(
         prepared.plans()[0].score_table().is_some(),
         "prepare_cells must freeze cell-AIPW scores"
+    );
+    assert!(
+        matches!(prepared.queries(), [antecedent::BatchQuery::Response(_)]),
+        "prepare_cells must keep ResponseQuery, not a fake ATE"
     );
     let batch = &prepared.estimate(&data, &ctx).unwrap()[0];
     assert!(batch.estimate.ate.is_finite(), "prepare_cells estimate must be a real cell");

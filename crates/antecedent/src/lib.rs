@@ -79,7 +79,7 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
     LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign,
     SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
 };

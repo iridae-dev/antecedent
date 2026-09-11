@@ -8,7 +8,7 @@
 
 pub use crate::accepted::{AcceptedGraph, GraphClass};
 pub use crate::analysis::{
-    BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
+    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection, ComputeBudget,
     LatencyMode, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign, Study,
     StudyBuilder,
 };

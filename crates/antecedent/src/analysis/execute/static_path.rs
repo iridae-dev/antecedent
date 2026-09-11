@@ -749,11 +749,12 @@ impl super::Study {
         started: Instant,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
-        if query.inner.outcome_functional.quantile_level().is_some()
-            && envelope.unidentified_weight.0 > 1e-12
+        if envelope.unidentified_weight.0 > 1e-12
+            && (query.inner.outcome_functional.quantile_level().is_some()
+                || query.inner.outcome_functional.thresholds().is_some())
         {
             return Err(CausalError::Unsupported {
-                message: "conditional quantile mixture requires zero unidentified completion mass",
+                message: "class-aware ConditionalEffect grid requires zero unidentified completion mass",
             });
         }
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
@@ -819,10 +820,7 @@ impl super::Study {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id)?;
-            if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                estimand.method = Arc::from("backdoor.adjustment");
-            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
             let mut mean_query = query.clone();
             mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
             let estimate =
@@ -1040,12 +1038,7 @@ impl super::Study {
                 started,
             );
         }
-        let mut estimand = identification.estimands[0].clone();
-        if estimand.method.as_ref().starts_with("generalized.adjustment")
-            || estimand.method.as_ref().starts_with("tiered.")
-        {
-            estimand.method = Arc::from("backdoor.adjustment");
-        }
+        let estimand = identification.estimands[0].clone();
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             data,
             query.outcome,
@@ -1137,13 +1130,11 @@ impl super::Study {
         let mut primary = None;
         let mut assumptions = identification.required_assumptions.clone();
         for estimand in &identification.estimands {
-            let mut tagged = estimand.clone();
-            tagged.method = Arc::from("backdoor.adjustment");
             let mut ws = StaticEstimateWorkspaces::default();
             let estimate = estimate_static_effect(
                 &spec,
                 &data_est,
-                &tagged,
+                estimand,
                 query,
                 identification.required_assumptions.clone(),
                 self.bootstrap_replicates,
@@ -1159,13 +1150,13 @@ impl super::Study {
             if let Some(inf) = estimate
                 .influence
                 .as_deref()
-                .and_then(|inf| static_aligned_influence(data, query, &tagged, inf))
+                .and_then(|inf| static_aligned_influence(data, query, estimand, inf))
             {
                 atom_ifs.push(inf);
                 atom_ws.push(0.5);
             }
             if primary.is_none() {
-                primary = Some(tagged);
+                primary = Some(estimand.clone());
                 assumptions = estimate.assumptions;
             }
         }

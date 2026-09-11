@@ -188,12 +188,7 @@ impl super::Study {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id)?;
-            // Generalized-adjustment estimands are backdoor-shaped; estimators expect
-            // the canonical backdoor method tag.
-            if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                estimand.method = Arc::from("backdoor.adjustment");
-            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
             let mut case_ws = StaticEstimateWorkspaces::default();
             // Honour a caller-configured estimator across every equivalence-class case,
             // falling back to id-only selection when none was supplied.
@@ -405,10 +400,7 @@ impl super::Study {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id)?;
-            if estimand.method.as_ref().starts_with("generalized.adjustment") {
-                estimand.method = Arc::from("backdoor.adjustment");
-            }
+            let estimand = select_estimand(&case.result, estimator_id)?;
             let mut case_ws = StaticEstimateWorkspaces::default();
             let case_spec = self
                 .estimator_spec

@@ -726,6 +726,7 @@ impl StudyBuilder {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
         let graph_class = crate::support::effective_graph_class(&graph, &query);
+        let matrix_class = crate::support::matrix_graph_class(&graph, &query, self.tiered.as_ref());
         let selected = self.estimator_spec.as_ref().map(crate::estimator_spec::EstimatorSpec::id);
         let functional = match &query {
             CausalQuery::AverageEffect(q) => Some(&q.outcome_functional),
@@ -939,11 +940,16 @@ impl StudyBuilder {
 
         let mut refute_default_downgrade: Option<RefuteSuite> = None;
         if !self.refute_explicit {
-            let requested =
-                crate::support::support_cell(&query, graph_class, structure, &inference, refute);
-            let without_validation = crate::support::support_cell(
+            let requested = crate::support::support_cell_named(
                 &query,
-                graph_class,
+                matrix_class,
+                structure,
+                &inference,
+                refute,
+            );
+            let without_validation = crate::support::support_cell_named(
+                &query,
+                matrix_class,
                 structure,
                 &inference,
                 RefuteSuite::None,
@@ -965,17 +971,29 @@ impl StudyBuilder {
                 refute = RefuteSuite::None;
             }
         }
-        let support_status = if cell_aipw
-            && self
-                .tiered
-                .as_ref()
-                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+        if self
+            .tiered
+            .as_ref()
+            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::Unknown)
         {
-            // Off the Admg×InterventionResponse matrix cell: CoDetermined is a
-            // known closure ADMG, not a bare Admg response plug-in.
-            None
-        } else if let Some(cell) =
-            crate::support::support_cell(&query, graph_class, structure, &inference, refute)
+            match &query {
+                CausalQuery::ConditionalEffect(_) => {
+                    return Err(CausalError::Unsupported {
+                        message: "Unknown-tier ConditionalEffect is not licensed; the \
+                                  two-scenario envelope is AverageEffect only",
+                    });
+                }
+                CausalQuery::Response(q) if q.functional.treatment_ids().len() <= 1 => {
+                    return Err(CausalError::Unsupported {
+                        message: "Unknown-tier single-treatment Response is not licensed; the \
+                                  two-scenario envelope is AverageEffect only",
+                    });
+                }
+                _ => {}
+            }
+        }
+        let support_status = if let Some(cell) =
+            crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
             Some(crate::support::refuse_if_not_applicable(cell)?)
         } else {

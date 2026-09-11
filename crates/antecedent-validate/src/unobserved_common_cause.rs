@@ -75,13 +75,10 @@ impl UnobservedCommonCause {
                 message: "unobserved common cause requires replicates > 0",
             });
         }
-        if !matches!(
-            problem.estimand.method_kind().ok(),
-            Some(
-                antecedent_expr::EstimandMethod::BackdoorAdjustment
-                    | antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded
-            )
-        ) {
+        if !problem.estimand.is_adjustment_shaped()
+            && problem.estimand.method_kind().ok()
+                != Some(antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded)
+        {
             return Err(ValidationError::NotApplicable {
                 message: "unobserved common cause requires backdoor.adjustment or \
                           temporal.backdoor.unfolded",

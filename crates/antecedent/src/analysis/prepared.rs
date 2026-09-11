@@ -1582,12 +1582,7 @@ impl Study {
                         message: "prepared AIPW scores require iid inference without propensity trimming",
                     });
                 }
-                let mut estimand = cache.estimand.clone();
-                if estimand.method.as_ref().starts_with("generalized.adjustment")
-                    || estimand.method.as_ref().starts_with("tiered.")
-                {
-                    estimand.method = Arc::from("backdoor.adjustment");
-                }
+                let estimand = cache.estimand.clone();
                 let mut problem = est.prepare(data, &estimand, query)?;
                 if let Some(shared) = self.shared_batch_design.as_ref() {
                     shared.apply_to_propensity(&mut problem)?;

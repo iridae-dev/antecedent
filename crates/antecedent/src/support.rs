@@ -292,12 +292,38 @@ pub fn support_cell(
     inference: &InferenceMode,
     refute: RefuteSuite,
 ) -> Option<SupportCell> {
+    support_cell_named(query, graph_class.as_str(), structure, inference, refute)
+}
+
+/// Like [`support_cell`], but `graph_class` may be a classification-only axis
+/// (`CoDetermined`, `Unknown`) that is not a [`GraphClass`] variant.
+#[must_use]
+pub fn support_cell_named(
+    query: &CausalQuery,
+    graph_class: &'static str,
+    structure: StructureSource,
+    inference: &InferenceMode,
+    refute: RefuteSuite,
+) -> Option<SupportCell> {
     Some(SupportCell {
-        query: query_axis_name(query, graph_class)?,
-        graph_class: graph_class.as_str(),
+        query: query_axis_name(query, naming_class(graph_class)?)?,
+        graph_class,
         structure: structure.as_str(),
         inference: inference_axis(inference),
         validation: validation_axis(refute),
+    })
+}
+
+fn naming_class(matrix: &str) -> Option<GraphClass> {
+    Some(match matrix {
+        "Dag" | "CoDetermined" | "Unknown" => GraphClass::Dag,
+        "Admg" => GraphClass::Admg,
+        "Cpdag" => GraphClass::Cpdag,
+        "Pag" => GraphClass::Pag,
+        "TemporalDag" => GraphClass::TemporalDag,
+        "TemporalCpdag" => GraphClass::TemporalCpdag,
+        "TemporalPag" => GraphClass::TemporalPag,
+        _ => return None,
     })
 }
 
@@ -320,7 +346,8 @@ pub fn support_cell(
 ///   `CausalQuery::Response` still hits compile.rs's wildcard because
 ///   `dispatch.rs` requires Dag/Cpdag/Pag, or a `CoDetermined` tier closure.
 ///   The collapse must not fire for a supplied Admg response. `CoDetermined`
-///   cells are off this matrix axis (known closure ADMG + cell.aipw).
+///   / `Unknown` are classification-only matrix extras ([`matrix_graph_class`]),
+///   not [`GraphClass`] variants.
 /// - **Cpdag, under `AverageEffect`**: undirected marks are MEC information.
 ///   Completing a CPDAG to a DAG is a `Dag` cell only when the *caller*
 ///   supplies a `Dag`. A supplied `Cpdag` stays `Cpdag` even when it has a
@@ -342,6 +369,24 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
         }
         (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
         (class, _) => class,
+    }
+}
+
+/// Matrix graph axis, including classification-only tier-rule extras.
+///
+/// A `TieredBackground` is not a supplied `Admg`/`Pag`. CoDetermined is a known
+/// closure; Unknown is a two-scenario envelope. Classification only — execute
+/// still materializes the closure ADMG or PAG.
+#[must_use]
+pub(crate) fn matrix_graph_class(
+    graph: &AcceptedGraph,
+    query: &CausalQuery,
+    tiered: Option<&antecedent_graph::TieredBackground>,
+) -> &'static str {
+    match tiered.map(|b| b.within_tier) {
+        Some(antecedent_graph::WithinTier::CoDetermined) => "CoDetermined",
+        Some(antecedent_graph::WithinTier::Unknown) => "Unknown",
+        None => effective_graph_class(graph, query).as_str(),
     }
 }
 
@@ -1106,6 +1151,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(classify(sc), CellStatus::Licensed);
+    }
+
+    #[test]
+    fn codetermined_joint_ir_is_a_licensed_matrix_cell() {
+        let sc = cell("InterventionResponse", "CoDetermined", "explicit", "Frequentist", "none");
+        assert_eq!(classify(sc), CellStatus::Licensed);
+        let unknown = cell("AverageEffect", "Unknown", "explicit", "Frequentist", "none");
+        assert_eq!(classify(unknown), CellStatus::Licensed);
+        let off = cell("ConditionalEffect", "Unknown", "explicit", "Frequentist", "none");
+        assert!(matches!(classify(off), CellStatus::NotApplicable { .. }));
     }
 
     /// The ADMG collapse is scoped to `AverageEffect`: `compile.rs` wires no other

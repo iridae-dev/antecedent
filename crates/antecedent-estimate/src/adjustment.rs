@@ -16,7 +16,7 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
+use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
     LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
@@ -25,7 +25,9 @@ use antecedent_stats::{
 
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::prepare::{require_method, treatment_contrast, validate_ate_query_with_targets};
+use crate::prepare::{
+    require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
+};
 use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
@@ -493,10 +495,9 @@ impl LinearAdjustmentAte {
             self.overlap,
             "LinearAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        require_method(
+        require_adjustment_shaped(
             estimand,
-            &[EstimandMethod::BackdoorAdjustment],
-            "LinearAdjustmentAte expects backdoor.adjustment",
+            "LinearAdjustmentAte expects an adjustment-shaped estimand",
         )?;
         validate_ate_query_with_targets(query)?;
         let treatment = query.treatment;

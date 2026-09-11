@@ -187,6 +187,10 @@ def _section_estimate(raw: Any) -> Any:
         adjusted_p_values=getattr(raw, "adjusted_p_values", None),
         candidate_selection=getattr(raw, "candidate_selection", None),
         evalue=getattr(raw, "evalue", None),
+        joint_covariance=getattr(raw, "joint_covariance", None),
+        score_inference=getattr(raw, "score_inference", None),
+        scenario_effects=getattr(raw, "scenario_effects", None),
+        scenario_intervals=getattr(raw, "scenario_intervals", None),
     )
 
 
