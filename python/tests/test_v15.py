@@ -643,6 +643,100 @@ def test_prepared_batch_prepare_cells_codetermined_pair_family():
         )
 
 
+def _zero_effect_pair_family(n: int = 2400, seed: int = 221):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.8 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.7 * z)))).astype(float)
+    y = 2.0 + 0.4 * z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "t1": t1, "t2": t2, "y": y}
+    graph = antecedent.Dag.from_edges(
+        ["z", "t1", "t2", "y"],
+        [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+    )
+    q11 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
+    q10 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 0.0)])
+    return data, graph, q11, q10
+
+
+def test_prepared_batch_zero_effect_pair_family_is_not_significant():
+    data, graph, q11, q10 = _zero_effect_pair_family()
+    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+        data,
+        graph=graph,
+        queries=[q11, q10],
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    first, second = batch.estimate(data)
+    solo = antecedent.analyze(
+        data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
+    )
+    assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
+    for result in (first, second):
+        assert result.estimate.ate > 1.0
+        assert abs(result.estimate.ate) / result.estimate.se_analytic > 8.0
+        bh, by_q = result.estimate.adjusted_p_values
+        assert bh > 0.05 and by_q > 0.05
+        value, _se = result.estimate.family_contrast
+        assert abs(value) < 0.25
+    omitted = antecedent.estimation.PreparedBatch.prepare_cells(
+        data,
+        graph=graph,
+        queries=[q11, q10],
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+        family_contrast=None,
+    ).estimate(data)
+    assert all(r.estimate.adjusted_p_values is None for r in omitted)
+    assert all(r.estimate.family_contrast is None for r in omitted)
+    assert all(r.estimate.simultaneous_interval is not None for r in omitted)
+
+
+def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
+    rng = np.random.default_rng(17)
+    n = 2400
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.8 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.7 * z)))).astype(float)
+    t3 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.15 + 0.75 * z)))).astype(float)
+    y = 2.0 + 0.4 * z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "t1": t1, "t2": t2, "t3": t3, "y": y}
+    background = TieredBackground(
+        tiers=[["z"], ["t1", "t2", "t3"], ["y"]], within_tier=WithinTier.CODETERMINED
+    )
+    q12 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
+    q13 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t3", 1.0)])
+    q23 = InterventionResponse("y", intervention=[Set("t2", 1.0), Set("t3", 1.0)])
+    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+        data,
+        graph=background,
+        queries=[q12, q13, q23],
+        estimator="cell.aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    design = batch.shared_design
+    assert design is not None
+    assert design.n_folds == 5
+    assert not design.shares_covariates
+    results = batch.estimate(data)
+    assert len(results) == 3
+    assert len(results[0].estimate.joint_covariance) == 3
+    solo = antecedent.analyze(
+        data, graph=background, query=q12, estimator="cell.aipw", refute="none", bootstrap=0
+    )
+    assert results[0].estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
+    for result in results:
+        assert result.estimate.ate > 1.0
+        bh, by_q = result.estimate.adjusted_p_values
+        assert bh > 0.05 and by_q > 0.05
+        value, _se = result.estimate.family_contrast
+        assert abs(value) < 0.25
+
+
 def test_prepared_batch_prepare_cells_dag_multi_pair():
     rng = np.random.default_rng(618)
     n = 3200

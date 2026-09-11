@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use antecedent::{
-    BatchStudy, CandidateProcedure, CandidateScreen, EstimatorId, PreparedStudy, RefuteSuite,
-    SharedBatchDesign, Study,
+    BatchStudy, CandidateProcedure, CandidateScreen, CellFamilyContrast, EstimatorId,
+    PreparedStudy, RefuteSuite, SharedBatchDesign, Study,
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
@@ -1363,6 +1363,116 @@ fn prepared_batch_cells_reuse_joint_plans() {
     );
 }
 
+fn zero_effect_pair_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xCE);
+    let mut a = vec![0.0; n];
+    let mut d = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        z[i] = standard_normal(&mut rng);
+        let p_a = 1.0 / (1.0 + (-(-0.2 + 0.8 * z[i])).exp());
+        let p_d = 1.0 / (1.0 + (-(-0.1 + 0.7 * z[i])).exp());
+        a[i] = f64::from(rng.next_f64() < p_a);
+        d[i] = f64::from(rng.next_f64() < p_d);
+        y[i] = 2.0 + 0.4 * z[i] + 0.3 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("a", a), ("d", d), ("y", y), ("z", z)]);
+    let mut graph = Dag::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    (data, graph)
+}
+
+fn assert_level_would_look_significant(result: &antecedent::StudyResult) {
+    assert!(
+        result.estimate.ate.abs() > 1.0,
+        "cell level must sit away from 0 so testing ate as a contrast would fire: ate={}",
+        result.estimate.ate
+    );
+    assert!(
+        result.estimate.ate.abs() / result.estimate.se_analytic.max(1e-12) > 8.0,
+        "naive |level|/SE must be large: ate={} se={}",
+        result.estimate.ate,
+        result.estimate.se_analytic
+    );
+}
+
+fn assert_family_p_non_significant(result: &antecedent::StudyResult) {
+    let (bh, by) = result.estimate.adjusted_p_values.expect("family p-values must exist");
+    assert!(
+        bh > 0.05 && by > 0.05,
+        "zero-effect family must not be BH/BY-significant on the cell level: BH={bh} BY={by} ate={} contrast={:?}",
+        result.estimate.ate,
+        result.estimate.family_contrast
+    );
+    let (value, _) = result.estimate.family_contrast.expect("family contrast must be published");
+    assert!(
+        value.abs() < 0.25,
+        "declared contrast must be near zero under no treatment effect: {value}"
+    );
+}
+
+#[test]
+fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
+    let (data, graph) = zero_effect_pair_dgp(2_400, 221);
+    let ctx = ExecutionContext::for_tests(221);
+    let q11 = joint_query(1.0, 1.0);
+    let q10 = joint_query(1.0, 0.0);
+    let prepared = BatchStudy::new(data.clone(), graph.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare_cells(&[q11.clone(), q10], &ctx)
+        .unwrap();
+    let results = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(results.len(), 2);
+    let solo = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::Response(q11))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    for result in &results {
+        assert_level_would_look_significant(result);
+        assert_family_p_non_significant(result);
+        assert!(result.estimate.simultaneous_interval.is_some());
+    }
+
+    let none = BatchStudy::new(data.clone(), graph.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .family_contrast(None)
+        .prepare_cells(&[joint_query(1.0, 1.0), joint_query(1.0, 0.0)], &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    assert!(none.iter().all(|r| r.estimate.adjusted_p_values.is_none()));
+    assert!(none.iter().all(|r| r.estimate.family_contrast.is_none()));
+    assert!(none.iter().all(|r| r.estimate.simultaneous_interval.is_some()));
+    assert!(none.iter().all(|r| r.estimate.ate.abs() > 1.0));
+
+    let interaction = BatchStudy::new(data.clone(), graph)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .family_contrast(Some(CellFamilyContrast::Interaction))
+        .prepare_cells(&[joint_query(1.0, 1.0), joint_query(1.0, 0.0)], &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    for result in &interaction {
+        assert_level_would_look_significant(result);
+        assert_family_p_non_significant(result);
+    }
+}
+
 #[test]
 fn linear_plan_has_no_score_table_and_refuses_retarget() {
     let (data, graph, query, weights, _) = confounded_hetero(300, 17);
@@ -2674,6 +2784,100 @@ fn codetermined_prepare_cells_pair_family_shares_joint_if() {
     assert!(
         results.iter().any(|r| r.diagnostics.iter().any(|d| d.code.as_ref() == "batch.joint_if"))
     );
+}
+
+fn zero_effect_three_pair_dgp(
+    n: usize,
+    seed: u64,
+) -> (TabularData, TieredBackground, [ResponseQuery; 3]) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC3);
+    let mut z = vec![0.0; n];
+    let mut t1 = vec![0.0; n];
+    let mut t2 = vec![0.0; n];
+    let mut t3 = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        z[i] = zi;
+        t1[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.2 + 0.8 * zi)).exp()));
+        t2[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.1 + 0.7 * zi)).exp()));
+        t3[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.15 + 0.75 * zi)).exp()));
+        y[i] = 2.0 + 0.4 * zi + 0.3 * standard_normal(&mut rng);
+    }
+    let data = cols(&[("z", z), ("t1", t1), ("t2", t2), ("t3", t3), ("y", y)]);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["z"], vec!["t1", "t2", "t3"], vec!["y"]],
+        WithinTier::CoDetermined,
+    )
+    .unwrap();
+    let pair = |left: &str, right: &str| {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: schema.id_of("y").unwrap(),
+            interventions: Arc::from([
+                Intervention::set(schema.id_of(left).unwrap(), Value::f64(1.0)),
+                Intervention::set(schema.id_of(right).unwrap(), Value::f64(1.0)),
+            ]),
+        })
+    };
+    (data, background, [pair("t1", "t2"), pair("t1", "t3"), pair("t2", "t3")])
+}
+
+#[test]
+fn codetermined_distinct_pairs_share_folds_not_covariates() {
+    let (data, background, queries) = zero_effect_three_pair_dgp(2_400, 17);
+    let schema = data.schema().clone();
+    let z = schema.id_of("z").unwrap();
+    let t1 = schema.id_of("t1").unwrap();
+    let t2 = schema.id_of("t2").unwrap();
+    let t3 = schema.id_of("t3").unwrap();
+    let ctx = ExecutionContext::for_tests(17);
+    let id12 =
+        antecedent_identify::identify_tiered_joint(&background, &schema, &queries[0]).unwrap();
+    let id13 =
+        antecedent_identify::identify_tiered_joint(&background, &schema, &queries[1]).unwrap();
+    let id23 =
+        antecedent_identify::identify_tiered_joint(&background, &schema, &queries[2]).unwrap();
+    assert_eq!(id12.estimands[0].adjustment_set.as_ref(), &[z, t3]);
+    assert_eq!(id13.estimands[0].adjustment_set.as_ref(), &[z, t2]);
+    assert_eq!(id23.estimands[0].adjustment_set.as_ref(), &[z, t1]);
+    assert_ne!(id12.estimands[0].adjustment_set, id13.estimands[0].adjustment_set);
+
+    let prepared = BatchStudy::tiered(data.clone(), background.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare_cells(&queries, &ctx)
+        .unwrap();
+    let shared = prepared.shared_design().expect("three-pair prepare_cells shares folds");
+    assert_eq!(shared.n_folds, 5);
+    assert!(shared.covariate.is_none(), "distinct pair closures must skip shared covariates");
+    assert!(std::ptr::eq(
+        prepared.plans()[0].shared_design().expect("plan 0"),
+        prepared.plans()[2].shared_design().expect("plan 2"),
+    ));
+    let results = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(results.len(), 3);
+    assert!(
+        results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 3)),
+        "three-pair family joint IF must be 3×3"
+    );
+    let solo = Study::tabular(data)
+        .tiered_background(background)
+        .unwrap()
+        .query(CausalQuery::Response(queries[0].clone()))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    for result in &results {
+        assert_level_would_look_significant(result);
+        assert_family_p_non_significant(result);
+    }
 }
 
 #[test]
