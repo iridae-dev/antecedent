@@ -639,10 +639,10 @@ def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
     rng = np.random.default_rng(618)
     n = 3200
     z = rng.normal(size=n)
-    t1 = (rng.uniform(size=n) < 0.5).astype(float)
-    t2 = (rng.uniform(size=n) < 0.5).astype(float)
-    # Skewed noise distinguishes the median from the mean.
-    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.8 * np.exp(rng.normal(size=n)) - 0.8
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z)))).astype(float)
+    # Skewed noise distinguishes the median from the mean. z confounds T and Y.
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.8 * np.exp(rng.normal(size=n)) - 0.8
     data = {"z": z, "t1": t1, "t2": t2, "y": y}
     graph = antecedent.Dag.from_edges(
         ["z", "t1", "t2", "y"],

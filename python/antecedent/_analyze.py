@@ -396,7 +396,7 @@ def handle_response(
         )
     ):
         raise CausalUnsupportedError(
-            "response quantiles require static Frequentist cell.aipw joint cells"
+            "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights"
         )
 
     if discovery is not None:
@@ -1364,6 +1364,11 @@ def handle_static_ate(
                 bootstrap=bootstrap or 0,
                 threads=threads,
                 outcome_functional=functional,
+                latency=latency,
+                identifier=identifier,
+                validators=validators,
+                cancel=cancel,
+                on_progress=on_progress,
             ),
             query=query,
         )
@@ -2142,7 +2147,8 @@ def analyze(
         ``"none"``) / :class:`antecedent.Refute` member. Leave unset (``None``)
         to run the default suite — passing the literal ``True`` raises
         ``TypeError`` (it carried no information beyond "unset" and was easy
-        to confuse with an explicit choice).
+        to confuse with an explicit choice). ``PreparedBatch`` / ``prepare``
+        default ``refute`` off (``none``); this one-shot path defaults on.
     cancel:
         Optional ``CancellationToken`` from ``antecedent._native``. Refused
         with live discovery strategies; supported on compatible ``graph=``

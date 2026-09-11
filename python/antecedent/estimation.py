@@ -941,6 +941,9 @@ def identify(
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
+    ``TieredBackground`` identification and ``BatchStudy.prepare_cells`` stay
+    Rust-only in 1.5; the Python bridge does not bind them.
+
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
     to say a variable cannot be observed, so a latent common cause flattened
     into one is treated as an ordinary adjustable node and the effect is
@@ -1253,7 +1256,7 @@ class PreparedAnalysis:
                 )
             ):
                 raise CausalUnsupportedError(
-                    "response quantiles require static Frequentist cell.aipw joint cells"
+                    "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights"
                 )
             from .observation import Complete
             from .population import coerce_target_population

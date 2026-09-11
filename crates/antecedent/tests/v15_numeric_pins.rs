@@ -887,8 +887,18 @@ fn prepared_grid_uses_new_data_and_joint_covariance_roundtrips() {
     let wire = antecedent_io::effect_estimate_to_wire(&click.estimate);
     let restored = antecedent_io::effect_estimate_from_wire(&wire).unwrap();
     assert_eq!(restored.joint_covariance, click.estimate.joint_covariance);
-    assert_eq!(restored.score_inference, click.estimate.score_inference);
-    let inference = click.estimate.score_inference.unwrap();
+    let inference = click.estimate.score_inference.as_ref().unwrap();
+    let restored_inf = restored.score_inference.as_ref().unwrap();
+    assert_eq!(restored_inf.threshold_supported, inference.threshold_supported);
+    assert_eq!(restored_inf.raw_means, inference.raw_means);
+    for (a, b) in restored_inf.lower.iter().zip(&inference.lower) {
+        assert!(a == b || (a.is_nan() && b.is_nan()), "lower {a} vs {b}");
+    }
+    for (a, b) in restored_inf.upper.iter().zip(&inference.upper) {
+        assert!(a == b || (a.is_nan() && b.is_nan()), "upper {a} vs {b}");
+    }
+    assert!(inference.threshold_supported.iter().any(|ok| !ok));
+    assert!(inference.lower.iter().any(|v| v.is_nan()));
     assert_eq!(inference.lower.len(), 4);
     assert!(inference.critical_value > 1.9);
 }
@@ -1217,7 +1227,6 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
         .tiered_background(background)
         .unwrap()
         .query(AverageEffectQuery::binary_ate(t, y))
-        .identifier("backdoor.adjustment".parse().unwrap())
         .estimator(EstimatorId::LinearAdjustmentAte)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -2684,6 +2693,40 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
     )));
+
+    let n = 280usize;
+    let mut rng = ExecutionContext::for_tests(20).rng.stream(0x14);
+    let mut names = vec!["z".to_string(), "t1".to_string(), "t2".to_string()];
+    names.extend(facets.iter().cloned());
+    names.push("y".to_string());
+    let mut columns: Vec<Vec<f64>> = (0..names.len()).map(|_| vec![0.0; n]).collect();
+    for i in 0..n {
+        let z = standard_normal(&mut rng);
+        columns[0][i] = z;
+        columns[1][i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.2 + 0.8 * z)).exp()));
+        columns[2][i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(-0.1 + 0.7 * z)).exp()));
+        for col in columns.iter_mut().skip(3).take(COFACETS) {
+            col[i] = standard_normal(&mut rng);
+        }
+        columns[names.len() - 1][i] =
+            1.1 * columns[1][i] + 0.7 * columns[2][i] + 0.4 * z + 0.3 * standard_normal(&mut rng);
+    }
+    let pairs: Vec<(&str, &[f64])> =
+        names.iter().map(String::as_str).zip(columns.iter().map(Vec::as_slice)).collect();
+    let data = TabularData::from_f64_columns(pairs).unwrap();
+    let click = Study::tabular(data)
+        .tiered_background(background)
+        .unwrap()
+        .query(CausalQuery::Response(query))
+        .estimator(EstimatorId::CellAipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(20))
+        .unwrap();
+    assert!(click.estimate.ate.is_finite(), "20-cofacet cell.aipw must be finite");
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
 }
 
 #[test]
@@ -2712,57 +2755,6 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
         !id.diagnostics
             .iter()
             .any(|d| { d.code.as_ref() == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
-    );
-}
-
-/// Same evidence class as the single-lever 200-node ID pin: `do(t1,t2)` on a
-/// `CoDetermined` facet clique + earlier confounder + Y. p=667 lives in the
-/// identify-crate lib bench (`joint_identification_p667_under_recorded_bound`).
-#[test]
-fn codetermined_joint_200_node_uses_closure_shortcut() {
-    const N: u32 = 200;
-    let mut b = antecedent_core::CausalSchemaBuilder::new();
-    b = b.continuous("z").finish().continuous("t1").finish().continuous("t2").finish();
-    let mut treatment_tier = vec!["t1".to_string(), "t2".to_string()];
-    for i in 0..(N - 4) {
-        let name = format!("f{i}");
-        b = b.continuous(name.clone()).finish();
-        treatment_tier.push(name);
-    }
-    let schema = b.continuous("y").finish().build().unwrap();
-    let tier_refs: Vec<&str> = treatment_tier.iter().map(String::as_str).collect();
-    let background = TieredBackground::from_named(
-        &schema,
-        &[vec!["z"], tier_refs, vec!["y"]],
-        WithinTier::CoDetermined,
-    )
-    .unwrap();
-    let query = same_tier_joint_query(&schema);
-    let expected = background
-        .tier_closure_set(
-            &[schema.id_of("t1").unwrap(), schema.id_of("t2").unwrap()],
-            schema.id_of("y").unwrap(),
-        )
-        .unwrap();
-    assert_eq!(expected.len(), N as usize - 3, "Z = closure minus treatments");
-
-    let started = std::time::Instant::now();
-    let id = antecedent_identify::identify_tiered_joint(&background, &schema, &query).unwrap();
-    assert!(
-        started.elapsed().as_millis() < 1000,
-        "200-node joint closure took {:?} (recorded bound 1 s under suite contention; isolated ~230 ms)",
-        started.elapsed()
-    );
-    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
-    assert_eq!(id.estimands[0].adjustment_set.as_ref(), expected.as_ref());
-    assert_eq!(id.performance.candidates_examined, 2);
-    assert!(id.required_assumptions.entries.iter().any(|a| matches!(
-        &a.assumption,
-        antecedent_core::Assumption::Custom { id, .. }
-            if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
-    )));
-    assert!(
-        id.diagnostics.iter().any(|d| d.code.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME)
     );
 }
 

@@ -616,6 +616,9 @@ impl BatchStudy {
                 ate_adjustment_set(graph, query, self.identifier, self.estimator)
             }
             BatchGraph::Tiered(background) => {
+                if background.within_tier == antecedent_graph::WithinTier::Unknown {
+                    return Ok(Arc::from([]));
+                }
                 let identification = antecedent_identify::identify_tiered(background, query)?;
                 identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(
                     || CausalError::Compile {

@@ -1232,8 +1232,14 @@ impl Study {
                             });
                         }
                     };
-                    let identification =
-                        antecedent_identify::identify_tiered_joint(background, schema, query)?;
+                    let identification = match self.graph.as_admg() {
+                        Some(admg) => {
+                            antecedent_identify::identify_tiered_joint_on(background, admg, query)?
+                        }
+                        None => {
+                            antecedent_identify::identify_tiered_joint(background, schema, query)?
+                        }
+                    };
                     let estimand = identification.estimands.first().cloned().ok_or(
                         CausalError::Unsupported {
                             message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,

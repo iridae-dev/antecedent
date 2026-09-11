@@ -163,20 +163,38 @@ pub fn identify_tiered_joint(
 ) -> Result<IdentificationResult, IdentificationError> {
     match background.within_tier {
         WithinTier::Unknown => Err(IdentificationError::unsupported(TIERED_JOINT_UNKNOWN_REFUSE)),
-        WithinTier::CoDetermined => identify_joint_closure(background, schema, query),
+        WithinTier::CoDetermined => {
+            let admg = background.to_admg(schema)?;
+            identify_joint_closure_on(background, &admg, query)
+        }
     }
 }
 
-fn identify_joint_closure(
+/// Joint ID on an already-materialized CoDetermined closure ADMG.
+///
+/// # Errors
+///
+/// Unknown within-tier interpretation or invalid query.
+pub fn identify_tiered_joint_on(
     background: &TieredBackground,
-    schema: &CausalSchema,
+    admg: &Admg,
     query: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
-    let admg = background.to_admg(schema)?;
+    match background.within_tier {
+        WithinTier::Unknown => Err(IdentificationError::unsupported(TIERED_JOINT_UNKNOWN_REFUSE)),
+        WithinTier::CoDetermined => identify_joint_closure_on(background, admg, query),
+    }
+}
+
+fn identify_joint_closure_on(
+    background: &TieredBackground,
+    admg: &Admg,
+    query: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
     let prepared = prepare_joint_response(admg.nodes(), query)?;
     let set = background.tier_closure_set(&prepared.treatments, prepared.outcome)?;
     let z: Vec<DenseNodeId> = set.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
-    let holds = joint_adjustment_holds(&admg, &prepared.targets, prepared.y, &z, |_, _| true)?;
+    let holds = joint_adjustment_holds(admg, &prepared.targets, prepared.y, &z, |_, _| true)?;
     if !holds {
         let mut result = not_identified(prepared.query, TIERED_JOINT_ADJUSTMENT_REFUSE);
         result.required_assumptions = named_no_latent_assumption();
@@ -535,6 +553,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "CI width: joint p=667 clique; keep 20 + 200 default"]
     fn joint_identification_p667_under_recorded_bound() {
         // Unoptimized measurement: ~8.1 s on the p=667 facet clique
         // (~221k bidirected edges). Single-lever p=667 is chunked and stays
