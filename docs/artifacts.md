@@ -9,6 +9,33 @@ Format 0.4 is the durable-artifact wire freeze for package 1.0.0. A later wire
 change must advance the format and provide migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
+## Package 1.5 payloads
+
+Package 1.5 estimates can carry score tables, per-arm CDF values, raw-score
+inference and covariance, and candidate-selection provenance. These fields have
+separate meanings:
+
+- `score_table` retains cross-fitted scores, column metadata, original row
+  indices, held-out propensities, and the certified adjustment set.
+- `exceedance_cdf` is the projected per-arm CDF. AIPW score-table inference
+  reports raw exceedance coordinates; the conditional-grid path reports raw CDF
+  coordinates. To complement exceedance bands, use `[1-upper, 1-lower]`.
+  Projection does not turn raw-score bands into uncertainty for the projected curve.
+- Unsupported coordinates carry false support flags. Bounds can be NaN or
+  finite placeholders; neither licenses an interval when the flag is false.
+  CBOR preserves NaN bounds. Do not convert them into zero-width intervals or
+  assume a generic JSON round trip preserves non-finite floats.
+- Multi-threshold estimates have no scalar ATE. Candidate-selection records
+  describe screening and sample splits; their presence does not establish
+  selection-adjusted inference.
+
+Search-budget diagnostics retain the existing `IdentificationStatus` encoding;
+no status enum variant was added for a cap. That compatibility statement does
+not establish forward compatibility for new outcome functionals or all optional
+1.5 payloads. Do not assume a 1.4 reader can interpret or preserve them. Use a
+reader that supports the requested functional and retain support/uncertainty
+fields when handing estimates to downstream applications.
+
 ## Container
 
 See ADR 0002 / 0017:
