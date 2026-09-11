@@ -150,6 +150,16 @@ impl SharedBatchDesign {
         Ok(Self { fold_ids, n_folds, covariate })
     }
 
+    /// Rebuild data-dependent covariates and row folds on a new estimate table.
+    pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        let sets: Vec<_> = self
+            .covariate
+            .as_ref()
+            .map(|c| vec![Arc::clone(&c.adjustment_set)])
+            .unwrap_or_default();
+        Self::compile(data, &sets, self.n_folds)
+    }
+
     /// Restrict [`Self::fold_ids`] to complete-case rows.
     ///
     /// # Errors
@@ -617,9 +627,9 @@ impl BatchStudy {
                     self.data.schema(),
                     query,
                 )?;
-                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(
-                    || CausalError::Unsupported {
-                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or(
+                    CausalError::Unsupported {
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
                     },
                 )
             }
@@ -666,12 +676,18 @@ impl PreparedBatch {
         ctx: &ExecutionContext,
     ) -> Result<Vec<StudyResult>, CausalError> {
         let data = subset_estimate_rows(data, self.screen.as_ref())?;
+        let shared =
+            self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
         let mut out = Vec::with_capacity(self.plans.len());
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
         for chunk in self.plans.chunks(threads) {
             std::thread::scope(|scope| {
-                let handles: Vec<_> =
-                    chunk.iter().map(|plan| scope.spawn(|| plan.estimate(&data, ctx))).collect();
+                let handles: Vec<_> = chunk
+                    .iter()
+                    .map(|plan| {
+                        scope.spawn(|| plan.estimate_with_shared(&data, shared.clone(), ctx))
+                    })
+                    .collect();
                 for handle in handles {
                     out.push(handle.join().map_err(|_| CausalError::Compile {
                         message: "prepared batch worker panicked".into(),
@@ -681,7 +697,7 @@ impl PreparedBatch {
             })?;
         }
         attach_batch_joint_inference(&mut out, &data, &self.queries, self.screen.as_ref());
-        attach_shared_design_diagnostics(&mut out, self.shared_design.as_ref());
+        attach_shared_design_diagnostics(&mut out, shared.as_ref());
         Ok(out)
     }
 }
