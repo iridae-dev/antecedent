@@ -134,7 +134,7 @@ fn tiered_aipw(
         .unwrap()
 }
 
-/// CoDetermined `{z, u} | {t} | {y}`. Same-tier background siblings add z↔u to the
+/// `CoDetermined` `{z, u} | {t} | {y}`. Same-tier background siblings add z↔u to the
 /// closure ADMG. `u` is not a directed descendant of `t`; a pin with singleton
 /// tiers never builds that bidirected edge.
 fn codetermined_background_siblings(
@@ -172,7 +172,7 @@ fn codetermined_background_siblings(
     (data, background, query, w, z_id, u_id)
 }
 
-/// CoDetermined `{z} | {t, u} | {y}`. Same-tier treatment peer adds t↔u.
+/// `CoDetermined` `{z} | {t, u} | {y}`. Same-tier treatment peer adds t↔u.
 /// `u` is in the certified set and is not a directed descendant of `t`.
 fn codetermined_treatment_sibling(
     n: usize,
@@ -1872,6 +1872,11 @@ fn conditional_extreme_threshold_refuses_empty_tail_band() {
         .unwrap()
         .run(&ExecutionContext::for_tests(210))
         .unwrap();
+    let wire = antecedent_io::analysis_wire::effect_estimate_to_wire(&result.estimate);
+    let bytes = antecedent_io::convert::to_cbor(&wire).unwrap();
+    let decoded = antecedent_io::convert::from_cbor(&bytes).unwrap();
+    let restored = antecedent_io::analysis_wire::effect_estimate_from_wire(&decoded).unwrap();
+    assert!(restored.score_inference.as_ref().unwrap().lower[2].is_nan());
     let inf = result.estimate.score_inference.expect("tail support on the object");
     assert_eq!(inf.threshold_supported.len(), 4);
     assert!(!inf.threshold_supported[2] && !inf.threshold_supported[3]);
@@ -2123,16 +2128,40 @@ fn quantile_treatment_effect_inverts_aipw_cdf() {
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_outcome_functional(OutcomeFunctional::quantile(0.5));
-    let result = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .graph(dag)
         .query(query)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(215))
         .unwrap();
+    let ctx = ExecutionContext::for_tests(215);
+    let result = study.run(&ctx).unwrap();
+    let plan = study.prepare(&ctx).unwrap();
+    let click = plan.retarget(&vec![1.0; plan.score_table().unwrap().n_rows], &[], &ctx).unwrap();
+    assert!((result.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert!((result.estimate.se_analytic - click.estimate.se_analytic).abs() < 1e-12);
+    let weights: Vec<_> = data
+        .float64_values(VariableId::from_raw(2))
+        .unwrap()
+        .iter()
+        .map(|z| (0.1 * z).exp())
+        .collect();
+    let weighted = plan.retarget(&weights, &[VariableId::from_raw(2)], &ctx).unwrap();
+    let doubled = plan
+        .retarget(
+            &weights.iter().map(|w| 2.0 * w).collect::<Vec<_>>(),
+            &[VariableId::from_raw(2)],
+            &ctx,
+        )
+        .unwrap();
+    assert!((weighted.estimate.ate - 2.0).abs() < 0.25);
+    assert!((weighted.estimate.ate - doubled.estimate.ate).abs() < 1e-12);
+    assert!((weighted.estimate.se_analytic - doubled.estimate.se_analytic).abs() < 1e-12);
+    let fresh_click = plan.estimate(&data, &ctx).unwrap();
+    assert!((fresh_click.estimate.ate - result.estimate.ate).abs() < 1e-12);
+
     assert!(
         (result.estimate.ate - 2.0).abs() < 0.25,
         "median QTE should recover the location shift, ate={}",
@@ -2167,31 +2196,36 @@ fn pag_front_door_response_uses_general_id() {
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-        outcome: VariableId::from_raw(2),
-        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
-    });
-    let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
-    assert!(env.identified_weight.0 > 0.0);
-    assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), "general.id");
-    let result = Study::tabular(data)
-        .graph(pag)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(216))
-        .unwrap();
-    assert!(
-        (result.estimate.ate - 0.3).abs() < 1e-9,
-        "front-door MAG response must recover the ID functional, ate={}",
-        result.estimate.ate
-    );
-    assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
-        "general-ID provenance must be visible"
-    );
+    for (level, expected) in [(0.0, 0.3), (1.0, 0.6)] {
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(2),
+            interventions: Arc::from([Intervention::set(
+                VariableId::from_raw(0),
+                Value::f64(level),
+            )]),
+        });
+        let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+        assert!(env.identified_weight.0 > 0.0);
+        assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), "general.id");
+        let result = Study::tabular(data.clone())
+            .graph(pag.clone())
+            .query(CausalQuery::Response(query))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(216))
+            .unwrap();
+        assert!(
+            (result.estimate.ate - expected).abs() < 1e-9,
+            "front-door MAG response must recover the requested intervention mean, ate={}",
+            result.estimate.ate
+        );
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
+            "general-ID provenance must be visible"
+        );
+    }
 }
 
 fn same_tier_joint_query(schema: &antecedent_core::CausalSchema) -> ResponseQuery {
@@ -2445,7 +2479,7 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
 }
 
 /// Same evidence class as the single-lever 200-node ID pin: `do(t1,t2)` on a
-/// CoDetermined facet clique + earlier confounder + Y. p=667 lives in the
+/// `CoDetermined` facet clique + earlier confounder + Y. p=667 lives in the
 /// identify-crate lib bench (`joint_identification_p667_under_recorded_bound`).
 #[test]
 fn codetermined_joint_200_node_uses_closure_shortcut() {
@@ -2572,4 +2606,388 @@ fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
             .iter()
             .any(|d| { d.code == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE })
     );
+}
+
+#[test]
+fn conditional_cdf_is_invariant_to_outcome_translation() {
+    let (data, dag, _, _, _) = confounded_hetero(900, 319);
+    let mut cpdag = Cpdag::with_variables(3);
+    for (a, b) in [(2, 0), (2, 1), (0, 1)] {
+        cpdag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    for class in [false, true] {
+        let mut values = Vec::new();
+        for offset in [0.0, 10.0] {
+            let shifted = cols(&[
+                ("t", data.float64_values(VariableId::from_raw(0)).unwrap()),
+                (
+                    "y",
+                    data.float64_values(VariableId::from_raw(1))
+                        .unwrap()
+                        .iter()
+                        .map(|y| y + offset)
+                        .collect(),
+                ),
+                ("z", data.float64_values(VariableId::from_raw(2)).unwrap()),
+            ]);
+            let query = ConditionalEffectQuery::try_new(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_effect_modifiers([VariableId::from_raw(2)])
+                    .with_outcome_functional(OutcomeFunctional::exceedance_grid([
+                        offset,
+                        offset + 0.5,
+                        offset + 1.0,
+                    ])),
+            )
+            .unwrap();
+            let builder = Study::tabular(shifted);
+            let builder =
+                if class { builder.graph(cpdag.clone()) } else { builder.graph(dag.clone()) };
+            let result = builder
+                .query(CausalQuery::ConditionalEffect(query))
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(319))
+                .unwrap();
+            values.push(result.estimate.score_inference.unwrap().raw_means);
+        }
+        assert!(values[0].iter().zip(&values[1]).all(|(a, b)| (a - b).abs() < 1e-12));
+        assert!(values[0].iter().any(|v| *v > 0.1 && *v < 0.9));
+    }
+}
+
+#[test]
+fn prepared_batch_rebinds_covariates_on_new_data() {
+    let (data, dag, query, _, _) = confounded_hetero(600, 321);
+    let (new_data, _, _, _, _) = confounded_hetero(750, 322);
+    let ctx = ExecutionContext::for_tests(321);
+    let batch = BatchStudy::new(data, dag.clone())
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .prepare(&[query.clone(), query.clone()], &ctx)
+        .unwrap();
+    let fresh = ate_study(new_data.clone(), dag, query, EstimatorId::Aipw).run(&ctx).unwrap();
+    let results = batch.estimate(&new_data, &ctx).unwrap();
+    for result in results {
+        assert!((result.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+        assert_eq!(result.estimate.score_table.unwrap().n_rows, 750);
+    }
+    let mut plan = batch.plans()[0].clone();
+    let click = plan.estimate(&new_data, &ctx).unwrap();
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    let refreshed = plan.refresh(new_data, &ctx).unwrap();
+    assert!((refreshed.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+}
+
+#[test]
+fn quantile_cannot_silently_fall_back_to_mean_estimators() {
+    let (data, dag, query, _, _) = confounded_hetero(400, 328);
+    let query = query.with_outcome_functional(OutcomeFunctional::quantile(0.5));
+    let error = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
+        .estimator(EstimatorId::LinearAdjustmentAte)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap_err();
+    assert!(error.to_string().contains("quantiles require"));
+}
+
+#[test]
+fn pag_two_atom_response_coverage_preserves_shared_row_dependence() {
+    let mut covered = 0;
+    for seed in 400..440 {
+        let n = 800;
+        let ctx = ExecutionContext::for_tests(seed);
+        let mut rng = ctx.rng.stream(0xD4);
+        let mut r = Vec::new();
+        let mut z = Vec::new();
+        let mut t = Vec::new();
+        let mut y = Vec::new();
+        for _ in 0..n {
+            let ri = standard_normal(&mut rng);
+            let zi = standard_normal(&mut rng);
+            let ti = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(0.8 * ri + 0.5 * zi)).exp()));
+            r.push(ri);
+            z.push(zi);
+            t.push(ti);
+            y.push(1.6 * ti + 0.7 * zi + 0.35 * standard_normal(&mut rng));
+        }
+        let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+        let mut pag = Pag::with_variables(4);
+        let mut dag = Dag::with_variables(4);
+        for (a, b) in [(3, 0), (2, 1), (0, 1)] {
+            pag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        pag.insert_circle_arrow(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))].into(),
+        });
+        let mixed = Study::tabular(data.clone())
+            .graph(pag)
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let single = Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::Response(query))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!(
+            mixed.diagnostics.iter().any(
+                |d| d.code.as_ref() == "identify.pag.envelope" && d.message.contains("cases=2")
+            )
+        );
+        // Both completions identify the same observational functional using Z.
+        // Their perfectly correlated scores must not be combined as independent.
+        assert!((mixed.estimate.se_analytic - single.estimate.se_analytic).abs() < 1e-10);
+        covered +=
+            usize::from((mixed.estimate.ate - 1.6).abs() <= 1.96 * mixed.estimate.se_analytic);
+    }
+    assert!(covered >= 33, "two-atom response coverage {covered}/40");
+}
+
+#[test]
+fn scalar_conditional_empty_tail_has_no_zero_width_inference() {
+    let (data, dag, query, _, _) = confounded_hetero(400, 332);
+    let query = ConditionalEffectQuery::try_new(
+        query
+            .with_effect_modifiers([VariableId::from_raw(2)])
+            .with_outcome_functional(OutcomeFunctional::exceedance(1e6)),
+    )
+    .unwrap();
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::ConditionalEffect(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(332))
+        .unwrap();
+    assert!(result.estimate.se_analytic.is_nan());
+    assert!(result.estimate.influence.is_none());
+}
+
+#[test]
+fn conditional_quantile_matches_cdf_and_prepared_paths() {
+    let n = 2400;
+    let mut rng = ExecutionContext::for_tests(615).rng.stream(0x51);
+    let mut t = Vec::new();
+    let mut y = Vec::new();
+    let mut z = Vec::new();
+    for _ in 0..n {
+        let zi = standard_normal(&mut rng);
+        let ti = f64::from(rng.next_f64() < 0.5);
+        t.push(ti);
+        z.push(zi);
+        y.push(2.0 * ti + 0.3 * zi + 0.5 * standard_normal(&mut rng));
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z)]);
+    let mut dag = Dag::with_variables(3);
+    let mut cpdag = Cpdag::with_variables(3);
+    for (a, b) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        cpdag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2)])
+            .with_outcome_functional(OutcomeFunctional::quantile(0.5)),
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(615);
+    let study = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::ConditionalEffect(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let expected = study.run(&ctx).unwrap();
+    assert!((expected.estimate.ate - 2.0).abs() < 0.2);
+    assert!(expected.estimate.se_analytic > 0.0);
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let class = Study::tabular(data)
+        .graph(cpdag)
+        .query(CausalQuery::ConditionalEffect(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    for result in [&click, &refreshed, &class] {
+        assert!((result.estimate.ate - expected.estimate.ate).abs() < 1e-10);
+        assert!((result.estimate.se_analytic - expected.estimate.se_analytic).abs() < 1e-10);
+    }
+}
+
+#[test]
+fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
+    let n = 3200;
+    let mut rng = ExecutionContext::for_tests(616).rng.stream(0x52);
+    let mut t1 = Vec::new();
+    let mut t2 = Vec::new();
+    let mut y = Vec::new();
+    let mut z = Vec::new();
+    for _ in 0..n {
+        let zi = standard_normal(&mut rng);
+        let a = f64::from(rng.next_f64() < 0.5);
+        let b = f64::from(rng.next_f64() < 0.5);
+        t1.push(a);
+        t2.push(b);
+        z.push(zi);
+        y.push(1.2 * a + 0.8 * b + 1.5 * a * b + 0.3 * zi + 0.8 * standard_normal(&mut rng));
+    }
+    let data = cols(&[("t1", t1), ("t2", t2), ("y", y), ("z", z)]);
+    let mut dag = Dag::with_variables(4);
+    for (a, b) in [(3, 0), (3, 1), (3, 2), (0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(616);
+    for (level, truth) in [(0.0, 0.8), (1.0, 3.5)] {
+        let mut query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(2),
+            interventions: Arc::from([
+                Intervention::set(VariableId::from_raw(0), Value::f64(level)),
+                Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            ]),
+        });
+        query.outcome_functional = OutcomeFunctional::quantile(0.5);
+        let study = Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(CausalQuery::Response(query))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let expected = study.run(&ctx).unwrap();
+        assert!(
+            (expected.estimate.ate - truth).abs() < 0.25,
+            "{} vs {truth}",
+            expected.estimate.ate
+        );
+        assert!(expected.estimate.se_analytic > 0.0);
+        let mut plan = study.prepare(&ctx).unwrap();
+        let click = plan.estimate(&data, &ctx).unwrap();
+        let weighted = plan.retarget(&vec![1.0; n], &[], &ctx).unwrap();
+        let refresh = plan.refresh(data.clone(), &ctx).unwrap();
+        for result in [&click, &weighted, &refresh] {
+            assert!((result.estimate.ate - expected.estimate.ate).abs() < 1e-10);
+            assert!((result.estimate.se_analytic - expected.estimate.se_analytic).abs() < 1e-10);
+            let response = result.response.as_ref().unwrap();
+            let antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Scalar(value),
+            ) = response.estimate
+            else {
+                panic!("expected scalar quantile response")
+            };
+            assert!((value - expected.estimate.ate).abs() < 1e-10);
+        }
+    }
+}
+
+#[test]
+fn conditional_quantile_is_not_a_mean_effect() {
+    let mut rng = ExecutionContext::for_tests(619).rng.stream(0x53);
+    let n = 3200;
+    let mut t = Vec::new();
+    let mut y = Vec::new();
+    let mut z = Vec::new();
+    for _ in 0..n {
+        let a = f64::from(rng.next_f64() < 0.5);
+        t.push(a);
+        z.push(standard_normal(&mut rng));
+        // Both population medians are 1; the means differ by exp(.5)-exp(.02).
+        y.push(((0.2 + 0.8 * a) * standard_normal(&mut rng)).exp());
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z)]);
+    let mut dag = Dag::with_variables(3);
+    for (a, b) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2)])
+            .with_outcome_functional(OutcomeFunctional::quantile(0.5)),
+    )
+    .unwrap();
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::ConditionalEffect(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(619))
+        .unwrap();
+    assert!(
+        result.estimate.ate.abs() < 0.15,
+        "median effect {} must not be the mean effect",
+        result.estimate.ate
+    );
+}
+
+#[test]
+fn pag_two_atom_conditional_quantile_retains_joint_influence() {
+    let n = 2400;
+    let ctx = ExecutionContext::for_tests(620);
+    let mut rng = ctx.rng.stream(0xD4);
+    let mut r = Vec::new();
+    let mut z = Vec::new();
+    let mut t = Vec::new();
+    let mut y = Vec::new();
+    for _ in 0..n {
+        let ri = standard_normal(&mut rng);
+        let zi = standard_normal(&mut rng);
+        let ti = f64::from(rng.next_f64() < 1.0 / (1.0 + (-(0.5 * ri + 0.4 * zi)).exp()));
+        r.push(ri);
+        z.push(zi);
+        t.push(ti);
+        y.push(1.6 * ti + 0.4 * zi + 0.5 * standard_normal(&mut rng));
+    }
+    let data = cols(&[("t", t), ("y", y), ("z", z), ("r", r)]);
+    let mut pag = Pag::with_variables(4);
+    for (a, b) in [(3, 0), (2, 1), (0, 1)] {
+        pag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    pag.insert_circle_arrow(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    let q = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2)])
+            .with_outcome_functional(OutcomeFunctional::quantile(0.5)),
+    )
+    .unwrap();
+    let study = Study::tabular(data.clone())
+        .graph(pag)
+        .query(CausalQuery::ConditionalEffect(q))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = study.run(&ctx).unwrap();
+    assert!((result.estimate.ate - 1.6).abs() < 0.2);
+    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+    assert!(result.diagnostics.iter().any(|d| d.message.contains("cases=2")));
+    let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-10);
 }
