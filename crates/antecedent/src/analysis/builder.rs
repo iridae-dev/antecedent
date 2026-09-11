@@ -752,9 +752,48 @@ impl StudyBuilder {
                 });
             }
         }
+        if functional.and_then(antecedent_core::OutcomeFunctional::quantile_level).is_some() {
+            let supported = matches!(inference, InferenceMode::Frequentist)
+                && graph_posterior.is_none()
+                && match &query {
+                    CausalQuery::AverageEffect(q) => {
+                        selected == Some(EstimatorId::Aipw)
+                            && q.target_population == antecedent_core::TargetPopulation::AllObserved
+                            && (graph_class == GraphClass::Dag
+                                || self.tiered.as_ref().is_some_and(|b| {
+                                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                                }))
+                    }
+                    CausalQuery::ConditionalEffect(q) => {
+                        q.inner.target_population == antecedent_core::TargetPopulation::AllObserved
+                            && q.inner.effect_modifiers.len() == 1
+                            && matches!(
+                                graph_class,
+                                GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+                            )
+                    }
+                    CausalQuery::Response(q) => {
+                        selected == Some(EstimatorId::CellAipw)
+                            && q.target_population == antecedent_core::TargetPopulation::AllObserved
+                            && q.temporal.is_none()
+                    }
+                    _ => false,
+                };
+            if !supported {
+                return Err(CausalError::Unsupported {
+                    message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
+                });
+            }
+            if self.refute != crate::RefuteSuite::None {
+                return Err(CausalError::Unsupported {
+                    message: "quantile functionals currently require refute=none; mean-effect refuters do not validate a quantile",
+                });
+            }
+        }
+
         if self.continuous_cell.is_some() {
             return Err(CausalError::Unsupported {
-                message: antecedent_estimate::POINT_CDE_UNLICENSED.into(),
+                message: antecedent_estimate::POINT_CDE_UNLICENSED,
             });
         }
         let codetermined_joint = self
@@ -779,19 +818,17 @@ impl StudyBuilder {
             if let Some(background) = &self.tiered {
                 let CausalQuery::Response(response) = &query else {
                     return Err(CausalError::Unsupported {
-                        message:
-                            "cell-AIPW on a tiered background requires joint InterventionResponse"
-                                .into(),
+                        message: "cell-AIPW on a tiered background requires joint InterventionResponse",
                     });
                 };
                 if matches!(inference, InferenceMode::Bayesian(_)) {
                     return Err(CausalError::Unsupported {
-                        message: "CoDetermined joint cells are Frequentist cell.aipw".into(),
+                        message: "CoDetermined joint cells are Frequentist cell.aipw",
                     });
                 }
                 if selected.is_some_and(|id| id != EstimatorId::CellAipw) {
                     return Err(CausalError::Unsupported {
-                        message: "CoDetermined joint cells require estimator cell.aipw".into(),
+                        message: "CoDetermined joint cells require estimator cell.aipw",
                     });
                 }
                 let identification = antecedent_identify::identify_tiered_joint(
@@ -806,7 +843,7 @@ impl StudyBuilder {
                 ) || identification.estimands.is_empty()
                 {
                     return Err(CausalError::Unsupported {
-                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE.into(),
+                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
                     });
                 }
             } else if graph_class != GraphClass::Dag {
