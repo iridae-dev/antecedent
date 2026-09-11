@@ -326,6 +326,7 @@ class EstimateSection:
     simultaneous_interval: tuple[float, float, float] | None
     adjusted_p_values: tuple[float, float] | None
     family_contrast: tuple[float, float] | None
+    family_contrast_interval: tuple[float, float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
 

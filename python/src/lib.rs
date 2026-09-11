@@ -954,6 +954,8 @@ struct EstimateSection {
     #[pyo3(get)]
     family_contrast: Option<(f64, f64)>,
     #[pyo3(get)]
+    family_contrast_interval: Option<(f64, f64, f64)>,
+    #[pyo3(get)]
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
     evalue: Option<f64>,

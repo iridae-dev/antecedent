@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   perform quantile inversion instead of silently returning a mean.
 - Unsupported tails publish unavailable uncertainty; CBOR decoding preserves
   those bands. Invalid shared fold IDs refuse rather than leave zero scores.
+- Joint-cell family max-t uses the contrast covariance and publishes
+  contrast simultaneous intervals; the printed critical value is not the
+  cell-level family's.
 
 ### Limitations
 

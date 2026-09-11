@@ -539,7 +539,8 @@ impl BatchStudy {
     ///
     /// Family p-values use [`Self::family_contrast`] (default
     /// [`CellFamilyContrast::CellMinusControl`]), never the cell level stored
-    /// in `estimate.ate`. `family_contrast(None)` keeps intervals on levels
+    /// in `estimate.ate`. Max-t and `family_contrast_interval` are formed on
+    /// that contrast family. `family_contrast(None)` keeps intervals on levels
     /// and publishes no p-values.
     ///
     /// # Errors
@@ -938,6 +939,7 @@ fn attach_batch_family_joint_inference(
                 for result in results.iter_mut() {
                     result.estimate.adjusted_p_values = None;
                     result.estimate.family_contrast = None;
+                    result.estimate.family_contrast_interval = None;
                     result.diagnostics.push(antecedent_core::Diagnostic::new(
                         "batch.joint_if",
                         antecedent_core::DiagnosticKind::Scientific,
@@ -957,6 +959,7 @@ fn attach_batch_family_joint_inference(
                         for result in results.iter_mut() {
                             result.estimate.adjusted_p_values = None;
                             result.estimate.family_contrast = None;
+                            result.estimate.family_contrast_interval = None;
                             result.diagnostics.push(antecedent_core::Diagnostic::new(
                                 "batch.joint_if",
                                 antecedent_core::DiagnosticKind::Scientific,
@@ -989,6 +992,7 @@ fn attach_batch_family_joint_inference(
                     for result in results.iter_mut() {
                         result.estimate.adjusted_p_values = None;
                         result.estimate.family_contrast = None;
+                        result.estimate.family_contrast_interval = None;
                         result.diagnostics.push(antecedent_core::Diagnostic::new(
                             "batch.joint_if",
                             antecedent_core::DiagnosticKind::Scientific,
@@ -999,11 +1003,13 @@ fn attach_batch_family_joint_inference(
                     attach_candidate_selection(results, screen, &[], &[], None);
                     return;
                 };
+                let contrast_crit =
+                    antecedent_estimate::max_t_critical(&contrast_cov, 0.95, 4096, 1).ok();
                 attach_family_p_values(
                     results,
                     &contrast_values,
                     &contrast_cov,
-                    crit,
+                    contrast_crit,
                     Some(kind),
                     screen,
                 );
@@ -1131,7 +1137,10 @@ fn attach_family_p_values(
     for (i, result) in results.iter_mut().enumerate() {
         result.estimate.adjusted_p_values = Some((bh[i], by[i]));
         if contrast.is_some() {
-            result.estimate.family_contrast = Some((values[i], cov.se(i)));
+            let se = cov.se(i);
+            result.estimate.family_contrast = Some((values[i], se));
+            result.estimate.family_contrast_interval =
+                crit.map(|c| (values[i] - c * se, values[i] + c * se, 0.95));
         }
         let mut d = antecedent_core::Diagnostic::new(
             "batch.joint_if",
