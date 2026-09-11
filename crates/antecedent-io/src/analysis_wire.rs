@@ -527,36 +527,8 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
             values: c.values.clone().into(),
         });
     }
-    if let Some(s) = &w.score_inference {
-        let n = s.raw_means.len();
-        if n == 0
-            || s.lower.len() != n
-            || s.upper.len() != n
-            || s.event_n_eff.len() != n
-            || s.threshold_supported.len() != n
-            || s.raw_means.iter().chain(&s.lower).chain(&s.upper).any(|v| !v.is_finite())
-            || !s.level.is_finite()
-            || s.level <= 0.0
-            || s.level >= 1.0
-        {
-            return Err(IoError::Convert("invalid score inference".into()));
-        }
-        estimate.score_inference = Some(antecedent_estimate::scores::ScoreInference {
-            raw_means: s.raw_means.clone(),
-            lower: s.lower.clone(),
-            upper: s.upper.clone(),
-            level: s.level,
-            critical_value: s.critical_value,
-            event_n_eff: s.event_n_eff.clone(),
-            threshold_supported: s.threshold_supported.clone(),
-            support: antecedent_estimate::WeightedSupport {
-                n_eff: s.n_eff,
-                n_eff_by_arm: s.n_eff_by_arm.clone(),
-                propensity_range: s.propensity_range,
-                overlap_ok: s.overlap_ok,
-            },
-        });
-    }
+    estimate.score_inference =
+        w.score_inference.as_ref().map(score_inference_from_wire).transpose()?;
     estimate.simultaneous_interval = w.simultaneous_interval;
     estimate.adjusted_p_values = w.adjusted_p_values;
     estimate.evalue = w.evalue;
@@ -566,6 +538,49 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     Ok(estimate)
+}
+
+fn score_inference_from_wire(
+    s: &ScoreInferenceWire,
+) -> Result<antecedent_estimate::scores::ScoreInference, IoError> {
+    let n = s.raw_means.len();
+    if n == 0
+        || s.lower.len() != n
+        || s.upper.len() != n
+        || s.event_n_eff.len() != n
+        || s.threshold_supported.len() != n
+        || s.raw_means.iter().any(|v| !v.is_finite())
+        || s.lower.iter().zip(&s.upper).zip(&s.threshold_supported).any(
+            |((&lo, &hi), &supported)| {
+                if supported {
+                    !lo.is_finite() || !hi.is_finite() || lo > hi
+                } else {
+                    !((lo.is_nan() && hi.is_nan())
+                        || (lo.is_finite() && hi.is_finite() && lo <= hi))
+                }
+            },
+        )
+        || !s.level.is_finite()
+        || s.level <= 0.0
+        || s.level >= 1.0
+    {
+        return Err(IoError::Convert("invalid score inference".into()));
+    }
+    Ok(antecedent_estimate::scores::ScoreInference {
+        raw_means: s.raw_means.clone(),
+        lower: s.lower.clone(),
+        upper: s.upper.clone(),
+        level: s.level,
+        critical_value: s.critical_value,
+        event_n_eff: s.event_n_eff.clone(),
+        threshold_supported: s.threshold_supported.clone(),
+        support: antecedent_estimate::WeightedSupport {
+            n_eff: s.n_eff,
+            n_eff_by_arm: s.n_eff_by_arm.clone(),
+            propensity_range: s.propensity_range,
+            overlap_ok: s.overlap_ok,
+        },
+    })
 }
 
 fn overlap_policy_from_wire(w: &EffectEstimateWire) -> Result<OverlapPolicy, IoError> {
