@@ -321,11 +321,19 @@ def test_path_specific_and_distribution_queries():
     t_vals: list[float] = []
     m_vals: list[float] = []
     y_vals: list[float] = []
-    for t in (0.0, 1.0):
-        for _ in range(50):
-            t_vals.append(t)
-            m_vals.append(t)
-            y_vals.append(t)
+    for t, m, y, count in (
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
+    ):
+        t_vals.extend([t] * count)
+        m_vals.extend([m] * count)
+        y_vals.extend([y] * count)
     data = {
         "t": np.asarray(t_vals, dtype=np.float64),
         "m": np.asarray(m_vals, dtype=np.float64),
@@ -339,7 +347,7 @@ def test_path_specific_and_distribution_queries():
         refute=False,
         bootstrap=0,
     )
-    assert abs(path.ate - 1.0) < 0.1
+    assert abs(path.ate - 0.3) < 1e-9
     dist = antecedent.analyze(
         data,
         graph=edges,

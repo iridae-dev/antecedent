@@ -69,6 +69,9 @@ impl super::Study {
             if identify_cached {
                 diagnostics.push(identify_cached_diagnostic());
             }
+            for warning in &response.support.warnings {
+                diagnostics.push(warning.clone());
+            }
             return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
                 physical,
                 identification,
@@ -720,6 +723,7 @@ impl super::Study {
         let mut atom_scores = Vec::new();
         let mut total_w = 0.0;
         let mut unestimated_id_mass = 0.0;
+        let mut unevaluable_general_id: Option<antecedent_core::CausalResponse> = None;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         for case in &envelope.cases {
             if !identification_status_ok_for_case(case.result.status)
@@ -733,6 +737,18 @@ impl super::Study {
             {
                 match estimate_general_id_response(data, query, &case.result, &estimand, ctx) {
                     Ok((response, scores)) => {
+                        if matches!(response.estimate, ResponseIdentification::Unidentified { .. })
+                        {
+                            // Required CPT cell was not evaluable: do not mix a number.
+                            unestimated_id_mass += case.weight.0;
+                            if primary_estimand.is_none() {
+                                primary_estimand = Some(estimand);
+                            }
+                            if unevaluable_general_id.is_none() {
+                                unevaluable_general_id = Some(response);
+                            }
+                            continue;
+                        }
                         let w = case.weight.0;
                         total_w += w;
                         if primary_estimand.is_none() {
@@ -804,9 +820,16 @@ impl super::Study {
             weighted.push((w, response));
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "class-aware response envelope had no estimable identified cases".into(),
-            });
+            if let Some(response) = unevaluable_general_id {
+                // Sole general-ID atom could not evaluate a required cell.
+                // Publish the support report; do not invent a number.
+                weighted.push((1.0, response));
+            } else {
+                return Err(CausalError::Compile {
+                    message: "class-aware response envelope had no estimable identified cases"
+                        .into(),
+                });
+            }
         }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "class-aware response envelope missing estimand".into(),
@@ -987,6 +1010,12 @@ fn mix_class_responses(
     weighted: &[(f64, antecedent_core::CausalResponse)],
     envelope_status: IdentificationStatus,
 ) -> Result<antecedent_core::CausalResponse, CausalError> {
+    if weighted
+        .iter()
+        .all(|(_, r)| matches!(r.estimate, ResponseIdentification::Unidentified { .. }))
+    {
+        return Ok(weighted[0].1.clone());
+    }
     let first = &weighted[0].1;
     let items: Vec<(f64, &ResponseValue)> = weighted
         .iter()
@@ -1308,24 +1337,32 @@ fn estimate_general_id_response(
             &[treatment, outcome],
         )
         .map_err(CausalError::from)?;
-    let mut ws = FunctionalDistributionWorkspace::default();
-    let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+    let _ = ctx;
+    let eval =
+        prepared.compiled.evaluate(&prepared.arena, &prepared.provider, &EvalContext::default());
+    let map_eval = |e: EvalError| {
+        CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
+    };
+    let (estimate, support) = match eval {
+        Ok(ate) => (
+            ResponseIdentification::PointIdentified(ResponseValue::Scalar(ate)),
+            support_from_functional_eval(None).map_err(map_eval)?,
+        ),
+        Err(err) if functional_cell_unevaluable(&err) => (
+            ResponseIdentification::Unidentified {
+                certificate: Arc::from("estimate.response.general_id.unevaluable_cell"),
+            },
+            support_from_functional_eval(Some(&err)).map_err(map_eval)?,
+        ),
+        Err(err) => return Err(map_eval(err)),
+    };
     Ok((
         CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
-            estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(estimate.ate)),
+            estimate,
             uncertainty: ResponseUncertainty::None,
-            support: antecedent_core::SupportReport {
-                status: antecedent_core::SupportStatus::Supported,
-                query_region: antecedent_core::SupportRegion {
-                    minima: Arc::from([]),
-                    maxima: Arc::from([]),
-                },
-                diagnostics: Vec::new(),
-                warnings: Vec::new(),
-                point_status: None,
-            },
+            support,
             assumptions: identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.response.general_id"),
             horizon_identification: None,

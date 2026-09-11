@@ -14,7 +14,7 @@ use antecedent::{
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
     IdentificationStatus, Intervention, OutcomeFunctional, PopulationRegistry, ResponseFunctional,
-    ResponseQuery, TargetPopulation, Value, VariableId,
+    ResponseIdentification, ResponseQuery, SupportStatus, TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{
@@ -2225,6 +2225,83 @@ fn pag_front_door_response_uses_general_id() {
             result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.response.general_id"),
             "general-ID provenance must be visible"
         );
+        let support = result.response.as_ref().expect("response").support.status;
+        assert_eq!(support, SupportStatus::Supported, "complete required CPT cells earn Supported");
+    }
+}
+
+#[test]
+fn pag_front_door_response_empty_required_cell_is_not_supported() {
+    // Same MAG as the complete-table pin, but drop every (t=0, m=1) cell.
+    // do(T=1) is observed; the front-door inner sum still needs P(Y | M=1, T=0).
+    // That missing required cell must not come back as Supported with a number.
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    let columns: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let t = cell["t"].as_f64().unwrap();
+        let m = cell["m"].as_f64().unwrap();
+        if (t - 0.0).abs() < f64::EPSILON && (m - 1.0).abs() < f64::EPSILON {
+            continue;
+        }
+        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
+        for (i, name) in columns.iter().enumerate() {
+            values[i].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
+        }
+    }
+    let pairs: Vec<(&str, &[f64])> =
+        columns.iter().zip(values.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    let data = TabularData::from_f64_columns(pairs).unwrap();
+    let mut pag = Pag::with_variables(3);
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+    assert!(env.identified_weight.0 > 0.0);
+    assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), "general.id");
+    let result = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(216));
+    match result {
+        Ok(click) => {
+            let response = click.response.as_ref().expect("response");
+            assert_ne!(
+                response.support.status,
+                SupportStatus::Supported,
+                "empty required cell must not stamp Supported"
+            );
+            assert!(
+                matches!(response.estimate, ResponseIdentification::Unidentified { .. }),
+                "empty required cell must not publish a point"
+            );
+            assert!(
+                !click.estimate.ate.is_finite(),
+                "empty required cell must not return a plausible number, ate={}",
+                click.estimate.ate
+            );
+        }
+        Err(err) => {
+            let msg = err.to_string();
+            assert!(
+                msg.contains("missing probability table entry")
+                    || msg.contains("empty support")
+                    || msg.contains("division by zero"),
+                "{msg}"
+            );
+        }
     }
 }
 
