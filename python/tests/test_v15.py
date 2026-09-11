@@ -101,6 +101,18 @@ def test_analyze_exceedance_and_mean():
         estimator="aipw",
     )
     assert np.isfinite(qte.estimate.ate)
+    plan = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=graph,
+        query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    click = plan.estimate(data)
+    ones = plan.retarget(np.ones(len(data["t"])), [])
+    assert click.estimate.ate == pytest.approx(qte.estimate.ate, abs=1e-12)
+    assert ones.estimate.ate == pytest.approx(qte.estimate.ate, abs=1e-12)
 
 
 def test_prepared_retarget():
@@ -571,3 +583,131 @@ def test_unrecorded_batch_has_no_invented_winner():
     (result,) = batch.estimate(data)
     assert result.estimate.candidate_selection is not None
     assert result.estimate.candidate_selection.winner_index is None
+
+
+def test_conditional_grid_outcome_translation():
+    data = _binary_confounded(700)
+    graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    cdfs = []
+    for offset in [0.0, 10.0]:
+        shifted = {**data, "y": data["y"] + offset}
+        result = antecedent.analyze(
+            shifted,
+            graph=graph,
+            query=antecedent.ConditionalEffect(
+                "t",
+                "y",
+                "z",
+                outcome_functional=ExceedanceGrid([offset, offset + 0.5, offset + 1.0]),
+            ),
+            refute="none",
+            bootstrap=0,
+        )
+        cdfs.append(result.estimate.exceedance_cdf)
+    np.testing.assert_allclose(cdfs[0], cdfs[1], atol=1e-12)
+
+
+def test_conditional_quantile_fresh_prepared_and_class():
+    data = _binary_confounded(1600, seed=617)
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    dag = antecedent.Dag.from_edges(["t", "y", "z"], edges)
+    cpdag = antecedent.Cpdag.from_directed_undirected(["t", "y", "z"], edges, [])
+    query = antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5))
+    results = []
+    for graph in (dag, cpdag):
+        fresh = antecedent.analyze(data, graph=graph, query=query, refute="none", bootstrap=0)
+        plan = antecedent.estimation.PreparedAnalysis.prepare(
+            data, graph=graph, query=query, refute="none", bootstrap=0
+        )
+        click = plan.estimate(data)
+        assert fresh.estimate.ate == pytest.approx(click.estimate.ate, abs=1e-10)
+        assert fresh.estimate.se_analytic == pytest.approx(click.estimate.se_analytic, abs=1e-10)
+        assert fresh.estimate.ate == pytest.approx(2.0, abs=0.2)
+        assert any(
+            diagnostic.startswith("estimate.functional.quantile_grid:")
+            and "control then active" in diagnostic
+            for diagnostic in fresh.diagnostics
+        )
+        results.append(fresh)
+    assert results[0].estimate.ate == pytest.approx(results[1].estimate.ate, abs=1e-10)
+
+
+@pytest.mark.parametrize("tiered", [False, True])
+@pytest.mark.parametrize("quantile", [False, True])
+@pytest.mark.parametrize("first_level", [0.0, 1.0])
+def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
+    rng = np.random.default_rng(618)
+    n = 3200
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 0.5).astype(float)
+    t2 = (rng.uniform(size=n) < 0.5).astype(float)
+    # Skewed noise distinguishes the median from the mean.
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.8 * np.exp(rng.normal(size=n)) - 0.8
+    data = {"z": z, "t1": t1, "t2": t2, "y": y}
+    graph = antecedent.Dag.from_edges(
+        ["z", "t1", "t2", "y"],
+        [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+    )
+    if tiered:
+        graph = TieredBackground(
+            tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.CODETERMINED
+        )
+    query = InterventionResponse(
+        "y",
+        intervention=[Set("t1", first_level), Set("t2", 1.0)],
+        outcome_functional=Quantile(0.5) if quantile else Mean(),
+    )
+    fresh = antecedent.analyze(
+        data, graph=graph, query=query, estimator="cell.aipw", refute="none", bootstrap=0
+    )
+    plan = antecedent.estimation.PreparedAnalysis.prepare(
+        data, graph=graph, query=query, estimator="cell.aipw", refute="none", bootstrap=0
+    )
+    click = plan.estimate(data)
+    retargeted = plan.retarget(np.ones(n), depends_on=[])
+    assert fresh.estimate == pytest.approx(click.estimate, abs=1e-10)
+    assert retargeted.estimate.ate == pytest.approx(fresh.estimate, abs=1e-10)
+    assert fresh.uncertainty.standard_error > 0.0
+    truth = 0.8 + 2.7 * first_level
+    if not quantile:
+        truth += 0.8 * (np.exp(0.5) - 1.0)
+    assert fresh.estimate == pytest.approx(truth, abs=0.2)
+
+    if quantile:
+        weights = np.exp(-0.1 * z**2)
+        weighted = plan.retarget(weights, depends_on=["z"])
+        scaled = plan.retarget(7.0 * weights, depends_on=["z"])
+        assert weighted.estimate.ate == pytest.approx(scaled.estimate.ate, abs=1e-10)
+        assert weighted.estimate.se_analytic == pytest.approx(
+            scaled.estimate.se_analytic, abs=1e-10
+        )
+        shifted = {**data, "y": y + 10.0}
+        moved = plan.estimate(shifted)
+        assert moved.estimate == pytest.approx(fresh.estimate + 10.0, abs=1e-9)
+        plan.refresh(shifted)
+        retained = plan.retarget(np.ones(n), depends_on=[])
+        assert retained.estimate.ate == pytest.approx(moved.estimate, abs=1e-9)
+
+
+@pytest.mark.parametrize("refute", ["cheap", "full"])
+def test_conditional_quantile_refuses_mean_effect_refuters(refute):
+    data = _binary_confounded(400)
+    graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    with pytest.raises(CausalUnsupportedError, match="mean-effect refuters"):
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
+            refute=refute,
+            bootstrap=0,
+        )
+
+
+@pytest.mark.parametrize("prepared", [False, True])
+def test_response_quantile_refuses_mean_only_estimator(prepared):
+    data = _binary_confounded(400)
+    graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    query = InterventionResponse("y", intervention=Set("t", 1.0), outcome_functional=Quantile(0.5))
+    run = antecedent.estimation.PreparedAnalysis.prepare if prepared else antecedent.analyze
+    with pytest.raises(CausalUnsupportedError, match="quantiles require"):
+        run(data, graph=graph, query=query, refute="none", bootstrap=0)
