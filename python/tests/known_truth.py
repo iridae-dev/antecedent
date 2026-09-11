@@ -13,6 +13,8 @@ _ROOT = pathlib.Path(__file__).resolve().parents[2]
 PIN = json.loads((_ROOT / "conformance/bayesian/known_truth_mixtures/expected.json").read_text())
 STATIC = PIN["static_average_effect"]
 TEMPORAL = PIN["temporal_effect"]
+TEMPORAL_MULTI = PIN["temporal_sustained_multistep"]
+TEMPORAL_MEDIATION = PIN["temporal_mediation"]
 BAYES = antecedent.Bayesian(backend="conjugate", n_draws=256, prior_scale=1_000_000.0)
 FREQ = antecedent.Frequentist()
 
@@ -63,6 +65,34 @@ def static_posterior() -> Any:
         ["t", "y", "z"],
         weights,
         [direct, adjusted, unidentified],
+    )
+
+
+def temporal_mediation_series(n: int) -> dict[str, np.ndarray]:
+    t = np.empty(n, dtype=np.float64)
+    m = np.zeros(n, dtype=np.float64)
+    y = np.zeros(n, dtype=np.float64)
+    for i in range(n):
+        t[i] = np.sin(0.071 * i) + 0.35 * np.cos(0.137 * i)
+        if i > 0:
+            m[i] = 0.8 * t[i - 1] + 0.12 * np.sin(0.43 * i)
+            y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * np.cos(0.29 * i)
+    return {"t": t, "m": m, "y": y}
+
+
+def temporal_mediation_posterior() -> Any:
+    identified = TEMPORAL_MEDIATION["identified_atom"]
+    unidentified = TEMPORAL_MEDIATION["unidentified_atom"]
+    return antecedent.discovery.GraphPosterior.from_atoms(
+        ["t", "m", "y"],
+        [float(w) for w in TEMPORAL_MEDIATION["posterior_weights"]],
+        [
+            int(identified["contemporaneous_mask"]),
+            int(unidentified["contemporaneous_mask"]),
+        ],
+        lagged_edge_marginals=[float(v) for v in TEMPORAL_MEDIATION["lagged_edge_marginals"]],
+        lag_masks=[int(identified["lag_mask"]), int(unidentified["lag_mask"])],
+        max_lag=1,
     )
 
 

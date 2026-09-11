@@ -278,14 +278,6 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run.",
     },
     NaRule {
-        queries: Some(&["TemporalMediationEffect"]),
-        graph_classes: Some(&["TemporalDag"]),
-        structures: Some(&["graph_posterior"]),
-        inferences: Some(&["Bayesian"]),
-        validations: None,
-        reason: "compile_graph_posterior wires only AverageEffect and TemporalEffect queries against a graph posterior; TemporalMediationEffect (query axis Mediation on a TemporalDag) hits its wildcard Unsupported arm, confirmed via Study::build/run.",
-    },
-    NaRule {
         queries: Some(&["ResponseCurve", "InterventionResponse"]),
         graph_classes: Some(&["Dag", "Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"]),
         structures: Some(&["graph_posterior"]),
@@ -1355,6 +1347,27 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+    },
+    LicensedCell {
+        query: "TemporalMediationEffect",
+        graph_class: "TemporalDag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "TemporalMediationEffect",
+        graph_class: "TemporalDag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "cheap",
+    },
+    LicensedCell {
+        query: "TemporalMediationEffect",
+        graph_class: "TemporalDag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "full",
     },
     LicensedCell {
         query: "PathSpecificEffect",

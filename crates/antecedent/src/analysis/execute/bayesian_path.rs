@@ -408,8 +408,9 @@ impl super::Study {
     /// # Errors
     ///
     /// `InferenceMode::Frequentist` on a temporal (DBN) posterior — that combiner
-    /// is 1.6 — or an unsupported data/query combination (graph-posterior analysis
-    /// supports tabular average-effect or temporal-effect queries only).
+    /// is 1.7 — or an unsupported data/query combination (graph-posterior analysis
+    /// supports tabular average-effect, temporal-effect, or temporal-mediation
+    /// queries only). Response mixtures stay 2.0.
     pub(super) fn compile_graph_posterior(
         &self,
         ctx: &ExecutionContext,
@@ -465,6 +466,45 @@ impl super::Study {
                     false,
                     class,
                 )?;
+                if is_multi_step_sustained(q) {
+                    logical.record.estimator = Some(Arc::from("temporal.sequential.gcomp"));
+                }
+                logical.record.validation_suite = self.validation_suite_id();
+                logical.record.discovery_algorithm = Some(
+                    self.graph_posterior
+                        .as_ref()
+                        .and_then(|gp| gp.algorithm.clone())
+                        .unwrap_or_else(|| Arc::from("dbn_posterior")),
+                );
+                logical.compile_physical(ctx)
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_))
+                if matches!(self.inference, InferenceMode::Frequentist) =>
+            {
+                Err(CausalError::Unsupported {
+                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                })
+            }
+            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let class = match &self.data {
+                    DataInput::Event(_) => DataClassification::Event,
+                    _ => DataClassification::Temporal,
+                };
+                let mut logical = compile_logical_temporal_effect_classified(
+                    data,
+                    &TemporalDag::empty(),
+                    &TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0),
+                    self.split,
+                    false,
+                    class,
+                )?;
+                logical.record.plan_id = Arc::from("temporal_mediation");
+                logical.record.identifier = Some(Arc::from("temporal.mediation"));
+                logical.record.estimator = Some(Arc::from("temporal.mediation.bayesian"));
+                logical.record.validation_suite = self.validation_suite_id();
+                logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
+                logical.query = CausalQuery::Mediation(q.clone());
                 logical.record.discovery_algorithm = Some(
                     self.graph_posterior
                         .as_ref()
@@ -474,8 +514,8 @@ impl super::Study {
                 logical.compile_physical(ctx)
             }
             _ => Err(CausalError::Unsupported {
-                message: "graph-posterior analysis supports tabular average-effect or \
-                          temporal-effect queries only",
+                message: "graph-posterior analysis supports tabular average-effect, \
+                          temporal-effect, or temporal-mediation queries only",
             }),
         }
     }
@@ -875,7 +915,8 @@ impl super::Study {
     /// Same envelope discipline as [`Self::execute_graph_posterior_bayesian`], adapted to
     /// per-atom lag masks: each atom's contemporaneous + lagged adjacency is completed into
     /// a [`antecedent_graph::TemporalDag`], identified via [`TemporalBackdoorIdentifier`],
-    /// and fit with [`BayesianTemporalGcomp`].
+    /// and fit with [`BayesianTemporalGcomp`] (Pulse / single-step Sustained) or
+    /// sequential g-computation (multi-step Sustained; no last-step collapse).
     ///
     /// # Errors
     ///
@@ -899,8 +940,23 @@ impl super::Study {
             }
         };
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let multi_step = is_multi_step_sustained(query);
+        if multi_step {
+            if self.refute != RefuteSuite::None || self.split.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "multi-step sustained g-computation currently requires validation=none and no discovery-estimation split",
+                });
+            }
+            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "multi-step sustained inference requires isotropic per-mechanism priors",
+                });
+            }
+        }
 
         let mut bayes = bayesian_temporal_gcomp(&cfg, ctx);
+        let sequential_bayes = if multi_step { Some(bayesian_gcomp(&cfg, ctx)) } else { None };
 
         let (identified, identify_cached) =
             if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
@@ -939,6 +995,70 @@ impl super::Study {
         let mut fit_demoted = 0usize;
         let mut draws_demoted = 0usize;
         for (key, estimand, identification, indexer) in fit_atoms {
+            if multi_step {
+                let Ok(graph) =
+                    crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, key, &vars)
+                else {
+                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    prepare_demoted += 1;
+                    continue;
+                };
+                let mut assumptions = identification.required_assumptions.clone();
+                assumptions.push(antecedent_core::AssumptionRecord {
+                    assumption: antecedent_core::Assumption::ParametricRestriction(
+                        antecedent_core::ParametricAssumption {
+                            id: Arc::from("temporal.sequential.linear_sem"),
+                            description: Arc::from(
+                                "linear additive mechanisms on the identified unfolded DAG; \
+                                 every sustained time is intervened on; Bayesian intervals share \
+                                 each stationary mechanism posterior across time copies",
+                            ),
+                        },
+                    ),
+                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                        algorithm: Arc::from("temporal.sequential.gcomp"),
+                    },
+                    scope: antecedent_core::AssumptionScope::Estimation,
+                    status: antecedent_core::AssumptionStatus::Declared,
+                });
+                let Ok((.., Some(posterior))) =
+                    antecedent_estimate::temporal_sequential::estimate_sustained_window(
+                        data,
+                        &graph,
+                        &indexer,
+                        &estimand,
+                        query,
+                        identification.status,
+                        assumptions,
+                        self.bootstrap_replicates,
+                        sequential_bayes.as_ref(),
+                        ctx,
+                    )
+                else {
+                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    fit_demoted += 1;
+                    continue;
+                };
+                if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+                    atom_contexts.push((
+                        key,
+                        estimand.clone(),
+                        identification.clone(),
+                        indexer.clone(),
+                    ));
+                    per_graph.push(draws);
+                } else {
+                    if let Some(idx) = keys.iter().position(|&k| k == key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    draws_demoted += 1;
+                }
+                continue;
+            }
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
             let Ok(prep) = temporal_est.prepare(
@@ -1048,6 +1168,15 @@ impl super::Study {
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
+        if multi_step {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal.sustained_window",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "the contrast propagates through all intervened times in topological order; \
+                 no one-node collapse; no analytic SE is asserted for the sequential fit",
+            ));
+        }
 
         let tabular = TabularData::new(data.storage().clone());
         let ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
@@ -1084,7 +1213,11 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: EstimatorId::BayesianGcomp,
+            estimator_id: if multi_step {
+                EstimatorId::TemporalSequentialGcomp
+            } else {
+                EstimatorId::BayesianGcomp
+            },
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached,
@@ -1103,7 +1236,11 @@ impl super::Study {
                 )),
                 estimate_provenance: Some(provenance_ids(
                     "estimate.aggregate_effect_envelope",
-                    "estimate.bayesian.temporal.gcomp",
+                    if multi_step {
+                        "estimate.temporal.sequential.gcomp"
+                    } else {
+                        "estimate.bayesian.temporal.gcomp"
+                    },
                 )),
                 posterior: Some(posterior),
                 predictive_checks,
@@ -1112,6 +1249,558 @@ impl super::Study {
             },
         }))
     }
+
+    /// Mix a DBN posterior into a Bayesian temporal-mediation envelope.
+    ///
+    /// Each atom uses that atom's per-horizon `I(h)` cache. Unidentified atoms
+    /// keep their mass. Priors do not upgrade identification.
+    pub(super) fn execute_dbn_posterior_mediation(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        query: &antecedent_core::MediationQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        use antecedent_estimate::bayesian_mediation::{
+            compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+            require_gaussian_mediation,
+        };
+
+        let started = Instant::now();
+        let cfg = match &self.inference {
+            InferenceMode::Bayesian(c) => c.clone(),
+            InferenceMode::Frequentist => {
+                return Err(CausalError::Unsupported {
+                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                });
+            }
+        };
+        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
+            });
+        }
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let estimator = bayesian_gcomp(&cfg, ctx);
+        require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
+
+        let (identified, identify_cached) =
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
+                        gp, &vars, query, ctx,
+                    )?,
+                    false,
+                )
+            };
+        let keys = identified.graphs.graph_keys.to_vec();
+        let mut flags = identified.graphs.identified.to_vec();
+
+        let mut atom_contexts = Vec::new();
+        let mut per_graph = Vec::new();
+        let mut refute_atoms = Vec::new();
+        let mut prepare_demoted = 0usize;
+        let mut fit_demoted = 0usize;
+        let mut draws_demoted = 0usize;
+        let mut distinct_z = false;
+        let mut first_z: Option<Arc<[antecedent_data::LaggedColumn]>> = None;
+        let mut horizon_dependent = false;
+
+        for atom in identified.atoms.iter() {
+            let Some(horizons) = atom.horizons.as_ref() else {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                prepare_demoted += 1;
+                continue;
+            };
+            let clicks =
+                match super::temporal_path::mediation_horizon_clicks(horizons, query, |horizon| {
+                    horizons
+                        .get(horizon)
+                        .map(super::temporal_path::lagged_adjustment_from_entry)
+                        .ok_or_else(|| CausalError::Compile {
+                            message: format!(
+                                "DBN mediation atom missing I({horizon}) for key {}",
+                                atom.key
+                            ),
+                        })
+                }) {
+                    Ok(clicks) => clicks,
+                    Err(_) => {
+                        if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                            flags[idx] = GraphIdentFlag::Unidentified;
+                        }
+                        prepare_demoted += 1;
+                        continue;
+                    }
+                };
+            if clicks.is_empty() {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                prepare_demoted += 1;
+                continue;
+            }
+            horizon_dependent |= super::temporal_path::mediation_horizon_z_differs(&clicks);
+            let mut published = None;
+            let mut click_ok = true;
+            for click in &clicks {
+                if require_identified(&click.identification).is_err() {
+                    click_ok = false;
+                    break;
+                }
+                let mut qh = query.clone();
+                qh.horizons = Arc::from([click.horizon]);
+                let Ok(preparations) = prepare_temporal_mediation_adjusted(
+                    data,
+                    &click.estimand,
+                    &qh,
+                    &click.adjustment,
+                    ctx,
+                ) else {
+                    click_ok = false;
+                    break;
+                };
+                if published.is_none() {
+                    published = Some((click, qh, preparations));
+                }
+            }
+            if !click_ok {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                prepare_demoted += 1;
+                continue;
+            }
+            let (click, qh, preparations) = published.expect("non-empty clicks");
+            match first_z.as_ref() {
+                Some(z) if z.as_ref() != click.adjustment.as_ref() => distinct_z = true,
+                None => first_z = Some(Arc::clone(&click.adjustment)),
+                _ => {}
+            }
+            let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
+                preparations
+                    .iter()
+                    .enumerate()
+                    .map(|(i, prep)| {
+                        let mut est = estimator.clone();
+                        est.prior_scale = scale;
+                        est.seed = est.seed.wrapping_add(if i == 0 { 0 } else { 0xBA71_u64 });
+                        est.fit(
+                            prep,
+                            click.identification.status,
+                            &mut BayesianGCompWorkspace::default(),
+                            ctx,
+                        )
+                        .map_err(CausalError::from)
+                    })
+                    .collect()
+            };
+            let Ok(mechanisms) = fit(cfg.prior_scale) else {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                fit_demoted += 1;
+                continue;
+            };
+            let Ok(composed) = compose_temporal_mediation(
+                &mechanisms[0],
+                &mechanisms[1],
+                &qh,
+                click.identification.status,
+            ) else {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                fit_demoted += 1;
+                continue;
+            };
+            if let Ok(draws) = envelope_draws_from_posterior(atom.key, &composed) {
+                atom_contexts.push((
+                    atom.key,
+                    click.estimand.clone(),
+                    click.identification.clone(),
+                    click.indexer.clone(),
+                ));
+                per_graph.push(draws);
+                let weight = identified_weight_for_key(&identified.graphs, atom.key);
+                refute_atoms.push(DbnMediationAtom {
+                    key: atom.key,
+                    weight,
+                    estimand: click.estimand.clone(),
+                    adjustment: Arc::clone(&click.adjustment),
+                    query: qh,
+                    preparations,
+                    mechanisms,
+                    composed,
+                });
+            } else {
+                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                draws_demoted += 1;
+            }
+        }
+
+        let graphs = WeightedGraphSamples::new(
+            Arc::clone(&identified.graphs.weights),
+            flags,
+            Arc::clone(&identified.graphs.graph_keys),
+        )
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+            self.latency_mode,
+            graphs,
+            per_graph,
+            ctx,
+            &mut subsample_notes,
+        )?;
+        let keep = identified_envelope_keys(&graphs);
+        refute_atoms.retain(|atom| keep.contains(&atom.key));
+        let (_, estimand, identification, indexer) = atom_contexts
+            .into_iter()
+            .find(|(key, _, _, _)| keep.contains(key))
+            .ok_or_else(|| CausalError::Compile {
+                message: "DBN posterior envelope has no contributing context".into(),
+            })?;
+        for atom in &mut refute_atoms {
+            atom.weight = identified_weight_for_key(&graphs, atom.key);
+        }
+        let mut posterior = aggregate_effect_envelope(
+            &graphs,
+            &per_graph,
+            InferenceDiagnostics::analytic("dbn_posterior_envelope"),
+            EnvelopeOptions::default(),
+        )
+        .map_err(CausalError::from)?;
+        let estimate = effect_from_posterior(&posterior)?;
+        let mediation = mix_dbn_mediation_estimate(&estimate, &refute_atoms);
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.extend(subsample_notes);
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(Diagnostic::new(
+            "estimate.dbn_posterior.envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!("unidentified_mass={}", posterior.unidentified_mass),
+        ));
+        diagnostics.push(Diagnostic::new(
+            "estimate.dbn_posterior.atom_demotion",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted),
+        ));
+        diagnostics.push(Diagnostic::new(
+            "identify.dbn_posterior.per_atom_horizon",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "each graph atom uses that atom's I(h); adjustment sets are not unioned across atoms",
+        ));
+        if horizon_dependent {
+            diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.horizon_dependent",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "adjustment sets differ across requested horizons; each contrast uses I(h) \
+                 identified for that horizon, not a shared max-horizon set",
+            ));
+        }
+        if distinct_z {
+            diagnostics.push(Diagnostic::new(
+                "identify.dbn_posterior.atom_horizon_sets_differ",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "contributing DBN atoms have distinct I(h) adjustment sets at the published horizon",
+            ));
+        }
+        diagnostics.push(Diagnostic::new(
+            "estimate.mediation.bayesian",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; natural effects use the linear no-interaction alias",
+        ));
+
+        let mut refutations = Vec::new();
+        if self.refute != RefuteSuite::None {
+            let (reports, notes) = mix_dbn_mediation_refuters(
+                data,
+                &mediation,
+                &refute_atoms,
+                self.refute == RefuteSuite::Full,
+                ctx,
+            )?;
+            refutations.extend(reports);
+            diagnostics.extend(notes);
+        }
+        let predictive_checks = run_dbn_mediation_bayesian_validation(
+            self.refute,
+            &cfg,
+            &estimator,
+            &refute_atoms,
+            &mut posterior,
+            estimate.ate,
+            ctx,
+            &mut refutations,
+            &mut diagnostics,
+        )?;
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification: identification.clone(),
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::Frontdoor,
+            estimator_id: EstimatorId::BayesianTemporalMediation,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: Some(mediation),
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids(
+                    "discover.dbn_posterior",
+                    "dbn_posterior",
+                )),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.aggregate_effect_envelope",
+                    "estimate.bayesian_temporal_mediation",
+                )),
+                posterior: Some(posterior),
+                predictive_checks,
+                diagnostics: Some(diagnostics),
+                certificate: Some(crate::Identification::Point {
+                    result: identification,
+                    temporal_indexer: Some(indexer),
+                    strategy: IdentifierId::Frontdoor,
+                    structure_version: self.graph.version(),
+                }),
+                ..Default::default()
+            },
+        }))
+    }
+}
+
+struct DbnMediationAtom {
+    key: u64,
+    weight: f64,
+    estimand: IdentifiedEstimand,
+    adjustment: Arc<[antecedent_data::LaggedColumn]>,
+    query: antecedent_core::MediationQuery,
+    preparations: [PreparedBayesianProblem; 2],
+    mechanisms: Vec<CausalPosterior>,
+    composed: CausalPosterior,
+}
+
+fn mix_dbn_mediation_estimate(
+    estimate: &EffectEstimate,
+    atoms: &[DbnMediationAtom],
+) -> TemporalMediationEstimate {
+    let mut total = 0.0;
+    let mut direct = 0.0;
+    let mut mediated = 0.0;
+    let mut w = 0.0;
+    for atom in atoms {
+        if atom.weight <= 0.0 || atom.composed.summaries.mean.len() < 4 {
+            continue;
+        }
+        w += atom.weight;
+        total += atom.weight * atom.composed.summaries.mean[1];
+        direct += atom.weight * atom.composed.summaries.mean[2];
+        mediated += atom.weight * atom.composed.summaries.mean[3];
+    }
+    TemporalMediationEstimate {
+        effect: estimate.clone(),
+        total: (w > 0.0).then_some(total / w),
+        direct: (w > 0.0).then_some(direct / w),
+        mediated: (w > 0.0).then_some(mediated / w),
+    }
+}
+
+fn mix_dbn_mediation_refuters(
+    data: &TimeSeriesData,
+    mediation: &TemporalMediationEstimate,
+    atoms: &[DbnMediationAtom],
+    full: bool,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+    let mut order = Vec::new();
+    let mut by_refuter: std::collections::HashMap<
+        Arc<str>,
+        Vec<(f64, antecedent_validate::RefutationReport)>,
+    > = std::collections::HashMap::new();
+    for atom in atoms {
+        if atom.weight <= 0.0 {
+            continue;
+        }
+        let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+            data,
+            &atom.estimand,
+            &atom.query,
+            mediation,
+            full,
+            &atom.adjustment,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        for report in reports {
+            let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
+                order.push(Arc::clone(&report.refuter));
+                Vec::new()
+            });
+            bucket.push((atom.weight, report));
+        }
+    }
+    let mut mixed = Vec::with_capacity(order.len());
+    for id in order {
+        let Some(items) = by_refuter.get(&id) else {
+            continue;
+        };
+        let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
+            items.iter().map(|(w, r)| (*w, r)).collect();
+        if let Some(report) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
+            mixed.push(report);
+        }
+    }
+    let atom_keys: String =
+        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
+    Ok((
+        mixed,
+        vec![Diagnostic::new(
+            "refute.envelope.effect_mixture",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "mediation refuters evaluated each contributing graph atom [{atom_keys}] against \
+                 the mixture effect using that atom's I(h); reports mix by envelope mass"
+            ),
+        )],
+    ))
+}
+
+fn run_dbn_mediation_bayesian_validation(
+    refute: RefuteSuite,
+    cfg: &crate::inference::BayesianConfig,
+    estimator: &BayesianGComputationAte,
+    atoms: &[DbnMediationAtom],
+    mixture_posterior: &mut CausalPosterior,
+    estimate_ate: f64,
+    ctx: &ExecutionContext,
+    refutations: &mut Vec<antecedent_validate::RefutationReport>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<Vec<PredictiveCheckReport>, CausalError> {
+    const PPC_ALPHA: f64 = 0.05;
+    if matches!(refute, RefuteSuite::None) || atoms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut predictive_checks = Vec::new();
+    let mut prior_items = Vec::new();
+    let mut post_items = Vec::new();
+    for atom in atoms {
+        for (i, (prep, post)) in atom.preparations.iter().zip(&atom.mechanisms).enumerate() {
+            let prior = estimator.prior.clone().unwrap_or_else(|| {
+                let mut prior = PriorSet::weakly_informative(prep.design.ncols);
+                prior.specs = vec![antecedent_prob::PriorSpec::GaussianCoefficients(
+                    antecedent_prob::GaussianCoefficientPrior::isotropic(
+                        prep.design.ncols,
+                        cfg.prior_scale,
+                    ),
+                )];
+                prior
+            });
+            let prior_rep = PriorPredictiveCheck::new()
+                .check_with_prior(prep, &prior, ctx)
+                .map_err(CausalError::from)?;
+            let post_rep =
+                PosteriorPredictiveCheck::new().check(prep, post).map_err(CausalError::from)?;
+            prior_items.push((atom.weight, i, prior_rep));
+            post_items.push((atom.weight, i, post_rep));
+        }
+    }
+    for (label, items) in [("prior", &prior_items), ("posterior", &post_items)] {
+        let _ = label;
+        let borrowed: Vec<(f64, &PredictiveCheckReport)> =
+            items.iter().map(|(w, _, r)| (*w, r)).collect();
+        if let Some(mixed) = PredictiveCheckReport::mixture_weighted(&borrowed) {
+            refutations.push(mixed.to_refutation_report(estimate_ate, PPC_ALPHA));
+            predictive_checks.push(mixed);
+        }
+    }
+    if matches!(refute, RefuteSuite::Full) {
+        let sensitivity = antecedent_validate::PriorSensitivity::standard_grid();
+        let mut owned = Vec::new();
+        for atom in atoms {
+            let mut means = Vec::new();
+            let mut sds = Vec::new();
+            for &scale in sensitivity.scales.iter() {
+                let posts: Result<Vec<_>, _> = atom
+                    .preparations
+                    .iter()
+                    .enumerate()
+                    .map(|(i, prep)| {
+                        let mut est = estimator.clone();
+                        est.prior_scale = scale;
+                        est.seed = est.seed.wrapping_add(if i == 0 { 0 } else { 0xBA71_u64 });
+                        est.fit(
+                            prep,
+                            atom.composed.identification,
+                            &mut BayesianGCompWorkspace::default(),
+                            ctx,
+                        )
+                        .map_err(CausalError::from)
+                    })
+                    .collect();
+                let posts = posts?;
+                let post = compose_temporal_mediation_for_atom(atom, &posts)?;
+                means.push(post.summaries.mean[0]);
+                sds.push(post.summaries.sd[0]);
+            }
+            owned.push((
+                atom.weight,
+                antecedent_prob::PriorSensitivitySummary {
+                    prior_scales: sensitivity.scales.clone(),
+                    alphas: Arc::from([]),
+                    effect_means: Arc::from(means),
+                    effect_sds: Arc::from(sds),
+                },
+            ));
+        }
+        let items: Vec<_> = owned.iter().map(|(w, s)| (*w, s)).collect();
+        if let Some(mixed) = mix_prior_sensitivity_summaries(&items) {
+            refutations.push(sensitivity.to_report(&mixed, estimate_ate));
+            *mixture_posterior = with_prior_sensitivity(mixture_posterior.clone(), mixed);
+        }
+    }
+    let atom_keys: String =
+        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
+    diagnostics.push(Diagnostic::new(
+        "refute.bayesian.ppc.envelope",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "mechanism PPC evaluated per identified mediation atom [{atom_keys}]; reports mix \
+             by graph posterior mass"
+        ),
+    ));
+    Ok(predictive_checks)
+}
+
+fn compose_temporal_mediation_for_atom(
+    atom: &DbnMediationAtom,
+    posts: &[CausalPosterior],
+) -> Result<CausalPosterior, CausalError> {
+    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
+    compose_temporal_mediation(&posts[0], &posts[1], &atom.query, atom.composed.identification)
+        .map_err(CausalError::from)
 }
 
 fn envelope_draws_from_posterior(

@@ -2251,8 +2251,7 @@ class PreparedAnalysis:
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, (PulseEffect, SustainedEffect)
         ):
-            if getattr(query, "window", None) is not None:
-                raise CausalUnsupportedError("DBN posterior multi-step windows are not licensed")
+            window = getattr(query, "window", None)
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
                     names,
@@ -2260,6 +2259,7 @@ class PreparedAnalysis:
                     query.treatment,
                     query.outcome,
                     policy=query.kind,
+                    window=window,
                     treatment_lag=query.treatment_lag,
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
@@ -2278,6 +2278,7 @@ class PreparedAnalysis:
                     query.treatment,
                     query.outcome,
                     policy=query.kind,
+                    window=window,
                     treatment_lag=query.treatment_lag,
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
@@ -2294,10 +2295,56 @@ class PreparedAnalysis:
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)
+        if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
+            query, TemporalMediationEffect
+        ):
+            if isinstance(discovery, GraphPosterior):
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.mediator,
+                    query.outcome,
+                    contrast=query.contrast,
+                    control_level=query.control_level,
+                    active_level=query.active_level,
+                    horizons=list(query.horizons or (1,)),
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    refute=refute,
+                    seed=seed,
+                    threads=threads,
+                    posterior=discovery,
+                )
+            else:
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.mediator,
+                    query.outcome,
+                    contrast=query.contrast,
+                    control_level=query.control_level,
+                    active_level=query.active_level,
+                    horizons=list(query.horizons or (1,)),
+                    max_lag=discovery.max_lag,
+                    force_mcmc=discovery.force_mcmc,
+                    n_chains=discovery.n_chains,
+                    n_warmup=discovery.n_warmup,
+                    mcmc_draws=discovery.n_draws,
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    refute=refute,
+                    seed=seed,
+                    threads=threads,
+                )
+            return cls(native, kind="average", query=query)
         raise CausalTypeError(
             "PreparedAnalysis.prepare(discovery=) is licensed for ExactDagPosterior "
             "or GraphPosterior (AverageEffect) and DbnPosterior or GraphPosterior "
-            "(PulseEffect / SustainedEffect)"
+            "(PulseEffect / SustainedEffect / TemporalMediationEffect)"
         )
 
     @classmethod

@@ -1249,15 +1249,15 @@ fn aggregate_temporal_horizon_evidence<'a>(
     Ok((aggregate_status, assumptions))
 }
 
-struct MediationHorizonClick {
-    horizon: u32,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    indexer: TemporalIndexer,
-    adjustment: Arc<[antecedent_data::LaggedColumn]>,
+pub(super) struct MediationHorizonClick {
+    pub(super) horizon: u32,
+    pub(super) identification: IdentificationResult,
+    pub(super) estimand: IdentifiedEstimand,
+    pub(super) indexer: TemporalIndexer,
+    pub(super) adjustment: Arc<[antecedent_data::LaggedColumn]>,
 }
 
-fn mediation_horizon_clicks(
+pub(super) fn mediation_horizon_clicks(
     cache: &crate::analysis::prepared::CachedTemporalIdentification,
     query: &antecedent_core::MediationQuery,
     mut adjustment_for: impl FnMut(u32) -> Result<Arc<[antecedent_data::LaggedColumn]>, CausalError>,
@@ -1285,7 +1285,7 @@ fn mediation_horizon_clicks(
     Ok(clicks)
 }
 
-fn lagged_adjustment_from_entry(
+pub(super) fn lagged_adjustment_from_entry(
     entry: &crate::analysis::prepared::CachedTemporalHorizonIdentification,
 ) -> Arc<[antecedent_data::LaggedColumn]> {
     let outcome_offset = i32::try_from(entry.horizon.saturating_sub(1)).unwrap_or(0);
@@ -1315,7 +1315,7 @@ fn lagged_column_relative_to_outcome(
     })
 }
 
-fn mediation_horizon_z_differs(clicks: &[MediationHorizonClick]) -> bool {
+pub(super) fn mediation_horizon_z_differs(clicks: &[MediationHorizonClick]) -> bool {
     let Some(first) = clicks.first() else {
         return false;
     };

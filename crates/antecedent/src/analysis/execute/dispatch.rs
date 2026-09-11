@@ -332,9 +332,12 @@ impl super::Study {
                     DataInput::Temporal(data) | DataInput::Event(data),
                     CausalQuery::TemporalEffect(q),
                 ) => self.execute_dbn_posterior_bayesian(data, gp, q, physical, ctx),
+                (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
+                    self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx)
+                }
                 _ => Err(CausalError::Unsupported {
-                    message: "graph-posterior analysis supports tabular average-effect or \
-                              temporal-effect queries only",
+                    message: "graph-posterior analysis supports tabular average-effect, \
+                              temporal-effect, or temporal-mediation queries only",
                 }),
             };
         }
@@ -409,8 +412,8 @@ impl super::Study {
                     }
                 },
                 _ => Err(CausalError::Unsupported {
-                    message: "graph-posterior analysis supports tabular average-effect or \
-                              temporal-effect queries only",
+                    message: "graph-posterior analysis supports tabular average-effect, \
+                              temporal-effect, or temporal-mediation queries only",
                 }),
             };
         }

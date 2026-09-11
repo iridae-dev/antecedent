@@ -297,6 +297,13 @@ pub(super) fn resolve_envelope_prior_anchor(
     resolve_bayesian_prior_with_conflict(cfg, prep, Some(ctx))
 }
 
+pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
+    matches!(
+        query.policy,
+        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
+    )
+}
+
 pub(super) fn identified_envelope_keys(
     graphs: &WeightedGraphSamples,
 ) -> std::collections::HashSet<u64> {
@@ -628,7 +635,7 @@ pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64)
         .sum()
 }
 
-fn mix_prior_sensitivity_summaries(
+pub(super) fn mix_prior_sensitivity_summaries(
     items: &[(f64, &antecedent_prob::PriorSensitivitySummary)],
 ) -> Option<antecedent_prob::PriorSensitivitySummary> {
     let first = items.first()?.1;
