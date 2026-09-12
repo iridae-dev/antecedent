@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-09-12
+
 ### Added
 
 - `TemporalMediationEffect` uses horizon-specific `I(h)`. Estimate clicks
@@ -1917,7 +1919,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/iridae-dev/antecedent/compare/v1.2.0...v1.3.0
