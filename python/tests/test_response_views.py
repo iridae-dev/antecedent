@@ -161,3 +161,27 @@ def test_validation_and_causal_response_repr_branches():
         identification=_ident(),
     )
     assert "structured" in repr(no_curve)
+
+
+@pytest.mark.parametrize("standard_error", [float("nan"), float("inf")])
+def test_uncertainty_rejects_nonfinite_standard_error(standard_error: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        ResponseUncertainty("pointwise", standard_error=standard_error)
+
+
+@pytest.mark.parametrize(
+    ("lower", "upper"),
+    [([[0.0, 1.0]], [[2.0]]), ([[2.0]], [[1.0]]), ([[float("nan")]], [[1.0]])],
+)
+def test_uncertainty_rejects_malformed_bounds(
+    lower: list[list[float]], upper: list[list[float]]
+) -> None:
+    with pytest.raises(ValueError):
+        ResponseUncertainty("pointwise", lower=lower, upper=upper)
+
+
+def test_identified_set_keeps_unbounded_intervals() -> None:
+    uncertainty = ResponseUncertainty(
+        "identified_set", lower=[[-float("inf")]], upper=[[float("inf")]]
+    )
+    assert uncertainty.lower == [[-float("inf")]]

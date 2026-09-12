@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
@@ -487,7 +487,7 @@ fn prepared_response_curve_reuses_identification() {
 }
 
 #[test]
-fn response_curve_graph_posterior_is_refused_at_build() {
+fn graph_posterior_response_retains_probability_atoms_and_mass() {
     let (data, _graph, query) = mean_curve_study();
     let ctx = ExecutionContext::for_tests(1);
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -498,15 +498,70 @@ fn response_curve_graph_posterior_is_refused_at_build() {
         &ctx,
     )
     .unwrap();
-    let err = Study::tabular(data)
-        .graph_posterior(gp)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.starts_with("refused:"), "{msg}");
-    assert!(msg.contains("licensed only for AverageEffect"), "{msg}");
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128)),
+    ] {
+        let study = Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let result = study.run(&ctx).unwrap();
+        let structural = result.structural_response.as_ref().expect("structural response");
+        assert_eq!(
+            structural.weight_basis,
+            antecedent::result::StructuralWeightBasis::PosteriorProbability
+        );
+        assert!(structural.conditional_on_identified.is_some());
+        assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-10);
+        assert_eq!(structural.atoms.len(), gp.n_graphs);
+        assert!(result.response.is_some());
+    }
+}
+
+#[test]
+fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
+    let (data, _graph, _) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(3);
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let gp = antecedent::discovery::discover_exact_dag_posterior(
+        &data,
+        &vars,
+        &antecedent::discovery::BayesianDiscoverParams::default(),
+        &ctx,
+    )
+    .unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let result = Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!(
+            !result.refutations.is_empty(),
+            "graph-posterior InterventionResponse {suite:?} must run plugin-level refuters"
+        );
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code.as_ref() == "refute.evalue.not_a_contrast" })
+        );
+        assert!(result.structural_response.is_some());
+    }
 }
 
 #[test]

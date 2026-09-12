@@ -7,11 +7,14 @@ smoke on ExactDagPosterior / DbnPosterior.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 antecedent = pytest.importorskip("antecedent")
 
 from antecedent.errors import CausalUnsupportedError  # noqa: E402
+
 from known_truth import (  # noqa: E402
     BAYES,
     FREQ,
@@ -296,22 +299,45 @@ def test_temporal_multistep_sustained_known_truth_mixture() -> None:
     )
 
 
-def test_temporal_multistep_sustained_refuses_cheap() -> None:
+@pytest.mark.parametrize("validation, validation_suite", _VALIDATIONS[1:])
+def test_temporal_multistep_sustained_validation(validation, validation_suite) -> None:
     data = white_noise_pulse_series(int(TEMPORAL_MULTI["n"]), int(TEMPORAL_MULTI["seed"]))
-    with pytest.raises(CausalUnsupportedError, match="validation=none"):
-        antecedent.analyze(
-            data,
-            discovery=temporal_posterior(),
-            query=antecedent.SustainedEffect(
-                treatment="pressure",
-                outcome="defect",
-                window=(-2, -1),
-            ),
-            inference=BAYES,
-            refute="cheap",
-            bootstrap=0,
-            seed=11,
-        )
+    options = dict(
+        discovery=temporal_posterior(),
+        query=antecedent.SustainedEffect(
+            treatment="pressure",
+            outcome="defect",
+            window=(-2, -1),
+        ),
+        inference=BAYES,
+        refute=validation,
+        bootstrap=0,
+        seed=11,
+    )
+    fresh = antecedent.analyze(data, **options)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **options)
+    click = prepared.estimate(data, seed=11)
+    _assert_mixture_contract(
+        fresh,
+        click,
+        prepared,
+        validation_suite=validation_suite,
+        expected_ate=float(TEMPORAL_MULTI["expected_effect_given_identified"]),
+        tolerance=float(TEMPORAL_MULTI["effect_abs_tolerance"]),
+        unidentified_mass=float(TEMPORAL_MULTI["expected_unidentified_mass"]),
+        expect_ppc=False,
+    )
+    assert all(math.isfinite(report.refuted_ate) for report in fresh.validation.reports)
+
+    # Temporal results expose each mechanism separately as validation reports;
+    # the scalar static-DTO predictive convenience fields do not apply here.
+    for result in [fresh, click]:
+        names = {report.refuter for report in result.validation.reports}
+        assert any(name.startswith("prior_predictive.mechanism.") for name in names)
+        assert any(name.startswith("posterior_predictive.mechanism.") for name in names)
+        if validation == "full":
+            assert "prior_sensitivity" in names
+            assert "placebo.treatment" in names
 
 
 _MEDIATION_VALIDATIONS = [

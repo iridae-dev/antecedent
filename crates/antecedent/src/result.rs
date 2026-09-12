@@ -6,11 +6,13 @@ use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
 };
 use antecedent_core::{
-    CausalResponse, Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
-    PhysicalExecutionPlanRecord, ProvenanceGraph, VariableId,
+    CausalResponse, Diagnostic, ExecutionPerformanceRecord, IdentificationStatus,
+    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ResponseEnvelope,
+    ResponseValue, VariableId,
 };
 use antecedent_estimate::{
     CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate,
+    TemporalMediationGrid,
 };
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
 use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
@@ -27,6 +29,52 @@ pub struct AnalysisIdentification {
     pub query: antecedent_core::CausalQuery,
     /// Supplied graph class, preserved even when fully oriented.
     pub graph_class: crate::GraphClass,
+}
+
+/// Meaning of structural atom weights retained on a response result.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum StructuralWeightBasis {
+    /// Probabilities supplied by a graph posterior.
+    PosteriorProbability,
+    /// Enumeration weights over CPDAG/PAG completions; not posterior probabilities.
+    CompletionEnumeration,
+}
+
+/// One structural atom in a graph-dependent response.
+#[derive(Clone, Debug)]
+pub struct StructuralResponseAtom {
+    /// Stable key within this result.
+    pub graph_key: u64,
+    /// Raw atom weight in the declared basis.
+    pub weight: f64,
+    /// Structural identification/evaluation status.
+    pub status: IdentificationStatus,
+    /// Numerical response when identified and evaluable.
+    pub value: Option<ResponseValue>,
+}
+
+/// Structural uncertainty retained separately from sampling uncertainty.
+#[derive(Clone, Debug)]
+pub struct StructuralResponseMixture {
+    /// Interpretation of [`StructuralResponseAtom::weight`].
+    pub weight_basis: StructuralWeightBasis,
+    /// Every examined structural atom, including nonidentified/unevaluable atoms.
+    pub atoms: Vec<StructuralResponseAtom>,
+    /// Fraction of total weight with an evaluable identified response.
+    pub identified_mass: f64,
+    /// Fraction proved or conservatively treated as structurally unidentified.
+    pub unidentified_mass: f64,
+    /// Fraction identified in theory but not evaluable by the selected estimator.
+    pub unevaluable_mass: f64,
+    /// Pointwise range over identified atom point responses.
+    pub identified_set: Option<ResponseEnvelope>,
+    /// Probability-weighted summary, only meaningful for posterior probability weights.
+    pub conditional_on_identified: Option<ResponseValue>,
+    /// Whether reported mass covers the full class rather than a capped subset.
+    pub full_mass_scope: bool,
+    /// Atoms whose identification search was capped before a determination.
+    pub truncated_atoms: usize,
 }
 
 /// End-to-end analysis result.
@@ -50,6 +98,8 @@ pub struct StudyResult {
     pub estimate: EffectEstimate,
     /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
     pub response: Option<CausalResponse>,
+    /// Structural atom/mass result for class-aware or graph-posterior responses.
+    pub structural_response: Option<StructuralResponseMixture>,
     /// Full interventional distribution when the query was
     /// [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution).
     pub distribution: Option<InterventionalDistributionEstimate>,
@@ -57,6 +107,9 @@ pub struct StudyResult {
     pub posterior: Option<CausalPosterior>,
     /// Temporal / static mediation decomposition when the query was mediation.
     pub mediation: Option<TemporalMediationEstimate>,
+    /// Horizon-indexed temporal mediation decomposition. Present for temporal
+    /// mediation, including single-horizon results; it does not imply a joint posterior.
+    pub mediation_grid: Option<TemporalMediationGrid>,
     /// Unit-level ITE when the query was counterfactual.
     pub counterfactual: Option<IteResult>,
     /// Anomaly scores when the query was anomaly attribution.

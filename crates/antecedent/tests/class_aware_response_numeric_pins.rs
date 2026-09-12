@@ -160,6 +160,48 @@ fn cached_count(result: &antecedent::StudyResult) -> usize {
 }
 
 fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
+    if let Some(mixture) = result.structural_response.as_ref() {
+        assert_eq!(
+            mixture.weight_basis,
+            antecedent::result::StructuralWeightBasis::CompletionEnumeration
+        );
+        assert!(
+            mixture.conditional_on_identified.is_none(),
+            "completion enumeration must not publish a probability-weighted causal summary"
+        );
+        let values = mixture
+            .atoms
+            .iter()
+            .filter_map(|atom| atom.value.as_ref().map(|value| (atom.weight, value)))
+            .collect::<Vec<_>>();
+        let total_weight = values.iter().map(|(weight, _)| weight).sum::<f64>();
+        if let Some((_, ResponseValue::Scalar(_))) = values.first() {
+            return vec![
+                values
+                    .iter()
+                    .map(|(weight, value)| {
+                        let ResponseValue::Scalar(value) = value else { unreachable!() };
+                        weight * value
+                    })
+                    .sum::<f64>()
+                    / total_weight,
+            ];
+        }
+        if let Some((_, ResponseValue::Surface { mean, .. })) = values.first() {
+            return (0..mean.len())
+                .map(|index| {
+                    values
+                        .iter()
+                        .map(|(weight, value)| {
+                            let ResponseValue::Surface { mean, .. } = value else { unreachable!() };
+                            weight * mean[index]
+                        })
+                        .sum::<f64>()
+                        / total_weight
+                })
+                .collect();
+        }
+    }
     let response = result.response.as_ref().expect("class-aware response payload");
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
