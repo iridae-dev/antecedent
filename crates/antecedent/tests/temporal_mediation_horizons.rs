@@ -1,4 +1,4 @@
-//! Pin: TemporalMediation I(1) ≠ I(2) on a confounded pulse-style DGP.
+//! Pin: `TemporalMediation` I(1) ≠ I(2) on a confounded pulse-style DGP.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +17,7 @@ use antecedent_data::{
     Float64Column, LaggedColumn, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use antecedent_identify::TemporalIdentificationResult;
 
 const N: usize = 241;
@@ -47,39 +47,40 @@ fn confounded_mediation_series() -> (TimeSeriesData, TemporalDag) {
     }
     let schema = builder.build().unwrap();
     // Same period-4 (Z, U) as temporal_confounded_pulse, plus T→M→Y.
-    let z: Vec<f64> = (0..N).map(|i| if i % 4 == 0 || i % 4 == 1 { 1.0 } else { -1.0 }).collect();
-    let t: Vec<f64> =
-        (0..N).map(|i| z[i] + if i % 4 == 0 || i % 4 == 2 { 1.0 } else { -1.0 }).collect();
-    let mut m = vec![0.0; N];
-    let mut y = vec![1.0; N];
+    let confounder: Vec<f64> =
+        (0..N).map(|i| if i % 4 == 0 || i % 4 == 1 { 1.0 } else { -1.0 }).collect();
+    let treatment: Vec<f64> =
+        (0..N).map(|i| confounder[i] + if i % 4 == 0 || i % 4 == 2 { 1.0 } else { -1.0 }).collect();
+    let mut mediator = vec![0.0; N];
+    let mut outcome = vec![1.0; N];
     for i in 1..N {
-        let e = (i % 5) as f64 - 2.0;
+        let noise = (i % 5) as f64 - 2.0;
         // Z → M as well as Z → Y: omitting Z@-1 biases the path product, not
         // only the direct/total slopes (M ⊥ Z | T would leave a*b intact).
-        m[i] = A * t[i - 1] + 0.6 * z[i - 1] + 0.15 * e;
-        y[i] = 1.0 + C_PRIME * t[i - 1] + B * m[i] + 5.0 * z[i - 1];
+        mediator[i] = A * treatment[i - 1] + 0.6 * confounder[i - 1] + 0.15 * noise;
+        outcome[i] = 1.0 + C_PRIME * treatment[i - 1] + B * mediator[i] + 5.0 * confounder[i - 1];
     }
-    let cols = vec![col(0, t), col(1, m), col(2, y), col(3, z)];
+    let cols = vec![col(0, treatment), col(1, mediator), col(2, outcome), col(3, confounder)];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: N },
     )
     .unwrap();
-    let mut g = TemporalDag::empty();
-    let t0 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
-    let t1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let m0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let y0 = ensure_lagged(&mut g, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    let z0 = ensure_lagged(&mut g, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-    let z1 = ensure_lagged(&mut g, VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
-    g.insert_directed(z0, t0).unwrap();
-    g.insert_directed(z1, y0).unwrap();
-    g.insert_directed(z1, m0).unwrap();
-    g.insert_directed(t1, y0).unwrap();
-    g.insert_directed(t1, m0).unwrap();
-    g.insert_directed(m0, y0).unwrap();
-    (data, g)
+    let mut graph = TemporalDag::empty();
+    let t0 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z0, t0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(z1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    (data, graph)
 }
 
 fn col(id: u32, values: Vec<f64>) -> OwnedColumn {
@@ -194,7 +195,7 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
     );
 
     let ctx = ExecutionContext::for_tests(7);
-    let fresh = Study::series(data.clone())
+    let multi = Study::series(data.clone())
         .graph(graph.clone())
         .query(CausalQuery::Mediation(q.clone()))
         .refute(RefuteSuite::None)
@@ -203,14 +204,22 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((fresh.estimate.ate - STRUCTURAL_MEDIATED).abs() < 1e-6);
-    assert!(
-        fresh
-            .diagnostics
+    let grid = multi.mediation_grid.as_ref().expect("multi-horizon mediation grid");
+    assert_eq!(grid.slices.len(), 2);
+    assert!(!grid.joint_posterior);
+    assert_eq!(grid.slices[0].horizon, 1);
+    assert_eq!(grid.slices[1].horizon, 2);
+    assert_eq!(
+        grid.slices[0]
+            .adjustment
             .iter()
-            .any(|d| { d.code.as_ref() == "identify.temporal_mediation.horizon_dependent" })
+            .map(|key| (key.variable.raw(), key.offset))
+            .collect::<Vec<_>>(),
+        vec![(3, -1)]
     );
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!(grid.slices[1].adjustment.is_empty());
+    assert!(multi.estimate.ate.is_nan(), "multi-horizon results have no scalar representative");
+    assert!(multi.mediation.is_none());
 
     let z1_cols = [LaggedColumn { variable: VariableId::from_raw(3), lag: Lag::from_raw(1) }];
     let under_i1 = estimate_h1(&data, &z1_cols);
@@ -221,6 +230,7 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         "reusing I(2)={{}} at h=1 must recover the confounded association, got {under_i2}"
     );
 
+    let q = query(&[1]);
     for (inference, refute, accepted) in [
         (InferenceMode::Frequentist, RefuteSuite::Cheap, false),
         (InferenceMode::Frequentist, RefuteSuite::Full, true),
@@ -246,4 +256,146 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
             }
         }
     }
+
+    let q = query(&[1, 2]);
+    let (prepared, prepared_multi) =
+        prepare_click(&data, &graph, &q, InferenceMode::Frequentist, RefuteSuite::None, false);
+    assert!(has_cached(&prepared_multi));
+    assert_eq!(prepared_multi.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    let refreshed = prepared.estimate_series(&data, &ctx).unwrap();
+    assert_eq!(refreshed.mediation_grid.as_ref().unwrap().slices.len(), 2);
+
+    let (_, bayesian_multi) = prepare_click(
+        &data,
+        &graph,
+        &q,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(512)),
+        RefuteSuite::None,
+        false,
+    );
+    let bayesian_grid = bayesian_multi.mediation_grid.as_ref().unwrap();
+    assert_eq!(bayesian_grid.slices.len(), 2);
+    assert!(!bayesian_grid.joint_posterior);
+    assert!(bayesian_multi.posterior.is_none());
+    assert!(bayesian_multi.mediation.is_none());
+    assert!(bayesian_grid.slices.iter().all(|slice| matches!(
+        slice.uncertainty,
+        antecedent::estimate::TemporalMediationUncertainty::BayesianPointwise { .. }
+    )));
+}
+
+#[test]
+fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
+    let (data, _) = confounded_mediation_series();
+    let mut graph = TemporalCpdag::empty();
+    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z0, t0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(z1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    for accepted in [false, true] {
+        let builder = Study::series(data.clone());
+        let builder = if accepted {
+            builder.graph(AcceptedGraph::temporal_cpdag(graph.clone()).unwrap())
+        } else {
+            builder.graph(graph.clone())
+        };
+        let result = builder
+            .query(CausalQuery::Mediation(query(&[1, 2])))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(27))
+            .unwrap();
+        let grid = result.mediation_grid.as_ref().expect("class mediation grid");
+        assert_eq!(grid.slices.len(), 2);
+        assert!(grid.slices.iter().all(|slice| {
+            slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
+        }));
+        assert!(result.mediation.is_none());
+        assert!(result.estimate.ate.is_nan());
+    }
+}
+
+#[test]
+fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
+    let (data, _) = confounded_mediation_series();
+    let mut graph = TemporalCpdag::empty();
+    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z0, t0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(z1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    for (accepted, suite) in [(false, RefuteSuite::Cheap), (true, RefuteSuite::Full)] {
+        let builder = Study::series(data.clone());
+        let builder = if accepted {
+            builder.graph(AcceptedGraph::temporal_cpdag(graph.clone()).unwrap())
+        } else {
+            builder.graph(graph.clone())
+        };
+        let result = builder
+            .query(CausalQuery::Mediation(query(&[1])))
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(29))
+            .unwrap();
+        assert!(
+            !result.refutations.is_empty(),
+            "TemporalCpdag mediation {suite:?} must run per-completion refuters"
+        );
+        assert!(
+            result
+                .refutations
+                .iter()
+                .any(|report| { report.refuter.as_ref().starts_with("horizon.1.completion.") })
+        );
+        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
+            grid.slices.iter().all(|slice| slice.identified_set.is_some())
+        }));
+        assert!(result.estimate.ate.is_nan());
+    }
+}
+
+#[test]
+fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
+    let (data, _) = confounded_mediation_series();
+    let mut graph = TemporalPag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    let error = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::Mediation(query(&[1, 2])))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap_err();
+    let message = error.to_string();
+    assert!(
+        message.contains("Latent-confounded")
+            && message.contains("cross-world")
+            && !message.contains("1.10")
+            && !message.contains("1.7"),
+        "TemporalPag mediation must refuse as a mathematical boundary, got {message}"
+    );
 }

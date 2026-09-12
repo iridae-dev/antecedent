@@ -29,7 +29,7 @@ pub use latency::{
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
     STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
-pub use prepared::PreparedStudy;
+pub use prepared::{CachedTemporalIdentification, PreparedStudy};
 pub use stage::{StageEvent, StageResultSink};
 
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};

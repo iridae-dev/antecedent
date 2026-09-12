@@ -52,8 +52,9 @@ pub struct MediationQuery {
     /// Outcome horizons in steps after a Pulse origin at 0 (each ≥ 1).
     ///
     /// Strictly increasing; at least one entry. [`Self::binary`] defaults to
-    /// `[1]` so existing single-horizon callers stay valid. Identification
-    /// and estimation click `I(h)` for each requested horizon separately.
+    /// `[1]` so existing single-horizon callers stay valid. Each entry is
+    /// identified as `I(h)` and retained on the mediation grid; a single
+    /// horizon also fills the scalar compatibility fields.
     pub horizons: Arc<[u32]>,
 }
 
