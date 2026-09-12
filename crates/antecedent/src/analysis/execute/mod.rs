@@ -111,6 +111,8 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
+    /// Caller-supplied mass over incomplete-temporal class members.
+    pub(crate) class_prior: Option<crate::ClassPrior>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
     /// Licensed vs allowlisted evidence status recorded at build. `None` when
@@ -184,6 +186,7 @@ impl std::fmt::Debug for Study {
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
+            .field("class_prior", &self.class_prior)
             .field("structure_source", &self.structure_source)
             .field("support_status", &self.support_status)
             .field("query", &"<query>")

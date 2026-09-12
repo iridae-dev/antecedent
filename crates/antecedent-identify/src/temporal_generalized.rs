@@ -3,8 +3,9 @@
 //! CPDAG completions use temporal DAG adjustment. PAG completions retain mixed
 //! endpoints and use visibility-aware MAG adjustment on a certified stationary
 //! unfolding. Completions that do not identify contribute
-//! unidentified mass. Multi-step Sustained is refused: 1.4 licenses Pulse and
-//! single-step Sustained only.
+//! unidentified mass. Multi-step Sustained is identified per completion; MAG
+//! completions with bidirected edges remain unevaluable for sequential
+//! estimation. Dynamic schedules stay refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -34,6 +35,120 @@ pub enum TemporalCompletionGraph {
     Mag(TemporalPag),
 }
 
+impl TemporalCompletionGraph {
+    /// Stable fingerprint of this completion's marked edges.
+    ///
+    /// Keys a caller-supplied class prior. Enumeration order is not a key.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        // Fixed FNV-1a encoding of semantic coordinates, independent of dense
+        // insertion order and Rust's unspecified DefaultHasher implementation.
+        let (kind, nodes, marked): (u64, _, Vec<_>) = match self {
+            Self::Dag(graph) => (0, graph.nodes(), graph.edges().collect()),
+            Self::Mag(graph) => (1, graph.nodes(), graph.edges()),
+        };
+        let key = |node: &antecedent_graph::NodeRef| match node {
+            antecedent_graph::NodeRef::Lagged { variable, lag } => {
+                (u64::from(variable.raw()), u64::from(lag.raw()))
+            }
+            _ => unreachable!("temporal graphs contain lagged nodes"),
+        };
+        let mut vertices: Vec<_> = nodes.iter().map(key).collect();
+        vertices.sort_unstable();
+        let mut edges: Vec<_> = marked
+            .iter()
+            .map(|edge| {
+                let a = key(&nodes[edge.a.raw() as usize]);
+                let b = key(&nodes[edge.b.raw() as usize]);
+                let (a, b, at_a, at_b, middle) = if a <= b {
+                    (a, b, edge.at_a, edge.at_b, middle_code(edge.middle))
+                } else {
+                    let middle = match edge.middle {
+                        antecedent_graph::MiddleMark::Left => antecedent_graph::MiddleMark::Right,
+                        antecedent_graph::MiddleMark::Right => antecedent_graph::MiddleMark::Left,
+                        other => other,
+                    };
+                    (b, a, edge.at_b, edge.at_a, middle_code(middle))
+                };
+                (
+                    a,
+                    b,
+                    u64::from(endpoint_code(at_a)),
+                    u64::from(endpoint_code(at_b)),
+                    u64::from(middle),
+                )
+            })
+            .collect();
+        edges.sort_unstable();
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        let mut feed = |word: u64| {
+            for byte in word.to_le_bytes() {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        };
+        feed(1); // encoding version
+        feed(kind);
+        feed(vertices.len() as u64);
+        for (variable, lag) in vertices {
+            feed(variable);
+            feed(lag);
+        }
+        feed(edges.len() as u64);
+        for (a, b, at_a, at_b, middle) in edges {
+            for word in [a.0, a.1, b.0, b.1, at_a, at_b, middle] {
+                feed(word);
+            }
+        }
+        hash
+    }
+
+    /// Whether this MAG completion has a bidirected edge (no DAG sequential factorization).
+    #[must_use]
+    pub fn has_bidirected(&self) -> bool {
+        match self {
+            Self::Dag(_) => false,
+            Self::Mag(graph) => graph.edges().iter().any(|edge| {
+                matches!(
+                    (edge.at_a, edge.at_b),
+                    (antecedent_graph::Endpoint::Arrow, antecedent_graph::Endpoint::Arrow)
+                )
+            }),
+        }
+    }
+
+    /// Directed completion that admits sequential g-computation.
+    ///
+    /// Bidirected MAG members are unevaluable. A fully directed MAG member may
+    /// be used as a DAG without collapsing the source class.
+    #[must_use]
+    pub fn sequential_dag(&self) -> Option<TemporalDag> {
+        match self {
+            Self::Dag(graph) => Some(graph.clone()),
+            Self::Mag(graph) if !self.has_bidirected() => graph.try_into_temporal_dag().ok(),
+            Self::Mag(_) => None,
+        }
+    }
+}
+
+const fn endpoint_code(endpoint: antecedent_graph::Endpoint) -> u8 {
+    match endpoint {
+        antecedent_graph::Endpoint::Tail => 0,
+        antecedent_graph::Endpoint::Arrow => 1,
+        antecedent_graph::Endpoint::Circle => 2,
+        antecedent_graph::Endpoint::Conflict => 3,
+    }
+}
+
+const fn middle_code(middle: antecedent_graph::MiddleMark) -> u8 {
+    match middle {
+        antecedent_graph::MiddleMark::Unknown => 0,
+        antecedent_graph::MiddleMark::Left => 1,
+        antecedent_graph::MiddleMark::Right => 2,
+        antecedent_graph::MiddleMark::Both => 3,
+        antecedent_graph::MiddleMark::Empty => 4,
+    }
+}
+
 /// Temporal identification cases with aligned coordinate maps.
 #[derive(Clone, Debug)]
 pub struct TemporalClassEnvelope {
@@ -43,16 +158,14 @@ pub struct TemporalClassEnvelope {
     pub indexers: Vec<TemporalIndexer>,
 }
 
-fn refuse_multi_step(query: &TemporalEffectQuery) -> Result<(), IdentificationError> {
-    if !matches!(query.policy, TemporalPolicy::Pulse { .. })
-        && !matches!(query.policy, TemporalPolicy::Sustained { from, until } if from == until)
-    {
-        return Err(IdentificationError::UnsupportedQuery {
-            message: "class-aware TemporalCpdag/TemporalPag identification is Pulse \
-                      and single-step Sustained only",
-        });
+fn refuse_unsupported_class_policy(query: &TemporalEffectQuery) -> Result<(), IdentificationError> {
+    match query.policy {
+        TemporalPolicy::Pulse { .. } | TemporalPolicy::Sustained { .. } => Ok(()),
+        _ => Err(IdentificationError::UnsupportedQuery {
+            message: "class-aware TemporalCpdag/TemporalPag identification supports Pulse \
+                      and Sustained only",
+        }),
     }
-    Ok(())
 }
 
 impl GeneralizedAdjustmentIdentifier {
@@ -60,13 +173,13 @@ impl GeneralizedAdjustmentIdentifier {
     ///
     /// # Errors
     ///
-    /// Multi-step Sustained, conflict marks, or identification/unfold errors.
+    /// Unsupported policy, conflict marks, or identification/unfold errors.
     pub fn identify_temporal_cpdag_envelope(
         &self,
         cpdag: &TemporalCpdag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
-        refuse_multi_step(query)?;
+        refuse_unsupported_class_policy(query)?;
         let mut sampler =
             TemporalCpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
         let (envelope, indexers) = identify_temporal_completions(&mut sampler, query, self)?;
@@ -88,13 +201,13 @@ impl GeneralizedAdjustmentIdentifier {
     ///
     /// # Errors
     ///
-    /// Multi-step Sustained, unsupported marks, invalid stationary templates, or identification errors.
+    /// Unsupported policy, unsupported marks, invalid stationary templates, or identification errors.
     pub fn identify_temporal_pag_envelope(
         &self,
         pag: &TemporalPag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
-        refuse_multi_step(query)?;
+        refuse_unsupported_class_policy(query)?;
         let indexer = crate::temporal_mag::window(pag, query)?;
         let mut sampler = TemporalPagCompletionSampler::for_window(
             pag.clone(),
@@ -131,6 +244,8 @@ impl GeneralizedAdjustmentIdentifier {
             downgrade_capped(&mut envelope, self.config.max_completions);
         }
         if report.equivalence_audit_skipped || finite_audit.is_none() {
+            envelope.truncated_completions = envelope.truncated_completions.max(1);
+            envelope.invariant = None;
             envelope.push_features([GraphFeature { kind:Arc::from("temporal_pag_equivalence_audit_capped"),detail:Arc::from("global m-separation audit exceeded its budget; identification covers only retained, query-window-validated completions") }]);
             if envelope.status == IdentificationStatus::NonparametricallyIdentified {
                 envelope.status = IdentificationStatus::PartiallyIdentified;
@@ -189,6 +304,8 @@ fn downgrade_capped(
     envelope: &mut IdentificationEnvelope<TemporalCompletionGraph>,
     max_completions: usize,
 ) {
+    envelope.truncated_completions = envelope.truncated_completions.max(1);
+    envelope.invariant = None;
     envelope.push_features([GraphFeature {
         kind: Arc::from("completion_enumeration_capped"),
         detail: Arc::from(format!(
@@ -217,6 +334,40 @@ impl CompletionGraph for antecedent_graph::TemporalCpdagCompletion {
 mod tests {
     use super::*;
     use antecedent_core::{DynamicRuleId, Lag, VariableId};
+
+    #[test]
+    fn fingerprints_use_semantic_coordinates_and_include_isolated_nodes() {
+        let build = |reverse: bool, lag: u32, isolated: bool| {
+            let mut graph = TemporalDag::empty();
+            let (source, target) = if reverse {
+                let target = graph
+                    .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+                    .unwrap();
+                let source = graph
+                    .add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(lag))
+                    .unwrap();
+                (source, target)
+            } else {
+                let source = graph
+                    .add_lagged(VariableId::from_raw(0), antecedent_core::Lag::from_raw(lag))
+                    .unwrap();
+                let target = graph
+                    .add_lagged(VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+                    .unwrap();
+                (source, target)
+            };
+            graph.insert_directed(source, target).unwrap();
+            if isolated {
+                graph
+                    .add_lagged(VariableId::from_raw(2), antecedent_core::Lag::CONTEMPORANEOUS)
+                    .unwrap();
+            }
+            TemporalCompletionGraph::Dag(graph).fingerprint()
+        };
+        assert_eq!(build(false, 1, false), build(true, 1, false));
+        assert_ne!(build(false, 1, false), build(false, 2, false));
+        assert_ne!(build(false, 1, false), build(false, 1, true));
+    }
 
     #[test]
     fn completion_agreement_uses_a_shared_temporal_indexer() {
@@ -283,6 +434,6 @@ mod tests {
         let mut query =
             TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
         query.policy = TemporalPolicy::dynamic(DynamicRuleId::from_raw(0), Arc::from([-1, 0]));
-        assert!(refuse_multi_step(&query).is_err());
+        assert!(refuse_unsupported_class_policy(&query).is_err());
     }
 }
