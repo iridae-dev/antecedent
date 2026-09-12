@@ -10,8 +10,8 @@ use antecedent::estimate::TemporalMediationEstimator;
 use antecedent::identify::TemporalMediationIdentifier;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, RoleHint, SmallRoleSet, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, LaggedColumn, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -282,6 +282,28 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         slice.uncertainty,
         antecedent::estimate::TemporalMediationUncertainty::BayesianPointwise { .. }
     )));
+}
+
+#[test]
+fn multi_horizon_parent_identification_is_the_conservative_join() {
+    let (data, graph) = confounded_mediation_series();
+    let result = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::Mediation(query(&[1, 2])))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(7))
+        .unwrap();
+    let grid = result.mediation_grid.as_ref().expect("multi-horizon mediation grid");
+    assert!(grid.slices.iter().all(|slice| {
+        slice.identification_status == IdentificationStatus::IdentifiedUnderParametricRestrictions
+    }));
+    assert_eq!(
+        result.identification.status,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions
+    );
 }
 
 #[test]

@@ -1621,9 +1621,19 @@ impl super::Study {
                     first = Some((result.identification, result.estimand));
                 }
             }
-            let (identification, estimand) = first.ok_or_else(|| CausalError::Compile {
+            let (mut identification, estimand) = first.ok_or_else(|| CausalError::Compile {
                 message: "DBN mediation requires at least one horizon".into(),
             })?;
+            identification.status = most_conservative_identification_status(
+                slices.iter().map(|slice| slice.identification_status),
+            );
+            diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.multi_horizon_status",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "parent identification.status is the most conservative requested-horizon \
+                 status; mediation_grid is authoritative per horizon",
+            ));
             return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
                 physical,
                 identification,
