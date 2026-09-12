@@ -43,13 +43,18 @@ impl super::Study {
                     || (q.is_temporal()
                         && matches!(
                             (&self.data, class),
-                            (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
+                            (
+                                DataInput::Temporal(_) | DataInput::Event(_),
+                                GraphClass::TemporalDag
+                                    | GraphClass::TemporalCpdag
+                                    | GraphClass::TemporalPag
+                            )
                         ))) =>
             {
                 return Err(CausalError::Unsupported {
                     message: "static CausalQuery::Response requires tabular data and a Dag, \
                               Cpdag, or Pag (or a CoDetermined tier closure); temporal \
-                              response requires series/event data and a TemporalDag",
+                              response requires series/event data and a temporal graph",
                 });
             }
             (_, CausalQuery::Distribution(_), class)
@@ -328,10 +333,20 @@ impl super::Study {
                         }
                     }
                 }
+                (DataInput::Tabular(data), CausalQuery::Response(q)) => {
+                    self.execute_graph_posterior_response(data, gp, q, physical, ctx)
+                }
                 (
                     DataInput::Temporal(data) | DataInput::Event(data),
                     CausalQuery::TemporalEffect(q),
-                ) => self.execute_dbn_posterior_bayesian(data, gp, q, physical, ctx),
+                ) => match self.inference {
+                    InferenceMode::Frequentist => {
+                        self.execute_dbn_posterior_frequentist(data, gp, q, physical, ctx)
+                    }
+                    InferenceMode::Bayesian(_) => {
+                        self.execute_dbn_posterior_bayesian(data, gp, q, physical, ctx)
+                    }
+                },
                 (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
                     self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx)
                 }
@@ -351,6 +366,9 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
+                if self.graph.class() == GraphClass::TemporalCpdag {
+                    return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal mediation plan missing resolved graph".into(),
                 })?;
@@ -375,6 +393,10 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                if matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
+                {
+                    return self.execute_temporal_class_response(data, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal-response plan missing resolved graph".into(),
                 })?;
@@ -411,6 +433,9 @@ impl super::Study {
                         self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
                     }
                 },
+                CausalQuery::Response(q) => {
+                    self.execute_graph_posterior_response(data, gp, q, physical, ctx)
+                }
                 _ => Err(CausalError::Unsupported {
                     message: "graph-posterior analysis supports tabular average-effect, \
                               temporal-effect, or temporal-mediation queries only",

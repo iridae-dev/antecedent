@@ -100,12 +100,15 @@ from .results import (
     PredictiveCheckReport,
     PriorSensitivityReport,
     RefutationReport,
+    ResponseEnvelopeView,
     ResponseUncertainty,
     ResponseValidationCheck,
     ResponseValidationView,
     ResponseView,
     SupportDiagnostic,
     SupportReport,
+    TemporalMediationGridView,
+    TemporalMediationSliceView,
     ValidationView,
 )
 from .results.response import SupportStatus, UncertaintyKind
@@ -372,6 +375,62 @@ def _wrap_ate(
             alphas=None if alphas_raw is None else list(alphas_raw),
         )
     certificate_json = getattr(raw, "certificate_json", None)
+    mediation_grid = None
+    horizons = list(getattr(raw, "mediation_horizons", None) or ())
+    if horizons:
+        temporal_raw = cast(TemporalAnalysisResult, raw)
+        effects = list(temporal_raw.mediation_effects)
+        totals = list(temporal_raw.mediation_totals)
+        directs = list(temporal_raw.mediation_directs)
+        mediated_effects = list(temporal_raw.mediation_mediated_effects)
+        statuses = list(temporal_raw.mediation_identification_statuses)
+        methods = list(temporal_raw.mediation_methods)
+        adjustments = list(temporal_raw.mediation_adjustments)
+        uncertainty_kinds = list(temporal_raw.mediation_uncertainty_kinds)
+        standard_deviations = list(temporal_raw.mediation_standard_deviations)
+        q025 = list(temporal_raw.mediation_q025)
+        q975 = list(temporal_raw.mediation_q975)
+        identified_lower = list(temporal_raw.mediation_identified_lower)
+        identified_upper = list(temporal_raw.mediation_identified_upper)
+        slices = tuple(
+            TemporalMediationSliceView(
+                horizon=int(values[0]),
+                effect=float(values[1]),
+                total=float(values[2]),
+                direct=float(values[3]),
+                mediated=float(values[4]),
+                identification_status=str(values[5]),
+                method=str(values[6]),
+                adjustment=tuple((int(variable), int(offset)) for variable, offset in values[7]),
+                uncertainty_kind=str(values[8]),
+                standard_deviation=None if values[9] is None else float(values[9]),
+                q025=None if values[10] is None else float(values[10]),
+                q975=None if values[11] is None else float(values[11]),
+                identified_lower=None if values[12] is None else float(values[12]),
+                identified_upper=None if values[13] is None else float(values[13]),
+            )
+            for values in zip(
+                horizons,
+                effects,
+                totals,
+                directs,
+                mediated_effects,
+                statuses,
+                methods,
+                adjustments,
+                uncertainty_kinds,
+                standard_deviations,
+                q025,
+                q975,
+                identified_lower,
+                identified_upper,
+                strict=True,
+            )
+        )
+        mediation_grid = TemporalMediationGridView(
+            slices=slices,
+            joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
+        )
     return AnalysisResult(
         certificate=json.loads(certificate_json) if certificate_json else None,
         query=query if query is not None else getattr(prepared, "_query", None),
@@ -418,6 +477,7 @@ def _wrap_ate(
         assumptions=getattr(raw, "assumptions", None),
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,
+        mediation_grid=mediation_grid,
         validation=ValidationView(
             passed=sec_validation.passed,
             ran=sec_validation.ran,
@@ -1214,6 +1274,31 @@ def _wrap_prepared_response(
         identify_op = "identify.response"
         validation = None
     certificate_json = getattr(raw, "certificate_json", None)
+    envelope = None
+    if getattr(raw, "identified_mass", None) is not None:
+        if raw.lower is None or raw.upper is None:
+            raise RuntimeError("native structural response omitted its identified envelope")
+        envelope = ResponseEnvelopeView(
+            raw.treatments,
+            raw.outcomes,
+            raw.points,
+            raw.lower,
+            raw.upper,
+            float(raw.identified_mass),
+            float(raw.unidentified_mass),
+            int(raw.completion_count),
+            int(raw.truncated_completions),
+            bool(raw.enumeration_capped),
+            cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            cast(
+                Literal["posterior_probability", "completion_enumeration"],
+                raw.weight_basis,
+            ),
+            tuple(raw.atom_keys),
+            tuple(raw.atom_weights),
+            tuple(raw.atom_statuses),
+            tuple(tuple(values) for values in raw.atom_values),
+        )
     return CausalResponseView(
         certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
@@ -1256,7 +1341,7 @@ def _wrap_prepared_response(
             "operation_id": raw.provenance_id,
             "operation_ids": [identify_op, raw.provenance_id],
         },
-        envelope=None,
+        envelope=envelope,
         validation=validation,
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
@@ -1404,16 +1489,16 @@ class PreparedAnalysis:
             from .population import coerce_target_population
 
             if query.observation is not None and not isinstance(query.observation, Complete):
-                if isinstance(inference, Bayesian):
+                if isinstance(inference, Bayesian) and not getattr(query, "is_temporal", False):
                     raise CausalUnsupportedError(
-                        "Bayesian temporal response requires complete observations"
-                        if getattr(query, "is_temporal", False)
-                        else "these response cells require complete observations"
+                        "these response cells require complete observations"
                     )
                 if not getattr(query, "is_temporal", False) and (
                     isinstance(query, InterventionResponse)
                 ):
-                    raise CausalUnsupportedError("these response cells require complete observations")
+                    raise CausalUnsupportedError(
+                        "these response cells require complete observations"
+                    )
             if query.observation_assumptions and (
                 query.observation is None or isinstance(query.observation, Complete)
             ):
@@ -2591,7 +2676,12 @@ class PreparedAnalysis:
             )
         lagged = _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_interventions
-        from .observation import Complete, _ensure_latent_schema_column, _temporal_observation_kwargs
+
+        from .observation import (
+            Complete,
+            _ensure_latent_schema_column,
+            _temporal_observation_kwargs,
+        )
 
         if getattr(query, "observation", None) is not None and not isinstance(
             query.observation, Complete

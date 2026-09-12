@@ -382,8 +382,8 @@ def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
     if isinstance(spec, intervention_specs.Soft):
         if spec.mechanism == "constant":
             return spec.variable, "soft_constant", list(spec.parameters)
-        if spec.mechanism == "additive_shift":
-            return spec.variable, "soft_additive_shift", list(spec.parameters)
+        if spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
+            return spec.variable, f"soft_{spec.mechanism}", list(spec.parameters)
         raise CausalUnsupportedError(
             f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
         )
@@ -777,12 +777,12 @@ def handle_response(
                     )
                 if spec.mechanism == "constant":
                     kind, parameters = "soft_constant", list(spec.parameters)
-                elif spec.mechanism == "additive_shift":
-                    kind, parameters = "soft_additive_shift", list(spec.parameters)
+                elif spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
+                    kind, parameters = f"soft_{spec.mechanism}", list(spec.parameters)
                 else:
                     raise CausalUnsupportedError(
                         f"Soft mechanism {spec.mechanism!r} is not licensed for temporal "
-                        "InterventionResponse; use constant or additive_shift"
+                        "InterventionResponse; use constant, additive_shift, multiplicative, or truncated_shift"
                     )
             elif isinstance(spec, intervention_specs.Sequence):
                 raise CausalUnsupportedError(
@@ -839,8 +839,8 @@ def handle_response(
             raise ValueError("observation-aware response requires exactly one explicit assumption")
         names, columns = _ensure_latent_schema_column(names, columns, mechanism)
         edges = _static_edges(graph)
-        observation_kwargs = _mechanism_kwargs(mechanism)
-        observation_kwargs.update(_assumption_kwargs(observation_assumptions[0]))
+        static_observation_kwargs = _mechanism_kwargs(mechanism)
+        static_observation_kwargs.update(_assumption_kwargs(observation_assumptions[0]))
         raw = cast(Any, _analyze_observation_response)(
             names,
             columns,
@@ -849,7 +849,7 @@ def handle_response(
             query.outcome,
             list(query.grid),
             accepted=structure_accepted,
-            **observation_kwargs,
+            **static_observation_kwargs,
         )
     elif isinstance(graph, Pag):
         if response_options:

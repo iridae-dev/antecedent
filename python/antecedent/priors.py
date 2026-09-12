@@ -912,11 +912,14 @@ class PriorCatalog:
             None,
         )
         if chosen is None:
-            detail = ", ".join(
-                f"{report.artifact_id}:{report.status}"
-                + (f"/{report.reason.get('code')}" if report.reason else "")
-                for report in reports
-            ) or "empty catalog"
+            detail = (
+                ", ".join(
+                    f"{report.artifact_id}:{report.status}"
+                    + (f"/{report.reason.get('code')}" if report.reason else "")
+                    for report in reports
+                )
+                or "empty catalog"
+            )
             raise CausalUnsupportedError(
                 "prior catalog is incompatible with the target cell; "
                 f"PriorCatalog.filter_compatible refused every source ({detail})"

@@ -8,10 +8,10 @@ use std::sync::Arc;
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
-    InterventionSequence, Lag, MeasurementSpec, MechanismOverride, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, RoleHint,
-    SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation, TemporalEffectQuery,
-    TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
+    InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    RoleHint, SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -212,6 +212,31 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
     let expected_projection =
         fixture["contract"]["pulse_effect_projection"]["contrast"].as_f64().unwrap();
     assert!((projection - expected_projection).abs() <= atol);
+}
+
+#[test]
+fn temporal_surface_honors_execution_memory_budget() {
+    let (series, graph) = temporal_fixture_series();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap());
+    let study = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut ctx = ExecutionContext::for_tests(21);
+    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(159) };
+
+    let error = study.run(&ctx).unwrap_err();
+    assert!(error.to_string().contains("at least 160 output bytes"), "got {error}");
 }
 
 #[test]
@@ -625,6 +650,49 @@ fn multi_step_sequence_matches_two_step_truth_and_does_not_collapse() {
         result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
     );
     assert_eq!(result.identification.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
+    let response = result.response.as_ref().unwrap();
+    assert_eq!(response.support.status, SupportStatus::Extrapolative);
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None));
+    assert!(response.support.warnings.iter().any(|warning| {
+        warning.code.as_ref() == "response.temporal.sequence_joint_support_unassessed"
+    }));
+    assert!(response.support.warnings.iter().any(|warning| {
+        warning.code.as_ref() == "response.temporal.sequence_uncertainty_unavailable"
+    }));
+}
+
+#[test]
+fn single_step_sequence_uses_its_explicit_policy_not_the_outer_policy() {
+    let (series, graph) = temporal_fixture_series();
+    let sequence = Intervention::Sequence(InterventionSequence::new([SequencedIntervention {
+        intervention: Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+        temporal: TemporalPolicy::pulse(-2),
+    }]));
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([sequence]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let result = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap();
+
+    // Y_s = 1 + 2 T_{s-1} + 3 T_{s-2}; E[T_{s-1}] = 0 and do(T_{s-2}=1).
+    assert_surface(&result, &[4.0], 1e-10, "estimate.temporal_response.intervention_gcomp");
+    let response = result.response.as_ref().unwrap();
+    let overlay = response
+        .support
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.id.as_ref() == "response.temporal.sequence_overlay")
+        .expect("resolved overlay provenance");
+    assert!((overlay.values[1] + 2.0).abs() < f64::EPSILON);
 }
 
 /// (b) A `Sequence` nested inside a `Sequence` must refuse via the depth guard rather
@@ -826,6 +894,59 @@ fn joint_sequence_matches_structural_level() {
 }
 
 #[test]
+fn additive_shift_preserves_the_counterfactual_parent_mechanism() {
+    let n = 200usize;
+    let x: Vec<f64> = (0..n).map(|i| (i % 17) as f64 / 16.0).collect();
+    let m: Vec<f64> = x.iter().map(|&value| 1.0 + 2.0 * value).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| i.checked_sub(1).map_or(0.0, |previous| 3.0 * m[previous])).collect();
+    let series = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())],
+        1,
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let x0 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let m0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let m1 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x0, m0).unwrap();
+    graph.insert_directed(m1, y0).unwrap();
+
+    let seq = InterventionSequence::new(vec![
+        SequencedIntervention {
+            intervention: Intervention::set(VariableId::from_raw(0), Value::f64(2.0)),
+            temporal: TemporalPolicy::pulse(0),
+        },
+        SequencedIntervention {
+            intervention: Intervention::soft(
+                VariableId::from_raw(1),
+                MechanismOverride::additive_shift(1.0),
+            ),
+            temporal: TemporalPolicy::pulse(0),
+        },
+    ]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::Sequence(seq)]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let result = Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(23))
+        .unwrap();
+
+    // M := (1 + 2*X) + 1, so do(X=2) gives M=6 and Y=3*M=18.
+    // Replacing M by its factual marginal mean plus one gives the wrong answer.
+    assert_surface(&result, &[18.0], 1e-9, "estimate.temporal_response.intervention_gcomp");
+}
+
+#[test]
 fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph() {
     let (series, graph) = joint_ab_series();
     let seq = InterventionSequence::new(vec![
@@ -954,6 +1075,7 @@ fn temporal_dose_horizon_bands_match_fixture() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn bayesian_temporal_response_and_sustained_window_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/response_surfaces/expected.json"
@@ -1081,7 +1203,15 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
             pin["temporal_tolerance"].as_f64().unwrap(),
             "estimate.temporal_response.intervention_gcomp",
         );
-        assert!(seq_result.posterior.is_some());
+        assert!(
+            seq_result.posterior.is_none(),
+            "a scalar last-horizon posterior must not masquerade as the multi-horizon surface"
+        );
+        assert!(
+            seq_result.diagnostics.iter().any(|d| {
+                d.code.as_ref() == "estimate.temporal.sequence_posterior_not_attached"
+            })
+        );
         assert!(
             seq_result
                 .diagnostics
@@ -1090,4 +1220,35 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
         );
         assert_ne!(seq_result.estimand.method.as_ref(), "bayesian.gcomp");
     }
+}
+
+#[test]
+fn bayesian_sequence_band_matches_posterior_quantiles() {
+    let (series, graph) = temporal_fixture_series();
+    let mut temporal = temporal_spec(&fixture());
+    temporal.horizons = Arc::from([2]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([sequence_steps(VariableId::from_raw(0), &[1.0, 1.0])]),
+    })
+    .with_temporal(temporal);
+    let result = Study::series(series)
+        .graph(graph)
+        .query(query)
+        .inference(antecedent::InferenceMode::Bayesian(
+            antecedent::BayesianConfig::conjugate().n_draws(512),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(83))
+        .unwrap();
+    let posterior = result.posterior.as_ref().unwrap();
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+        &result.response.as_ref().unwrap().uncertainty
+    else {
+        panic!("missing band")
+    };
+    assert_eq!(lower[0].to_bits(), posterior.summaries.q025[0].to_bits());
+    assert_eq!(upper[0].to_bits(), posterior.summaries.q975[0].to_bits());
 }

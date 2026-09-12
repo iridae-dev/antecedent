@@ -129,6 +129,7 @@ class TemporalResponseSpec:
     """
 
     max_horizons: int
+    max_cells: int
     allowed_policies: tuple[str, ...]
     default_policy: str
     default_treatment_lag: int
@@ -138,6 +139,7 @@ def _load_temporal_response_spec() -> TemporalResponseSpec:
     raw = _native_temporal_response_spec()
     return TemporalResponseSpec(
         max_horizons=int(raw["max_horizons"]),
+        max_cells=int(raw["max_cells"]),
         allowed_policies=tuple(str(policy) for policy in raw["allowed_policies"]),
         default_policy=str(raw["default_policy"]),
         default_treatment_lag=int(raw["default_treatment_lag"]),
@@ -340,9 +342,9 @@ class Counterfactual:
 class TemporalMediationEffect:
     """Temporal linear mediation (treatment → mediator → outcome).
 
-    ``horizons=None`` defaults to ``[1]``. ``horizons=[1, 2]`` requests
-    per-horizon identification ``I(h)``; each estimate clicks its own
-    unfolded backdoor ``Z``, not a union.
+    ``horizons=None`` defaults to ``[1]``. Multiple horizons return a
+    horizon-indexed mediation grid; each Bayesian slice is pointwise and does
+    not imply a joint cross-horizon posterior.
     """
 
     treatment: str
@@ -399,6 +401,16 @@ class ResponseCurve:
                 raise CausalValueError("grid values must be strictly increasing")
             previous = value
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        if (
+            self.horizons is not None
+            and len(self.grid) * len(self.horizons) > temporal_response_spec.max_cells
+        ):
+            cells = len(self.grid) * len(self.horizons)
+            raise CausalValueError(
+                f"temporal response has {cells} dose-by-horizon cells; "
+                f"materialization limit is {temporal_response_spec.max_cells}; "
+                "coarsen the dose grid or request fewer horizons"
+            )
 
     @property
     def is_temporal(self) -> bool:
@@ -545,9 +557,11 @@ class InterventionResponse:
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
     (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
-    Soft(``constant``/``additive_shift``) and ``Sequence`` of those overlays
+    Soft(``constant``/``additive_shift``/``multiplicative``/``truncated_shift``) and ``Sequence`` of those overlays
     (multi-step on one variable, or joint at one time when every coordinate
-    is identified). Nested ``Sequence`` and other Soft families fail closed.
+    is identified). Multiplicative scales the structural assignment; truncated shift targets its
+    population mean using ``f + clip(E[f] + delta, lower, upper) - E[f]`` under
+    preceding interventions. Outcomes are not clipped. Nested ``Sequence`` is unsupported.
     Multi-step never collapses to the last step. ``treatment_lag``
     defaults to :attr:`temporal_response_spec.default_treatment_lag`, matching
     :class:`PulseEffect`.

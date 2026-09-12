@@ -169,15 +169,30 @@ impl super::Study {
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
                 let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
                 if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    if q.observation != ObservationSpec::Complete {
-                        return Err(CausalError::Compile {
-                            message: "Bayesian temporal response requires complete observations"
-                                .into(),
-                        });
-                    }
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
                 }
+                Ok(plan)
+            }
+            (
+                Some(AnalysisRoute::TemporalResponse),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    return Err(CausalError::Unsupported {
+                        message: "class-aware temporal response is Frequentist only",
+                    });
+                }
+                let mut plan =
+                    compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
+                plan.record.identifier =
+                    Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
+                plan.record.estimator =
+                    Some(Arc::from(EstimatorId::TemporalResponseGcomp.as_str()));
                 Ok(plan)
             }
             (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
@@ -333,6 +348,43 @@ impl super::Study {
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
             }
+            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalPag) => {
+                Err(CausalError::Unsupported {
+                    message: "Latent-confounded TemporalPag natural mediation is outside the \
+                              existing cross-world identification theory; the linear DAG \
+                              mechanism product on completions cannot license it",
+                })
+            }
+            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalCpdag) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let CausalQuery::Mediation(query) = &self.query else { unreachable!() };
+                query
+                    .validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    return Err(CausalError::Unsupported {
+                        message: "TemporalCpdag mediation is Frequentist only",
+                    });
+                }
+                let mut plan = compile_logical_temporal_effect_classified(
+                    data,
+                    &TemporalDag::empty(),
+                    &TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0),
+                    self.split,
+                    false,
+                    DataClassification::Temporal,
+                )?;
+                plan.record.plan_id = Arc::from("temporal_mediation_class");
+                plan.record.identifier =
+                    Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
+                plan.record.estimator = Some(Arc::from(EstimatorId::TemporalMediation.as_str()));
+                plan.record.validation_suite = self.validation_suite_id();
+                plan.record.query_variables = Arc::from([query.treatment, query.outcome]);
+                plan.query = CausalQuery::Mediation(query.clone());
+                Ok(plan)
+            }
             (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
@@ -428,6 +480,20 @@ impl super::Study {
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
+            }
+            (
+                Some(AnalysisRoute::TemporalResponse),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical()?.compile_physical(ctx),
+            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalPag) => {
+                Err(CausalError::Unsupported {
+                    message: "Latent-confounded TemporalPag natural mediation is outside the \
+                              existing cross-world identification theory; the linear DAG \
+                              mechanism product on completions cannot license it",
+                })
+            }
+            (Some(AnalysisRoute::TemporalMediation), GraphClass::TemporalCpdag) => {
+                self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::TemporalResponse), GraphClass::TemporalDag) => {
                 let graph = self

@@ -9,7 +9,8 @@ copied_tests = false
 # the recorded temporal outcome before per-horizon g-computation. Nonempty
 # IndependentGiven / OutcomeIndependentGiven covariates are lag-aligned at the
 # TemporalResponseSpec treatment offset. No cited paper proves joint inference
-# for that composition, so the surface publishes no uncertainty band.
+# for that composition; pointwise bands use nuisance-refitting outer blocks,
+# with no generic interval-calibration guarantee.
 
 papers = [
   { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
@@ -20,8 +21,8 @@ papers = [
 implementation_deviations = [
   "Observation correction runs once on the long-format series; each horizon then uses the existing temporal.response.gcomp / intervention_gcomp path on the pseudo-outcome.",
   "Nonempty IndependentGiven(Z) and OutcomeIndependentGiven(Z) lag-align every named covariate at the policy treatment offset. Contemporaneous columns are not the Cox/AIPW design.",
-  "Joint uncertainty is omitted because complete-data temporal bands do not propagate estimation of the observation mechanism.",
-  "Bayesian temporal response, delayed entry, interval/truncation, and unlicensed pairs refuse.",
+  "Requested pointwise uncertainty uses outer circular-block replicates that refit the observation nuisance and every horizon or Sequence overlay. Complete-data analytic bands are not reused; simultaneous coverage is not claimed.",
+  "This Frequentist pseudo-outcome backend does not supply a Bayesian likelihood. Bayesian non-Complete temporal responses instead use estimate.temporal_observed_bayes. Delayed entry, interval/truncation, and unlicensed temporal pairs remain outside this backend.",
 ]
 
 upstream_implementations_observed = []

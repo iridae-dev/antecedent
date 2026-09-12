@@ -1,4 +1,4 @@
-//! Temporal observation pairs on ResponseCurve / InterventionResponse.
+//! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ObservationAssumption,
-    ObservationSpec, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy,
-    TemporalResponseSpec, Value, VariableId,
+    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
+    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention,
+    TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -48,9 +48,9 @@ fn graph() -> TemporalDag {
     graph
 }
 
-fn generate(
-    pin: &serde_json::Value,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+type GeneratedObservationData = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+
+fn generate(pin: &serde_json::Value) -> GeneratedObservationData {
     let n = usize::try_from(pin["rows"].as_u64().unwrap()).unwrap();
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
@@ -145,7 +145,7 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     let cases: Vec<(&str, Vec<f64>, ObservationSpec, ObservationAssumption)> = vec![
         (
             "selected",
-            (0..n).map(|i| if selected[i] == 1.0 { latent[i] } else { 0.0 }).collect(),
+            (0..n).map(|i| if selected[i] > 0.5 { latent[i] } else { 0.0 }).collect(),
             ObservationSpec::Selected { latent: id(1), observed: id(1), indicator: id(2) },
             ObservationAssumption::OutcomeIndependentGiven(Arc::from([id(0)])),
         ),
@@ -346,6 +346,116 @@ fn temporal_right_censor_intervention_matches_fixture_path() {
         result.response.as_ref().unwrap().provenance_id.as_ref(),
         "estimate.temporal_response.observation_adjusted"
     );
+}
+
+#[test]
+fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands() {
+    let pin = fixture();
+    let ctx = ExecutionContext::for_tests(37);
+    let (t, latent, selected, _, _, _) = generate(&pin);
+    let observed =
+        latent.iter().zip(&selected).map(|(&value, &keep)| value * keep).collect::<Vec<_>>();
+    let series = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", observed.as_slice()), ("r", selected.as_slice())],
+        1,
+    )
+    .unwrap();
+    let query = curve_query(
+        &pin,
+        ObservationSpec::Selected {
+            latent: VariableId::from_raw(1),
+            observed: VariableId::from_raw(1),
+            indicator: VariableId::from_raw(2),
+        },
+        ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)])),
+    );
+    let study = Study::series(series)
+        .graph(graph())
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(12)
+        .build()
+        .unwrap();
+    let result = study.run(&ctx).unwrap();
+    let response = result.response.as_ref().unwrap();
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+        panic!("outer observation bootstrap must return pointwise bands");
+    };
+    assert_eq!(lower.len(), surface_of(&result).len());
+    assert_eq!(upper.len(), lower.len());
+    assert!(response.support.diagnostics.iter().any(|diagnostic| {
+        diagnostic.id.as_ref() == "response.observation_block_bootstrap"
+            && diagnostic.values[1] >= 2.0
+            && (diagnostic.values[3] - 12.0).abs() < f64::EPSILON
+    }));
+    assert!(!response.support.warnings.iter().any(|warning| {
+        warning.code.as_ref() == "response.observation_joint_uncertainty_unavailable"
+    }));
+    let mut limited = ExecutionContext::for_tests(37);
+    // Enough for the output alone, but not twelve retained bootstrap surfaces.
+    limited.memory.hard_limit_bytes = Some((lower.len() * 40) as u64);
+    let error = study.run(&limited).unwrap_err();
+    assert!(error.to_string().contains("output bytes"), "{error}");
+}
+
+#[test]
+fn temporal_sequence_observation_outer_block_bootstrap_returns_pointwise_bands() {
+    let pin = fixture();
+    let ctx = ExecutionContext::for_tests(39);
+    let (t, latent, selected, _, _, _) = generate(&pin);
+    let observed =
+        latent.iter().zip(&selected).map(|(&value, &keep)| value * keep).collect::<Vec<_>>();
+    let series = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", observed.as_slice()), ("r", selected.as_slice())],
+        1,
+    )
+    .unwrap();
+    let lag = u32::try_from(pin["treatment_lag"].as_u64().unwrap()).unwrap();
+    let at = -i32::try_from(lag).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::Sequence(InterventionSequence::new(vec![
+            SequencedIntervention {
+                intervention: Intervention::set(VariableId::from_raw(0), Value::f64(0.5)),
+                temporal: TemporalPolicy::pulse(at),
+            },
+            SequencedIntervention {
+                intervention: Intervention::set(VariableId::from_raw(0), Value::f64(0.5)),
+                temporal: TemporalPolicy::pulse(at + 1),
+            },
+        ]))]),
+    })
+    .with_temporal(temporal_spec(&pin))
+    .with_observation(
+        ObservationSpec::Selected {
+            latent: VariableId::from_raw(1),
+            observed: VariableId::from_raw(1),
+            indicator: VariableId::from_raw(2),
+        },
+        [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
+    );
+    let result = Study::series(series)
+        .graph(graph())
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(12)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let response = result.response.as_ref().unwrap();
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+        panic!("Sequence observation bootstrap must return pointwise bands");
+    };
+    assert_eq!(lower.len(), surface_of(&result).len());
+    assert_eq!(upper.len(), lower.len());
+    assert!(response.support.diagnostics.iter().any(|diagnostic| {
+        diagnostic.id.as_ref() == "response.observation_block_bootstrap"
+            && diagnostic.values[1] >= 2.0
+    }));
+    assert!(!response.support.warnings.iter().any(|warning| {
+        warning.code.as_ref() == "response.observation_joint_uncertainty_unavailable"
+    }));
 }
 
 #[test]

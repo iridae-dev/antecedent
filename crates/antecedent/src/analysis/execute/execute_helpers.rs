@@ -167,11 +167,13 @@ pub(super) struct IdentifiedExecuteExtras {
     pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
     pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
     pub posterior: Option<antecedent_estimate::CausalPosterior>,
+    pub mediation_grid: Option<antecedent_estimate::TemporalMediationGrid>,
     pub n_draws: Option<u32>,
     pub predictive_checks: Vec<antecedent_validate::PredictiveCheckReport>,
     /// When set, replaces the identification + overlap + cache diagnostic seed.
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub response: Option<antecedent_core::CausalResponse>,
+    pub structural_response: Option<crate::result::StructuralResponseMixture>,
     pub gcm: Option<GcmSlot>,
     pub empty_provenance: bool,
     /// `None` uses the study bootstrap count; `Some(v)` writes `v` (response writes `None`).
@@ -212,6 +214,23 @@ pub(super) fn nan_effect() -> EffectEstimate {
         antecedent_core::AssumptionSet::default(),
         OverlapPolicy::ExplicitOverride,
     )
+}
+
+pub(super) fn integer_cube_root_ceil(n: usize) -> usize {
+    if n <= 1 {
+        return n;
+    }
+    let mut low = 1usize;
+    let mut high = n;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    low
 }
 
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
@@ -1312,6 +1331,7 @@ impl super::Study {
             distribution: args.distribution,
             posterior: extras.posterior,
             mediation: args.mediation,
+            mediation_grid: extras.mediation_grid,
             counterfactual,
             anomaly,
             change_attribution,
@@ -1355,6 +1375,7 @@ impl super::Study {
         }
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
+        result.structural_response = extras.structural_response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
         if !is_quantile && self
@@ -1408,4 +1429,10 @@ impl super::Study {
         }
         result
     }
+}
+
+/// Match the estimator failure policy without counting unattempted, cancelled
+/// replicates as fitting failures.
+pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
+    completed >= 2 && completed >= attempted.saturating_sub(completed)
 }

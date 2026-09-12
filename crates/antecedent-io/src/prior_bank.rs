@@ -392,11 +392,11 @@ impl PriorCatalog {
         allow_partial: bool,
     ) -> Result<&PriorSourceRef, IoError> {
         let reports = self.filter_compatible(target);
-        let chosen = reports.iter().find(|report| {
+        let chosen = reports.iter().position(|report| {
             matches!(report, CompatibilityReport::Compatible { .. })
                 || (allow_partial && matches!(report, CompatibilityReport::Partial { .. }))
         });
-        let Some(report) = chosen else {
+        let Some(index) = chosen else {
             return Err(IoError::Convert(format!(
                 "prior catalog is incompatible with the target cell; \
                  PriorCatalog.filter_compatible refused every source ({})",
@@ -404,8 +404,7 @@ impl PriorCatalog {
             )));
         };
         self.sources
-            .iter()
-            .find(|source| source.meta.artifact_id == report.artifact_id())
+            .get(index)
             .ok_or_else(|| IoError::Convert("compatible report missing catalog source".into()))
     }
 
@@ -1025,5 +1024,26 @@ mod tests {
             catalog.require_compatible(&TargetDesign::new(ate_estimand(), ["t", "y"])).unwrap_err();
         assert!(err.to_string().contains("incompatible"), "{err}");
         assert!(catalog.require_usable(&TargetDesign::new(ate_estimand(), ["t", "y"])).is_err());
+    }
+
+    #[test]
+    fn duplicate_artifact_ids_cannot_select_a_rejected_source() {
+        let rejected = PriorSourceMeta::new(
+            "duplicate",
+            EstimandFingerprint::new("ate", "t", "other_y"),
+            "NonparametricallyIdentified",
+        )
+        .with_design(design_tyz());
+        let compatible =
+            PriorSourceMeta::new("duplicate", ate_estimand(), "NonparametricallyIdentified")
+                .with_design(design_tyz());
+        let catalog = PriorCatalog::from_sources(vec![
+            PriorSourceRef::from_meta(rejected),
+            PriorSourceRef::from_meta(compatible),
+        ]);
+
+        let chosen =
+            catalog.require_usable(&TargetDesign::new(ate_estimand(), ["t", "y"])).unwrap();
+        assert_eq!(chosen.meta.estimand, ate_estimand());
     }
 }
