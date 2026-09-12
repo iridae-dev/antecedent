@@ -120,10 +120,12 @@ CBOR artifacts.
 
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
-`AverageEffect` with DAG atoms. Temporal graph-posterior analysis is limited to
-pulse and single- or multi-step sustained effects with `TemporalDag` atoms and Bayesian
-inference. Frequentist DBN-posterior mixing, response mixtures, and
-ADMG/CPDAG/PAG posterior atoms are refused.
+`AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
+with DAG atoms. Temporal graph-posterior analysis is limited to pulse and
+single- or multi-step sustained effects with `TemporalDag` atoms under
+Bayesian or Frequentist inference. DBN-posterior response surfaces,
+TemporalCpdag/Pag posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms
+are refused.
 
 ### Conditional independence tests
 
