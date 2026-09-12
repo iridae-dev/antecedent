@@ -13,6 +13,18 @@ use super::functional::OutcomeFunctional;
 /// Maximum number of discrete horizons a temporal response may request.
 pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
 
+/// Maximum number of materialized dose-by-horizon cells.
+///
+/// Bounding each axis independently is insufficient: one million doses across
+/// 512 horizons would otherwise allocate hundreds of millions of estimates,
+/// intervals, support labels, and two-coordinate grid rows. The one-million
+/// ceiling matches the existing single-grid cardinality ceiling and bounds the
+/// five unavoidable cell-scaled `f64` values (mean, lower, upper, dose, horizon)
+/// to 40 MB before support labels and allocator overhead. It is an absolute
+/// materialization guard, not a mathematical restriction; execution also
+/// honors [`crate::MemoryBudget`] when the caller supplies one.
+pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
+
 /// Licensed temporal-response query policy, for language facades.
 ///
 /// [`TemporalResponseSpec::validate`] is the semantic authority. Bindings may
@@ -22,6 +34,8 @@ pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
 pub struct TemporalResponseLicense {
     /// Maximum number of discrete horizons a query may request.
     pub max_horizons: usize,
+    /// Absolute dose-by-horizon materialization ceiling.
+    pub max_cells: usize,
     /// Wire tags this spec accepts (`pulse`, `sustained`).
     pub allowed_policies: &'static [&'static str],
     /// Default wire tag when the caller omits `policy`.
@@ -67,6 +81,7 @@ impl TemporalResponseSpec {
     pub const fn license() -> TemporalResponseLicense {
         TemporalResponseLicense {
             max_horizons: Self::MAX_HORIZONS,
+            max_cells: MAX_TEMPORAL_RESPONSE_CELLS,
             allowed_policies: Self::ALLOWED_POLICIES,
             default_policy: Self::DEFAULT_POLICY,
             default_treatment_lag: Self::DEFAULT_TREATMENT_LAG,
@@ -666,8 +681,26 @@ impl ResponseQuery {
         if let Some(temporal) = &self.temporal {
             temporal.validate()?;
             match &self.functional {
-                ResponseFunctional::MeanCurve { .. }
-                | ResponseFunctional::InterventionResponse { .. } => {}
+                ResponseFunctional::MeanCurve { treatment, .. } => {
+                    let dose_count = match &treatment.grid {
+                        GridSpec::Values(values) => values.len(),
+                        GridSpec::Linspace { points, .. } => *points,
+                    };
+                    let cells =
+                        dose_count.checked_mul(temporal.horizons.len()).ok_or_else(|| {
+                            QueryError::InvalidResponse(
+                                "temporal response dose-by-horizon cell count overflow".into(),
+                            )
+                        })?;
+                    if cells > MAX_TEMPORAL_RESPONSE_CELLS {
+                        return Err(QueryError::InvalidResponse(format!(
+                            "temporal response has {cells} dose-by-horizon cells; \
+                                 materialization limit is {MAX_TEMPORAL_RESPONSE_CELLS}; \
+                                 coarsen the dose grid or request fewer horizons"
+                        )));
+                    }
+                }
+                ResponseFunctional::InterventionResponse { .. } => {}
                 _ => {
                     return Err(QueryError::InvalidResponse(
                         "temporal attachment is licensed only for MeanCurve and InterventionResponse"
@@ -744,6 +777,7 @@ mod tests {
     fn temporal_response_license_is_the_facade_contract() {
         let license = TemporalResponseSpec::license();
         assert_eq!(license.max_horizons, MAX_TEMPORAL_RESPONSE_HORIZONS);
+        assert_eq!(license.max_cells, MAX_TEMPORAL_RESPONSE_CELLS);
         assert_eq!(license.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
         assert_eq!(license.default_policy, TemporalResponseSpec::POLICY_PULSE);
         assert!(license.allowed_policies.contains(&license.default_policy));
@@ -767,6 +801,28 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, QueryError::InvalidResponse(_)));
         assert!(err.to_string().contains("pulse or sustained"));
+    }
+
+    #[test]
+    fn temporal_surface_caps_the_cross_product_not_only_each_axis() {
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Linspace { start: 0.0, end: 1.0, points: 2_000 },
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(
+                (1..=512).collect::<Vec<_>>(),
+                TemporalPolicy::pulse(-1),
+                None,
+            )
+            .unwrap(),
+        );
+        let error = query.validate().unwrap_err();
+        assert!(error.to_string().contains("1024000 dose-by-horizon cells"));
+        assert!(error.to_string().contains("materialization limit is 1000000"));
     }
 
     #[test]
