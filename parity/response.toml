@@ -120,6 +120,15 @@ python_facade = "full"
 notes = "Pin conformance/response/temporal_observation is consumed by crates/antecedent/tests/temporal_observation.rs and python/tests/test_temporal_observation.py. Unlicensed pairs refuse at compile with TEMPORAL_OBSERVATION_UNLICENSED. Provenance estimate.temporal_response.observation_adjusted."
 
 [[capabilities]]
+id = "estimate.temporal_observed_bayes"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_observed_response"
+limitations = "Parametric observed-data Gaussian SEM with latent-trajectory Gibbs under declared ignorable joint-trajectory CAR and distinct priors. Pointwise posterior bands only. Not Bayesian IPCW/KM/Cox weighting. Joint longitudinal empirical support is unassessed. Complete observations still use response.temporal.bayesian."
+python_facade = "full"
+notes = "Pin conformance/bayesian/temporal_observed_response is consumed by crates/antecedent/tests/temporal_observed_bayesian.rs and python/tests/test_temporal_observed_bayesian.py. Provenance estimate.temporal_observed_bayes."
+
+[[capabilities]]
 id = "estimate.response.bayesian"
 status = "done"
 evidence_kind = "internal_known_truth"
