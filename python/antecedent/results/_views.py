@@ -475,6 +475,10 @@ class AnalysisResult:
     evidence_status: str | None = None
     allowlist_reason: str | None = None
     allowlist_parent: str | None = None
+    structural_weight_basis: str | None = None
+    structural_identified_mass: float | None = None
+    structural_unidentified_mass: float | None = None
+    structural_unevaluable_mass: float | None = None
     _raw: Any = None
     _prepared: Any = None
     query: Any = None

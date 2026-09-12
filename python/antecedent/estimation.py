@@ -66,7 +66,7 @@ from .errors import (
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
-from .inference import Bayesian, Frequentist
+from .inference import Bayesian, ClassPrior, Frequentist, _class_prior_kwargs
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -525,6 +525,10 @@ def _wrap_ate(
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
+        structural_weight_basis=getattr(raw, "structural_weight_basis", None),
+        structural_identified_mass=getattr(raw, "structural_identified_mass", None),
+        structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),
+        structural_unevaluable_mass=getattr(raw, "structural_unevaluable_mass", None),
         _raw=raw,
         _prepared=prepared,
     )
@@ -1303,7 +1307,11 @@ def _wrap_prepared_response(
             bool(raw.enumeration_capped),
             cast(Literal["full_class", "examined_completions"], raw.mass_scope),
             cast(
-                Literal["posterior_probability", "completion_enumeration"],
+                Literal[
+                    "posterior_probability",
+                    "completion_enumeration",
+                    "caller_supplied_class_prior",
+                ],
                 raw.weight_basis,
             ),
             tuple(raw.atom_keys),
@@ -1457,6 +1465,7 @@ class PreparedAnalysis:
         bootstrap: int | None = None,
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
+        class_prior: ClassPrior | None = None,
     ) -> PreparedAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1578,6 +1587,13 @@ class PreparedAnalysis:
             graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
         else:
             structure_accepted = False
+        if class_prior is not None and (
+            not isinstance(graph, (TemporalCpdag, TemporalPag))
+            or not isinstance(inference, Bayesian)
+        ):
+            raise CausalUnsupportedError(
+                "class_prior requires Bayesian inference on TemporalCpdag or TemporalPag"
+            )
         if isinstance(query, (PulseEffect, SustainedEffect)):
             if identifier is not None or estimator is not None:
                 raise CausalValueError(
@@ -1614,18 +1630,28 @@ class PreparedAnalysis:
                 for key in ("prior_artifact", "prior_mapping", "composed_prior")
                 if key in temporal_bayes_kw
             }
-            if transfer_kw and isinstance(graph, (TemporalCpdag, TemporalPag)):
-                raise CausalUnsupportedError(
-                    "Bayesian prior transfer rides licensed TemporalDag cells; "
-                    "TemporalCpdag/TemporalPag prepare does not accept prior transfer"
-                )
+            class_prior_kw = _class_prior_kwargs(class_prior)
             if isinstance(graph, TemporalCpdag):
                 native = _NativePreparedAnalysis.prepare_temporal_cpdag_effect(
-                    names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
+                    names,
+                    columns,
+                    graph,
+                    query.treatment,
+                    query.outcome,
+                    **temporal_kwargs,
+                    **class_prior_kw,
+                    **transfer_kw,
                 )
             elif isinstance(graph, TemporalPag):
                 native = _NativePreparedAnalysis.prepare_temporal_pag_effect(
-                    names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
+                    names,
+                    columns,
+                    graph,
+                    query.treatment,
+                    query.outcome,
+                    **temporal_kwargs,
+                    **class_prior_kw,
+                    **transfer_kw,
                 )
             else:
                 lagged = _lagged_edges(
@@ -1647,7 +1673,11 @@ class PreparedAnalysis:
                     "PreparedAnalysis TemporalMediationEffect uses the fixed temporal "
                     "mediation estimator; custom identifier=/estimator= are not supported"
                 )
-            lagged = _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
+            lagged = (
+                []
+                if isinstance(graph, (TemporalCpdag, TemporalPag))
+                else _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
+            )
             native = _NativePreparedAnalysis.prepare_temporal_mediation(
                 names,
                 columns,
@@ -1665,6 +1695,8 @@ class PreparedAnalysis:
                 bootstrap=0 if bootstrap is None else bootstrap,
                 threads=threads,
                 accepted=structure_accepted,
+                class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
+                **_class_prior_kwargs(class_prior),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
@@ -1695,6 +1727,7 @@ class PreparedAnalysis:
                 seed=seed,
                 threads=threads,
                 structure_accepted=structure_accepted,
+                class_prior=class_prior,
             )
         if isinstance(query, AverageEffect) and isinstance(graph, Pag):
             inference = inference or Frequentist()
@@ -1906,11 +1939,11 @@ class PreparedAnalysis:
                 if isinstance(query, MediationEffect):
                     raise CausalUnsupportedError(
                         "refused: Static natural mediation is Frequentist; a Bayesian "
-                        "mediation estimator is 1.7 work."
+                        "mediation estimator is 1.8 work."
                     )
                 raise CausalUnsupportedError(
                     "refused: Counterfactuals are Frequentist abduction-action-prediction; "
-                    "a posterior over mechanisms is 1.7 work."
+                    "a posterior over mechanisms is 1.8 work."
                 )
             expected_id = (
                 "path_specific.natural" if isinstance(query, MediationEffect) else "gcm.parametric"
@@ -2055,7 +2088,7 @@ class PreparedAnalysis:
             if inference is not None and not isinstance(inference, Frequentist):
                 raise CausalUnsupportedError(
                     "refused: Licensed derivative cells are Frequentist explicit or "
-                    "accepted Dag at validation none; Bayesian derivatives remain 1.7 work."
+                    "accepted Dag at validation none; Bayesian derivatives remain 1.8 work."
                 )
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError("not_applicable: derivatives require refute='none'")
@@ -2679,6 +2712,7 @@ class PreparedAnalysis:
         seed: int,
         threads: int,
         structure_accepted: bool,
+        class_prior: ClassPrior | None = None,
     ) -> PreparedAnalysis:
         if refute not in (False, "none", Refute.NONE):
             raise CausalUnsupportedError(
@@ -2686,7 +2720,7 @@ class PreparedAnalysis:
                 "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
                 "suite and a function-valued estimand has no such state. Use refute='none'."
             )
-        lagged = _lagged_edges(graph)
+        lagged = [] if isinstance(graph, (TemporalCpdag, TemporalPag)) else _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_interventions
 
         from .observation import (
@@ -2734,6 +2768,8 @@ class PreparedAnalysis:
                 seed=seed,
                 threads=threads,
                 accepted=structure_accepted,
+                class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
+                **_class_prior_kwargs(class_prior),
                 **observation_kwargs,
             )
             return cls(native, kind="intervention_response", query=query)
@@ -2755,6 +2791,8 @@ class PreparedAnalysis:
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
+            class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
+            **_class_prior_kwargs(class_prior),
             **observation_kwargs,
         )
         return cls(native, kind="response_curve", query=query)

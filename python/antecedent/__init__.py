@@ -108,7 +108,7 @@ from .accepted_graph import AcceptedGraph
 from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
-from .inference import Bayesian, Frequentist
+from .inference import Bayesian, ClassPrior, Frequentist
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -166,6 +166,7 @@ __all__ = [
     # Selectors
     "Frequentist",
     "Bayesian",
+    "ClassPrior",
     "Identifier",
     "Estimator",
     "Latency",
@@ -203,7 +204,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "1.6.0"
+        __version__ = "1.7.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

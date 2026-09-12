@@ -63,6 +63,7 @@ _EXPECTED_ALL = {
     # Selectors
     "Frequentist",
     "Bayesian",
+    "ClassPrior",
     "Identifier",
     "Estimator",
     "Latency",
