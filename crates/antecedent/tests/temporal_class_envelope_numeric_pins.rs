@@ -8,8 +8,10 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
-    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Lag,
+    MeasurementSpec, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue,
+    RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType,
+    VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -227,6 +229,59 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
             "{class} cheap must mix refuters across temporal completions"
         );
         assert!((cheap.estimate.ate - expected).abs() < tol);
+    }
+}
+
+#[test]
+fn temporal_class_response_returns_completion_identified_set() {
+    let pin = pin();
+    let data = series(&pin);
+    let mut directed_cpdag = TemporalCpdag::empty();
+    let treatment_cpdag = lagged(&mut directed_cpdag, 0, 1);
+    let outcome_cpdag = lagged(&mut directed_cpdag, 1, 0);
+    let witness_cpdag = lagged(&mut directed_cpdag, 2, 1);
+    directed_cpdag.insert_directed(witness_cpdag, treatment_cpdag).unwrap();
+    directed_cpdag.insert_directed(treatment_cpdag, outcome_cpdag).unwrap();
+    let mut directed_pag = TemporalPag::empty();
+    let treatment_pag = directed_pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let outcome_pag =
+        directed_pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let witness_pag = directed_pag.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    directed_pag.insert_directed(witness_pag, treatment_pag).unwrap();
+    directed_pag.insert_directed(treatment_pag, outcome_pag).unwrap();
+    let query = CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32, 2], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    );
+    for graph in [ClassGraph::Cpdag(directed_cpdag), ClassGraph::Pag(directed_pag)] {
+        for accepted in [false, true] {
+            let result = build(&data, &graph, accepted, query.clone())
+                .run(&ExecutionContext::for_tests(17))
+                .unwrap();
+            let structural = result.structural_response.as_ref().expect("completion metadata");
+            assert_eq!(
+                structural.weight_basis,
+                antecedent::result::StructuralWeightBasis::CompletionEnumeration
+            );
+            assert!(structural.conditional_on_identified.is_none());
+            let envelope = structural.identified_set.as_ref().expect("identified set");
+            assert_eq!(envelope.dimension, 2);
+            assert_eq!(envelope.lower.len(), 4);
+            assert_eq!(envelope.upper.len(), 4);
+            assert!(matches!(
+                result.response.as_ref().unwrap().estimate,
+                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
+                    | ResponseIdentification::GraphDependent(_)
+            ));
+        }
     }
 }
 

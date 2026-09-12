@@ -195,6 +195,37 @@ pub(crate) struct AnalysisResult {
     pub(crate) mediation_direct: Option<f64>,
     #[pyo3(get)]
     pub(crate) mediation_mediated: Option<f64>,
+    /// Horizon-indexed temporal mediation result. Empty for non-mediation queries.
+    #[pyo3(get)]
+    pub(crate) mediation_horizons: Vec<u32>,
+    #[pyo3(get)]
+    pub(crate) mediation_effects: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_totals: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_directs: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_mediated_effects: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_identification_statuses: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_methods: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_adjustments: Vec<Vec<(u32, i32)>>,
+    #[pyo3(get)]
+    pub(crate) mediation_uncertainty_kinds: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_standard_deviations: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_q025: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_q975: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_identified_lower: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_identified_upper: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_joint_posterior: Option<bool>,
     /// Nested identification section — every field is populated on the temporal path
     /// (unlike `estimate`/`performance`, this DTO carries the full identification set).
     #[pyo3(get)]
@@ -1871,6 +1902,61 @@ fn analysis_result_from_run(
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
         evidence_status_parts(result.support_status);
+    let mut mediation_horizons = Vec::new();
+    let mut mediation_effects = Vec::new();
+    let mut mediation_totals = Vec::new();
+    let mut mediation_directs = Vec::new();
+    let mut mediation_mediated_effects = Vec::new();
+    let mut mediation_identification_statuses = Vec::new();
+    let mut mediation_methods = Vec::new();
+    let mut mediation_adjustments = Vec::new();
+    let mut mediation_uncertainty_kinds = Vec::new();
+    let mut mediation_standard_deviations = Vec::new();
+    let mut mediation_q025 = Vec::new();
+    let mut mediation_q975 = Vec::new();
+    let mut mediation_identified_lower = Vec::new();
+    let mut mediation_identified_upper = Vec::new();
+    if let Some(grid) = result.mediation_grid.as_ref() {
+        for slice in grid.slices.iter() {
+            mediation_horizons.push(slice.horizon);
+            mediation_effects.push(slice.estimate.effect.ate);
+            mediation_totals.push(slice.estimate.total.unwrap_or(f64::NAN));
+            mediation_directs.push(slice.estimate.direct.unwrap_or(f64::NAN));
+            mediation_mediated_effects.push(slice.estimate.mediated.unwrap_or(f64::NAN));
+            mediation_identification_statuses.push(format!("{:?}", slice.identification_status));
+            mediation_methods.push(slice.method.to_string());
+            mediation_adjustments.push(
+                slice.adjustment.iter().map(|key| (key.variable.raw(), key.offset)).collect(),
+            );
+            mediation_identified_lower.push(slice.identified_set.map(|set| set.lower));
+            mediation_identified_upper.push(slice.identified_set.map(|set| set.upper));
+            match &slice.uncertainty {
+                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                    standard_error,
+                } => {
+                    mediation_uncertainty_kinds.push("frequentist_pointwise".to_string());
+                    mediation_standard_deviations.push(*standard_error);
+                    mediation_q025.push(None);
+                    mediation_q975.push(None);
+                }
+                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                    requested,
+                    ..
+                } => {
+                    mediation_uncertainty_kinds.push("bayesian_pointwise".to_string());
+                    mediation_standard_deviations.push(Some(requested.standard_deviation));
+                    mediation_q025.push(Some(requested.q025));
+                    mediation_q975.push(Some(requested.q975));
+                }
+                _ => {
+                    mediation_uncertainty_kinds.push("unavailable".to_string());
+                    mediation_standard_deviations.push(None);
+                    mediation_q025.push(None);
+                    mediation_q975.push(None);
+                }
+            }
+        }
+    }
 
     Ok(AnalysisResult {
         certificate_json,
@@ -1930,6 +2016,21 @@ fn analysis_result_from_run(
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        mediation_horizons,
+        mediation_effects,
+        mediation_totals,
+        mediation_directs,
+        mediation_mediated_effects,
+        mediation_identification_statuses,
+        mediation_methods,
+        mediation_adjustments,
+        mediation_uncertainty_kinds,
+        mediation_standard_deviations,
+        mediation_q025,
+        mediation_q975,
+        mediation_identified_lower,
+        mediation_identified_upper,
+        mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
         identification,
         estimate,
         posterior: posterior_section,

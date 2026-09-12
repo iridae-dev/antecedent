@@ -8,7 +8,7 @@ copied_tests = false
 implementation_deviations = [
  "Extends the cited static back-door criterion to a finite unfolding of a stationary temporal template; stationarity, finite horizon, pulse or sustained policies, and history truncation are implementation assumptions not supplied by the cited source.",
  "Single-step queries use back-door adjustment, while multi-step queries delegate to general ID on the unfolded graph rather than a longitudinal back-door or sequential g-formula algorithm.",
- "Identification supports hard Set contrasts only, and the estimator path refuses multi-step temporal effects.",
+ "The unfolded identifier supports hard Set contrasts and supplies the schedule-level graph identification used by licensed sequential overlays. Multi-step estimation uses estimate.temporal_sequential; soft mean overlays do not create a second identifier.",
 ]
 
 papers = [

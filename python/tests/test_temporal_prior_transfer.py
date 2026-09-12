@@ -260,9 +260,7 @@ def test_sequence_refuses_transfer_without_new_filter():
             _series(),
             graph=_EDGES,
             query=query,
-            inference=antecedent.Bayesian(
-                n_draws=_DRAWS, backend="conjugate", prior_from=artifact
-            ),
+            inference=antecedent.Bayesian(n_draws=_DRAWS, backend="conjugate", prior_from=artifact),
             refute=False,
             seed=_SEED,
         ).estimate(_series(), seed=_SEED)

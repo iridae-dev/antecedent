@@ -144,6 +144,21 @@ class AteAnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    mediation_horizons: list[int]
+    mediation_effects: list[float]
+    mediation_totals: list[float]
+    mediation_directs: list[float]
+    mediation_mediated_effects: list[float]
+    mediation_identification_statuses: list[str]
+    mediation_methods: list[str]
+    mediation_adjustments: list[list[tuple[int, int]]]
+    mediation_uncertainty_kinds: list[str]
+    mediation_standard_deviations: list[float | None]
+    mediation_q025: list[float | None]
+    mediation_q975: list[float | None]
+    mediation_identified_lower: list[float | None]
+    mediation_identified_upper: list[float | None]
+    mediation_joint_posterior: bool | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -182,6 +197,11 @@ class ResponseAnalysisResult:
     truncated_completions: int | None
     enumeration_capped: bool | None
     mass_scope: str | None
+    weight_basis: str | None
+    atom_keys: list[int]
+    atom_weights: list[float]
+    atom_statuses: list[str]
+    atom_values: list[list[float]]
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -536,6 +556,21 @@ class AnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    mediation_horizons: list[int]
+    mediation_effects: list[float]
+    mediation_totals: list[float]
+    mediation_directs: list[float]
+    mediation_mediated_effects: list[float]
+    mediation_identification_statuses: list[str]
+    mediation_methods: list[str]
+    mediation_adjustments: list[list[tuple[int, int]]]
+    mediation_uncertainty_kinds: list[str]
+    mediation_standard_deviations: list[float | None]
+    mediation_q025: list[float | None]
+    mediation_q975: list[float | None]
+    mediation_identified_lower: list[float | None]
+    mediation_identified_upper: list[float | None]
+    mediation_joint_posterior: bool | None
     identification: IdentificationSection
     estimate: EstimateSection
     posterior: PosteriorSection
