@@ -31,14 +31,21 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag", "TemporalDag", "Cpdag", "Pag"]
+graph_classes = ["Dag", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
 
 [[n_a]]
+queries = ["ResponseCurve"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state."
+
+[[n_a]]
 queries = ["InterventionResponse"]
-graph_classes = ["TemporalDag", "Cpdag", "Pag"]
+graph_classes = ["TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state."
@@ -46,7 +53,7 @@ reason = "cheap and full denote the ATE-shaped scalar refuter suite; temporal an
 [[n_a]]
 queries = ["InterventionResponse"]
 graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
+structures = ["explicit", "accepted", "graph_posterior"]
 inferences = ["Bayesian"]
 validations = ["cheap", "full"]
 reason = "Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite."

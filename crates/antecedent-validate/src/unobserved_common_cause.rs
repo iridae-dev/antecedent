@@ -34,7 +34,7 @@ pub struct UnobservedCommonCause {
     /// the standard-normal confounder.
     pub effect_on_outcome: f64,
     /// Pass if the mean `|refuted_ate - original_ate|`, standardized by `sd(Y)/sd(T)`
-    /// (the natural scale of an ATE), is below this threshold.
+    /// times the absolute treatment contrast (the scale of an ATE), is below this threshold.
     pub std_delta_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -118,7 +118,11 @@ impl UnobservedCommonCause {
         }
         let mean_delta = sum_delta / f64::from(self.replicates);
         let mean_ate = sum_ate / f64::from(self.replicates);
-        let std_delta = mean_delta / (sd_y / sd_t);
+        let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
+            &problem.query.active,
+            &problem.query.control,
+        )?;
+        let std_delta = mean_delta / ((sd_y / sd_t) * treatment_delta.abs());
         let passed = std_delta < self.std_delta_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("unobserved.common_cause"),

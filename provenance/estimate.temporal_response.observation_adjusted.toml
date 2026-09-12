@@ -1,0 +1,33 @@
+feature_id = "estimate.temporal_response.observation_adjusted"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Same 1.3 composition as estimate.response.observation_adjusted, applied to
+# the recorded temporal outcome before per-horizon g-computation. Nonempty
+# IndependentGiven / OutcomeIndependentGiven covariates are lag-aligned at the
+# TemporalResponseSpec treatment offset. No cited paper proves joint inference
+# for that composition; pointwise bands use nuisance-refitting outer blocks,
+# with no generic interval-calibration guarantee.
+
+papers = [
+  { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 2.1, especially the augmented inverse-probability weighted estimating equation on pages 963-964"] },
+  { title = "The Kaplan-Meier Estimator as an Inverse-Probability-of-Censoring Weighted Average", doi = "10.1198/000313001317098185", sections = ["Section 2, equations (3) and (5): IPCW representation"] },
+  { title = "Regression Models and Life-Tables", doi = "10.1111/j.2517-6161.1972.tb00899.x", sections = ["Cox proportional hazards"] },
+]
+
+implementation_deviations = [
+  "Observation correction runs once on the long-format series; each horizon then uses the existing temporal.response.gcomp / intervention_gcomp path on the pseudo-outcome.",
+  "Nonempty IndependentGiven(Z) and OutcomeIndependentGiven(Z) lag-align every named covariate at the policy treatment offset. Contemporaneous columns are not the Cox/AIPW design.",
+  "Requested pointwise uncertainty uses outer circular-block replicates that refit the observation nuisance and every horizon or Sequence overlay. Complete-data analytic bands are not reused; simultaneous coverage is not claimed.",
+  "This Frequentist pseudo-outcome backend does not supply a Bayesian likelihood. Bayesian non-Complete temporal responses instead use estimate.temporal_observed_bayes. Delayed entry, interval/truncation, and unlicensed temporal pairs remain outside this backend.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/temporal_observation.rs",
+  "python/tests/test_temporal_observation.py",
+]

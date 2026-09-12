@@ -407,3 +407,85 @@ fn refuses_dag_only_identifier_on_pag() {
     let structure = AcceptedGraph::pag(Pag::with_variables(2));
     reject_dag_only_on_pag(&structure, IdentifierId::GeneralizedAdjustment).unwrap();
 }
+
+#[test]
+fn compile_temporal_response_refuses_unlicensed_observation() {
+    use antecedent_core::{
+        CausalSchemaBuilder, ContinuousDomain, GridSpec, MeasurementSpec, ObservationAssumption,
+        ObservationSpec, ResponseFunctional, ResponseQuery, RoleHint, SmallRoleSet,
+        TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        ValidityBitmap,
+    };
+    use antecedent_graph::ensure_lagged;
+    use std::sync::Arc as StdArc;
+
+    let n = 16usize;
+    let mut b = CausalSchemaBuilder::new();
+    for (name, hint) in [
+        ("t", RoleHint::TreatmentCandidate),
+        ("y", RoleHint::OutcomeCandidate),
+        ("lo", RoleHint::Context),
+        ("hi", RoleHint::Context),
+    ] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(hint),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let zeros = vec![0.0; n];
+    let columns: Vec<OwnedColumn> = (0..4)
+        .map(|i| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(i),
+                    StdArc::from(zeros.clone()),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), antecedent_core::Lag::from_raw(1))
+        .unwrap();
+    let y0 =
+        ensure_lagged(&mut graph, VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+            .unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(StdArc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap())
+    .with_observation(
+        ObservationSpec::IntervalCensored {
+            latent: VariableId::from_raw(1),
+            lower: VariableId::from_raw(2),
+            upper: VariableId::from_raw(3),
+        },
+        [ObservationAssumption::IndependentGiven(StdArc::from([]))],
+    );
+    let err = compile_logical_temporal_response(&data, &graph, &query, false).unwrap_err();
+    let CausalError::Compile { message } = err else {
+        panic!("expected Compile, got {err:?}");
+    };
+    assert!(message.contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {message}");
+}

@@ -46,8 +46,9 @@ pub fn prepare_temporal_mediation_adjusted(
         ));
     }
     let mediator = estimand.mediators[0];
+    let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
     let mut columns = vec![
-        LaggedColumn { variable: query.treatment, lag: Lag::from_raw(1) },
+        LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag) },
         LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
         LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
     ];

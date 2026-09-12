@@ -11,6 +11,7 @@ use crate::value::Value;
 use super::AverageEffectQuery;
 use super::TargetPopulation;
 use super::error::QueryError;
+use super::response::MAX_TEMPORAL_RESPONSE_HORIZONS;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 /// Which mediation contrast to identify / estimate (linear SEM path).
@@ -48,6 +49,13 @@ pub struct MediationQuery {
     pub active: Intervention,
     /// Target population.
     pub target_population: TargetPopulation,
+    /// Outcome horizons in steps after a Pulse origin at 0 (each ≥ 1).
+    ///
+    /// Strictly increasing; at least one entry. [`Self::binary`] defaults to
+    /// `[1]` so existing single-horizon callers stay valid. Each entry is
+    /// identified as `I(h)` and retained on the mediation grid; a single
+    /// horizon also fills the scalar compatibility fields.
+    pub horizons: Arc<[u32]>,
 }
 
 impl MediationQuery {
@@ -67,7 +75,43 @@ impl MediationQuery {
             control: Intervention::set(treatment, Value::f64(0.0)),
             active: Intervention::set(treatment, Value::f64(1.0)),
             target_population: TargetPopulation::AllObserved,
+            horizons: Arc::from([1]),
         }
+    }
+
+    /// Replace requested horizons after validating the same rules as
+    /// [`super::TemporalResponseSpec`] (nonempty, each ≥ 1, strictly
+    /// increasing, count ≤ [`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
+    ///
+    /// # Errors
+    ///
+    /// Empty, zero, non-increasing, or oversized horizon lists.
+    pub fn with_horizons(mut self, horizons: impl Into<Arc<[u32]>>) -> Result<Self, QueryError> {
+        self.horizons = horizons.into();
+        self.validate_horizons()?;
+        Ok(self)
+    }
+
+    fn validate_horizons(&self) -> Result<(), QueryError> {
+        if self.horizons.is_empty() {
+            return Err(QueryError::InvalidResponse(
+                "temporal mediation requires at least one horizon".into(),
+            ));
+        }
+        if self.horizons.len() > MAX_TEMPORAL_RESPONSE_HORIZONS {
+            return Err(QueryError::InvalidResponse(
+                "temporal mediation horizon count exceeds the materialization cap".into(),
+            ));
+        }
+        if self.horizons.iter().any(|h| *h == 0) {
+            return Err(QueryError::NonPositiveHorizon);
+        }
+        if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
+            return Err(QueryError::InvalidResponse(
+                "temporal mediation horizons must be strictly increasing".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Validate ids and interventions.
@@ -102,6 +146,7 @@ impl MediationQuery {
             });
         }
         self.target_population.validate()?;
+        self.validate_horizons()?;
         Ok(())
     }
 }

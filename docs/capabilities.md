@@ -29,20 +29,28 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the 1.5 matrix keeps the 1.4 licensed cells and adds
-estimators, functionals, and execution contracts on those cells: retargetable
+At analysis level, the support matrix is the license. The 1.6 matrix keeps
+the 1.5 licensed cells and adds temporal policy cells: per-horizon
+`TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
+observation-adjusted temporal curves (Frequentist IPCW pairs and the
+parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
+the contrasts the handle already runs, and bounded prior transfer on
+named Pulse / Sustained / ResponseCurve cells. The 1.5 additions remain:
+retargetable
 prepared AIPW scores (AllObserved iid AIPW and cell-AIPW only; `analyze()`
 does not always return scores), exceedance functionals, cell-saturated joint AIPW,
 `TieredBackground` as a fast path over ADMG / PAG adjustment, and joint
 influence-function standard errors on static Cpdag / Pag effect and response
 aggregates. Unknown tiers retain distinct canonical scenario effects.
 Completions stay envelope atoms; the runtime class is not collapsed.
-Multi-atom Frequentist uncertainty is unavailable on temporal and DBN class
-envelopes until 1.9. The [v1.5 evidence](v1.5-evidence.md) ledger records
-consuming tests and that 1.9 deferral. Temporal PAG results retain MAG completions
+Static Cpdag / Pag Frequentist aggregates publish joint-IF standard errors.
+Frequentist DBN Pulse/Sustained mixtures publish shared outer-block
+bootstrap uncertainty; TemporalCpdag/TemporalPag class envelopes still
+disclose that envelope SE omits between-atom variance pending 1.9
+calibration. Temporal PAG results retain MAG completions
 and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: Bayesian
-incomplete-class temporal cells, Frequentist DBN-posterior mixing, Bayesian
+incomplete-class temporal cells, Bayesian
 and partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
@@ -112,10 +120,12 @@ CBOR artifacts.
 
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
-`AverageEffect` with DAG atoms. Temporal graph-posterior analysis is limited to
-pulse and single-step sustained effects with `TemporalDag` atoms and Bayesian
-inference. Frequentist DBN-posterior mixing, response mixtures, and
-ADMG/CPDAG/PAG posterior atoms are refused.
+`AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
+with DAG atoms. Temporal graph-posterior analysis is limited to pulse and
+single- or multi-step sustained effects with `TemporalDag` atoms under
+Bayesian or Frequentist inference. DBN-posterior response surfaces,
+TemporalCpdag/Pag posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms
+are refused.
 
 ### Conditional independence tests
 
@@ -205,12 +215,12 @@ certificates are outside the 0.9 transport contract.
   intervention responses;
 * selected-outcome IPW and cross-fitted AIPW, plus marginal right/left Kaplan–Meier
   IPCW and conditional right/left Cox IPCW, composed into point-only response
-  curves under explicit observation assumptions.
+  curves under explicit observation assumptions. The same selected / KM /
+  Cox pairs ride Frequentist `TemporalDag` curves at validation `none`;
+  unlicensed non-Complete pairs refuse at compile.
 
 Response results keep structural identification, empirical support, and
-uncertainty kind as separate axes. Pointwise and simultaneous bands are not
-aliases. Observation-adjusted curves omit joint observation/curve uncertainty
-bands rather than reusing invalid complete-data intervals. Interval censoring
+uncertainty kind as separate axes. Pointwise and simultaneous bands are not aliases. Frequentist temporal observation curves use nuisance-refitting outer block-bootstrap bands. Bayesian temporal observations use the Gaussian observed-data SEM with latent-trajectory Gibbs sampling under declared ignorable trajectory coarsening and distinct priors. Neither substitutes complete-data intervals. Interval censoring
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 One-shot `discovery=` on response queries fails closed; discover and accept
 the structure before estimating a response.
@@ -221,11 +231,8 @@ licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
 with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
 inference with validation `none` via the same generalized-adjustment envelope
 as ATE (see the [support matrix](support-matrix.md)). Bayesian
-responses require the
-documented Gaussian additive models, complete observations and AllObserved
-population, with pointwise posterior intervals. Bayesian Cpdag/Pag response
-mixes identified-mass means only. `Admg` response, TemporalCPDAG/PAG
-response, and graph-posterior response mixtures remain refused.
+responses require the documented Gaussian additive models and AllObserved population, with pointwise posterior intervals. Static Bayesian response uses complete observations; temporal Bayesian response also supports the five licensed observation pairs through its observed-data SEM backend. Bayesian Cpdag/Pag response
+mixes identified-mass means only. `Admg` response remains refused. Frequentist TemporalCpdag/Pag responses retain completion identified sets; DAG-posterior responses retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
 license is that matrix, not this page.
 
@@ -270,7 +277,10 @@ not demote `evidence_status` or `support.status`. See
 * HMC GLMs;
 * graph-by-effect posterior envelopes on the exact licensed DAG and
   `TemporalDag` query families described above;
-* same-design prior transfer;
+* same-design prior transfer (including licensed Bayesian Pulse,
+  single-step Sustained, and temporal `ResponseCurve` on explicit
+  `TemporalDag`, when a fixture names source cell, target cell, and
+  `PriorCatalog.filter_compatible`);
 * effect-level and mapped prior transfer;
 * prior catalogs and compatibility filtering;
 * power-prior mixtures;
@@ -279,16 +289,13 @@ not demote `evidence_status` or `support.status`. See
 
 Unidentified graph-posterior mass is retained rather than silently
 renormalized away. Static DAG-posterior ATE (Bayesian and Frequentist) and
-temporal DBN-posterior pulse / single-step sustained paths consume frozen
+temporal DBN-posterior pulse / single- and multi-step sustained paths consume frozen
 known-truth mixture fixtures: the identified atoms pin the conditional effect,
 unidentified mass stays visible, and priors do not upgrade structural
 identification. Prepared-vs-fresh equality remains an additional execution
 invariant rather than the license.
 
-Conditional effects, temporal mediation and DBN-posterior pulse/single-step
-sustained effects license query-native `cheap` and `full` validation. Bayesian
-`full` includes posterior predictive checks and prior sensitivity. Multi-step
-sustained effects license validation `none` only. Composed mediation and
+Conditional effects, temporal mediation and DBN-posterior pulse/sustained effects license query-native `cheap` and `full` validation. Multi-step Sustained refuters re-estimate the complete sequential model. Bayesian checks retain each child mechanism for PPC; full prior sensitivity refits the composed effect. Single-regression sensitivity formulas are inapplicable to composed effects, while sequential unobserved-confounder perturbations remain available. Composed mediation and
 multi-step sustained posteriors support conjugate and Laplace backends; HMC
 composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 

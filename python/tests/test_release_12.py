@@ -416,10 +416,50 @@ def test_bayesian_response_preserves_or_refuses_observation_contract(
     )
     graph = [("t", 1, "y", 0)] if temporal else [("t", "y")]
     call = PreparedAnalysis.prepare if entry == "prepare" else ac.analyze
-    with pytest.raises(
-        ac.errors.CausalUnsupportedError, match="observations|observation_assumptions|AllObserved"
-    ):
-        call(data, query=query, graph=graph, inference=ac.Bayesian(), refute="none")
+    if temporal and field == "observation":
+        # A licensed observed-data posterior still requires an explicit
+        # censoring assumption; omitting it is malformed input.
+        with pytest.raises(ac.errors.CausalValueError, match="exactly one explicit assumption"):
+            call(data, query=query, graph=graph, inference=ac.Bayesian(), refute="none")
+        rng = np.random.default_rng(452)
+        treatment = rng.normal(size=400)
+        latent = 1 + np.roll(treatment, 1) + 0.3 * rng.normal(size=400)
+        bound = np.full(400, 1.5)
+        data = {
+            "t": treatment,
+            "y": np.minimum(latent, bound),
+            "event": (latent <= bound).astype(float),
+            "c": bound,
+        }
+        options["observation_assumptions"] = [observation.IndependentGiven([])]
+        query = (
+            ac.InterventionResponse("y", intervention=ac.intervention.Set("t", 1), **options)
+            if intervention
+            else ac.ResponseCurve("t", "y", grid=[0, 1], **options)
+        )
+        result = call(
+            data,
+            query=query,
+            graph=graph,
+            inference=ac.Bayesian(backend="conjugate", n_draws=4096),
+            refute="none",
+            bootstrap=0,
+            seed=452,
+        )
+        if entry == "prepare":
+            result = result.estimate(data, seed=452)
+        assert result.response is not None
+        assert np.asarray(result.response.values).reshape(-1) == pytest.approx(
+            [2.0] if intervention else [1.0, 2.0], abs=0.15
+        )
+        assert result.uncertainty.kind == "pointwise"
+        assert np.all(np.asarray(result.uncertainty.lower) < np.asarray(result.uncertainty.upper))
+    else:
+        with pytest.raises(
+            ac.errors.CausalUnsupportedError,
+            match="observations|observation_assumptions|AllObserved",
+        ):
+            call(data, query=query, graph=graph, inference=ac.Bayesian(), refute="none")
 
 
 @pytest.mark.parametrize("accepted", [False, True])

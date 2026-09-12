@@ -125,15 +125,14 @@ impl TemporalBackdoorIdentifier {
             // and must use backdoor `Z`, not the empty-adjustment General ID
             // functional `identify_schedule_contrast` emits.
             TemporalPolicy::Sustained { from, until } if from != until => {
-                return self.identify_active_offsets(
-                    template,
-                    query,
-                    &(*from..=*until).collect::<Vec<_>>(),
-                    outcome_at,
-                );
+                let schedule: Vec<_> =
+                    (*from..=*until).map(|offset| (query.treatment, offset)).collect();
+                return self.identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
-                return self.identify_active_offsets(template, query, active_at, outcome_at);
+                let schedule: Vec<_> =
+                    active_at.iter().map(|&offset| (query.treatment, offset)).collect();
+                return self.identify_active_offsets(template, query, &schedule, outcome_at);
             }
             TemporalPolicy::Pulse { .. }
             | TemporalPolicy::Sustained { .. }
@@ -151,7 +150,7 @@ impl TemporalBackdoorIdentifier {
             .map_err(|_| IdentificationError::msg("negative horizon"))?
             .saturating_add(1);
 
-        let variable_count = required_variable_count(template, query.treatment, query.outcome);
+        let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag).max(minimum_history);
         // The user's max_history_lag, when set, caps window growth; otherwise
@@ -241,27 +240,80 @@ impl TemporalBackdoorIdentifier {
         })
     }
 
+    /// Identify a joint schedule of `(variable, offset)` treatment nodes.
+    ///
+    /// Used by multi-step Sustained / Dynamic and by multi-step / joint Sequence
+    /// overlays. The identifier remains `temporal.backdoor.unfolded`.
+    pub fn identify_temporal_schedule(
+        &self,
+        template: &TemporalDag,
+        outcome: VariableId,
+        outcome_at: i32,
+        schedule: &[(VariableId, i32)],
+        max_history_lag: Option<u32>,
+        target_population: antecedent_core::TargetPopulation,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        if schedule.is_empty() {
+            return Err(IdentificationError::msg("empty treatment schedule"));
+        }
+        let (treatment, first_offset) = schedule[0];
+        let offsets: Vec<i32> = {
+            let mut offsets: Vec<i32> = schedule.iter().map(|&(_, offset)| offset).collect();
+            offsets.sort_unstable();
+            offsets.dedup();
+            offsets
+        };
+        let same_var = schedule.iter().all(|(variable, _)| *variable == treatment);
+        let contiguous =
+            same_var && offsets.len() > 1 && offsets.windows(2).all(|w| w[1] == w[0] + 1);
+        let policy = if contiguous {
+            TemporalPolicy::sustained(offsets[0], *offsets.last().expect("non-empty"))
+        } else if offsets.len() == 1 {
+            TemporalPolicy::pulse(offsets[0])
+        } else {
+            TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(0), offsets)
+        };
+        let query = TemporalEffectQuery {
+            treatment,
+            outcome,
+            policy,
+            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+            horizon_steps: u32::try_from(outcome_at.saturating_add(1))
+                .map_err(|_| IdentificationError::msg("outcome offset does not fit horizon"))?,
+            max_history_lag,
+            target_population,
+        };
+        let _ = first_offset;
+        query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
+            message: "invalid temporal schedule query",
+        })?;
+        self.identify_active_offsets(template, &query, schedule, outcome_at)
+    }
+
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
     /// unfold, then identify via general ID (sequential / g-formula).
     fn identify_active_offsets(
         &self,
         template: &TemporalDag,
         query: &TemporalEffectQuery,
-        offsets: &[i32],
+        schedule: &[(VariableId, i32)],
         outcome_at: i32,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
-        if offsets.is_empty() {
+        if schedule.is_empty() {
             return Err(IdentificationError::msg("empty treatment schedule"));
         }
-        let from = *offsets.iter().min().expect("non-empty");
-        let until = *offsets.iter().max().expect("non-empty");
+        let from = schedule.iter().map(|&(_, offset)| offset).min().expect("non-empty");
+        let until = schedule.iter().map(|&(_, offset)| offset).max().expect("non-empty");
         let min_offset = from.min(outcome_at).min(0);
         let max_offset = until.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
             .map_err(|_| IdentificationError::msg("negative horizon"))?
             .saturating_add(1);
 
-        let variable_count = required_variable_count(template, query.treatment, query.outcome);
+        let mut variables = vec![query.treatment, query.outcome];
+        variables.extend(schedule.iter().map(|&(variable, _)| variable));
+        let variable_count = required_variable_count(template, variables);
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag);
         let history_cap = query
@@ -282,13 +334,13 @@ impl TemporalBackdoorIdentifier {
             let unfolded =
                 template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
 
-            let mut treatment_nodes = Vec::with_capacity(offsets.len());
-            for &offset in offsets {
-                let key = TemporalNodeKey { variable: query.treatment, offset };
+            let mut treatment_nodes = Vec::with_capacity(schedule.len());
+            for &(variable, offset) in schedule {
+                let key = TemporalNodeKey { variable, offset };
                 let dense = unfolded
                     .indexer
                     .dense_id(key)
-                    .map_err(|_| IdentificationError::UnknownVariable { id: query.treatment })?;
+                    .map_err(|_| IdentificationError::UnknownVariable { id: variable })?;
                 treatment_nodes.push(dense);
             }
             let outcome_dense = unfolded
@@ -354,7 +406,7 @@ impl TemporalBackdoorIdentifier {
             "temporal.schedule",
             format!(
                 "sequential / g-formula contrast on unfolded window history={history} \
-                 active_offsets={offsets:?} ({} treatment nodes, both contrast levels)",
+                 schedule={schedule:?} ({} treatment nodes, both contrast levels)",
                 treatment_nodes.len()
             ),
         );
@@ -479,10 +531,12 @@ fn apply_history_lag_filter(
 
 fn required_variable_count(
     template: &TemporalDag,
-    treatment: VariableId,
-    outcome: VariableId,
+    variables: impl IntoIterator<Item = VariableId>,
 ) -> u32 {
-    let mut max_id = treatment.raw().max(outcome.raw());
+    let mut max_id = 0;
+    for variable in variables {
+        max_id = max_id.max(variable.raw());
+    }
     for node in template.nodes() {
         if let NodeRef::Lagged { variable, .. } = node {
             max_id = max_id.max(variable.raw());

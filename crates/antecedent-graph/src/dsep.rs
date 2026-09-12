@@ -123,7 +123,7 @@ impl Dag {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
-        Ok(self.d_sep_active_path(x, y, z, ws, overlay).is_none())
+        Ok(!self.d_sep_connected(x, y, z, ws, overlay, false))
     }
 
     /// Batch boolean d-separation. `out[i]` corresponds to `queries[i] = (x,y,z)`.
@@ -183,9 +183,12 @@ impl Dag {
                 active_path: vec![PathStep { node: x }, PathStep { node: y }],
             });
         }
-        if let Some(path) = self.d_sep_active_path(x, y, z, ws, overlay) {
+        if self.d_sep_connected(x, y, z, ws, overlay, true) {
             Ok(SeparationResult::Connected {
-                active_path: path.into_iter().map(|node| PathStep { node }).collect(),
+                active_path: reconstruct_path(&ws.pred, x, y)
+                    .into_iter()
+                    .map(|node| PathStep { node })
+                    .collect(),
             })
         } else {
             Ok(SeparationResult::Separated {
@@ -195,24 +198,24 @@ impl Dag {
         }
     }
 
-    /// Returns an active undirected path if d-connected; `None` if separated.
-    fn d_sep_active_path(
+    /// Reachability in the moral ancestral graph; only witness callers record predecessors.
+    fn d_sep_connected(
         &self,
         x: DenseNodeId,
         y: DenseNodeId,
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
         overlay: Option<&GraphOverlay>,
-    ) -> Option<Vec<DenseNodeId>> {
+        record_path: bool,
+    ) -> bool {
         let n = self.node_count();
         ws.prepare(n);
 
         // Ancestral set of {x,y} ∪ z
-        let mut seeds = Vec::with_capacity(2 + z.len());
-        seeds.push(x);
-        seeds.push(y);
-        seeds.extend_from_slice(z);
-        self.ancestors_of_with(&seeds, &mut ws.ancestral, &mut ws.graph_ws, overlay);
+        ws.frontier.push(x);
+        ws.frontier.push(y);
+        ws.frontier.extend_from_slice(z);
+        self.ancestors_of_with(&ws.frontier, &mut ws.ancestral, &mut ws.graph_ws, overlay);
 
         ws.conditioning.clear();
         for &v in z {
@@ -264,7 +267,7 @@ impl Dag {
         ws.visited.insert(x);
         while let Some(u) = ws.frontier.pop() {
             if u == y {
-                return Some(reconstruct_path(&ws.pred, x, y));
+                return true;
             }
             for &v in &ws.undirected[u.as_usize()] {
                 if ws.conditioning.contains(v) || ws.visited.contains(v) {
@@ -274,11 +277,13 @@ impl Dag {
                     continue;
                 }
                 ws.visited.insert(v);
-                ws.pred[v.as_usize()] = Some(u);
+                if record_path {
+                    ws.pred[v.as_usize()] = Some(u);
+                }
                 ws.frontier.push(v);
             }
         }
-        None
+        false
     }
 }
 

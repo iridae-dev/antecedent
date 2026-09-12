@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
@@ -100,12 +101,15 @@ from .results import (
     PredictiveCheckReport,
     PriorSensitivityReport,
     RefutationReport,
+    ResponseEnvelopeView,
     ResponseUncertainty,
     ResponseValidationCheck,
     ResponseValidationView,
     ResponseView,
     SupportDiagnostic,
     SupportReport,
+    TemporalMediationGridView,
+    TemporalMediationSliceView,
     ValidationView,
 )
 from .results.response import SupportStatus, UncertaintyKind
@@ -169,12 +173,23 @@ def _section_identification(raw: Any) -> Any:
     )
 
 
+def _optional_finite_ate(value: Any) -> float | None:
+    """Omit non-finite sentinels so function-valued results have no scalar ate."""
+    if value is None:
+        return None
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    return as_float if math.isfinite(as_float) else None
+
+
 def _section_estimate(raw: Any) -> Any:
     sec = getattr(raw, "estimate", None)
     if sec is not None:
         return sec
     return SimpleNamespace(
-        ate=raw.ate,
+        ate=_optional_finite_ate(getattr(raw, "ate", None)),
         se_analytic=raw.se_analytic,
         se_bootstrap=raw.se_bootstrap,
         estimator_id=str(getattr(raw, "estimator_id", "") or ""),
@@ -372,6 +387,62 @@ def _wrap_ate(
             alphas=None if alphas_raw is None else list(alphas_raw),
         )
     certificate_json = getattr(raw, "certificate_json", None)
+    mediation_grid = None
+    horizons = list(getattr(raw, "mediation_horizons", None) or ())
+    if horizons:
+        temporal_raw = cast(TemporalAnalysisResult, raw)
+        effects = list(temporal_raw.mediation_effects)
+        totals = list(temporal_raw.mediation_totals)
+        directs = list(temporal_raw.mediation_directs)
+        mediated_effects = list(temporal_raw.mediation_mediated_effects)
+        statuses = list(temporal_raw.mediation_identification_statuses)
+        methods = list(temporal_raw.mediation_methods)
+        adjustments = list(temporal_raw.mediation_adjustments)
+        uncertainty_kinds = list(temporal_raw.mediation_uncertainty_kinds)
+        standard_deviations = list(temporal_raw.mediation_standard_deviations)
+        q025 = list(temporal_raw.mediation_q025)
+        q975 = list(temporal_raw.mediation_q975)
+        identified_lower = list(temporal_raw.mediation_identified_lower)
+        identified_upper = list(temporal_raw.mediation_identified_upper)
+        slices = tuple(
+            TemporalMediationSliceView(
+                horizon=int(values[0]),
+                effect=float(values[1]),
+                total=float(values[2]),
+                direct=float(values[3]),
+                mediated=float(values[4]),
+                identification_status=str(values[5]),
+                method=str(values[6]),
+                adjustment=tuple((int(variable), int(offset)) for variable, offset in values[7]),
+                uncertainty_kind=str(values[8]),
+                standard_deviation=None if values[9] is None else float(values[9]),
+                q025=None if values[10] is None else float(values[10]),
+                q975=None if values[11] is None else float(values[11]),
+                identified_lower=None if values[12] is None else float(values[12]),
+                identified_upper=None if values[13] is None else float(values[13]),
+            )
+            for values in zip(
+                horizons,
+                effects,
+                totals,
+                directs,
+                mediated_effects,
+                statuses,
+                methods,
+                adjustments,
+                uncertainty_kinds,
+                standard_deviations,
+                q025,
+                q975,
+                identified_lower,
+                identified_upper,
+                strict=True,
+            )
+        )
+        mediation_grid = TemporalMediationGridView(
+            slices=slices,
+            joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
+        )
     return AnalysisResult(
         certificate=json.loads(certificate_json) if certificate_json else None,
         query=query if query is not None else getattr(prepared, "_query", None),
@@ -383,7 +454,7 @@ def _wrap_ate(
             derivation_step_count=sec_identification.derivation_step_count,
         ),
         estimate=EstimateView(
-            ate=sec_estimate.ate,
+            ate=_optional_finite_ate(getattr(sec_estimate, "ate", None)),
             se_analytic=sec_estimate.se_analytic,
             se_bootstrap=sec_estimate.se_bootstrap,
             estimator_id=sec_estimate.estimator_id,
@@ -418,6 +489,7 @@ def _wrap_ate(
         assumptions=getattr(raw, "assumptions", None),
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,
+        mediation_grid=mediation_grid,
         validation=ValidationView(
             passed=sec_validation.passed,
             ran=sec_validation.ran,
@@ -608,10 +680,14 @@ def _prepared_inference_kwargs(inference: Frequentist | Bayesian | None) -> dict
     return {"inference": "frequentist"}
 
 
-def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
+def _prepared_bayesian_args(
+    inference: Bayesian, *, allow_prior_transfer: bool = False
+) -> tuple[str, dict[str, Any]]:
     """Return prepared-native Bayesian arguments, refusing silently dropped options."""
     kw = _bayesian_inference_kwargs(inference)
     inference_mode = str(kw.pop("inference"))
+    if allow_prior_transfer:
+        return inference_mode, kw
     unsupported = sorted(set(kw) - {"n_draws", "prior_scale"})
     if unsupported:
         options = ", ".join(unsupported)
@@ -620,6 +696,17 @@ def _prepared_bayesian_args(inference: Bayesian) -> tuple[str, dict[str, Any]]:
             f"({options}); use analyze(...) for these options"
         )
     return inference_mode, kw
+
+
+def _prepared_temporal_inference_kwargs(
+    inference: Frequentist | Bayesian | None,
+) -> dict[str, Any]:
+    if isinstance(inference, Bayesian):
+        mode, options = _prepared_bayesian_args(inference, allow_prior_transfer=True)
+        return {"inference": mode, **options}
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("inference must be Frequentist or Bayesian")
+    return {"inference": "frequentist"}
 
 
 def _temporal_inference_kwargs(
@@ -1199,6 +1286,31 @@ def _wrap_prepared_response(
         identify_op = "identify.response"
         validation = None
     certificate_json = getattr(raw, "certificate_json", None)
+    envelope = None
+    if getattr(raw, "identified_mass", None) is not None:
+        if raw.lower is None or raw.upper is None:
+            raise RuntimeError("native structural response omitted its identified envelope")
+        envelope = ResponseEnvelopeView(
+            raw.treatments,
+            raw.outcomes,
+            raw.points,
+            raw.lower,
+            raw.upper,
+            float(raw.identified_mass),
+            float(raw.unidentified_mass),
+            int(raw.completion_count),
+            int(raw.truncated_completions),
+            bool(raw.enumeration_capped),
+            cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            cast(
+                Literal["posterior_probability", "completion_enumeration"],
+                raw.weight_basis,
+            ),
+            tuple(raw.atom_keys),
+            tuple(raw.atom_weights),
+            tuple(raw.atom_statuses),
+            tuple(tuple(values) for values in raw.atom_values),
+        )
     return CausalResponseView(
         certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
@@ -1241,7 +1353,7 @@ def _wrap_prepared_response(
             "operation_id": raw.provenance_id,
             "operation_ids": [identify_op, raw.provenance_id],
         },
-        envelope=None,
+        envelope=envelope,
         validation=validation,
         evidence_status=getattr(raw, "evidence_status", None),
         allowlist_reason=getattr(raw, "allowlist_reason", None),
@@ -1388,16 +1500,17 @@ class PreparedAnalysis:
             from .observation import Complete
             from .population import coerce_target_population
 
-            if (
-                query.observation is not None
-                and not isinstance(query.observation, Complete)
-                and (
-                    isinstance(inference, Bayesian)
-                    or getattr(query, "is_temporal", False)
-                    or isinstance(query, InterventionResponse)
-                )
-            ):
-                raise CausalUnsupportedError("these response cells require complete observations")
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                if isinstance(inference, Bayesian) and not getattr(query, "is_temporal", False):
+                    raise CausalUnsupportedError(
+                        "these response cells require complete observations"
+                    )
+                if not getattr(query, "is_temporal", False) and (
+                    isinstance(query, InterventionResponse)
+                ):
+                    raise CausalUnsupportedError(
+                        "these response cells require complete observations"
+                    )
             if query.observation_assumptions and (
                 query.observation is None or isinstance(query.observation, Complete)
             ):
@@ -1476,7 +1589,9 @@ class PreparedAnalysis:
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             temporal_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                inference_mode, temporal_bayes_kw = _prepared_bayesian_args(inference)
+                inference_mode, temporal_bayes_kw = _prepared_bayesian_args(
+                    inference, allow_prior_transfer=True
+                )
             else:
                 inference_mode = "frequentist"
             temporal_kwargs: _TemporalPrepareKwargs = {
@@ -1494,6 +1609,16 @@ class PreparedAnalysis:
                 "threads": threads,
                 "accepted": structure_accepted,
             }
+            transfer_kw = {
+                key: temporal_bayes_kw[key]
+                for key in ("prior_artifact", "prior_mapping", "composed_prior")
+                if key in temporal_bayes_kw
+            }
+            if transfer_kw and isinstance(graph, (TemporalCpdag, TemporalPag)):
+                raise CausalUnsupportedError(
+                    "Bayesian prior transfer rides licensed TemporalDag cells; "
+                    "TemporalCpdag/TemporalPag prepare does not accept prior transfer"
+                )
             if isinstance(graph, TemporalCpdag):
                 native = _NativePreparedAnalysis.prepare_temporal_cpdag_effect(
                     names, columns, graph, query.treatment, query.outcome, **temporal_kwargs
@@ -1507,7 +1632,13 @@ class PreparedAnalysis:
                     cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph)
                 )
                 native = _NativePreparedAnalysis.prepare_temporal_effect(
-                    names, columns, lagged, query.treatment, query.outcome, **temporal_kwargs
+                    names,
+                    columns,
+                    lagged,
+                    query.treatment,
+                    query.outcome,
+                    **temporal_kwargs,
+                    **transfer_kw,
                 )
             return cls(native, kind="average", query=query)
         if isinstance(query, TemporalMediationEffect):
@@ -1527,6 +1658,7 @@ class PreparedAnalysis:
                 contrast=query.contrast,
                 control_level=query.control_level,
                 active_level=query.active_level,
+                horizons=list(query.horizons or (1,)),
                 **_prepared_inference_kwargs(inference),
                 refute=coerce_refute(refute),
                 seed=seed,
@@ -2250,8 +2382,7 @@ class PreparedAnalysis:
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, (PulseEffect, SustainedEffect)
         ):
-            if getattr(query, "window", None) is not None:
-                raise CausalUnsupportedError("DBN posterior multi-step windows are not licensed")
+            window = getattr(query, "window", None)
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
                     names,
@@ -2259,6 +2390,7 @@ class PreparedAnalysis:
                     query.treatment,
                     query.outcome,
                     policy=query.kind,
+                    window=window,
                     treatment_lag=query.treatment_lag,
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
@@ -2277,6 +2409,7 @@ class PreparedAnalysis:
                     query.treatment,
                     query.outcome,
                     policy=query.kind,
+                    window=window,
                     treatment_lag=query.treatment_lag,
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
@@ -2293,10 +2426,56 @@ class PreparedAnalysis:
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)
+        if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
+            query, TemporalMediationEffect
+        ):
+            if isinstance(discovery, GraphPosterior):
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.mediator,
+                    query.outcome,
+                    contrast=query.contrast,
+                    control_level=query.control_level,
+                    active_level=query.active_level,
+                    horizons=list(query.horizons or (1,)),
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    refute=refute,
+                    seed=seed,
+                    threads=threads,
+                    posterior=discovery,
+                )
+            else:
+                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.mediator,
+                    query.outcome,
+                    contrast=query.contrast,
+                    control_level=query.control_level,
+                    active_level=query.active_level,
+                    horizons=list(query.horizons or (1,)),
+                    max_lag=discovery.max_lag,
+                    force_mcmc=discovery.force_mcmc,
+                    n_chains=discovery.n_chains,
+                    n_warmup=discovery.n_warmup,
+                    mcmc_draws=discovery.n_draws,
+                    inference=inference_mode,
+                    n_draws=n_draws,
+                    prior_scale=prior_scale,
+                    refute=refute,
+                    seed=seed,
+                    threads=threads,
+                )
+            return cls(native, kind="average", query=query)
         raise CausalTypeError(
             "PreparedAnalysis.prepare(discovery=) is licensed for ExactDagPosterior "
             "or GraphPosterior (AverageEffect) and DbnPosterior or GraphPosterior "
-            "(PulseEffect / SustainedEffect)"
+            "(PulseEffect / SustainedEffect / TemporalMediationEffect)"
         )
 
     @classmethod
@@ -2508,7 +2687,19 @@ class PreparedAnalysis:
                 "suite and a function-valued estimand has no such state. Use refute='none'."
             )
         lagged = _lagged_edges(graph)
-        from antecedent._analyze import _encode_temporal_intervention
+        from antecedent._analyze import _encode_temporal_interventions
+
+        from .observation import (
+            Complete,
+            _ensure_latent_schema_column,
+            _temporal_observation_kwargs,
+        )
+
+        if getattr(query, "observation", None) is not None and not isinstance(
+            query.observation, Complete
+        ):
+            names, columns = _ensure_latent_schema_column(names, columns, query.observation)
+        observation_kwargs = _temporal_observation_kwargs(query)
 
         if isinstance(query, InterventionResponse):
             supplied = query.intervention
@@ -2521,10 +2712,10 @@ class PreparedAnalysis:
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                variable, kind, parameters = _encode_temporal_intervention(spec)
-                treatments.append(variable)
-                kinds.append(kind)
-                parameters_list.append(parameters)
+                for variable, kind, parameters in _encode_temporal_interventions(spec):
+                    treatments.append(variable)
+                    kinds.append(kind)
+                    parameters_list.append(parameters)
             native = _NativePreparedAnalysis.prepare_temporal_response(
                 names,
                 columns,
@@ -2539,10 +2730,11 @@ class PreparedAnalysis:
                 policy=query.policy,
                 treatment_lag=query.treatment_lag,
                 max_history_lag=query.max_history_lag,
-                **_prepared_inference_kwargs(inference),
+                **_prepared_temporal_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 accepted=structure_accepted,
+                **observation_kwargs,
             )
             return cls(native, kind="intervention_response", query=query)
         native = _NativePreparedAnalysis.prepare_temporal_response(
@@ -2559,10 +2751,11 @@ class PreparedAnalysis:
             policy=query.policy,
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
-            **_prepared_inference_kwargs(inference),
+            **_prepared_temporal_inference_kwargs(inference),
             seed=seed,
             threads=threads,
             accepted=structure_accepted,
+            **observation_kwargs,
         )
         return cls(native, kind="response_curve", query=query)
 

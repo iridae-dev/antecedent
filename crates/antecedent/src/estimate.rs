@@ -7,9 +7,11 @@ pub use antecedent_data::{NetworkData, NetworkEdge};
 pub use antecedent_estimate::{
     CausalPosterior, ConditionalLinearAdjustment, EffectEstimate, EstimationError,
     InterferenceEstimate, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
-    TemporalMediationEstimator, TransportEffectEstimate, TransportOverlapDiagnostic,
-    TransportOverlapReport, TransportResponseGridEstimate, estimate_interference,
-    own_treatment_level, transport_augmented_response_grid, trial_to_target_effect,
+    TemporalMediationEstimator, TemporalMediationGrid, TemporalMediationIdentifiedSet,
+    TemporalMediationSlice, TemporalMediationUncertainty, TransportEffectEstimate,
+    TransportOverlapDiagnostic, TransportOverlapReport, TransportResponseGridEstimate,
+    estimate_interference, own_treatment_level, transport_augmented_response_grid,
+    trial_to_target_effect,
 };
 
 pub use crate::strategy_table::{

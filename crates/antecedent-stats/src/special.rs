@@ -16,59 +16,14 @@
 /// in the far tails (p=1e-12, 1e-15) — inconsistent with the ~1e-13 accuracy of the
 /// Cody-rational `erf`/`erfc` in `antecedent-kernels`, which back the CDF/PDF used here.
 /// One Halley (second-order Newton) correction against the exact CDF/PDF brings this to
-/// near machine epsilon across the whole domain.
+/// near machine epsilon for ordinary probabilities. Subnormal probabilities have
+/// reduced relative precision. Returns infinities at 0 and 1, and NaN outside [0, 1].
 #[must_use]
 pub fn normal_ppf(p: f64) -> f64 {
-    // Acklam central-region coefficients (|p - 0.5| region).
-    const A: [f64; 6] = [
-        -3.969_683_028_665_376e1,
-        2.209_460_984_245_205e2,
-        -2.759_285_104_469_687e2,
-        1.383_577_518_672_69e2,
-        -3.066_479_806_614_716e1,
-        2.506_628_277_459_239,
-    ];
-    const B: [f64; 5] = [
-        -5.447_609_879_822_406e1,
-        1.615_858_368_580_409e2,
-        -1.556_989_798_598_866e2,
-        6.680_131_188_771_972e1,
-        -1.328_068_155_288_572e1,
-    ];
-    // Acklam tail coefficients.
-    const C: [f64; 6] = [
-        -7.784_894_002_430_293e-3,
-        -3.223_964_580_411_365e-1,
-        -2.400_758_277_161_838,
-        -2.549_732_539_343_734,
-        4.374_664_141_464_968,
-        2.938_163_982_698_783,
-    ];
-    const D: [f64; 4] = [
-        7.784_695_709_041_462e-3,
-        3.224_671_290_700_398e-1,
-        2.445_134_137_142_996,
-        3.754_408_661_907_416,
-    ];
-    const P_LOW: f64 = 0.024_25;
-    let p = p.clamp(1e-300, 1.0 - 1e-16);
-    let x0 = if p < P_LOW {
-        // Lower tail.
-        let q = (-2.0 * p.ln()).sqrt();
-        (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
-    } else if p > 1.0 - P_LOW {
-        // Upper tail.
-        let q = (-2.0 * (1.0 - p).ln()).sqrt();
-        -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
-            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
-    } else {
-        // Central region.
-        let q = p - 0.5;
-        let r = q * q;
-        q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
-            / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
-    };
+    let x0 = antecedent_kernels::norm_inv(p);
+    if !x0.is_finite() {
+        return x0;
+    }
     // One Halley refinement step against the exact (Cody-rational) normal CDF/PDF:
     // for f(x) = Phi(x) - p, phi = f'(x), and f''(x) = -x * phi(x), the Halley update
     // 2 f f' / (2 f'^2 - f f'') simplifies to 2f / (2*phi + f*x). This converts Acklam's
@@ -634,5 +589,20 @@ mod tests {
         assert!(student_t_ppf(0.975, -1.0).is_infinite() && student_t_ppf(0.975, -1.0) > 0.0);
         assert!(student_t_ppf(1.5, 5.0).is_nan());
         assert!(student_t_ppf(0.0, 5.0).is_nan());
+    }
+}
+
+#[cfg(test)]
+mod ppf_domain_tests {
+    #[test]
+    #[allow(clippy::float_cmp)] // exact conservative adjustment / infinite endpoints
+    fn ppf_preserves_mathematical_domain_and_tiny_probabilities() {
+        use super::normal_ppf;
+        assert_eq!(normal_ppf(0.0), f64::NEG_INFINITY);
+        assert_eq!(normal_ppf(1.0), f64::INFINITY);
+        for p in [-1.0, 2.0, f64::NAN] {
+            assert!(normal_ppf(p).is_nan());
+        }
+        assert!(normal_ppf(1e-310) < normal_ppf(1e-300));
     }
 }

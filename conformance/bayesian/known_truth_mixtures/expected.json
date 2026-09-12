@@ -53,5 +53,59 @@
       0.0
     ]
   },
+  "temporal_sustained_multistep": {
+    "dgp": "defect_t = 0.9 * pressure_{t-1}",
+    "n": 400,
+    "seed": 42,
+    "posterior_weights": [0.7, 0.3],
+    "identified_mass": 0.7,
+    "expected_effect_given_identified": 0.9,
+    "expected_unidentified_mass": 0.3,
+    "effect_abs_tolerance": 0.05,
+    "sustained_from": -2,
+    "sustained_until": -1,
+    "horizon_steps": 1,
+    "unidentified_atom": {
+      "weight": 0.3,
+      "structure": "valid autoregressive DBN adds pressure_{t-1} -> pressure_t",
+      "identification_error": "NotCertified"
+    }
+  },
+  "temporal_mediation": {
+    "dgp": "M_t = 0.8*T_{t-1}; Y_t = 0.25*T_{t-1} + 0.55*M_t; deterministic sinusoid treatment (temporal_mediation_grid)",
+    "n": 320,
+    "seed": 7,
+    "posterior_weights": [0.7, 0.3],
+    "identified_atom": {
+      "weight": 0.7,
+      "contemporaneous_mask": 8,
+      "lag_mask": 6,
+      "effect": 0.44
+    },
+    "identified_mass": 0.7,
+    "expected_effect_given_identified": 0.44,
+    "expected_unidentified_mass": 0.3,
+    "effect_abs_tolerance": 0.04,
+    "horizons": [1],
+    "contrast": "mediated",
+    "unidentified_atom": {
+      "weight": 0.3,
+      "contemporaneous_mask": 8,
+      "lag_mask": 7,
+      "structure": "valid autoregressive DBN adds T_{t-1} -> T_t",
+      "identification_error": "NotCertified"
+    },
+    "lagged_edge_marginals": [
+      0.3,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
   "tolerance_class": "PosteriorDistribution"
 }

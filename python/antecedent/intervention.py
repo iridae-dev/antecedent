@@ -90,7 +90,17 @@ class Categorical:
 
 @dataclass(frozen=True, slots=True)
 class Soft:
-    """Soft mechanism override (``constant`` / ``additive_shift`` licensed temporally)."""
+    """Temporal mechanism override.
+
+    ``multiplicative`` takes a factor and ``truncated_shift`` takes
+    ``(delta, lower, upper)``. Multiplicative replaces the structural assignment
+    ``f`` by ``factor * f``. Truncated shift defines the population-mean policy
+    ``f_policy = f + clip(mu + delta, lower, upper) - mu``, where ``mu = E[f]``
+    under preceding interventions. It preserves parent effects and innovations;
+    realized outcomes need not lie within the bounds. This is not stochastic
+    outcome clipping.
+    ``constant`` and ``additive_shift`` each take one parameter.
+    """
 
     variable: str
     mechanism: str
@@ -104,8 +114,13 @@ class Soft:
         params = tuple(float(v) for v in self.parameters)
         if any(not math.isfinite(v) for v in params):
             raise CausalValueError("parameters must be finite")
-        if self.mechanism in ("constant", "additive_shift") and len(params) != 1:
+        if self.mechanism in ("constant", "additive_shift", "multiplicative") and len(params) != 1:
             raise CausalValueError(f"{self.mechanism} requires exactly one parameter")
+        if self.mechanism == "truncated_shift":
+            if len(params) != 3:
+                raise CausalValueError("truncated_shift requires delta, lower, upper")
+            if params[1] > params[2]:
+                raise CausalValueError("truncated_shift lower bound exceeds upper bound")
         object.__setattr__(self, "parameters", params)
 
 

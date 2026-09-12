@@ -122,8 +122,9 @@ pub(crate) struct PredictSummary {
 pub(crate) struct AnalysisResult {
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
+    /// Scalar contrast when one exists. Function-valued results omit it.
     #[pyo3(get)]
-    pub(crate) ate: f64,
+    pub(crate) ate: Option<f64>,
     #[pyo3(get)]
     pub(crate) se_analytic: f64,
     #[pyo3(get)]
@@ -195,6 +196,37 @@ pub(crate) struct AnalysisResult {
     pub(crate) mediation_direct: Option<f64>,
     #[pyo3(get)]
     pub(crate) mediation_mediated: Option<f64>,
+    /// Horizon-indexed temporal mediation result. Empty for non-mediation queries.
+    #[pyo3(get)]
+    pub(crate) mediation_horizons: Vec<u32>,
+    #[pyo3(get)]
+    pub(crate) mediation_effects: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_totals: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_directs: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_mediated_effects: Vec<f64>,
+    #[pyo3(get)]
+    pub(crate) mediation_identification_statuses: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_methods: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_adjustments: Vec<Vec<(u32, i32)>>,
+    #[pyo3(get)]
+    pub(crate) mediation_uncertainty_kinds: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) mediation_standard_deviations: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_q025: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_q975: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_identified_lower: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_identified_upper: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) mediation_joint_posterior: Option<bool>,
     /// Nested identification section — every field is populated on the temporal path
     /// (unlike `estimate`/`performance`, this DTO carries the full identification set).
     #[pyo3(get)]
@@ -1772,7 +1804,7 @@ fn analysis_result_from_run(
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let estimate = EstimateSection {
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         estimator_id: estimator_id.clone(),
@@ -1871,10 +1903,65 @@ fn analysis_result_from_run(
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
         evidence_status_parts(result.support_status);
+    let mut mediation_horizons = Vec::new();
+    let mut mediation_effects = Vec::new();
+    let mut mediation_totals = Vec::new();
+    let mut mediation_directs = Vec::new();
+    let mut mediation_mediated_effects = Vec::new();
+    let mut mediation_identification_statuses = Vec::new();
+    let mut mediation_methods = Vec::new();
+    let mut mediation_adjustments = Vec::new();
+    let mut mediation_uncertainty_kinds = Vec::new();
+    let mut mediation_standard_deviations = Vec::new();
+    let mut mediation_q025 = Vec::new();
+    let mut mediation_q975 = Vec::new();
+    let mut mediation_identified_lower = Vec::new();
+    let mut mediation_identified_upper = Vec::new();
+    if let Some(grid) = result.mediation_grid.as_ref() {
+        for slice in grid.slices.iter() {
+            mediation_horizons.push(slice.horizon);
+            mediation_effects.push(slice.estimate.effect.ate);
+            mediation_totals.push(slice.estimate.total.unwrap_or(f64::NAN));
+            mediation_directs.push(slice.estimate.direct.unwrap_or(f64::NAN));
+            mediation_mediated_effects.push(slice.estimate.mediated.unwrap_or(f64::NAN));
+            mediation_identification_statuses.push(format!("{:?}", slice.identification_status));
+            mediation_methods.push(slice.method.to_string());
+            mediation_adjustments.push(
+                slice.adjustment.iter().map(|key| (key.variable.raw(), key.offset)).collect(),
+            );
+            mediation_identified_lower.push(slice.identified_set.map(|set| set.lower));
+            mediation_identified_upper.push(slice.identified_set.map(|set| set.upper));
+            match &slice.uncertainty {
+                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                    standard_error,
+                } => {
+                    mediation_uncertainty_kinds.push("frequentist_pointwise".to_string());
+                    mediation_standard_deviations.push(*standard_error);
+                    mediation_q025.push(None);
+                    mediation_q975.push(None);
+                }
+                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                    requested,
+                    ..
+                } => {
+                    mediation_uncertainty_kinds.push("bayesian_pointwise".to_string());
+                    mediation_standard_deviations.push(Some(requested.standard_deviation));
+                    mediation_q025.push(Some(requested.q025));
+                    mediation_q975.push(Some(requested.q975));
+                }
+                _ => {
+                    mediation_uncertainty_kinds.push("unavailable".to_string());
+                    mediation_standard_deviations.push(None);
+                    mediation_q025.push(None);
+                    mediation_q975.push(None);
+                }
+            }
+        }
+    }
 
     Ok(AnalysisResult {
         certificate_json,
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         plan_id,
@@ -1930,6 +2017,21 @@ fn analysis_result_from_run(
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        mediation_horizons,
+        mediation_effects,
+        mediation_totals,
+        mediation_directs,
+        mediation_mediated_effects,
+        mediation_identification_statuses,
+        mediation_methods,
+        mediation_adjustments,
+        mediation_uncertainty_kinds,
+        mediation_standard_deviations,
+        mediation_q025,
+        mediation_q975,
+        mediation_identified_lower,
+        mediation_identified_upper,
+        mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
         identification,
         estimate,
         posterior: posterior_section,
@@ -1947,6 +2049,26 @@ pub(crate) fn apply_temporal_inference(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
+) -> PyResult<antecedent::StudyBuilder> {
+    apply_temporal_inference_transfer(
+        builder,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        None,
+        None,
+    )
+}
+
+pub(crate) fn apply_temporal_inference_transfer(
+    builder: antecedent::StudyBuilder,
+    inference: Option<&str>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<&[u8]>,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
 ) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
@@ -1968,9 +2090,10 @@ pub(crate) fn apply_temporal_inference(
             )));
         }
     };
-    if let Some(bytes) = prior_artifact {
-        // Temporal path: identical-subspace default (mapping deferred hydrate).
-        cfg = cfg.prior_from_artifact(bytes.to_vec(), None);
+    if let Some(comp) = composed_prior {
+        cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
+    } else if let Some(bytes) = prior_artifact {
+        cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
     }
     Ok(builder.inference(InferenceMode::Bayesian(cfg)))
 }
@@ -1981,6 +2104,7 @@ pub(crate) fn apply_temporal_inference(
 #[pyo3(signature = (
     names, columns, edges, treatment, mediator, outcome, *,
     contrast="mediated", control_level=0.0, active_level=1.0,
+    horizons=None,
     seed=1, bootstrap=0, threads=1
 ))]
 fn analyze_temporal_mediation(
@@ -1994,6 +2118,7 @@ fn analyze_temporal_mediation(
     contrast: &str,
     control_level: f64,
     active_level: f64,
+    horizons: Option<Vec<u32>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -2018,6 +2143,9 @@ fn analyze_temporal_mediation(
         let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
+        if let Some(hs) = horizons {
+            q = q.with_horizons(hs).map_err(py_msg)?;
+        }
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
         let analysis = Study::series(series)
             .graph(g)
@@ -2042,6 +2170,7 @@ fn analyze_temporal_mediation(
     outcome,
     *,
     policy="pulse",
+    window=None,
     treatment_lag=1,
     horizon_steps=1,
     active_level=1.0,
@@ -2063,6 +2192,7 @@ fn analyze_temporal_graph_posterior(
     treatment: String,
     outcome: String,
     policy: &str,
+    window: Option<(i32, i32)>,
     treatment_lag: u32,
     horizon_steps: u32,
     active_level: f64,
@@ -2091,7 +2221,7 @@ fn analyze_temporal_graph_posterior(
         let series = series_from_tabular(tabular)?;
         let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-        let q = temporal_query_from_policy(
+        let mut q = temporal_query_from_policy(
             &policy,
             t_id,
             y_id,
@@ -2099,9 +2229,112 @@ fn analyze_temporal_graph_posterior(
             horizon_steps,
             active_level,
         )?;
+        if let Some((from, until)) = window {
+            if policy != "sustained" {
+                return Err(PyValueError::new_err("window requires policy='sustained'"));
+            }
+            q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+        }
         let mut builder = Study::series(series)
             .graph_posterior(gp)
             .temporal_query(q)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context_ext(
+            seed,
+            threads,
+            cancel_token,
+            progress,
+            Some(PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        analysis_result_from_run(&names, result)
+    })
+}
+
+/// Temporal mediation mixture from a supplied DBN graph posterior.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    posterior,
+    treatment,
+    mediator,
+    outcome,
+    *,
+    contrast="mediated",
+    control_level=0.0,
+    active_level=1.0,
+    horizons=None,
+    inference="conjugate",
+    n_draws=1000,
+    prior_scale=10.0,
+    refute=None,
+    seed=1,
+    bootstrap=0,
+    threads=1,
+    cancel=None,
+    on_progress=None,
+))]
+fn analyze_temporal_graph_posterior_mediation(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    posterior: Bound<'_, crate::bayesian::PyGraphPosterior>,
+    treatment: String,
+    mediator: String,
+    outcome: String,
+    contrast: &str,
+    control_level: f64,
+    active_level: f64,
+    horizons: Option<Vec<u32>>,
+    inference: &str,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
+) -> PyResult<AnalysisResult> {
+    let gp = {
+        let posterior = posterior.borrow();
+        posterior.require_bound_to(&names)?;
+        posterior.to_rust()?
+    };
+    let suite = suite_from_refute(refute.as_ref())?;
+    let cancel_token = cancel.map(|token| token.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
+    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let contrast = contrast.to_string();
+    let inference = inference.to_string();
+    detach_catch(py, move || {
+        let series = series_from_tabular(tabular)?;
+        let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+        let m_id = series.schema().id_of(&mediator).map_err(py_err)?;
+        let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+        let contrast = match contrast.to_ascii_lowercase().as_str() {
+            "total" => MediationContrast::Total,
+            "direct" => MediationContrast::Direct,
+            "mediated" | "indirect" => MediationContrast::Mediated,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown mediation contrast {other:?}; use total|direct|mediated"
+                )));
+            }
+        };
+        let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
+        q.control = Intervention::set(t_id, Value::f64(control_level));
+        q.active = Intervention::set(t_id, Value::f64(active_level));
+        if let Some(hs) = horizons {
+            q = q.with_horizons(hs).map_err(py_msg)?;
+        }
+        let mut builder = Study::series(series)
+            .graph_posterior(gp)
+            .query(antecedent_core::CausalQuery::Mediation(q))
             .refute(suite)
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
@@ -2127,6 +2360,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_panel_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;

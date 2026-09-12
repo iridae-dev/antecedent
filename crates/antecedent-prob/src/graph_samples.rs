@@ -54,7 +54,7 @@ impl WeightedGraphSamples {
     ///
     /// # Errors
     ///
-    /// Length mismatch or empty ensemble.
+    /// Length mismatch, empty ensemble, invalid weights, or non-positive/nonfinite total mass.
     pub fn new(
         weights: impl Into<Arc<[f64]>>,
         identified: impl Into<Arc<[GraphIdentFlag]>>,
@@ -70,6 +70,7 @@ impl WeightedGraphSamples {
         if identified.len() != n || graph_keys.len() != n {
             return Err(ProbError::Shape { message: "weights/identified/keys length mismatch" });
         }
+        validate_weights(&weights)?;
         Ok(Self {
             n_samples: n,
             weights,
@@ -100,7 +101,12 @@ impl WeightedGraphSamples {
     /// Weight mass on identified graphs.
     #[must_use]
     pub fn identified_mass(&self) -> f64 {
-        self.total_weight() - self.unidentified_mass()
+        self.weights
+            .iter()
+            .zip(self.identified.iter())
+            .filter(|(_, flag)| **flag == GraphIdentFlag::Identified)
+            .map(|(weight, _)| *weight)
+            .sum()
     }
 
     /// Return a copy with weights normalized to sum to 1 (if total > 0).
@@ -109,10 +115,8 @@ impl WeightedGraphSamples {
     ///
     /// Non-positive total weight.
     pub fn normalized(&self) -> Result<Self, ProbError> {
+        validate_weights(&self.weights)?;
         let total = self.total_weight();
-        if !(total > 0.0) {
-            return Err(ProbError::Shape { message: "non-positive total weight" });
-        }
         let weights: Arc<[f64]> =
             Arc::from(self.weights.iter().map(|w| w / total).collect::<Vec<_>>());
         Ok(Self {
@@ -222,5 +226,47 @@ mod tests {
         let n_id =
             sub.graphs.identified.iter().filter(|f| **f == GraphIdentFlag::Identified).count();
         assert_eq!(n_id, 1);
+    }
+}
+
+fn validate_weights(weights: &[f64]) -> Result<(), ProbError> {
+    let total: f64 = weights.iter().sum();
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) || !total.is_finite() || total <= 0.0 {
+        return Err(ProbError::Shape {
+            message: "graph weights must be finite and nonnegative with positive finite total mass",
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod weight_validation_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_graph_probabilities_are_rejected() {
+        for weights in [
+            vec![-1.0, 2.0],
+            vec![f64::NAN, 1.0],
+            vec![f64::INFINITY, 1.0],
+            vec![0.0, 0.0],
+            vec![f64::MAX, f64::MAX],
+        ] {
+            assert!(
+                WeightedGraphSamples::new(weights, vec![GraphIdentFlag::Identified; 2], vec![0, 1])
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn small_identified_mass_does_not_cancel_against_unidentified_mass() {
+        let graphs = WeightedGraphSamples::new(
+            vec![1e-20, 1.0],
+            vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],
+            vec![0, 1],
+        )
+        .unwrap();
+        assert_eq!(graphs.identified_mass(), 1e-20);
     }
 }

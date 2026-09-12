@@ -14,6 +14,7 @@ from antecedent.query import temporal_response_spec as spec
 def test_python_license_is_the_native_license():
     raw = native_spec()
     assert spec.max_horizons == raw["max_horizons"]
+    assert spec.max_cells == raw["max_cells"]
     assert list(spec.allowed_policies) == list(raw["allowed_policies"])
     assert spec.default_policy == raw["default_policy"]
     assert spec.default_treatment_lag == raw["default_treatment_lag"]
@@ -39,3 +40,10 @@ def test_horizon_cap_and_policy_list_are_not_hardcoded():
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")
     ok = list(range(1, spec.max_horizons + 1))
     antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=ok)
+
+
+def test_joint_cell_cap_is_native_and_fails_early():
+    horizons = list(range(1, spec.max_horizons + 1))
+    doses = [float(i) for i in range(spec.max_cells // len(horizons) + 1)]
+    with pytest.raises(CausalValueError, match=rf"materialization limit is {spec.max_cells}"):
+        antecedent.ResponseCurve("t", "y", grid=doses, horizons=horizons)

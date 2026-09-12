@@ -6,12 +6,14 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Implements only a scalar, time-invariant LGSSM with unit observation loading and no controls, vector states, missing-observation handling, or general initial-state model.",
- "Latent-state abduction samples each RTS smoothed marginal independently rather than drawing a joint smoothing trajectory by FFBS, so temporal posterior covariance is not preserved.",
+ "Implements scalar, time-invariant LGSSMs with unit latent observation loading; the conditional variant adds a linear parent mean and intercept. Vector states, missing-observation handling, and a general initial-state model are not implemented.",
  "Innovation packing converts values to f32 and therefore loses precision relative to the f64 Kalman and RTS recursions.",
 ]
 
+# Joint paths use forward filtering and backward Gaussian conditioning. This
+# shares the joint-smoothing target below, not the paper's disturbance sampler.
 papers = [
+ { title = "The simulation smoother for time series models", doi = "10.1093/biomet/82.2.339", sections = ["Joint posterior target for state-space disturbances; implemented through backward state conditioning"] },
  { title = "A New Approach to Linear Filtering and Prediction Problems", doi = "10.1115/1.3662552", sections = ["Recursive forward filter (Kalman filter)"] },
  { title = "Maximum Likelihood Estimates of Linear Dynamic Systems", doi = "10.2514/3.3166", sections = ["Fixed-interval smoother (Rauch-Tung-Striebel recursion)"] },
 ]
@@ -19,7 +21,9 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-model/src/lgssm.rs unit tests (generative_abduction_recovers_observations, infer_lgssm_innovations_seeds_initial_variance_from_process_std)",
+ "crates/antecedent-model/src/lgssm.rs unit tests (generative_abduction_recovers_observations, infer_lgssm_innovations_seeds_initial_variance_from_process_std, sampled_paths_preserve_joint_smoothing_covariance, innovations_and_likelihood_respect_changes_of_units)",
  "conformance/gcm/lgssm",
+ "crates/antecedent-model/src/registry.rs (conditional state-space fit, parent effects, unit scaling, and EM likelihood regressions)",
+ "crates/antecedent-io/src/mechanism_wire.rs (conditional_lgssm_roundtrip_retains_regression_and_state_parameters)",
  "crates/antecedent-model/tests/scm_oracle.rs (kalman_filter_and_rts_smoother_match_clean_room_recursion)",
 ]

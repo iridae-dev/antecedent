@@ -62,7 +62,10 @@ pub fn sample_noise_column(
             }
             Ok(())
         }
-        MechanismSlot::LinearGaussianStateSpace { .. } => sample_lgssm_noise(n_rows, rng, output),
+        MechanismSlot::LinearGaussianStateSpace { .. }
+        | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => {
+            sample_lgssm_noise(n_rows, rng, output)
+        }
         MechanismSlot::Discrete { .. } => {
             // Uniform(0,1) drives categorical draws in evaluate / sample_column.
             for i in 0..n_rows {
@@ -116,6 +119,23 @@ pub fn evaluate_column(
                 output[r] = eta;
             }
             Ok(())
+        }
+        MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept,
+            coeffs,
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+        } => {
+            let residual = MechanismSlot::LinearGaussianStateSpace {
+                a: *a,
+                process_std: *process_std,
+                obs_std: *obs_std,
+                initial_mean: *initial_mean,
+            };
+            evaluate_column(&residual, parents, noise, output, ws)?;
+            add_linear_mean(*intercept, coeffs, parents, &mut output[..n], 1.0)
         }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
             // `noise[r]` packs unit-normal (ε, η); y_t = x_t + σ_obs η.
@@ -339,6 +359,27 @@ pub fn infer_noise_column_rng(
             )?;
             Ok(NoiseInferenceMode::Posterior)
         }
+        MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept,
+            coeffs,
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+        } => {
+            let mut residual = value[..n].to_vec();
+            add_linear_mean(*intercept, coeffs, parents, &mut residual, -1.0)?;
+            infer_lgssm_innovations(
+                &residual,
+                *a,
+                *process_std,
+                *obs_std,
+                *initial_mean,
+                &mut output[..n],
+                Some(rng),
+            )?;
+            Ok(NoiseInferenceMode::Posterior)
+        }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
             infer_lgssm_innovations(
                 &value[..n],
@@ -505,21 +546,46 @@ pub fn log_prob_column(
         MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
             Err(ModelError::Unsupported { message: "mechanism not fitted".into() })
         }
+        MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept,
+            coeffs,
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+        } => {
+            let mut residual_values = values[..n].to_vec();
+            add_linear_mean(*intercept, coeffs, parents, &mut residual_values, -1.0)?;
+            let residual = MechanismSlot::LinearGaussianStateSpace {
+                a: *a,
+                process_std: *process_std,
+                obs_std: *obs_std,
+                initial_mean: *initial_mean,
+            };
+            log_prob_column(&residual, &residual_values, parents, output)
+        }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
-            if !(obs_std.is_finite() && *obs_std > 0.0) {
-                return Err(ModelError::Numerical { message: "obs_std must be > 0".into() });
-            }
-            // Kalman one-step predictive density N(x_pred[t], p_pred[t] + r): the correct
-            // per-observation marginal likelihood contribution for a state-space model
-            // (not the raw-value N(0, obs_std²) approximation used previously).
-            let q = (process_std * process_std).max(1e-16);
-            let r_var = (obs_std * obs_std).max(1e-16);
-            let (_, _, x_pred, p_pred) =
-                kalman_filter(&values[..n], *a, q, r_var, *initial_mean, q);
+            let scaled = crate::lgssm::scaled_lgssm(
+                &values[..n],
+                *a,
+                *process_std,
+                *obs_std,
+                *initial_mean,
+            )?;
+            let (_, _, x_pred, p_pred) = kalman_filter(
+                &scaled.values,
+                *a,
+                scaled.process_var,
+                scaled.obs_var,
+                scaled.initial_mean,
+                scaled.process_var,
+            );
             for t in 0..n {
-                let var = (p_pred[t] + r_var).max(1e-16);
-                let z = values[t] - x_pred[t];
-                output[t] = -0.5 * (2.0 * std::f64::consts::PI * var).ln() - 0.5 * z * z / var;
+                let var = p_pred[t] + scaled.obs_var;
+                let z = scaled.values[t] - x_pred[t];
+                output[t] = -0.5 * ((2.0 * std::f64::consts::PI).ln() + var.ln())
+                    - scaled.scale.ln()
+                    - 0.5 * z * z / var;
             }
             Ok(())
         }
@@ -804,5 +870,87 @@ mod tests {
         let mut ws = MechanismWorkspace::default();
         evaluate_column(&slot, parents, &noise, &mut out, &mut ws).unwrap();
         assert_eq!(out, [7.0, 7.0, 7.0]);
+    }
+}
+
+/// Add or subtract the conditional mean without changing the latent noise model.
+fn add_linear_mean(
+    intercept: f64,
+    coeffs: &[f64],
+    parents: ParentBatch<'_>,
+    values: &mut [f64],
+    sign: f64,
+) -> Result<(), ModelError> {
+    if coeffs.len() != parents.n_parents {
+        return Err(ModelError::Shape {
+            message: "conditional LGSSM coefficient count differs from parent count".into(),
+        });
+    }
+    for value in values.iter_mut() {
+        *value += sign * intercept;
+    }
+    for (p, &coefficient) in coeffs.iter().enumerate() {
+        for (value, &parent) in values.iter_mut().zip(parents.column(p)?) {
+            *value += sign * coefficient * parent;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod conditional_lgssm_tests {
+    use super::*;
+
+    #[test]
+    fn conditional_lgssm_density_abduction_and_counterfactual_agree() {
+        let conditional = MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept: 4.0,
+            coeffs: std::sync::Arc::from([2.0]),
+            a: 0.7,
+            process_std: 0.3,
+            obs_std: 0.2,
+            initial_mean: 0.1,
+        };
+        let plain = MechanismSlot::LinearGaussianStateSpace {
+            a: 0.7,
+            process_std: 0.3,
+            obs_std: 0.2,
+            initial_mean: 0.1,
+        };
+        let parents = [0.0, 1.0, 2.0, 3.0];
+        let residual = [0.4, -0.3, 0.7, 0.2];
+        let values: Vec<f64> =
+            parents.iter().zip(residual).map(|(p, e)| 4.0 + 2.0 * p + e).collect();
+        let batch = ParentBatch { n_rows: 4, n_parents: 1, values: &parents };
+        let mut conditional_lp = [0.0; 4];
+        let mut plain_lp = [0.0; 4];
+        log_prob_column(&conditional, &values, batch, &mut conditional_lp).unwrap();
+        log_prob_column(&plain, &residual, ParentBatch::empty(4), &mut plain_lp).unwrap();
+        for (a, b) in conditional_lp.iter().zip(plain_lp) {
+            assert!((a - b).abs() < 1e-12);
+        }
+        let mut noise = [0.0; 4];
+        infer_noise_column_rng(
+            &conditional,
+            &values,
+            batch,
+            &mut noise,
+            &mut CausalRng::from_seed(42),
+        )
+        .unwrap();
+        let mut reconstructed = [0.0; 4];
+        let mut workspace = MechanismWorkspace::default();
+        evaluate_column(&conditional, batch, &noise, &mut reconstructed, &mut workspace).unwrap();
+        for (actual, expected) in reconstructed.iter().zip(&values) {
+            assert!((actual - expected).abs() < 1e-6);
+        }
+        let shifted = [1.0, 2.0, 3.0, 4.0];
+        let shifted_batch = ParentBatch { values: &shifted, ..batch };
+        let mut counterfactual = [0.0; 4];
+        evaluate_column(&conditional, shifted_batch, &noise, &mut counterfactual, &mut workspace)
+            .unwrap();
+        for (cf, factual) in counterfactual.iter().zip(reconstructed) {
+            assert!((cf - factual - 2.0).abs() < 1e-12);
+        }
     }
 }

@@ -83,6 +83,9 @@ from ._native import (
     analyze_temporal_graph_posterior as _analyze_temporal_graph_posterior,
 )
 from ._native import (
+    analyze_temporal_graph_posterior_mediation as _analyze_temporal_graph_posterior_mediation,
+)
+from ._native import (
     analyze_temporal_mediation as _analyze_temporal_mediation,
 )
 from ._native import (
@@ -280,6 +283,56 @@ def handle_temporal_mediation(
 ) -> Any:
     from .estimation import _lagged_edges, _wrap_temporal
 
+    if isinstance(discovery, (GraphPosterior, DbnPosterior)):
+        if not isinstance(inference, Bayesian):
+            raise TypeError(
+                "graph-posterior discovery requires inference=Bayesian(...) "
+                "for temporal mediation mixture"
+            )
+        from .estimation import PreparedAnalysis, _bayesian_inference_kwargs, _wrap_ate
+
+        if isinstance(discovery, DbnPosterior):
+            prepared = PreparedAnalysis.prepare(
+                data,
+                query=query,
+                discovery=discovery,
+                inference=inference,
+                refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return prepared.estimate(data, seed=seed, threads=threads)
+        names, columns = ingest_columns(data)
+        bayes_kw = _bayesian_inference_kwargs(inference)
+        unsupported = sorted(set(bayes_kw) - {"inference", "n_draws", "prior_scale"})
+        if unsupported:
+            raise CausalUnsupportedError(
+                "analyze(discovery=GraphPosterior(...)) does not support Bayesian prior "
+                f"transfer or mapping ({', '.join(unsupported)}); use a plain Bayesian(...)"
+            )
+        return _wrap_ate(
+            _analyze_temporal_graph_posterior_mediation(
+                names,
+                columns,
+                discovery,
+                query.treatment,
+                query.mediator,
+                query.outcome,
+                contrast=query.contrast,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                horizons=list(query.horizons or (1,)),
+                inference=bayes_kw["inference"],
+                n_draws=bayes_kw["n_draws"],
+                prior_scale=bayes_kw["prior_scale"],
+                refute=refute,
+                seed=seed,
+                bootstrap=0 if bootstrap is None else bootstrap,
+                threads=threads,
+            ),
+            query=query,
+        )
     if discovery is not None:
         raise ValueError("TemporalMediationEffect does not support discovery=")
     if isinstance(inference, Bayesian):
@@ -305,6 +358,7 @@ def handle_temporal_mediation(
         contrast=query.contrast,
         control_level=query.control_level,
         active_level=query.active_level,
+        horizons=list(query.horizons or (1,)),
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
@@ -313,27 +367,14 @@ def handle_temporal_mediation(
 
 
 def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
-    """Map a temporal InterventionResponse step to native (variable, kind, params).
-
-    Licensed single-step :class:`~antecedent.intervention.Sequence` unwraps to its
-    inner Set/Shift/Soft. Multi-step and nested Sequence refuse closed.
-    """
+    """Map one Set/Shift/Soft leaf to native (variable, kind, params)."""
     from . import intervention as intervention_specs
 
     if isinstance(spec, intervention_specs.Sequence):
-        if len(spec.steps) != 1:
-            raise CausalUnsupportedError(
-                "refused: multi-step Sequence intervention policies are not licensed "
-                "for temporal InterventionResponse; use a single-step Sequence or a "
-                "bare Set/Shift/Soft"
-            )
-        inner = spec.steps[0]
-        if isinstance(inner, intervention_specs.Sequence):
-            raise CausalUnsupportedError(
-                "refused: nested Sequence interventions are not licensed for temporal "
-                "InterventionResponse"
-            )
-        return _encode_temporal_intervention(inner)
+        raise CausalUnsupportedError(
+            "refused: nested Sequence interventions are not licensed for temporal "
+            "InterventionResponse"
+        )
     if isinstance(spec, intervention_specs.Set):
         return spec.variable, "set", [spec.value]
     if isinstance(spec, intervention_specs.Shift):
@@ -341,14 +382,28 @@ def _encode_temporal_intervention(spec: Any) -> tuple[str, str, list[float]]:
     if isinstance(spec, intervention_specs.Soft):
         if spec.mechanism == "constant":
             return spec.variable, "soft_constant", list(spec.parameters)
-        if spec.mechanism == "additive_shift":
-            return spec.variable, "soft_additive_shift", list(spec.parameters)
+        if spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
+            return spec.variable, f"soft_{spec.mechanism}", list(spec.parameters)
         raise CausalUnsupportedError(
             f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
         )
     raise TypeError(
-        "temporal InterventionResponse supports Set/Shift/Soft and a single-step Sequence"
+        "temporal InterventionResponse supports Set/Shift/Soft and Sequence of those steps"
     )
+
+
+def _encode_temporal_interventions(spec: Any) -> list[tuple[str, str, list[float]]]:
+    """Flatten a licensed Sequence or a single Set/Shift/Soft into overlay steps."""
+    from . import intervention as intervention_specs
+
+    if isinstance(spec, intervention_specs.Sequence):
+        if any(isinstance(step, intervention_specs.Sequence) for step in spec.steps):
+            raise CausalUnsupportedError(
+                "refused: nested Sequence interventions are not licensed for temporal "
+                "InterventionResponse"
+            )
+        return [_encode_temporal_intervention(step) for step in spec.steps]
+    return [_encode_temporal_intervention(spec)]
 
 
 def handle_response(
@@ -486,6 +541,20 @@ def handle_response(
                 f"temporal response requires estimator='temporal.response.gcomp'; got {estimator!r}"
             )
         names, columns = ingest_columns(data)
+        from .observation import Complete as _ObsComplete
+        from .observation import _ensure_latent_schema_column, _temporal_observation_kwargs
+
+        mechanism = getattr(query, "observation", None)
+        if isinstance(mechanism, _ObsComplete):
+            mechanism = None
+        if mechanism is not None:
+            if refute_requested:
+                raise ValueError(
+                    "observation-aware curve validation is unavailable because subset refits must "
+                    "re-estimate both the observation correction and response jointly"
+                )
+            names, columns = _ensure_latent_schema_column(names, columns, mechanism)
+        observation_kwargs = _temporal_observation_kwargs(query)
         lagged = _lagged_edges(graph)
         temporal_treatments: list[str]
         temporal_outcomes: list[str]
@@ -506,10 +575,10 @@ def handle_response(
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                variable, kind, parameters = _encode_temporal_intervention(spec)
-                temporal_treatments.append(variable)
-                kinds.append(kind)
-                parameters_list.append(parameters)
+                for variable, kind, parameters in _encode_temporal_interventions(spec):
+                    temporal_treatments.append(variable)
+                    kinds.append(kind)
+                    parameters_list.append(parameters)
             temporal_intervention_kinds = kinds
             temporal_intervention_parameters = parameters_list
             temporal_grid = None
@@ -535,6 +604,7 @@ def handle_response(
             threads=threads,
             accepted=structure_accepted,
             refute=refute if refute_requested else False,
+            **observation_kwargs,
         )
         return _wrap_prepared_response(temporal_raw, query)
     if estimator == "cell.aipw" and isinstance(query, InterventionResponse):
@@ -707,12 +777,12 @@ def handle_response(
                     )
                 if spec.mechanism == "constant":
                     kind, parameters = "soft_constant", list(spec.parameters)
-                elif spec.mechanism == "additive_shift":
-                    kind, parameters = "soft_additive_shift", list(spec.parameters)
+                elif spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
+                    kind, parameters = f"soft_{spec.mechanism}", list(spec.parameters)
                 else:
                     raise CausalUnsupportedError(
                         f"Soft mechanism {spec.mechanism!r} is not licensed for temporal "
-                        "InterventionResponse; use constant or additive_shift"
+                        "InterventionResponse; use constant, additive_shift, multiplicative, or truncated_shift"
                     )
             elif isinstance(spec, intervention_specs.Sequence):
                 raise CausalUnsupportedError(
@@ -769,8 +839,8 @@ def handle_response(
             raise ValueError("observation-aware response requires exactly one explicit assumption")
         names, columns = _ensure_latent_schema_column(names, columns, mechanism)
         edges = _static_edges(graph)
-        observation_kwargs = _mechanism_kwargs(mechanism)
-        observation_kwargs.update(_assumption_kwargs(observation_assumptions[0]))
+        static_observation_kwargs = _mechanism_kwargs(mechanism)
+        static_observation_kwargs.update(_assumption_kwargs(observation_assumptions[0]))
         raw = cast(Any, _analyze_observation_response)(
             names,
             columns,
@@ -779,7 +849,7 @@ def handle_response(
             query.outcome,
             list(query.grid),
             accepted=structure_accepted,
-            **observation_kwargs,
+            **static_observation_kwargs,
         )
     elif isinstance(graph, Pag):
         if response_options:
@@ -1144,6 +1214,7 @@ def handle_supplied_graph_posterior(
             query.treatment,
             query.outcome,
             policy=query.kind,
+            window=getattr(query, "window", None),
             treatment_lag=query.treatment_lag,
             horizon_steps=query.horizon_steps,
             active_level=query.active_level,
@@ -1831,6 +1902,20 @@ def _handle_series_discover(
                 "discovery=DbnPosterior(...) requires inference=Bayesian(...) "
                 "for temporal effect mixture"
             )
+        if getattr(query, "window", None) is not None:
+            from .estimation import PreparedAnalysis
+
+            prepared = PreparedAnalysis.prepare(
+                data,
+                query=query,
+                discovery=discovery,
+                inference=inference,
+                refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return prepared.estimate(data, seed=seed, threads=threads)
         cfg = _discovery_algorithm(discovery)
         names, columns = as_columns(data)
         raw = _analyze_temporal_discover(

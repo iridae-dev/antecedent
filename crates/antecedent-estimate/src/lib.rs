@@ -46,6 +46,7 @@ pub mod scores;
 pub mod se;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
+pub mod temporal_observed_bayes;
 pub mod temporal_response;
 pub mod temporal_sequential;
 pub mod transport;
@@ -120,9 +121,18 @@ pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use temporal_adjustment::TemporalLinearAdjustment;
 pub use temporal_mediation::{
-    TemporalEffectSurface, TemporalMediationEstimate, TemporalMediationEstimator,
+    MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationEstimate,
+    TemporalMediationEstimator, TemporalMediationGrid, TemporalMediationIdentifiedSet,
+    TemporalMediationSlice, TemporalMediationUncertainty,
 };
-pub use temporal_response::TemporalResponseEstimator;
+pub use temporal_response::{
+    TemporalInterventionPlan, TemporalResponseEstimator, plan_from_response_query,
+    plan_temporal_intervention,
+};
+pub use temporal_sequential::{
+    SequentialMechanismOverlay, SequentialNodeOverlay, estimate_sequence_mechanisms,
+    estimate_sequence_overlays, estimate_sustained_window,
+};
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
     TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,

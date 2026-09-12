@@ -15,6 +15,8 @@ from ._format import fmt_float, fmt_pct, fmt_se
 __all__ = [
     "IdentificationView",
     "MediationView",
+    "TemporalMediationSliceView",
+    "TemporalMediationGridView",
     "EstimateView",
     "ConflictSummaryView",
     "PosteriorView",
@@ -85,8 +87,42 @@ class MediationView:
 
 
 @dataclass(frozen=True)
+class TemporalMediationSliceView:
+    """One independently identified temporal mediation horizon."""
+
+    horizon: int
+    identification_status: str
+    method: str
+    adjustment: tuple[tuple[int, int], ...]
+    effect: float
+    total: float
+    direct: float
+    mediated: float
+    uncertainty_kind: str
+    standard_deviation: float | None = None
+    q025: float | None = None
+    q975: float | None = None
+    identified_lower: float | None = None
+    identified_upper: float | None = None
+
+
+@dataclass(frozen=True)
+class TemporalMediationGridView:
+    """Horizon-indexed decompositions; never an implicit joint posterior."""
+
+    slices: tuple[TemporalMediationSliceView, ...]
+    joint_posterior: bool = False
+
+    def __len__(self) -> int:
+        return len(self.slices)
+
+    def __iter__(self) -> Iterator[TemporalMediationSliceView]:
+        return iter(self.slices)
+
+
+@dataclass(frozen=True)
 class EstimateView:
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     estimator_id: str
@@ -434,6 +470,7 @@ class AnalysisResult:
     diagnostics: list[str]
     provenance: dict[str, Any]
     mediation: MediationView | None = None
+    mediation_grid: TemporalMediationGridView | None = None
     plan: PlanView | None = None
     evidence_status: str | None = None
     allowlist_reason: str | None = None
@@ -447,16 +484,21 @@ class AnalysisResult:
     support: list[str] | None = None
 
     @property
-    def effect(self) -> float:
-        """Primary requested contrast, including mediation and mean ITE."""
+    def effect(self) -> float | None:
+        """Primary requested contrast, including mediation and mean ITE.
+
+        Function-valued results omit a scalar; the response or mediation grid
+        is authoritative.
+        """
         return self.estimate.ate
 
     @property
-    def ate(self) -> float:
+    def ate(self) -> float | None:
         """Alias for :attr:`effect`.
 
         On counterfactual results this is mean unit ITE, not a population ATE.
-        Prefer :attr:`mean_ite` or :attr:`effect` there.
+        Prefer :attr:`mean_ite` or :attr:`effect` there. Function-valued
+        results omit a scalar rather than publishing NaN.
         """
         return self.effect
 
@@ -465,6 +507,8 @@ class AnalysisResult:
         """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
+        if self.effect is None:
+            raise AttributeError("mean_ite requires a scalar effect")
         return self.effect
 
     def __repr__(self) -> str:

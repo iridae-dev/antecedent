@@ -156,6 +156,24 @@ impl MechanismOverride {
         Self::named("constant", Arc::<[f64]>::from(vec![value]))
     }
 
+    /// Multiply a temporal structural assignment (including innovation) by `factor`.
+    /// Supported by the unfolded sequential mean-mechanism engine.
+    #[must_use]
+    pub fn multiplicative(factor: f64) -> Self {
+        Self::named("multiplicative", vec![factor])
+    }
+
+    /// Shift a temporal assignment to target a bounded population mean.
+    ///
+    /// Defines `f_policy = f + clamp(mu + delta, lower, upper) - mu`, where
+    /// `mu = E[f]` under preceding interventions. Parent effects and innovations
+    /// remain; realized outcomes need not lie within the bounds. Parameters are
+    /// `[delta, lower, upper]`. This is not stochastic outcome clipping.
+    #[must_use]
+    pub fn truncated_shift(delta: f64, lower: f64, upper: f64) -> Self {
+        Self::named("truncated_shift", vec![delta, lower, upper])
+    }
+
     /// Additive shift applied to the structural assignment.
     #[must_use]
     pub fn additive_shift(delta: f64) -> Self {
@@ -389,6 +407,28 @@ impl Intervention {
     #[must_use]
     pub fn sequence(seq: InterventionSequence) -> Self {
         Self::Sequence(seq)
+    }
+
+    /// Every variable this intervention assigns, including Sequence steps.
+    #[must_use]
+    pub fn target_variables(&self) -> Vec<VariableId> {
+        match self {
+            Self::Set { variable, .. }
+            | Self::Shift { variable, .. }
+            | Self::Stochastic { variable, .. }
+            | Self::Soft { variable, .. } => vec![*variable],
+            Self::Sequence(seq) => {
+                let mut variables = Vec::new();
+                for step in seq.steps.iter() {
+                    for variable in step.intervention.target_variables() {
+                        if !variables.contains(&variable) {
+                            variables.push(variable);
+                        }
+                    }
+                }
+                variables
+            }
+        }
     }
 
     /// Variable targeted by this intervention, when unique (not a multi-target sequence).

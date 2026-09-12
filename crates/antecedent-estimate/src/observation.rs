@@ -12,7 +12,7 @@ use antecedent_core::{
     IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
     ResponseFunctional, ResponseQuery, ResponseUncertainty, SupportDiagnostic, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
     FaerBackend, GaussianObservation, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
     fit_glm, fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
@@ -288,6 +288,71 @@ impl ObservationMechanismEstimator {
         Ok(response)
     }
 
+    /// Observation correction on a temporal curve: same 1.3 primitives, with
+    /// nonempty `IndependentGiven` / `OutcomeIndependentGiven` lag-aligned at the
+    /// policy treatment offset.
+    ///
+    /// `adjustment` is the union of identified horizon adjustment variables.
+    /// Selected and conditional-censoring pairs must name the treatment and every
+    /// such variable.
+    ///
+    /// # Errors
+    ///
+    /// Unlicensed pair, missing containment, delayed entry, or primitive failure.
+    pub fn adjust_temporal_series(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        adjustment: &[VariableId],
+    ) -> Result<(TimeSeriesData, ObservationAdjustedOutcome), EstimationError> {
+        query.validate()?;
+        query.require_licensed_temporal_observation()?;
+        if query.observation == ObservationSpec::Complete {
+            return Err(EstimationError::unsupported(
+                "complete outcomes do not require observation-mechanism correction",
+            ));
+        }
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported(
+                "temporal observation correction requires ResponseQuery.temporal",
+            )
+        })?;
+        let offset = temporal.treatment_offset()?;
+        if offset > 0 {
+            return Err(EstimationError::unsupported(
+                "temporal observation conditioning cannot use a future treatment offset",
+            ));
+        }
+        let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
+            EstimationError::unsupported("response query has no treatment/outcome pair")
+        })?;
+        require_temporal_observation_containment(query, treatment, adjustment)?;
+        let conditioning = temporal_conditioning_ids(query)?;
+        let (table, start) = if conditioning.is_empty() {
+            (TabularData::new(data.storage().clone()), 0)
+        } else {
+            lag_aligned_observation_table(data, conditioning, offset)?
+        };
+        let subset = self.adjusted_outcome(&table, query, None)?;
+        let mut values = data.float64_values(outcome)?;
+        let mut weights = vec![0.0; values.len()];
+        if start == 0 {
+            values = subset.values;
+            weights = subset.weights;
+        } else if subset.values.len() + start != values.len() {
+            return Err(EstimationError::unsupported(
+                "temporal observation subset does not cover the lag-aligned series",
+            ));
+        } else {
+            values[start..].copy_from_slice(&subset.values);
+            weights[start..].copy_from_slice(&subset.weights);
+        }
+        let adjusted =
+            ObservationAdjustedOutcome { values: values.clone(), weights, method: subset.method };
+        let series = data.with_replaced_float(outcome, Arc::from(values))?;
+        Ok((series, adjusted))
+    }
+
     /// Evaluate the opt-in Gaussian likelihood for the query's observation mechanism.
     ///
     /// The query must explicitly declare
@@ -559,6 +624,81 @@ impl ObservationMechanismEstimator {
             }),
         })
     }
+}
+
+fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], EstimationError> {
+    match &query.observation {
+        ObservationSpec::Selected { .. } => exact_outcome_independence(query),
+        ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
+            censoring_independence(query)
+        }
+        _ => Err(EstimationError::unsupported(
+            "temporal observation correction supports selected and left/right censoring only",
+        )),
+    }
+}
+
+pub(crate) fn require_temporal_observation_containment(
+    query: &ResponseQuery,
+    treatment: VariableId,
+    adjustment: &[VariableId],
+) -> Result<(), EstimationError> {
+    match &query.observation {
+        ObservationSpec::Selected { .. } => {
+            let conditioning = exact_outcome_independence(query)?;
+            if !conditioning.contains(&treatment)
+                || adjustment.iter().any(|variable| !conditioning.contains(variable))
+            {
+                return Err(EstimationError::unsupported(
+                    "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
+                ));
+            }
+        }
+        ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
+            let conditioning = censoring_independence(query)?;
+            if !conditioning.is_empty()
+                && (!conditioning.contains(&treatment)
+                    || adjustment.iter().any(|variable| !conditioning.contains(variable)))
+            {
+                return Err(EstimationError::unsupported(
+                    "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
+                ));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn lag_aligned_observation_table(
+    data: &TimeSeriesData,
+    conditioning: &[VariableId],
+    offset: i32,
+) -> Result<(TabularData, usize), EstimationError> {
+    let lag = offset.unsigned_abs() as usize;
+    let n = data.row_count();
+    if n <= lag {
+        return Err(EstimationError::unsupported(
+            "temporal observation conditioning requires more rows than the treatment lag",
+        ));
+    }
+    let start = lag;
+    let rows = n - start;
+    let schema = data.schema().clone();
+    let mut owned = Vec::with_capacity(schema.len());
+    for var in schema.variables() {
+        let full = data.float64_values(var.id)?;
+        let slice = if conditioning.contains(&var.id) {
+            full[..rows].to_vec()
+        } else {
+            full[start..].to_vec()
+        };
+        owned.push((var.name.clone(), slice));
+    }
+    let pairs: Vec<(&str, &[f64])> =
+        owned.iter().map(|(name, values)| (name.as_ref(), values.as_slice())).collect();
+    let table = TabularData::try_from_schema_f64(schema, pairs)?;
+    Ok((table, start))
 }
 
 fn diagnostic_weight_summary(weights: &[f64]) -> (f64, f64, f64) {

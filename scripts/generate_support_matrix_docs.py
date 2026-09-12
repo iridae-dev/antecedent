@@ -256,9 +256,11 @@ Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
-Static Frequentist `ResponseCurve` cells also require the explicit
-[observation pair contract](observation-contract.md); observation mechanisms
-are not a matrix axis.
+Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
+`ResponseCurve` / `InterventionResponse` at validation `none`, also require
+the explicit [observation pair contract](observation-contract.md);
+observation mechanisms are not a matrix axis. Unlicensed non-`Complete`
+pairs refuse at compile.
 
 A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be

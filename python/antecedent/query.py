@@ -129,6 +129,7 @@ class TemporalResponseSpec:
     """
 
     max_horizons: int
+    max_cells: int
     allowed_policies: tuple[str, ...]
     default_policy: str
     default_treatment_lag: int
@@ -138,6 +139,7 @@ def _load_temporal_response_spec() -> TemporalResponseSpec:
     raw = _native_temporal_response_spec()
     return TemporalResponseSpec(
         max_horizons=int(raw["max_horizons"]),
+        max_cells=int(raw["max_cells"]),
         allowed_policies=tuple(str(policy) for policy in raw["allowed_policies"]),
         default_policy=str(raw["default_policy"]),
         default_treatment_lag=int(raw["default_treatment_lag"]),
@@ -145,6 +147,23 @@ def _load_temporal_response_spec() -> TemporalResponseSpec:
 
 
 temporal_response_spec = _load_temporal_response_spec()
+
+
+def _validate_horizons(horizons: Sequence[int]) -> None:
+    """Nonempty, ≥1, strictly increasing, capped — shared with TemporalResponseSpec."""
+    if not horizons:
+        raise CausalValueError("horizons must be non-empty")
+    if len(horizons) > temporal_response_spec.max_horizons:
+        raise CausalValueError(
+            f"horizons must contain at most {temporal_response_spec.max_horizons} entries"
+        )
+    prev_h: int | None = None
+    for h in horizons:
+        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
+            raise CausalValueError("horizons must be positive integers")
+        if prev_h is not None and h <= prev_h:
+            raise CausalValueError("horizons must be strictly increasing")
+        prev_h = h
 
 
 def _validate_temporal(
@@ -160,19 +179,7 @@ def _validate_temporal(
     """
     if horizons is None:
         return
-    if not horizons:
-        raise CausalValueError("horizons must be non-empty when provided")
-    if len(horizons) > temporal_response_spec.max_horizons:
-        raise CausalValueError(
-            f"horizons must contain at most {temporal_response_spec.max_horizons} entries"
-        )
-    prev_h: int | None = None
-    for h in horizons:
-        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
-            raise CausalValueError("horizons must be positive integers")
-        if prev_h is not None and h <= prev_h:
-            raise CausalValueError("horizons must be strictly increasing")
-        prev_h = h
+    _validate_horizons(horizons)
     if policy not in temporal_response_spec.allowed_policies:
         allowed = "' or '".join(temporal_response_spec.allowed_policies)
         raise CausalValueError(f"policy must be '{allowed}'")
@@ -234,7 +241,8 @@ class SustainedEffect:
     By default the intervention is at ``-treatment_lag``. ``window=(from_, until)``
     replaces that default with inclusive signed time offsets. Multi-step windows
     use sequential Gaussian g-computation on an explicit or accepted TemporalDag,
-    with ``refute="none"``; the outcome is at ``horizon_steps - 1``.
+    or a Bayesian DBN graph-posterior mixture, with ``refute="none"``; the
+    outcome is at ``horizon_steps - 1``. Cheap/full stay single-step.
     """
 
     treatment: str
@@ -332,7 +340,12 @@ class Counterfactual:
 
 @dataclass(frozen=True, slots=True)
 class TemporalMediationEffect:
-    """Temporal linear mediation (treatment → mediator → outcome)."""
+    """Temporal linear mediation (treatment → mediator → outcome).
+
+    ``horizons=None`` defaults to ``[1]``. Multiple horizons return a
+    horizon-indexed mediation grid; each Bayesian slice is pointwise and does
+    not imply a joint cross-horizon posterior.
+    """
 
     treatment: str
     mediator: str
@@ -341,9 +354,15 @@ class TemporalMediationEffect:
     contrast: Literal["total", "direct", "mediated"] = "mediated"
     control_level: float = 0.0
     active_level: float = 1.0
+    horizons: Sequence[int] | None = None
     kind: Literal["temporal_mediation"] = field(
         default="temporal_mediation", init=False, repr=False
     )
+
+    def __post_init__(self) -> None:
+        hs = (1,) if self.horizons is None else tuple(self.horizons)
+        _validate_horizons(hs)
+        object.__setattr__(self, "horizons", hs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -382,6 +401,16 @@ class ResponseCurve:
                 raise CausalValueError("grid values must be strictly increasing")
             previous = value
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        if (
+            self.horizons is not None
+            and len(self.grid) * len(self.horizons) > temporal_response_spec.max_cells
+        ):
+            cells = len(self.grid) * len(self.horizons)
+            raise CausalValueError(
+                f"temporal response has {cells} dose-by-horizon cells; "
+                f"materialization limit is {temporal_response_spec.max_cells}; "
+                "coarsen the dose grid or request fewer horizons"
+            )
 
     @property
     def is_temporal(self) -> bool:
@@ -528,9 +557,12 @@ class InterventionResponse:
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
     (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
-    Soft(``constant``/``additive_shift``) and a single-step ``Sequence``.
-    Multi-step and nested ``Sequence`` policies fail closed with a stable
-    error rather than silently collapsing to one step. ``treatment_lag``
+    Soft(``constant``/``additive_shift``/``multiplicative``/``truncated_shift``) and ``Sequence`` of those overlays
+    (multi-step on one variable, or joint at one time when every coordinate
+    is identified). Multiplicative scales the structural assignment; truncated shift targets its
+    population mean using ``f + clip(E[f] + delta, lower, upper) - E[f]`` under
+    preceding interventions. Outcomes are not clipped. Nested ``Sequence`` is unsupported.
+    Multi-step never collapses to the last step. ``treatment_lag``
     defaults to :attr:`temporal_response_spec.default_treatment_lag`, matching
     :class:`PulseEffect`.
     """

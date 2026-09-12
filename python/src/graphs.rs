@@ -626,6 +626,30 @@ pub struct Admg {
 }
 
 impl Admg {
+    /// Copy the named graph into the receiving schema's variable-id namespace.
+    /// Projection keeps source VariableIds, while Python tables assign ids from
+    /// their column-name order. Dense graph indices and the original graph stay intact.
+    pub(crate) fn aligned_to_names(&self, names: &[String]) -> PyResult<antecedent_graph::Admg> {
+        check_names_len(&self.names, self.admg.node_count())?;
+        let mut aligned = antecedent_graph::Admg::empty();
+        for name in &self.names {
+            let id = resolve_name_index(names, name)?;
+            aligned.add_node(NodeRef::Static(VariableId::from_raw(id.raw()))).map_err(py_err)?;
+        }
+        for node in 0..self.admg.node_count() {
+            let from = DenseNodeId::try_from_usize(node).map_err(py_err)?;
+            for &to in self.admg.children(from) {
+                aligned.insert_directed(from, to).map_err(py_err)?;
+            }
+            for &to in self.admg.bidirected_neighbors(from) {
+                if from < to {
+                    aligned.insert_bidirected(from, to).map_err(py_err)?;
+                }
+            }
+        }
+        Ok(aligned)
+    }
+
     pub(crate) fn name_index(&self, name: &str) -> PyResult<DenseNodeId> {
         resolve_name_index(&self.names, name)
     }

@@ -30,6 +30,7 @@ impl Default for LgssmParams {
 struct StepScratch {
     /// Normalized weights, refreshed once per [`ParticleFilterState::step`].
     weights: Vec<f64>,
+    log_weights: Vec<f64>,
     /// Resampling target; swapped with `particles` instead of reallocating.
     particles: Vec<f64>,
 }
@@ -86,8 +87,15 @@ impl ParticleFilterState {
         if n_particles == 0 {
             return Err(StateError::Shape("n_particles must be > 0".into()));
         }
-        if params.process_std <= 0.0 || params.obs_std <= 0.0 {
-            return Err(StateError::Numerical("noise std must be positive".into()));
+        if !params.a.is_finite()
+            || !params.process_std.is_finite()
+            || !params.obs_std.is_finite()
+            || params.process_std <= 0.0
+            || params.obs_std <= 0.0
+        {
+            return Err(StateError::Numerical(
+                "parameters must be finite and noise std must be positive".into(),
+            ));
         }
         let mut rng = CausalRng::from_seed(seed);
         let mut particles = Vec::with_capacity(n_particles);
@@ -128,22 +136,56 @@ impl ParticleFilterState {
     ///
     /// Numerical failures.
     pub fn step(&mut self, y: f64) -> Result<(), StateError> {
+        if !y.is_finite()
+            || !self.params.a.is_finite()
+            || !self.params.process_std.is_finite()
+            || self.params.process_std <= 0.0
+            || !self.params.obs_std.is_finite()
+            || self.params.obs_std <= 0.0
+        {
+            return Err(StateError::Numerical(
+                "invalid particle-filter observation or parameters".into(),
+            ));
+        }
+        if self.n_particles == 0
+            || self.particles.len() != self.n_particles
+            || self.log_weights.len() != self.n_particles
+        {
+            return Err(StateError::Shape(
+                "particle and weight lengths must match n_particles".into(),
+            ));
+        }
+        if self.particles.iter().any(|x| !x.is_finite())
+            || self.log_weights.iter().any(|w| w.is_nan() || *w == f64::INFINITY)
+        {
+            return Err(StateError::Numerical("invalid particle-filter state".into()));
+        }
+        // Build the candidate update in reusable scratch. A numerical failure
+        // leaves particles, weights, observation count, and RNG continuation intact.
         let mut rng = CausalRng::from_state(self.rng_state);
-        for p in &mut self.particles {
-            *p = self.params.a * *p + self.params.process_std * standard_normal(&mut rng);
-        }
-        let inv_var = 1.0 / (self.params.obs_std * self.params.obs_std);
-        let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - self.params.obs_std.ln();
+        self.scratch.particles.clear();
+        self.scratch.log_weights.clear();
         for i in 0..self.n_particles {
-            let err = y - self.particles[i];
-            self.log_weights[i] += log_norm - 0.5 * err * err * inv_var;
+            let predicted = self.params.a * self.particles[i]
+                + self.params.process_std * standard_normal(&mut rng);
+            if !predicted.is_finite() {
+                return Err(StateError::Numerical("particle prediction overflow".into()));
+            }
+            let standardized = (y - predicted) / self.params.obs_std;
+            self.scratch.particles.push(predicted);
+            // The common Gaussian normalizer cancels in normalized weights.
+            self.scratch.log_weights.push(self.log_weights[i] - 0.5 * standardized.powi(2));
         }
+        normalized_weights_into(&self.scratch.log_weights, &mut self.scratch.weights)?;
+        let max_log = self.scratch.log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        for value in &mut self.scratch.log_weights {
+            *value -= max_log;
+        }
+        std::mem::swap(&mut self.particles, &mut self.scratch.particles);
+        std::mem::swap(&mut self.log_weights, &mut self.scratch.log_weights);
         self.n_obs = self.n_obs.saturating_add(1);
-        // Normalize once per step; the ESS check and (when triggered) the
-        // resample below share this buffer instead of re-exponentiating.
-        normalized_weights_into(&self.log_weights, &mut self.scratch.weights);
         let sum_sq: f64 = self.scratch.weights.iter().map(|w| w * w).sum();
-        let ess = if sum_sq <= 0.0 { 0.0 } else { 1.0 / sum_sq };
+        let ess = 1.0 / sum_sq;
         if ess < 0.5 * self.n_particles as f64 {
             systematic_resample(self, &mut rng);
         }
@@ -173,25 +215,27 @@ impl ParticleFilterState {
 
 fn normalized_weights(log_w: &[f64]) -> Vec<f64> {
     let mut w = Vec::new();
-    normalized_weights_into(log_w, &mut w);
+    if normalized_weights_into(log_w, &mut w).is_err() {
+        w.clear();
+        w.resize(log_w.len(), f64::NAN);
+    }
     w
 }
 
 /// Allocation-free core of [`normalized_weights`]: same arithmetic, writing
 /// into a caller-owned buffer.
-fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) {
+fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), StateError> {
     let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     out.clear();
-    if !max.is_finite() {
-        let u = 1.0 / log_w.len().max(1) as f64;
-        out.resize(log_w.len(), u);
-        return;
+    if !max.is_finite() || log_w.iter().any(|value| value.is_nan() || *value == f64::INFINITY) {
+        return Err(StateError::Numerical("particle weights have no finite positive mass".into()));
     }
     out.extend(log_w.iter().map(|lw| (lw - max).exp()));
-    let sum: f64 = out.iter().sum::<f64>().max(1e-300);
+    let sum: f64 = out.iter().sum();
     for wi in out {
         *wi /= sum;
     }
+    Ok(())
 }
 
 /// Resample using the normalized weights already in `state.scratch.weights`
@@ -201,7 +245,7 @@ fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     let n = state.n_particles;
     let u0 = rng.next_f64() / n as f64;
     {
-        let StepScratch { weights: w, particles: new_particles } = &mut state.scratch;
+        let StepScratch { weights: w, particles: new_particles, .. } = &mut state.scratch;
         new_particles.clear();
         new_particles.resize(n, 0.0);
         let mut cum = w[0];
@@ -239,6 +283,43 @@ mod tests {
             ys.push(x + params.obs_std * standard_normal(&mut rng));
         }
         ys
+    }
+
+    #[test]
+    fn invalid_and_degenerate_updates_are_atomic() {
+        let mut state = ParticleFilterState::init(32, LgssmParams::default(), 1, 99).unwrap();
+        for y in [f64::NAN, f64::INFINITY, f64::MAX] {
+            let before = state.clone();
+            assert!(state.step(y).is_err());
+            assert_eq!(state, before);
+        }
+        state.log_weights.fill(f64::NEG_INFINITY);
+        let before = state.clone();
+        assert!(state.step(0.0).is_err());
+        assert_eq!(state, before);
+        assert!(state.ess().is_nan(), "impossible weights must not look uniform");
+    }
+
+    #[test]
+    fn filtering_respects_small_observation_units() {
+        let params = LgssmParams::default();
+        let scale = 1e-150;
+        let small = LgssmParams {
+            a: params.a,
+            process_std: params.process_std * scale,
+            obs_std: params.obs_std * scale,
+        };
+        let base = ParticleFilterState::run_batch(&[0.2, -0.1, 0.4], 256, params, 0, 8).unwrap();
+        let scaled = ParticleFilterState::run_batch(
+            &[0.2 * scale, -0.1 * scale, 0.4 * scale],
+            256,
+            small,
+            0,
+            8,
+        )
+        .unwrap();
+        assert!((base.weighted_mean() - scaled.weighted_mean() / scale).abs() < 1e-12);
+        assert!((base.ess() - scaled.ess()).abs() < 1e-10);
     }
 
     #[test]

@@ -11,8 +11,7 @@ use antecedent_stats::{FaerBackend, GlmOptions};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, gather, gather_colmajor,
-    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -150,29 +149,18 @@ impl PropensityWeighting {
         );
         apply_target_weights(&mut weights, problem.target_weights.as_deref());
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let se_analytic = match trim_retained_rows(&model.fit.scores, trim)? {
-            Some(idx) => {
-                let t = gather(&problem.treatment, &idx);
-                let y = gather(&problem.outcome, &idx);
-                let w = gather(&weights, &idx);
-                let e = gather(&model.clipped_scores, &idx);
-                let design = gather_colmajor(
-                    &problem.design_matrix,
-                    problem.nrows,
-                    problem.design_ncols,
-                    &idx,
-                );
-                hajek_influence_se(&t, &y, &w, &e, &design, problem.design_ncols)?
-            }
-            None => hajek_influence_se(
-                &problem.treatment,
-                &problem.outcome,
-                &weights,
-                &model.clipped_scores,
-                &problem.design_matrix,
-                problem.design_ncols,
-            )?,
-        };
+        let se_analytic = hajek_influence_se(
+            &problem.treatment,
+            &problem.outcome,
+            &weights,
+            Some(HajekPropensity {
+                scores: &model.fit.scores,
+                design: &problem.design_matrix,
+                ncols: problem.design_ncols,
+                target,
+                clip: clip_of(problem.overlap),
+            }),
+        )?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -339,22 +327,37 @@ pub(crate) fn hajek_weighted_mean(
     if den > 0.0 { num / den } else { f64::NAN }
 }
 
-/// Hajek ATE/ATT/ATC analytic SE via linearized influence scores, with a
-/// first-order correction for estimated logistic propensity scores.
+/// Logistic nuisance fit and the weighting rule differentiated by the sandwich.
+pub(crate) struct HajekPropensity<'a> {
+    scores: &'a [f64],
+    design: &'a [f64],
+    ncols: usize,
+    target: IpwTarget,
+    clip: Option<f64>,
+}
+
+/// Hajek analytic SE from stacked logistic and weighted-mean estimating equations.
 ///
-/// Orthogonalizes the Hajek ratio IF against the propensity score scores
-/// `x_i (T_i − e_i)` so the reported SE is not conditional on weights as fixed.
+/// The IF is the fixed-weight ratio IF plus `B' I⁻¹ x(T-e)`, where `B`
+/// differentiates the two weighted means with respect to logistic coefficients.
+/// Its derivative depends on the target and is zero beyond clipping thresholds.
+/// Trimming membership is locally fixed; all original rows still contribute to
+/// the logistic nuisance fit. Bootstrap refits also capture membership changes.
 pub(crate) fn hajek_influence_se(
     treatment: &[f64],
     outcome: &[f64],
     weights: &[f64],
-    propensity: &[f64],
-    design_colmajor: &[f64],
-    ncols: usize,
+    propensity: Option<HajekPropensity<'_>>,
 ) -> Result<f64, EstimationError> {
     let n = treatment.len();
-    if n < 2 || weights.len() != n || propensity.len() != n {
+    if n < 2 || weights.len() != n || outcome.len() != n {
         return Ok(f64::NAN);
+    }
+    let ncols = propensity.as_ref().map_or(0, |p| p.ncols);
+    if let Some(p) = &propensity {
+        if p.scores.len() != n || p.design.len() != n * ncols {
+            return Err(EstimationError::data_msg("Hajek propensity design/score length mismatch"));
+        }
     }
     let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
     let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
@@ -377,42 +380,37 @@ pub(crate) fn hajek_influence_se(
         psi[i] = nf * (w1 / sum_w1) * (outcome[i] - mu1) - nf * (w0 / sum_w0) * (outcome[i] - mu0);
     }
 
-    // Propensity scores s_{i,c} = x_{ic} (T_i − e_i). Residualize ψ on the score space.
-    if ncols > 0 && design_colmajor.len() >= n * ncols {
-        let mut scores = vec![0.0; n * ncols];
+    if let Some(p) = propensity {
+        let mut information = vec![0.0; ncols * ncols];
+        let mut derivative = vec![0.0; ncols];
         for i in 0..n {
-            let resid = treatment[i] - propensity[i];
-            for c in 0..ncols {
-                scores[c * n + i] = design_colmajor[c * n + i] * resid;
-            }
-        }
-        // Gram matrix G = S'S / n and g = S'ψ / n; solve G α = g; ψ ← ψ − S α.
-        let mut gram = vec![0.0; ncols * ncols];
-        let mut rhs = vec![0.0; ncols];
-        for c in 0..ncols {
-            for i in 0..n {
-                rhs[c] += scores[c * n + i] * psi[i];
-            }
-            rhs[c] /= nf;
-            for d in 0..ncols {
-                let mut acc = 0.0;
-                for i in 0..n {
-                    acc += scores[c * n + i] * scores[d * n + i];
+            let e = p.scores[i];
+            let clipped = p.clip.is_some_and(|c| e <= c || e >= 1.0 - c);
+            let log_weight_derivative = if clipped {
+                0.0
+            } else {
+                match (p.target, treatment[i] > 0.5) {
+                    (IpwTarget::Ate | IpwTarget::Custom, true) => -(1.0 - e),
+                    (IpwTarget::Ate | IpwTarget::Custom, false) => e,
+                    (IpwTarget::Att, true) | (IpwTarget::Atc, false) => 0.0,
+                    (IpwTarget::Att, false) => 1.0,
+                    (IpwTarget::Atc, true) => -1.0,
                 }
-                gram[c * ncols + d] = acc / nf;
+            };
+            for c in 0..ncols {
+                let xc = p.design[c * n + i];
+                derivative[c] += psi[i] * log_weight_derivative * xc / nf;
+                for d in 0..ncols {
+                    information[c * ncols + d] += e * (1.0 - e) * xc * p.design[d * n + i] / nf;
+                }
             }
         }
-        let Some(alpha) = solve_symmetric_posdef(&mut gram, &mut rhs, ncols) else {
-            return Err(EstimationError::stats_msg(
-                "singular propensity-score Gram; refusing an uncorrected Hajek SE",
-            ));
+        let Some(alpha) = solve_symmetric_posdef(&mut information, &mut derivative, ncols) else {
+            return Err(EstimationError::stats_msg("singular logistic information in Hajek SE"));
         };
         for i in 0..n {
-            let mut adj = 0.0;
-            for c in 0..ncols {
-                adj += scores[c * n + i] * alpha[c];
-            }
-            psi[i] -= adj;
+            let adjustment = (0..ncols).map(|c| p.design[c * n + i] * alpha[c]).sum::<f64>();
+            psi[i] += adjustment * (treatment[i] - p.scores[i]);
         }
     }
 
@@ -481,6 +479,117 @@ pub(crate) fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> 
 #[cfg(test)]
 mod tests {
     use super::solve_symmetric_posdef;
+
+    // Independent case-weight perturbation oracle: refit the logistic MLE and
+    // weighted means after infinitesimally changing each observation's mass.
+    fn oracle_fit(
+        t: &[f64],
+        y: &[f64],
+        x: &[f64],
+        mass: &[f64],
+        target: super::IpwTarget,
+        clip: Option<f64>,
+        trim: Option<f64>,
+    ) -> (f64, Vec<f64>) {
+        let mut beta = [0.0_f64; 2];
+        for _ in 0..100 {
+            let mut score = [0.0; 2];
+            let mut information = [0.0; 3];
+            for i in 0..t.len() {
+                let e = 1.0 / (1.0 + (-beta[0] - beta[1] * x[i]).exp());
+                let residual = mass[i] * (t[i] - e);
+                let v = mass[i] * e * (1.0 - e);
+                score[0] += residual;
+                score[1] += residual * x[i];
+                information[0] += v;
+                information[1] += v * x[i];
+                information[2] += v * x[i] * x[i];
+            }
+            let determinant = information[0] * information[2] - information[1].powi(2);
+            let step = [
+                (information[2] * score[0] - information[1] * score[1]) / determinant,
+                (information[0] * score[1] - information[1] * score[0]) / determinant,
+            ];
+            beta[0] += step[0];
+            beta[1] += step[1];
+            if step[0].abs().max(step[1].abs()) < 1e-13 {
+                break;
+            }
+        }
+        let e: Vec<f64> = x.iter().map(|x| 1.0 / (1.0 + (-beta[0] - beta[1] * x).exp())).collect();
+        let mut numerator = [0.0; 2];
+        let mut denominator = [0.0; 2];
+        for i in 0..t.len() {
+            if trim.is_some_and(|c| e[i] < c || e[i] > 1.0 - c) {
+                continue;
+            }
+            let score = clip.map_or(e[i], |c| e[i].clamp(c, 1.0 - c));
+            let arm = usize::from(t[i] > 0.5);
+            let w = mass[i] * target.weight(t[i], score);
+            numerator[arm] += w * y[i];
+            denominator[arm] += w;
+        }
+        (numerator[1] / denominator[1] - numerator[0] / denominator[0], e)
+    }
+
+    #[test]
+    fn hajek_se_matches_refitted_case_weight_derivatives() {
+        let mut t = Vec::new();
+        let mut y = Vec::new();
+        let mut x = Vec::new();
+        for group in 0..5 {
+            for row in 0..6 {
+                let covariate = f64::from(group) - 2.0;
+                let treated = f64::from(row <= group);
+                x.push(covariate);
+                t.push(treated);
+                y.push(covariate + treated * (2.0 + covariate) + 0.2 * f64::from(row * row));
+            }
+        }
+        let n = t.len();
+        let mut design = vec![1.0; n];
+        design.extend_from_slice(&x);
+        for target in [super::IpwTarget::Att, super::IpwTarget::Atc, super::IpwTarget::Ate] {
+            for (clip, trim) in [(None, None), (Some(0.25), None), (None, Some(0.2))] {
+                let mut mass = vec![1.0; n];
+                let (_, e) = oracle_fit(&t, &y, &x, &mass, target, clip, trim);
+                let clipped: Vec<f64> =
+                    e.iter().map(|&p| clip.map_or(p, |c| p.clamp(c, 1.0 - c))).collect();
+                let w = super::compute_ipw_weights(&t, &clipped, &e, target, trim);
+                let actual = super::hajek_influence_se(
+                    &t,
+                    &y,
+                    &w,
+                    Some(super::HajekPropensity {
+                        scores: &e,
+                        design: &design,
+                        ncols: 2,
+                        target,
+                        clip,
+                    }),
+                )
+                .unwrap();
+                let mut derivatives = Vec::new();
+                for row in 0..n {
+                    mass[row] = 1.0 + 1e-5;
+                    let plus = oracle_fit(&t, &y, &x, &mass, target, clip, trim).0;
+                    mass[row] = 1.0 - 1e-5;
+                    let minus = oracle_fit(&t, &y, &x, &mass, target, clip, trim).0;
+                    mass[row] = 1.0;
+                    derivatives.push((plus - minus) / 2e-5);
+                }
+                let nf = n as f64;
+                let expected = (derivatives.iter().map(|d| d * d).sum::<f64>() * nf / (nf - 1.0)
+                    * nf
+                    / (nf - 2.0))
+                    .sqrt();
+                assert!(
+                    (actual - expected).abs() < 1e-7,
+                    "target={target:?} clip={clip:?} trim={trim:?} actual={actual} oracle={expected}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn solve_symmetric_posdef_rejects_badly_scaled_near_singular_matrix() {

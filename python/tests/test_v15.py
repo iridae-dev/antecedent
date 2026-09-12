@@ -47,7 +47,7 @@ def _codetermined_siblings(n: int = 800, seed: int = 214):
 
 def _assert_same_effect(batch, solo, *, abs_=1e-12):
     a, b = batch.estimate.ate, solo.estimate.ate
-    if np.isnan(a) and np.isnan(b):
+    if a is None and b is None:
         assert batch.estimate.exceedance_cdf is not None
         assert solo.estimate.exceedance_cdf is not None
         np.testing.assert_allclose(
@@ -189,7 +189,7 @@ def test_exceedance_grid_on_fresh_estimate():
     assert cdf is not None
     assert len(cdf) == 6
     assert all(np.isfinite(cdf))
-    assert np.isnan(fresh.estimate.ate)
+    assert fresh.estimate.ate is None
     assert isinstance(fresh.estimate.monotone_rearranged, bool)
     assert fresh.estimate.simultaneous_interval is None
     plan = antecedent.estimation.PreparedAnalysis.prepare(
@@ -232,7 +232,7 @@ def test_class_aware_prepare_conditional_exceedance():
     assert len(cdf) == 6
     assert all(0.0 <= value <= 1.0 for value in cdf)
     assert np.all(np.diff(np.array(cdf).reshape(-1, 2), axis=0) >= 0.0)
-    assert np.isnan(out_grid.estimate.ate)
+    assert out_grid.estimate.ate is None
     inf = out_grid.estimate.score_inference
     assert inf is not None
     assert len(inf.raw_means) == 6
@@ -413,7 +413,7 @@ def test_analyze_many_tiered_codetermined_aipw():
     )
     assert np.isfinite(mean.estimate.ate)
     assert mean.estimate.exceedance_cdf is None
-    assert np.isnan(grid.estimate.ate)
+    assert grid.estimate.ate is None
     assert grid.estimate.exceedance_cdf is not None
     solo_mean = antecedent.analyze(
         data, graph=background, query=mean_q, estimator="aipw", refute="none", bootstrap=0
@@ -471,7 +471,7 @@ def test_prepared_batch_tiered_codetermined_aipw():
     mean, grid = batch.estimate(data)
     assert np.isfinite(mean.estimate.ate)
     assert mean.estimate.exceedance_cdf is None
-    assert np.isnan(grid.estimate.ate)
+    assert grid.estimate.ate is None
     assert grid.estimate.exceedance_cdf is not None
     solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
         data, query=mean_q, graph=background, estimator="aipw", refute="none", bootstrap=0
@@ -493,7 +493,7 @@ def test_prepared_retarget_codetermined_exceedance_grid():
     cdf = out.estimate.exceedance_cdf
     assert cdf is not None
     assert len(cdf) == 6
-    assert np.isnan(out.estimate.ate)
+    assert out.estimate.ate is None
     # Walking ↔ as descendants from t would refuse a treatment-tier peer.
     rng = np.random.default_rng(214)
     n = 800

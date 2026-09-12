@@ -553,20 +553,15 @@ mod tests {
     }
 
     #[test]
-    fn response_curve_graph_posterior_is_refused() {
+    fn response_curve_graph_posterior_is_licensed_only_for_static_dag_atoms() {
         for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag"] {
             let status =
                 classify(cell("ResponseCurve", graph, "graph_posterior", "Frequentist", "none"));
-            assert_eq!(status, CellStatus::Refused, "{graph}: {status:?}");
-            let err = refuse_if_not_applicable(cell(
-                "ResponseCurve",
-                graph,
-                "graph_posterior",
-                "Frequentist",
-                "none",
-            ))
-            .unwrap_err();
-            assert!(err.to_string().starts_with("refused:"), "{graph}: {err}");
+            if graph == "Dag" {
+                assert_eq!(status, CellStatus::Licensed);
+            } else {
+                assert_eq!(status, CellStatus::Refused, "{graph}: {status:?}");
+            }
         }
     }
 
@@ -598,11 +593,67 @@ mod tests {
                 .unwrap();
             }
         }
-        for graph in ["TemporalDag", "Cpdag", "Pag"] {
+        for graph in ["TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"] {
             let status =
                 classify(cell("InterventionResponse", graph, "explicit", "Frequentist", "cheap"));
             assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
         }
+    }
+
+    #[test]
+    fn function_valued_and_class_response_cheap_are_not_applicable() {
+        for graph in ["TemporalCpdag", "TemporalPag"] {
+            let status = classify(cell("ResponseCurve", graph, "explicit", "Frequentist", "cheap"));
+            assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
+        }
+        let status =
+            classify(cell("ResponseCurve", "Dag", "graph_posterior", "Frequentist", "full"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
+        let status =
+            classify(cell("InterventionResponse", "Dag", "graph_posterior", "Bayesian", "cheap"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
+    }
+
+    #[test]
+    fn frequentist_dbn_and_cpdag_mediation_suites_are_licensed() {
+        for validation in ["cheap", "full"] {
+            for query in ["PulseEffect", "SustainedEffect"] {
+                let c = cell(query, "TemporalDag", "graph_posterior", "Frequentist", validation);
+                assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+            }
+            for structure in ["explicit", "accepted"] {
+                let c = cell(
+                    "TemporalMediationEffect",
+                    "TemporalCpdag",
+                    structure,
+                    "Frequentist",
+                    validation,
+                );
+                assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+            }
+            let c =
+                cell("InterventionResponse", "Dag", "graph_posterior", "Frequentist", validation);
+            assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+        }
+        let status = classify(cell(
+            "PulseEffect",
+            "TemporalCpdag",
+            "graph_posterior",
+            "Frequentist",
+            "none",
+        ));
+        assert_eq!(status, CellStatus::Refused);
+        assert!(
+            refusal_reason(cell(
+                "PulseEffect",
+                "TemporalCpdag",
+                "graph_posterior",
+                "Frequentist",
+                "none"
+            ))
+            .unwrap()
+            .contains("class-aware combiner")
+        );
     }
 
     #[test]
@@ -889,22 +940,14 @@ mod tests {
     }
 
     #[test]
-    fn closed_temporal_mediation_off_temporal_dag_is_enforced() {
+    fn temporal_mediation_class_boundary_is_enforced() {
         for graph in ["TemporalCpdag", "TemporalPag"] {
             let status =
                 classify(cell("TemporalMediationEffect", graph, "accepted", "Frequentist", "none"));
-            assert_eq!(status, CellStatus::Refused, "{graph}");
-            let err = refuse_if_not_applicable(cell(
-                "TemporalMediationEffect",
-                graph,
-                "accepted",
-                "Frequentist",
-                "none",
-            ))
-            .unwrap_err();
-            assert!(
-                err.to_string().starts_with("refused: TemporalMediationEffect compiles only"),
-                "{graph}: {err}"
+            assert_eq!(
+                status,
+                if graph == "TemporalCpdag" { CellStatus::Licensed } else { CellStatus::Refused },
+                "{graph}"
             );
         }
     }
@@ -929,7 +972,7 @@ mod tests {
         .unwrap_err();
         assert!(
             err.to_string().starts_with(
-                "refused: Frequentist graph-posterior mixing is licensed only for AverageEffect"
+                "refused: Frequentist graph-posterior mixing on DAG atoms is licensed"
             ),
             "{err}"
         );
@@ -1395,6 +1438,16 @@ mod tests {
         );
         for v in ["cheap", "full"] {
             let c = cell("SustainedEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
+            assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+            assert!(refusal_reason(c).is_none());
+        }
+    }
+
+    #[test]
+    fn temporal_mediation_dbn_posterior_all_suites_are_licensed() {
+        for v in ["none", "cheap", "full"] {
+            let c =
+                cell("TemporalMediationEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
             assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
             assert!(refusal_reason(c).is_none());
         }

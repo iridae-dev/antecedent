@@ -1,9 +1,10 @@
 # Antecedent roadmap
 
 Release direction from the causal-response foundation to causal transport and
-evidence synthesis. Historical sections record earlier release intentions;
-[TODO.md](TODO.md) owns the detailed 1.x working roadmap. This document defines
-the goals and release boundary for 2.0, not a checklist for an in-flight cut.
+evidence synthesis. Historical sections record earlier release intentions.
+Release notes and the generated support matrix are authoritative for shipped
+1.x behavior; this document records remaining public ownership and defines the
+goals and release boundary for 2.0, not a checklist for an in-flight cut.
 
 Last updated: 2026-09-11
 
@@ -201,7 +202,7 @@ path/distribution and temporal-mediation validation, DBN mixture validation,
 Bayesian conditional/mediation/response estimators, accepted-DAG functional
 queries, and multi-step sustained-window g-computation. See the
 [evidence ledger](docs/v1.2-evidence.md) for exact forms and limits.
-Graph-posterior response and multi-step graph-posterior windows remain refused.
+Current graph-posterior response atoms and multi-step Sustained windows are described in the 1.6 ledger below.
 
 ## 1.3 — Existing kinds on the staged handle
 
@@ -227,11 +228,12 @@ lag-aligned temporal adjustment designs, including all joint targets.
 Joint interventions certify a common adjustment set for all targets per
 completion; they do not inherit the first target's ATE certificate.
 See the [evidence ledger](docs/v1.4-evidence.md). Static multi-atom
-Frequentist uncertainty moves to 1.5; temporal / DBN stays unavailable until
-1.9. The temporal PAG mixed-graph implementation is verified, with finite-window
+Frequentist uncertainty moved to 1.5. Frequentist DBN Pulse/Sustained
+mixtures with shared outer-block replicates shipped in 1.6; TemporalCpdag /
+TemporalPag class-envelope between-atom variance remains 1.9 calibration.
+The temporal PAG mixed-graph implementation is verified, with finite-window
 audit limits explicit.
-Bayesian incomplete-class temporal cells and Frequentist DBN-posterior
-mixing stay 1.7.
+Bayesian incomplete-class temporal cells stay 1.7.
 
 ### Explicit ownership from the 1.4 completion review
 
@@ -250,10 +252,10 @@ including class envelopes and explicit source/target compatibility.
 
 1.5 owns implementation and calibration of covariance-aware sampling
 uncertainty for existing static multi-atom Frequentist aggregates, including
-CPDAG/PAG responses. 1.9 owns the temporal/DBN counterparts, including
-dependence-preserving resampling. This includes the missing joint
-resampling or influence-covariance machinery; it is not merely a calibration
-pass over unavailable intervals. Graph-weight conditioning and unidentified
+CPDAG/PAG responses. 1.6 owns Frequentist DBN shared-block mixture
+uncertainty. 1.9 owns calibration/coverage of those DBN intervals and the
+remaining temporal class-envelope between-atom variance, including
+dependence-preserving resampling. Graph-weight conditioning and unidentified
 mass must remain explicit.
 
 1.10 retains its result-composition and presentation work. It does not own
@@ -315,7 +317,39 @@ plan freezes, what a call may vary, and `retarget` as a method on that plan.
 redesigning it.
 
 PN/PS/PNS bounds are new estimands and stay unscheduled post-1.x work.
-[TODO.md](TODO.md) holds later 1.x work.
+Later 1.x direction and ownership are summarized below.
+
+## 1.6 — Temporal policies and per-horizon ID
+
+Released as [1.6.0](docs/release-notes/v1.6.0.md). See the
+[evidence ledger](docs/v1.6-evidence.md). 1.5 is released; this cut is
+the rest of the temporal policy surface on the identification theory the
+handle already runs (`temporal.backdoor.unfolded`).
+
+Shipped on the branch: horizon-specific `I(h)` and a durable multi-horizon
+mediation grid across Rust, Python, and composite artifacts; licensed
+multi-step and joint Sequence overlays (nested Sequence refused, explicit
+native step timing authoritative), including multiplicative and bounded-shift Soft mean mechanisms;
+DBN-posterior mediation and multi-step Sustained mixtures that retain
+horizon-specific unidentified mass, with multi-step none/cheap/full validation through actual sequential refits; licensed 1.3 observation pairs on Frequentist temporal
+curves with outer nuisance-refitting block-bootstrap bands; Frequentist DBN
+effect mixtures with fixed graph weights and shared block replicates;
+same-design and mapped prior transfer onto licensed Bayesian Pulse,
+single-step Sustained, and temporal `ResponseCurve` when a fixture names
+source cell, target cell, and `PriorCatalog.filter_compatible`. Static DAG
+graph-posterior responses retain probability atoms/mass, while CPDAG/PAG
+completion responses retain enumeration atoms and identified sets rather than
+an unjustified weighted mean.
+
+Remaining boundaries are methodological, not schedule assignments. Cheap/full
+neighbors of the 1.6 `none` cells that already had a scalar or per-completion
+suite are licensed on this cut; function-valued cheap/full stay typed n/a.
+Bayesian temporal observations use the Gaussian observed-data SEM and latent-trajectory Gibbs sampler under ignorable trajectory coarsening and distinct priors. Selection-indicator or censoring-bound trajectories are assumed independent of latent outcome trajectories conditional on fully observed Z; the censoring event indicator is not assumed independent of Y. Complete-data posterior bands are not substituted. A joint horizon mediation
+posterior requires a shared dynamic parameter model; 1.6 reports honest
+pointwise posteriors. Latent-confounded PAG natural mediation remains outside
+the implemented identification theory. Incomplete-class DBN-posterior mixing
+and Bayesian TemporalCpdag/Pag envelopes remain 1.7 because they need a
+class-mass contract, not because 1.6 left the neighbor undocumented.
 
 ## 1.x — Compatible cells
 

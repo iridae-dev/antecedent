@@ -167,11 +167,13 @@ pub(super) struct IdentifiedExecuteExtras {
     pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
     pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
     pub posterior: Option<antecedent_estimate::CausalPosterior>,
+    pub mediation_grid: Option<antecedent_estimate::TemporalMediationGrid>,
     pub n_draws: Option<u32>,
     pub predictive_checks: Vec<antecedent_validate::PredictiveCheckReport>,
     /// When set, replaces the identification + overlap + cache diagnostic seed.
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub response: Option<antecedent_core::CausalResponse>,
+    pub structural_response: Option<crate::result::StructuralResponseMixture>,
     pub gcm: Option<GcmSlot>,
     pub empty_provenance: bool,
     /// `None` uses the study bootstrap count; `Some(v)` writes `v` (response writes `None`).
@@ -212,6 +214,23 @@ pub(super) fn nan_effect() -> EffectEstimate {
         antecedent_core::AssumptionSet::default(),
         OverlapPolicy::ExplicitOverride,
     )
+}
+
+pub(super) fn integer_cube_root_ceil(n: usize) -> usize {
+    if n <= 1 {
+        return n;
+    }
+    let mut low = 1usize;
+    let mut high = n;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    low
 }
 
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
@@ -295,6 +314,13 @@ pub(super) fn resolve_envelope_prior_anchor(
     ctx: &ExecutionContext,
 ) -> Result<(Option<PriorSet>, Option<antecedent_prob::ConflictSummary>), CausalError> {
     resolve_bayesian_prior_with_conflict(cfg, prep, Some(ctx))
+}
+
+pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
+    matches!(
+        query.policy,
+        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
+    )
 }
 
 pub(super) fn identified_envelope_keys(
@@ -593,6 +619,31 @@ fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> boo
         && left.rd_design == right.rd_design
 }
 
+/// Fail-closed rank: larger means less identified. Never used to upgrade a status.
+fn identification_closedness(status: IdentificationStatus) -> u8 {
+    match status {
+        IdentificationStatus::NonparametricallyIdentified => 0,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions => 1,
+        IdentificationStatus::IdentifiedUnderPriorRestrictions => 2,
+        IdentificationStatus::PartiallyIdentified => 3,
+        IdentificationStatus::GraphDependent => 4,
+        IdentificationStatus::NotIdentified => 5,
+    }
+}
+
+/// Most conservative status among requested horizons. Empty input is unidentified.
+///
+/// Priors and later identified horizons do not upgrade an earlier unidentified
+/// or graph-dependent slice.
+pub(super) fn most_conservative_identification_status(
+    statuses: impl IntoIterator<Item = IdentificationStatus>,
+) -> IdentificationStatus {
+    statuses
+        .into_iter()
+        .max_by_key(|status| identification_closedness(*status))
+        .unwrap_or(IdentificationStatus::NotIdentified)
+}
+
 /// Status for a Frequentist graph-posterior mixture.
 ///
 /// Unidentified mass is [`IdentificationStatus::GraphDependent`]. Multiple
@@ -628,7 +679,7 @@ pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64)
         .sum()
 }
 
-fn mix_prior_sensitivity_summaries(
+pub(super) fn mix_prior_sensitivity_summaries(
     items: &[(f64, &antecedent_prob::PriorSensitivitySummary)],
 ) -> Option<antecedent_prob::PriorSensitivitySummary> {
     let first = items.first()?.1;
@@ -1305,6 +1356,7 @@ impl super::Study {
             distribution: args.distribution,
             posterior: extras.posterior,
             mediation: args.mediation,
+            mediation_grid: extras.mediation_grid,
             counterfactual,
             anomaly,
             change_attribution,
@@ -1348,6 +1400,7 @@ impl super::Study {
         }
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
+        result.structural_response = extras.structural_response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
         if !is_quantile && self
@@ -1401,4 +1454,10 @@ impl super::Study {
         }
         result
     }
+}
+
+/// Match the estimator failure policy without counting unattempted, cancelled
+/// replicates as fitting failures.
+pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
+    completed >= 2 && completed >= attempted.saturating_sub(completed)
 }

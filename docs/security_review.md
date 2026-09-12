@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-10
-Scope: workspace crates + `python` extension (package version **1.5.0**)
+Date: 2026-09-11
+Scope: workspace crates + `python` extension (package version **1.6.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -48,6 +48,13 @@ entry points (`analyze_ate_tiered`, `PreparedAnalysis.retarget`, outcome
 functional kwargs) validate declared `depends_on` names and refuse weights that
 depend on treatment. Score-table payloads reuse the existing bounded artifact
 writers.
+
+The 1.6.0 diff adds temporal identification caches, sequential g-computation,
+observation-adjusted temporal response, DBN-posterior execution, and prior-bank
+metadata. Lockfile changes are workspace version updates; no external
+dependency, unsafe block, or workflow permission was added. Prior metadata uses
+the existing checksummed, size-bounded artifact container; the catalog API
+filters incompatible transfer metadata before the caller requests hydration.
 
 ## Unsafe code policy
 

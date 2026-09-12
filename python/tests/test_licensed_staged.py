@@ -212,14 +212,14 @@ def _mediation_table(n: int = 80):
     m = np.zeros(n)
     y = np.zeros(n)
     for i in range(1, n):
-        t[i] = 0.3 * t[i - 1] + 0.1 * math.sin(i)
+        t[i] = 0.1 * math.sin(i)
         m[i] = 0.8 * t[i - 1] + 0.05 * math.cos(i)
         y[i] = 0.5 * m[i] + 0.02 * math.sin(i)
     return {"t": t, "m": m, "y": y}
 
 
 _MED_DATA = _mediation_table()
-_MED_EDGES = [("t", 1, "t", 0), ("t", 1, "m", 0), ("m", 0, "y", 0)]
+_MED_EDGES = [("t", 1, "m", 0), ("m", 0, "y", 0)]
 _MED_TDAG = antecedent.TemporalDag.from_lagged_edges(["t", "m", "y"], _MED_EDGES)
 _MED_ACCEPTED = antecedent.AcceptedGraph.from_graph(_MED_TDAG, algorithm_id="hand")
 _MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
