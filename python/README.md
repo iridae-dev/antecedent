@@ -25,9 +25,9 @@ from antecedent import AverageEffect, analyze
 
 rng = np.random.default_rng(0)
 n = 2000
-season = rng.normal(size=n)                               # confounder
-price = 0.7 * season + rng.normal(size=n)                 # treatment
-sales = 1.5 * price + 2.0 * season + rng.normal(size=n)   # outcome, true effect = 1.5
+season = rng.normal(size=n)  # confounder
+price = 0.7 * season + rng.normal(size=n)  # treatment
+sales = 1.5 * price + 2.0 * season + rng.normal(size=n)  # outcome, true effect = 1.5
 
 result = analyze(
     data={"season": season, "price": price, "sales": sales},
@@ -35,9 +35,11 @@ result = analyze(
     query=AverageEffect(treatment="price", outcome="sales"),
 )
 
-print(result.identification)   # NonparametricallyIdentified via backdoor.adjustment, adjusting for season
-print(result.estimate)         # ate=1.48, analytic and bootstrap standard errors
-print(result.validation)       # refuters ran and passed
+print(
+    result.identification
+)  # NonparametricallyIdentified via backdoor.adjustment, adjusting for season
+print(result.estimate)  # ate=1.48, analytic and bootstrap standard errors
+print(result.validation)  # refuters ran and passed
 ```
 
 The same `analyze()` call scales from this to temporal dose × horizon
@@ -149,6 +151,18 @@ Also exposed:
   (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
+
+In 1.6, multi-step Sustained supports `none`/`cheap`/`full` validation in both
+inference modes, including DBN posterior mixtures. Full perturbations refit
+the sequential model; Bayesian checks retain mechanism PPC and composed-effect
+prior sensitivity. Temporal Soft `multiplicative` and `truncated_shift` compose
+across single, joint, and multi-step schedules; truncation applies to the
+propagated conditional mean, not a stochastic draw. Bayesian temporal
+observation curves and Sequence use an observed-data Gaussian SEM with
+latent-trajectory Gibbs sampling under an explicit ignorable trajectory
+coarsening assumption and distinct priors. See the
+[observation contract](https://github.com/iridae-dev/antecedent/blob/main/docs/observation-contract.md)
+for the conditioning assumptions; this is not Bayesian IPCW weighting.
 
 In 1.3, `antecedent.estimation.PreparedAnalysis` also stages Frequentist DAG
 derivatives, static natural mediation, explicit-DAG unit counterfactuals, and
