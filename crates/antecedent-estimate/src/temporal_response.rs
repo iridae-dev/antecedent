@@ -19,10 +19,11 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
-    Intervention, InterventionSequence, MechanismOverride, ObservationSpec, ParametricAssumption,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    TemporalEffectQuery, TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
+    Intervention, InterventionSequence, MAX_TEMPORAL_RESPONSE_CELLS, MechanismOverride,
+    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey,
+    TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{ResamplingPlan, TemporalIndexer, TimeSeriesData, fill_resample_index_batch};
 use antecedent_expr::IdentifiedEstimand;
@@ -35,13 +36,13 @@ use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::temporal_adjustment::TemporalLinearAdjustment;
-use crate::temporal_sequential::SequentialNodeOverlay;
+use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
 use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, range, sample_std};
 
-/// Licensed temporal InterventionResponse overlay.
+/// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TemporalInterventionPlan {
-    /// One treatment time from [`TemporalResponseSpec::policy`] (Set / Soft / single-step Sequence).
+    /// One treatment schedule from [`TemporalResponseSpec::policy`] (plain Set / Shift / Soft).
     Single {
         /// Intervened variable.
         treatment: VariableId,
@@ -50,14 +51,30 @@ pub enum TemporalInterventionPlan {
         /// Additive shift when `level` is `None`.
         shift: f64,
     },
-    /// Multi-step or joint Sequence: one overlay per intervened unfolded node.
+    /// Explicit Sequence: one overlay per intervened unfolded node.
     Sequential {
         /// Licensed Set / Soft constant / Soft shift overlays.
         overlays: Vec<SequentialNodeOverlay>,
     },
+    /// Deterministic mean mechanisms, evaluated through the unfolded engine.
+    Mechanisms {
+        /// Multiplicative or bounded-mean overlays, optionally mixed with Set/Shift.
+        overlays: Vec<SequentialMechanismOverlay>,
+    },
 }
 
 impl TemporalInterventionPlan {
+    /// Sequential mean-mechanism overlays; single Set/Shift keeps its direct path.
+    #[must_use]
+    pub fn mechanism_overlays(&self) -> Option<Vec<SequentialMechanismOverlay>> {
+        match self {
+            Self::Single { .. } => None,
+            Self::Sequential { overlays } => {
+                Some(overlays.iter().copied().map(Into::into).collect())
+            }
+            Self::Mechanisms { overlays } => Some(overlays.clone()),
+        }
+    }
     /// Treatment nodes the identifier must cover.
     #[must_use]
     pub fn identification_schedule(&self, spec: &TemporalResponseSpec) -> Vec<(VariableId, i32)> {
@@ -70,6 +87,10 @@ impl TemporalInterventionPlan {
             Self::Sequential { overlays } => {
                 overlays.iter().map(|overlay| (overlay.variable, overlay.offset)).collect()
             }
+            Self::Mechanisms { overlays } => overlays
+                .iter()
+                .map(|overlay| (overlay.node.variable, overlay.node.offset))
+                .collect(),
         }
     }
 }
@@ -86,6 +107,9 @@ const TREATMENT_COL: usize = 1;
 
 /// Per-horizon lag-aligned observed treatment `(min, max)`.
 type HorizonTreatmentRange = (f64, f64);
+
+/// Resolved Sequence leaf: variable, fixed level, shift, and active offsets.
+type SequenceLeaf = (VariableId, Option<f64>, f64, Arc<[i32]>);
 
 /// What [`TemporalResponseEstimator::run_per_horizon`] returns: the caller's
 /// per-horizon payloads alongside the lag-aligned treatment range, the
@@ -265,7 +289,8 @@ impl TemporalResponseEstimator {
                             assumptions,
                             ctx,
                         ),
-                    TemporalInterventionPlan::Sequential { .. } => {
+                    TemporalInterventionPlan::Sequential { .. }
+                    | TemporalInterventionPlan::Mechanisms { .. } => {
                         Err(EstimationError::unsupported(
                             "multi-step and joint Sequence overlays require the unfolded \
                              sequential estimator (Study temporal response path)",
@@ -330,7 +355,8 @@ impl TemporalResponseEstimator {
                     TemporalInterventionPlan::Single { treatment, level, shift } => {
                         (*outcome, treatment, Vec::new(), Some((level, shift)))
                     }
-                    TemporalInterventionPlan::Sequential { .. } => {
+                    TemporalInterventionPlan::Sequential { .. }
+                    | TemporalInterventionPlan::Mechanisms { .. } => {
                         return Err(EstimationError::unsupported(
                             "Bayesian multi-step Sequence uses sequential mechanism overlays, \
                              not response.temporal.bayesian / bayesian.gcomp",
@@ -428,7 +454,7 @@ impl TemporalResponseEstimator {
             )
         } else {
             (
-                flatten_dose_horizon_grid(&doses, &temporal.horizons),
+                flatten_dose_horizon_grid(&doses, &temporal.horizons)?,
                 2,
                 mean_curve_support(&doses, temporal, &ranges),
             )
@@ -475,7 +501,8 @@ impl TemporalResponseEstimator {
             return Err(EstimationError::unsupported("dose grid must be non-empty"));
         }
         let n_h = temporal.horizons.len();
-        let mut mean = Vec::with_capacity(doses.len().saturating_mul(n_h));
+        let cells = checked_surface_cells(doses.len(), n_h)?;
+        let mut mean = Vec::with_capacity(cells);
         let mut lower = Vec::with_capacity(mean.capacity());
         let mut upper = Vec::with_capacity(mean.capacity());
 
@@ -515,7 +542,7 @@ impl TemporalResponseEstimator {
             },
             identification_status,
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
-                grid: Arc::from(flatten_dose_horizon_grid(doses, &temporal.horizons)),
+                grid: Arc::from(flatten_dose_horizon_grid(doses, &temporal.horizons)?),
                 dimension: 2,
                 mean: Arc::from(mean),
             }),
@@ -882,15 +909,31 @@ fn design_column_means(design: &CompiledDesign) -> Vec<f64> {
     means
 }
 
-fn flatten_dose_horizon_grid(doses: &[f64], horizons: &[u32]) -> Vec<f64> {
-    let mut grid = Vec::with_capacity(doses.len().saturating_mul(horizons.len()).saturating_mul(2));
+fn checked_surface_cells(doses: usize, horizons: usize) -> Result<usize, EstimationError> {
+    let cells = doses
+        .checked_mul(horizons)
+        .filter(|cells| *cells <= MAX_TEMPORAL_RESPONSE_CELLS)
+        .ok_or_else(|| {
+        EstimationError::data_msg(
+            "temporal response dose-by-horizon cell count exceeds the materialization limit",
+        )
+    })?;
+    Ok(cells)
+}
+
+fn flatten_dose_horizon_grid(doses: &[f64], horizons: &[u32]) -> Result<Vec<f64>, EstimationError> {
+    let cells = checked_surface_cells(doses.len(), horizons.len())?;
+    let capacity = cells.checked_mul(2).ok_or_else(|| {
+        EstimationError::data_msg("temporal response coordinate grid size overflow")
+    })?;
+    let mut grid = Vec::with_capacity(capacity);
     for &dose in doses {
         for &h in horizons {
             grid.push(dose);
             grid.push(f64::from(h));
         }
     }
-    grid
+    Ok(grid)
 }
 
 fn named_adjustment(
@@ -1123,7 +1166,7 @@ fn assemble_temporal_support(
     }
 }
 
-/// Plan overlays for a temporal [`ResponseQuery`], if it is an InterventionResponse.
+/// Plan overlays for a temporal [`ResponseQuery`], if it is an `InterventionResponse`.
 ///
 /// # Errors
 ///
@@ -1142,7 +1185,7 @@ pub fn plan_from_response_query(
     }
 }
 
-/// Classify a temporal InterventionResponse as a single-node overlay or a
+/// Classify a temporal `InterventionResponse` as a single-node overlay or a
 /// sequential schedule. Nested Sequence stays refused. Multi-step never
 /// collapses to the last step.
 ///
@@ -1164,6 +1207,9 @@ pub fn plan_temporal_intervention(
              (use Sequence for multi-step or joint policies)",
         ));
     }
+    if let Some(plan) = plan_mean_mechanisms(&interventions[0], spec)? {
+        return Ok(plan);
+    }
     match &interventions[0] {
         Intervention::Sequence(seq) => plan_sequence(seq, spec, 0),
         other => {
@@ -1171,6 +1217,91 @@ pub fn plan_temporal_intervention(
             Ok(TemporalInterventionPlan::Single { treatment, level, shift })
         }
     }
+}
+
+fn plan_mean_mechanisms(
+    intervention: &Intervention,
+    spec: &TemporalResponseSpec,
+) -> Result<Option<TemporalInterventionPlan>, EstimationError> {
+    let leaves = match intervention {
+        Intervention::Sequence(sequence) => {
+            sequence.steps.iter().map(|step| &step.intervention).collect::<Vec<_>>()
+        }
+        other => vec![other],
+    };
+    if !leaves.iter().any(|leaf| matches!(leaf,
+        Intervention::Soft { mechanism, .. } if matches!(mechanism.family_id.as_ref(), "multiplicative" | "truncated_shift"))) {
+        return Ok(None);
+    }
+    let mut modifiers = Vec::new();
+    let mut replacements = Vec::new();
+    for leaf in leaves {
+        let mut multiplier = 1.0;
+        let mut bounds = None;
+        let mut replacement = leaf.clone();
+        if let Intervention::Soft { variable, mechanism } = leaf {
+            match mechanism.family_id.as_ref() {
+                "multiplicative" => {
+                    if mechanism.parameters.len() != 1 || !mechanism.parameters[0].is_finite() {
+                        return Err(EstimationError::unsupported(
+                            "multiplicative requires one finite mean multiplier",
+                        ));
+                    }
+                    multiplier = mechanism.parameters[0];
+                    replacement =
+                        Intervention::soft(*variable, MechanismOverride::additive_shift(0.0));
+                }
+                "truncated_shift" => {
+                    let p = &mechanism.parameters;
+                    if p.len() != 3 || p.iter().any(|v| !v.is_finite()) || p[1] > p[2] {
+                        return Err(EstimationError::unsupported(
+                            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+                        ));
+                    }
+                    bounds = Some((p[1], p[2]));
+                    replacement =
+                        Intervention::soft(*variable, MechanismOverride::additive_shift(p[0]));
+                }
+                _ => {}
+            }
+        }
+        modifiers.push((multiplier, bounds));
+        replacements.push(replacement);
+    }
+    let surrogate = if let Intervention::Sequence(sequence) = intervention {
+        let mut sequence = sequence.clone();
+        let mut steps = sequence.steps.to_vec();
+        for (step, replacement) in steps.iter_mut().zip(replacements) {
+            step.intervention = replacement;
+        }
+        sequence.steps = Arc::from(steps);
+        Intervention::Sequence(sequence)
+    } else {
+        replacements.remove(0)
+    };
+    let base = plan_temporal_intervention(&[surrogate], spec)?;
+    let nodes = match base {
+        TemporalInterventionPlan::Single { treatment, level, shift } => spec
+            .policy
+            .active_offsets()
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?
+            .iter()
+            .map(|&offset| SequentialNodeOverlay { variable: treatment, offset, level, shift })
+            .collect::<Vec<_>>(),
+        TemporalInterventionPlan::Sequential { overlays } => overlays,
+        TemporalInterventionPlan::Mechanisms { .. } => {
+            unreachable!("surrogate contains only Set/Shift")
+        }
+    };
+    let overlays = nodes
+        .into_iter()
+        .enumerate()
+        .map(|(index, node)| {
+            let (multiplier, bounds) = modifiers[if modifiers.len() == 1 { 0 } else { index }];
+            SequentialMechanismOverlay { node, multiplier, bounds }
+        })
+        .collect();
+    Ok(Some(TemporalInterventionPlan::Mechanisms { overlays }))
 }
 
 /// `depth` counts levels of `Intervention::Sequence` nesting already entered.
@@ -1274,8 +1405,25 @@ fn plan_sequence(
         leaves.push((variable, level, shift, offsets));
     }
     if leaves.len() == 1 {
-        let (treatment, level, shift, _) = leaves[0].clone();
-        return Ok(TemporalInterventionPlan::Single { treatment, level, shift });
+        let (variable, level, shift, offsets) = &leaves[0];
+        // Pulse(0) / a singleton window at 0 is the implicit Sequence shorthand
+        // and attaches to the spec origin. Any other native step policy — Pulse(-2),
+        // Sustained(-3, -1), or a window that already includes time 0 among other
+        // times — is executed as written.
+        let resolved = match offsets.as_ref() {
+            [0] => Arc::<[i32]>::from([origin]),
+            _ => Arc::clone(offsets),
+        };
+        let overlays = resolved
+            .iter()
+            .map(|&offset| SequentialNodeOverlay {
+                variable: *variable,
+                offset,
+                level: *level,
+                shift: *shift,
+            })
+            .collect();
+        return Ok(TemporalInterventionPlan::Sequential { overlays });
     }
     let offsets = sequence_overlay_offsets(origin, &leaves)?;
     let mut overlays = Vec::with_capacity(leaves.len());
@@ -1303,7 +1451,7 @@ fn plan_sequence(
 /// Explicit distinct Pulse offsets are honored.
 fn sequence_overlay_offsets(
     origin: i32,
-    leaves: &[(VariableId, Option<f64>, f64, Arc<[i32]>)],
+    leaves: &[SequenceLeaf],
 ) -> Result<Vec<i32>, EstimationError> {
     let n = i32::try_from(leaves.len())
         .map_err(|_| EstimationError::unsupported("Sequence is too long"))?;
@@ -1418,6 +1566,121 @@ mod tests {
         assert_eq!(overlays[1].offset, -1);
         assert_eq!(overlays[1].level, Some(5.0));
         assert_ne!(overlays[0].level, overlays[1].level);
+    }
+
+    #[test]
+    fn implicit_single_step_pulse_zero_attaches_to_spec_origin() {
+        use antecedent_core::SequencedIntervention;
+
+        let variable = VariableId::from_raw(0);
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let sequence = InterventionSequence::new([SequencedIntervention {
+            intervention: Intervention::set(variable, Value::f64(1.0)),
+            temporal: TemporalPolicy::pulse(0),
+        }]);
+        let TemporalInterventionPlan::Sequential { overlays } =
+            plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+        else {
+            panic!("an implicit Pulse(0) Sequence must resolve to overlays");
+        };
+        assert_eq!(
+            overlays,
+            vec![SequentialNodeOverlay { variable, offset: -1, level: Some(1.0), shift: 0.0 }]
+        );
+    }
+
+    #[test]
+    fn sequence_step_order_is_the_schedule_not_a_set() {
+        use antecedent_core::SequencedIntervention;
+
+        let variable = VariableId::from_raw(0);
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let forward = InterventionSequence::new([
+            SequencedIntervention {
+                intervention: Intervention::set(variable, Value::f64(0.0)),
+                temporal: TemporalPolicy::pulse(0),
+            },
+            SequencedIntervention {
+                intervention: Intervention::set(variable, Value::f64(5.0)),
+                temporal: TemporalPolicy::pulse(0),
+            },
+        ]);
+        let reversed = InterventionSequence::new([
+            SequencedIntervention {
+                intervention: Intervention::set(variable, Value::f64(5.0)),
+                temporal: TemporalPolicy::pulse(0),
+            },
+            SequencedIntervention {
+                intervention: Intervention::set(variable, Value::f64(0.0)),
+                temporal: TemporalPolicy::pulse(0),
+            },
+        ]);
+        let TemporalInterventionPlan::Sequential { overlays: a } =
+            plan_temporal_intervention(&[Intervention::Sequence(forward)], &spec).unwrap()
+        else {
+            panic!("expected sequential overlays");
+        };
+        let TemporalInterventionPlan::Sequential { overlays: b } =
+            plan_temporal_intervention(&[Intervention::Sequence(reversed)], &spec).unwrap()
+        else {
+            panic!("expected sequential overlays");
+        };
+        assert_eq!(a[0].offset, -2);
+        assert_eq!(a[1].offset, -1);
+        assert_eq!(a[0].level, Some(0.0));
+        assert_eq!(a[1].level, Some(5.0));
+        assert_eq!(b[0].offset, -2);
+        assert_eq!(b[1].offset, -1);
+        assert_eq!(b[0].level, Some(5.0));
+        assert_eq!(b[1].level, Some(0.0));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn single_step_sequence_preserves_explicit_pulse_offset() {
+        use antecedent_core::SequencedIntervention;
+
+        let variable = VariableId::from_raw(0);
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let sequence = InterventionSequence::new([SequencedIntervention {
+            intervention: Intervention::set(variable, Value::f64(2.0)),
+            temporal: TemporalPolicy::pulse(-2),
+        }]);
+        let TemporalInterventionPlan::Sequential { overlays } =
+            plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+        else {
+            panic!("an explicit Sequence must resolve to overlays");
+        };
+        assert_eq!(
+            overlays,
+            vec![SequentialNodeOverlay { variable, offset: -2, level: Some(2.0), shift: 0.0 }]
+        );
+    }
+
+    #[test]
+    fn single_step_sequence_expands_explicit_sustained_policy() {
+        use antecedent_core::SequencedIntervention;
+
+        let variable = VariableId::from_raw(0);
+        let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
+        let sequence = InterventionSequence::new([SequencedIntervention {
+            intervention: Intervention::shift(variable, Value::f64(0.5)),
+            temporal: TemporalPolicy::sustained(-3, -1),
+        }]);
+        let TemporalInterventionPlan::Sequential { overlays } =
+            plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+        else {
+            panic!("an explicit Sequence must resolve to overlays");
+        };
+        assert_eq!(
+            overlays.iter().map(|overlay| overlay.offset).collect::<Vec<_>>(),
+            vec![-3, -2, -1]
+        );
+        assert!(
+            overlays.iter().all(
+                |overlay| overlay.level.is_none() && (overlay.shift - 0.5).abs() < f64::EPSILON
+            )
+        );
     }
 
     #[test]
