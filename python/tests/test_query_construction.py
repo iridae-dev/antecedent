@@ -117,8 +117,7 @@ def test_temporal_mediation_effect_three_identifier_prefix():
     assert q.contrast == "direct"
     assert q.control_level == 0.1
     assert list(q.horizons) == [1]
-    multi = TemporalMediationEffect("t", "m", "y", horizons=[1, 2])
-    assert list(multi.horizons) == [1, 2]
+    assert list(TemporalMediationEffect("t", "m", "y", horizons=[1, 2]).horizons) == [1, 2]
     with pytest.raises(CausalValueError, match="non-empty"):
         TemporalMediationEffect("t", "m", "y", horizons=())
     with pytest.raises(CausalValueError, match="strictly increasing"):

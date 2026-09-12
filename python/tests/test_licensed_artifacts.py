@@ -125,6 +125,7 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
                 "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
                 "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
                 "target_population": "all_observed",
+                "horizons": [1],
             }
         },
         ["t", "m", "y"],
