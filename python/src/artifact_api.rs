@@ -2,8 +2,8 @@
 
 use antecedent_io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, InterferenceEstimateWire,
-    TransportEffectEstimateWire, TransportIdentificationWire, decode_causal_payload_artifact,
-    encode_causal_payload_artifact,
+    TransportEffectEstimateWire, TransportIdentificationWire, decode_analysis_result_artifact,
+    decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -110,9 +110,14 @@ fn encode_causal_artifact<'py>(
     payload_json: &str,
     artifact_id: &str,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    let payload = parse_payload(payload_kind, payload_json)?;
-    let artifact = encode_causal_payload_artifact(&payload, variable_names, artifact_id)
-        .map_err(serialization_error)?;
+    let artifact = if payload_kind == "analysis_result" {
+        let result = parse::<antecedent_io::AnalysisResultWire>(payload_json)?;
+        antecedent_io::encode_analysis_result_artifact(&result, variable_names, artifact_id)
+    } else {
+        let payload = parse_payload(payload_kind, payload_json)?;
+        encode_causal_payload_artifact(&payload, variable_names, artifact_id)
+    }
+    .map_err(serialization_error)?;
     let mut bytes = Vec::new();
     artifact.write_to(&mut bytes).map_err(serialization_error)?;
     // Return real Python `bytes`, not the `list[int]` PyO3 would produce from
@@ -123,8 +128,18 @@ fn encode_causal_artifact<'py>(
 
 #[pyfunction]
 fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
-    let (artifact, header, payload) =
-        decode_causal_payload_artifact(bytes).map_err(serialization_error)?;
+    let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
+        let (artifact, header, payload) =
+            decode_analysis_result_artifact(bytes).map_err(serialization_error)?;
+        return Ok(DecodedCausalArtifact {
+            artifact_id: artifact.manifest.artifact_id,
+            format_major: artifact.manifest.format_version.major,
+            format_minor: artifact.manifest.format_version.minor,
+            payload_kind: "analysis_result".into(),
+            variable_names: header.variable_names,
+            payload_json: json(&payload)?,
+        });
+    };
     Ok(DecodedCausalArtifact {
         artifact_id: artifact.manifest.artifact_id,
         format_major: artifact.manifest.format_version.major,
