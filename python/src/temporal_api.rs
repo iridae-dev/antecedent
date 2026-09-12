@@ -122,8 +122,9 @@ pub(crate) struct PredictSummary {
 pub(crate) struct AnalysisResult {
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
+    /// Scalar contrast when one exists. Function-valued results omit it.
     #[pyo3(get)]
-    pub(crate) ate: f64,
+    pub(crate) ate: Option<f64>,
     #[pyo3(get)]
     pub(crate) se_analytic: f64,
     #[pyo3(get)]
@@ -1803,7 +1804,7 @@ fn analysis_result_from_run(
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let estimate = EstimateSection {
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         estimator_id: estimator_id.clone(),
@@ -1960,7 +1961,7 @@ fn analysis_result_from_run(
 
     Ok(AnalysisResult {
         certificate_json,
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         plan_id,

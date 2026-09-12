@@ -122,7 +122,7 @@ class TemporalMediationGridView:
 
 @dataclass(frozen=True)
 class EstimateView:
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     estimator_id: str
@@ -484,16 +484,21 @@ class AnalysisResult:
     support: list[str] | None = None
 
     @property
-    def effect(self) -> float:
-        """Primary requested contrast, including mediation and mean ITE."""
+    def effect(self) -> float | None:
+        """Primary requested contrast, including mediation and mean ITE.
+
+        Function-valued results omit a scalar; the response or mediation grid
+        is authoritative.
+        """
         return self.estimate.ate
 
     @property
-    def ate(self) -> float:
+    def ate(self) -> float | None:
         """Alias for :attr:`effect`.
 
         On counterfactual results this is mean unit ITE, not a population ATE.
-        Prefer :attr:`mean_ite` or :attr:`effect` there.
+        Prefer :attr:`mean_ite` or :attr:`effect` there. Function-valued
+        results omit a scalar rather than publishing NaN.
         """
         return self.effect
 
@@ -502,6 +507,8 @@ class AnalysisResult:
         """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
+        if self.effect is None:
+            raise AttributeError("mean_ite requires a scalar effect")
         return self.effect
 
     def __repr__(self) -> str:

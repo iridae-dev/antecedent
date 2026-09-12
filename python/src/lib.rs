@@ -938,8 +938,9 @@ struct IdentificationSection {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct EstimateSection {
+    /// Scalar contrast when one exists. Function-valued results omit it.
     #[pyo3(get)]
-    ate: f64,
+    ate: Option<f64>,
     #[pyo3(get)]
     se_analytic: f64,
     #[pyo3(get)]

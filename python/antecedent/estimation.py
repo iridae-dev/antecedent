@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
@@ -172,12 +173,23 @@ def _section_identification(raw: Any) -> Any:
     )
 
 
+def _optional_finite_ate(value: Any) -> float | None:
+    """Omit non-finite sentinels so function-valued results have no scalar ate."""
+    if value is None:
+        return None
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    return as_float if math.isfinite(as_float) else None
+
+
 def _section_estimate(raw: Any) -> Any:
     sec = getattr(raw, "estimate", None)
     if sec is not None:
         return sec
     return SimpleNamespace(
-        ate=raw.ate,
+        ate=_optional_finite_ate(getattr(raw, "ate", None)),
         se_analytic=raw.se_analytic,
         se_bootstrap=raw.se_bootstrap,
         estimator_id=str(getattr(raw, "estimator_id", "") or ""),
@@ -442,7 +454,7 @@ def _wrap_ate(
             derivation_step_count=sec_identification.derivation_step_count,
         ),
         estimate=EstimateView(
-            ate=sec_estimate.ate,
+            ate=_optional_finite_ate(getattr(sec_estimate, "ate", None)),
             se_analytic=sec_estimate.se_analytic,
             se_bootstrap=sec_estimate.se_bootstrap,
             estimator_id=sec_estimate.estimator_id,

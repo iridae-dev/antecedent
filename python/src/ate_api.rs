@@ -2210,7 +2210,7 @@ pub(crate) fn ate_result_from_analysis(
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let estimate = EstimateSection {
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         estimator_id: estimator_id.clone(),
