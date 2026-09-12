@@ -80,6 +80,30 @@ the contemporaneous column: the Cox/AIPW design uses Z at
 
 Until a pair is licensed, `compile_logical_temporal_response` refuses
 non-`Complete` with `temporal response observation pair is not licensed`.
-Bayesian temporal response, delayed entry, interval/truncation, cheap/full,
-and `TemporalCpdag` / `TemporalPag` observation rides stay refused.
-Observation-adjusted temporal surfaces omit uncertainty.
+Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
+When bootstrap replicates are requested, observation-adjusted temporal
+surfaces — including Sequence overlays — report pointwise outer circular-block
+bootstrap intervals. Every replicate resamples the original series, refits the
+selected/KM/Cox observation nuisance, reconstructs the pseudo-outcome, and
+refits every horizon or sequential overlay. Complete-data analytic bands and
+Bayesian IPCW/KM/Cox bands are not substituted.
+
+
+### Bayesian temporal observed-data likelihood
+
+The same five selected/right-/left-censored temporal pairs support Gaussian
+SEM latent-trajectory Gibbs sampling, including multi-step Sequence. This
+route integrates missing and censored outcomes through the observed-data
+likelihood; it does not use fitted IPCW weights as a Bayesian likelihood.
+
+Its declared ignorability assumption concerns the entire selection-indicator
+trajectory or censoring-bound trajectory: conditional on fully observed Z,
+that trajectory is independent of the latent outcome trajectory. Censoring
+event indicators are deterministic comparisons of outcomes with bounds and
+are not assumed independent of the outcome. Distinct observation/outcome
+priors permit the ignorable observation factor to be omitted. Intervals are
+pointwise posterior bands under the Gaussian mechanism model and this
+trajectory assumption, not a guarantee of repeated-sampling coverage.
+
+Consuming evidence: `crates/antecedent/tests/temporal_observed_bayesian.rs`;
+backend provenance: `provenance/estimate.temporal_observed_bayes.toml`.

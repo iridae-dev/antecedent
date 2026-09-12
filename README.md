@@ -60,15 +60,16 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.5.0**.
-Implemented additions include
-retargetable prepared plans, exceedance functionals, cell-saturated joint
-AIPW, and tier-background identification on the existing licensed cells. The
-[1.5.0 release notes](docs/release-notes/v1.5.0.md) and
-[evidence ledger](docs/v1.5-evidence.md) describe the implemented scope and
-verification limits. Start with the [1.5 Python walkthrough](docs/local-distributional-joint.md)
-for retargeting, CDFs, and joint interventions; see the
-[release checklist](docs/development.md#releases) for release requirements.
+The current package version is **1.6.0**.
+The release adds per-horizon temporal identification, sequential policy
+overlays, licensed temporal observation correction, DBN-posterior temporal
+mixtures, and bounded prior transfer on supported temporal cells. The
+[1.6.0 release notes](docs/release-notes/v1.6.0.md), [support
+matrix](docs/support-matrix.md), and [conformance index](docs/conformance/README.md)
+state the implemented scope and verification limits. The [1.5 Python
+walkthrough](docs/local-distributional-joint.md) remains the guide for
+retargeting, CDFs, and joint interventions; see the [release
+checklist](docs/development.md#releases) for release requirements.
 
 [Documentation](https://antecedent.readthedocs.io/) ·
 [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) ·

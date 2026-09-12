@@ -28,8 +28,10 @@ Static Cpdag / Pag Frequentist effect and response aggregates publish joint-IF
 standard errors mixed by frozen completion weights. Scalar Dag
 `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control
 contrast; plugin g-comp cheap is overlap only and full is overlap plus sampling-stability of the g-comp level.
-`ResponseCurve` cheap/full stay n/a. Temporal / DBN multi-atom Frequentist
-uncertainty stays unavailable until 1.9.
+`ResponseCurve` cheap/full stay n/a. Frequentist DBN Pulse/Sustained
+mixtures use shared outer-block replicates; TemporalCpdag/TemporalPag
+class-envelope between-atom variance remains undisclosed pending 1.9
+calibration.
 
 The 1.4 matrix licenses the 1.3 families plus:
 
@@ -198,7 +200,9 @@ The following are current product boundaries or explicit matrix refusals:
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no Frequentist DBN-posterior mixing (1.7) or response mixtures over graph posteriors;
+- no temporal graph-posterior response surface or Bayesian response bands over
+  incomplete temporal classes; static DAG graph-posterior responses and
+  Frequentist DBN Pulse/Sustained mixtures are licensed;
 - no Bayesian or partial-graph derivative cells;
 - no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
