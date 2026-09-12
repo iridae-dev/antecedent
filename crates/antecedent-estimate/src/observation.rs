@@ -331,7 +331,7 @@ impl ObservationMechanismEstimator {
         let (table, start) = if conditioning.is_empty() {
             (TabularData::new(data.storage().clone()), 0)
         } else {
-            lag_aligned_observation_table(data, &conditioning, offset)?
+            lag_aligned_observation_table(data, conditioning, offset)?
         };
         let subset = self.adjusted_outcome(&table, query, None)?;
         let mut values = data.float64_values(outcome)?;
@@ -638,7 +638,7 @@ fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], Est
     }
 }
 
-fn require_temporal_observation_containment(
+pub(crate) fn require_temporal_observation_containment(
     query: &ResponseQuery,
     treatment: VariableId,
     adjustment: &[VariableId],

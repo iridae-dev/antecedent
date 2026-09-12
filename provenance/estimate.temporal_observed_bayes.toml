@@ -1,0 +1,20 @@
+feature_id = "estimate.temporal_observed_bayes"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "Inference and missing data", doi = "10.1093/biomet/63.3.581", sections = ["Bayesian ignorability under distinct parameters and independent priors"] },
+  { title = "Posterior Computations for Censored Regression Data", doi = "10.1080/01621459.1990.10474947", sections = ["Normal regression data augmentation"] },
+  { title = "Simulation of truncated normal variables", url = "https://arxiv.org/abs/0907.4010", sections = ["One-sided exponential rejection proposal"] },
+]
+upstream_implementations_observed = []
+implementation_deviations = [
+  "Independent implementation: Gibbs latent-outcome augmentation with exact normal/inverse-gamma coefficient conditional draws for time-homogeneous linear Gaussian SEM equations. Each equation uses unique series rows; coefficients are shared across unfolded time copies.",
+  "Selected and right/left censored outcome trajectories have Gaussian Markov-blanket conditionals using the outcome equation and all child equations. The selection-indicator trajectory or censoring-bound trajectory is assumed independent of the latent outcome trajectory conditional on the declared fully observed conditioning trajectory; nuisance parameters are distinct with independent priors, so the observation-process likelihood integrates out. This is not a Bayesian IPCW or Cox pseudo-likelihood.",
+  "Independent isotropic mechanism coefficient priors use the existing normal/inverse-gamma convention. Latent initial history uses independent N(0, prior_scale squared) priors; no stationarity/stability prior is imposed on autoregressive coefficients. Other root variables use empirical exogenous standardization; unfolding boundary copies use empirical means conditional on the imputed history.",
+  "Four Gibbs chains use at least 1024 retained sweeps each after 512 warmup sweeps. R-hat, bulk and tail ESS gate both parameters and reported response cells. Exact conditional transitions have unit acceptance and no Hamiltonian integration; zero integration error is a diagnostic convention, not a measured HMC statistic.",
+  "Credible intervals are pointwise posterior quantiles under this parametric observed-data model. Joint longitudinal empirical support is not assessed. External response-prior mappings do not define priors for every mechanism and are not silently repurposed.",
+]
+test_sources = ["conformance/bayesian/temporal_observed_response", "crates/antecedent-estimate/src/temporal_observed_bayes.rs", "crates/antecedent/tests/temporal_observed_bayesian.rs", "python/tests/test_temporal_observed_bayesian.py"]
