@@ -159,13 +159,67 @@ impl DbnIdentifyDemotion {
 /// Prepare-time identification for every atom in a DBN graph posterior.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedDbnPosteriorIdentification {
-    /// Frozen weights, graph keys, and identified/unidentified flags.
+    /// Frozen weights and keys; mediation flags describe eligibility at any
+    /// cached horizon until projected with `mediation_horizon`.
     pub graphs: WeightedGraphSamples,
     /// Identified atoms, in posterior order. Unidentified atoms remain in
     /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
     pub atoms: Arc<[CachedDbnPosteriorAtomIdentification]>,
-    /// Identification-time demotion counts, frozen with the cache.
+    /// Identification-time demotions for contrasts or a projected mediation
+    /// horizon. Unprojected mediation uses `horizon_demotions` instead.
     pub identify_demotion: DbnIdentifyDemotion,
+    /// Mediation failure counts for each requested horizon. Empty for contrasts.
+    pub horizon_demotions: Arc<[(u32, DbnIdentifyDemotion)]>,
+}
+
+impl CachedDbnPosteriorIdentification {
+    /// Project the cached union of eligible mediation atoms onto one horizon.
+    /// An atom's failure at another horizon never changes this horizon's mass.
+    pub fn mediation_horizon(&self, horizon: u32) -> Result<Self, CausalError> {
+        let identify_demotion = self
+            .horizon_demotions
+            .iter()
+            .find(|(h, _)| *h == horizon)
+            .map(|(_, counts)| counts.clone())
+            .ok_or_else(|| CausalError::Compile {
+                message: format!("DBN mediation cache missing I({horizon})"),
+            })?;
+        let atoms: Vec<_> = self
+            .atoms
+            .iter()
+            .filter_map(|atom| {
+                let entry = atom.horizons.as_ref()?.get(horizon)?.clone();
+                Some(CachedDbnPosteriorAtomIdentification {
+                    key: atom.key,
+                    estimand: entry.estimand.clone(),
+                    identification: entry.identification.clone(),
+                    indexer: entry.indexer.clone(),
+                    horizons: Some(CachedTemporalIdentification { by_horizon: Arc::from([entry]) }),
+                })
+            })
+            .collect();
+        let eligible: std::collections::HashSet<_> = atoms.iter().map(|atom| atom.key).collect();
+        let flags: Vec<_> = self
+            .graphs
+            .graph_keys
+            .iter()
+            .map(|key| {
+                if eligible.contains(key) {
+                    GraphIdentFlag::Identified
+                } else {
+                    GraphIdentFlag::Unidentified
+                }
+            })
+            .collect();
+        let graphs = WeightedGraphSamples::new(
+            Arc::clone(&self.graphs.weights),
+            flags,
+            Arc::clone(&self.graphs.graph_keys),
+        )
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let horizon_demotions = Arc::from([(horizon, identify_demotion.clone())]);
+        Ok(Self { graphs, atoms: atoms.into(), identify_demotion, horizon_demotions })
+    }
 }
 
 /// Identify every atom in a static graph posterior and retain its original mass.
@@ -355,7 +409,12 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 
     let graphs = WeightedGraphSamples::new(weights, flags, keys)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms), identify_demotion })
+    Ok(CachedDbnPosteriorIdentification {
+        graphs,
+        atoms: Arc::from(atoms),
+        identify_demotion,
+        horizon_demotions: Arc::from([]),
+    })
 }
 
 /// Identify every DBN atom for [`CausalQuery::Mediation`] (`TemporalMediationEffect`).
@@ -369,8 +428,33 @@ pub(crate) fn build_dbn_posterior_mediation_identification_cache(
     query: &MediationQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
-    use crate::strategy_table::EstimatorId;
+    build_dbn_mediation_cache_with_identifier(
+        posterior,
+        variables,
+        query,
+        ctx,
+        |_, _, graph, horizon_query| {
+            identify_temporal_mediation_horizons(
+                graph,
+                horizon_query,
+                crate::strategy_table::EstimatorId::BayesianTemporalMediation,
+            )
+        },
+    )
+}
 
+fn build_dbn_mediation_cache_with_identifier(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &MediationQuery,
+    ctx: &ExecutionContext,
+    mut identify: impl FnMut(
+        usize,
+        u32,
+        &TemporalDag,
+        &MediationQuery,
+    ) -> Result<CachedTemporalIdentification, CausalError>,
+) -> Result<CachedDbnPosteriorIdentification, CausalError> {
     let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
@@ -382,7 +466,9 @@ pub(crate) fn build_dbn_posterior_mediation_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let mut identify_demotion = DbnIdentifyDemotion::default();
+    query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let mut horizon_demotions: Vec<_> =
+        query.horizons.iter().map(|h| (*h, DbnIdentifyDemotion::default())).collect();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -406,38 +492,42 @@ pub(crate) fn build_dbn_posterior_mediation_identification_cache(
             variables,
         ) else {
             flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.invalid_graph += 1;
+            for (_, counts) in &mut horizon_demotions {
+                counts.invalid_graph += 1;
+            }
             continue;
         };
-        let Ok(horizons) = identify_temporal_mediation_horizons(
-            &graph,
-            query,
-            EstimatorId::BayesianTemporalMediation,
-        ) else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.identify_failed += 1;
-            continue;
-        };
-        let Some(first) = horizons.by_horizon.first() else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.no_estimand += 1;
-            continue;
-        };
-        if !horizons.by_horizon.iter().all(|entry| {
-            super::execute::identification_status_ok_for_case(entry.identification.status)
-                && !entry.identification.estimands.is_empty()
-        }) {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.not_identified += 1;
-            continue;
+        let mut entries = Vec::new();
+        for (horizon, counts) in &mut horizon_demotions {
+            let mut horizon_query = query.clone();
+            horizon_query.horizons = Arc::from([*horizon]);
+            let Ok(horizons) = identify(i, *horizon, &graph, &horizon_query) else {
+                counts.identify_failed += 1;
+                continue;
+            };
+            let Some(entry) = horizons.by_horizon.first() else {
+                counts.no_estimand += 1;
+                continue;
+            };
+            if !super::execute::identification_status_ok_for_case(entry.identification.status)
+                || entry.identification.estimands.is_empty()
+            {
+                counts.not_identified += 1;
+                continue;
+            }
+            entries.push(entry.clone());
         }
+        let Some(first) = entries.first() else {
+            flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        };
         flags.push(GraphIdentFlag::Identified);
         atoms.push(CachedDbnPosteriorAtomIdentification {
             key,
             estimand: first.estimand.clone(),
             identification: first.identification.clone(),
             indexer: first.indexer.clone(),
-            horizons: Some(horizons),
+            horizons: Some(CachedTemporalIdentification { by_horizon: entries.into() }),
         });
     }
     if ctx.cancellation.is_cancelled() {
@@ -446,7 +536,12 @@ pub(crate) fn build_dbn_posterior_mediation_identification_cache(
 
     let graphs = WeightedGraphSamples::new(weights, flags, keys)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(CachedDbnPosteriorIdentification { graphs, atoms: Arc::from(atoms), identify_demotion })
+    Ok(CachedDbnPosteriorIdentification {
+        graphs,
+        atoms: atoms.into(),
+        identify_demotion: DbnIdentifyDemotion::default(),
+        horizon_demotions: horizon_demotions.into(),
+    })
 }
 
 fn dbn_temporal_effect_estimator(
@@ -516,11 +611,8 @@ pub struct CachedTemporalHorizonIdentification {
 /// frozen once per unique requested horizon. For scalar
 /// [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained), they are
 /// frozen for that query's horizon. For [`CausalQuery::Mediation`]
-/// (`TemporalMediationEffect`) the same shape caches one `I(h)` per requested
-/// horizon: path-product method `temporal_mediation.*` with that horizon's
-/// unfolded backdoor `Z`. Estimate clicks reuse the cache and must not
-/// re-identify. A union of per-horizon adjustment sets is not treated as
-/// one shared `Z`.
+/// (`TemporalMediationEffect`), identification is frozen independently for
+/// every requested horizon.
 #[derive(Clone, Debug)]
 pub struct CachedTemporalIdentification {
     /// One entry per unique requested horizon, in query order.
@@ -575,6 +667,12 @@ impl PreparedStudy {
     #[must_use]
     pub fn query(&self) -> &CausalQuery {
         &self.analysis.query
+    }
+
+    /// Frozen horizon-specific identification and its exact unfolded variable namespace.
+    #[must_use]
+    pub fn temporal_identification(&self) -> Option<&CachedTemporalIdentification> {
+        self.analysis.temporal_identification_cache.as_deref()
     }
 
     /// Borrow the frozen schema fingerprint.
@@ -824,6 +922,7 @@ impl PreparedStudy {
             distribution: None,
             posterior: None,
             mediation: None,
+            mediation_grid: None,
             counterfactual: None,
             anomaly: None,
             change_attribution: None,
@@ -1183,9 +1282,9 @@ impl Study {
     ///   on a supplied [`GraphClass::TemporalDag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step or
     ///   multi-step Sustained) on a supplied DBN graph posterior
-    /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
-    ///   supplied [`GraphClass::TemporalDag`] (one `I(h)` per requested horizon)
-    /// - series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
+    /// - scalar-horizon series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
+    ///   supplied [`GraphClass::TemporalDag`] (horizon-specific `I(h)`)
+    /// - scalar-horizon series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
     ///   supplied DBN graph posterior (per-atom `I(h)`, unidentified mass retained)
     ///
     /// Discovery inputs and review-required compiles are refused.
@@ -1920,9 +2019,9 @@ fn sequence_identification_schedule(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<Option<Vec<(antecedent_core::VariableId, i32)>>, CausalError> {
     match antecedent_estimate::plan_from_response_query(query) {
-        Ok(Some(antecedent_estimate::TemporalInterventionPlan::Sequential { overlays })) => {
-            Ok(Some(overlays.iter().map(|o| (o.variable, o.offset)).collect()))
-        }
+        Ok(Some(plan)) => Ok(plan
+            .mechanism_overlays()
+            .map(|overlays| overlays.iter().map(|o| (o.node.variable, o.node.offset)).collect())),
         Ok(_) => Ok(None),
         Err(error) => Err(CausalError::from(error)),
     }
@@ -2021,13 +2120,15 @@ pub(crate) fn identify_temporal_mediation_horizons(
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
         return match (&analysis.data, &analysis.query) {
-            (DataInput::Tabular(_), CausalQuery::AverageEffect(_))
-            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_))
-            | (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => Ok(()),
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_) | CausalQuery::Response(_))
+            | (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
+            ) => Ok(()),
             _ => Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: "graph_posterior on the prepared handle is licensed only for \
-                    tabular AverageEffect and series TemporalEffect or \
+                    tabular AverageEffect/Response and series TemporalEffect or \
                     TemporalMediationEffect",
             }),
         };
@@ -2163,3 +2264,7 @@ mod tests {
         assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
     }
 }
+
+#[cfg(test)]
+#[path = "dbn_mediation_cache_tests.rs"]
+mod dbn_mediation_cache_tests;

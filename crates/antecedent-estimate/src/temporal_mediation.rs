@@ -15,7 +15,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, MediationContrast, MediationQuery};
+use antecedent_core::{
+    AssumptionSet, Diagnostic, ExecutionContext, IdentificationStatus, Lag, MediationContrast,
+    MediationQuery, TemporalNodeKey,
+};
 use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
@@ -35,6 +38,88 @@ pub struct TemporalMediationEstimate {
     pub direct: Option<f64>,
     /// Mediated / indirect effect (when computed).
     pub mediated: Option<f64>,
+}
+
+/// One scalar posterior summary within a horizon-specific mediation decomposition.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MediationPosteriorSummary {
+    /// Posterior mean.
+    pub mean: f64,
+    /// Posterior standard deviation.
+    pub standard_deviation: f64,
+    /// Equal-tail 2.5% quantile.
+    pub q025: f64,
+    /// Equal-tail 97.5% quantile.
+    pub q975: f64,
+}
+
+/// Honest uncertainty retained for one temporal mediation horizon.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum TemporalMediationUncertainty {
+    /// Sampling standard error for the requested contrast. The decomposition
+    /// components do not acquire unsupported iid uncertainty.
+    FrequentistPointwise {
+        /// Standard error, absent when the estimator cannot justify one.
+        standard_error: Option<f64>,
+    },
+    /// Separate per-horizon posterior summaries. This is not a joint posterior
+    /// over horizons.
+    BayesianPointwise {
+        /// Requested contrast.
+        requested: MediationPosteriorSummary,
+        /// Total effect.
+        total: MediationPosteriorSummary,
+        /// Direct effect.
+        direct: MediationPosteriorSummary,
+        /// Mediated effect.
+        mediated: MediationPosteriorSummary,
+        /// Draw count used at this horizon.
+        n_draws: usize,
+        /// Inference backend identifier.
+        backend: Arc<str>,
+    },
+    /// No justified uncertainty was available.
+    Unavailable,
+}
+
+/// Closed interval over completion-specific mediation point effects.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TemporalMediationIdentifiedSet {
+    /// Minimum completion-specific point effect.
+    pub lower: f64,
+    /// Maximum completion-specific point effect.
+    pub upper: f64,
+}
+
+/// One independently identified and estimated temporal mediation horizon.
+#[derive(Clone, Debug)]
+pub struct TemporalMediationSlice {
+    /// Requested horizon.
+    pub horizon: u32,
+    /// Identification status at this horizon.
+    pub identification_status: IdentificationStatus,
+    /// Identifier/estimand method.
+    pub method: Arc<str>,
+    /// Horizon-specific unfolded adjustment set `I(h)`.
+    pub adjustment: Arc<[TemporalNodeKey]>,
+    /// Requested effect and decomposition.
+    pub estimate: TemporalMediationEstimate,
+    /// Pointwise uncertainty semantics for this horizon.
+    pub uncertainty: TemporalMediationUncertainty,
+    /// Structural completion range, when the input is an incomplete graph class.
+    pub identified_set: Option<TemporalMediationIdentifiedSet>,
+    /// Horizon-local identification and estimation diagnostics.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Durable multi-horizon temporal mediation result.
+#[derive(Clone, Debug)]
+pub struct TemporalMediationGrid {
+    /// Slices in requested horizon order.
+    pub slices: Arc<[TemporalMediationSlice]>,
+    /// Always false until a shared dynamic posterior defines cross-horizon dependence.
+    pub joint_posterior: bool,
 }
 
 /// Linear temporal mediation estimator (two-stage / path-product).
