@@ -38,9 +38,9 @@ pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_HORIZONS, ObservationAssumption,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TEMPORAL_OBSERVATION_UNLICENSED,
-    TemporalResponseLicense, TemporalResponseSpec,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
+    TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
