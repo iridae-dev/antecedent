@@ -45,6 +45,7 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalMediationEffect,
 )
 from .results import IdentificationView
 
@@ -85,6 +86,7 @@ class Identification:
         | DirectionalDerivative
         | ResponseJacobian
         | MediationEffect
+        | TemporalMediationEffect
         | Counterfactual
     )
     names: list[str] | None = None
@@ -94,6 +96,19 @@ class Identification:
     # Complete native certificate: per-completion wire records, coordinates,
     # weights, derivations, assumptions, expression arenas, and search limits.
     certificate: dict[str, Any] | None = None
+
+    @property
+    def completion_keys(self) -> list[int]:
+        """Stable temporal-class completion fingerprints for :class:`ClassPrior`."""
+        certificate = self.certificate or {}
+        keys = certificate.get("completion_keys")
+        if keys:
+            return [int(key) for key in keys]
+        return [
+            int(case["fingerprint"])
+            for case in certificate.get("cases", [])
+            if "fingerprint" in case
+        ]
 
     def __bool__(self) -> bool:
         """``True`` when the estimand is identified.
@@ -238,6 +253,10 @@ class _IdentifyStructureKwargs(TypedDict, total=False):
     active_level: float
     window: tuple[int, int] | None
     treatments: list[str]
+    horizons: list[int]
+    max_history_lag: int | None
+    response_grid: list[float]
+    response_steps: list[tuple[str, str, list[float]]]
 
 
 def _identify_typed_graph(
@@ -262,7 +281,7 @@ def _identify_typed_graph(
     if isinstance(query, (ResponseCurve, InterventionResponse)):
         from .observation import Complete
 
-        if query.is_temporal or (
+        if (not query.is_temporal) and (
             query.observation is not None and not isinstance(query.observation, Complete)
         ):
             raise CausalUnsupportedError(
@@ -272,10 +291,51 @@ def _identify_typed_graph(
         kind = "average_effect"
         treatment, outcome = query.treatment, query.outcome
         extra: _IdentifyStructureKwargs = {}
+    elif isinstance(query, ResponseCurve) and getattr(query, "is_temporal", False):
+        kind = "temporal_response"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "treatment_lag": query.treatment_lag,
+            "policy": query.policy,
+            "horizons": list(query.horizons or [1]),
+            "max_history_lag": query.max_history_lag,
+            "response_grid": list(query.grid),
+            "horizon_steps": int((getattr(query, "horizons", None) or [1])[0]),
+        }
     elif isinstance(query, ResponseCurve):
         kind = "response"
         treatment, outcome = query.treatment, query.outcome
         extra = {}
+    elif isinstance(query, TemporalMediationEffect):
+        kind = "temporal_mediation"
+        treatment, outcome = query.treatment, query.outcome
+        extra = {
+            "treatments": [query.mediator],
+            "horizons": list(query.horizons or [1]),
+            "policy": query.contrast,
+            "horizon_steps": int((query.horizons or [1])[0]),
+        }
+    elif isinstance(query, InterventionResponse) and query.is_temporal:
+        from ._analyze import _encode_temporal_interventions
+
+        supplied_steps = query.intervention
+        specs = (
+            list(supplied_steps)
+            if isinstance(supplied_steps, Sequence) and not isinstance(supplied_steps, (str, bytes))
+            else [supplied_steps]
+        )
+        steps = [step for spec in specs for step in _encode_temporal_interventions(spec)]
+        if not steps:
+            raise CausalValueError("InterventionResponse requires at least one intervention")
+        kind = "temporal_response"
+        treatment, outcome = steps[0][0], query.outcome
+        extra = {
+            "response_steps": steps,
+            "policy": query.policy,
+            "treatment_lag": query.treatment_lag,
+            "horizons": list(query.horizons or [1]),
+            "max_history_lag": query.max_history_lag,
+        }
     elif isinstance(query, InterventionResponse):
         kind = "intervention_response"
         spec = query.intervention
@@ -377,7 +437,8 @@ def identify(
     | DirectionalDerivative
     | ResponseJacobian
     | MediationEffect
-    | Counterfactual,
+    | Counterfactual
+    | TemporalMediationEffect,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> Identification:
