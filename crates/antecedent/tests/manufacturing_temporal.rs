@@ -251,6 +251,7 @@ fn known_truth_dbn_posterior(
     .with_algorithm("known_truth_fixture")
 }
 
+#[allow(clippy::too_many_lines)]
 fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: RefuteSuite) {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -369,6 +370,83 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 }
 
 #[test]
+fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_effect"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let seed = pin["seed"].as_u64().unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, _, query) = white_noise_pulse_series(n, seed);
+    let posterior = known_truth_dbn_posterior(pin, &weights, &query);
+    let study = Study::series(series.clone())
+        .graph_posterior(posterior)
+        .temporal_query(query)
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(12)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(41);
+    let result = study.run(&ctx).unwrap();
+    assert!(
+        (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
+            < pin["effect_abs_tolerance"].as_f64().unwrap()
+    );
+    assert!(result.estimate.se_bootstrap.is_some());
+    assert_eq!(result.estimate.bootstrap_replicates_ok, Some(12));
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
+            && diagnostic.message.contains("shared circular-block")
+    }));
+}
+
+#[test]
+fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_effect"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let seed = pin["seed"].as_u64().unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    for (policy, suite) in [
+        (TemporalPolicy::pulse(-1), RefuteSuite::Cheap),
+        (TemporalPolicy::sustained(-1, -1), RefuteSuite::Full),
+    ] {
+        let (series, _, query) = white_noise_pulse_series(n, seed);
+        let query = query.with_policy(policy);
+        let posterior = known_truth_dbn_posterior(pin, &weights, &query);
+        let result = Study::series(series)
+            .graph_posterior(posterior)
+            .temporal_query(query)
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(43))
+            .unwrap();
+        assert!(!result.refutations.is_empty(), "{suite:?} must emit mixed atom refuters");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code.as_ref() == "refute.envelope.effect_mixture" })
+        );
+        assert!(
+            (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
+                < pin["effect_abs_tolerance"].as_f64().unwrap()
+        );
+    }
+}
+
+#[test]
 fn manufacturing_dbn_posterior_bayesian_sustained_envelope() {
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
         assert_manufacturing_dbn_known_truth_mixture(TemporalPolicy::sustained(-1, -1), suite);
@@ -384,7 +462,7 @@ fn manufacturing_dbn_posterior_bayesian_sustained_multistep_envelope() {
 }
 
 #[test]
-fn manufacturing_dbn_posterior_multistep_sustained_refuses_cheap_rather_than_collapse() {
+fn manufacturing_dbn_posterior_multistep_sustained_supports_cheap_without_collapse() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
     ))
@@ -398,23 +476,23 @@ fn manufacturing_dbn_posterior_multistep_sustained_refuses_cheap_rather_than_col
     let q = q.with_policy(TemporalPolicy::sustained(-2, -1));
     let gp = known_truth_dbn_posterior(pin, &weights, &q);
     let ctx = ExecutionContext::for_tests(11);
-    let err = Study::series(series)
-        .graph_posterior(gp)
-        .temporal_query(q)
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
-        ))
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap_err();
-    let message = err.to_string();
-    assert!(
-        message.contains("validation=none") && !message.contains("one-node"),
-        "multi-step DBN cheap must refuse rather than collapse, got {message}"
-    );
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0)),
+    ] {
+        let result = Study::series(series.clone())
+            .graph_posterior(gp.clone())
+            .temporal_query(q.clone())
+            .inference(inference)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!(result.estimate.ate.is_finite());
+        assert!(!result.refutations.is_empty());
+    }
 }
 
 fn mediation_series(n: usize) -> (TimeSeriesData, MediationQuery) {
@@ -595,6 +673,34 @@ fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
         assert_dbn_mediation_known_truth_mixture(suite);
     }
+}
+
+#[test]
+fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, query) = mediation_series(usize::try_from(pin["n"].as_u64().unwrap()).unwrap());
+    let mut query = query;
+    query.horizons = Arc::from([1u32, 2]);
+    let posterior = known_truth_dbn_mediation_posterior(pin, &weights);
+    let result = Study::series(series)
+        .graph_posterior(posterior)
+        .query(CausalQuery::Mediation(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(43))
+        .unwrap();
+    assert_eq!(result.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    assert!(result.posterior.is_none());
+    assert!(result.mediation.is_none());
 }
 
 #[test]

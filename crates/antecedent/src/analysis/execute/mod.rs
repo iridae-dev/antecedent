@@ -236,6 +236,7 @@ mod dispatch;
 mod pag_path;
 mod panel_path;
 mod response_path;
+mod sequential_validation;
 mod static_path;
 mod temporal_path;
 include!("execute_helpers.rs");
