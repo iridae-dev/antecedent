@@ -5,6 +5,7 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod arrow_section;
 pub mod causal_artifact;
@@ -39,6 +40,13 @@ pub mod trace;
 pub mod transport_interference_wire;
 pub mod wire;
 
+pub use analysis_result_artifact::{
+    AnalysisResultHeader, AnalysisResultWire, MediationPosteriorSummaryWire,
+    StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
+    TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
+    TemporalMediationUncertaintyWire, decode_analysis_result_artifact,
+    encode_analysis_result_artifact,
+};
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
     RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
@@ -133,11 +141,12 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    GridSpecWire, IdentificationStatusWire, ObservationAssumptionWire, ObservationSpecWire,
-    ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseQueryWire,
-    ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire, SupportRegionWire,
-    SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
-    causal_response_to_wire, response_query_from_wire, response_query_to_wire,
+    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, ObservationAssumptionWire,
+    ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire,
+    ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire,
+    SupportRegionWire, SupportReportWire, SupportStatusWire, TemporalResponseSpecWire,
+    causal_response_from_wire, causal_response_to_wire, response_query_from_wire,
+    response_query_to_wire, response_value_from_wire, response_value_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

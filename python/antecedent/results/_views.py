@@ -15,6 +15,8 @@ from ._format import fmt_float, fmt_pct, fmt_se
 __all__ = [
     "IdentificationView",
     "MediationView",
+    "TemporalMediationSliceView",
+    "TemporalMediationGridView",
     "EstimateView",
     "ConflictSummaryView",
     "PosteriorView",
@@ -82,6 +84,40 @@ class MediationView:
             f"<MediationView total={fmt_float(self.total)} "
             f"direct={fmt_float(self.direct)} mediated={fmt_float(self.mediated)}>"
         )
+
+
+@dataclass(frozen=True)
+class TemporalMediationSliceView:
+    """One independently identified temporal mediation horizon."""
+
+    horizon: int
+    identification_status: str
+    method: str
+    adjustment: tuple[tuple[int, int], ...]
+    effect: float
+    total: float
+    direct: float
+    mediated: float
+    uncertainty_kind: str
+    standard_deviation: float | None = None
+    q025: float | None = None
+    q975: float | None = None
+    identified_lower: float | None = None
+    identified_upper: float | None = None
+
+
+@dataclass(frozen=True)
+class TemporalMediationGridView:
+    """Horizon-indexed decompositions; never an implicit joint posterior."""
+
+    slices: tuple[TemporalMediationSliceView, ...]
+    joint_posterior: bool = False
+
+    def __len__(self) -> int:
+        return len(self.slices)
+
+    def __iter__(self) -> Iterator[TemporalMediationSliceView]:
+        return iter(self.slices)
 
 
 @dataclass(frozen=True)
@@ -434,6 +470,7 @@ class AnalysisResult:
     diagnostics: list[str]
     provenance: dict[str, Any]
     mediation: MediationView | None = None
+    mediation_grid: TemporalMediationGridView | None = None
     plan: PlanView | None = None
     evidence_status: str | None = None
     allowlist_reason: str | None = None

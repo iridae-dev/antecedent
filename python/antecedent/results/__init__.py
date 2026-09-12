@@ -15,6 +15,8 @@ from ._views import (
     PredictiveCheckReport,
     PriorSensitivityReport,
     RefutationReport,
+    TemporalMediationGridView,
+    TemporalMediationSliceView,
     ValidationView,
 )
 from .response import (
@@ -31,6 +33,8 @@ from .response import (
 __all__ = [
     "IdentificationView",
     "MediationView",
+    "TemporalMediationGridView",
+    "TemporalMediationSliceView",
     "EstimateView",
     "ConflictSummaryView",
     "PosteriorView",

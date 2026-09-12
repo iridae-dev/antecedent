@@ -810,3 +810,45 @@ def test_transport_and_interference_result_artifacts(
         artifacts.dumps(kind, payload, variable_names=variable_names, artifact_id="result")  # type: ignore[arg-type]
     )
     assert decoded.payload == payload
+
+
+def test_composite_analysis_artifact_can_be_reencoded() -> None:
+    query = _response_query(
+        {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}}
+    )
+    payload = {
+        "query": query,
+        "identification": {
+            "status": "nonparametrically_identified",
+            "query": query,
+            "estimands": [],
+            "arena": {"var_sets": [], "interventions": [], "lists": [], "nodes": []},
+            "derivation": [],
+            "required_assumptions": [],
+            "diagnostics": [],
+            "candidates_examined": 0,
+            "sets_returned": 0,
+        },
+        "estimate": 1.0,
+        "standard_error": 0.2,
+        "assumptions": [],
+        "diagnostics": [],
+        "refutations": [],
+        "response": None,
+        "posterior_artifact": None,
+        "mediation_grid": None,
+        "structural_response": None,
+    }
+    first = artifacts.loads(
+        artifacts.dumps("analysis_result", payload, variable_names=["a", "y"], artifact_id="first")
+    )
+    second = artifacts.loads(
+        artifacts.dumps(
+            first.payload_kind,
+            first.payload,
+            variable_names=first.variable_names,
+            artifact_id="second",
+        )
+    )
+    assert second.payload == first.payload
+    assert second.payload_kind == "analysis_result"
