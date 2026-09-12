@@ -86,6 +86,21 @@ pub enum MechanismSlotWire {
         /// Initial mean.
         initial_mean: f64,
     },
+    /// LGSSM residual process with a conditional regression mean.
+    ConditionalLinearGaussianStateSpace {
+        /// Regression intercept.
+        intercept: f64,
+        /// Parent coefficients in graph-parent order.
+        coeffs: Vec<f64>,
+        /// Residual autoregressive coefficient.
+        a: f64,
+        /// Process standard deviation.
+        process_std: f64,
+        /// Observation standard deviation.
+        obs_std: f64,
+        /// Initial residual-state mean.
+        initial_mean: f64,
+    },
     /// GP dual form.
     GaussianProcess {
         /// Length scale.
@@ -178,6 +193,21 @@ fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
                 initial_mean: *initial_mean,
             })
         }
+        MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept,
+            coeffs,
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+        } => Ok(MechanismSlotWire::ConditionalLinearGaussianStateSpace {
+            intercept: *intercept,
+            coeffs: coeffs.to_vec(),
+            a: *a,
+            process_std: *process_std,
+            obs_std: *obs_std,
+            initial_mean: *initial_mean,
+        }),
         MechanismSlot::GaussianProcess {
             length_scale,
             variance,
@@ -241,6 +271,21 @@ fn slot_from_wire(s: &MechanismSlotWire) -> MechanismSlot {
                 initial_mean: *initial_mean,
             }
         }
+        MechanismSlotWire::ConditionalLinearGaussianStateSpace {
+            intercept,
+            coeffs,
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+        } => MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept: *intercept,
+            coeffs: Arc::from(coeffs.as_slice()),
+            a: *a,
+            process_std: *process_std,
+            obs_std: *obs_std,
+            initial_mean: *initial_mean,
+        },
         MechanismSlotWire::GaussianProcess {
             length_scale,
             variance,
@@ -288,6 +333,32 @@ mod tests {
             output[..parents.n_rows].fill(0.0);
             Ok(())
         }
+    }
+
+    #[test]
+    fn conditional_lgssm_roundtrip_retains_regression_and_state_parameters() {
+        let store = CompiledMechanismStore {
+            slots: Arc::from([MechanismSlot::ConditionalLinearGaussianStateSpace {
+                intercept: 3.0,
+                coeffs: Arc::from([1.5, -2.0]),
+                a: 0.7,
+                process_std: 0.2,
+                obs_std: 0.1,
+                initial_mean: -0.5,
+            }]),
+        };
+        let wire = mechanisms_to_wire(&store).unwrap();
+        let bytes = crate::to_cbor(&wire).unwrap();
+        let decoded = crate::from_cbor(&bytes).unwrap();
+        let restored = mechanisms_from_wire(&decoded).unwrap();
+        assert_eq!(mechanisms_to_wire(&restored).unwrap(), wire);
+        let MechanismSlot::ConditionalLinearGaussianStateSpace { intercept, coeffs, .. } =
+            &restored.slots[0]
+        else {
+            panic!("conditional state-space family was lost");
+        };
+        // Regression mean for parents (4, 1) must remain 3 + 1.5*4 - 2 = 7.
+        assert!((intercept + coeffs[0] * 4.0 + coeffs[1] - 7.0).abs() < 1e-12);
     }
 
     #[test]

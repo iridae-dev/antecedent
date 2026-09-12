@@ -230,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn weighting_trim_analytic_se_uses_retained_n() {
+    fn weighting_trim_reports_finite_analytic_se_and_exclusion() {
         let (data, estimand) = confounded_scm_with_outlier(800, 21);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -419,22 +419,20 @@ mod tests {
     }
 
     #[test]
-    fn hajek_influence_se_zero_weight_rows_dilute_n() {
-        // One treated unit trimmed (w=0). Same Hajek ψ, different n: full-sample
-        // SE is anti-conservative relative to the retained-row SE.
+    fn fixed_weight_hajek_finite_sample_correction_depends_on_n() {
+        // With fixed weights, a zero-weight row changes the finite-sample
+        // correction. Estimated weights additionally require all nuisance rows.
         let t_full = [1.0, 1.0, 0.0, 0.0];
         let y_full = [3.0, 5.0, 1.0, 2.0];
         let w_full = [2.0, 0.0, 1.0, 1.0];
-        let e_full = [0.5, 0.01, 0.5, 0.5];
-        let se_full = hajek_influence_se(&t_full, &y_full, &w_full, &e_full, &[], 0).unwrap();
+        let se_full = hajek_influence_se(&t_full, &y_full, &w_full, None).unwrap();
         let t_kept = [1.0, 0.0, 0.0];
         let y_kept = [3.0, 1.0, 2.0];
         let w_kept = [2.0, 1.0, 1.0];
-        let e_kept = [0.5, 0.5, 0.5];
-        let se_kept = hajek_influence_se(&t_kept, &y_kept, &w_kept, &e_kept, &[], 0).unwrap();
+        let se_kept = hajek_influence_se(&t_kept, &y_kept, &w_kept, None).unwrap();
         assert!(
             se_kept > se_full,
-            "retained-n SE must exceed full-n SE with zero-weight rows; full={se_full} kept={se_kept}"
+            "finite-sample corrections differ for zero-weight rows; full={se_full} kept={se_kept}"
         );
     }
 

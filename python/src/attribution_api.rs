@@ -361,7 +361,17 @@ fn evaluate_decision_py(
 #[pyfunction]
 fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
     catch_ffi(|| {
-        let (meta, draws) = decode_causal_posterior_bytes(&bytes).map_err(py_err)?;
+        let decoded = decode_causal_posterior_bytes(&bytes).or_else(|posterior_error| {
+            let (_, _, composite) = antecedent_io::decode_analysis_result_artifact(&bytes)
+                .map_err(|_| posterior_error)?;
+            let nested = composite.posterior_artifact.ok_or_else(|| {
+                antecedent_io::IoError::Convert(
+                    "analysis_result artifact has no posterior axis".into(),
+                )
+            })?;
+            decode_causal_posterior_bytes(&nested)
+        });
+        let (meta, draws) = decoded.map_err(py_err)?;
         Ok(PosteriorArtifact {
             n_draws: meta.n_draws as usize,
             mean: meta.mean,

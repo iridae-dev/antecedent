@@ -40,7 +40,8 @@ pub enum AnalyticSeKind {
     Multiway,
     /// Newey–West HAC with the given lag.
     ///
-    /// Consecutive influence-function indices are treated as calendar time.
+    /// Explicit `panel_times` are used when supplied; otherwise consecutive
+    /// influence-function indices are treated as calendar time.
     /// After trim or matching the IF dispatcher requires `panel_times` and
     /// applies Bartlett products to those labels instead of the retained index.
     NeweyWest {
@@ -375,6 +376,8 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
 /// Newey–West HAC using calendar gaps in `times` rather than ψ index.
 ///
 /// Pair `(i, j)` contributes to lag `k` iff `times[i] − times[j] = k`.
+/// Scores sharing a time label are summed, including their lag-zero covariance.
+/// Calendar bandwidth is limited by the time span, not the retained row count.
 /// When `times` is `0..n-1` in ψ order this matches [`newey_west_influence_se`].
 #[must_use]
 pub(crate) fn newey_west_influence_se_at_times(psi: &[f64], times: &[i64], lag: usize) -> f64 {
@@ -383,32 +386,28 @@ pub(crate) fn newey_west_influence_se_at_times(psi: &[f64], times: &[i64], lag: 
         return f64::NAN;
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
-    let d: Vec<f64> = psi.iter().map(|v| v - mean).collect();
-    let mut gamma0 = 0.0;
-    for &x in &d {
-        gamma0 += x * x;
+    // Aggregate contemporaneous scores before forming the kernel quadratic form.
+    // This also handles repeated source rows after matching. Sorting once avoids
+    // scanning all n² pairs separately for every calendar lag.
+    let mut by_time = std::collections::BTreeMap::<i64, f64>::new();
+    for (&time, &score) in times.iter().zip(psi) {
+        *by_time.entry(time).or_default() += score - mean;
     }
-    gamma0 /= n as f64;
-    let mut hac = gamma0;
-    let span = match (times.iter().min(), times.iter().max()) {
-        (Some(&t0), Some(&t1)) => usize::try_from(t1.saturating_sub(t0).max(0)).unwrap_or(0),
-        _ => 0,
-    };
-    let l_eff = effective_nw_lag(lag, span.min(n.saturating_sub(1)));
-    for k in 1..=l_eff {
-        let k_i = i64::try_from(k).unwrap_or(i64::MAX);
-        let mut g = 0.0;
-        for i in 0..n {
-            for j in 0..n {
-                if times[i].checked_sub(times[j]) == Some(k_i) {
-                    g += d[i] * d[j];
-                }
+    let grouped: Vec<(i64, f64)> = by_time.into_iter().collect();
+    let span = grouped.last().unwrap().0.abs_diff(grouped[0].0);
+    let l_eff = effective_nw_lag(lag, usize::try_from(span).unwrap_or(usize::MAX));
+    let mut meat = grouped.iter().map(|&(_, score)| score * score).sum::<f64>();
+    for (i, &(time, score)) in grouped.iter().enumerate() {
+        for &(previous_time, previous_score) in grouped[..i].iter().rev() {
+            let gap = time.abs_diff(previous_time);
+            let Ok(gap) = usize::try_from(gap) else { break };
+            if gap > l_eff {
+                break;
             }
+            meat += 2.0 * bartlett_weight(gap, l_eff) * score * previous_score;
         }
-        g /= n as f64;
-        hac += 2.0 * bartlett_weight(k, l_eff) * g;
     }
-    (hac.max(0.0) / n as f64).sqrt()
+    (meat.max(0.0) / (n as f64).powi(2)).sqrt()
 }
 
 /// Panel cluster + within-unit Newey–West SE for a scalar IF.
@@ -488,7 +487,7 @@ pub(crate) fn influence_se_kind(
             multiway_influence_se(psi, &gathered)?
         }
         AnalyticSeKind::NeweyWest { lag } => {
-            if row_map.is_some() {
+            if row_map.is_some() || panel_times.is_some() {
                 let times_full = match panel_times {
                     Some(times) if times.len() == nrows => times,
                     Some(times) => {
@@ -522,6 +521,52 @@ pub(crate) fn influence_se_kind(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calendar_hac_includes_gaps_larger_than_row_count() {
+        // Centered scores [1, 1, -2], gamma0 sum 6; only the gap-5
+        // product contributes at bandwidth 5, with Bartlett weight 1/6.
+        let se = newey_west_influence_se_at_times(&[1.0, 1.0, -2.0], &[0, 5, 20], 5);
+        assert!((se * se - (6.0 + 2.0 / 6.0) / 9.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn calendar_hac_aggregates_contemporaneous_scores() {
+        // At lag zero the two time clusters have score sums +2 and -2.
+        let se = newey_west_influence_se_at_times(&[1.0, 1.0, -1.0, -1.0], &[0, 0, 5, 5], 0);
+        assert!((se * se - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn calendar_hac_honors_explicit_times_without_row_map() {
+        let psi = [1.0, 1.0, -2.0];
+        let se = influence_se_kind(
+            AnalyticSeKind::NeweyWest { lag: 5 },
+            &psi,
+            3,
+            None,
+            None,
+            Some(&[0, 5, 20]),
+            None,
+        )
+        .unwrap();
+        assert!((se * se - (6.0 + 2.0 / 6.0) / 9.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn calendar_hac_handles_extreme_time_labels_and_permutations() {
+        let psi = [1.0, -1.0, 2.0, -2.0];
+        let times = [i64::MIN, i64::MIN + 1, i64::MAX - 1, i64::MAX];
+        let se = newey_west_influence_se_at_times(&psi, &times, 1);
+        // Diagonal sum 10, two adjacent products -1 and -4, weight 1/2.
+        assert!((se * se - 5.0 / 16.0).abs() < 1e-12);
+        let permuted = newey_west_influence_se_at_times(
+            &[2.0, 1.0, -2.0, -1.0],
+            &[times[2], times[0], times[3], times[1]],
+            1,
+        );
+        assert!((se - permuted).abs() < 1e-12);
+    }
 
     #[test]
     fn hetero_influence_se_demeans() {

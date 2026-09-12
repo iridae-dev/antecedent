@@ -36,6 +36,11 @@ impl GraphMcmcSchedule {
         min: u32,
         refuse_msg: &'static str,
     ) -> Result<(), DiscoveryError> {
+        if self.n_draws < 4 || self.thin == 0 {
+            return Err(DiscoveryError::unsupported(
+                "graph MCMC requires at least four draws and positive thinning",
+            ));
+        }
         if self.n_chains < min {
             return Err(DiscoveryError::unsupported(refuse_msg));
         }
@@ -88,7 +93,7 @@ where
     F: Fn(usize, usize) -> (usize, Vec<f64>, Vec<Vec<u64>>, u64) + Send + Sync,
 {
     let threads = max_threads.max(1);
-    let chunk = (n_chains / threads).max(1);
+    let chunk = n_chains.div_ceil(threads).max(1);
     let mut outputs = Vec::new();
     std::thread::scope(|scope| {
         let mut handles = Vec::new();
@@ -187,5 +192,24 @@ impl FinishMaskPosterior<'_> {
             self.rejected,
             self.empty_msg,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn worker_partition_respects_nondivisible_thread_limit() {
+        let workers = AtomicUsize::new(0);
+        let (traces, samples, _) = run_parallel_mask_chains(5, 4, 1, 2, |start, end| {
+            workers.fetch_add(1, Ordering::Relaxed);
+            (start, vec![0.0; (end - start) * 4], vec![vec![0; 4]; end - start], 0)
+        });
+        assert_eq!(workers.load(Ordering::Relaxed), 2);
+        assert_eq!(traces.len(), 20);
+        assert_eq!(samples.len(), 5);
+        assert!(samples.iter().all(|chain| chain.len() == 4));
     }
 }

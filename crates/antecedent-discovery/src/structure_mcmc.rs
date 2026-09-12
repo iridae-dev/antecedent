@@ -22,7 +22,7 @@ use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, n_directed_edges,
     set_edge,
 };
-use crate::graph_score::{score_dag_mask, tabular_score_data};
+use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
 
 /// Structure MCMC with single-edge add / delete / reverse proposals.
 #[derive(Clone, Debug)]
@@ -138,6 +138,9 @@ impl StructureMcmc {
             ));
         }
 
+        let (initial_mask, initial_score) =
+            initial_scored_mask(n, &score_data, score_family, prior, variables)?;
+
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
@@ -156,10 +159,8 @@ impl StructureMcmc {
                         var_fingerprint: n as u64,
                         penalty_fingerprint: score_data.n_rows as u64,
                     });
-                    let mut mask = 0u64;
-                    let mut cur =
-                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
-                            .unwrap_or(f64::NEG_INFINITY);
+                    let mut mask = initial_mask;
+                    let mut cur = initial_score;
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
@@ -168,14 +169,9 @@ impl StructureMcmc {
                         let prop_score =
                             score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
                         let accept = match prop_score {
-                            Some(ps) if cur.is_finite() => {
+                            Some(ps) if ps.is_finite() => {
                                 let log_r = ps - cur + q_ratio.ln();
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                            }
-                            Some(ps) if !cur.is_finite() => {
-                                cur = ps;
-                                mask = prop;
-                                false
                             }
                             _ => false,
                         };
@@ -250,10 +246,12 @@ fn candidate_directed_list(n: usize, undirected: Option<&[(u32, u32)]>) -> Vec<(
             }
         }
     }
+    out.sort_unstable();
+    out.dedup();
     out
 }
 
-/// Propose add/delete/reverse; returns `(new_mask, q(old|new)/q(new|old) approx, rejected)`.
+/// Propose add/delete/reverse; returns `(new_mask, q(old|new)/q(new|old), rejected)`.
 fn propose_structure(
     mask: u64,
     n: usize,
@@ -363,5 +361,52 @@ mod tests {
         assert!(sk_xy > 0.4, "P(X—Y)={sk_xy}");
         assert!(sk_xz > 0.4, "P(X—Z)={sk_xz}");
         assert!(crate::graph_posterior::allows_graph_posterior(&post.diagnostics));
+    }
+    #[test]
+    fn mask_samplers_start_inside_required_edge_support() {
+        let (data, vars) = fork_data(100);
+        let mut prior = GraphPrior::uniform();
+        prior.constraints.required = Arc::from([
+            crate::graph_posterior::static_link(&vars, 2, 1),
+            crate::graph_posterior::static_link(&vars, 1, 0),
+        ]);
+        let ctx = ExecutionContext::for_tests(17);
+        let mut ws = DiscoveryWorkspace::default();
+        let structure = StructureMcmc::new()
+            .with_schedule(2, 0, 12, 1)
+            .with_diagnostics_gate(false)
+            .run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx)
+            .unwrap();
+        let order = crate::OrderMcmc::new()
+            .with_schedule(2, 0, 12, 1)
+            .with_diagnostics_gate(false)
+            .run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx)
+            .unwrap();
+        for posterior in [structure, order] {
+            for mask in posterior.adjacency.iter() {
+                assert!(has_edge(*mask, 3, 2, 1));
+                assert!(has_edge(*mask, 3, 1, 0));
+                assert!(mask_is_dag(*mask, 3));
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_schedule_is_reported_without_panicking() {
+        let (data, vars) = fork_data(20);
+        let mut engine = StructureMcmc::new().with_diagnostics_gate(false);
+        engine.thin = 0;
+        assert!(
+            engine
+                .run(
+                    &data,
+                    &vars,
+                    &GraphPrior::uniform(),
+                    GraphScoreFamily::GaussianBic,
+                    &mut DiscoveryWorkspace::default(),
+                    &ExecutionContext::for_tests(1)
+                )
+                .is_err()
+        );
     }
 }

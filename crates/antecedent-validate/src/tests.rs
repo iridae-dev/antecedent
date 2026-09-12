@@ -1134,8 +1134,7 @@ fn sensitivity_gram_matches_data_pass_partial_linear_bounded_u() {
 
 #[test]
 fn sensitivity_gram_matches_data_pass_when_treatment_has_invalids() {
-    // Replacing T/Y marks them all-valid, so the data-pass refit can resurrect
-    // a row that was missing on T. Gram must use that same post-replace row set.
+    // Both sensitivity paths must retain the original missingness pattern.
     let (complete, estimand, _) = toy_confounded();
     let data = with_invalid_treatment_row(&complete, 10);
     let mut est = LinearAdjustmentAte::new();
@@ -1395,4 +1394,89 @@ fn average_effect_treatment_routing_matrix() {
         !crate::common::binary_treatment(&problem).unwrap(),
         "empty complete-case remainder must not vacuously enter the binary path"
     );
+}
+
+#[test]
+fn refuter_replacement_preserves_missing_rows() {
+    let (complete, _, _) = toy_confounded();
+    let data = with_invalid_treatment_row(&complete, 10);
+    let replaced = crate::common::with_replaced_float(
+        &data,
+        VariableId::from_raw(0),
+        Arc::from(vec![0.0; data.row_count()]),
+    )
+    .unwrap();
+    let mask = replaced.complete_case_mask(&[VariableId::from_raw(0)]).unwrap();
+    assert!(!mask[10], "replacement must not resurrect a missing treatment");
+    assert_eq!(mask.iter().filter(|&&valid| valid).count(), data.row_count() - 1);
+}
+
+#[test]
+fn placebo_permutation_is_invariant_to_missing_payloads() {
+    let (complete, estimand, _) = toy_confounded();
+    let treatment = VariableId::from_raw(0);
+    let query = AverageEffectQuery::binary_ate(treatment, VariableId::from_raw(1));
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let ctx = ExecutionContext::for_tests(47);
+    let mut ws = EstimationWorkspace::default();
+    let mut results = Vec::new();
+    for payload in [0.0, f64::NAN] {
+        let mut values = complete.float64_values(treatment).unwrap();
+        values[10] = payload;
+        let data = complete.with_replaced_float(treatment, Arc::from(values)).unwrap();
+        let data = with_invalid_treatment_row(&data, 10);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let mut placebo = PlaceboTreatment::new();
+        placebo.mode = PlaceboMode::Permute;
+        placebo.replicates = 4;
+        results.push(placebo.refute(&problem, &mut ws, &ctx).unwrap().refuted_ate);
+    }
+    assert!((results[0] - results[1]).abs() < 1e-12);
+}
+
+#[test]
+fn sensitivity_reports_respect_treatment_contrast_units() {
+    let (data, estimand, _) = toy_confounded();
+    let treatment = VariableId::from_raw(0);
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let ctx = ExecutionContext::for_tests(47);
+    let mut ws = EstimationWorkspace::default();
+    let mut reports = Vec::new();
+    for delta in [1.0, 2.0, -1.0] {
+        let mut query = AverageEffectQuery::binary_ate(treatment, VariableId::from_raw(1));
+        query.active =
+            antecedent_core::Intervention::set(treatment, antecedent_core::Value::Float64(delta));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let nonparametric =
+            NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+        let unobserved = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
+        reports.push((
+            nonparametric.refuted_ate / delta,
+            nonparametric.comparison,
+            unobserved.comparison,
+        ));
+    }
+    for report in &reports[1..] {
+        assert!((report.0 - reports[0].0).abs() < 1e-12);
+        assert!((report.1 - reports[0].1).abs() < 1e-12);
+        assert!((report.2 - reports[0].2).abs() < 1e-12);
+    }
 }

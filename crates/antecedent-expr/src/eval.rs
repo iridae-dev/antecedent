@@ -1125,4 +1125,101 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, EvalError::DivisionByZero);
     }
+    #[test]
+    fn simplification_preserves_overlapping_binding_multiplicity() {
+        // The inner x shadows the outer x: summing over outer (x,y)
+        // therefore counts each inner marginal twice. Unioning binders loses 2.
+        for integral in [false, true] {
+            let mut arena = CausalExprArena::new();
+            let empty = arena.empty_var_set();
+            let empty_i = arena.empty_intervention_set();
+            let x = v(0);
+            let y = v(1);
+            let xset = arena.intern_var_set([x]);
+            let xyset = arena.intern_var_set([x, y]);
+            let dist = arena.intern(ExprNode::Distribution {
+                variables: xyset,
+                conditioned_on: empty,
+                intervention: empty_i,
+                domain: DomainRef::Observational,
+            });
+            let inner = arena.intern(if integral {
+                ExprNode::IntegralOut { variables: xset, expr: dist }
+            } else {
+                ExprNode::SumOut { variables: xset, expr: dist }
+            });
+            let root = arena.intern(if integral {
+                ExprNode::IntegralOut { variables: xyset, expr: inner }
+            } else {
+                ExprNode::SumOut { variables: xyset, expr: inner }
+            });
+            let simplified = arena.simplify(root).unwrap();
+            let mut provider = EmpiricalTableProvider::new();
+            provider.set_domain(x, [f(0.0), f(1.0)]);
+            provider.set_domain(y, [f(0.0), f(1.0)]);
+            let spec = FactorSpec {
+                variables: &[x, y],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            for xv in [0.0, 1.0] {
+                for yv in [0.0, 1.0] {
+                    provider
+                        .insert_probability(
+                            &spec,
+                            &Assignment::from_pairs([(x, f(xv)), (y, f(yv))]),
+                            0.25,
+                        )
+                        .unwrap();
+                }
+            }
+            for expr in [root, simplified] {
+                let value = arena
+                    .compile(expr)
+                    .unwrap()
+                    .evaluate(&arena, &provider, &EvalContext::default())
+                    .unwrap();
+                assert!((value - 2.0).abs() < 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn simplification_preserves_nested_ratio_zero_denominator() {
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let intervention = arena.empty_intervention_set();
+        let one = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: empty,
+            intervention,
+            domain: DomainRef::Observational,
+        });
+        let zero = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: empty,
+            intervention,
+            domain: DomainRef::Interventional,
+        });
+        let inner = arena.intern(ExprNode::Ratio { numerator: one, denominator: zero });
+        let outer = arena.intern(ExprNode::Ratio { numerator: one, denominator: inner });
+        let simplified = arena.simplify(outer).unwrap();
+        let mut provider = EmpiricalTableProvider::new();
+        for (domain, value) in [(DomainRef::Observational, 1.0), (DomainRef::Interventional, 0.0)] {
+            provider
+                .insert_probability(
+                    &FactorSpec { variables: &[], conditioned_on: &[], intervention: &[], domain },
+                    &Assignment::new(),
+                    value,
+                )
+                .unwrap();
+        }
+        for expr in [outer, simplified] {
+            assert_eq!(
+                arena.compile(expr).unwrap().evaluate(&arena, &provider, &EvalContext::default()),
+                Err(EvalError::DivisionByZero)
+            );
+        }
+    }
 }

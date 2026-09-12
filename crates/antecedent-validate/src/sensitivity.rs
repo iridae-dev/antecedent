@@ -300,15 +300,9 @@ impl SensitivityGram {
             // interaction model.
             return Ok(None);
         }
-        // Data-pass `with_replaced_float` marks T and Y all-valid, so `prepare`
-        // can keep rows that were missing on the original T/Y. Compile against
-        // that same table or the Gram row set silently disagrees.
-        let t0 = float64_full(problem.data, problem.treatment())?;
-        let y0 = float64_full(problem.data, problem.outcome())?;
-        let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t0))?;
-        let data = with_replaced_float(&data, problem.outcome(), Arc::from(y0))?;
+        // Perturbations preserve validity, so compile the original complete cases.
         let prep = estimator
-            .prepare(&data, problem.estimand, problem.query)
+            .prepare(problem.data, problem.estimand, problem.query)
             .map_err(ValidationError::from)?;
         let n = prep.design.nrows;
         let p = prep.design.ncols;
@@ -629,11 +623,26 @@ fn nw_loo_predict_pair(
     bandwidth: f64,
 ) -> (Vec<f64>, Vec<f64>) {
     let n = y1.len();
-    let h2 = (bandwidth.max(1e-6)).powi(2);
+    let h = bandwidth;
     let mut out1 = vec![0.0; n];
     let mut out2 = vec![0.0; n];
+    let mut distances = vec![0.0; n];
     for i in 0..n {
         let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
+        let mut nearest = f64::INFINITY;
+        for j in 0..n {
+            if i == j {
+                distances[j] = f64::INFINITY;
+                continue;
+            }
+            let xj = &cov_rowmajor[j * dim..(j + 1) * dim];
+            let mut distance = 0.0_f64;
+            for d in 0..dim {
+                distance = distance.hypot(xi[d] - xj[d]);
+            }
+            distances[j] = distance;
+            nearest = nearest.min(distance);
+        }
         let mut num1 = 0.0;
         let mut num2 = 0.0;
         let mut den = 0.0;
@@ -641,19 +650,21 @@ fn nw_loo_predict_pair(
             if i == j {
                 continue;
             }
-            let xj = &cov_rowmajor[j * dim..(j + 1) * dim];
-            let mut d2 = 0.0;
-            for d in 0..dim {
-                let t = xi[d] - xj[d];
-                d2 += t * t;
-            }
-            let w = (-0.5 * d2 / h2).exp();
+            let distance = distances[j];
+            // Subtract the largest log weight before exponentiation. Factoring
+            // d² - min(d)² avoids subtracting overflowed squares. The nearest
+            // observations always have weight 1, even for a tiny bandwidth.
+            let w = if distance == nearest {
+                1.0
+            } else {
+                (-0.5 * ((distance - nearest) / h) * (distance / h + nearest / h)).exp()
+            };
             num1 += w * y1[j];
             num2 += w * y2[j];
             den += w;
         }
-        out1[i] = if den > 1e-15 { num1 / den } else { y1[i] };
-        out2[i] = if den > 1e-15 { num2 / den } else { y2[i] };
+        out1[i] = num1 / den;
+        out2[i] = num2 / den;
     }
     (out1, out2)
 }
@@ -843,11 +854,25 @@ impl NonparametricSensitivity {
         if t.len() != n || y.len() != n {
             return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
         }
+        if n < 2 {
+            return Err(ValidationError::data_msg(
+                "nonparametric sensitivity requires at least 2 complete cases",
+            ));
+        }
         let h = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(&cov, n, dim));
+        if !h.is_finite() || h <= 0.0 {
+            return Err(ValidationError::data_msg(
+                "nonparametric sensitivity bandwidth must be finite and positive",
+            ));
+        }
         let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h);
         let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
         let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
 
+        let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
+            &problem.query.active,
+            &problem.query.control,
+        )?;
         let residual_ate = residual_ols_ate(&t_res, &y_res);
         let sd_t = sample_sd(&t_res).max(1e-12);
         let sd_y = sample_sd(&y_res).max(1e-12);
@@ -878,7 +903,7 @@ impl NonparametricSensitivity {
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.nonparametric"),
             original_ate: problem.original.ate,
-            refuted_ate: last_ate,
+            refuted_ate: last_ate * treatment_delta,
             comparison: robustness_value,
             informative: true,
             passed,
@@ -963,5 +988,36 @@ mod gram_algebra {
         for i in 0..p {
             assert!((xty[i] - xty_ref[i]).abs() < 1e-12, "xty[{i}]");
         }
+    }
+}
+
+#[cfg(test)]
+mod kernel_regressions {
+    use super::nw_loo_predict_pair;
+
+    #[test]
+    fn leave_one_out_does_not_leak_target_when_weights_underflow() {
+        let (first, second) =
+            nw_loo_predict_pair(&[100.0, 2.0, 4.0], &[50.0, 10.0, 20.0], &[0.0, 1.0, 3.0], 1, 1e-6);
+        assert_eq!(first, vec![2.0, 100.0, 2.0]);
+        assert_eq!(second, vec![10.0, 50.0, 10.0]);
+    }
+
+    #[test]
+    fn leave_one_out_preserves_nearest_neighbor_ties() {
+        let (first, _) =
+            nw_loo_predict_pair(&[2.0, 100.0, 4.0], &[0.0; 3], &[-1.0, 0.0, 1.0], 1, 1e-6);
+        assert!((first[1] - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normalized_kernel_matches_direct_gaussian_weights() {
+        let y = [1.0, 4.0, 9.0];
+        let x = [0.0, 1.0, 2.0];
+        let (prediction, _) = nw_loo_predict_pair(&y, &y, &x, 1, 1.0);
+        let w1 = (-0.5_f64).exp();
+        let w2 = (-2.0_f64).exp();
+        assert!((prediction[0] - (w1 * 4.0 + w2 * 9.0) / (w1 + w2)).abs() < 1e-12);
+        assert!((prediction[1] - 5.0).abs() < 1e-12);
     }
 }

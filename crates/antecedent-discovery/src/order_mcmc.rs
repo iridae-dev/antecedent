@@ -21,7 +21,7 @@ use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mas
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
 };
-use crate::graph_score::{score_dag_mask, tabular_score_data};
+use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
 
 /// Order MCMC over topological orders and compatible forward edges.
 #[derive(Clone, Debug)]
@@ -112,6 +112,24 @@ impl OrderMcmc {
         schedule.require_min_chains(2, "order MCMC requires at least 2 chains for R-hat")?;
 
         let score_data = tabular_score_data(data, variables)?;
+        let (initial_mask, initial_score) =
+            initial_scored_mask(n, &score_data, score_family, prior, variables)?;
+        let mut initial_order = Vec::with_capacity(n);
+        while initial_order.len() < n {
+            let next = (0..n)
+                .find(|node| {
+                    !initial_order.contains(node)
+                        && (0..n).all(|parent| {
+                            parent == *node
+                                || !has_edge(initial_mask, n, parent, *node)
+                                || initial_order.contains(&parent)
+                        })
+                })
+                .expect("validated required-edge DAG has a topological order");
+            initial_order.push(next);
+        }
+        let initial_score = initial_score - log_topological_order_count(initial_mask, n);
+
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
@@ -130,28 +148,9 @@ impl OrderMcmc {
                         var_fingerprint: n as u64,
                         penalty_fingerprint: score_data.n_rows as u64,
                     });
-                    let mut order: Vec<usize> = (0..n).collect();
-                    for i in (1..n).rev() {
-                        let j = (rng.next_u64() as usize) % (i + 1);
-                        order.swap(i, j);
-                    }
-                    let mut mask = 0u64;
-                    let pos = position_map(&order);
-                    for i in 0..n {
-                        for j in 0..n {
-                            if i != j && pos[i] < pos[j] && rng.next_f64() < 0.3 {
-                                mask = set_edge(mask, n, i, j, true);
-                            }
-                        }
-                    }
-                    let mut cur =
-                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
-                            // MM-011: subtract log of the DAG's topological-order count so the
-                            // chain's stationary distribution is uniform over DAGs (given the
-                            // score), not over (order, forward-edge) pairs.
-                            .map_or(f64::NEG_INFINITY, |score| {
-                                score - log_topological_order_count(mask, n)
-                            });
+                    let mut order = initial_order.clone();
+                    let mut mask = initial_mask;
+                    let mut cur = initial_score;
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
@@ -161,12 +160,11 @@ impl OrderMcmc {
                             score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
                                 .map(|score| score - log_topological_order_count(new_mask, n));
                         let accept = match prop_score {
-                            Some(ps) if cur.is_finite() => {
+                            Some(ps) if ps.is_finite() => {
                                 let log_r = ps - cur;
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
-                            Some(_) => true,
-                            None => false,
+                            _ => false,
                         };
                         if accept {
                             if let Some(ps) = prop_score {

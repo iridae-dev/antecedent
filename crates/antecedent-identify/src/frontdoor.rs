@@ -42,10 +42,11 @@ use crate::result::{
 pub struct FrontDoorSearchConfig {
     /// Maximum number of mediator sets to return.
     pub max_results: usize,
-    /// Maximum cardinality of subsets of `children(T)\{Y}` enumerated as candidates.
+    /// Maximum cardinality of subsets of all intermediates enumerated as candidates.
     ///
-    /// Singletons outside that child set are still tested. Subsets larger than this
-    /// bound are skipped except the full child set (tested once when oversized).
+    /// All singletons are tested; all-intermediate subsets are searched only for
+    /// pools of at most 12 nodes. Child subsets obey this cardinality bound, with
+    /// the full child set also tested once when oversized.
     pub max_mediator_set_size: usize,
 }
 
@@ -167,7 +168,9 @@ impl FrontDoorIdentifier {
             .filter(|&v| v != t && v != y)
             .collect();
         // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).
-        let mut search_bounded = child_overflow || intermediates.len() > 12;
+        let mut search_bounded = child_overflow
+            || intermediates.len() > 12
+            || intermediates.len() > self.config.max_mediator_set_size.max(1);
         if intermediates.len() <= 12 {
             let max_all = self.config.max_mediator_set_size.min(intermediates.len());
             for k in 1..=max_all {
@@ -453,6 +456,32 @@ mod tests {
             }),
             "expected mediators {{M1,M2}}; got {:?}",
             res.estimands.iter().map(|e| e.mediators.clone()).collect::<Vec<_>>()
+        );
+    }
+    #[test]
+    fn nonchild_cardinality_limit_reports_incomplete_search() {
+        // Only one treatment child: the skipped {M,W} intermediate set used
+        // to go unreported because the warning only checked child subsets.
+        let mut graph = Dag::with_variables(4);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let identifier = FrontDoorIdentifier {
+            config: FrontDoorSearchConfig { max_results: 64, max_mediator_set_size: 1 },
+        };
+        let prepared = identifier.prepare(&graph).unwrap();
+        let query = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+        ));
+        let result = identifier
+            .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+            .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "identify.frontdoor.search_bounded")
         );
     }
 }
