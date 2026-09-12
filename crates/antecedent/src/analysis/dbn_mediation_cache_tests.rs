@@ -171,6 +171,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     );
     assert_ne!(grid.slices[0].identification_status, IdentificationStatus::GraphDependent);
     assert_eq!(grid.slices[1].identification_status, IdentificationStatus::GraphDependent);
+    assert_eq!(mixed.identification.status, IdentificationStatus::GraphDependent);
     for (slice, repeated) in
         grid.slices.iter().zip(repeated.mediation_grid.as_ref().unwrap().slices.iter())
     {
@@ -217,6 +218,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         (slices[0].estimate.effect.ate - fresh_grid.slices[0].estimate.effect.ate).abs() < 1e-12
     );
     assert_eq!(slices[1].identification_status, IdentificationStatus::NotIdentified);
+    assert_eq!(partial_grid.identification.status, IdentificationStatus::NotIdentified);
     assert!(slices[1].estimate.effect.ate.is_nan());
     assert!(matches!(
         slices[1].uncertainty,

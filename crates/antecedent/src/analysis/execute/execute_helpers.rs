@@ -619,6 +619,31 @@ fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> boo
         && left.rd_design == right.rd_design
 }
 
+/// Fail-closed rank: larger means less identified. Never used to upgrade a status.
+fn identification_closedness(status: IdentificationStatus) -> u8 {
+    match status {
+        IdentificationStatus::NonparametricallyIdentified => 0,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions => 1,
+        IdentificationStatus::IdentifiedUnderPriorRestrictions => 2,
+        IdentificationStatus::PartiallyIdentified => 3,
+        IdentificationStatus::GraphDependent => 4,
+        IdentificationStatus::NotIdentified => 5,
+    }
+}
+
+/// Most conservative status among requested horizons. Empty input is unidentified.
+///
+/// Priors and later identified horizons do not upgrade an earlier unidentified
+/// or graph-dependent slice.
+pub(super) fn most_conservative_identification_status(
+    statuses: impl IntoIterator<Item = IdentificationStatus>,
+) -> IdentificationStatus {
+    statuses
+        .into_iter()
+        .max_by_key(|status| identification_closedness(*status))
+        .unwrap_or(IdentificationStatus::NotIdentified)
+}
+
 /// Status for a Frequentist graph-posterior mixture.
 ///
 /// Unidentified mass is [`IdentificationStatus::GraphDependent`]. Multiple

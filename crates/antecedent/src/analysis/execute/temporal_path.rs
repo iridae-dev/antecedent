@@ -582,11 +582,24 @@ impl super::Study {
             nan_effect()
         };
         let mediation = single_horizon.then(|| first.estimate.clone());
+        let click = &clicks[0];
+        let mut identification = click.identification.clone();
+        if !single_horizon {
+            identification.status = most_conservative_identification_status(
+                slices.iter().map(|slice| slice.identification_status),
+            );
+            extra_diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.multi_horizon_status",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "parent identification.status is the most conservative requested-horizon \
+                 status; mediation_grid is authoritative per horizon",
+            ));
+        }
         let mediation_grid = antecedent_estimate::TemporalMediationGrid {
             slices: Arc::from(slices),
             joint_posterior: false,
         };
-        let click = &clicks[0];
         let certificate = single_horizon.then(|| crate::Identification::Point {
             result: click.identification.clone(),
             temporal_indexer: Some(click.indexer.clone()),
@@ -595,7 +608,7 @@ impl super::Study {
         });
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            identification: click.identification.clone(),
+            identification,
             estimand: click.estimand.clone(),
             estimate,
             identifier_id: IdentifierId::Frontdoor,
@@ -856,12 +869,24 @@ impl super::Study {
         };
         let mediation = single_horizon.then(|| first.estimate.clone());
         let posterior = single_horizon.then(|| first_posterior.clone()).flatten();
+        let click = &clicks[0];
+        let mut identification = click.identification.clone();
+        if !single_horizon {
+            identification.status = most_conservative_identification_status(
+                slices.iter().map(|slice| slice.identification_status),
+            );
+            extra_diagnostics.push(Diagnostic::new(
+                "identify.temporal_mediation.multi_horizon_status",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "parent identification.status is the most conservative requested-horizon \
+                 status; mediation_grid is authoritative per horizon",
+            ));
+        }
         let mediation_grid = antecedent_estimate::TemporalMediationGrid {
             slices: Arc::from(slices),
             joint_posterior: false,
         };
-        let click = &clicks[0];
-        let identification = click.identification.clone();
         let estimand = click.estimand.clone();
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical, identification: identification.clone(), estimand, estimate,
@@ -2618,6 +2643,35 @@ mod tests {
             IdentificationPerformanceRecord::default(),
             None,
         )
+    }
+
+    #[test]
+    fn multi_horizon_parent_status_is_the_most_conservative_slice() {
+        assert_eq!(
+            most_conservative_identification_status([
+                IdentificationStatus::NonparametricallyIdentified,
+                IdentificationStatus::GraphDependent,
+            ]),
+            IdentificationStatus::GraphDependent
+        );
+        assert_eq!(
+            most_conservative_identification_status([
+                IdentificationStatus::NonparametricallyIdentified,
+                IdentificationStatus::NotIdentified,
+            ]),
+            IdentificationStatus::NotIdentified
+        );
+        assert_eq!(
+            most_conservative_identification_status([
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                IdentificationStatus::NonparametricallyIdentified,
+            ]),
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+        );
+        assert_eq!(
+            most_conservative_identification_status([] as [IdentificationStatus; 0]),
+            IdentificationStatus::NotIdentified
+        );
     }
 
     #[test]
