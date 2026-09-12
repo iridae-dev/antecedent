@@ -16,8 +16,12 @@ from antecedent.intervention import Sequence, Set
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PIN = json.loads(
-    (_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json").read_text()
+    (_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json").read_text(
+        encoding="utf-8"
+    )
 )
+_PULSE_CELL = "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
+_CURVE_CELL = "ResponseCurve \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
 _EDGES = [("pressure", 1, "defect", 0)]
 _EDGES_W = [("pressure", 1, "defect", 0), ("w", 0, "defect", 0)]
 _TRUTH = float(_PIN["true_effect"])
@@ -108,11 +112,11 @@ def test_fixture_names_source_target_and_filter():
     assert _PIN["compatibility_filter"] == "PriorCatalog.filter_compatible"
     assert (
         _PIN["source_cells"]["same_design_pulse"]
-        == "PulseEffect × TemporalDag × explicit × Bayesian × none"
+        == _PULSE_CELL
     )
     assert (
         _PIN["target_cells"]["same_design_response_curve"]
-        == "ResponseCurve × TemporalDag × explicit × Bayesian × none"
+        == _CURVE_CELL
     )
     assert _PIN["incompatible"]["reason_code"] == "estimand_mismatch"
 
