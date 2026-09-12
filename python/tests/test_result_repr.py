@@ -151,6 +151,13 @@ def test_mediation_view_repr_formats_floats():
 # --- EstimateView -----------------------------------------------------
 
 
+def test_estimate_view_repr_omits_absent_function_valued_ate():
+    view = _estimate(ate=None)
+    text = repr(view)
+    assert "ate=None" in text
+    assert "nan" not in text
+
+
 def test_estimate_view_repr_shows_analytic_se_by_default():
     view = _estimate()
     text = repr(view)

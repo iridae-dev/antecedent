@@ -327,7 +327,7 @@ class ScoreInferenceSection:
 class EstimateSection:
     """Nested estimate section (top-level scalar fields only)."""
 
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     estimator_id: str
@@ -524,7 +524,7 @@ class PredictSummary:
 
 class AnalysisResult:
     certificate_json: str | None
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     plan_id: str

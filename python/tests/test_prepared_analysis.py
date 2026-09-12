@@ -175,6 +175,8 @@ def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis(
     )
     result = prepared.estimate(data, seed=11)
     assert result.mediation is None
+    assert result.estimate.ate is None
+    assert result.ate is None
     assert result.mediation_grid is not None
     assert [slice_.horizon for slice_ in result.mediation_grid] == [1, 2]
     assert result.mediation_grid.joint_posterior is False
