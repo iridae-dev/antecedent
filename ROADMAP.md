@@ -321,8 +321,8 @@ Later 1.x direction and ownership are summarized below.
 
 ## 1.6 — Temporal policies and per-horizon ID
 
-Implemented on the `1.6.0` branch. See
-[release notes](docs/release-notes/v1.6.0.md). 1.5 is released; this cut is
+Released as [1.6.0](docs/release-notes/v1.6.0.md). See the
+[evidence ledger](docs/v1.6-evidence.md). 1.5 is released; this cut is
 the rest of the temporal policy surface on the identification theory the
 handle already runs (`temporal.backdoor.unfolded`).
 
