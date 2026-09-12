@@ -184,9 +184,9 @@ Before merging the release PR:
 6. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, move the Unreleased entries to a dated 1.6.0 section, add its
-comparison link, reset the Unreleased comparison to `v1.6.0...HEAD`, and update
-release-status text. Tag only the approved, clean commit after these checks pass.
+Before tagging, confirm the dated 1.6.0 changelog section is present, Unreleased
+is empty, its comparison link is `v1.6.0...HEAD`, and release-status text matches
+the cut. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive wheel + docs publishing (GitHub Release assets and public
