@@ -47,6 +47,53 @@ impl Default for BootstrapRefute {
 }
 
 impl BootstrapRefute {
+    fn refute_composed(
+        &self,
+        problem: &RefutationProblem<'_>,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
+        let n = problem.data.row_count();
+        let temporal = problem.temporal.ok_or(ValidationError::NotApplicable {
+            message: "composed bootstrap requires a temporal context",
+        })?;
+        let time = temporal.time_index.ok_or(ValidationError::NotApplicable {
+            message: "composed bootstrap requires a series time index",
+        })?;
+        let series =
+            antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
+        let length =
+            (temporal.indexer.history() as usize + 1).max((n as f64).cbrt().ceil() as usize).min(n);
+        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
+        let mut indices = Vec::new();
+        let mut ates = Vec::new();
+        for _ in 0..self.replicates {
+            if ctx.cancellation.is_cancelled() {
+                return Err(ValidationError::Cancelled);
+            }
+            let sampled = antecedent_data::resample_timeseries(
+                &series,
+                antecedent_data::ResamplingPlan::CircularBlock { length },
+                &mut rng,
+                &mut indices,
+            )?;
+            let table = antecedent_data::TabularData::new(sampled.storage().clone());
+            ates.push(
+                refit_effect(
+                    problem,
+                    &table,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?
+                .ate,
+            );
+        }
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+    }
+
     /// Defaults: 200 replicates, 95% CI.
     #[must_use]
     pub fn new() -> Self {
@@ -87,6 +134,9 @@ impl BootstrapRefute {
                     resample_ids.push(id);
                 }
             }
+        }
+        if problem.effect_refit.is_some() {
+            return self.refute_composed(problem, workspace, ctx);
         }
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.

@@ -82,18 +82,18 @@ pub(crate) struct ObservationResponseResult {
 }
 
 #[derive(Clone)]
-struct ObservationArgs {
-    kind: String,
-    latent: String,
-    observed: Option<String>,
-    censoring: Option<String>,
-    event: Option<String>,
-    lower: Option<String>,
-    upper: Option<String>,
-    indicator: Option<String>,
-    assumption_kind: String,
-    assumption_variables: Vec<String>,
-    structural_model: Option<String>,
+pub(crate) struct ObservationArgs {
+    pub(crate) kind: String,
+    pub(crate) latent: String,
+    pub(crate) observed: Option<String>,
+    pub(crate) censoring: Option<String>,
+    pub(crate) event: Option<String>,
+    pub(crate) lower: Option<String>,
+    pub(crate) upper: Option<String>,
+    pub(crate) indicator: Option<String>,
+    pub(crate) assumption_kind: String,
+    pub(crate) assumption_variables: Vec<String>,
+    pub(crate) structural_model: Option<String>,
 }
 
 #[pyfunction]
@@ -506,7 +506,7 @@ fn observation_response_result(
     })
 }
 
-fn build_observation(
+pub(crate) fn build_observation(
     schema: &antecedent_core::CausalSchema,
     args: &ObservationArgs,
     latent: VariableId,
@@ -554,7 +554,7 @@ fn build_observation(
     }
 }
 
-fn build_assumption(
+pub(crate) fn build_assumption(
     schema: &antecedent_core::CausalSchema,
     args: &ObservationArgs,
 ) -> PyResult<ObservationAssumption> {
@@ -585,6 +585,23 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
         "aipw" => Ok(SelectedOutcomeCorrection::Aipw),
         _ => Err(PyValueError::new_err("correction must be 'ipw' or 'aipw'")),
     }
+}
+
+pub(crate) fn maybe_with_observation(
+    query: ResponseQuery,
+    schema: &antecedent_core::CausalSchema,
+    args: Option<&ObservationArgs>,
+) -> PyResult<ResponseQuery> {
+    let Some(args) = args else {
+        return Ok(query);
+    };
+    if args.kind.is_empty() || args.kind == "complete" {
+        return Ok(query);
+    }
+    let latent = schema.id_of(&args.latent).map_err(py_err)?;
+    let observation = build_observation(schema, args, latent)?;
+    let assumption = build_assumption(schema, args)?;
+    Ok(query.with_observation(observation, [assumption]))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

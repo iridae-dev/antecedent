@@ -26,6 +26,7 @@ PayloadKind = Literal[
     "transport_identification",
     "transport_estimate",
     "interference_estimate",
+    "analysis_result",
 ]
 
 

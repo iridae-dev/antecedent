@@ -792,6 +792,36 @@ pub(crate) struct AteAnalysisResult {
     mediation_direct: Option<f64>,
     #[pyo3(get)]
     mediation_mediated: Option<f64>,
+    #[pyo3(get)]
+    mediation_horizons: Vec<u32>,
+    #[pyo3(get)]
+    mediation_effects: Vec<f64>,
+    #[pyo3(get)]
+    mediation_totals: Vec<f64>,
+    #[pyo3(get)]
+    mediation_directs: Vec<f64>,
+    #[pyo3(get)]
+    mediation_mediated_effects: Vec<f64>,
+    #[pyo3(get)]
+    mediation_identification_statuses: Vec<String>,
+    #[pyo3(get)]
+    mediation_methods: Vec<String>,
+    #[pyo3(get)]
+    mediation_adjustments: Vec<Vec<(u32, i32)>>,
+    #[pyo3(get)]
+    mediation_uncertainty_kinds: Vec<String>,
+    #[pyo3(get)]
+    mediation_standard_deviations: Vec<Option<f64>>,
+    #[pyo3(get)]
+    mediation_q025: Vec<Option<f64>>,
+    #[pyo3(get)]
+    mediation_q975: Vec<Option<f64>>,
+    #[pyo3(get)]
+    mediation_identified_lower: Vec<Option<f64>>,
+    #[pyo3(get)]
+    mediation_identified_upper: Vec<Option<f64>>,
+    #[pyo3(get)]
+    mediation_joint_posterior: Option<bool>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,
@@ -908,8 +938,9 @@ struct IdentificationSection {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct EstimateSection {
+    /// Scalar contrast when one exists. Function-valued results omit it.
     #[pyo3(get)]
-    ate: f64,
+    ate: Option<f64>,
     #[pyo3(get)]
     se_analytic: f64,
     #[pyo3(get)]

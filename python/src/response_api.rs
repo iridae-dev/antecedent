@@ -6,9 +6,10 @@ use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cel
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, Intervention, MechanismOverride, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportStatus, TemporalResponseSpec, Value, VariableId,
+    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    SequencedIntervention, StochasticPolicy, SupportStatus, TemporalPolicy, TemporalResponseSpec,
+    Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -89,6 +90,16 @@ pub(crate) struct ResponseAnalysisResult {
     enumeration_capped: Option<bool>,
     #[pyo3(get)]
     mass_scope: Option<String>,
+    #[pyo3(get)]
+    weight_basis: Option<String>,
+    #[pyo3(get)]
+    atom_keys: Vec<u64>,
+    #[pyo3(get)]
+    atom_weights: Vec<f64>,
+    #[pyo3(get)]
+    atom_statuses: Vec<String>,
+    #[pyo3(get)]
+    atom_values: Vec<Vec<f64>>,
     /// Matrix evidence contract (`licensed` / `allowed_unlicensed`). Distinct from
     /// empirical dose-range [`Self::support_status`].
     #[pyo3(get)]
@@ -371,6 +382,11 @@ fn analyze_response_pag(
             } else {
                 "full_class".into()
             }),
+            weight_basis: Some("completion_enumeration".into()),
+            atom_keys: (0..curves.len()).map(|index| index as u64).collect(),
+            atom_weights: vec![1.0; curves.len()],
+            atom_statuses: vec!["NonparametricallyIdentified".into(); curves.len()],
+            atom_values: curves,
             evidence_status: None,
             allowlist_reason: None,
             allowlist_parent: None,
@@ -488,6 +504,53 @@ pub(crate) fn build_functional(
     }
 }
 
+pub(crate) fn wrap_temporal_sequence_steps(
+    functional: ResponseFunctional,
+    origin: i32,
+) -> PyResult<ResponseFunctional> {
+    let ResponseFunctional::InterventionResponse { outcome, interventions } = functional else {
+        return Ok(functional);
+    };
+    if interventions.len() <= 1 {
+        return Ok(ResponseFunctional::InterventionResponse { outcome, interventions });
+    }
+    let vars: Vec<VariableId> =
+        interventions.iter().filter_map(Intervention::primary_variable).collect();
+    if vars.len() != interventions.len() {
+        return Err(PyValueError::new_err("each Sequence step must name one treatment variable"));
+    }
+    let same_var = vars.iter().all(|variable| *variable == vars[0]);
+    let unique = {
+        let mut seen = vars.clone();
+        seen.sort_by_key(|variable| variable.raw());
+        seen.dedup();
+        seen.len() == vars.len()
+    };
+    let offsets: Vec<i32> = if same_var {
+        let n =
+            i32::try_from(vars.len()).map_err(|_| PyValueError::new_err("Sequence is too long"))?;
+        (0..n).map(|i| origin - (n - 1 - i)).collect()
+    } else if unique {
+        vec![origin; vars.len()]
+    } else {
+        return Err(PyValueError::new_err(
+            "Sequence schedule is ambiguous; use one variable for a multi-step policy \
+             or distinct variables for a joint single-time policy",
+        ));
+    };
+    let steps: Vec<SequencedIntervention> = interventions
+        .iter()
+        .zip(offsets)
+        .map(|(intervention, at)| {
+            SequencedIntervention::new(intervention.clone(), TemporalPolicy::pulse(at))
+        })
+        .collect();
+    Ok(ResponseFunctional::InterventionResponse {
+        outcome,
+        interventions: Arc::from([Intervention::sequence(InterventionSequence::new(steps))]),
+    })
+}
+
 fn intervention_from_parts(
     variable: VariableId,
     kind: &str,
@@ -541,6 +604,20 @@ fn intervention_from_parts(
             exactly(1)?;
             Ok(Intervention::soft(variable, MechanismOverride::additive_shift(parameters[0])))
         }
+        "soft_multiplicative" => {
+            exactly(1)?;
+            Ok(Intervention::soft(variable, MechanismOverride::named("multiplicative", parameters)))
+        }
+        "soft_truncated_shift" => {
+            exactly(3)?;
+            if parameters[1] > parameters[2] {
+                return Err(PyValueError::new_err("truncated_shift requires lower <= upper"));
+            }
+            Ok(Intervention::soft(
+                variable,
+                MechanismOverride::named("truncated_shift", parameters),
+            ))
+        }
         "soft" | "sequence" => Err(PyValueError::new_err(format!(
             "{kind} interventions require a structural/temporal model and are not estimable by response.intervention_gcomp"
         ))),
@@ -567,6 +644,7 @@ pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
 
 pub(crate) fn response_result(
     response: antecedent_core::CausalResponse,
+    structural: Option<&antecedent::result::StructuralResponseMixture>,
     treatments: Vec<String>,
     outcomes: Vec<String>,
     mut adjustment_set: Vec<String>,
@@ -577,23 +655,58 @@ pub(crate) fn response_result(
     if let Some(first) = first_horizon_template_names(&response, names) {
         adjustment_set = first;
     }
-    let (points, values, scalar, matrix) = match response.estimate {
-        ResponseIdentification::PointIdentified(value)
-        | ResponseIdentification::PartiallyIdentified(value) => value_parts(value)?,
-        ResponseIdentification::GraphDependent(_) | ResponseIdentification::Unidentified { .. } => {
-            return Err(PyValueError::new_err(
-                "the continuous-response estimator expected an identified payload",
-            ));
+    let identified_set = structural.and_then(|mixture| mixture.identified_set.as_ref());
+    let (points, values, scalar, matrix) = if let Some(envelope) = identified_set {
+        let legacy_values = structural
+            .and_then(structural_weighted_values)
+            .filter(|values| values.len() == envelope.lower.len())
+            .unwrap_or_else(|| envelope.lower.to_vec());
+        let scalar = (legacy_values.len() == 1).then_some(legacy_values[0]);
+        (
+            envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect(),
+            legacy_values.into_iter().map(|value| vec![value]).collect(),
+            scalar,
+            None,
+        )
+    } else {
+        match response.estimate {
+            ResponseIdentification::PointIdentified(value)
+            | ResponseIdentification::PartiallyIdentified(value) => value_parts(value)?,
+            ResponseIdentification::GraphDependent(_)
+            | ResponseIdentification::Unidentified { .. } => {
+                return Err(PyValueError::new_err(
+                    "the continuous-response estimator expected an identified payload",
+                ));
+            }
         }
     };
-    let (uncertainty_kind, lower, upper, level, standard_error, replicates, artifact_id) =
-        uncertainty_parts(response.uncertainty);
+    let (
+        mut uncertainty_kind,
+        mut lower,
+        mut upper,
+        mut level,
+        standard_error,
+        replicates,
+        artifact_id,
+    ) = uncertainty_parts(response.uncertainty);
+    if let Some(envelope) = identified_set {
+        uncertainty_kind = "identified_set".into();
+        lower = Some(envelope.lower.iter().map(|value| vec![*value]).collect());
+        upper = Some(envelope.upper.iter().map(|value| vec![*value]).collect());
+        level = None;
+    }
     let support_status = support_status_name(response.support.status).to_owned();
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(evidence);
+    let mut unique_treatments = Vec::new();
+    for name in treatments {
+        if !unique_treatments.contains(&name) {
+            unique_treatments.push(name);
+        }
+    }
     Ok(ResponseAnalysisResult {
         certificate_json: None,
-        treatments,
+        treatments: unique_treatments,
         outcomes,
         points,
         values,
@@ -652,12 +765,38 @@ pub(crate) fn response_result(
             .map(|record| format!("{:?}", record.assumption))
             .collect(),
         provenance_id: response.provenance_id.to_string(),
-        identified_mass: None,
-        unidentified_mass: None,
-        completion_count: None,
-        truncated_completions: None,
-        enumeration_capped: None,
-        mass_scope: None,
+        identified_mass: structural.map(|mixture| mixture.identified_mass),
+        unidentified_mass: structural
+            .map(|mixture| mixture.unidentified_mass + mixture.unevaluable_mass),
+        completion_count: structural.map(|mixture| mixture.atoms.len()),
+        truncated_completions: structural.map(|mixture| mixture.truncated_atoms),
+        enumeration_capped: structural.map(|mixture| !mixture.full_mass_scope),
+        mass_scope: structural.map(|mixture| {
+            if mixture.full_mass_scope { "full_class" } else { "examined_completions" }.into()
+        }),
+        weight_basis: structural.map(|mixture| match mixture.weight_basis {
+            antecedent::result::StructuralWeightBasis::PosteriorProbability => {
+                "posterior_probability".into()
+            }
+            antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
+                "completion_enumeration".into()
+            }
+            _ => "unknown".into(),
+        }),
+        atom_keys: structural
+            .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())
+            .unwrap_or_default(),
+        atom_weights: structural
+            .map(|mixture| mixture.atoms.iter().map(|atom| atom.weight).collect())
+            .unwrap_or_default(),
+        atom_statuses: structural
+            .map(|mixture| mixture.atoms.iter().map(|atom| format!("{:?}", atom.status)).collect())
+            .unwrap_or_default(),
+        atom_values: structural
+            .map(|mixture| {
+                mixture.atoms.iter().map(|atom| response_value_flat(atom.value.as_ref())).collect()
+            })
+            .unwrap_or_default(),
         evidence_status,
         allowlist_reason,
         allowlist_parent,
@@ -666,15 +805,56 @@ pub(crate) fn response_result(
     })
 }
 
+fn response_value_flat(value: Option<&ResponseValue>) -> Vec<f64> {
+    match value {
+        Some(ResponseValue::Scalar(value)) => vec![*value],
+        Some(ResponseValue::Surface { mean, .. }) => mean.to_vec(),
+        Some(ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. }) => {
+            values.to_vec()
+        }
+        Some(ResponseValue::Envelope(envelope)) => {
+            envelope.lower.iter().chain(envelope.upper.iter()).copied().collect()
+        }
+        None => Vec::new(),
+    }
+}
+
+fn structural_weighted_values(
+    mixture: &antecedent::result::StructuralResponseMixture,
+) -> Option<Vec<f64>> {
+    let mut total_weight = 0.0;
+    let mut mixed = Vec::new();
+    for atom in &mixture.atoms {
+        let values = response_value_flat(atom.value.as_ref());
+        if values.is_empty() || atom.weight <= 0.0 {
+            continue;
+        }
+        if mixed.is_empty() {
+            mixed.resize(values.len(), 0.0);
+        }
+        if values.len() != mixed.len() {
+            return None;
+        }
+        total_weight += atom.weight;
+        for (target, value) in mixed.iter_mut().zip(values) {
+            *target += atom.weight * value;
+        }
+    }
+    (total_weight > 0.0).then(|| {
+        for value in &mut mixed {
+            *value /= total_weight;
+        }
+        mixed
+    })
+}
+
 pub(crate) fn attach_study_response_meta(
     mut mapped: ResponseAnalysisResult,
     certificate_json: Option<String>,
-    identification: String,
     identifier: Option<String>,
     diagnostics: Vec<String>,
 ) -> ResponseAnalysisResult {
     mapped.certificate_json = certificate_json;
-    mapped.identification = identification;
     mapped.identifier = identifier;
     mapped.diagnostics = diagnostics;
     mapped
@@ -830,7 +1010,10 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, threads=1, accepted=false, refute=None
+    seed=1, threads=1, accepted=false, refute=None,
+    observation_kind=None, latent=None, observed=None, censoring=None, event=None,
+    lower=None, upper=None, indicator=None, assumption_kind=None,
+    assumption_variables=Vec::new(), structural_model=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_temporal_response(
@@ -852,6 +1035,17 @@ fn analyze_temporal_response(
     threads: u32,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
+    observation_kind: Option<String>,
+    latent: Option<String>,
+    observed: Option<String>,
+    censoring: Option<String>,
+    event: Option<String>,
+    lower: Option<String>,
+    upper: Option<String>,
+    indicator: Option<String>,
+    assumption_kind: Option<String>,
+    assumption_variables: Vec<String>,
+    structural_model: Option<String>,
 ) -> PyResult<ResponseAnalysisResult> {
     let suite = match refute.as_ref() {
         None => RefuteSuite::None,
@@ -880,9 +1074,29 @@ fn analyze_temporal_response(
         // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
         // `-treatment_lag`. Licensed sustained is the single-step window.
         let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+        let origin = -i32::try_from(treatment_lag)
+            .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+        let functional = wrap_temporal_sequence_steps(functional, origin)?;
         let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let query = ResponseQuery::new(functional).with_temporal(temporal);
+        let observation = observation_kind.map(|kind| crate::observation_api::ObservationArgs {
+            kind,
+            latent: latent.unwrap_or_default(),
+            observed,
+            censoring,
+            event,
+            lower,
+            upper,
+            indicator,
+            assumption_kind: assumption_kind.unwrap_or_default(),
+            assumption_variables,
+            structural_model,
+        });
+        let query = crate::observation_api::maybe_with_observation(
+            ResponseQuery::new(functional).with_temporal(temporal),
+            series.schema(),
+            observation.as_ref(),
+        )?;
         let causal_query = CausalQuery::Response(query.clone());
         if let Some(cell) = support_cell(
             &causal_query,
@@ -920,6 +1134,7 @@ fn analyze_temporal_response(
             .collect();
         response_result(
             response,
+            None,
             treatments,
             outcomes,
             adjustment_set,

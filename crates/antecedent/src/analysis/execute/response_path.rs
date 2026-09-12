@@ -3,6 +3,262 @@
 use super::*;
 
 impl super::Study {
+    pub(super) fn execute_graph_posterior_response(
+        &self,
+        data: &TabularData,
+        graph_posterior: &GraphPosterior,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if query.temporal.is_some() || query.observation != ObservationSpec::Complete {
+            return Err(CausalError::Unsupported {
+                message: "static graph-posterior response requires complete observations",
+            });
+        }
+        let (treatment, outcome) = response_primary_pair(&query.functional)?;
+        if matches!(
+            &query.functional,
+            ResponseFunctional::InterventionResponse { interventions, .. }
+                if interventions.len() != 1
+        ) {
+            return Err(CausalError::Unsupported {
+                message: "graph-posterior InterventionResponse currently requires one intervention coordinate",
+            });
+        }
+        let identification_query = AverageEffectQuery::binary_ate(treatment, outcome);
+        let identified = crate::analysis::prepared::build_graph_posterior_identification_cache(
+            graph_posterior,
+            &identification_query,
+            ctx,
+        )?;
+        let mut weighted = Vec::new();
+        let mut atoms = identified
+            .graphs
+            .graph_keys
+            .iter()
+            .zip(identified.graphs.weights.iter())
+            .zip(identified.graphs.identified.iter())
+            .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
+                graph_key,
+                weight,
+                status: if *flag == GraphIdentFlag::Identified {
+                    IdentificationStatus::NonparametricallyIdentified
+                } else {
+                    IdentificationStatus::NotIdentified
+                },
+                value: None,
+            })
+            .collect::<Vec<_>>();
+        let mut primary = None;
+        let mut failed_mass = 0.0;
+        for atom in identified.atoms.iter() {
+            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            if weight <= 0.0 {
+                continue;
+            }
+            let estimator =
+                ContinuousResponseEstimator::new(Arc::clone(&atom.estimand.adjustment_set));
+            let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
+                let mut bayes = bayesian_gcomp(cfg, ctx);
+                bayes.prior.clone_from(&cfg.prior);
+                estimator.estimate_bayesian(
+                    data,
+                    query,
+                    atom.identification.status,
+                    atom.identification.required_assumptions.clone(),
+                    &bayes,
+                    ctx,
+                )
+            } else {
+                estimator.estimate_identified(
+                    data,
+                    query,
+                    atom.identification.status,
+                    atom.identification.required_assumptions.clone(),
+                )
+            };
+            let Ok(response) = response else {
+                failed_mass += weight;
+                continue;
+            };
+            let value =
+                response_identified_value(&response).ok_or_else(|| CausalError::Compile {
+                    message: "identified graph-posterior response atom had no numerical value"
+                        .into(),
+                })?;
+            if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
+                slot.status = atom.identification.status;
+                slot.value = Some(value);
+            }
+            if primary.is_none() {
+                primary = Some((atom.estimand.clone(), atom.identification.clone()));
+            }
+            weighted.push((atom.key, weight, response));
+        }
+        let (estimand, mut identification) = primary.ok_or_else(|| CausalError::Compile {
+            message: "graph-posterior response has no evaluable identified atom".into(),
+        })?;
+        let identified_mass = weighted.iter().map(|(_, weight, _)| weight).sum::<f64>();
+        let total_mass = identified.graphs.total_weight();
+        let unidentified_mass = identified.graphs.unidentified_mass() + failed_mass;
+        let conditional_values = weighted
+            .iter()
+            .filter_map(|(_, weight, response)| {
+                response_identified_value(response).map(|value| (*weight, value))
+            })
+            .collect::<Vec<_>>();
+        let conditional_refs =
+            conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
+        let conditional = mix_response_values(&conditional_refs)?;
+        let structural_set = response_envelope_from_weighted(&weighted);
+        let first = &weighted[0].2;
+        let graph_dependent = unidentified_mass > 0.0;
+        if graph_dependent {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
+        let response = antecedent_core::CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status: identification.status,
+            estimate: if graph_dependent {
+                ResponseIdentification::GraphDependent(
+                    weighted
+                        .iter()
+                        .filter_map(|(key, _, response)| {
+                            response_identified_value(response).map(|value| (*key, value))
+                        })
+                        .collect(),
+                )
+            } else {
+                ResponseIdentification::PointIdentified(conditional.clone())
+            },
+            uncertainty: if weighted.len() == 1 {
+                first.uncertainty.clone()
+            } else {
+                ResponseUncertainty::None
+            },
+            support: mix_support_reports(
+                &weighted.iter().map(|(_, _, response)| &response.support).collect::<Vec<_>>(),
+            ),
+            assumptions: first.assumptions.clone(),
+            provenance_id: Arc::from("estimate.response.graph_posterior"),
+            horizon_identification: None,
+            interaction_structurally_zero: first.interaction_structurally_zero,
+        };
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::ResponseBayesian
+        } else {
+            EstimatorId::default_for_response(&query.functional)
+        };
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.response.graph_posterior",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+                 multiple-atom sampling uncertainty is omitted rather than coupling aligned draws",
+                identified_mass / total_mass,
+                unidentified_mass / total_mass
+            ),
+        )];
+        let plugin_scalar = match &conditional {
+            ResponseValue::Scalar(value) => *value,
+            _ => scalar,
+        };
+        let scalar_intervention = plugin_scalar.is_finite()
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        let (refutations, refute_diags) = if scalar_intervention
+            && !matches!(self.refute, RefuteSuite::None)
+            && matches!(self.inference, InferenceMode::Frequentist)
+        {
+            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+            let mut refute_ws = EstimationWorkspace::default();
+            let plugin_estimate = EffectEstimate::new(
+                plugin_scalar,
+                standard_error,
+                response.assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.evalue.not_a_contrast",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                     cheap runs overlap only and full runs overlap plus sampling-stability of the \
+                     g-comp level",
+                ));
+            }
+            run_plugin_level_refuters(
+                data,
+                &estimand,
+                &ate_query,
+                &plugin_estimate,
+                &mut refute_ws,
+                ctx,
+                self.refute,
+                estimator_id.as_str(),
+                &self.custom_validators,
+            )?
+        } else {
+            if !matches!(self.refute, RefuteSuite::None) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.response.skipped",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "scalar ATE refuters are not applicable to a function-valued or Bayesian \
+                     graph-posterior response",
+                ));
+            }
+            (Vec::new(), Vec::new())
+        };
+        diagnostics.extend(refute_diags);
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::BackdoorAdjustment,
+            estimator_id,
+            treatment,
+            outcome,
+            identify_cached: false,
+            extra_diagnostics: Vec::new(),
+            refutations,
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                response: Some(response),
+                structural_response: Some(crate::result::StructuralResponseMixture {
+                    weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
+                    atoms,
+                    identified_mass: identified_mass / total_mass,
+                    unidentified_mass: identified.graphs.unidentified_mass() / total_mass,
+                    unevaluable_mass: failed_mass / total_mass,
+                    identified_set: structural_set,
+                    conditional_on_identified: Some(conditional),
+                    full_mass_scope: true,
+                    truncated_atoms: 0,
+                }),
+                diagnostics: Some(diagnostics),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            },
+        }))
+    }
+
     /// Identify and estimate a continuous response, including licensed observation correction.
     pub(super) fn execute_response(
         &self,
@@ -759,12 +1015,23 @@ impl super::Study {
             &query.outcome_functional,
         )?;
         let mut weighted = Vec::new();
+        let mut structural_atoms = envelope
+            .cases
+            .iter()
+            .enumerate()
+            .map(|(index, case)| crate::result::StructuralResponseAtom {
+                graph_key: u64::try_from(index).unwrap_or(u64::MAX),
+                weight: case.weight.0,
+                status: case.result.status,
+                value: None,
+            })
+            .collect::<Vec<_>>();
         let mut atom_scores = Vec::new();
         let mut total_w = 0.0;
         let mut unestimated_id_mass = 0.0;
         let mut unevaluable_general_id: Option<antecedent_core::CausalResponse> = None;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        for case in &envelope.cases {
+        for (case_index, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
             {
@@ -796,7 +1063,8 @@ impl super::Study {
                         if let Some(scores) = scores {
                             atom_scores.push((w, scores));
                         }
-                        weighted.push((w, response));
+                        structural_atoms[case_index].value = response_identified_value(&response);
+                        weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
                     }
                     Err(err)
                         if err.to_string().contains("discrete level cap")
@@ -856,13 +1124,14 @@ impl super::Study {
             if let Some(scores) = scores {
                 atom_scores.push((w, scores));
             }
-            weighted.push((w, response));
+            structural_atoms[case_index].value = response_identified_value(&response);
+            weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), w, response));
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
             if let Some(response) = unevaluable_general_id {
                 // Sole general-ID atom could not evaluate a required cell.
                 // Publish the support report; do not invent a number.
-                weighted.push((1.0, response));
+                weighted.push((0, 1.0, response));
             } else {
                 return Err(CausalError::Compile {
                     message: "class-aware response envelope had no estimable identified cases"
@@ -874,6 +1143,18 @@ impl super::Study {
             message: "class-aware response envelope missing estimand".into(),
         })?;
         let mut mixed = mix_class_responses(&weighted, envelope.status)?;
+        let total_mass = envelope.identified_weight.0 + envelope.unidentified_weight.0;
+        let structural_response = crate::result::StructuralResponseMixture {
+            weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
+            atoms: structural_atoms,
+            identified_mass: total_w / total_mass.max(f64::EPSILON),
+            unidentified_mass: envelope.unidentified_weight.0 / total_mass.max(f64::EPSILON),
+            unevaluable_mass: unestimated_id_mass / total_mass.max(f64::EPSILON),
+            identified_set: response_envelope_from_weighted(&weighted),
+            conditional_on_identified: None,
+            full_mass_scope: envelope.truncated_completions == 0,
+            truncated_atoms: envelope.truncated_completions,
+        };
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         // A multi-completion envelope must not keep a single atom's plugin
@@ -979,17 +1260,18 @@ impl super::Study {
                 "estimate.envelope.response_posterior_not_mixed",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "per-completion posterior draws are not mixed; the curve is the \
-                 identified-mass mean; uncertainty is omitted when multiple atoms contribute",
+                "per-completion posterior draws are not assigned structural probabilities; \
+                 completion-enumeration responses remain an identified set and uncertainty is \
+                 omitted when multiple atoms contribute",
             ));
         }
         if matches!(envelope.status, IdentificationStatus::GraphDependent) {
             diagnostics.push(Diagnostic::new(
-                "estimate.envelope.response_identified_mass_mix",
+                "estimate.envelope.response_graph_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "response payload is the identified-mass mix; unidentified \
-                 completions are retained on identification status",
+                "response payload retains graph-conditional atom values; completion enumeration \
+                 is not treated as a posterior distribution and unidentified mass remains explicit",
             ));
         }
         if identify_cached {
@@ -1038,6 +1320,7 @@ impl super::Study {
                 )),
                 diagnostics: Some(diagnostics),
                 response: Some(mixed),
+                structural_response: Some(structural_response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             },
@@ -1045,20 +1328,122 @@ impl super::Study {
     }
 }
 
+fn response_identified_value(response: &antecedent_core::CausalResponse) -> Option<ResponseValue> {
+    match &response.estimate {
+        ResponseIdentification::PointIdentified(value)
+        | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
+        ResponseIdentification::GraphDependent(_) | ResponseIdentification::Unidentified { .. } => {
+            None
+        }
+    }
+}
+
+fn response_envelope_from_weighted(
+    weighted: &[(u64, f64, antecedent_core::CausalResponse)],
+) -> Option<antecedent_core::ResponseEnvelope> {
+    let values = weighted
+        .iter()
+        .filter_map(|(_, _, response)| response_identified_value(response))
+        .collect::<Vec<_>>();
+    let first = values.first()?;
+    match first {
+        ResponseValue::Scalar(value) => {
+            let mut lower = *value;
+            let mut upper = *value;
+            for candidate in values.iter().skip(1) {
+                let ResponseValue::Scalar(candidate) = candidate else {
+                    return None;
+                };
+                lower = lower.min(*candidate);
+                upper = upper.max(*candidate);
+            }
+            Some(antecedent_core::ResponseEnvelope {
+                grid: Arc::from([0.0]),
+                dimension: 1,
+                lower: Arc::from([lower]),
+                upper: Arc::from([upper]),
+            })
+        }
+        ResponseValue::Surface { grid, dimension, mean } => {
+            let mut lower = mean.to_vec();
+            let mut upper = mean.to_vec();
+            for candidate in values.iter().skip(1) {
+                let ResponseValue::Surface {
+                    grid: candidate_grid,
+                    dimension: candidate_dimension,
+                    mean: candidate_mean,
+                } = candidate
+                else {
+                    return None;
+                };
+                if candidate_grid.as_ref() != grid.as_ref()
+                    || candidate_dimension != dimension
+                    || candidate_mean.len() != mean.len()
+                {
+                    return None;
+                }
+                for (index, value) in candidate_mean.iter().enumerate() {
+                    lower[index] = lower[index].min(*value);
+                    upper[index] = upper[index].max(*value);
+                }
+            }
+            Some(antecedent_core::ResponseEnvelope {
+                grid: Arc::clone(grid),
+                dimension: *dimension,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn identified_set_is_singleton(envelope: &antecedent_core::ResponseEnvelope) -> bool {
+    envelope.lower.len() == envelope.upper.len()
+        && envelope
+            .lower
+            .iter()
+            .zip(envelope.upper.iter())
+            .all(|(lo, hi)| lo.to_bits() == hi.to_bits())
+}
+
+fn singleton_response_value(
+    items: &[(f64, &ResponseValue)],
+    envelope: &antecedent_core::ResponseEnvelope,
+) -> Result<ResponseValue, CausalError> {
+    let Some((_, first)) = items.first() else {
+        return Err(CausalError::Compile {
+            message: "class-aware response mix requires at least one identified case".into(),
+        });
+    };
+    match first {
+        ResponseValue::Scalar(_) => Ok(ResponseValue::Scalar(envelope.lower[0])),
+        ResponseValue::Surface { .. } => Ok(ResponseValue::Surface {
+            grid: Arc::clone(&envelope.grid),
+            dimension: envelope.dimension,
+            mean: Arc::clone(&envelope.lower),
+        }),
+        _ => Err(CausalError::Compile {
+            message: "class-aware response only publishes scalar and surface identified sets"
+                .into(),
+        }),
+    }
+}
+
 fn mix_class_responses(
-    weighted: &[(f64, antecedent_core::CausalResponse)],
+    weighted: &[(u64, f64, antecedent_core::CausalResponse)],
     envelope_status: IdentificationStatus,
 ) -> Result<antecedent_core::CausalResponse, CausalError> {
     if weighted
         .iter()
-        .all(|(_, r)| matches!(r.estimate, ResponseIdentification::Unidentified { .. }))
+        .all(|(_, _, r)| matches!(r.estimate, ResponseIdentification::Unidentified { .. }))
     {
-        return Ok(weighted[0].1.clone());
+        return Ok(weighted[0].2.clone());
     }
-    let first = &weighted[0].1;
+    let first = &weighted[0].2;
     let items: Vec<(f64, &ResponseValue)> = weighted
         .iter()
-        .map(|(w, r)| {
+        .map(|(_, w, r)| {
             let value = match &r.estimate {
                 ResponseIdentification::PointIdentified(v)
                 | ResponseIdentification::PartiallyIdentified(v) => v,
@@ -1073,31 +1458,48 @@ fn mix_class_responses(
             Ok((*w, value))
         })
         .collect::<Result<_, _>>()?;
-    let mixed_value = mix_response_values(&items)?;
     let mixed_uncertainty = mix_response_uncertainty(
-        &weighted.iter().map(|(w, r)| (*w, &r.uncertainty)).collect::<Vec<_>>(),
+        &weighted.iter().map(|(_, w, r)| (*w, &r.uncertainty)).collect::<Vec<_>>(),
     );
     let mixed_support =
-        mix_support_reports(&weighted.iter().map(|(_, r)| &r.support).collect::<Vec<_>>());
+        mix_support_reports(&weighted.iter().map(|(_, _, r)| &r.support).collect::<Vec<_>>());
     let mut assumptions = first.assumptions.clone();
-    for (_, response) in weighted.iter().skip(1) {
+    for (_, _, response) in weighted.iter().skip(1) {
         for record in &response.assumptions.entries {
             if !assumptions.entries.contains(record) {
                 assumptions.push(record.clone());
             }
         }
     }
-    // Payload is the identified-mass mix (same object ATE publishes as `ate`).
-    // `GraphDependent(vec)` would drop that mix and the Python binder refuses it.
-    // Status lives on `identification_status`, not this variant.
-    let estimate = if matches!(envelope_status, IdentificationStatus::NonparametricallyIdentified) {
-        ResponseIdentification::PointIdentified(mixed_value)
-    } else {
-        ResponseIdentification::PartiallyIdentified(mixed_value)
-    };
+    let (identification_status, estimate) =
+        if matches!(envelope_status, IdentificationStatus::GraphDependent) {
+            let atoms = weighted
+                .iter()
+                .filter_map(|(key, _, response)| {
+                    response_identified_value(response).map(|value| (*key, value))
+                })
+                .collect();
+            (IdentificationStatus::GraphDependent, ResponseIdentification::GraphDependent(atoms))
+        } else {
+            let envelope =
+                response_envelope_from_weighted(weighted).ok_or_else(|| CausalError::Compile {
+                    message:
+                        "class-aware response could not construct a common identified envelope"
+                            .into(),
+                })?;
+            if identified_set_is_singleton(&envelope) {
+                let value = singleton_response_value(&items, &envelope)?;
+                (envelope_status, ResponseIdentification::PointIdentified(value))
+            } else {
+                (
+                    IdentificationStatus::PartiallyIdentified,
+                    ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(envelope)),
+                )
+            }
+        };
     Ok(antecedent_core::CausalResponse {
         estimand: first.estimand.clone(),
-        identification_status: envelope_status,
+        identification_status,
         estimate,
         uncertainty: mixed_uncertainty,
         support: mixed_support,
@@ -1176,7 +1578,7 @@ fn mix_response_uncertainty(items: &[(f64, &ResponseUncertainty)]) -> ResponseUn
     ResponseUncertainty::None
 }
 
-fn mix_support_reports(
+pub(super) fn mix_support_reports(
     reports: &[&antecedent_core::SupportReport],
 ) -> antecedent_core::SupportReport {
     let first = reports[0];

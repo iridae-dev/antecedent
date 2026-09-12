@@ -341,14 +341,46 @@ fn score_family(
             }
             Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
         },
-        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean }
+        | MechanismSlot::ConditionalLinearGaussianStateSpace {
+            a,
+            process_std,
+            obs_std,
+            initial_mean,
+            ..
+        } => {
             // Kalman one-step-ahead predictive residual, on the same fitted-residual scale as
             // the other families (was: mean(y²), the raw second moment of the target — not a
             // fitted residual at all, and incomparable across families).
-            let q = (process_std * process_std).max(1e-16);
-            let r_var = (obs_std * obs_std).max(1e-16);
-            let (_, _, x_pred, _) = crate::lgssm::kalman_filter(y, *a, q, r_var, *initial_mean, q);
-            let mse = y.iter().zip(x_pred.iter()).map(|(yi, xp)| (yi - xp).powi(2)).sum::<f64>()
+            let mut residuals = y.to_vec();
+            if let MechanismSlot::ConditionalLinearGaussianStateSpace {
+                intercept, coeffs, ..
+            } = &fitted
+            {
+                let parent_cols = gather_parent_cols(gather, model, data)?;
+                for (i, residual) in residuals.iter_mut().enumerate() {
+                    *residual -= intercept;
+                    for (p, col) in parent_cols.iter().enumerate() {
+                        *residual -= coeffs[p] * col[i];
+                    }
+                }
+            }
+            let scaled =
+                crate::lgssm::scaled_lgssm(&residuals, *a, *process_std, *obs_std, *initial_mean)?;
+            let (_, _, x_pred, _) = crate::lgssm::kalman_filter(
+                &scaled.values,
+                *a,
+                scaled.process_var,
+                scaled.obs_var,
+                scaled.initial_mean,
+                scaled.process_var,
+            );
+            let mse = scaled
+                .values
+                .iter()
+                .zip(&x_pred)
+                .map(|(yi, xp)| ((yi - xp) * scaled.scale).powi(2))
+                .sum::<f64>()
                 / y.len().max(1) as f64;
             -mse - (process_std + obs_std).ln().abs() * 0.01
         }
@@ -725,8 +757,8 @@ fn fit_lgssm_kalman_em(
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let lg = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
-    let (intercept, coeffs, sigma) = match lg {
-        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => (intercept, coeffs, sigma),
+    let (intercept, coeffs) = match lg {
+        MechanismSlot::LinearGaussian { intercept, coeffs, .. } => (intercept, coeffs),
         _ => {
             return Err(ModelError::Unsupported {
                 message: "lgssm fit requires linear base".into(),
@@ -743,17 +775,28 @@ fn fit_lgssm_kalman_em(
         resid[r] = y[r] - pred;
     }
     let (a, process_std, obs_std, initial_mean) = lgssm_em(&resid, 25);
-    let _ = sigma;
-    Ok(MechanismSlot::LinearGaussianStateSpace {
+    Ok(MechanismSlot::ConditionalLinearGaussianStateSpace {
+        intercept,
+        coeffs,
         a,
-        process_std: process_std.max(1e-8),
-        obs_std: obs_std.max(1e-8),
+        process_std,
+        obs_std,
         initial_mean,
     })
 }
 
 /// EM for scalar LGSSM: `x_t` = a x_{t-1} + q ε, `y_t` = `x_t` + r η.
 fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
+    // Fit in relative units so variance floors and initialization do not change
+    // the model when the outcome's measurement units change.
+    let scale = y.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+    let scale = if scale > 0.0 { scale } else { 1.0 };
+    let normalized: Vec<f64> = y.iter().map(|v| v / scale).collect();
+    let (a, process_std, obs_std, initial_mean) = lgssm_em_normalized(&normalized, max_iters);
+    (a, process_std * scale, obs_std * scale, initial_mean * scale)
+}
+
+fn lgssm_em_normalized(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     let n = y.len();
     if n < 3 {
         let (a, q) = fit_ar1(y);
@@ -763,9 +806,8 @@ fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     let mut q = 1.0; // process variance
     let mut r = 1.0; // obs variance
     let mut x0 = y[0];
-    let p0 = 1.0;
     for _ in 0..max_iters {
-        let (x_f, p_f, x_pred, p_pred) = crate::lgssm::kalman_filter(y, a, q, r, x0, p0);
+        let (x_f, p_f, x_pred, p_pred) = crate::lgssm::kalman_filter(y, a, q, r, x0, q);
         let (x_s, p_s, p_lag) = crate::lgssm::rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred);
         // M-step
         let mut num = 0.0;
@@ -775,18 +817,20 @@ fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
             den += p_s[t - 1] + x_s[t - 1] * x_s[t - 1];
         }
         a = if den > 1e-12 { (num / den).clamp(-0.999, 0.999) } else { a };
-        let mut q_acc = 0.0;
+        // Initial state variance is q in the emitted model as well. Its
+        // expected squared residual contributes one of the n process terms.
+        x0 = x_s[0];
+        let mut q_acc = p_s[0];
         for t in 1..n {
             q_acc += p_s[t] + x_s[t] * x_s[t] + a * a * (p_s[t - 1] + x_s[t - 1] * x_s[t - 1])
                 - 2.0 * a * (p_lag[t] + x_s[t] * x_s[t - 1]);
         }
-        q = (q_acc / (n - 1) as f64).max(1e-8);
+        q = (q_acc / n as f64).max(1e-8);
         let mut r_acc = 0.0;
         for t in 0..n {
             r_acc += p_s[t] + (y[t] - x_s[t]).powi(2);
         }
         r = (r_acc / n as f64).max(1e-8);
-        x0 = x_s[0];
     }
     (a, q.sqrt(), r.sqrt(), x0)
 }
@@ -1177,6 +1221,96 @@ mod tests {
     /// sort+dedup implementation on ties, NaN/±inf, negatives, and the
     /// quantization boundary (values closer than 1e-6 collapse to one level).
     #[test]
+    fn fitted_lgssm_preserves_intercept_and_parent_effect() {
+        use crate::batch::{MechanismWorkspace, ParentBatch};
+        let (data, graph) = toy_data();
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let (store, _) = MechanismRegistry::with_bayesian_families()
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussianStateSpace),
+            )
+            .unwrap();
+        let slot = store.get(DenseNodeId::from_raw(1));
+        let MechanismSlot::ConditionalLinearGaussianStateSpace { intercept, coeffs, .. } = slot
+        else {
+            panic!("conditional LGSSM expected");
+        };
+        assert!((intercept - 1.0).abs() < 1e-10);
+        assert!((coeffs[0] - 2.0).abs() < 1e-10);
+        let parents = [0.0, 1.0, 2.0];
+        let mut noise = [0.0; 3];
+        crate::mechanism::sample_noise_column(
+            slot,
+            3,
+            &mut antecedent_core::CausalRng::from_seed(12),
+            &mut noise,
+        )
+        .unwrap();
+        let mut output = [0.0; 3];
+        crate::mechanism::evaluate_column(
+            slot,
+            ParentBatch { n_rows: 3, n_parents: 1, values: &parents },
+            &noise,
+            &mut output,
+            &mut MechanismWorkspace::default(),
+        )
+        .unwrap();
+        for (actual, expected) in output.iter().zip([1.0, 3.0, 5.0]) {
+            assert!((actual - expected).abs() < 1e-8, "actual={actual} expected={expected}");
+        }
+        let MechanismSlot::ConditionalLinearGaussianStateSpace { intercept, coeffs, .. } =
+            store.get(DenseNodeId::from_raw(0))
+        else {
+            panic!("conditional root LGSSM expected");
+        };
+        assert!(coeffs.is_empty());
+        assert!((intercept - 1.95).abs() < 1e-10, "root mean must survive residualization");
+    }
+
+    #[test]
+    fn lgssm_em_is_equivariant_to_measurement_units() {
+        let y = [0.2, -0.4, 0.6, 0.3, -0.7, 0.5, 0.1, -0.2];
+        let fitted = lgssm_em(&y, 25);
+        for scale in [1e-100, 1e100] {
+            let scaled: Vec<f64> = y.iter().map(|v| v * scale).collect();
+            let result = lgssm_em(&scaled, 25);
+            assert!((result.0 - fitted.0).abs() < 1e-10);
+            assert!((result.1 / scale - fitted.1).abs() < 1e-10);
+            assert!((result.2 / scale - fitted.2).abs() < 1e-10);
+            assert!((result.3 / scale - fitted.3).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn lgssm_em_increases_the_emitted_models_likelihood() {
+        let y = [0.2, -0.4, 0.6, 0.3, -0.7, 0.5, 0.1, -0.2];
+        let mut previous = f64::NEG_INFINITY;
+        for iterations in 0..25 {
+            let (a, process_std, obs_std, initial_mean) = lgssm_em(&y, iterations);
+            let q = process_std.powi(2);
+            let r = obs_std.powi(2);
+            let (_, _, means, variances) =
+                crate::lgssm::kalman_filter(&y, a, q, r, initial_mean, q);
+            let loglik: f64 = y
+                .iter()
+                .zip(means)
+                .zip(variances)
+                .map(|((&value, mean), variance)| {
+                    let v = variance + r;
+                    -0.5 * (v.ln() + (value - mean).powi(2) / v)
+                })
+                .sum();
+            assert!(
+                loglik >= previous - 1e-10,
+                "iteration {iterations}: loglik {loglik} < {previous}"
+            );
+            previous = loglik;
+        }
+    }
+
+    #[test]
     fn is_low_cardinality_matches_sort_dedup_reference() {
         fn reference(y: &[f64], max_levels: usize) -> bool {
             let mut vals: Vec<i64> =
@@ -1300,7 +1434,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             store3.get(DenseNodeId::from_raw(1)),
-            MechanismSlot::LinearGaussianStateSpace { .. }
+            MechanismSlot::ConditionalLinearGaussianStateSpace { .. }
         ));
     }
 

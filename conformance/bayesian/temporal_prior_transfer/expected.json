@@ -1,0 +1,44 @@
+{
+  "fixture_id": "temporal_prior_transfer",
+  "compatibility_filter": "PriorCatalog.filter_compatible",
+  "true_effect": 0.9,
+  "atol": 0.12,
+  "n": 240,
+  "n_draws": 64,
+  "seed": 11,
+  "treatment": "pressure",
+  "outcome": "defect",
+  "treatment_lag": 1,
+  "horizon_steps": 1,
+  "grid": [0.0, 1.0],
+  "horizons": [1],
+  "source_cells": {
+    "same_design_pulse": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "same_design_sustained": "SustainedEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "same_design_response_curve": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_pulse": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_sustained": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_response_curve": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "incompatible_catalog": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
+  },
+  "target_cells": {
+    "same_design_pulse": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "same_design_sustained": "SustainedEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "same_design_response_curve": "ResponseCurve \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_pulse": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_sustained": "SustainedEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "mapped_effect_response_curve": "ResponseCurve \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "incompatible_catalog": "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none",
+    "sequence_refuses_transfer": "InterventionResponse Sequence \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
+  },
+  "incompatible": {
+    "artifact_id": "wrong_outcome",
+    "reason_code": "estimand_mismatch",
+    "refuses": true
+  },
+  "sequence_refuses": {
+    "message_contains": "isotropic per-mechanism priors",
+    "notes": "Bayesian multi-step Sequence is licensed (00c78c67); the existing catalog filter does not apply to sequential mechanism priors. Transfer is refused. No new filter."
+  },
+  "notes": "Prior transfer rides licensed Bayesian temporal cells only with this named source/target/filter pin. Conflict-sensitive weights stay diagnostic."
+}

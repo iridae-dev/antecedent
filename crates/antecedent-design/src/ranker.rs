@@ -527,13 +527,13 @@ fn eig_graph_entropy(
         }
     }
 
-    let labels: Vec<u32> = if let Some(feat) = graph_features {
-        feat.to_vec()
+    let labels: Vec<u64> = if let Some(feat) = graph_features {
+        feat.iter().map(|&label| u64::from(label)).collect()
     } else {
-        graphs.graph_keys.iter().map(|k| *k as u32).collect()
+        graphs.graph_keys.to_vec()
     };
 
-    let mut categories: Vec<u32> = labels.clone();
+    let mut categories = labels.clone();
     categories.sort_unstable();
     categories.dedup();
     let k = categories.len();
@@ -541,7 +541,7 @@ fn eig_graph_entropy(
         return 0.0;
     }
 
-    let cat_index = |label: u32| -> usize { categories.binary_search(&label).unwrap_or(0) };
+    let cat_index = |label: u64| -> usize { categories.binary_search(&label).unwrap_or(0) };
 
     let prior_h = shannon_entropy(&graphs.weights);
     let reliability = observation_reliability(candidate);
@@ -881,6 +881,27 @@ mod tests {
 
     /// MM-012: a mismatched soft observation can raise posterior entropy; the draw
     /// must keep the signed reduction rather than clipping at zero.
+    #[test]
+    fn entropy_channel_preserves_all_graph_key_bits() {
+        let graphs = WeightedGraphSamples::new(
+            vec![0.5, 0.5],
+            vec![GraphIdentFlag::Identified; 2],
+            vec![1, (1u64 << 32) + 1],
+        )
+        .unwrap();
+        let candidate = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 20,
+        });
+        let mut implicit_rng = CausalRng::from_seed(13);
+        let mut explicit_rng = implicit_rng.clone();
+        let implicit = eig_graph_entropy(&candidate, &graphs, 0, None, &mut implicit_rng);
+        let explicit = eig_graph_entropy(&candidate, &graphs, 0, Some(&[0, 1]), &mut explicit_rng);
+        assert!(explicit > 0.0);
+        assert!((implicit - explicit).abs() < 1e-12);
+    }
+
     #[test]
     fn eig_draw_keeps_negative_entropy_reduction() {
         let graphs = toy_graphs();

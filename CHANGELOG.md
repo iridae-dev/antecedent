@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-09-12
+
+### Added
+
+- `TemporalMediationEffect` uses horizon-specific `I(h)`. Estimate clicks
+  reuse that horizon's unfolded backdoor, not a union adjustment set.
+  Multi-horizon results retain every slice in Rust, Python, and the composite
+  `analysis_result` artifact; scalar fields remain compatible for one horizon.
+- Multi-step and joint `Sequence` overlays run on sequential g-computation.
+  Soft `multiplicative` and `truncated_shift` extend the existing constant and
+  additive-shift mechanisms, including Bayesian sequence bands. Truncated shift
+  targets the population mean: `f + clip(mu + delta, lower, upper) - mu`, with
+  `mu = E[f]` under preceding interventions; realized outcomes are not clipped.
+  Nested Sequence stays refused rather than collapsing to the last step.
+- DBN-posterior Bayesian `TemporalMediationEffect` mixes per-atom `I(h)`.
+  Each horizon retains its own certifiability flags and unidentified mass;
+  a wholly unidentified slice remains visible. Priors do not upgrade ID.
+- DBN-posterior multi-step `SustainedEffect` supports none/cheap/full in both
+  inference modes. Perturbation checks refit the full sequential model per
+  atom, with circular-block bootstrap checks. Bayesian validation checks each
+  fitted mechanism and refits the composed effect across the prior-scale grid.
+  Explicit temporal DAGs share the same validation path.
+- Licensed 1.3 observation pairs (selected AIPW, marginal KM IPCW, Cox IPCW)
+  ride Frequentist temporal `ResponseCurve` / `InterventionResponse`. Each pair
+  consumes `conformance/response/temporal_observation`. Unlicensed
+  non-`Complete` pairs refuse at compile. Requested bands use an outer
+  nuisance-refitting circular-block bootstrap, including Sequence overlays.
+- Bayesian temporal observation curves and Sequence overlays use an observed-data
+  Gaussian SEM with latent-trajectory Gibbs sampling under an explicit ignorable
+  joint-trajectory CAR assumption and distinct priors. This is a parametric
+  likelihood analysis, not Bayesian weighting by fitted IPCW probabilities.
+- Frequentist DBN Pulse/Sustained mixtures use fixed posterior graph weights
+  and shared circular-block replicates across atoms. Single-step cheap/full
+  mix temporal refuters by those fixed weights; multi-step checks retain the
+  whole intervention window.
+- Frequentist TemporalCpdag mediation cheap/full run the existing mediation
+  suite on each identified completion and horizon. The result stays an
+  identified set.
+- Scalar DAG graph-posterior `InterventionResponse` cheap/full run the
+  plugin-level overlap / sampling-stability suite against the
+  conditional-on-identified mixture level.
+- Static DAG graph-posterior responses retain probability atoms and mass;
+  CPDAG/PAG responses retain completion-enumeration atoms and identified sets.
+- Frequentist TemporalCpdag/TemporalPag response surfaces and TemporalCpdag
+  mediation retain per-horizon completion identified sets.
+- Same-design and mapped prior transfer ride licensed Bayesian Pulse,
+  single-step Sustained, and temporal `ResponseCurve` on explicit
+  `TemporalDag` when a fixture names the source cell, target cell, and
+  `PriorCatalog.filter_compatible`. Incompatible catalogs fail closed.
+  Conflict-sensitive weights stay diagnostic. Multi-step Sequence keeps
+  isotropic per-mechanism priors (the same filter does not apply).
+
+### Fixed
+
+- Library-wide numerical corrections cover negative `erf`, representable tail
+  probabilities, normal quantiles, MCMC diagnostics under changes of units,
+  covariance input validation, and stable distribution-comparison statistics.
+- Graph samplers initialize inside required-edge constraints; latent projection
+  preserves variable identities; expression simplification preserves integration
+  multiplicity and zero-denominator domains.
+- Calendar HAC honors gaps and same-time observations. IPW Hajek uncertainty
+  differentiates the actual target, clipping, and trimming equations. Validation
+  preserves missingness and does not leak held-out outcomes into sensitivity fits.
+- Unequal-cluster bootstrap draws whole clusters without conditioning on the
+  output row count; ragged batches retain replicate boundaries and metadata.
+- LGSSM posterior abduction samples joint paths. Fitted conditional state-space
+  mechanisms retain baseline and parent effects through evaluation and artifacts.
+- Particle-filter numerical failures preserve state; attribution moments remain
+  stable across weight scales; streaming covariance avoids per-row allocations.
+- Counterfactual imputation propagates missing-parent values before descendant
+  abduction; composite analysis artifacts can be decoded and re-encoded in Python.
+- See [the broader 1.6 review](docs/v1.6-library-review.md) for regression evidence,
+  validation scope, and performance limits. No licensed support-matrix cells
+  were removed by this review.
+
+- Native single-step `Sequence` uses its own explicit temporal policy rather
+  than silently inheriting the outer response policy; resolved overlays are
+  retained in response provenance.
+- Bayesian graph-mixture draws now sample a graph categorically and then a
+  within-graph draw. Mean and variance are the identified-conditional
+  empirical-mixture functionals; unidentified mass is retained. Quantiles
+  remain finite Monte Carlo approximations.
+- Sequential additive-shift overlays now preserve and evaluate the shifted
+  node's fitted parent mechanism instead of replacing it by a shifted factual
+  marginal mean. Joint longitudinal support is marked unassessed rather than
+  supported, and unavailable Sequence intervals are omitted instead of emitted
+  with non-finite endpoints. Multi-horizon surfaces no longer attach only the
+  final horizon's scalar posterior as if it covered the whole surface.
+- Temporal response prior transfer now compares horizon adjustment identities,
+  not only design width, and refuses multi-horizon conflict shrinkage until
+  per-horizon prior resolution is available.
+- Prior catalogs select a compatible source by catalog position, so duplicate
+  artifact labels cannot redirect selection to an earlier rejected entry.
+- Temporal response validation uses checked arithmetic and a machine-readable
+  one-million-cell cross-product ceiling, while execution honors tighter
+  memory budgets with byte-based diagnostics.
+
 ## [1.5.0] — 2026-09-11
 
 ### Added
@@ -88,7 +185,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AverageEffect × Dag × graph_posterior` (`none`/`cheap`/`full`). Same
   known-truth mixture as the 1.1 Bayesian envelope (`E[τ|identified]=2.625`,
   unidentified mass 0.2); the aggregator is mass-weighted
-  `linear.adjustment.ate`. Frequentist DBN-posterior mixing stays 1.7.
+  `linear.adjustment.ate`. Frequentist DBN-posterior mixing was deferred from
+  1.4 and is implemented in 1.6 with shared outer block replicates.
 
 ### Fixed
 
@@ -1821,7 +1919,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/iridae-dev/antecedent/compare/v1.2.0...v1.3.0

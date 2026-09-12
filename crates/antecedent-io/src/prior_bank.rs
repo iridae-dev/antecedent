@@ -363,6 +363,51 @@ impl PriorCatalog {
         self.sources.iter().map(|s| assess_compatibility(s, target)).collect()
     }
 
+    /// First source `filter_compatible` marks [`CompatibilityReport::Compatible`].
+    ///
+    /// Incompatible catalogs fail closed: Partial and Rejected do not count.
+    ///
+    /// # Errors
+    ///
+    /// [`IoError::Convert`] when no Compatible source exists.
+    pub fn require_compatible(&self, target: &TargetDesign) -> Result<&PriorSourceRef, IoError> {
+        self.require_transfer_source(target, false)
+    }
+
+    /// First source `filter_compatible` marks usable (Compatible or Partial).
+    ///
+    /// Mapped / effect-level transfer may ride a Partial source when an effect
+    /// remains mappable. Fully rejected catalogs still fail closed.
+    ///
+    /// # Errors
+    ///
+    /// [`IoError::Convert`] when every source is Rejected (or the catalog is empty).
+    pub fn require_usable(&self, target: &TargetDesign) -> Result<&PriorSourceRef, IoError> {
+        self.require_transfer_source(target, true)
+    }
+
+    fn require_transfer_source(
+        &self,
+        target: &TargetDesign,
+        allow_partial: bool,
+    ) -> Result<&PriorSourceRef, IoError> {
+        let reports = self.filter_compatible(target);
+        let chosen = reports.iter().position(|report| {
+            matches!(report, CompatibilityReport::Compatible { .. })
+                || (allow_partial && matches!(report, CompatibilityReport::Partial { .. }))
+        });
+        let Some(index) = chosen else {
+            return Err(IoError::Convert(format!(
+                "prior catalog is incompatible with the target cell; \
+                 PriorCatalog.filter_compatible refused every source ({})",
+                format_compatibility_reports(&reports)
+            )));
+        };
+        self.sources
+            .get(index)
+            .ok_or_else(|| IoError::Convert("compatible report missing catalog source".into()))
+    }
+
     /// Rank previously obtained reports by caller similarity scores.
     ///
     /// Stable sort: higher score first; unknown ids keep relative order at the end
@@ -713,6 +758,25 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
     CompatibilityReport::Compatible { artifact_id: id }
 }
 
+fn format_compatibility_reports(reports: &[CompatibilityReport]) -> String {
+    if reports.is_empty() {
+        return "empty catalog".into();
+    }
+    reports
+        .iter()
+        .map(|report| match report {
+            CompatibilityReport::Compatible { artifact_id } => {
+                format!("{artifact_id}:compatible")
+            }
+            CompatibilityReport::Partial { artifact_id, .. } => format!("{artifact_id}:partial"),
+            CompatibilityReport::Rejected { artifact_id, reason } => {
+                format!("{artifact_id}:rejected:{reason:?}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 /// Whether a posterior wire has at least one named effect quantity.
 #[must_use]
 pub fn posterior_has_named_effect(wire: &CausalPosteriorWire) -> bool {
@@ -944,5 +1008,42 @@ mod tests {
                 _ => unreachable!(),
             }
         }
+    }
+
+    #[test]
+    fn require_compatible_fails_closed_on_estimand_mismatch() {
+        let catalog = PriorCatalog::from_sources(vec![PriorSourceRef::from_meta(
+            PriorSourceMeta::new(
+                "wrong",
+                EstimandFingerprint::new("ate", "t", "other_y"),
+                "NonparametricallyIdentified",
+            )
+            .with_design(design_tyz()),
+        )]);
+        let err =
+            catalog.require_compatible(&TargetDesign::new(ate_estimand(), ["t", "y"])).unwrap_err();
+        assert!(err.to_string().contains("incompatible"), "{err}");
+        assert!(catalog.require_usable(&TargetDesign::new(ate_estimand(), ["t", "y"])).is_err());
+    }
+
+    #[test]
+    fn duplicate_artifact_ids_cannot_select_a_rejected_source() {
+        let rejected = PriorSourceMeta::new(
+            "duplicate",
+            EstimandFingerprint::new("ate", "t", "other_y"),
+            "NonparametricallyIdentified",
+        )
+        .with_design(design_tyz());
+        let compatible =
+            PriorSourceMeta::new("duplicate", ate_estimand(), "NonparametricallyIdentified")
+                .with_design(design_tyz());
+        let catalog = PriorCatalog::from_sources(vec![
+            PriorSourceRef::from_meta(rejected),
+            PriorSourceRef::from_meta(compatible),
+        ]);
+
+        let chosen =
+            catalog.require_usable(&TargetDesign::new(ate_estimand(), ["t", "y"])).unwrap();
+        assert_eq!(chosen.meta.estimand, ate_estimand());
     }
 }

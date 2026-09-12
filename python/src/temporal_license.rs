@@ -24,6 +24,7 @@ fn temporal_response_spec(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     let license = TemporalResponseSpec::license();
     let d = PyDict::new(py);
     d.set_item("max_horizons", license.max_horizons)?;
+    d.set_item("max_cells", license.max_cells)?;
     d.set_item("allowed_policies", license.allowed_policies)?;
     d.set_item("default_policy", license.default_policy)?;
     d.set_item("default_treatment_lag", license.default_treatment_lag)?;

@@ -207,8 +207,12 @@ pub fn decode_causal_payload_artifact(
 }
 
 fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
-    let mut names = HashSet::with_capacity(header.variable_names.len());
-    for name in &header.variable_names {
+    validate_variable_names(&header.variable_names)
+}
+
+pub(crate) fn validate_variable_names(variable_names: &[String]) -> Result<(), IoError> {
+    let mut names = HashSet::with_capacity(variable_names.len());
+    for name in variable_names {
         if name.trim().is_empty() {
             return Err(IoError::Convert("causal payload variable names must be non-blank".into()));
         }
@@ -404,7 +408,10 @@ fn validate_response_query_ids(
     Ok(())
 }
 
-fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<(), IoError> {
+pub(crate) fn validate_query_ids(
+    query: &CausalQueryWire,
+    variable_count: usize,
+) -> Result<(), IoError> {
     use CausalQueryWire as Q;
     match query {
         Q::AverageEffect { treatment, outcome, effect_modifiers, control, active, .. } => {
@@ -563,7 +570,7 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
     }
 }
 
-fn validate_response_result(
+pub(crate) fn validate_response_result(
     wire: &CausalResponseWire,
     variable_count: usize,
 ) -> Result<(), IoError> {

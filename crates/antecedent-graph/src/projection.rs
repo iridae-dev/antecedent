@@ -13,13 +13,15 @@ use crate::workspace::{BitSet, GraphWorkspace};
 
 /// Project a DAG onto an observed subset, producing an ADMG.
 ///
+/// Dense indices follow `observed` order; original variable identities are retained.
+///
 /// Directed edges: observed→observed paths whose internal nodes are all latent.
 /// Bidirected edges: pairs of observed nodes that share a latent common ancestor
 /// reachable via latent-only directed paths (including latent parents).
 ///
 /// # Errors
 ///
-/// Unknown observed node ids.
+/// Unknown or duplicate observed node ids.
 pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, GraphError> {
     for &o in observed {
         if o.as_usize() >= dag.node_count() {
@@ -27,11 +29,16 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
         }
     }
     let mut observed_set = BitSet::with_len(dag.node_count());
+    let mut admg = Admg::empty();
     for &o in observed {
+        if observed_set.contains(o) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "latent projection observed nodes must be unique",
+            });
+        }
         observed_set.insert(o);
+        admg.add_node(dag.nodes()[o.as_usize()])?;
     }
-    let k = u32::try_from(observed.len()).map_err(|_| GraphError::TooManyNodes)?;
-    let mut admg = Admg::with_variables(k);
     // Map original dense id → projected dense id.
     let mut map = vec![None; dag.node_count()];
     for (i, &o) in observed.iter().enumerate() {
@@ -268,5 +275,25 @@ mod tests {
         dag.insert_directed_unchecked(l2, x);
         let err = latent_project(&dag, &[x, y]).unwrap_err();
         assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+    }
+    #[test]
+    fn projection_retains_variable_identity_in_observed_order() {
+        use antecedent_core::{NodeRef, VariableId};
+        let mut dag = Dag::empty();
+        let x = dag.add_node(NodeRef::Static(VariableId::from_raw(42))).unwrap();
+        let latent = dag.add_node(NodeRef::Static(VariableId::from_raw(7))).unwrap();
+        let y = dag.add_node(NodeRef::Static(VariableId::from_raw(99))).unwrap();
+        dag.insert_directed(x, latent).unwrap();
+        dag.insert_directed(latent, y).unwrap();
+        let projected = latent_project(&dag, &[y, x]).unwrap();
+        assert_eq!(projected.nodes(), &[dag.nodes()[y.as_usize()], dag.nodes()[x.as_usize()]]);
+        assert_eq!(projected.children(DenseNodeId::from_raw(1)), &[DenseNodeId::from_raw(0)]);
+    }
+
+    #[test]
+    fn projection_rejects_duplicate_observed_nodes() {
+        let dag = Dag::with_variables(1);
+        let x = DenseNodeId::from_raw(0);
+        assert!(matches!(latent_project(&dag, &[x, x]), Err(GraphError::InvalidEndpoints { .. })));
     }
 }

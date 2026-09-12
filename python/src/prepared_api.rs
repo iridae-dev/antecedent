@@ -17,7 +17,7 @@ use antecedent_data::{TableView, TabularData};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule};
+use pyo3::types::{PyAny, PyDict, PyModule};
 
 use crate::response_api::{
     ResponseAnalysisResult, attach_study_response_meta, build_functional, response_result,
@@ -25,7 +25,7 @@ use crate::response_api::{
 use crate::temporal_api::{TemporalClassGraph, bind_temporal_class};
 use crate::{
     AteAnalysisResult, ate_result_from_analysis, dag_from_named_edges, detach_catch, graphs,
-    py_err, py_execution_context_ext, require_named_graph_order, series_from_tabular,
+    py_err, py_execution_context_ext, py_msg, require_named_graph_order, series_from_tabular,
     suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy, tabular_from_py_columns,
     temporal_dag_from_schema_edges,
 };
@@ -822,7 +822,7 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
-        let admg = graph.admg;
+        let admg = graph.aligned_to_names(&names)?;
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1175,9 +1175,23 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         seed=1,
         threads=1,
         accepted=false,
+        observation_kind=None,
+        latent=None,
+        observed=None,
+        censoring=None,
+        event=None,
+        lower=None,
+        upper=None,
+        indicator=None,
+        assumption_kind=None,
+        assumption_variables=Vec::new(),
+        structural_model=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_temporal_response(
@@ -1198,12 +1212,34 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
         threads: u32,
         accepted: bool,
+        observation_kind: Option<String>,
+        latent: Option<String>,
+        observed: Option<String>,
+        censoring: Option<String>,
+        event: Option<String>,
+        lower: Option<String>,
+        upper: Option<String>,
+        indicator: Option<String>,
+        assumption_kind: Option<String>,
+        assumption_variables: Vec<String>,
+        structural_model: Option<String>,
     ) -> PyResult<Self> {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
+        let prior_mapping = match prior_mapping {
+            Some(d) => Some(crate::prior_bank::mapping_from_dict(d)?),
+            None => None,
+        };
+        let composed_prior = match composed_prior {
+            Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+            None => None,
+        };
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
@@ -1229,10 +1265,30 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
             let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let origin = -i32::try_from(treatment_lag)
+                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+            let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let query =
-                CausalQuery::Response(ResponseQuery::new(functional).with_temporal(temporal));
+            let observation =
+                observation_kind.map(|kind| crate::observation_api::ObservationArgs {
+                    kind,
+                    latent: latent.unwrap_or_default(),
+                    observed,
+                    censoring,
+                    event,
+                    lower,
+                    upper,
+                    indicator,
+                    assumption_kind: assumption_kind.unwrap_or_default(),
+                    assumption_variables,
+                    structural_model,
+                });
+            let query = CausalQuery::Response(crate::observation_api::maybe_with_observation(
+                ResponseQuery::new(functional).with_temporal(temporal),
+                series.schema(),
+                observation.as_ref(),
+            )?);
             let mut builder = Study::series(series);
             builder = if accepted {
                 builder.graph(antecedent::AcceptedGraph::from(dag))
@@ -1241,11 +1297,14 @@ impl PyPreparedAnalysis {
             };
             builder =
                 builder.query(query).refute(antecedent::RefuteSuite::None).bootstrap_replicates(0);
-            builder = apply_inference(
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
-                inference.as_deref().unwrap_or("frequentist"),
+                Some(inference.as_deref().unwrap_or("frequentist")),
                 n_draws,
                 prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -1277,6 +1336,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         refute=None,
         seed=1,
         bootstrap=0,
@@ -1299,6 +1361,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
@@ -1308,6 +1373,14 @@ impl PyPreparedAnalysis {
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
         let suite = suite_from_refute(refute.as_ref())?;
+        let prior_mapping = match prior_mapping {
+            Some(d) => Some(crate::prior_bank::mapping_from_dict(d)?),
+            None => None,
+        };
+        let composed_prior = match composed_prior {
+            Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+            None => None,
+        };
         detach_catch(py, move || {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
@@ -1334,12 +1407,14 @@ impl PyPreparedAnalysis {
                 builder.graph(dag)
             };
             builder = builder.temporal_query(q).refute(suite).bootstrap_replicates(bootstrap);
-            builder = crate::temporal_api::apply_temporal_inference(
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
                 inference.as_deref(),
                 n_draws,
                 prior_scale,
-                None,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -1505,6 +1580,7 @@ impl PyPreparedAnalysis {
         contrast="mediated",
         control_level=0.0,
         active_level=1.0,
+        horizons=None,
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
@@ -1526,6 +1602,7 @@ impl PyPreparedAnalysis {
         contrast: &str,
         control_level: f64,
         active_level: f64,
+        horizons: Option<Vec<u32>>,
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
@@ -1556,6 +1633,9 @@ impl PyPreparedAnalysis {
             let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
             q.control = Intervention::set(t_id, Value::f64(control_level));
             q.active = Intervention::set(t_id, Value::f64(active_level));
+            if let Some(hs) = horizons {
+                q = q.with_horizons(hs).map_err(py_msg)?;
+            }
             let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
             let mut builder = Study::series(series);
             builder = if accepted {
@@ -1676,6 +1756,7 @@ impl PyPreparedAnalysis {
         outcome,
         *,
         policy="pulse",
+        window=None,
         treatment_lag=1,
         horizon_steps=1,
         active_level=1.0,
@@ -1700,6 +1781,7 @@ impl PyPreparedAnalysis {
         treatment: String,
         outcome: String,
         policy: &str,
+        window: Option<(i32, i32)>,
         treatment_lag: u32,
         horizon_steps: u32,
         active_level: f64,
@@ -1730,7 +1812,7 @@ impl PyPreparedAnalysis {
             let series = series_from_tabular(tabular)?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-            let q = crate::temporal_api::temporal_query_from_policy(
+            let mut q = crate::temporal_api::temporal_query_from_policy(
                 &policy,
                 t_id,
                 y_id,
@@ -1738,6 +1820,12 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 active_level,
             )?;
+            if let Some((from, until)) = window {
+                if policy != "sustained" {
+                    return Err(PyValueError::new_err("window requires policy='sustained'"));
+                }
+                q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+            }
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -1765,6 +1853,130 @@ impl PyPreparedAnalysis {
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .temporal_query(q)
+                .refute(suite)
+                .bootstrap_replicates(0);
+            builder = crate::temporal_api::apply_temporal_inference(
+                builder,
+                Some(inference.as_deref().unwrap_or("conjugate")),
+                n_draws,
+                prior_scale,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+        })
+    }
+
+    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior × Bayesian.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        mediator,
+        outcome,
+        *,
+        contrast="mediated",
+        control_level=0.0,
+        active_level=1.0,
+        horizons=None,
+        max_lag=1,
+        force_mcmc=false,
+        n_chains=2,
+        n_warmup=200,
+        mcmc_draws=400,
+        inference=None,
+        n_draws=1000,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        threads=1,
+        posterior=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_dbn_posterior_mediation(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        mediator: String,
+        outcome: String,
+        contrast: &str,
+        control_level: f64,
+        active_level: f64,
+        horizons: Option<Vec<u32>>,
+        max_lag: u32,
+        force_mcmc: bool,
+        n_chains: u32,
+        n_warmup: u32,
+        mcmc_draws: u32,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let supplied = posterior
+            .map(|bound| {
+                let posterior = bound.borrow();
+                posterior.require_bound_to(&names)?;
+                posterior.to_rust()
+            })
+            .transpose()?;
+        let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let contrast = contrast.to_string();
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let series = series_from_tabular(tabular)?;
+            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+            let m_id = series.schema().id_of(&mediator).map_err(py_err)?;
+            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+            let contrast = match contrast.to_ascii_lowercase().as_str() {
+                "total" => MediationContrast::Total,
+                "direct" => MediationContrast::Direct,
+                "mediated" | "indirect" => MediationContrast::Mediated,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown mediation contrast {other:?}; use total|direct|mediated"
+                    )));
+                }
+            };
+            let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
+            q.control = Intervention::set(t_id, Value::f64(control_level));
+            q.active = Intervention::set(t_id, Value::f64(active_level));
+            if let Some(hs) = horizons {
+                q = q.with_horizons(hs).map_err(py_msg)?;
+            }
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let gp = if let Some(gp) = supplied {
+                gp
+            } else {
+                let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+                let schedule =
+                    GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+                discover_dbn_posterior(
+                    &series,
+                    &vars,
+                    &BayesianDiscoverParams::default(),
+                    max_lag,
+                    force_mcmc,
+                    &schedule,
+                    &ctx,
+                )
+                .map_err(py_err)?
+            };
+            let mut builder = Study::series(series)
+                .graph_posterior(gp)
+                .query(CausalQuery::Mediation(q))
                 .refute(suite)
                 .bootstrap_replicates(0);
             builder = crate::temporal_api::apply_temporal_inference(
@@ -2624,6 +2836,25 @@ impl PyPreparedAnalysis {
             bytes
         } else if payload != "result" {
             return Err(PyValueError::new_err("payload must be 'query' or 'result'"));
+        } else if result.mediation_grid.is_some()
+            || result.structural_response.is_some()
+            || (result.posterior.is_some() && result.response.is_some())
+        {
+            let wire = composite_result_wire(
+                result,
+                self.inner.query(),
+                self.inner.temporal_identification(),
+                artifact_id,
+            )?;
+            let artifact = antecedent_io::encode_analysis_result_artifact(
+                &wire,
+                self.names.clone(),
+                artifact_id,
+            )
+            .map_err(py_err)?;
+            let mut bytes = Vec::new();
+            artifact.write_to(&mut bytes).map_err(py_err)?;
+            bytes
         } else if let Some(post) = &result.posterior {
             antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
         } else if let Some(response) = &result.response {
@@ -2788,6 +3019,7 @@ pub(crate) fn response_from_study(
     Ok(attach_study_response_meta(
         response_result(
             response,
+            result.structural_response.as_ref(),
             treatments,
             outcomes,
             adjustment_set,
@@ -2795,7 +3027,6 @@ pub(crate) fn response_from_study(
             result.support_status,
         )?,
         crate::identification_details::analysis_to_json(result, names)?,
-        format!("{:?}", result.identification.status),
         result.logical_plan.identifier.as_deref().map(str::to_owned),
         result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
     ))
@@ -3131,4 +3362,212 @@ fn hard_value(intervention: &Intervention) -> Option<f64> {
         Intervention::Set { value, .. } => value.as_f64(),
         _ => None,
     }
+}
+
+fn identification_status_wire(
+    status: antecedent_core::IdentificationStatus,
+) -> antecedent_io::IdentificationStatusWire {
+    match status {
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified => {
+            antecedent_io::IdentificationStatusWire::NonparametricallyIdentified
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+            antecedent_io::IdentificationStatusWire::IdentifiedUnderParametricRestrictions
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+            antecedent_io::IdentificationStatusWire::IdentifiedUnderPriorRestrictions
+        }
+        antecedent_core::IdentificationStatus::PartiallyIdentified => {
+            antecedent_io::IdentificationStatusWire::PartiallyIdentified
+        }
+        antecedent_core::IdentificationStatus::GraphDependent => {
+            antecedent_io::IdentificationStatusWire::GraphDependent
+        }
+        antecedent_core::IdentificationStatus::NotIdentified => {
+            antecedent_io::IdentificationStatusWire::NotIdentified
+        }
+    }
+}
+
+fn mediation_grid_wire(
+    grid: &antecedent::estimate::TemporalMediationGrid,
+) -> antecedent_io::TemporalMediationGridWire {
+    let interval = |summary: antecedent_estimate::MediationPosteriorSummary| {
+        antecedent_io::MediationPosteriorSummaryWire {
+            mean: summary.mean,
+            standard_deviation: summary.standard_deviation,
+            q025: summary.q025,
+            q975: summary.q975,
+        }
+    };
+    antecedent_io::TemporalMediationGridWire {
+        slices: grid
+            .slices
+            .iter()
+            .map(|slice| {
+                let uncertainty = match &slice.uncertainty {
+                    antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                        standard_error,
+                    } => antecedent_io::TemporalMediationUncertaintyWire::FrequentistPointwise {
+                        standard_error: *standard_error,
+                    },
+                    antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                        requested,
+                        total,
+                        direct,
+                        mediated,
+                        n_draws,
+                        backend,
+                    } => antecedent_io::TemporalMediationUncertaintyWire::BayesianPointwise {
+                        requested: interval(*requested),
+                        total: interval(*total),
+                        direct: interval(*direct),
+                        mediated: interval(*mediated),
+                        n_draws: u64::try_from(*n_draws).unwrap_or(u64::MAX),
+                        backend: backend.to_string(),
+                    },
+                    _ => antecedent_io::TemporalMediationUncertaintyWire::Unavailable,
+                };
+                antecedent_io::TemporalMediationSliceWire {
+                    horizon: slice.horizon,
+                    identification_status: identification_status_wire(slice.identification_status),
+                    method: slice.method.to_string(),
+                    adjustment: slice
+                        .adjustment
+                        .iter()
+                        .map(|key| antecedent_io::HorizonAdjustmentNodeWire {
+                            variable: key.variable.raw(),
+                            offset: key.offset,
+                        })
+                        .collect(),
+                    effect: slice.estimate.effect.ate,
+                    total: slice.estimate.total,
+                    direct: slice.estimate.direct,
+                    mediated: slice.estimate.mediated,
+                    uncertainty,
+                    identified_set: slice
+                        .identified_set
+                        .map(|identified| [identified.lower, identified.upper]),
+                    diagnostics: slice
+                        .diagnostics
+                        .iter()
+                        .map(antecedent_io::diagnostic_to_wire)
+                        .collect(),
+                }
+            })
+            .collect(),
+        joint_posterior: grid.joint_posterior,
+    }
+}
+
+fn structural_response_wire(
+    mixture: &antecedent::result::StructuralResponseMixture,
+) -> antecedent_io::StructuralResponseMixtureWire {
+    let weight_basis = match mixture.weight_basis {
+        antecedent::result::StructuralWeightBasis::PosteriorProbability => {
+            antecedent_io::StructuralWeightBasisWire::PosteriorProbability
+        }
+        antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
+            antecedent_io::StructuralWeightBasisWire::CompletionEnumeration
+        }
+        _ => antecedent_io::StructuralWeightBasisWire::CompletionEnumeration,
+    };
+    antecedent_io::StructuralResponseMixtureWire {
+        weight_basis,
+        atoms: mixture
+            .atoms
+            .iter()
+            .map(|atom| antecedent_io::StructuralResponseAtomWire {
+                graph_key: atom.graph_key,
+                weight: atom.weight,
+                identification_status: identification_status_wire(atom.status),
+                value: atom.value.as_ref().map(antecedent_io::response_value_to_wire),
+            })
+            .collect(),
+        identified_mass: mixture.identified_mass,
+        unidentified_mass: mixture.unidentified_mass,
+        unevaluable_mass: mixture.unevaluable_mass,
+        identified_set: mixture.identified_set.as_ref().map(|envelope| {
+            antecedent_io::ResponseEnvelopeWire {
+                grid: envelope.grid.to_vec(),
+                dimension: u64::try_from(envelope.dimension).unwrap_or(u64::MAX),
+                lower: envelope.lower.to_vec(),
+                upper: envelope.upper.to_vec(),
+            }
+        }),
+        conditional_on_identified: mixture
+            .conditional_on_identified
+            .as_ref()
+            .map(antecedent_io::response_value_to_wire),
+        full_mass_scope: mixture.full_mass_scope,
+        truncated_atoms: u64::try_from(mixture.truncated_atoms).unwrap_or(u64::MAX),
+    }
+}
+
+fn composite_result_wire(
+    result: &antecedent::StudyResult,
+    query: &CausalQuery,
+    temporal: Option<&antecedent::analysis::CachedTemporalIdentification>,
+    artifact_id: &str,
+) -> PyResult<antecedent_io::AnalysisResultWire> {
+    let identification =
+        antecedent_io::identification_to_wire(&result.identification).map_err(py_err)?;
+    let temporal_identification = temporal
+        .into_iter()
+        .flat_map(|cache| cache.by_horizon.iter())
+        .map(|entry| {
+            let variables = (0..entry.indexer.dense_len())
+                .map(|dense| {
+                    let key = entry
+                        .indexer
+                        .key_of(
+                            u32::try_from(dense)
+                                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                        )
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                    Ok(antecedent_io::HorizonAdjustmentNodeWire {
+                        variable: key.variable.raw(),
+                        offset: key.offset,
+                    })
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(antecedent_io::TemporalIdentificationWire {
+                horizon: entry.horizon,
+                variables,
+                identification: antecedent_io::identification_to_wire(&entry.identification)
+                    .map_err(py_err)?,
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let identification_variables = temporal_identification
+        .iter()
+        .find(|entry| entry.identification.query == identification.query)
+        .map(|entry| entry.variables.clone());
+    Ok(antecedent_io::AnalysisResultWire {
+        query: antecedent_io::causal_query_to_wire(query).map_err(py_err)?,
+        identification,
+        identification_variables,
+        temporal_identification,
+        estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
+        standard_error: result.estimate.se_bootstrap.or_else(|| {
+            result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
+        }),
+        assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
+        diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
+        refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
+        response: result
+            .response
+            .as_ref()
+            .map(antecedent_io::causal_response_to_wire)
+            .transpose()
+            .map_err(py_err)?,
+        posterior_artifact: result
+            .posterior
+            .as_ref()
+            .map(|posterior| antecedent_io::encode_causal_posterior_bytes(posterior, artifact_id))
+            .transpose()
+            .map_err(py_err)?,
+        mediation_grid: result.mediation_grid.as_ref().map(mediation_grid_wire),
+        structural_response: result.structural_response.as_ref().map(structural_response_wire),
+    })
 }

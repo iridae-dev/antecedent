@@ -35,13 +35,20 @@ impl ModelCollection {
         if models.len() != graph_keys.len() || models.len() != weights.len() {
             return Err(ModelError::Shape { message: "ModelCollection length mismatch".into() });
         }
-        let sum: f64 = weights.iter().sum();
-        if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+        if weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0) {
             return Err(ModelError::Shape {
-                message: "ModelCollection weights non-positive".into(),
+                message: "ModelCollection weights must be finite and nonnegative".into(),
             });
         }
-        let weights: Arc<[f64]> = Arc::from(weights.iter().map(|w| w / sum).collect::<Vec<_>>());
+        let scale = weights.iter().copied().fold(0.0, f64::max);
+        if scale == 0.0 {
+            return Err(ModelError::Shape {
+                message: "ModelCollection weights require positive mass".into(),
+            });
+        }
+        let sum: f64 = weights.iter().map(|weight| weight / scale).sum();
+        let weights: Arc<[f64]> =
+            Arc::from(weights.iter().map(|weight| (weight / scale) / sum).collect::<Vec<_>>());
         Ok(Self { models, graph_keys, weights })
     }
 
@@ -55,5 +62,30 @@ impl ModelCollection {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.models.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn weights_are_probabilities_even_at_extreme_scales() {
+        let model = CompiledCausalModel::compile(antecedent_graph::Dag::empty()).unwrap();
+        for weights in [vec![1e308, 1e308], vec![1e-300, 1e-300]] {
+            let models =
+                ModelCollection::new(vec![model.clone(), model.clone()], vec![1, 2], weights)
+                    .unwrap();
+            assert!((models.weights[0] - 0.5).abs() < 1e-12);
+        }
+        for invalid in [-1.0, f64::NAN, f64::INFINITY] {
+            assert!(
+                ModelCollection::new(
+                    vec![model.clone(), model.clone()],
+                    vec![1, 2],
+                    vec![invalid, 2.0]
+                )
+                .is_err()
+            );
+        }
     }
 }

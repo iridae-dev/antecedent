@@ -53,6 +53,7 @@ EVIDENCE = {
     "bayes.backend.hierarchical_bvar_gp": "crates/antecedent-model/src/registry.rs",
     "bayes.validate.mcmc_diagnostics": "crates/antecedent-validate/src/bayesian_checks.rs",
     "bayes.ci.tests": "crates/antecedent-stats/src/ci/bayes.rs",
+    "bayes.prior_bank.temporal_transfer": "crates/antecedent/tests/temporal_prior_transfer.rs",
     "bayes.prior_bank.catalog": "crates/antecedent-io/src/prior_bank.rs",
     "bayes.prior_bank.effect_map": "crates/antecedent-estimate/src/bayesian.rs",
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
@@ -84,6 +85,7 @@ for path in [
     "conformance/bayesian/laplace_glm/expected.json",
     "conformance/bayesian/dag_posterior/expected.json",
     "conformance/bayesian/temporal_pulse/expected.json",
+    "conformance/bayesian/temporal_prior_transfer/expected.json",
     "conformance/bayesian/prior_bank_catalog/expected.json",
     "conformance/bayesian/prior_bank_effect_map/expected.json",
     "conformance/bayesian/prior_bank_power_mixture/expected.json",
@@ -128,6 +130,7 @@ cargo test -p antecedent-io --lib prior_bank
 cargo test -p antecedent-data --lib resample
 cargo test -p antecedent --test prepared_analysis
 cargo test -p antecedent --test bayesian
+cargo test -p antecedent --test temporal_prior_transfer
 cargo test -p antecedent --test manufacturing_temporal
 
 echo "== criterion smoke (reuse gates) =="
@@ -145,7 +148,7 @@ else
   (
     cd python
     unset CONDA_PREFIX || true
-    uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py -q
+    uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py -q
   )
 fi
 

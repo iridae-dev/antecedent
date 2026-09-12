@@ -210,6 +210,24 @@ pub enum MechanismSlot {
         /// Initial latent mean.
         initial_mean: f64,
     },
+    /// Parent-dependent linear mean plus a scalar LGSSM residual.
+    ///
+    /// `y_t = intercept + coeffs' parents_t + x_t + obs_std * eta_t`,
+    /// with the same latent process as [`Self::LinearGaussianStateSpace`].
+    ConditionalLinearGaussianStateSpace {
+        /// Conditional-mean intercept.
+        intercept: f64,
+        /// Coefficients in compiled parent order.
+        coeffs: Arc<[f64]>,
+        /// Latent AR coefficient.
+        a: f64,
+        /// Process noise standard deviation (also initial latent standard deviation).
+        process_std: f64,
+        /// Observation noise standard deviation.
+        obs_std: f64,
+        /// Initial latent residual mean.
+        initial_mean: f64,
+    },
     /// Gaussian-process mechanism (RBF dual form); requires `gaussian-process` feature to fit.
     GaussianProcess {
         /// Length scale.
@@ -271,6 +289,22 @@ impl std::fmt::Debug for MechanismSlot {
                 .finish(),
             Self::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => f
                 .debug_struct("LinearGaussianStateSpace")
+                .field("a", a)
+                .field("process_std", process_std)
+                .field("obs_std", obs_std)
+                .field("initial_mean", initial_mean)
+                .finish(),
+            Self::ConditionalLinearGaussianStateSpace {
+                intercept,
+                coeffs,
+                a,
+                process_std,
+                obs_std,
+                initial_mean,
+            } => f
+                .debug_struct("ConditionalLinearGaussianStateSpace")
+                .field("intercept", intercept)
+                .field("coeffs", coeffs)
                 .field("a", a)
                 .field("process_std", process_std)
                 .field("obs_std", obs_std)

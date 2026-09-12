@@ -11,7 +11,10 @@ papers = [
  { title = "Statistical Tables for Biological, Agricultural and Medical Research", sections = ["Random permutation by successive random draws (Example 12, the origin of the Fisher-Yates shuffle)"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "Cluster bootstrap draws G complete clusters with replacement from G observed clusters; unequal cluster sizes produce variable row counts. The grouped Vec API, ragged batch API with offsets, and grouped timeseries API retain those variable lengths.",
+ "The fixed-slice index batch API requires fixed-size output and therefore supports cluster bootstrap only for equal-sized clusters; unequal clusters use resample_index_batch_ragged rather than conditioning draws on a fixed row count.",
+]
 
 upstream_implementations_observed = []
 

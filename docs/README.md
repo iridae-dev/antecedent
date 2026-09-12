@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **1.5.0**.
+explicit stage contracts. Package version **1.6.0**.
 
 | Doc | Contents |
 |-----|----------|
@@ -20,6 +20,8 @@ explicit stage contracts. Package version **1.5.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [1.6.0 release notes](release-notes/v1.6.0.md) | Per-horizon temporal ID, Sequence overlays, observation correction, DBN mixtures, prior transfer |
+| [1.6 evidence ledger](v1.6-evidence.md) | Multi-horizon mediation, structural mixtures, block bootstrap, composite artifacts |
 | [1.5.0 release notes](release-notes/v1.5.0.md) | Retargetable plans, exceedance, cell AIPW, tier background, static joint-IF SEs |
 | [1.5 evidence ledger](v1.5-evidence.md) | Retarget pins, exceedance, cell AIPW, tier ID, static envelope SE |
 | [1.4.0 release notes](release-notes/v1.4.0.md) | Class-preserving CPDAG/PAG cells, temporal incomplete Pulse, EconML handoff |

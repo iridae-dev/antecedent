@@ -835,11 +835,16 @@ pub fn compile_logical_temporal_response(
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query
+        .require_licensed_temporal_observation()
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
-    validate_query_vars_in_temporal_dag(graph, treatment, outcome)?;
+    for variable in query.functional.treatment_ids() {
+        validate_query_vars_in_temporal_dag(graph, variable, outcome)?;
+    }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: format!(

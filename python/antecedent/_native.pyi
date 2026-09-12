@@ -144,6 +144,21 @@ class AteAnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    mediation_horizons: list[int]
+    mediation_effects: list[float]
+    mediation_totals: list[float]
+    mediation_directs: list[float]
+    mediation_mediated_effects: list[float]
+    mediation_identification_statuses: list[str]
+    mediation_methods: list[str]
+    mediation_adjustments: list[list[tuple[int, int]]]
+    mediation_uncertainty_kinds: list[str]
+    mediation_standard_deviations: list[float | None]
+    mediation_q025: list[float | None]
+    mediation_q975: list[float | None]
+    mediation_identified_lower: list[float | None]
+    mediation_identified_upper: list[float | None]
+    mediation_joint_posterior: bool | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -182,6 +197,11 @@ class ResponseAnalysisResult:
     truncated_completions: int | None
     enumeration_capped: bool | None
     mass_scope: str | None
+    weight_basis: str | None
+    atom_keys: list[int]
+    atom_weights: list[float]
+    atom_statuses: list[str]
+    atom_values: list[list[float]]
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -307,7 +327,7 @@ class ScoreInferenceSection:
 class EstimateSection:
     """Nested estimate section (top-level scalar fields only)."""
 
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     estimator_id: str
@@ -504,7 +524,7 @@ class PredictSummary:
 
 class AnalysisResult:
     certificate_json: str | None
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     plan_id: str
@@ -536,6 +556,21 @@ class AnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    mediation_horizons: list[int]
+    mediation_effects: list[float]
+    mediation_totals: list[float]
+    mediation_directs: list[float]
+    mediation_mediated_effects: list[float]
+    mediation_identification_statuses: list[str]
+    mediation_methods: list[str]
+    mediation_adjustments: list[list[tuple[int, int]]]
+    mediation_uncertainty_kinds: list[str]
+    mediation_standard_deviations: list[float | None]
+    mediation_q025: list[float | None]
+    mediation_q975: list[float | None]
+    mediation_identified_lower: list[float | None]
+    mediation_identified_upper: list[float | None]
+    mediation_joint_posterior: bool | None
     identification: IdentificationSection
     estimate: EstimateSection
     posterior: PosteriorSection
@@ -842,9 +877,23 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
         threads: int = 1,
         accepted: bool = False,
+        observation_kind: str | None = None,
+        latent: str | None = None,
+        observed: str | None = None,
+        censoring: str | None = None,
+        event: str | None = None,
+        lower: str | None = None,
+        upper: str | None = None,
+        indicator: str | None = None,
+        assumption_kind: str | None = None,
+        assumption_variables: list[str] = [],
+        structural_model: str | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_effect(
@@ -862,6 +911,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
         bootstrap: int = 0,
@@ -924,6 +976,7 @@ class PreparedAnalysis:
         contrast: str = "mediated",
         control_level: float = 0.0,
         active_level: float = 1.0,
+        horizons: list[int] | None = None,
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
@@ -959,9 +1012,35 @@ class PreparedAnalysis:
         outcome: str,
         *,
         policy: str = "pulse",
+        window: tuple[int, int] | None = None,
         treatment_lag: int = 1,
         horizon_steps: int = 1,
         active_level: float = 1.0,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        posterior: GraphPosterior | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_dbn_posterior_mediation(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: str,
+        mediator: str,
+        outcome: str,
+        *,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        horizons: Sequence[int] | None = None,
         max_lag: int = 1,
         force_mcmc: bool = False,
         n_chains: int = 2,
@@ -1752,6 +1831,17 @@ def analyze_temporal_response(
     threads: int = 1,
     accepted: bool = False,
     refute: bool | str | None = None,
+    observation_kind: str | None = None,
+    latent: str | None = None,
+    observed: str | None = None,
+    censoring: str | None = None,
+    event: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    indicator: str | None = None,
+    assumption_kind: str | None = None,
+    assumption_variables: list[str] = [],
+    structural_model: str | None = None,
 ) -> ResponseAnalysisResult: ...
 def analyze_response_pag(
     names: list[str],
@@ -2000,6 +2090,7 @@ def analyze_temporal_mediation(
     contrast: str = "mediated",
     control_level: float = 0.0,
     active_level: float = 1.0,
+    horizons: list[int] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
     threads: int = 1,
@@ -2110,9 +2201,32 @@ def analyze_temporal_graph_posterior(
     outcome: str,
     *,
     policy: str = "pulse",
+    window: tuple[int, int] | None = None,
     treatment_lag: int = 1,
     horizon_steps: int = 1,
     active_level: float = 1.0,
+    inference: str = "conjugate",
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
+) -> AnalysisResult: ...
+def analyze_temporal_graph_posterior_mediation(
+    names: list[str],
+    columns: Sequence[Any],
+    posterior: GraphPosterior,
+    treatment: str,
+    mediator: str,
+    outcome: str,
+    *,
+    contrast: str = "mediated",
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    horizons: Sequence[int] | None = None,
     inference: str = "conjugate",
     n_draws: int = 1000,
     prior_scale: float = 10.0,

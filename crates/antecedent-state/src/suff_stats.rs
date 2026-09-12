@@ -156,23 +156,35 @@ impl StreamingCovariance {
         if x.len() != self.dim {
             return Err(StateError::Shape(format!("cov dim {} != {}", x.len(), self.dim)));
         }
-        self.n = self.n.saturating_add(1);
-        let n = self.n as f64;
-        let mut delta = vec![0.0; self.dim];
-        for i in 0..self.dim {
-            delta[i] = x[i] - self.mean[i];
-            self.mean[i] += delta[i] / n;
+        if x.iter().any(|value| !value.is_finite()) {
+            return Err(StateError::Numerical("covariance observations must be finite".into()));
         }
-        // Welford: m2[i,j] += delta[i] * (x[j] - mean_new[j])
-        let mut d = vec![0.0; self.dim];
-        for j in 0..self.dim {
-            d[j] = x[j] - self.mean[j];
+        let next_n = self
+            .n
+            .checked_add(1)
+            .ok_or_else(|| StateError::Numerical("covariance count overflow".into()))?;
+        if self.n == 0 {
+            self.mean.copy_from_slice(x);
+            self.n = next_n;
+            return Ok(());
         }
+        // Welford's rank-one scatter update uses the old mean on both axes.
+        // Updating means afterward eliminates two scratch allocations per row
+        // and makes symmetry exact rather than relying on rounded delta2 values.
+        let correction = self.n as f64 / next_n as f64;
         for i in 0..self.dim {
-            for j in 0..self.dim {
-                self.m2[i * self.dim + j] += delta[i] * d[j];
+            let delta_i = x[i] - self.mean[i];
+            for j in i..self.dim {
+                let value =
+                    self.m2[i * self.dim + j] + delta_i * (x[j] - self.mean[j]) * correction;
+                self.m2[i * self.dim + j] = value;
+                self.m2[j * self.dim + i] = value;
             }
         }
+        for (mean, value) in self.mean.iter_mut().zip(x) {
+            *mean += (value - *mean) / next_n as f64;
+        }
+        self.n = next_n;
         Ok(())
     }
 
@@ -212,6 +224,18 @@ pub struct LagIndexCacheEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streaming_covariance_rejects_nonfinite_rows_without_poisoning_state() {
+        let mut stats = StreamingCovariance::new(2);
+        stats.append(&[1.0, 2.0]).unwrap();
+        let before = stats.clone();
+        assert!(stats.append(&[3.0, f64::NAN]).is_err());
+        assert_eq!(stats, before);
+        stats.append(&[3.0, 4.0]).unwrap();
+        let covariance = stats.sample_covariance().unwrap();
+        assert!(covariance.iter().all(|value| (*value - 2.0).abs() < 1e-12));
+    }
 
     #[test]
     fn incremental_ols_matches_full_batch() {

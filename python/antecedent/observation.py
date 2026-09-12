@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -284,6 +284,36 @@ def _mechanism_kwargs(mechanism: object) -> dict[str, object]:
             "indicator": mechanism.indicator,
         }
     raise CausalValueError(f"unsupported observation mechanism {type(mechanism).__name__}")
+
+
+class _TemporalObservationKwargs(TypedDict, total=False):
+    observation_kind: str
+    latent: str
+    observed: str
+    censoring: str
+    event: str
+    lower: str
+    upper: str
+    indicator: str
+    assumption_kind: str
+    assumption_variables: list[str]
+    structural_model: str
+
+
+def _temporal_observation_kwargs(query: Any) -> _TemporalObservationKwargs:
+    """Native kwargs for a licensed temporal observation pair, or empty."""
+
+    mechanism = getattr(query, "observation", None)
+    if mechanism is None or isinstance(mechanism, Complete):
+        return {}
+    assumptions = tuple(getattr(query, "observation_assumptions", ()))
+    if len(assumptions) != 1:
+        raise CausalValueError(
+            "observation-aware response requires exactly one explicit assumption"
+        )
+    kwargs = _mechanism_kwargs(mechanism)
+    kwargs.update(_assumption_kwargs(assumptions[0]))
+    return cast(_TemporalObservationKwargs, kwargs)
 
 
 def _assumption_kwargs(assumption: object) -> dict[str, object]:

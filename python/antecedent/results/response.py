@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from math import isfinite
+from math import isfinite, isnan
 from typing import Any, Literal
 
 from ..errors import CausalValueError
@@ -77,6 +77,13 @@ class ResponseEnvelopeView:
     truncated_completions: int = 0
     enumeration_capped: bool = False
     mass_scope: Literal["full_class", "examined_completions"] = "full_class"
+    weight_basis: Literal["posterior_probability", "completion_enumeration"] = (
+        "completion_enumeration"
+    )
+    atom_keys: Sequence[int] = ()
+    atom_weights: Sequence[float] = ()
+    atom_statuses: Sequence[str] = ()
+    atom_values: Sequence[Sequence[float]] = ()
 
     def __post_init__(self) -> None:
         if len(self.points) != len(self.lower) or len(self.points) != len(self.upper):
@@ -94,6 +101,11 @@ class ResponseEnvelopeView:
             raise CausalValueError("invalid PAG completion counts")
         if self.enumeration_capped != (self.mass_scope == "examined_completions"):
             raise CausalValueError("capped enumeration must label mass as examined completions")
+        atom_count = len(self.atom_keys)
+        if not (
+            len(self.atom_weights) == len(self.atom_statuses) == len(self.atom_values) == atom_count
+        ):
+            raise CausalValueError("structural atom metadata must have equal lengths")
         for lo, hi in zip(self.lower, self.upper, strict=True):
             if len(lo) != len(self.outcomes) or len(hi) != len(self.outcomes):
                 raise CausalValueError("each envelope row must have one value per outcome")
@@ -215,6 +227,16 @@ class ResponseUncertainty:
             raise CausalValueError("lower and upper must either both be provided or both be None")
         if self.lower is not None and len(self.lower) != len(self.upper or ()):
             raise CausalValueError("lower and upper must have the same number of rows")
+        if self.lower is not None and self.upper is not None:
+            for lower, upper in zip(self.lower, self.upper, strict=True):
+                if len(lower) != len(upper):
+                    raise CausalValueError("lower and upper rows must have the same width")
+                if any(
+                    isnan(lo) or isnan(hi) or lo > hi for lo, hi in zip(lower, upper, strict=True)
+                ):
+                    raise CausalValueError(
+                        "uncertainty bounds must be ordered and cannot contain NaN"
+                    )
         if self.level is not None and not 0.0 < self.level < 1.0:
             raise CausalValueError("level must be strictly between 0 and 1")
         if self.kind == "none" and any(
@@ -228,8 +250,10 @@ class ResponseUncertainty:
             )
         ):
             raise CausalValueError("kind='none' cannot carry uncertainty data")
-        if self.standard_error is not None and self.standard_error < 0.0:
-            raise CausalValueError("standard_error must be non-negative")
+        if self.standard_error is not None and (
+            not isfinite(self.standard_error) or self.standard_error < 0.0
+        ):
+            raise CausalValueError("standard_error must be finite and non-negative")
         if self.replicates is not None and self.replicates < 1:
             raise CausalValueError("replicates must be at least 1")
 

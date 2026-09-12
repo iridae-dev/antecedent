@@ -143,14 +143,44 @@ def test_prepared_temporal_mediation_cheap_refute_runs():
     m = np.zeros(n)
     y = np.zeros(n)
     for i in range(1, n):
-        t[i] = 0.3 * t[i - 1] + 0.1 * math.sin(i)
+        t[i] = 0.1 * math.sin(i)
         m[i] = 0.8 * t[i - 1] + 0.05 * math.cos(i)
         y[i] = 0.5 * m[i] + 0.02 * math.sin(i)
     data = {"t": t, "m": m, "y": y}
-    edges = [("t", 1, "t", 0), ("t", 1, "m", 0), ("m", 0, "y", 0)]
+    edges = [("t", 1, "m", 0), ("m", 0, "y", 0)]
     query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=edges, query=query, refute="cheap", seed=1, latency=None
     )
     result = prepared.estimate(data)
     assert len(result.validation.reports) == 2
+
+
+def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis():
+    n = 96
+    t = np.asarray([(-1.0, 0.0, 1.0)[i % 3] for i in range(n)])
+    m = np.zeros(n)
+    y = np.zeros(n)
+    for i in range(2, n):
+        m[i] = 0.8 * t[i - 1] + 0.05 * math.cos(i)
+        y[i] = 0.2 * t[i - 1] + 0.5 * m[i] + 0.02 * math.sin(i)
+    data = {"t": t, "m": m, "y": y}
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated", horizons=[1, 2])
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=[("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)],
+        query=query,
+        refute=False,
+        seed=11,
+    )
+    result = prepared.estimate(data, seed=11)
+    assert result.mediation is None
+    assert result.estimate.ate is None
+    assert result.ate is None
+    assert result.mediation_grid is not None
+    assert [slice_.horizon for slice_ in result.mediation_grid] == [1, 2]
+    assert result.mediation_grid.joint_posterior is False
+
+    artifact = antecedent.artifacts.loads(prepared.export_artifact())
+    assert artifact.payload_kind == "analysis_result"
+    assert [slice_["horizon"] for slice_ in artifact.payload["mediation_grid"]["slices"]] == [1, 2]

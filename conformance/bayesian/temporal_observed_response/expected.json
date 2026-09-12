@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "seed": 8482,
+  "rows": 700,
+  "posterior_seed": 330,
+  "draws": 4096,
+  "intercept": 2.0,
+  "lag1_coefficient": 1.5,
+  "lag2_coefficient": 0.75,
+  "innovation_sd": 0.5,
+  "horizons": [1, 2],
+  "doses": [0.0, 1.0],
+  "mean_atol": 0.16,
+  "sequence_levels": [1.0, 2.0],
+  "sequence_mean": 5.75,
+  "sequence_atol": 0.2,
+  "observation_pairs": ["selected", "right_independent", "left_independent", "right_given_x", "left_given_x"],
+  "model": "time-homogeneous Gaussian mechanisms; selection-indicator or censoring-bound trajectory independent of latent outcome trajectory conditional on fully observed conditioning trajectory, with distinct nuisance parameters and independent priors",
+  "uncertainty": "observed-data Gibbs posterior; pointwise equal-tail bands, not pseudo-outcome complete-data bands"
+}

@@ -54,4 +54,56 @@ Marginal delayed entry retains its existing contract. Conditional delayed entry,
 interval-censored/truncated response MLE, and joint observation/curve intervals
 remain unavailable. Observation-adjusted results omit uncertainty rather than
 reuse complete-data intervals. These cells do not extend to derivatives,
-Bayesian responses, temporal responses, or partial graphs.
+Bayesian responses, or partial graphs.
+
+# Temporal response observation contract (1.6)
+
+The same pairs ride Frequentist `TemporalDag` `ResponseCurve` /
+`InterventionResponse` at validation `none`. Each pair consumes
+`conformance/response/temporal_observation`, not
+`conformance/response/observation_primitives`.
+
+| ObservationSpec | ObservationAssumption | Estimation | Consuming fixture |
+|---|---|---|---|
+| Complete | None | Existing temporal g-comp | `conformance/response/temporal_dose_horizon` |
+| Selected | OutcomeIndependentGiven(Z), including treatment and every causal adjustment process | Cross-fitted logistic AIPW on the lag-aligned series | `conformance/response/temporal_observation` |
+| RightCensored | IndependentGiven([]) | Marginal KM IPCW | same |
+| LeftCensored | IndependentGiven([]) | Marginal KM IPCW after sign reversal | same |
+| RightCensored | IndependentGiven(Z), nonempty and including treatment and every causal adjustment process | Cox IPCW, Z lag-aligned at the policy treatment offset | same |
+| LeftCensored | IndependentGiven(Z), same requirement | Cox IPCW after sign reversal, same lag alignment | same |
+
+The historical empty `OutcomeIndependentGiven([])` marginal-censoring alias
+remains accepted. Containment uses contemporaneous process ids (unfolded
+adjustment nodes map back through the temporal indexer). Nonempty Z is never
+the contemporaneous column: the Cox/AIPW design uses Z at
+`TemporalResponseSpec::treatment_offset()` (typically −1).
+
+Until a pair is licensed, `compile_logical_temporal_response` refuses
+non-`Complete` with `temporal response observation pair is not licensed`.
+Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
+When bootstrap replicates are requested, observation-adjusted temporal
+surfaces — including Sequence overlays — report pointwise outer circular-block
+bootstrap intervals. Every replicate resamples the original series, refits the
+selected/KM/Cox observation nuisance, reconstructs the pseudo-outcome, and
+refits every horizon or sequential overlay. Complete-data analytic bands and
+Bayesian IPCW/KM/Cox bands are not substituted.
+
+
+### Bayesian temporal observed-data likelihood
+
+The same five selected/right-/left-censored temporal pairs support Gaussian
+SEM latent-trajectory Gibbs sampling, including multi-step Sequence. This
+route integrates missing and censored outcomes through the observed-data
+likelihood; it does not use fitted IPCW weights as a Bayesian likelihood.
+
+Its declared ignorability assumption concerns the entire selection-indicator
+trajectory or censoring-bound trajectory: conditional on fully observed Z,
+that trajectory is independent of the latent outcome trajectory. Censoring
+event indicators are deterministic comparisons of outcomes with bounds and
+are not assumed independent of the outcome. Distinct observation/outcome
+priors permit the ignorable observation factor to be omitted. Intervals are
+pointwise posterior bands under the Gaussian mechanism model and this
+trajectory assumption, not a guarantee of repeated-sampling coverage.
+
+Consuming evidence: `crates/antecedent/tests/temporal_observed_bayesian.rs`;
+backend provenance: `provenance/estimate.temporal_observed_bayes.toml`.

@@ -126,6 +126,13 @@ limitations = "Clean-room conjugate NIG oracle executed with pinned scipy/numpy 
 notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12)"
 
 [[capabilities]]
+id = "bayes.prior_bank.temporal_transfer"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/temporal_prior_transfer"
+notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog)"
+
+[[capabilities]]
 id = "bayes.prior_bank.catalog"
 status = "done"
 evidence_kind = "implementation_exists"

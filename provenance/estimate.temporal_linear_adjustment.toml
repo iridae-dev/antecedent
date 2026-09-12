@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "The estimator is a horizon-specific OLS regression on one aligned treatment column and an identified adjustment set, rather than recursive longitudinal g-computation.",
- "Only a single treatment time and outcome horizon are represented per fit; multi-step, sustained, and dynamic schedules and treatment-confounder feedback are not implemented.",
+ "Only a single treatment time and outcome horizon are represented per fit. The facade routes multi-step Sustained and Sequence through estimate.temporal_sequential; this projection backend does not itself fit longitudinal treatment-confounder feedback.",
  "The default analytic standard error assumes iid homoskedastic rows, while the optional bootstrap resamples rows iid. Neither accounts for serial dependence or provides joint inference across horizons.",
  "The Mostly Harmless Econometrics citation supports static OLS adjustment and standard errors, not the temporal identification or horizon-alignment construction.",
 ]

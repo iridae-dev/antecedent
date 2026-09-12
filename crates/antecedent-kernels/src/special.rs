@@ -10,7 +10,8 @@
 //! against a reference: 6.6e-7 at x=1, 6.6e-4 at x=3, 6.7e-3 at x=5, 2.7e-2 at
 //! x=8. A reported p-value wrong by a few percent is not acceptable, and the
 //! error compounds through probit IRLS. Cody's approximation below holds
-//! relative error near machine epsilon across the whole range.
+//! relative error near machine epsilon for normal results; subnormal tails
+//! necessarily lose relative precision.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -80,8 +81,8 @@ const CODY_Q: [f64; 5] = [
 const SQRT_PI_INV: f64 = 5.641_895_835_477_562_869_5e-1;
 /// Below this |x|, erfc is evaluated as `1 - erf`.
 const CODY_THRESH: f64 = 0.46875;
-/// Above this |x|, `exp(-x*x)` underflows f64 and erfc(x) is 0.
-const CODY_XBIG: f64 = 26.543;
+/// Above this |x|, erfc(x) rounds to zero even with subnormal f64 support.
+const CODY_XBIG: f64 = 27.3;
 
 /// `exp(-y*y)` split as `exp(-t*t) * exp(-(y-t)(y+t))` with `t = trunc(16y)/16`.
 ///
@@ -98,8 +99,8 @@ fn exp_neg_square_split(y: f64) -> f64 {
 /// Complementary error function `erfc(x) = 1 - erf(x)`.
 ///
 /// Cody's rational-Chebyshev approximation; relative error near machine epsilon
-/// across the whole range, including the far tail where `erfc` underflows to 0
-/// beyond |x| ~ 26.5.
+/// for normal results. Subnormal tail values retain absolute floating-point
+/// accuracy until rounding to zero near x = 27.3.
 #[must_use]
 pub fn erfc(x: f64) -> f64 {
     let y = x.abs();
@@ -142,7 +143,7 @@ pub fn erf(x: f64) -> f64 {
     let y = x.abs();
     if y > CODY_THRESH {
         let c = erfc(x);
-        return if x < 0.0 { c - 1.0 } else { 1.0 - c };
+        return 1.0 - c;
     }
     let ysq = y * y;
     let mut num = CODY_A[4] * ysq;
@@ -167,7 +168,7 @@ pub fn norm_cdf(x: f64) -> f64 {
 ///
 /// Prefer this to `1.0 - norm_cdf(x)` for upper-tail probabilities: the
 /// subtraction form saturates to 0 once Φ(x) rounds to 1 (around x ~ 8), while
-/// this stays accurate until the true value underflows near x ~ 37.
+/// this stays accurate until the true value underflows near x ~ 38.5.
 #[must_use]
 pub fn norm_sf(x: f64) -> f64 {
     0.5 * erfc(x / std::f64::consts::SQRT_2)
@@ -253,6 +254,27 @@ pub fn norm_inv(p: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn erf_is_odd_across_approximation_regions() {
+        // NIST DLMF 7.4.1: erf(-x) = -erf(x).
+        for x in [1e-12, 0.25, 0.46875, 0.5, 1.0, 4.0, 10.0, f64::INFINITY] {
+            assert!((erf(-x) + erf(x)).abs() < 2e-16, "x={x}");
+            assert!((erf(-x) + erfc(-x) - 1.0).abs() < 2e-16);
+        }
+    }
+
+    #[test]
+    fn erfc_preserves_representable_subnormal_tails() {
+        // References rounded from high-precision erfc; a normal-only cutoff at
+        // 26.543 discarded these representable probabilities altogether.
+        for (x, expected) in [(26.6, 1.088_512_588_544_227e-309), (27.0, 5.237_05e-319)] {
+            let actual = erfc(x);
+            assert!(actual > 0.0);
+            assert!((actual - expected).abs() <= 4.0 * f64::from_bits(1), "{x}: {actual:e}");
+        }
+        assert!(norm_sf(38.0) > 0.0);
+    }
 
     #[test]
     fn norm_inv_known_quantiles() {

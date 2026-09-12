@@ -128,6 +128,13 @@ fn sandwich_from_multipliers(
         return Err(StatsError::Shape { message: "covariance needs positive dimensions" });
     }
 
+    if x_colmajor[..nrows * ncols].iter().chain(multipliers).any(|v| !v.is_finite()) {
+        return Err(StatsError::Backend("covariance inputs must be finite".into()));
+    }
+    if fisher_weights.is_some_and(|w| w.iter().any(|v| !v.is_finite() || *v < 0.0)) {
+        return Err(StatsError::Backend("Fisher weights must be finite and nonnegative".into()));
+    }
+
     let mut gram = vec![0.0; ncols * ncols];
     match fisher_weights {
         None => form_xtx(x_colmajor, nrows, ncols, &mut gram),
@@ -151,7 +158,8 @@ fn sandwich_from_multipliers(
             Ok(bread.iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let meat = hc_meat(x_colmajor, nrows, ncols, multipliers, &gram, fisher_weights, kind)?;
+            let meat =
+                hc_meat(x_colmajor, nrows, ncols, multipliers, &bread, fisher_weights, kind)?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
         SandwichKind::Cluster { groups } => {
@@ -230,13 +238,13 @@ fn hc_meat(
     nrows: usize,
     ncols: usize,
     multipliers: &[f64],
-    gram: &[f64],
+    bread: &[f64],
     fisher_weights: Option<&[f64]>,
     kind: SandwichKind<'_>,
 ) -> Result<Vec<f64>, StatsError> {
     let hat = match kind {
         SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            Some(leverages(x_colmajor, nrows, ncols, gram, fisher_weights)?)
+            Some(leverages(x_colmajor, nrows, ncols, bread, fisher_weights))
         }
         _ => None,
     };
@@ -274,21 +282,18 @@ fn leverages(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
-    gram: &[f64],
+    bread: &[f64],
     fisher_weights: Option<&[f64]>,
-) -> Result<Vec<f64>, StatsError> {
-    let Some(inv) = invert_square(gram, ncols) else {
-        return Err(StatsError::Backend("singular gram for leverages".into()));
-    };
+) -> Vec<f64> {
     let mut h = vec![0.0; nrows];
+    let mut tmp = vec![0.0; ncols];
     for i in 0..nrows {
         // Unweighted: h_ii = x_i' (X'X)⁻¹ x_i
         // Weighted:   h_ii = w_i x_i' (X'WX)⁻¹ x_i
-        let mut tmp = vec![0.0; ncols];
         for a in 0..ncols {
             let mut s = 0.0;
             for b in 0..ncols {
-                s += inv[a * ncols + b] * x_colmajor[b * nrows + i];
+                s += bread[a * ncols + b] * x_colmajor[b * nrows + i];
             }
             tmp[a] = s;
         }
@@ -301,7 +306,7 @@ fn leverages(
         }
         h[i] = hi;
     }
-    Ok(h)
+    h
 }
 
 fn cluster_meat(
@@ -502,6 +507,31 @@ fn distinct_count(groups: &[u32]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn covariance_rejects_nonfinite_inputs_and_negative_information() {
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(
+                coefficient_covariance(&[1.0, bad], 2, 1, &[1.0, -1.0], SandwichKind::Hc0).is_err()
+            );
+            assert!(
+                coefficient_covariance(&[1.0, 1.0], 2, 1, &[1.0, bad], SandwichKind::Hc0).is_err()
+            );
+        }
+        for bad in [-1.0, f64::NAN, f64::INFINITY] {
+            assert!(
+                score_coefficient_covariance(
+                    &[1.0, 1.0],
+                    2,
+                    1,
+                    &[1.0, -1.0],
+                    &[bad, 2.0],
+                    SandwichKind::Homoskedastic
+                )
+                .is_err()
+            );
+        }
+    }
 
     #[test]
     fn hc0_matches_manual_two_row() {

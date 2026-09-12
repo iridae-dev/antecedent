@@ -7,17 +7,25 @@ smoke on ExactDagPosterior / DbnPosterior.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 antecedent = pytest.importorskip("antecedent")
+
+from antecedent.errors import CausalUnsupportedError  # noqa: E402
 
 from known_truth import (  # noqa: E402
     BAYES,
     FREQ,
     STATIC,
     TEMPORAL,
+    TEMPORAL_MEDIATION,
+    TEMPORAL_MULTI,
     static_data,
     static_posterior,
+    temporal_mediation_posterior,
+    temporal_mediation_series,
     temporal_posterior,
     white_noise_pulse_series,
 )
@@ -248,3 +256,154 @@ def test_temporal_known_truth_mixture(query) -> None:
         unidentified_mass=float(TEMPORAL["expected_unidentified_mass"]),
         expect_ppc=False,
     )
+
+
+def test_temporal_multistep_sustained_known_truth_mixture() -> None:
+    data = white_noise_pulse_series(int(TEMPORAL_MULTI["n"]), int(TEMPORAL_MULTI["seed"]))
+    posterior = temporal_posterior()
+    query = antecedent.SustainedEffect(
+        treatment="pressure",
+        outcome="defect",
+        window=(-2, -1),
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        bootstrap=0,
+        seed=11,
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=False,
+        seed=11,
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=11)
+    _assert_mixture_contract(
+        fresh,
+        click,
+        prepared,
+        validation_suite=None,
+        expected_ate=float(TEMPORAL_MULTI["expected_effect_given_identified"]),
+        tolerance=float(TEMPORAL_MULTI["effect_abs_tolerance"]),
+        unidentified_mass=float(TEMPORAL_MULTI["expected_unidentified_mass"]),
+        expect_ppc=False,
+    )
+
+
+@pytest.mark.parametrize("validation, validation_suite", _VALIDATIONS[1:])
+def test_temporal_multistep_sustained_validation(validation, validation_suite) -> None:
+    data = white_noise_pulse_series(int(TEMPORAL_MULTI["n"]), int(TEMPORAL_MULTI["seed"]))
+    options = dict(
+        discovery=temporal_posterior(),
+        query=antecedent.SustainedEffect(
+            treatment="pressure",
+            outcome="defect",
+            window=(-2, -1),
+        ),
+        inference=BAYES,
+        refute=validation,
+        bootstrap=0,
+        seed=11,
+    )
+    fresh = antecedent.analyze(data, **options)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **options)
+    click = prepared.estimate(data, seed=11)
+    _assert_mixture_contract(
+        fresh,
+        click,
+        prepared,
+        validation_suite=validation_suite,
+        expected_ate=float(TEMPORAL_MULTI["expected_effect_given_identified"]),
+        tolerance=float(TEMPORAL_MULTI["effect_abs_tolerance"]),
+        unidentified_mass=float(TEMPORAL_MULTI["expected_unidentified_mass"]),
+        expect_ppc=False,
+    )
+    assert all(math.isfinite(report.refuted_ate) for report in fresh.validation.reports)
+
+    # Temporal results expose each mechanism separately as validation reports;
+    # the scalar static-DTO predictive convenience fields do not apply here.
+    for result in [fresh, click]:
+        names = {report.refuter for report in result.validation.reports}
+        assert any(name.startswith("prior_predictive.mechanism.") for name in names)
+        assert any(name.startswith("posterior_predictive.mechanism.") for name in names)
+        if validation == "full":
+            assert "prior_sensitivity" in names
+            assert "placebo.treatment" in names
+
+
+_MEDIATION_VALIDATIONS = [
+    pytest.param(False, None, id="none"),
+    pytest.param("cheap", "temporal.mediation.cheap", id="cheap"),
+    pytest.param("full", "temporal.mediation.full", id="full"),
+]
+
+
+@pytest.mark.parametrize("validation, validation_suite", _MEDIATION_VALIDATIONS)
+def test_temporal_mediation_known_truth_mixture(validation, validation_suite: str | None) -> None:
+    data = temporal_mediation_series(int(TEMPORAL_MEDIATION["n"]))
+    posterior = temporal_mediation_posterior()
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+    fresh = antecedent.analyze(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=validation,
+        bootstrap=0,
+        seed=int(TEMPORAL_MEDIATION["seed"]),
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=BAYES,
+        refute=validation,
+        seed=int(TEMPORAL_MEDIATION["seed"]),
+        latency="interactive",
+    )
+    click = prepared.estimate(data, seed=int(TEMPORAL_MEDIATION["seed"]))
+    _assert_mixture_contract(
+        fresh,
+        click,
+        prepared,
+        validation_suite=validation_suite,
+        expected_ate=float(TEMPORAL_MEDIATION["expected_effect_given_identified"]),
+        tolerance=float(TEMPORAL_MEDIATION["effect_abs_tolerance"]),
+        unidentified_mass=float(TEMPORAL_MEDIATION["expected_unidentified_mass"]),
+        expect_ppc=False,
+    )
+    assert any("identify.dbn_posterior.per_atom_horizon" in d for d in fresh.diagnostics)
+    assert fresh.mediation is not None
+    assert fresh.mediation.mediated == pytest.approx(fresh.ate, abs=1e-12)
+    if validation_suite is not None:
+        assert fresh.validation.reports and click.validation.reports
+        assert any("refute.envelope.effect_mixture" in d for d in click.diagnostics)
+
+
+def test_dbn_posterior_response_curve_stays_refused() -> None:
+    data = white_noise_pulse_series(64, 1)
+    with pytest.raises(CausalUnsupportedError, match="response mixture"):
+        antecedent.analyze(
+            data,
+            discovery=temporal_posterior(),
+            query=antecedent.ResponseCurve(
+                treatment="pressure",
+                outcome="defect",
+                grid=[0.0, 1.0],
+                horizons=[1],
+                policy="pulse",
+            ),
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )

@@ -15,7 +15,14 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 1.5 matrix keeps the 1.4 licensed cells and adds no new query kinds.
+The 1.6 matrix keeps the 1.5 licensed cells and adds temporal policy
+cells: per-horizon `TemporalMediationEffect`, multi-step and joint `Sequence`
+overlays, observation-adjusted temporal curves (Frequentist IPCW pairs and
+the parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
+the contrasts the handle already runs, and bounded prior transfer on named
+Pulse / Sustained / ResponseCurve cells.
+
+The 1.5 matrix kept the 1.4 licensed cells and added no new query kinds.
 Prepared iid AllObserved `AverageEffect` plans with explicit AIPW and discrete joint
 `InterventionResponse` plans with cell-AIPW export cross-fitted scores and retarget to a declared covariate population.
 `analyze()` does not always return scores. Linear, ATT/trim/clustered AIPW, matching, IV, and Bayesian plans do not export scores. `outcome_functional`
@@ -28,8 +35,10 @@ Static Cpdag / Pag Frequentist effect and response aggregates publish joint-IF
 standard errors mixed by frozen completion weights. Scalar Dag
 `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control
 contrast; plugin g-comp cheap is overlap only and full is overlap plus sampling-stability of the g-comp level.
-`ResponseCurve` cheap/full stay n/a. Temporal / DBN multi-atom Frequentist
-uncertainty stays unavailable until 1.9.
+`ResponseCurve` cheap/full stay n/a. Frequentist DBN Pulse/Sustained
+mixtures use shared outer-block replicates; TemporalCpdag/TemporalPag
+class-envelope between-atom variance remains undisclosed pending 1.9
+calibration.
 
 The 1.4 matrix licenses the 1.3 families plus:
 
@@ -93,17 +102,21 @@ uses sequential g-computation; Bayesian time copies share stationary mechanism
 draws. These restrictions are part of each licensed form; see the
 [1.2 evidence ledger](v1.2-evidence.md),
 [1.3 evidence ledger](v1.3-evidence.md), and
-[1.4 evidence ledger](v1.4-evidence.md) and
-[1.5 evidence ledger](v1.5-evidence.md).
+[1.4 evidence ledger](v1.4-evidence.md),
+[1.5 evidence ledger](v1.5-evidence.md), and
+[1.6 evidence ledger](v1.6-evidence.md).
 
 Graph-posterior support is deliberately narrow. The static envelope is
 `AverageEffect × Dag × graph_posterior` under Bayesian or Frequentist
-inference with validation `none`/`cheap`/`full`. Temporal graph-posterior
-support is pulse and single-step sustained effect on `TemporalDag` with
-Bayesian inference and validation `none`, `cheap`, or `full`.
-Frequentist DBN-posterior mixing, response mixtures, and
-ADMG/CPDAG/PAG posterior atoms are refused. Unidentified atom mass is retained;
-priors do not upgrade identification.
+inference with validation `none`/`cheap`/`full`, plus DAG graph-posterior
+`ResponseCurve` / one-coordinate `InterventionResponse` (probability atoms
+and mass; function-valued cheap/full stay n/a). Temporal graph-posterior
+support is Pulse and Sustained on `TemporalDag` under Bayesian or
+Frequentist inference, including multi-step Sustained cheap/full that refit
+the window. Frequentist DBN mixtures use shared outer-block replicates.
+DBN-posterior `ResponseCurve` / `InterventionResponse`, TemporalCpdag/Pag
+posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms stay refused.
+Unidentified atom mass is retained; priors do not upgrade identification.
 
 Derivative query types remain importable at the Python root so unsupported
 requests fail as typed matrix refusals. They are licensed on Frequentist
@@ -198,7 +211,9 @@ The following are current product boundaries or explicit matrix refusals:
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no Frequentist DBN-posterior mixing (1.7) or response mixtures over graph posteriors;
+- no temporal graph-posterior response surface or Bayesian response bands over
+  incomplete temporal classes; static DAG graph-posterior responses and
+  Frequentist DBN Pulse/Sustained mixtures are licensed;
 - no Bayesian or partial-graph derivative cells;
 - no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;

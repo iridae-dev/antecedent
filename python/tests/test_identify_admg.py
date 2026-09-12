@@ -77,3 +77,24 @@ def test_staged_identification_carries_the_admg_forward() -> None:
     admg = _frontdoor_dag().latent_project(["T", "M", "Y"])
     result = antecedent.identify(graph=admg, query=QUERY)
     assert result.graph is admg
+
+
+@pytest.mark.parametrize("observed", [["T", "M", "Y"], ["Y", "M", "T"]])
+def test_projection_identifies_by_names_after_source_ids_and_dense_order_diverge(
+    observed: list[str],
+) -> None:
+    graph = _frontdoor_dag().latent_project(observed)
+    result = antecedent.identify(graph=graph, query=QUERY)
+    assert bool(result)
+    assert result.method == "general.id"
+    assert list(graph.nodes()) == observed
+    assert graph.children("T") == ["M"]
+    assert graph.bidirected_neighbors("T") == ["Y"]
+
+
+def test_projected_adjustment_names_follow_receiving_schema() -> None:
+    dag = antecedent.Dag.from_edges(["unused", "Z", "T", "Y"], [("Z", "T"), ("Z", "Y"), ("T", "Y")])
+    graph = dag.latent_project(["Y", "T", "Z"])
+    result = antecedent.identify(graph=graph, query=QUERY)
+    assert bool(result)
+    assert result.adjustment_set == ["Z"]

@@ -1547,12 +1547,13 @@ fn analyze_ate_admg(
     require_named_graph_order(&graph.names, &names, "Admg")?;
     let data = tabular_from_numpy(&names, &columns)?;
     drop(columns);
+    let admg = graph.aligned_to_names(&names)?;
     analyze_ate_typed_graph(
         py,
         names,
         data,
         None,
-        StaticGraphInput::Admg(graph.admg),
+        StaticGraphInput::Admg(admg),
         treatment,
         outcome,
         control_level,
@@ -2209,7 +2210,7 @@ pub(crate) fn ate_result_from_analysis(
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let estimate = EstimateSection {
-        ate: result.estimate.ate,
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         estimator_id: estimator_id.clone(),
@@ -2317,6 +2318,24 @@ pub(crate) fn ate_result_from_analysis(
 
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(result.support_status);
+    let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
+        result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
+    let mediation_uncertainty = |slice: &antecedent_estimate::TemporalMediationSlice| match &slice
+        .uncertainty
+    {
+        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+            standard_error,
+        } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
+        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+            requested, ..
+        } => (
+            "bayesian_pointwise".to_string(),
+            Some(requested.standard_deviation),
+            Some(requested.q025),
+            Some(requested.q975),
+        ),
+        _ => ("unavailable".to_string(), None, None, None),
+    };
 
     Ok(AteAnalysisResult {
         certificate_json,
@@ -2425,6 +2444,56 @@ pub(crate) fn ate_result_from_analysis(
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        mediation_horizons: mediation_slices.iter().map(|slice| slice.horizon).collect(),
+        mediation_effects: mediation_slices.iter().map(|slice| slice.estimate.effect.ate).collect(),
+        mediation_totals: mediation_slices
+            .iter()
+            .map(|slice| slice.estimate.total.unwrap_or(f64::NAN))
+            .collect(),
+        mediation_directs: mediation_slices
+            .iter()
+            .map(|slice| slice.estimate.direct.unwrap_or(f64::NAN))
+            .collect(),
+        mediation_mediated_effects: mediation_slices
+            .iter()
+            .map(|slice| slice.estimate.mediated.unwrap_or(f64::NAN))
+            .collect(),
+        mediation_identification_statuses: mediation_slices
+            .iter()
+            .map(|slice| format!("{:?}", slice.identification_status))
+            .collect(),
+        mediation_methods: mediation_slices.iter().map(|slice| slice.method.to_string()).collect(),
+        mediation_adjustments: mediation_slices
+            .iter()
+            .map(|slice| {
+                slice.adjustment.iter().map(|key| (key.variable.raw(), key.offset)).collect()
+            })
+            .collect(),
+        mediation_uncertainty_kinds: mediation_slices
+            .iter()
+            .map(|slice| mediation_uncertainty(slice).0)
+            .collect(),
+        mediation_standard_deviations: mediation_slices
+            .iter()
+            .map(|slice| mediation_uncertainty(slice).1)
+            .collect(),
+        mediation_q025: mediation_slices
+            .iter()
+            .map(|slice| mediation_uncertainty(slice).2)
+            .collect(),
+        mediation_q975: mediation_slices
+            .iter()
+            .map(|slice| mediation_uncertainty(slice).3)
+            .collect(),
+        mediation_identified_lower: mediation_slices
+            .iter()
+            .map(|slice| slice.identified_set.map(|set| set.lower))
+            .collect(),
+        mediation_identified_upper: mediation_slices
+            .iter()
+            .map(|slice| slice.identified_set.map(|set| set.upper))
+            .collect(),
+        mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
         evidence_status,
         allowlist_reason,
         allowlist_parent,
@@ -2591,8 +2660,9 @@ fn identify_ate_admg(
         let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let admg = graph.aligned_to_names(&names)?;
         let mut builder = Study::tabular(data)
-            .graph(graph.admg)
+            .graph(admg)
             .query(AverageEffectQuery::binary_ate(t_id, y_id))
             .refute(RefuteSuite::None);
         if let Some(id) = identifier {

@@ -757,7 +757,9 @@ fn status_from_wire(s: IdentificationStatusWire) -> IdentificationStatus {
     }
 }
 
-fn value_to_wire(v: &ResponseValue) -> ResponseValueWire {
+/// Convert a numerical response value to its durable wire representation.
+#[must_use]
+pub fn response_value_to_wire(v: &ResponseValue) -> ResponseValueWire {
     match v {
         ResponseValue::Scalar(x) => ResponseValueWire::Scalar(*x),
         ResponseValue::Surface { grid, dimension, mean } => ResponseValueWire::Surface {
@@ -780,7 +782,12 @@ fn value_to_wire(v: &ResponseValue) -> ResponseValueWire {
     }
 }
 
-fn value_from_wire(v: &ResponseValueWire) -> Result<ResponseValue, IoError> {
+/// Convert a durable numerical response value from the wire.
+///
+/// # Errors
+///
+/// Returns an error for dimensions that cannot be represented on this platform.
+pub fn response_value_from_wire(v: &ResponseValueWire) -> Result<ResponseValue, IoError> {
     Ok(match v {
         ResponseValueWire::Scalar(x) => ResponseValue::Scalar(*x),
         ResponseValueWire::Surface { grid, dimension, mean } => ResponseValue::Surface {
@@ -806,13 +813,13 @@ fn value_from_wire(v: &ResponseValueWire) -> Result<ResponseValue, IoError> {
 fn identification_to_wire(i: &ResponseIdentification) -> ResponseIdentificationWire {
     match i {
         ResponseIdentification::PointIdentified(v) => {
-            ResponseIdentificationWire::PointIdentified(value_to_wire(v))
+            ResponseIdentificationWire::PointIdentified(response_value_to_wire(v))
         }
         ResponseIdentification::PartiallyIdentified(v) => {
-            ResponseIdentificationWire::PartiallyIdentified(value_to_wire(v))
+            ResponseIdentificationWire::PartiallyIdentified(response_value_to_wire(v))
         }
         ResponseIdentification::GraphDependent(v) => ResponseIdentificationWire::GraphDependent(
-            v.iter().map(|(id, value)| (*id, value_to_wire(value))).collect(),
+            v.iter().map(|(id, value)| (*id, response_value_to_wire(value))).collect(),
         ),
         ResponseIdentification::Unidentified { certificate } => {
             ResponseIdentificationWire::Unidentified { certificate: certificate.to_string() }
@@ -824,14 +831,14 @@ fn identification_from_wire(
 ) -> Result<ResponseIdentification, IoError> {
     Ok(match i {
         ResponseIdentificationWire::PointIdentified(v) => {
-            ResponseIdentification::PointIdentified(value_from_wire(v)?)
+            ResponseIdentification::PointIdentified(response_value_from_wire(v)?)
         }
         ResponseIdentificationWire::PartiallyIdentified(v) => {
-            ResponseIdentification::PartiallyIdentified(value_from_wire(v)?)
+            ResponseIdentification::PartiallyIdentified(response_value_from_wire(v)?)
         }
         ResponseIdentificationWire::GraphDependent(v) => ResponseIdentification::GraphDependent(
             v.iter()
-                .map(|(id, value)| Ok((*id, value_from_wire(value)?)))
+                .map(|(id, value)| Ok((*id, response_value_from_wire(value)?)))
                 .collect::<Result<Vec<_>, IoError>>()?,
         ),
         ResponseIdentificationWire::Unidentified { certificate } => {

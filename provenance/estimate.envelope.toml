@@ -8,15 +8,19 @@ copied_tests = false
 # No single paper describes this exact construction (see ADR 0013). Two
 # distinct ideas are combined here and are cited separately rather than under
 # one over-broad claim:
-#  - Bayesian model averaging motivates the use of graph weights, but the
-#    implementation averages aligned per-graph draw indices and is not a BMA
-#    mixture distribution. That departure is recorded explicitly below.
-#  - BUT plain BMA has no concept of "this model's parameter isn't
-#    identified — retain that as a distinct residual mass rather than average
-#    it in as if it were a normal draw," which is the actual load-bearing
-#    design here (envelope.rs:81-140, `unidentified_mass` as a first-class
-#    quantity retained by default). `renormalize_identified_only` refuses to
-#    discard positive unidentified mass rather than providing a drop-mass mode.
+#  - Bayesian model averaging motivates categorical model mixing: each
+#    mixture draw samples an identified graph by posterior weight, then a
+#    draw from that graph's effect posterior. Mean and variance are the
+#    exact identified-conditional mixture functionals
+#    E[τ | identified] and Var(τ | identified), not Monte Carlo summaries
+#    of a finite categorical allocation. Quantiles come from that
+#    reproducible Monte Carlo representation of the empirical mixture.
+#  - Plain BMA has no concept of "this model's parameter isn't identified —
+#    retain that as a distinct residual mass rather than average it in as
+#    if it were a normal draw," which is the actual load-bearing design
+#    here (envelope.rs, `unidentified_mass` as a first-class quantity
+#    retained by default). `renormalize_identified_only` refuses to discard
+#    positive unidentified mass rather than providing a drop-mass mode.
 #    That is the partial-identification literature's contribution, not BMA's.
 #    Kline & Tamer (2016) is the closest verified primary for "retain honest
 #    posterior mass on the non-point-identified region instead of collapsing
@@ -26,13 +30,13 @@ copied_tests = false
 #    module generalizes the retention principle to a graph ensemble; that
 #    generalization itself has no known single-paper primary.
 papers = [
- { title = "Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics used as inspiration; this implementation is not a BMA mixture"] },
+ { title = "Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
  { title = "Bayesian Inference in a Class of Partially Identified Models", doi = "10.3982/QE399", sections = ["retaining posterior mass on the non-identified region instead of collapsing to a point estimate"] },
 ]
 
 implementation_deviations = [
- "Combines graph posteriors by taking a weighted average of aligned draw indices. This produces a barycentric posterior draw, not the Bayesian-model-averaging mixture distribution obtained by sampling a model and then sampling from that model's posterior; posterior variance and quantiles therefore differ from the cited BMA construction.",
- "Requires every identified graph to supply the same number of index-aligned draws and assumes those indices are meaningfully coupled through common random numbers, a requirement not present in ordinary Bayesian model averaging.",
+ "Mixture draws use a fixed pseudo-random stream to sample identified graphs categorically and then sample their empirical posteriors uniformly. Mean and variance are exact for the supplied empirical component posteriors up to floating-point error; quantiles are finite Monte Carlo approximations. The fixed stream preserves reproducibility but is not configurable through this aggregation API.",
+ "Requires every positive-weight identified graph to supply the same number of effect draws so the categorical representation has a common length; draw indices are never treated as coupled across models.",
  "Represents nonidentified graph weight as a separate scalar unidentified_mass while returning draws conditional on identified graphs; it does not construct posterior draws or identified sets for the nonidentified component as in the cited partial-identification setting.",
  "The graph-ensemble combination of identified and nonidentified model mass is an original scoped construction and does not inherit the guarantees of either cited paper.",
 ]
@@ -40,7 +44,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "in-crate unit tests (crates/antecedent-estimate/src/envelope.rs): preserves unidentified mass by default, refuses renormalization that would discard positive unidentified mass, and checks interactive-subsample mass accounting",
- "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and aggregate mean; constant per-graph draws do not distinguish barycentric aggregation from a BMA mixture)",
+ "in-crate unit tests (crates/antecedent-estimate/src/envelope.rs): preserves unidentified mass by default, refuses renormalization that would discard positive unidentified mass, checks interactive-subsample mass accounting, retains between-graph variance, and is atom-order invariant",
+ "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and exact identified-conditional mixture mean)",
  "conformance/bayesian/known_truth_mixtures (frozen analytic DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures consumed from the staged path: identified atoms pin E[tau | identified], a structurally unidentified atom keeps its posterior weight as unidentified_mass, and the parameter prior does not upgrade it)",
 ]
