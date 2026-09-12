@@ -2,6 +2,324 @@
 # prepare → estimate (`staged = true`) with evidence that matches the claim.
 
 [[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_response_retains_probability_atoms_and_mass"
+limitations = "Each DAG atom is identified and estimated independently. Posterior graph weights, atom values, identified/unidentified/unevaluable mass, the pointwise identified set, and the conditional-on-identified mean are retained. Multi-atom sampling uncertainty is unavailable."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_shared_block_bootstrap"
+limitations = "Each identified DBN atom uses its own I(h), with fixed posterior graph weights and unidentified mass retained. When requested, uncertainty refits every contributing atom on the same circular-block replicate before mixing; it is not a sum of atom variances."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters"
+limitations = "Applicable temporal refuters run on every contributing atom against the mixture mean and mix by fixed graph weight. They do not rediscover graphs. Pulse is a single intervention time; multi-step Sustained validation is documented in its own cells."
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters"
+limitations = "Applicable temporal refuters run on every contributing atom against the mixture mean and mix by fixed graph weight. They do not rediscover graphs. Pulse is a single intervention time; multi-step Sustained validation is documented in its own cells."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters"
+limitations = "Applicable temporal refuters run on every contributing atom against the mixture mean and mix by fixed graph weight. Multi-step cheap/full refit the actual sequential model on each graph atom; the intervention window is preserved. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters"
+limitations = "Applicable temporal refuters run on every contributing atom against the mixture mean and mix by fixed graph weight. Multi-step cheap/full refit the actual sequential model on each graph atom; the intervention window is preserved. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
+limitations = "The existing linear temporal mediation identifier runs independently on every valid TemporalDag completion and horizon. Completion-specific effects are returned as identified sets, never an enumeration-weighted mean. TemporalPag latent-confounded natural mediation is not claimed."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
+limitations = "Cheap mediation refuters run on every identified completion and horizon against that completion's point effect. The reported result remains a completion identified set, not an enumeration-weighted mean."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
+limitations = "Full adds contiguous-window stability to the cheap per-completion mediation refuters. The reported result remains a completion identified set."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
+limitations = "Accepted structure shares the explicit TemporalCpdag completion identified-set evaluator."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
+evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
+limitations = "Accepted TemporalCpdag full suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Pulse/single-step Sustained with complete observations. Per-horizon completion-enumeration identified set; no weighted mean or sampling band."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Accepted structure shares the explicit TemporalCpdag identified-set evaluator."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Pulse/single-step Sustained with complete observations. Per-horizon MAG-completion identified set; no weighted mean or sampling band."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Accepted structure shares the explicit TemporalPag identified-set evaluator."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "One-coordinate Set/Shift/Soft response under Pulse/single-step Sustained; completion-enumeration identified set."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Accepted structure shares the explicit TemporalCpdag identified-set evaluator."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "One-coordinate Set/Shift/Soft response under Pulse/single-step Sustained; MAG-completion identified set."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_class_response_returns_completion_identified_set"
+limitations = "Accepted structure shares the explicit TemporalPag identified-set evaluator."
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_shared_block_bootstrap"
+limitations = "Single- and multi-step sustained policies use per-atom temporal adjustment/sequential g-computation. Fixed graph weights are mixed inside each shared circular-block replicate. Multi-step cheap/full are exercised in crates/antecedent/tests/dbn_sustained_validation.rs, including actual sequential perturbations and circular-block bootstrap checks."
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_response_retains_probability_atoms_and_mass"
+limitations = "Per-atom Bayesian g-computation supplies atom point responses. Posterior graph weights and all mass categories are retained; the conditional-on-identified point mean is probability-weighted. Multi-atom response posterior bands are omitted until per-cell categorical model draws are retained."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_response_retains_probability_atoms_and_mass"
+limitations = "One intervention coordinate only. Atom values, posterior graph weights, mass categories, pointwise identified set, and conditional-on-identified mean are retained. Multi-atom sampling uncertainty is unavailable."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
+limitations = "Scalar one-coordinate Frequentist plugin level. Cheap runs overlap only against the conditional-on-identified mixture level; it is not an ATE contrast suite."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
+limitations = "Scalar one-coordinate Frequentist plugin level. Full adds sampling-stability of the g-comp level to overlap. Contrast-shaped E-values are not licensed."
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/response_facade.rs"
+evidence_assertion = "graph_posterior_response_retains_probability_atoms_and_mass"
+limitations = "One intervention coordinate only. Per-atom Bayesian g-computation supplies point responses; posterior graph weights and all mass categories remain explicit. Multi-atom response posterior bands are omitted until per-cell categorical model draws are retained."
+
+[[cell]]
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "explicit"
@@ -98,7 +416,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. Licensed 1.3 observation pairs (Selected × OutcomeIndependentGiven, left/right KM and Cox IPCW) ride this cell and consume conformance/response/temporal_observation, not observation_primitives. IndependentGiven(Z) lag-aligns Z at the policy treatment offset. Unlicensed non-Complete pairs refuse at compile. Bayesian, delayed entry, interval/truncation, cheap/full, and TemporalCpdag/Pag observation rides stay refused. Observation-adjusted surfaces omit uncertainty. No nonlinear, multi-step, Bayesian, graph-posterior, or equivalence-class surface is claimed."
+limitations = "TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. Licensed 1.3 observation pairs (Selected × OutcomeIndependentGiven, left/right KM and Cox IPCW) ride this cell and consume conformance/response/temporal_observation, not observation_primitives. IndependentGiven(Z) lag-aligns Z at the policy treatment offset. Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay. Delayed entry, interval/truncation, cheap/full, and TemporalCpdag/Pag observation rides stay refused. Bayesian observation uses its own Gaussian observed-data likelihood route, not IPCW."
 
 [[cell]]
 query = "ResponseCurve"
@@ -300,7 +618,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), single-step Sequence, and multi-step Sequence([Set(1), Set(1)]) → [6, 4] on temporal_dose_horizon (same unfolded sequential g-comp as multi-step Sustained; identifier remains temporal.backdoor.unfolded; not a last-step collapse). Joint single-time Sequence is licensed when every coordinate is identified. Nested Sequence and Soft families other than constant/additive_shift remain refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support. Licensed 1.3 observation pairs ride Set/Soft/Sequence on this cell and consume conformance/response/temporal_observation (right-censor Set(0.5) pin). Unlicensed non-Complete pairs refuse at compile. Observation-adjusted paths omit uncertainty."
+limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), single-step Sequence, and multi-step Sequence([Set(1), Set(1)]) → [6, 4] on temporal_dose_horizon (same unfolded sequential g-comp as multi-step Sustained; identifier remains temporal.backdoor.unfolded; not a last-step collapse). Joint single-time Sequence is licensed when every coordinate is identified. Soft multiplicative scales the structural assignment. Soft truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Extra-family evidence: conformance/response/temporal_soft_mean_mechanisms. Nested Sequence remains refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support. Licensed 1.3 observation pairs ride Set/Soft/Sequence on this cell and consume conformance/response/temporal_observation (right-censor Set(0.5) pin). Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay."
 
 [[cell]]
 query = "InterventionResponse"
@@ -311,7 +629,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator, including multi-step and joint Sequence overlays on unfolded sequential g-comp (identifier temporal.backdoor.unfolded). Nested Sequence and extra Soft families remain refused. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support. Licensed 1.3 observation pairs ride the same path and consume conformance/response/temporal_observation. Unlicensed non-Complete pairs refuse at compile."
+limitations = "TemporalResponseSpec is required. The accepted-structure axis shares the explicit TemporalDag estimator, including multi-step and joint Sequence overlays on unfolded sequential g-comp (identifier temporal.backdoor.unfolded). Soft multiplicative and truncated_shift additionally compose across single, joint and multi-step schedules (conformance/response/temporal_soft_mean_mechanisms); truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Nested Sequence remains refused. Primary pin is temporal_dose_horizon; supporting fixtures temporal_confounded_pulse and temporal_horizon_support. Licensed 1.3 observation pairs ride the same path and consume conformance/response/temporal_observation. Unlicensed non-Complete pairs refuse at compile."
 
 [[cell]]
 query = "PulseEffect"
@@ -476,7 +794,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
 
 [[cell]]
 query = "SustainedEffect"
@@ -487,7 +805,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
 
 [[cell]]
 query = "SustainedEffect"
@@ -498,7 +816,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
 
 [[cell]]
 query = "SustainedEffect"
@@ -509,7 +827,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
 
 [[cell]]
 query = "SustainedEffect"
@@ -531,7 +849,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian sustained mean, not those numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian sustained mean, not those numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "SustainedEffect"
@@ -542,7 +860,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Full adds PPC / prior-sensitivity; the fixture pins the Bayesian sustained mean, not those checks."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds PPC / prior-sensitivity; the fixture pins the Bayesian sustained mean, not those checks. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "SustainedEffect"
@@ -564,7 +882,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian sustained mean, not those numbers."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue (plus PPC: execute_bayesian runs PPC under any non-None refute suite); OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the Bayesian sustained mean, not those numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "SustainedEffect"
@@ -575,7 +893,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Cheap/full is licensed for the single-step form only; multi-step windows require validation=none. Full adds PPC / prior-sensitivity; the fixture pins the Bayesian sustained mean, not those checks."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds PPC / prior-sensitivity; the fixture pins the Bayesian sustained mean, not those checks. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -1468,7 +1786,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_sustained_envelope"
-limitations = "Frozen structural mixture pins single-step Sustained and two-step Sustained [-2, -1] at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. Multi-step uses sequential g-computation with no last-step collapse. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed for the single-step form with 1.2 DBN refuters (effect refuters on every contributing atom against the mixture mean, mix by posterior mass, plus PPC; full adds prior-sensitivity). Multi-step windows require validation=none."
+limitations = "Frozen structural mixture pins single-step Sustained and two-step Sustained [-2, -1] at 0.9; a valid autoregressive atom reaches the finite-history certification boundary, so its 0.3 weight remains unidentified and priors do not upgrade ID. Multi-step uses sequential g-computation with no last-step collapse. The staged prepared result equals fresh and consumes cached per-atom identification. Single-step cheap/full retain temporal refuters. Multi-step cheap/full refit the composed sequential effect per atom; Bayesian PPC checks stationary mechanisms and full prior sensitivity refits the whole effect. Evidence: crates/antecedent/tests/dbn_sustained_validation.rs."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -1991,7 +2309,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Pulse is a single intervention time; multi-step Sustained validation is documented in its own cells."
 
 [[cell]]
 query = "PulseEffect"
@@ -2002,7 +2320,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Single-step policies only; no graph-posterior multi-step window claim."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Pulse is a single intervention time; multi-step Sustained validation is documented in its own cells."
 
 [[cell]]
 query = "SustainedEffect"
@@ -2013,7 +2331,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Cheap/full are licensed for the single-step form; multi-step windows require validation=none."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC aggregates contributing atoms. Multi-step cheap/full refit the actual sequential model on each graph atom; the intervention window is preserved. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "SustainedEffect"
@@ -2024,7 +2342,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
-limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Cheap/full are licensed for the single-step form; multi-step windows require validation=none."
+limitations = "Known-truth DBN graph-mixture effect with identified weights and unidentified mass retained. Applicable temporal refuters run on every contributing atom against the mixture mean and mix by posterior mass; they do not rediscover graphs. PPC and prior-sensitivity aggregate contributing atoms. Multi-step cheap/full refit the actual sequential model on each graph atom; the intervention window is preserved. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects against single-step collapse. Bayesian PPC checks each stationary mechanism separately; full prior sensitivity refits the composed effect."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -2101,7 +2419,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable."
 
 [[cell]]
 query = "ResponseCurve"
@@ -2112,7 +2430,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable."
 
 [[cell]]
 query = "ResponseCurve"
@@ -2123,7 +2441,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, AllObserved; complete observations use this backend. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis. The five licensed non-Complete temporal observation pairs instead use estimate.temporal_observed_bayes: Gaussian SEM latent-trajectory Gibbs under declared ignorable joint-trajectory CAR and distinct priors, with pointwise posterior bands. Evidence: crates/antecedent/tests/temporal_observed_bayesian.rs; not Bayesian IPCW/KM/Cox weighting."
 
 [[cell]]
 query = "ResponseCurve"
@@ -2134,7 +2452,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, AllObserved; complete observations use this backend. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal ResponseCurve remains single-step; validation cheap/full is not applicable. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_prior_transfer when every horizon shares the unfolded design; differing I(h) column counts fail closed. Not a matrix axis. The five licensed non-Complete temporal observation pairs instead use estimate.temporal_observed_bayes: Gaussian SEM latent-trajectory Gibbs under declared ignorable joint-trajectory CAR and distinct priors, with pointwise posterior bands. Evidence: crates/antecedent/tests/temporal_observed_bayesian.rs; not Bayesian IPCW/KM/Cox weighting."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2145,7 +2463,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2156,7 +2474,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Temporal response remains single-step; validation cheap/full is not applicable."
+limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2167,7 +2485,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors)."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, AllObserved; complete observations use this backend. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Soft multiplicative and truncated_shift additionally compose across single, joint and multi-step schedules (conformance/response/temporal_soft_mean_mechanisms); truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Nested Sequence remains refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors). The five licensed non-Complete temporal observation pairs instead use estimate.temporal_observed_bayes: Gaussian SEM latent-trajectory Gibbs under declared ignorable joint-trajectory CAR and distinct priors, with pointwise posterior bands. Evidence: crates/antecedent/tests/temporal_observed_bayesian.rs; not Bayesian IPCW/KM/Cox weighting."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2178,7 +2496,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
-limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Nested Sequence and extra Soft families remain refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors)."
+limitations = "response.temporal.bayesian with per-horizon identified designs; Gaussian additive outcome regression, one treatment, AllObserved; complete observations use this backend. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. Multi-step / joint Sequence overlays use sequential mechanism posteriors (same engine as multi-step Sustained), not bayesian.gcomp. Soft multiplicative and truncated_shift additionally compose across single, joint and multi-step schedules (conformance/response/temporal_soft_mean_mechanisms); truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Nested Sequence remains refused. Validation cheap/full is not applicable. Set / Soft / single-step Sequence may ride prior transfer via conformance/bayesian/temporal_prior_transfer; multi-step Sequence refuses transfer (the catalog filter does not apply to per-mechanism priors). The five licensed non-Complete temporal observation pairs instead use estimate.temporal_observed_bayes: Gaussian SEM latent-trajectory Gibbs under declared ignorable joint-trajectory CAR and distinct priors, with pointwise posterior bands. Evidence: crates/antecedent/tests/temporal_observed_bayesian.rs; not Bayesian IPCW/KM/Cox weighting."
 
 [[cell]]
 query = "PointDerivative"
