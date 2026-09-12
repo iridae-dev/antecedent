@@ -110,14 +110,8 @@ def _meta(artifact_id: str, query_kind: str, outcome: str = "defect", mapping=No
 
 def test_fixture_names_source_target_and_filter():
     assert _PIN["compatibility_filter"] == "PriorCatalog.filter_compatible"
-    assert (
-        _PIN["source_cells"]["same_design_pulse"]
-        == _PULSE_CELL
-    )
-    assert (
-        _PIN["target_cells"]["same_design_response_curve"]
-        == _CURVE_CELL
-    )
+    assert _PIN["source_cells"]["same_design_pulse"] == _PULSE_CELL
+    assert _PIN["target_cells"]["same_design_response_curve"] == _CURVE_CELL
     assert _PIN["incompatible"]["reason_code"] == "estimand_mismatch"
 
 
