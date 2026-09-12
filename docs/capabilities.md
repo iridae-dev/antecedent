@@ -29,8 +29,14 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the 1.5 matrix keeps the 1.4 licensed cells and adds
-estimators, functionals, and execution contracts on those cells: retargetable
+At analysis level, the support matrix is the license. The 1.6 matrix keeps
+the 1.5 licensed cells and adds temporal policy cells: per-horizon
+`TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
+observation-adjusted temporal curves (Frequentist IPCW pairs and the
+parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
+the contrasts the handle already runs, and bounded prior transfer on
+named Pulse / Sustained / ResponseCurve cells. The 1.5 additions remain:
+retargetable
 prepared AIPW scores (AllObserved iid AIPW and cell-AIPW only; `analyze()`
 does not always return scores), exceedance functionals, cell-saturated joint AIPW,
 `TieredBackground` as a fast path over ADMG / PAG adjustment, and joint
