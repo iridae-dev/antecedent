@@ -198,7 +198,8 @@ fn noise_kind_slot(slot: &MechanismSlot) -> &'static str {
         | MechanismSlot::Bvar { .. } => "additive_gaussian",
         MechanismSlot::Discrete { .. } => "discrete",
         MechanismSlot::Constant { .. } => "constant",
-        MechanismSlot::LinearGaussianStateSpace { .. } => "lgssm",
+        MechanismSlot::LinearGaussianStateSpace { .. }
+        | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => "lgssm",
         MechanismSlot::GaussianProcess { .. } => "gaussian_process",
     }
 }
@@ -210,7 +211,7 @@ fn noise_kind_override(family_id: &str) -> &'static str {
         }
         "discrete" => "discrete",
         "constant" => "constant",
-        "lgssm" => "lgssm",
+        "lgssm" | "conditional_lgssm" => "lgssm",
         "gaussian_process" => "gaussian_process",
         _ => "unknown",
     }
@@ -514,6 +515,20 @@ pub fn soft_to_slot(
             Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
         }
         "discrete" => soft_discrete_slot(soft, n_parents),
+        "conditional_lgssm" => {
+            if soft.parameters.len() != 5 + n_parents {
+                return Err(ModelError::Shape { message: "conditional_lgssm override needs intercept, coeffs..., a, process_std, obs_std, initial_mean".into() });
+            }
+            let k = 1 + n_parents;
+            Ok(MechanismSlot::ConditionalLinearGaussianStateSpace {
+                intercept: soft.parameters[0],
+                coeffs: std::sync::Arc::from(soft.parameters[1..k].to_vec()),
+                a: soft.parameters[k],
+                process_std: soft.parameters[k + 1],
+                obs_std: soft.parameters[k + 2],
+                initial_mean: soft.parameters[k + 3],
+            })
+        }
         "lgssm" => {
             if soft.parameters.len() < 4 {
                 return Err(ModelError::Shape {

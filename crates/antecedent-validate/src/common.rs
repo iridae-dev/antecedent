@@ -157,6 +157,19 @@ impl RefutationReport {
     }
 }
 
+/// Estimator-specific refit for perturbation checks whose causal model is not a
+/// single adjustment regression. The same estimator must be used after mutation.
+pub trait EffectRefit: std::fmt::Debug {
+    /// Refit the original causal functional on perturbed data, optionally adding
+    /// independent contemporaneous nuisance covariates to every mechanism.
+    fn refit(
+        &self,
+        data: &TabularData,
+        extra_contemporaneous: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, ValidationError>;
+}
+
 /// Inputs shared by effect refuters.
 #[derive(Clone, Copy, Debug)]
 pub struct RefutationProblem<'a> {
@@ -172,6 +185,8 @@ pub struct RefutationProblem<'a> {
     pub estimator: Option<&'a str>,
     /// When set, refits use [`TemporalLinearAdjustment`] on the lag-aligned design.
     pub temporal: Option<TemporalRefitContext<'a>>,
+    /// Optional refit of the original composed causal model.
+    pub effect_refit: Option<&'a dyn EffectRefit>,
     /// Prepare-time per-unit slice plan. Filled by [`crate::PreparedRefutation::compile`];
     /// callers constructing a problem directly leave this unset and the panel refit
     /// compiles a plan from [`Self::temporal`] on first use.
@@ -190,7 +205,23 @@ impl<'a> RefutationProblem<'a> {
         estimator: Option<&'a str>,
         temporal: Option<TemporalRefitContext<'a>>,
     ) -> Self {
-        Self { data, estimand, query, original, estimator, temporal, panel_slices: None }
+        Self {
+            data,
+            estimand,
+            query,
+            original,
+            estimator,
+            temporal,
+            effect_refit: None,
+            panel_slices: None,
+        }
+    }
+
+    /// Preserve the original composed estimator during every perturbation.
+    #[must_use]
+    pub fn with_effect_refit(mut self, refit: &'a dyn EffectRefit) -> Self {
+        self.effect_refit = Some(refit);
+        self
     }
 
     pub(crate) fn with_panel_slices(mut self, slices: Option<&'a PanelSliceTemplate<'a>>) -> Self {
@@ -213,13 +244,26 @@ impl RefutationProblem<'_> {
     }
 }
 
-/// Rebuild tabular data replacing one float column (preserves mask/weights/other columns).
+/// Replace a refuter column while preserving its validity, mask, and weights.
+/// Perturbations must not impute missing observations or change the fitted sample.
 pub(crate) fn with_replaced_float(
     data: &TabularData,
     id: VariableId,
     values: Arc<[f64]>,
 ) -> Result<TabularData, ValidationError> {
-    data.with_replaced_float(id, values).map_err(ValidationError::from)
+    let storage = data.storage();
+    let mut columns = storage.columns().to_vec();
+    let column = columns.get_mut(id.as_usize()).ok_or(DataError::UnknownVariable { id })?;
+    let OwnedColumn::Float64(original) = column else {
+        return Err(DataError::TypeMismatch { id, expected: "float64" }.into());
+    };
+    *column = OwnedColumn::Float64(Float64Column::new(id, values, original.validity.clone())?);
+    Ok(TabularData::new(OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        columns,
+        storage.analysis_mask().cloned(),
+        storage.weights().map(Arc::from),
+    )?))
 }
 
 /// Append an independent continuous covariate; returns new data and its id.
@@ -275,6 +319,9 @@ pub(crate) fn refit_effect(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
+    if let Some(refit) = problem.effect_refit {
+        return refit.refit(data, extra_contemporaneous, ctx);
+    }
     let Some(temporal) = problem.temporal else {
         let est = forced_refit_estimator(caller_estimator);
         return fit_once(&est, data, estimand, problem.query, workspace, ctx);

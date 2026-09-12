@@ -613,7 +613,7 @@ mod tests {
             .unwrap();
         assert!(rep.in_sample_loglik.is_finite());
 
-        let MechanismSlot::LinearGaussianStateSpace { obs_std: fitted_obs_std, .. } =
+        let MechanismSlot::ConditionalLinearGaussianStateSpace { obs_std: fitted_obs_std, .. } =
             model.mechanisms.get(DenseNodeId::from_raw(0))
         else {
             panic!("expected LGSSM slot");

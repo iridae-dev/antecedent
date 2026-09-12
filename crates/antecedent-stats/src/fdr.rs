@@ -60,6 +60,10 @@ impl FdrAdjustment {
 }
 
 /// Adjust p-values with the selected procedure (input order preserved).
+///
+/// Nonfinite values and values outside [0, 1] produce NaN at their positions.
+/// They still count toward family size, conservatively acting as p = 1 for
+/// adjustment of valid tests; a failed test must not shrink the testing family.
 #[must_use]
 pub fn adjust_pvalues(p_values: &[f64], method: MultipleTestingMethod) -> Vec<f64> {
     match method {
@@ -96,7 +100,7 @@ pub fn benjamini_yekutieli(p_values: &[f64]) -> Vec<f64> {
 #[must_use]
 pub fn bonferroni(p_values: &[f64]) -> Vec<f64> {
     let m = p_values.len() as f64;
-    p_values.iter().map(|&p| (p * m).clamp(0.0, 1.0)).collect()
+    p_values.iter().map(|&p| if valid_pvalue(p) { (p * m).min(1.0) } else { f64::NAN }).collect()
 }
 
 /// Holm–Bonferroni adjusted p-values (input order preserved).
@@ -107,16 +111,14 @@ pub fn holm(p_values: &[f64]) -> Vec<f64> {
         return Vec::new();
     }
     let mut idx: Vec<usize> = (0..m).collect();
-    idx.sort_by(|&a, &b| {
-        p_values[a].partial_cmp(&p_values[b]).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    idx.sort_by(|&a, &b| adjustment_pvalue(p_values[a]).total_cmp(&adjustment_pvalue(p_values[b])));
     let mut adj = vec![0.0; m];
     let mut running = 0.0_f64;
     for (rank0, &i) in idx.iter().enumerate() {
         let remaining = m - rank0; // m, m-1, ..., 1
-        let candidate = (p_values[i] * remaining as f64).min(1.0);
+        let candidate = (adjustment_pvalue(p_values[i]) * remaining as f64).min(1.0);
         running = running.max(candidate);
-        adj[i] = running;
+        adj[i] = if valid_pvalue(p_values[i]) { running } else { f64::NAN };
     }
     adj
 }
@@ -127,23 +129,48 @@ fn bh_family(p_values: &[f64], scale: f64) -> Vec<f64> {
         return Vec::new();
     }
     let mut idx: Vec<usize> = (0..m).collect();
-    idx.sort_by(|&a, &b| {
-        p_values[a].partial_cmp(&p_values[b]).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    idx.sort_by(|&a, &b| adjustment_pvalue(p_values[a]).total_cmp(&adjustment_pvalue(p_values[b])));
     let mut adj = vec![0.0; m];
     let mut running: f64 = 1.0;
     for (rank_rev, &i) in idx.iter().rev().enumerate() {
         let rank = m - rank_rev; // 1..=m from largest p
-        let candidate = (p_values[i] * scale * m as f64 / rank as f64).min(1.0);
+        let candidate = (adjustment_pvalue(p_values[i]) * scale * m as f64 / rank as f64).min(1.0);
         running = running.min(candidate);
-        adj[i] = running;
+        adj[i] = if valid_pvalue(p_values[i]) { running } else { f64::NAN };
     }
     adj
+}
+
+fn valid_pvalue(p: f64) -> bool {
+    (0.0..=1.0).contains(&p)
+}
+
+fn adjustment_pvalue(p: f64) -> f64 {
+    if valid_pvalue(p) { p } else { 1.0 }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::float_cmp)] // exact conservative adjustment / infinite endpoints
+    fn invalid_tests_remain_missing_without_reducing_family_size() {
+        for method in [
+            MultipleTestingMethod::BenjaminiHochberg,
+            MultipleTestingMethod::BenjaminiYekutieli,
+            MultipleTestingMethod::Bonferroni,
+            MultipleTestingMethod::Holm,
+        ] {
+            for invalid in [f64::NAN, f64::INFINITY, -0.1, 1.1] {
+                let result = adjust_pvalues(&[0.01, invalid, 0.04], method);
+                let conservative = adjust_pvalues(&[0.01, 1.0, 0.04], method);
+                assert!(result[1].is_nan());
+                assert_eq!(result[0], conservative[0]);
+                assert_eq!(result[2], conservative[2]);
+            }
+        }
+    }
 
     #[test]
     fn bh_preserves_length_and_bounds() {

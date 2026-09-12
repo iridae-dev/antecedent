@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreData, LocalScoreCache};
+use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{GraphPrior, log_prior_mask, parents_of};
+use crate::graph_posterior::{GraphPrior, edge_required, log_prior_mask, parents_of, set_edge};
 use crate::pc::collect_float_columns;
 
 /// Build column-major [`GraphScoreData`] from tabular float columns.
@@ -58,4 +58,37 @@ pub(crate) fn score_dag_mask(
         total += s;
     }
     Some(total)
+}
+
+/// Start mask samplers inside the constrained support rather than hoping that
+/// one-edge proposals can cross a region of zero prior probability.
+pub(crate) fn initial_scored_mask(
+    n: usize,
+    data: &GraphScoreData,
+    family: GraphScoreFamily,
+    prior: &GraphPrior,
+    variables: &[VariableId],
+) -> Result<(u64, f64), DiscoveryError> {
+    let mut mask = 0u64;
+    for i in 0..n {
+        for j in 0..n {
+            if i != j && edge_required(&prior.constraints, variables, i, j) {
+                mask = set_edge(mask, n, i, j, true);
+            }
+        }
+    }
+    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+        data_version: 1,
+        family,
+        var_fingerprint: u64::try_from(n).unwrap_or(u64::MAX),
+        penalty_fingerprint: u64::try_from(data.n_rows).unwrap_or(u64::MAX),
+    });
+    let score = score_dag_mask(mask, n, data, &mut cache, prior, variables)
+        .filter(|s| s.is_finite())
+        .ok_or_else(|| {
+            DiscoveryError::unsupported(
+                "required-edge graph is cyclic, violates constraints, or has no finite score",
+            )
+        })?;
+    Ok((mask, score))
 }

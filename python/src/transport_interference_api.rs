@@ -138,7 +138,8 @@ fn identify_transport(
     )?;
     let response = ResponseQuery::new(functional);
     let query = TransportQuery::new(response, source_population, target_population, experiment_ids);
-    let diagram = SelectionDiagram::try_new(graph.admg.clone(), selection_ids).map_err(py_err)?;
+    let diagram = SelectionDiagram::try_new(graph.aligned_to_names(&graph.names)?, selection_ids)
+        .map_err(py_err)?;
     let result = TransportIdentifier::new()
         .identify(&diagram, &query)
         .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;

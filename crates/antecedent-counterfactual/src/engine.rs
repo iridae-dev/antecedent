@@ -126,8 +126,9 @@ impl CounterfactualEngine {
     ///
     /// When [`AbductionMissingPolicy::ZeroFill`] is set and a **whole variable column**
     /// is absent from `data`, that node's exogenous noise is drawn from the mechanism
-    /// prior ([`NoiseInferenceKind::AssumedNoise`]) — factual values are not inverted
-    /// as if they were zero.
+    /// prior ([`NoiseInferenceKind::AssumedNoise`]) and propagated to descendants
+    /// before inverting their observed values. This is prior imputation, not the
+    /// posterior of missing parents conditional on observed descendants.
     ///
     /// Prefer [`Self::abduct_with_rng`] when posterior families (Discrete / LGSSM) need
     /// reproducible draws; this method uses a fixed internal seed stream.
@@ -184,14 +185,11 @@ impl CounterfactualEngine {
         // Gather target hoisted out of the node loop (grow-only), replacing a
         // fresh per-node copy of the gathered parent matrix.
         let mut parent_buf: Vec<f64> = Vec::new();
+        let mut mechanism_workspace = MechanismWorkspace::default();
         for gather in self.model.parent_gathers.iter() {
             let node = gather.child;
             let idx = node.as_usize();
             let out = &mut noise[idx * n..(idx + 1) * n];
-            if assumed_columns[idx] {
-                sample_noise_column(self.model.mechanisms.get(node), n, rng, out)?;
-                continue;
-            }
             let need = gather.n_parents().max(1).saturating_mul(n);
             if parent_buf.len() < need {
                 parent_buf.resize(need, 0.0);
@@ -202,6 +200,20 @@ impl CounterfactualEngine {
                 n_parents: gather.n_parents(),
                 values: &parent_buf[..gather.n_parents().saturating_mul(n)],
             };
+            if assumed_columns[idx] {
+                let mechanism = self.model.mechanisms.get(node);
+                sample_noise_column(mechanism, n, rng, out)?;
+                // Descendant abduction must use the same prior-imputed parent
+                // values that prediction reconstructs from this noise.
+                evaluate_column(
+                    mechanism,
+                    parents,
+                    out,
+                    &mut values[idx * n..(idx + 1) * n],
+                    &mut mechanism_workspace,
+                )?;
+                continue;
+            }
             let y = &values[idx * n..(idx + 1) * n];
             let mode =
                 infer_noise_column_rng(self.model.mechanisms.get(node), y, parents, out, rng)?;
@@ -276,6 +288,32 @@ impl CounterfactualEngine {
             .collect()
     }
 
+    fn validate_prediction_inputs(
+        &self,
+        exo: &ExogenousPosterior,
+        worlds: &[CounterfactualWorld],
+    ) -> Result<(), CounterfactualError> {
+        if worlds.is_empty() {
+            return Err(CounterfactualError::model_msg("no worlds"));
+        }
+        let n_units = exo.n_units;
+        let n_nodes = self.model.n_nodes();
+        if exo.n_nodes != n_nodes
+            || n_units.checked_mul(n_nodes) != Some(exo.noise.len())
+            || exo.assumed_columns.len() != n_nodes
+        {
+            return Err(CounterfactualError::model_msg(
+                "exogenous posterior shape does not match model",
+            ));
+        }
+        if worlds.iter().any(|world| {
+            world.unit_rows.as_ref().is_some_and(|rows| rows.iter().any(|&row| row >= n_units))
+        }) {
+            return Err(CounterfactualError::model_msg("counterfactual unit row is out of range"));
+        }
+        Ok(())
+    }
+
     fn predict_impl(
         &self,
         exo: &ExogenousPosterior,
@@ -286,11 +324,9 @@ impl CounterfactualEngine {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
-        if worlds.is_empty() {
-            return Err(CounterfactualError::model_msg("no worlds"));
-        }
+        self.validate_prediction_inputs(exo, worlds)?;
         let n_units = exo.n_units;
-        let n_nodes = exo.n_nodes;
+        let n_nodes = self.model.n_nodes();
         let n_worlds = worlds.len();
         let outcome_dense = self.resolve_outcomes(outcomes)?;
 
@@ -367,13 +403,11 @@ impl CounterfactualEngine {
                 let src = &values_buf[node * n_units..(node + 1) * n_units];
                 let dest = base + slot * n_units;
                 if let Some(rows) = unit_filter {
-                    let mut tmp = vec![f64::NAN; n_units];
+                    let column = &mut all[dest..dest + n_units];
+                    column.fill(f64::NAN);
                     for &r in rows {
-                        if r < n_units {
-                            tmp[r] = src[r];
-                        }
+                        column[r] = src[r];
                     }
-                    all[dest..dest + n_units].copy_from_slice(&tmp);
                 } else {
                     all[dest..dest + n_units].copy_from_slice(src);
                 }
@@ -469,6 +503,9 @@ impl CounterfactualResult {
     /// matching the historical out-of-range convention).
     #[must_use]
     pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
+        if world >= self.n_worlds || unit >= self.n_units {
+            return f64::NAN;
+        }
         let Some(slot) = self.slot_of(node) else {
             return f64::NAN;
         };
@@ -477,7 +514,8 @@ impl CounterfactualResult {
         self.values.get(i).copied().unwrap_or(f64::NAN)
     }
 
-    /// Streaming mean of an outcome across units for one world (no full retain required).
+    /// Streaming mean of finite outcomes for one world (no full retention required).
+    /// Returns `NaN` when no finite outcomes are available.
     #[must_use]
     pub fn streaming_outcome_mean(&self, world: usize, outcome: DenseNodeId) -> f64 {
         let mut sum = 0.0;
@@ -489,7 +527,7 @@ impl CounterfactualResult {
                 n += 1;
             }
         }
-        sum / n.max(1) as f64
+        if n == 0 { f64::NAN } else { sum / n as f64 }
     }
 
     /// Borrowed outcome column for one world (`length = n_units`).
@@ -1617,5 +1655,90 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn missing_parent_prior_imputation_reconstructs_observed_child() {
+        use antecedent_core::NodeRef;
+        let (_, full_data) = toy();
+        let (data, _) = full_data.project(&[VariableId::from_raw(1)]).unwrap();
+        let y = VariableId::from_raw(0);
+        let missing_parent = VariableId::from_raw(2);
+        let mut graph = Dag::empty();
+        let parent_node = graph.add_node(NodeRef::Static(missing_parent)).unwrap();
+        let child_node = graph.add_node(NodeRef::Static(y)).unwrap();
+        graph.insert_directed(parent_node, child_node).unwrap();
+        let model =
+            CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+                slots: Arc::from([
+                    MechanismSlot::LinearGaussian {
+                        intercept: 3.0,
+                        coeffs: Arc::from([]),
+                        sigma: 1.0,
+                    },
+                    MechanismSlot::LinearGaussian {
+                        intercept: 1.0,
+                        coeffs: Arc::from([2.0]),
+                        sigma: 1.0,
+                    },
+                ]),
+            });
+        let engine = CounterfactualEngine::new(model);
+        let exo = engine.abduct(&data, AbductionMissingPolicy::ZeroFill).unwrap();
+        assert_eq!(exo.kind, NoiseInferenceKind::AssumedNoise);
+        let result = engine
+            .predict(
+                &exo,
+                &[CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) }],
+                &[y],
+                false,
+                &mut MechanismWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        for (row, &factual) in data.float64_cow(y).unwrap().iter().enumerate() {
+            assert!((result.get(0, child_node, row) - factual).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn result_access_does_not_alias_adjacent_units_or_invent_empty_mean() {
+        let result = CounterfactualResult {
+            values: Arc::from([1.0, 2.0, 3.0, 4.0]),
+            n_worlds: 1,
+            n_units: 2,
+            n_nodes: 2,
+            retained_nodes: None,
+            outcomes: Arc::from([DenseNodeId::from_raw(1)]),
+            noise_kind: NoiseInferenceKind::Invertible,
+            notes: Vec::new(),
+        };
+        assert!(result.get(0, DenseNodeId::from_raw(0), 2).is_nan());
+        assert!(result.get(usize::MAX, DenseNodeId::from_raw(0), 0).is_nan());
+        assert!(result.streaming_outcome_mean(1, DenseNodeId::from_raw(0)).is_nan());
+    }
+    #[test]
+    fn prediction_rejects_misaligned_noise_and_invalid_unit_selection() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let outcomes = [VariableId::from_raw(1)];
+        let mut workspace = MechanismWorkspace::default();
+        let context = ExecutionContext::for_tests(1);
+        let invalid_world = CounterfactualWorld {
+            unit_rows: Some(Arc::from([exo.n_units])),
+            interventions: Arc::from([]),
+        };
+        assert!(
+            engine
+                .predict(&exo, &[invalid_world], &outcomes, false, &mut workspace, &context)
+                .is_err()
+        );
+        let mut malformed = exo.clone();
+        malformed.noise = Arc::from(&exo.noise[..exo.noise.len() - 1]);
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
+        assert!(
+            engine
+                .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
+                .is_err()
+        );
     }
 }

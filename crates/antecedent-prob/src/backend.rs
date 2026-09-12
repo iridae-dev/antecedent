@@ -157,6 +157,11 @@ impl ConjugateGramKey {
 }
 
 impl LaplaceWorkspace {
+    /// Invalidate cached sufficient statistics after changing a design in place.
+    /// Retains allocated buffers for data-augmentation and other refit loops.
+    pub fn invalidate_design(&mut self) {
+        self.conjugate_key = None;
+    }
     /// Ensure capacity for a design of the given shape (grows, does not shrink).
     pub fn prepare(&mut self, nrows: usize, ncols: usize, n_draws: usize) {
         let mut grew = false;

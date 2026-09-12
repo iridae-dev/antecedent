@@ -182,6 +182,11 @@ fn rewrite_sum_out(
         return Ok(tag_if_new(arena, expr, id, "simplify.empty_sum_out"));
     }
     if let ExprNode::SumOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
+        if intersects(arena, variables, inner_v) {
+            // The inner binding shadows repeated variables: taking a union
+            // would erase the outer sum's multiplicity / integration measure.
+            return Ok(id);
+        }
         let merged: Vec<VariableId> = arena
             .var_set(variables)
             .iter()
@@ -212,6 +217,11 @@ fn rewrite_integral_out(
         return Ok(tag_if_new(arena, expr, id, "simplify.empty_integral_out"));
     }
     if let ExprNode::IntegralOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
+        if intersects(arena, variables, inner_v) {
+            // The inner binding shadows repeated variables: taking a union
+            // would erase the outer sum's multiplicity / integration measure.
+            return Ok(id);
+        }
         let merged: Vec<VariableId> = arena
             .var_set(variables)
             .iter()
@@ -282,20 +292,9 @@ fn rewrite_ratio(
             "simplify.ratio_assoc_left",
         );
     }
-    // a/(b/c) → (a*c)/b
-    if let ExprNode::Ratio { numerator: b, denominator: c } = arena.node(denominator).clone() {
-        let ac = {
-            let mut kids = vec![numerator, c];
-            kids.sort_unstable();
-            let list = arena.intern_list(kids);
-            arena.intern(ExprNode::Product(list))
-        };
-        return intern_derived(
-            arena,
-            ExprNode::Ratio { numerator: ac, denominator: b },
-            "simplify.ratio_assoc_right",
-        );
-    }
+    // Keep a/(b/c) nested: (a*c)/b would be defined at c=0 even
+    // though the original expression has a zero denominator. Positivity is
+    // not guaranteed by the expression arena or every provider.
     id
 }
 

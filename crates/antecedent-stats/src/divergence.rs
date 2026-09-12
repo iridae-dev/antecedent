@@ -21,12 +21,28 @@ use crate::error::StatsError;
 ///
 /// # Errors
 ///
-/// Non-positive variances.
+/// Nonfinite means or non-positive/nonfinite variances.
 pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, StatsError> {
-    if var0 <= 0.0 || var1 <= 0.0 {
-        return Err(StatsError::Shape { message: "gaussian_kl requires positive variances" });
+    if !mu0.is_finite()
+        || !mu1.is_finite()
+        || !var0.is_finite()
+        || !var1.is_finite()
+        || var0 <= 0.0
+        || var1 <= 0.0
+    {
+        return Err(StatsError::Shape {
+            message: "gaussian_kl requires finite means and positive finite variances",
+        });
     }
-    Ok(0.5 * ((var1 / var0).ln() + (var0 + (mu0 - mu1).powi(2)) / var1 - 1.0))
+    let relative_change = (var0 - var1) / var1;
+    let variance_term = if relative_change.abs() < 0.5 {
+        // log1p avoids cancellation of the log ratio close to equal variances.
+        relative_change - relative_change.ln_1p()
+    } else {
+        var0 / var1 - 1.0 + var1.ln() - var0.ln()
+    };
+    let standardized_shift = (mu0 - mu1) / var1.sqrt();
+    Ok(0.5 * (variance_term + standardized_shift * standardized_shift))
 }
 
 /// Mean and variance of a slice.
@@ -82,8 +98,15 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
     let sb = sample_std(b);
     let va = sa * sa;
     let vb = sb * sb;
-    let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt().max(1e-12);
-    let z = (ma - mb).abs() / se;
+    let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt();
+    let difference = (ma - mb).abs();
+    let z = if se > 0.0 {
+        difference / se
+    } else if difference == 0.0 {
+        0.0
+    } else {
+        f64::INFINITY
+    };
     let p = antecedent_kernels::erfc(z / std::f64::consts::SQRT_2);
     Ok(((ma - mb).abs(), p.clamp(0.0, 1.0)))
 }
@@ -168,7 +191,10 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
 ///
 /// Statistic is `n ln v̂₀ − n₀ ln v̂₀_seg − n₁ ln v̂₁_seg` (MLE variances),
 /// asymptotically `χ²₂` under equal mean and variance (Wilks). Returns
-/// `(lr_statistic, p_value)`.
+/// `(lr_statistic, p_value)`. The chi-square calibration assumes positive
+/// segment variances. Constant pooled data return (0, 1); an exactly constant
+/// segment with varying pooled data returns the limiting (infinity, 0), where
+/// the regular Wilks calibration does not apply.
 ///
 /// # Errors
 ///
@@ -188,7 +214,8 @@ pub fn residual_likelihood_ratio(
 /// Biased MMD² with RBF kernel on 1-D samples (Gretton et al.).
 ///
 /// Bandwidth uses the median pairwise-|diff| heuristic on the pooled sample
-/// (`γ = 1 / (2 median²)`, floored away from zero). P-value is a permutation
+/// (the smallest positive distance is used when ties make the median zero).
+/// All-identical samples use bandwidth 1. P-value is a permutation
 /// null that reshuffles the pooled labels while keeping sample sizes fixed.
 ///
 /// Returns `(mmd², p_value)`.
@@ -200,12 +227,17 @@ pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f6
     if a.is_empty() || b.is_empty() {
         return Err(StatsError::Shape { message: "kernel_two_sample requires non-empty samples" });
     }
+    if a.iter().chain(b).any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "kernel_two_sample requires finite observations",
+        });
+    }
     let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
     // Separate, salted stream from the permutation shuffle below so bandwidth selection
     // and the null distribution don't share draws.
     let mut bandwidth_rng = CausalRng::from_seed(rng_seed ^ 0xB4E5_1C7A_9D02_33F1);
-    let gamma = rbf_gamma_median_heuristic(a, b, &mut bandwidth_rng);
-    let observed = biased_mmd2(a, b, gamma);
+    let bandwidth = rbf_bandwidth_median_heuristic(a, b, &mut bandwidth_rng);
+    let observed = biased_mmd2(a, b, bandwidth);
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
     pooled.extend_from_slice(b);
@@ -215,7 +247,7 @@ pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f6
     for _ in 0..n_perm {
         fisher_yates_shuffle(&mut pooled, &mut rng);
         let (pa, pb) = pooled.split_at(na);
-        let null_stat = biased_mmd2(pa, pb, gamma);
+        let null_stat = biased_mmd2(pa, pb, bandwidth);
         if null_stat >= observed {
             ge += 1;
         }
@@ -312,7 +344,7 @@ const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 /// `(i, j)` pair enumeration can alias with periodicity in structured / time-ordered
 /// input — exactly what `kernel_two_sample` is documented to be used on — and bias the
 /// estimated median away from the true one.
-fn rbf_gamma_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
+fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
     pooled.extend_from_slice(b);
@@ -339,38 +371,38 @@ fn rbf_gamma_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 
         }
     }
     diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
-    let median = diffs[diffs.len() / 2].max(1e-8);
-    1.0 / (2.0 * median * median)
+    let median = diffs[diffs.len() / 2];
+    if median > 0.0 { median } else { diffs.into_iter().find(|d| *d > 0.0).unwrap_or(1.0) }
 }
 
-fn biased_mmd2(a: &[f64], b: &[f64], gamma: f64) -> f64 {
+fn biased_mmd2(a: &[f64], b: &[f64], bandwidth: f64) -> f64 {
     let na = a.len() as f64;
     let nb = b.len() as f64;
     let mut kxx = 0.0;
     for i in 0..a.len() {
         for j in 0..a.len() {
-            kxx += rbf(a[i], a[j], gamma);
+            kxx += rbf(a[i], a[j], bandwidth);
         }
     }
     let mut kyy = 0.0;
     for i in 0..b.len() {
         for j in 0..b.len() {
-            kyy += rbf(b[i], b[j], gamma);
+            kyy += rbf(b[i], b[j], bandwidth);
         }
     }
     let mut kxy = 0.0;
     for &x in a {
         for &y in b {
-            kxy += rbf(x, y, gamma);
+            kxy += rbf(x, y, bandwidth);
         }
     }
     kxx / (na * na) + kyy / (nb * nb) - 2.0 * kxy / (na * nb)
 }
 
 #[inline]
-fn rbf(x: f64, y: f64, gamma: f64) -> f64 {
-    let d = x - y;
-    (-gamma * d * d).exp()
+fn rbf(x: f64, y: f64, bandwidth: f64) -> f64 {
+    let d = (x - y) / bandwidth;
+    (-0.5 * d * d).exp()
 }
 
 fn fisher_yates_shuffle(xs: &mut [f64], rng: &mut CausalRng) {
@@ -381,21 +413,32 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
     let n1 = left.len() as f64;
     let n2 = right.len() as f64;
     let n = n1 + n2;
-    let sum: f64 = left.iter().chain(right.iter()).sum();
-    let mean0 = sum / n;
-    let sse0: f64 = left
-        .iter()
-        .chain(right.iter())
-        .map(|x| {
-            let d = x - mean0;
-            d * d
-        })
-        .sum();
-    let v0 = (sse0 / n).max(1e-12);
-    let (_m1, v1) = mean_var(left);
-    let (_m2, v2) = mean_var(right);
-    let v1 = v1.max(1e-12);
-    let v2 = v2.max(1e-12);
+    if left.iter().chain(right).any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "Gaussian likelihood ratio requires finite observations",
+        });
+    }
+    // A common rescaling cancels from the likelihood ratio, while preventing
+    // squaring tiny/huge observations from underflowing/overflowing.
+    let scale = left.iter().chain(right).fold(0.0_f64, |acc, v| acc.max(v.abs()));
+    if scale == 0.0 {
+        return Ok((0.0, 1.0));
+    }
+    let scaled_left: Vec<_> = left.iter().map(|v| v / scale).collect();
+    let scaled_right: Vec<_> = right.iter().map(|v| v / scale).collect();
+    let mean0 = scaled_left.iter().chain(&scaled_right).sum::<f64>() / n;
+    let v0 = scaled_left.iter().chain(&scaled_right).map(|v| (v - mean0).powi(2)).sum::<f64>() / n;
+    let (_, v1) = mean_var(&scaled_left);
+    let (_, v2) = mean_var(&scaled_right);
+    if v0 == 0.0 {
+        return Ok((0.0, 1.0));
+    }
+    // With an exactly constant segment the unrestricted Gaussian likelihood
+    // is unbounded as its variance tends to zero. Report that limiting ratio
+    // explicitly instead of choosing a unit-dependent variance floor.
+    if v1 == 0.0 || v2 == 0.0 {
+        return Ok((f64::INFINITY, 0.0));
+    }
     // Gaussian mean+var change: 2(ℓ_alt−ℓ_null) = n ln v0 − n1 ln v1 − n2 ln v2 ~ χ²_2.
     let stat = (n * v0.ln() - n1 * v1.ln() - n2 * v2.ln()).max(0.0);
     let p = crate::special::gamma_q(1.0, stat * 0.5).clamp(0.0, 1.0);
@@ -421,6 +464,65 @@ pub fn max_abs_cusum(series: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kernel_statistic_keeps_small_unit_distances_and_ties() {
+        let a = [0.0, 1.0, 2.0, 3.0];
+        let b = [2.0, 4.0, 6.0, 8.0];
+        let mut rng = CausalRng::from_seed(1);
+        let bandwidth = rbf_bandwidth_median_heuristic(&a, &b, &mut rng);
+        let expected = biased_mmd2(&a, &b, bandwidth);
+        for scale in [1e-200, 1e-20, 1e200] {
+            let scaled_a = a.map(|v| v * scale);
+            let scaled_b = b.map(|v| v * scale);
+            let bandwidth = rbf_bandwidth_median_heuristic(&scaled_a, &scaled_b, &mut rng);
+            let actual = biased_mmd2(&scaled_a, &scaled_b, bandwidth);
+            assert!((actual - expected).abs() < 1e-14);
+        }
+        assert_eq!(kernel_two_sample(&[0.0; 2], &[0.0; 2], 1).unwrap(), (0.0, 1.0));
+        assert!(kernel_two_sample(&[f64::NAN], &[0.0], 1).is_err());
+    }
+
+    #[test]
+    fn gaussian_likelihood_ratio_is_invariant_to_extreme_units() {
+        let left = [0.0, 1.0, 2.0, 3.0];
+        let right = [2.0, 4.0, 6.0, 8.0];
+        let expected = residual_likelihood_ratio(&left, &right).unwrap();
+        for scale in [1e-200, 1e-20, 1e200] {
+            let actual =
+                residual_likelihood_ratio(&left.map(|v| v * scale), &right.map(|v| v * scale))
+                    .unwrap();
+            assert!((actual.0 - expected.0).abs() < 1e-12);
+            assert!((actual.1 - expected.1).abs() < 1e-12);
+        }
+        assert_eq!(residual_likelihood_ratio(&[1.0; 2], &[1.0; 2]).unwrap(), (0.0, 1.0));
+        assert_eq!(residual_likelihood_ratio(&[1.0; 2], &[2.0; 2]).unwrap(), (f64::INFINITY, 0.0));
+        assert!(residual_likelihood_ratio(&[f64::NAN], &[1.0]).is_err());
+    }
+
+    #[test]
+    fn gaussian_kl_stays_accurate_for_nearby_and_extreme_variances() {
+        let close = gaussian_kl(0.0, 1.0 + 1e-8, 0.0, 1.0).unwrap();
+        assert!((close - 2.5e-17).abs() < 1e-24, "{close:e}");
+        let extreme = gaussian_kl(0.0, 1e-300, 0.0, 1e300).unwrap();
+        assert!(extreme.is_finite());
+        for bad in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
+            assert!(gaussian_kl(0.0, bad, 0.0, 1.0).is_err());
+        }
+    }
+
+    #[test]
+    fn mean_difference_test_is_invariant_to_small_units() {
+        let a = [0.0, 1.0, 2.0, 3.0];
+        let b = [1.0, 2.0, 3.0, 4.0];
+        let small_a = a.map(|v| v * 1e-20);
+        let small_b = b.map(|v| v * 1e-20);
+        let (_, expected) = mean_diff_two_sample(&a, &b).unwrap();
+        let (_, actual) = mean_diff_two_sample(&small_a, &small_b).unwrap();
+        assert!((actual - expected).abs() < 1e-14);
+        assert_eq!(mean_diff_two_sample(&[0.0; 2], &[0.0; 2]).unwrap().1, 1.0);
+        assert_eq!(mean_diff_two_sample(&[0.0; 2], &[1e-20; 2]).unwrap().1, 0.0);
+    }
 
     #[test]
     fn mean_diff_detects_shift() {
@@ -580,14 +682,14 @@ mod tests {
             }
         }
         exact_diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
-        let true_median = exact_diffs[exact_diffs.len() / 2].max(1e-8);
-        let expected_gamma = 1.0 / (2.0 * true_median * true_median);
+        let true_median = exact_diffs[exact_diffs.len() / 2];
+        let expected_bandwidth = true_median;
 
         let mut rng = CausalRng::from_seed(0x5EED_C0DE);
-        let gamma = rbf_gamma_median_heuristic(a, b, &mut rng);
+        let bandwidth = rbf_bandwidth_median_heuristic(a, b, &mut rng);
         assert!(
-            (gamma - expected_gamma).abs() / expected_gamma < 0.05,
-            "gamma={gamma} expected≈{expected_gamma} (true_median={true_median})"
+            (bandwidth - expected_bandwidth).abs() / expected_bandwidth < 0.05,
+            "bandwidth={bandwidth} expected≈{expected_bandwidth} (true_median={true_median})"
         );
     }
 

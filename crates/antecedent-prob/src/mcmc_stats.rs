@@ -133,25 +133,24 @@ pub fn min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: 
 
 /// Whether every chain moved on at least one parameter.
 ///
-/// Movement: `max - min > 1e-12 * (1 + |median|)` over post-warmup draws.
+/// Movement means at least two distinct finite post-warmup draws. No absolute
+/// tolerance is imposed: changing parameter units must not change this check.
+/// Malformed layouts or nonfinite draws return false.
 #[must_use]
 pub fn all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool {
-    if n_chains == 0 || n_draws == 0 || n_params == 0 {
+    if n_chains == 0
+        || n_draws == 0
+        || n_params == 0
+        || !valid_layout(samples, n_chains, n_draws, n_params)
+        || samples.iter().any(|v| !v.is_finite())
+    {
         return false;
     }
     for c in 0..n_chains {
         let mut moved = false;
         for p in 0..n_params {
-            let mut vals = Vec::with_capacity(n_draws);
-            for d in 0..n_draws {
-                vals.push(sample_at(samples, c, d, n_draws, n_params, p));
-            }
-            vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let lo = vals[0];
-            let hi = vals[n_draws - 1];
-            let med = median_sorted(&vals);
-            let range = hi - lo;
-            if range > 1e-12 * (1.0 + med.abs()) {
+            let first = sample_at(samples, c, 0, n_draws, n_params, p);
+            if (1..n_draws).any(|d| sample_at(samples, c, d, n_draws, n_params, p) != first) {
                 moved = true;
                 break;
             }
@@ -161,6 +160,10 @@ pub fn all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_para
         }
     }
     true
+}
+
+fn valid_layout(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool {
+    n_chains.checked_mul(n_draws).and_then(|n| n.checked_mul(n_params)) == Some(samples.len())
 }
 
 fn diagnostics_one(
@@ -177,7 +180,7 @@ fn diagnostics_one(
         ess_bulk: 0.0,
         ess_tail: 0.0,
     };
-    if n_chains < 2 || n_draws < 8 {
+    if n_chains < 2 || n_draws < 8 || !valid_layout(samples, n_chains, n_draws, n_params) {
         return fail;
     }
     // Drop last draw when odd so halves are equal.
@@ -243,7 +246,7 @@ fn has_variation(x: &[f64]) -> bool {
         lo = lo.min(v);
         hi = hi.max(v);
     }
-    hi - lo > 1e-12 * (1.0 + lo.abs().max(hi.abs()))
+    hi > lo
 }
 
 fn fold_about_median(x: &[f64]) -> Vec<f64> {
@@ -258,7 +261,7 @@ fn median_sorted(sorted: &[f64]) -> f64 {
     if n == 0 {
         return f64::NAN;
     }
-    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]) }
+    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * sorted[n / 2 - 1] + 0.5 * sorted[n / 2] }
 }
 
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
@@ -316,44 +319,11 @@ fn rank_normalize(x: &[f64]) -> Vec<f64> {
 }
 
 fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
-    // Layout: segment-major contiguous blocks of length n.
-    let mut means = vec![0.0; m];
-    let mut vars = vec![0.0; m];
-    let nf = n as f64;
-    for seg in 0..m {
-        let base = seg * n;
-        let mut mean = 0.0;
-        for d in 0..n {
-            mean += seg_major[base + d];
-        }
-        mean /= nf;
-        means[seg] = mean;
-        let mut var = 0.0;
-        for d in 0..n {
-            let v = seg_major[base + d] - mean;
-            var += v * v;
-        }
-        vars[seg] = var / (nf - 1.0);
+    let stats = split_segment_stats(seg_major, m, n);
+    if !(stats.w > 0.0) {
+        return if stats.var_hat > 0.0 { f64::INFINITY } else { f64::NAN };
     }
-    let mut w = 0.0;
-    let mut grand = 0.0;
-    for i in 0..m {
-        w += vars[i];
-        grand += means[i];
-    }
-    w /= m as f64;
-    grand /= m as f64;
-    let mut b = 0.0;
-    for i in 0..m {
-        let d = means[i] - grand;
-        b += d * d;
-    }
-    b = nf * b / (m as f64 - 1.0);
-    if !(w > 0.0) {
-        return if b > 0.0 { f64::INFINITY } else { f64::NAN };
-    }
-    let var_hat = ((nf - 1.0) / nf) * w + b / nf;
-    (var_hat / w).sqrt()
+    (stats.var_hat / stats.w).sqrt()
 }
 
 /// Geyer (1992) IPS + IMS ESS on split-chain segments (segment-major layout).
@@ -373,7 +343,7 @@ fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     }
     // Pair sums P_t = ρ_{2t} + ρ_{2t+1}, ρ̂_t = Â_t / var̂⁺; lags 2t, 2t+1
     // must both exist, i.e. 2t+1 ≤ n−1.
-    let max_pairs = n.saturating_sub(1) / 2;
+    let max_pairs = n / 2;
     if max_pairs == 0 {
         return s;
     }
@@ -508,6 +478,38 @@ mod tests {
             *v = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
         }
         samples
+    }
+
+    #[test]
+    fn ess_includes_the_last_available_pair_for_even_segment_lengths() {
+        // Two constant segments with disagreeing means have rho_t = 1 at
+        // every available lag. Four lags give pairs (0,1), (2,3), hence
+        // tau = -1 + 2*(2+2) = 7 and ESS = 8/7.
+        let segments = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        assert!((geyer_ess_split(&segments, 2, 4) - 8.0 / 7.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn diagnostics_are_invariant_to_parameter_units() {
+        let samples = fill_iid_normal(4, 200, 7);
+        let tiny: Vec<_> = samples.iter().map(|v| v * 1e-20).collect();
+        let reference = parameter_mcmc_diagnostics(&samples, 4, 200, 1)[0];
+        let scaled = parameter_mcmc_diagnostics(&tiny, 4, 200, 1)[0];
+        assert!((reference.rhat - scaled.rhat).abs() < 1e-12);
+        assert!((reference.ess_bulk - scaled.ess_bulk).abs() < 1e-12);
+        assert!((reference.ess_tail - scaled.ess_tail).abs() < 1e-12);
+        assert!(all_chains_moved(&tiny, 4, 200, 1));
+    }
+
+    #[test]
+    fn malformed_or_nonfinite_chains_fail_closed() {
+        for samples in [vec![0.0; 15], vec![f64::NAN; 16]] {
+            let result = mcmc_summary(&samples, 2, 8, 1);
+            assert!(!result.max_rhat.is_finite());
+            assert_eq!(result.min_bulk_ess, 0.0);
+            assert!(!all_chains_moved(&samples, 2, 8, 1));
+        }
+        assert!(!all_chains_moved(&[], usize::MAX, 8, 1));
     }
 
     #[test]

@@ -439,6 +439,20 @@ impl ValidationSuite {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
+        if problem.effect_refit.is_some()
+            && matches!(
+                id,
+                ValidatorId::LinearSensitivity
+                    | ValidatorId::PartialLinearSensitivity
+                    | ValidatorId::NonparametricSensitivity
+                    | ValidatorId::Riesz
+            )
+        {
+            return Ok(na(
+                id,
+                "single-regression sensitivity does not describe a composed sequential effect; use the sequential unobserved-common-cause perturbation",
+            ));
+        }
         let method = problem.estimand.method_kind().ok();
         let static_linear = problem.estimand.is_adjustment_shaped()
             && problem.estimator.is_none_or(|e| {
@@ -453,7 +467,7 @@ impl ValidationSuite {
             && problem.estimator.is_none_or(|e| {
                 matches!(e, "temporal.linear.adjustment" | "bayesian.temporal.gcomp")
             });
-        let linear_ok = static_linear || temporal_linear;
+        let linear_ok = static_linear || temporal_linear || problem.effect_refit.is_some();
         match id {
             ValidatorId::Placebo => {
                 if !linear_ok {

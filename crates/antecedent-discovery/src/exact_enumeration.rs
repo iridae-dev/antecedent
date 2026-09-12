@@ -69,7 +69,7 @@ impl ExactDagPosterior {
                 "exact DAG posterior requires at least one variable",
             ));
         }
-        if n > self.max_nodes {
+        if n > self.max_nodes.min(EXACT_ENUM_MAX_NODES) {
             return Err(DiscoveryError::unsupported(
                 "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
                  use order_mcmc, structure_mcmc, or ci_screened_posterior",
@@ -88,8 +88,10 @@ impl ExactDagPosterior {
             ));
         }
 
-        let masks = enumerate_unique_dags(n);
-        let est_bytes = (masks.len() as u64).saturating_mul(32);
+        // Check before allocating/enumerating millions of DAGs. These are the
+        // exact labeled DAG counts for the supported sizes 0..=6.
+        let dag_counts: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
+        let est_bytes = dag_counts[n].saturating_mul(32);
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if est_bytes > hard {
                 return Err(DiscoveryError::Resource(format!(
@@ -98,8 +100,9 @@ impl ExactDagPosterior {
             }
         }
 
+        let masks = enumerate_unique_dags(n);
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let chunk = (masks.len() / threads).max(1);
+        let chunk = masks.len().div_ceil(threads).max(1);
         let mut log_w = vec![f64::NEG_INFINITY; masks.len()];
         let mut rejected = 0u64;
 
@@ -358,5 +361,34 @@ mod tests {
         assert!(!enumerate_unique_dags(n).contains(&cyc));
         assert!(!has_edge(0, n, 0, 1));
         let _ = edge_bit(n, 0, 1);
+    }
+    #[test]
+    fn exact_enumeration_honors_memory_budget_and_hard_node_cap() {
+        let (data, variables) = chain_tabular(20, 5);
+        let mut context = ExecutionContext::for_tests(1);
+        context.memory.hard_limit_bytes = Some(1);
+        let result = ExactDagPosterior::new().run(
+            &data,
+            &variables,
+            &GraphPrior::uniform(),
+            GraphScoreFamily::GaussianBic,
+            &mut DiscoveryWorkspace::default(),
+            &context,
+        );
+        assert!(matches!(result, Err(DiscoveryError::Resource(_))));
+        // Public field mutation must not bypass the documented hard cap.
+        let engine = ExactDagPosterior { max_nodes: 100 };
+        let variables: Vec<_> = (0..7).map(VariableId::from_raw).collect();
+        let error = engine
+            .run(
+                &data,
+                &variables,
+                &GraphPrior::uniform(),
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &context,
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("n ≤ 6"));
     }
 }

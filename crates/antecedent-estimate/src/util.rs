@@ -5,7 +5,7 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
-use antecedent_data::{ResamplingPlan, fill_resample_index_batch};
+use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
 use antecedent_stats::{StatsError, form_xtx, invert_square};
 
 use crate::error::EstimationError;
@@ -43,9 +43,6 @@ pub(crate) fn refuse_explicit_override(
 pub(crate) fn sample_std(values: &[f64]) -> f64 {
     antecedent_stats::sample_std(values)
 }
-
-/// Floor for relative SE change denominator.
-const SE_REL_EPS_FLOOR: f64 = 1e-12;
 
 /// Outcome of an IID bootstrap SE computation with failure accounting.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -88,20 +85,19 @@ pub(crate) fn finalize_bootstrap_se(ates: &[f64], replicates: u32) -> BootstrapS
 
 /// Finalize bootstrap SE with explicit cancellation / early-stop flags.
 ///
-/// When `cancelled` or `early_stopped`, unattempted replicates are not counted as failures.
+/// `attempted` counts only evaluated replicates, so unattempted draws are never
+/// failures, while genuine failures remain visible even after cancellation.
 #[must_use]
 pub(crate) fn finalize_bootstrap_se_ex(
     ates: &[f64],
-    replicates: u32,
+    attempted: u32,
     cancelled: bool,
     early_stopped: bool,
 ) -> BootstrapSeResult {
     let ok = u32::try_from(ates.len()).unwrap_or(u32::MAX);
-    let partial = cancelled || early_stopped;
-    let failed = if partial { 0 } else { replicates.saturating_sub(ok) };
+    let failed = attempted.saturating_sub(ok);
     let too_few = ates.len() < 2;
-    let fail_frac =
-        if replicates == 0 || partial { 0.0 } else { f64::from(failed) / f64::from(replicates) };
+    let fail_frac = if attempted == 0 { 0.0 } else { f64::from(failed) / f64::from(attempted) };
     let se = if too_few || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
         None
     } else {
@@ -114,7 +110,11 @@ pub(crate) fn finalize_bootstrap_se_ex(
 /// Relative SE change for adaptive early-stop.
 #[must_use]
 pub(crate) fn se_relative_change(se_prev: f64, se_new: f64) -> f64 {
-    (se_new - se_prev).abs() / se_prev.abs().max(SE_REL_EPS_FLOOR)
+    if se_prev == 0.0 {
+        if se_new == 0.0 { 0.0 } else { f64::INFINITY }
+    } else {
+        (se_new / se_prev - 1.0).abs()
+    }
 }
 
 /// Whether adaptive bootstrap should stop given the current SE trajectory.
@@ -162,9 +162,28 @@ pub(crate) fn bootstrap_se(
     if replicates == 0 || n == 0 {
         return Ok(BootstrapSeResult::skipped());
     }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
     let n_rep = replicates as usize;
-    let mut indexes = vec![0u32; n * n_rep];
-    fill_resample_index_batch(
+    let len = n
+        .checked_mul(n_rep)
+        .filter(|&len| {
+            len.checked_mul(std::mem::size_of::<u32>())
+                .is_some_and(|bytes| isize::try_from(bytes).is_ok())
+        })
+        .ok_or_else(|| {
+            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
+        })?;
+    if u32::try_from(n - 1).is_err() {
+        return Err(EstimationError::data_msg("bootstrap rows exceed u32 index capacity"));
+    }
+    let mut indexes = Vec::new();
+    indexes.try_reserve_exact(len).map_err(|e| {
+        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
+    })?;
+    indexes.resize(len, 0u32);
+    if let Err(error) = fill_resample_index_batch(
         ResamplingPlan::IidBootstrap,
         n,
         n_rep,
@@ -172,12 +191,24 @@ pub(crate) fn bootstrap_se(
         ctx,
         stream_base,
         &mut indexes,
-    )
-    .map_err(EstimationError::from)?;
+    ) {
+        // A cancellation can race with the check above. Other data failures must
+        // remain errors, even if cancellation happens concurrently with them.
+        if ctx.cancellation.is_cancelled()
+            && matches!(&error, DataError::InvalidArgument { message } if message == "resampling cancelled")
+        {
+            return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+        }
+        return Err(error.into());
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
     let mut ates = Vec::with_capacity(n_rep);
     let mut idx = vec![0usize; n];
     let mut cancelled = false;
     let mut early_stopped = false;
+    let mut attempted = 0u32;
     let mut se_prev: Option<f64> = None;
     let budget = ctx.adaptive_bootstrap;
     for r in 0..n_rep {
@@ -189,26 +220,32 @@ pub(crate) fn bootstrap_se(
         for (dst, &src) in idx.iter_mut().zip(slice.iter()) {
             *dst = src as usize;
         }
-        if let Some(ate) = estimate(&idx)? {
+        attempted += 1;
+        let estimate = estimate(&idx)?.filter(|ate| ate.is_finite());
+        if let Some(ate) = estimate {
             ates.push(ate);
-            if ates.len() >= 2 {
-                let se_new = sample_std(&ates);
-                let ok_count = u32::try_from(ates.len()).unwrap_or(u32::MAX);
-                if adaptive_bootstrap_should_stop(budget, ok_count, se_prev, se_new) {
-                    early_stopped = true;
-                    if let Some(p) = &ctx.progress {
-                        p.report((r + 1) as f64 / n_rep as f64, "bootstrap");
-                    }
-                    break;
+        }
+        if ctx.cancellation.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+        if estimate.is_some() && ates.len() >= 2 {
+            let se_new = sample_std(&ates);
+            let ok_count = u32::try_from(ates.len()).unwrap_or(u32::MAX);
+            if adaptive_bootstrap_should_stop(budget, ok_count, se_prev, se_new) {
+                early_stopped = true;
+                if let Some(p) = &ctx.progress {
+                    p.report((r + 1) as f64 / n_rep as f64, "bootstrap");
                 }
-                se_prev = Some(se_new);
+                break;
             }
+            se_prev = Some(se_new);
         }
         if let Some(p) = &ctx.progress {
             p.report((r + 1) as f64 / n_rep as f64, "bootstrap");
         }
     }
-    Ok(finalize_bootstrap_se_ex(&ates, replicates, cancelled, early_stopped))
+    Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, early_stopped))
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
@@ -324,6 +361,91 @@ mod tests {
     use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
 
     #[test]
+    fn adaptive_se_change_is_invariant_to_measurement_units() {
+        for scale in [1e-200, 1.0, 1e200] {
+            assert!((se_relative_change(scale, 1.01 * scale) - 0.01).abs() < 1e-12);
+            assert!(se_relative_change(0.0, scale).is_infinite());
+            assert!((se_relative_change(scale, 0.0) - 1.0).abs() < 1e-12);
+        }
+        assert!(se_relative_change(0.0, 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn cancelled_bootstrap_retains_actual_failures() {
+        let ctx = ExecutionContext::for_tests(7);
+        let mut calls = 0;
+        let result = bootstrap_se(20, &ctx, 1, 10, |_| {
+            calls += 1;
+            if calls == 4 {
+                ctx.cancellation.cancel();
+            }
+            Ok(if calls <= 2 { Some(f64::from(calls)) } else { None })
+        })
+        .unwrap();
+        assert!(result.cancelled);
+        assert!(!result.early_stopped);
+        assert_eq!(result.replicates_ok, 2);
+        assert_eq!(result.replicates_failed, 2);
+        assert!(result.se.is_some());
+    }
+
+    #[test]
+    fn early_stopped_bootstrap_retains_actual_failures() {
+        let mut ctx = ExecutionContext::for_tests(7);
+        ctx.adaptive_bootstrap =
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 2, se_rel_epsilon: 0.1 };
+        let mut calls = 0;
+        let result = bootstrap_se(20, &ctx, 1, 10, |_| {
+            calls += 1;
+            Ok(if calls <= 4 { None } else { Some(1.0) })
+        })
+        .unwrap();
+        assert!(result.early_stopped);
+        assert_eq!(result.replicates_ok, 3);
+        assert_eq!(result.replicates_failed, 4);
+        assert!(result.se.is_none(), "majority failure must not be hidden by early stopping");
+    }
+
+    #[test]
+    fn bootstrap_nonfinite_estimates_are_failures() {
+        let ctx = ExecutionContext::for_tests(7);
+        let values = [Some(1.0), Some(f64::NAN), Some(f64::INFINITY), Some(2.0)];
+        let mut i = 0;
+        let result = bootstrap_se(4, &ctx, 1, 5, |_| {
+            let value = values[i];
+            i += 1;
+            Ok(value)
+        })
+        .unwrap();
+        assert_eq!(result.replicates_ok, 2);
+        assert_eq!(result.replicates_failed, 2);
+        assert!(result.se.is_some());
+    }
+
+    #[test]
+    fn bootstrap_cancellation_does_not_hide_unrelated_estimation_error() {
+        let ctx = ExecutionContext::for_tests(7);
+        let error = EstimationError::data_msg("unrelated malformed data");
+        let result = bootstrap_se(4, &ctx, 1, 5, |_| {
+            ctx.cancellation.cancel();
+            Err(error.clone())
+        });
+        assert_eq!(result.unwrap_err(), error);
+    }
+
+    #[test]
+    fn bootstrap_checks_capacity_before_allocation() {
+        let ctx = ExecutionContext::for_tests(7);
+        let result = bootstrap_se(2, &ctx, 1, usize::MAX, |_| panic!("must not estimate"));
+        assert!(result.unwrap_err().to_string().contains("capacity"));
+        ctx.cancellation.cancel();
+        let cancelled =
+            bootstrap_se(2, &ctx, 1, usize::MAX, |_| panic!("must not estimate")).unwrap();
+        assert!(cancelled.cancelled);
+        assert_eq!(cancelled.replicates_failed, 0);
+    }
+
+    #[test]
     fn finalize_refuses_se_when_too_few_or_too_many_failures() {
         assert!(finalize_bootstrap_se(&[], 10).se.is_none());
         assert!(finalize_bootstrap_se(&[1.0], 10).se.is_none());
@@ -339,7 +461,7 @@ mod tests {
 
     #[test]
     fn finalize_early_stop_does_not_count_unattempted_as_failures() {
-        let r = finalize_bootstrap_se_ex(&[1.0, 1.1, 0.9, 1.05], 50, false, true);
+        let r = finalize_bootstrap_se_ex(&[1.0, 1.1, 0.9, 1.05], 4, false, true);
         assert_eq!(r.replicates_ok, 4);
         assert_eq!(r.replicates_failed, 0);
         assert!(r.early_stopped);

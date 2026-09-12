@@ -75,9 +75,10 @@ pub fn kalman_filter(
         x_pred[t] = xp;
         p_pred[t] = pp;
         let s = pp + obs_var;
-        let k = if s > 1e-18 { pp / s } else { 0.0 };
+        let k = if s > 0.0 { pp / s } else { 0.0 };
         x = xp + k * (y[t] - xp);
-        p = (1.0 - k) * pp;
+        // Equivalent to (1-k)*pp without cancellation when k rounds to one.
+        p = if s > 0.0 { (pp / s) * obs_var } else { 0.0 };
         x_f[t] = x;
         p_f[t] = p.max(0.0);
     }
@@ -100,8 +101,8 @@ pub fn rts_smooth(
     let mut p_s = p_f.to_vec();
     let mut p_lag = vec![0.0; n];
     for t in (0..n.saturating_sub(1)).rev() {
-        let pp = p_pred[t + 1].max(1e-18);
-        let j = p_f[t] * a / pp;
+        let pp = p_pred[t + 1];
+        let j = if pp > 0.0 { p_f[t] * a / pp } else { 0.0 };
         x_s[t] = x_f[t] + j * (x_s[t + 1] - x_pred[t + 1]);
         p_s[t] = p_f[t] + j * j * (p_s[t + 1] - p_pred[t + 1]);
         p_lag[t + 1] = j * p_s[t + 1];
@@ -109,10 +110,52 @@ pub fn rts_smooth(
     (x_s, p_s, p_lag)
 }
 
-/// Abduce packed innovations from observations via RTS smoother + residual reconstruction.
+/// Scale the state and observations before squaring noise scales, preserving
+/// units without imposing a positive variance floor on the statistical model.
+pub(crate) struct ScaledLgssm {
+    pub scale: f64,
+    pub values: Vec<f64>,
+    pub process_var: f64,
+    pub obs_var: f64,
+    pub initial_mean: f64,
+}
+
+pub(crate) fn scaled_lgssm(
+    y: &[f64],
+    a: f64,
+    process_std: f64,
+    obs_std: f64,
+    initial_mean: f64,
+) -> Result<ScaledLgssm, ModelError> {
+    if !a.is_finite()
+        || !initial_mean.is_finite()
+        || !process_std.is_finite()
+        || process_std <= 0.0
+        || !obs_std.is_finite()
+        || obs_std <= 0.0
+        || y.iter().any(|value| !value.is_finite())
+    {
+        return Err(ModelError::Numerical {
+            message: "LGSSM requires finite observations/parameters and positive noise scales"
+                .into(),
+        });
+    }
+    let scale = process_std.max(obs_std);
+    Ok(ScaledLgssm {
+        scale,
+        values: y.iter().map(|value| value / scale).collect(),
+        process_var: (process_std / scale).powi(2),
+        obs_var: (obs_std / scale).powi(2),
+        initial_mean: initial_mean / scale,
+    })
+}
+
+/// Abduce packed innovations from observations via Kalman conditioning.
 ///
-/// Samples latents from smoother marginals when `rng` is provided (posterior draws);
-/// otherwise uses smoothed means (still marked posterior because the map is many-to-one).
+/// With an RNG, forward filtering/backward sampling draws a joint latent path
+/// conditional on all observations, retaining cross-time posterior covariance.
+/// Without an RNG, uses RTS smoothed means (a conditional mean reconstruction,
+/// not a posterior draw). Innovations retain the existing f32 packing precision.
 pub fn infer_lgssm_innovations(
     y: &[f64],
     a: f64,
@@ -129,30 +172,34 @@ pub fn infer_lgssm_innovations(
     if n == 0 {
         return Ok(());
     }
-    let q = (process_std * process_std).max(1e-16);
-    let r = (obs_std * obs_std).max(1e-16);
-    // Initial state variance matches the generative model (mechanism.rs: x_0 = initial_mean +
-    // process_std * eps, i.e. Var(x_0) = process_std² = q) — not an independent hyperparameter.
-    let (x_f, p_f, x_pred, p_pred) = kalman_filter(y, a, q, r, initial_mean, q);
-    let (x_s, p_s, _) = rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred);
-
-    let mut x_draw = x_s.clone();
-    if let Some(rng) = rng {
-        for t in 0..n {
-            let s = p_s[t].max(0.0).sqrt();
-            x_draw[t] = x_s[t] + s * standard_normal(rng);
+    let scaled = scaled_lgssm(y, a, process_std, obs_std, initial_mean)?;
+    let q = scaled.process_var;
+    let r = scaled.obs_var;
+    // x_0 has variance q, matching the generative mechanism.
+    let (x_f, p_f, x_pred, p_pred) = kalman_filter(&scaled.values, a, q, r, scaled.initial_mean, q);
+    let x_draw = if let Some(rng) = rng {
+        let mut path = vec![0.0; n];
+        path[n - 1] = x_f[n - 1] + p_f[n - 1].max(0.0).sqrt() * standard_normal(rng);
+        for t in (0..n - 1).rev() {
+            // p(x_t | x_{t+1}, y_{0:t}); the future is conditionally independent
+            // of x_t given x_{t+1}. Independently sampling smoothed marginals
+            // would erase the lag covariance and corrupt process innovations.
+            let gain = if p_pred[t + 1] > 0.0 { p_f[t] * a / p_pred[t + 1] } else { 0.0 };
+            let mean = x_f[t] + gain * (path[t + 1] - x_pred[t + 1]);
+            let variance = if p_pred[t + 1] > 0.0 { p_f[t] * (q / p_pred[t + 1]) } else { 0.0 };
+            path[t] = mean + variance.max(0.0).sqrt() * standard_normal(rng);
         }
-    }
-
-    let inv_proc = 1.0 / process_std.max(1e-12);
-    let inv_obs = 1.0 / obs_std.max(1e-12);
+        path
+    } else {
+        rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred).0
+    };
     for t in 0..n {
         let eps = if t == 0 {
-            (x_draw[0] - initial_mean) * inv_proc
+            (x_draw[0] - scaled.initial_mean) / (process_std / scaled.scale)
         } else {
-            (x_draw[t] - a * x_draw[t - 1]) * inv_proc
+            (x_draw[t] - a * x_draw[t - 1]) / (process_std / scaled.scale)
         };
-        let eta = (y[t] - x_draw[t]) * inv_obs;
+        let eta = (scaled.values[t] - x_draw[t]) / (obs_std / scaled.scale);
         output[t] = pack_innovations(eps, eta);
     }
     Ok(())
@@ -162,6 +209,84 @@ pub fn infer_lgssm_innovations(
 mod tests {
     use super::*;
     use antecedent_core::CausalRng;
+
+    #[test]
+    fn sampled_paths_preserve_joint_smoothing_covariance() {
+        // Prior covariance for a=1, q=1 is [[1,1],[1,2]]. With r=1,
+        // posterior covariance = (prior^-1 + I)^-1 = [[2,1],[1,3]] / 5.
+        let mut rng = CausalRng::from_seed(287);
+        let mut product = 0.0;
+        let mut first_square = 0.0;
+        let mut second_square = 0.0;
+        let draws = 40_000;
+        for _ in 0..draws {
+            let mut packed = [0.0; 2];
+            infer_lgssm_innovations(&[0.0, 0.0], 1.0, 1.0, 1.0, 0.0, &mut packed, Some(&mut rng))
+                .unwrap();
+            let x0 = unpack_innovations(packed[0]).0;
+            let x1 = x0 + unpack_innovations(packed[1]).0;
+            product += x0 * x1;
+            first_square += x0 * x0;
+            second_square += x1 * x1;
+        }
+        assert!((product / f64::from(draws) - 0.2).abs() < 0.015);
+        assert!((first_square / f64::from(draws) - 0.4).abs() < 0.015);
+        assert!((second_square / f64::from(draws) - 0.6).abs() < 0.015);
+    }
+
+    #[test]
+    fn innovations_and_likelihood_respect_changes_of_units() {
+        use crate::{MechanismSlot, ParentBatch, log_prob_column};
+        let mut reference = [0.0; 2];
+        infer_lgssm_innovations(&[1.0, 1.0], 0.5, 2.0, 1.0, 0.0, &mut reference, None).unwrap();
+        let mut base_logp = [0.0; 2];
+        let parents = ParentBatch { values: &[], n_rows: 2, n_parents: 0 };
+        log_prob_column(
+            &MechanismSlot::LinearGaussianStateSpace {
+                a: 0.5,
+                process_std: 2.0,
+                obs_std: 1.0,
+                initial_mean: 0.0,
+            },
+            &[1.0, 1.0],
+            parents,
+            &mut base_logp,
+        )
+        .unwrap();
+        for scale in [1e-150, 1e-12, 1e12, 1e150] {
+            let mut packed = [0.0; 2];
+            infer_lgssm_innovations(
+                &[scale, scale],
+                0.5,
+                2.0 * scale,
+                scale,
+                0.0,
+                &mut packed,
+                None,
+            )
+            .unwrap();
+            let mut logp = [0.0; 2];
+            log_prob_column(
+                &MechanismSlot::LinearGaussianStateSpace {
+                    a: 0.5,
+                    process_std: 2.0 * scale,
+                    obs_std: scale,
+                    initial_mean: 0.0,
+                },
+                &[scale, scale],
+                parents,
+                &mut logp,
+            )
+            .unwrap();
+            for t in 0..2 {
+                let (eps, eta) = unpack_innovations(packed[t]);
+                let (base_eps, base_eta) = unpack_innovations(reference[t]);
+                assert!((eps - base_eps).abs() < 1e-6);
+                assert!((eta - base_eta).abs() < 1e-6);
+                assert!((logp[t] + scale.ln() - base_logp[t]).abs() < 1e-12);
+            }
+        }
+    }
 
     #[test]
     fn pack_unpack_round_trip() {
