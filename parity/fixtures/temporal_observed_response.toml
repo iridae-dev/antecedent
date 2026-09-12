@@ -1,0 +1,8 @@
+id = "antecedent.temporal_observed_bayes"
+capability_ids = [
+  "estimate.temporal_observed_bayes",
+]
+fixture_dir = "conformance/bayesian/temporal_observed_response"
+tolerance_class = "StableFloat"
+generator = "stationary linear Gaussian SEM plus selected / independent / informative censoring recorded in expected.json"
+baseline_pin = "structural dose × horizon surface under declared ignorable joint-trajectory CAR; not Bayesian IPCW"
