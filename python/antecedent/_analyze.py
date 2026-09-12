@@ -118,7 +118,7 @@ from .estimation import (
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
-from .inference import Bayesian, Frequentist
+from .inference import Bayesian, ClassPrior, Frequentist, _class_prior_kwargs
 from .observation import Complete as _ObservationComplete
 from .query import (
     AverageDerivative,
@@ -467,7 +467,7 @@ def handle_response(
         if not isinstance(query, (ResponseCurve, InterventionResponse)):
             raise CausalUnsupportedError(
                 "refused: Licensed derivative cells are Frequentist explicit or accepted "
-                "Dag at validation none; Bayesian derivatives remain 1.7 work."
+                "Dag at validation none; Bayesian derivatives remain 1.8 work."
             )
         if bootstrap_requested:
             raise CausalUnsupportedError(
@@ -997,7 +997,7 @@ def handle_mediation(
     if discovery is not None:
         raise CausalUnsupportedError(
             "refused: Static natural mediation is Frequentist; a Bayesian mediation "
-            "estimator is 1.7 work."
+            "estimator is 1.8 work."
         )
     raise CausalUnsupportedError("refused: MediationEffect requires a supplied static Dag.")
 
@@ -1545,6 +1545,7 @@ def handle_temporal_pulse(
     threads: int,
     regimes: Sequence[int] | None,
     structure_accepted: bool = False,
+    class_prior: ClassPrior | None = None,
 ) -> Any:
     from .estimation import (
         _discovery_algorithm,
@@ -1642,6 +1643,7 @@ def handle_temporal_pulse(
             bootstrap=bootstrap,
             threads=threads,
             accepted=structure_accepted,
+            **_class_prior_kwargs(class_prior),
         )
         return _wrap_temporal(raw)
     if isinstance(graph, TemporalCpdag):
@@ -1662,6 +1664,7 @@ def handle_temporal_pulse(
             bootstrap=bootstrap,
             threads=threads,
             accepted=structure_accepted,
+            **_class_prior_kwargs(class_prior),
         )
         return _wrap_temporal(raw)
     lagged = _lagged_edges(graph)
@@ -2179,6 +2182,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     return_posterior_artifact: bool = False,
+    class_prior: ClassPrior | None = None,
 ) -> AnalysisResult | CausalResponseView:
     """Identify then estimate a causal effect.
 
@@ -2300,6 +2304,16 @@ def analyze(
     # does not pass `refute=`.
     resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     inference = inference or Frequentist()
+    if class_prior is not None and (
+        not isinstance(graph, (TemporalCpdag, TemporalPag)) or not isinstance(inference, Bayesian)
+    ):
+        raise CausalUnsupportedError(
+            "class_prior requires Bayesian inference on TemporalCpdag or TemporalPag"
+        )
+    if class_prior is not None and discovery is not None:
+        raise CausalUnsupportedError(
+            "class_prior and graph_posterior are distinct structural-mass contracts"
+        )
     bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
 
     if discovery is not None and latency == "interactive":
@@ -2338,6 +2352,15 @@ def analyze(
             and kind in {"conditional", "response_curve", "intervention_response"}
         )
         or (kind == "sustained" and getattr(query, "window", None) is not None)
+        or (
+            isinstance(graph, (TemporalCpdag, TemporalPag))
+            and isinstance(inference, Bayesian)
+            and inference.prior_from is not None
+        )
+        or (
+            isinstance(graph, (TemporalCpdag, TemporalPag))
+            and kind in {"response_curve", "intervention_response"}
+        )
     )
     if use_prepared and discovery is None:
         assert isinstance(
@@ -2352,6 +2375,7 @@ def analyze(
                 ResponseCurve,
                 InterventionResponse,
                 SustainedEffect,
+                PulseEffect,
             ),
         )
         if graph is None:
@@ -2404,6 +2428,7 @@ def analyze(
             bootstrap=0 if kind == "counterfactual" else bootstrap,
             threads=threads,
             latency=latency,
+            class_prior=class_prior,
         )
         result = prepared.estimate(data, seed=seed, threads=threads)
         if return_posterior_artifact:
@@ -2541,6 +2566,7 @@ def analyze(
             threads=threads,
             structure_accepted=structure_accepted,
             regimes=regimes,
+            class_prior=class_prior,
         )
 
     raise TypeError(f"unsupported query type: {type(query)!r}")
