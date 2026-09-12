@@ -3,7 +3,10 @@
 //! Multi-step Sustained and multi-step / joint `Sequence` overlays share this
 //! engine. Sustained is the active-minus-control contrast over a window;
 //! Sequence evaluates the interventional level under per-node Set / Soft
-//! constant / Soft shift overlays. No second identifier.
+//! mean overlays (constant, shift, multiplicative, and bounded shift).
+//! Fitted stationary Bayesian mechanisms can be retained for predictive checks;
+//! facade validation refits this same engine for each perturbed graph atom.
+//! No second identifier.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -28,6 +31,7 @@ use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
+use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
 use crate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
     EstimationError, OverlapPolicy, PreparedBayesianProblem,
@@ -51,6 +55,60 @@ impl SequentialNodeOverlay {
     #[must_use]
     pub fn assigned(self, factual_mean: f64) -> f64 {
         self.level.unwrap_or(factual_mean + self.shift)
+    }
+}
+
+/// Structural multiplication or population-mean-targeting shift on an unfolded node.
+///
+/// Applies `clamp(multiplier * mean + shift, lower, upper)` to the propagated
+/// mean. A bounded shift replaces `f` by `f + clamp(mu + shift, lower, upper) - mu`,
+/// where `mu = E[f]` under preceding interventions. Parent effects and innovations
+/// remain; individual outcomes need not satisfy the bounds. Multiplication uses
+/// `multiplier * f`, whose expectation is propagated exactly by the linear engine.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SequentialMechanismOverlay {
+    /// Existing Set/Shift coordinates and parameters.
+    pub node: SequentialNodeOverlay,
+    /// Propagated-mean multiplier.
+    pub multiplier: f64,
+    /// Optional inclusive bounds on the shifted propagated mean.
+    pub bounds: Option<(f64, f64)>,
+}
+
+impl From<SequentialNodeOverlay> for SequentialMechanismOverlay {
+    fn from(node: SequentialNodeOverlay) -> Self {
+        Self { node, multiplier: 1.0, bounds: None }
+    }
+}
+
+impl SequentialMechanismOverlay {
+    /// Record the population-dependent mechanism defining a bounded mean shift.
+    #[must_use]
+    pub fn mean_target_assumption() -> antecedent_core::AssumptionRecord {
+        antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: "temporal.soft.population_mean_target".into(),
+                    description: "truncated_shift defines f_policy = f + clip(mu + delta, lower, upper) - mu, \
+                        where mu = E[f] under preceding interventions; parent effects and innovations \
+                        remain, and realized outcomes need not satisfy the bounds. This is a \
+                        population-mean-targeting policy, not stochastic clipping. Multiplicative \
+                        defines factor * f; linear downstream mechanisms propagate these means exactly".into(),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: "temporal.sequential.gcomp".into(),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        }
+    }
+
+    /// Apply the deterministic propagated-mean mechanism.
+    #[must_use]
+    pub fn assigned(self, mean: f64) -> f64 {
+        let value = self.node.level.unwrap_or(self.multiplier * mean + self.node.shift);
+        self.bounds.map_or(value, |(lower, upper)| value.clamp(lower, upper))
     }
 }
 
@@ -80,6 +138,46 @@ pub fn estimate_sustained_window(
     bootstrap_replicates: u32,
     bayesian: Option<&BayesianGComputationAte>,
     ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    estimate_sustained_window_with_validation(
+        data,
+        graph,
+        indexer,
+        estimand,
+        query,
+        status,
+        assumptions,
+        bootstrap_replicates,
+        bayesian,
+        ctx,
+        None,
+    )
+}
+
+/// A fitted stationary mechanism, retained for predictive validation of the actual SEM.
+#[derive(Clone, Debug)]
+pub struct SequentialBayesianMechanism {
+    /// Child variable shared by the unfolded time copies.
+    pub variable: VariableId,
+    /// Unique observed rows used by this likelihood.
+    pub prepared: PreparedBayesianProblem,
+    /// Posterior over this mechanism's coefficients and noise scale.
+    pub posterior: CausalPosterior,
+}
+
+/// Fit a sustained policy and optionally retain its actual stationary Bayesian mechanisms.
+pub fn estimate_sustained_window_with_validation(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    indexer: &TemporalIndexer,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    status: IdentificationStatus,
+    assumptions: AssumptionSet,
+    bootstrap_replicates: u32,
+    bayesian: Option<&BayesianGComputationAte>,
+    ctx: &ExecutionContext,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     query.validate()?;
     let TemporalPolicy::Sustained { from, until } = query.policy else {
@@ -127,13 +225,14 @@ pub fn estimate_sustained_window(
         estimand,
         query.outcome,
         query.outcome_offset(),
-        &overlays,
+        &overlays.into_iter().map(SequentialMechanismOverlay::from).collect::<Vec<_>>(),
         SequentialEval::Contrast { delta },
         status,
         assumptions,
         bootstrap_replicates,
         bayesian,
         ctx,
+        validation,
     )
 }
 
@@ -157,8 +256,61 @@ pub fn estimate_sequence_overlays(
     bayesian: Option<&BayesianGComputationAte>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    let mechanisms =
+        overlays.iter().copied().map(SequentialMechanismOverlay::from).collect::<Vec<_>>();
+    estimate_sequence_mechanisms(
+        data,
+        graph,
+        indexer,
+        estimand,
+        outcome,
+        outcome_offset,
+        &mechanisms,
+        status,
+        assumptions,
+        bootstrap_replicates,
+        bayesian,
+        ctx,
+    )
+}
+
+/// Estimate a sequence of deterministic propagated-mean mechanism interventions.
+/// Multiplication scales the structural assignment; bounded shifts target its population mean.
+///
+/// # Errors
+/// Invalid parameters, duplicate coordinates, unidentified design, or fit failures.
+pub fn estimate_sequence_mechanisms(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    indexer: &TemporalIndexer,
+    estimand: &IdentifiedEstimand,
+    outcome: VariableId,
+    outcome_offset: i32,
+    overlays: &[SequentialMechanismOverlay],
+    status: IdentificationStatus,
+    mut assumptions: AssumptionSet,
+    bootstrap_replicates: u32,
+    bayesian: Option<&BayesianGComputationAte>,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    if overlays.iter().any(|overlay| overlay.bounds.is_some()) {
+        let restriction = SequentialMechanismOverlay::mean_target_assumption();
+        if !assumptions.entries.contains(&restriction) {
+            assumptions.push(restriction);
+        }
+    }
     if overlays.is_empty() {
         return Err(EstimationError::unsupported("sequential overlay requires at least one step"));
+    }
+    if overlays.iter().any(|overlay| {
+        overlay.node.level.is_some_and(|level| !level.is_finite())
+            || !overlay.node.shift.is_finite()
+            || !overlay.multiplier.is_finite()
+            || overlay.bounds.is_some_and(|(lo, hi)| !lo.is_finite() || !hi.is_finite() || lo > hi)
+    }) {
+        return Err(EstimationError::unsupported(
+            "sequential overlays require finite levels and shifts",
+        ));
     }
     if estimand.method_kind().ok() != Some(EstimandMethod::TemporalBackdoorUnfolded)
         || !matches!(
@@ -195,6 +347,7 @@ pub fn estimate_sequence_overlays(
         bootstrap_replicates,
         bayesian,
         ctx,
+        None,
     )
 }
 
@@ -205,13 +358,14 @@ fn estimate_sequential(
     estimand: &IdentifiedEstimand,
     outcome: VariableId,
     outcome_offset: i32,
-    overlays: &[SequentialNodeOverlay],
+    overlays: &[SequentialMechanismOverlay],
     eval: SequentialEval,
     status: IdentificationStatus,
     assumptions: AssumptionSet,
     bootstrap_replicates: u32,
     bayesian: Option<&BayesianGComputationAte>,
     ctx: &ExecutionContext,
+    mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     let unfolded =
         graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
@@ -223,7 +377,10 @@ fn estimate_sequential(
     let mut overlay_at = vec![None; dag.node_count()];
     for &overlay in overlays {
         let dense = indexer
-            .dense_id(TemporalNodeKey { variable: overlay.variable, offset: overlay.offset })
+            .dense_id(TemporalNodeKey {
+                variable: overlay.node.variable,
+                offset: overlay.node.offset,
+            })
             .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
         if intervention[dense] {
             return Err(EstimationError::unsupported(
@@ -240,7 +397,11 @@ fn estimate_sequential(
             continue;
         }
         needed[i] = true;
-        if !intervention[i] {
+        // A hard Set/constant cuts incoming edges. An additive shift replaces
+        // f_i(pa_i, e_i) with f_i(pa_i, e_i) + delta, so its parents and
+        // fitted mechanism remain part of the g-formula.
+        let hard_intervention = overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
+        if !hard_intervention {
             pending
                 .extend(dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()));
         }
@@ -293,7 +454,8 @@ fn estimate_sequential(
             let parent = indexer.key_of(p as u32).expect("unfolded parent");
             (parent.variable.raw(), child.offset - parent.offset)
         });
-        if intervention[i] || parents[i].is_empty() {
+        let hard_intervention = overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
+        if hard_intervention || parents[i].is_empty() {
             continue;
         }
         let t = sample.column(column_of[parents[i][0]]);
@@ -329,9 +491,7 @@ fn estimate_sequential(
         SequentialEval::Level => {
             let mut values = vec![0.0; dag.node_count()];
             for &i in &order {
-                values[i] = if let Some(overlay) = overlay_at[i] {
-                    overlay.assigned(factual[i])
-                } else if coefficients[i].is_empty() {
+                let natural = if coefficients[i].is_empty() {
                     factual[i]
                 } else {
                     coefficients[i][0]
@@ -340,6 +500,10 @@ fn estimate_sequential(
                             .enumerate()
                             .map(|(p, &node)| coefficients[i][p + 1] * values[node])
                             .sum::<f64>()
+                };
+                values[i] = match overlay_at.get(i).copied().flatten() {
+                    Some(overlay) => overlay.assigned(natural),
+                    None => natural,
                 };
             }
             values[outcome]
@@ -434,6 +598,13 @@ fn estimate_sequential(
                 let mut est = estimator.clone();
                 est.seed = est.seed.wrapping_add(u64::from(child.variable.raw()));
                 let post = est.fit(&prep, status, &mut BayesianGCompWorkspace::default(), ctx)?;
+                if let Some(contexts) = validation.as_deref_mut() {
+                    contexts.push(SequentialBayesianMechanism {
+                        variable: child.variable,
+                        prepared: prep.clone(),
+                        posterior: post.clone(),
+                    });
+                }
                 count = count.min(post.draws.n_draws);
                 mechanism_posts[i] = Some(post);
                 mechanism_of[i] = i;
@@ -443,15 +614,39 @@ fn estimate_sequential(
         let mut posterior = mechanism_posts.iter().flatten().next().cloned().ok_or_else(|| {
             EstimationError::unsupported("sustained contrast has no fitted outcome mechanism")
         })?;
+        let mut coefficient_columns = vec![Vec::new(); dag.node_count()];
+        let mut coefficients = vec![Vec::new(); dag.node_count()];
+        for &i in &order {
+            let Some(design) = &designs[i] else {
+                continue;
+            };
+            let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
+            coefficient_columns[i] = (0..design.ncols)
+                .map(|index| {
+                    post.draws
+                        .schema
+                        .quantities
+                        .iter()
+                        .position(|q| {
+                            matches!(
+                                q,
+                                PosteriorQuantityKind::Coefficient { index: j, .. }
+                                    if *j == index
+                            )
+                        })
+                        .ok_or_else(|| EstimationError::stats_msg("missing sequential coefficient"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            coefficients[i].resize(design.ncols, 0.0);
+        }
         let mut values = Vec::with_capacity(count);
         for draw in 0..count {
-            let mut coefficients = vec![Vec::new(); dag.node_count()];
             for &i in &order {
                 if designs[i].is_some() {
                     let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
-                    for index in 0..designs[i].as_ref().expect("fitted design").ncols {
-                        let col = post.draws.schema.quantities.iter().position(|q| matches!(q, PosteriorQuantityKind::Coefficient { index: j, .. } if *j == index)).ok_or_else(|| EstimationError::stats_msg("missing sequential coefficient"))?;
-                        coefficients[i].push(post.draws.column(col)?[draw]);
+                    for (value, &column) in coefficients[i].iter_mut().zip(&coefficient_columns[i])
+                    {
+                        *value = post.draws.column(column)?[draw];
                     }
                 }
             }
@@ -482,7 +677,7 @@ fn estimate_sequential(
     }
     let point = propagate(&fit_ols(None)?);
     let mut draws = Vec::new();
-    let mut failed = 0;
+    let mut failed = 0u32;
     // Blocks are at least the unfolded span, and grow with sample size.
     let block = (max_lag as usize + 1).max((n as f64).cbrt().ceil() as usize).min(n);
     for replicate in 0..bootstrap_replicates {
@@ -504,7 +699,10 @@ fn estimate_sequential(
             Err(_) => failed += 1,
         }
     }
-    let se = if draws.len() > 1 {
+    let attempted = draws.len().saturating_add(failed as usize);
+    let excessive_failures =
+        attempted > 0 && f64::from(failed) / attempted as f64 > BOOTSTRAP_MAX_FAILURE_FRAC;
+    let se = if draws.len() > 1 && !excessive_failures {
         let mean = draws.iter().sum::<f64>() / draws.len() as f64;
         Some(
             (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64)
