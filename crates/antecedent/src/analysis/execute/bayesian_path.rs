@@ -2339,7 +2339,7 @@ fn compose_temporal_mediation_for_atom(
         .map_err(CausalError::from)
 }
 
-fn envelope_draws_from_posterior(
+pub(super) fn envelope_draws_from_posterior(
     key: u64,
     posterior: &CausalPosterior,
 ) -> Result<GraphEffectDraws, CausalError> {

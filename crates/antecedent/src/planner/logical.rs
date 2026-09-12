@@ -928,7 +928,7 @@ pub fn compile_logical_temporal_effect_classified(
     Ok(plan)
 }
 
-/// Pulse / single-step Sustained on an incomplete `TemporalCpdag` or `TemporalPag`.
+/// Pulse or Sustained on an incomplete `TemporalCpdag` or `TemporalPag`.
 ///
 /// # Errors
 ///
@@ -955,14 +955,6 @@ pub fn compile_logical_temporal_class_effect(
             ),
         });
     }
-    if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-    {
-        return Err(CausalError::Compile {
-            message: "class-aware TemporalCpdag/TemporalPag is Pulse and single-step \
-                      Sustained only"
-                .into(),
-        });
-    }
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
@@ -974,7 +966,24 @@ pub fn compile_logical_temporal_class_effect(
             ),
         });
     }
-    if !matches!(estimator_id, EstimatorId::TemporalLinearAdjustment) {
+    let multi_step = matches!(
+        query.policy,
+        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
+    );
+    if multi_step {
+        if !matches!(
+            estimator_id,
+            EstimatorId::TemporalLinearAdjustment | EstimatorId::TemporalSequentialGcomp
+        ) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "TemporalCpdag/TemporalPag multi-step Sustained requires estimator \
+                     \"temporal.sequential.gcomp\"; got {:?}",
+                    estimator_id.as_str()
+                ),
+            });
+        }
+    } else if !matches!(estimator_id, EstimatorId::TemporalLinearAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
                 "TemporalCpdag/TemporalPag effect requires estimator \

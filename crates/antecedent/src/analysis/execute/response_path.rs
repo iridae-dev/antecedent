@@ -41,6 +41,8 @@ impl super::Study {
             .zip(identified.graphs.weights.iter())
             .zip(identified.graphs.identified.iter())
             .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
+                posterior: None,
+                response: None,
                 graph_key,
                 weight,
                 status: if *flag == GraphIdentFlag::Identified {
@@ -1020,6 +1022,8 @@ impl super::Study {
             .iter()
             .enumerate()
             .map(|(index, case)| crate::result::StructuralResponseAtom {
+                posterior: None,
+                response: None,
                 graph_key: u64::try_from(index).unwrap_or(u64::MAX),
                 weight: case.weight.0,
                 status: case.result.status,
