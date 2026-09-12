@@ -175,14 +175,29 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     let response = result.response.unwrap();
-    let value = match response.estimate {
-        ResponseIdentification::PointIdentified(ResponseValue::Scalar(value))
-        | ResponseIdentification::PartiallyIdentified(ResponseValue::Scalar(value)) => value,
-        other => panic!("expected mixture scalar, got {other:?}"),
+    let envelope = match response.estimate {
+        ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(envelope)) => envelope,
+        other => panic!("expected completion identified set, got {other:?}"),
     };
-    let expected =
-        (pin()["mean"].as_f64().unwrap() + pin()["unadjusted_mean"].as_f64().unwrap()) / 2.0;
-    assert!((value - expected).abs() < pin()["tolerance"].as_f64().unwrap(), "got {value}");
+    let expected_lo = pin()["mean"].as_f64().unwrap();
+    let expected_hi = pin()["unadjusted_mean"].as_f64().unwrap();
+    let tol = pin()["tolerance"].as_f64().unwrap();
+    assert_eq!(envelope.dimension, 1);
+    assert_eq!(envelope.lower.len(), 1);
+    assert!((envelope.lower[0] - expected_lo).abs() < tol, "lower={}", envelope.lower[0]);
+    assert!((envelope.upper[0] - expected_hi).abs() < tol, "upper={}", envelope.upper[0]);
+    let structural = result.structural_response.expect("completion metadata");
+    assert_eq!(
+        structural.weight_basis,
+        antecedent::result::StructuralWeightBasis::CompletionEnumeration
+    );
+    assert!(
+        structural.conditional_on_identified.is_none(),
+        "completion enumeration must not publish a probability-weighted causal summary"
+    );
+    let bounds = structural.identified_set.expect("identified set");
+    assert!((bounds.lower[0] - expected_lo).abs() < tol);
+    assert!((bounds.upper[0] - expected_hi).abs() < tol);
 }
 
 #[test]
