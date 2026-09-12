@@ -51,6 +51,7 @@
 pub mod accepted;
 pub mod analysis;
 pub mod callback_plan;
+pub mod class_prior;
 pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
@@ -84,6 +85,7 @@ pub use analysis::{
     RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study,
     StudyBuilder,
 };
+pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use estimator_spec::EstimatorSpec;
@@ -92,7 +94,7 @@ pub use identify_api::{Identification, identify, identify_dag, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
-pub use result::{AnalysisIdentification, StudyResult};
+pub use result::{AnalysisIdentification, StructuralWeightBasis, StudyResult};
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
 };
