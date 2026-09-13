@@ -961,6 +961,13 @@ fn analytic_se_treatment(
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
+///
+/// `ψ_i = δ · n · [(XᵀX)⁻¹ x_i]_T · e_i`, which equals
+/// `δ · n · t̃_i e_i / Σ t̃²` with `t̃` the treatment residualized on every
+/// other design column. Centering the treatment alone (`t − t̄`) is only the
+/// unadjusted IF: with covariates correlated with the treatment it understates
+/// the variance by `1 − R²(T | Z)`. Non-invertible designs return NaN so a
+/// downstream mixture SE fails closed instead of reporting zero.
 fn treatment_coef_influence(
     matrix: &[f64],
     nrows: usize,
@@ -972,18 +979,19 @@ fn treatment_coef_influence(
     if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
         return vec![0.0; residuals.len()];
     }
-    let t = &matrix[t_col * nrows..t_col * nrows + nrows];
-    let t_mean = t.iter().sum::<f64>() / nrows as f64;
-    let mut ss = 0.0;
-    for &ti in t {
-        let d = ti - t_mean;
-        ss += d * d;
-    }
-    if ss <= 0.0 {
-        return vec![0.0; nrows];
-    }
-    let scale = delta * nrows as f64 / ss;
-    residuals.iter().zip(t.iter()).map(|(&e, &ti)| e * (ti - t_mean) * scale).collect()
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(matrix, nrows, ncols, &mut xtx);
+    let Some(inv) = invert_square(&xtx, ncols) else {
+        return vec![f64::NAN; nrows];
+    };
+    let row = &inv[t_col * ncols..t_col * ncols + ncols];
+    let scale = delta * nrows as f64;
+    (0..nrows)
+        .map(|i| {
+            let leverage: f64 = (0..ncols).map(|c| row[c] * matrix[c * nrows + i]).sum();
+            scale * leverage * residuals[i]
+        })
+        .collect()
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
