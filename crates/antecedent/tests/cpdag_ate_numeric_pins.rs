@@ -217,6 +217,8 @@ fn cpdag_ate_envelope_numeric_pin() {
     let bayes_seed = bayes["seed"].as_u64().unwrap();
     let freq_ate = freq["expected_ate"].as_f64().unwrap();
     let freq_tol = freq["absolute_tolerance"].as_f64().unwrap();
+    let freq_se = freq["expected_se"].as_f64().unwrap();
+    let freq_se_tol = freq["se_absolute_tolerance"].as_f64().unwrap();
     let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
     let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
     let unidentified = pin["identification"]["unidentified_mass"].as_f64().unwrap();
@@ -245,6 +247,23 @@ fn cpdag_ate_envelope_numeric_pin() {
                 assert_cpdag_envelope_diagnostic(result, &pin);
             }
             assert_prepared_reuse(&fresh, &click, &refreshed, freq_ate, freq_tol);
+            for result in [&fresh, &click, &refreshed] {
+                // Joint-IF SE of the frozen-weight mixture on shared rows, pinned
+                // against the independent numpy reference (reference.py).
+                assert!(
+                    (result.estimate.se_analytic - freq_se).abs() < freq_se_tol,
+                    "CPDAG envelope joint-IF SE {} vs reference {freq_se}",
+                    result.estimate.se_analytic
+                );
+                assert!(
+                    !result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code.as_ref()
+                            == "estimate.envelope.se_omits_between_atom_variance"),
+                    "a finite joint-IF SE must not carry the omitted-variance diagnostic"
+                );
+            }
 
             let mut bayes_builder = Study::tabular(data.clone());
             bayes_builder = if accepted {

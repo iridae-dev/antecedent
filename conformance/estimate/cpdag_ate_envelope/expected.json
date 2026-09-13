@@ -40,7 +40,14 @@
     "estimator": "linear.adjustment.ate",
     "expected_ate": 0.46,
     "absolute_tolerance": 1e-12,
-    "tolerance_class": "StableFloat"
+    "tolerance_class": "StableFloat",
+    "expected_se": 0.0297936681639348,
+    "se_absolute_tolerance": 1e-12,
+    "se_reference": "conformance/estimate/cpdag_ate_envelope/reference.py",
+    "reference_atoms": [
+      {"weight": 1.0, "adjustment_set": ["z"]},
+      {"weight": 1.0, "adjustment_set": []}
+    ]
   },
   "bayesian": {
     "estimator": "bayesian.gcomp",
