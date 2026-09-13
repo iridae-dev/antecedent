@@ -250,6 +250,9 @@ include!("execute_helpers.rs");
 pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
 
 #[cfg(test)]
+mod block_length_tests;
+
+#[cfg(test)]
 mod envelope_se_tests {
     use super::*;
 
