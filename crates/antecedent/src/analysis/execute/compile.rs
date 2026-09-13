@@ -155,6 +155,9 @@ impl super::Study {
                 {
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+                } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
                 }
                 Ok(plan)
             }
@@ -182,17 +185,16 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    return Err(CausalError::Unsupported {
-                        message: "class-aware temporal response is Frequentist only",
-                    });
-                }
                 let mut plan =
                     compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
                 plan.record.identifier =
                     Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
                 plan.record.estimator =
-                    Some(Arc::from(EstimatorId::TemporalResponseGcomp.as_str()));
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian.as_str()
+                    } else {
+                        EstimatorId::TemporalResponseGcomp.as_str()
+                    }));
                 Ok(plan)
             }
             (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
@@ -225,14 +227,19 @@ impl super::Study {
                     .unit(0)
                     .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
                     .series;
-                compile_logical_temporal_effect_classified(
+                let mut plan = compile_logical_temporal_effect_classified(
                     data,
                     graph,
                     q,
                     self.split,
                     false,
                     DataClassification::Panel,
-                )
+                )?;
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+                }
+                Ok(plan)
             }
             (Some(AnalysisRoute::StaticAte), GraphClass::Pag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
@@ -363,11 +370,6 @@ impl super::Study {
                 query
                     .validate()
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    return Err(CausalError::Unsupported {
-                        message: "TemporalCpdag mediation is Frequentist only",
-                    });
-                }
                 let mut plan = compile_logical_temporal_effect_classified(
                     data,
                     &TemporalDag::empty(),
@@ -379,7 +381,12 @@ impl super::Study {
                 plan.record.plan_id = Arc::from("temporal_mediation_class");
                 plan.record.identifier =
                     Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-                plan.record.estimator = Some(Arc::from(EstimatorId::TemporalMediation.as_str()));
+                plan.record.estimator =
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::BayesianTemporalMediation.as_str()
+                    } else {
+                        EstimatorId::TemporalMediation.as_str()
+                    }));
                 plan.record.validation_suite = self.validation_suite_id();
                 plan.record.query_variables = Arc::from([query.treatment, query.outcome]);
                 plan.query = CausalQuery::Mediation(query.clone());
@@ -636,6 +643,13 @@ impl super::Study {
         let mut logical = compile_logical_temporal_class_effect(
             data, nodes, q, self.split, class, plan_id, identifier, estimator,
         )?;
+        if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+        {
+            logical.record.estimator =
+                Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+        }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
         Ok(logical)
     }

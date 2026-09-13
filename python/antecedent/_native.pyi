@@ -69,6 +69,10 @@ class ArrowLoadInfo:
     column_names: list[str]
 
 class AteAnalysisResult:
+    structural_weight_basis: str | None
+    structural_identified_mass: float | None
+    structural_unidentified_mass: float | None
+    structural_unevaluable_mass: float | None
     certificate_json: str | None
     unit_effects: list[float] | None
     assumptions: list[str]
@@ -579,6 +583,10 @@ class AnalysisResult:
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
+    structural_weight_basis: str | None
+    structural_identified_mass: float | None
+    structural_unidentified_mass: float | None
+    structural_unevaluable_mass: float | None
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -894,6 +902,10 @@ class PreparedAnalysis:
         assumption_kind: str | None = None,
         assumption_variables: list[str] = [],
         structural_model: str | None = None,
+        class_graph: TemporalCpdag | TemporalPag | None = None,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_effect(
@@ -941,6 +953,12 @@ class PreparedAnalysis:
         bootstrap: int = 0,
         threads: int = 1,
         accepted: bool = False,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_pag_effect(
@@ -963,6 +981,12 @@ class PreparedAnalysis:
         bootstrap: int = 0,
         threads: int = 1,
         accepted: bool = False,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_mediation(
@@ -985,6 +1009,10 @@ class PreparedAnalysis:
         bootstrap: int = 0,
         threads: int = 1,
         accepted: bool = False,
+        class_graph: TemporalCpdag | TemporalPag | None = None,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_graph_posterior_ate(
@@ -1656,6 +1684,9 @@ def analyze_temporal_cpdag(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
+    class_prior_ordered: list[float] | None = None,
+    class_prior_pairs: list[tuple[int, float]] | None = None,
+    max_completions: int | None = None,
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
@@ -1678,6 +1709,9 @@ def analyze_temporal_pag(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
+    class_prior_ordered: list[float] | None = None,
+    class_prior_pairs: list[tuple[int, float]] | None = None,
+    max_completions: int | None = None,
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
@@ -2070,6 +2104,10 @@ def identify_structure(
     window: tuple[int, int] | None = None,
     treatments: list[str] | None = None,
     include_details: bool = False,
+    horizons: list[int] | None = None,
+    max_history_lag: int | None = None,
+    response_grid: list[float] | None = None,
+    response_steps: list[tuple[str, str, list[float]]] | None = None,
 ) -> tuple[str, str, list[str]] | str: ...
 def identify_ate_admg(
     names: list[str],

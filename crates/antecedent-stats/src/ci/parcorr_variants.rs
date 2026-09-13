@@ -24,6 +24,7 @@ use super::types::{
 use crate::error::StatsError;
 use crate::gram::{chol_log_det, cholesky_spd, invert_square};
 
+#[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let n = col.len();
     let mut idx: Vec<usize> = (0..n).collect();
@@ -31,7 +32,7 @@ pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let mut i = 0usize;
     while i < n {
         let mut j = i;
-        while j + 1 < n && (col[idx[j + 1]] - col[idx[i]]).abs() < 1e-15 {
+        while j + 1 < n && col[idx[j + 1]] == col[idx[i]] {
             j += 1;
         }
         let first = (i + 1) as f64;
@@ -245,8 +246,11 @@ fn weighted_pearson(policy: &KernelPolicy, x: &[f64], y: &[f64], weights: &[f64]
         cyy += w * dy * dy;
         cxy += w * dx * dy;
     }
+    if !(cxx > 0.0 && cyy > 0.0) {
+        return None;
+    }
     let denom = (cxx * cyy).sqrt();
-    if denom <= f64::EPSILON {
+    if !denom.is_finite() || denom == 0.0 {
         return None;
     }
     Some((cxy / denom).clamp(-1.0, 1.0))
@@ -394,7 +398,7 @@ impl MultivariatePartialCorrelation {
         let ry = residualize_block(columns, y_cols, z_flat, n)?;
         let px = x_cols.len();
         let py = y_cols.len();
-        let rho = first_canonical_correlation(&rx, &ry, n, px, py)?;
+        let observed = residual_canonical(&rx, &ry, n, px, py)?;
 
         match significance {
             SignificanceMethod::Analytic => {
@@ -413,7 +417,7 @@ impl MultivariatePartialCorrelation {
                 if multiplier <= 0.0 {
                     return Err(StatsError::Shape { message: "non-positive residual df" });
                 }
-                let chi2 = -multiplier * wilks_lambda_ln(&rx, &ry, n, px, py)?;
+                let chi2 = -multiplier * observed.ln_lambda;
                 let p = crate::special::gamma_q(df / 2.0, chi2.max(0.0) / 2.0);
                 Ok(CiResult {
                     // The reported statistic stays the leading canonical
@@ -421,7 +425,7 @@ impl MultivariatePartialCorrelation {
                     // [0, 1] scale, and downstream link scoring compares it across
                     // edges. Significance comes from the chi-square above, which is
                     // on a different scale and not comparable across block shapes.
-                    statistic: rho,
+                    statistic: observed.leading_rho,
                     p_value: p,
                     df,
                     // No interval. A Fisher-z CI on ρ would be anti-conservative for
@@ -448,7 +452,6 @@ impl MultivariatePartialCorrelation {
                 // anti-conservative bias the analytic path had. Re-deriving the
                 // canonical structure inside every replicate is what makes this an
                 // honest permutation test.
-                let observed = wilks_lambda_ln(&rx, &ry, n, px, py)?;
                 let n_blocks = n.div_ceil(block_size);
                 let mut block_perm: Vec<usize> = (0..n_blocks).collect();
                 let mut rng = ctx.rng.stream(0x77C2);
@@ -472,12 +475,19 @@ impl MultivariatePartialCorrelation {
                     }
                     // Smaller Lambda means stronger dependence, so "at least as
                     // extreme" is <=.
-                    if wilks_lambda_ln(&permuted, &ry, n, px, py)? <= observed {
+                    if residual_canonical(&permuted, &ry, n, px, py)?.ln_lambda
+                        <= observed.ln_lambda
+                    {
                         at_least_as_extreme += 1;
                     }
                 }
                 let p = (f64::from(at_least_as_extreme) + 1.0) / (f64::from(replicates) + 1.0);
-                Ok(CiResult { statistic: rho, p_value: p, df: (px * py) as f64, ci: None })
+                Ok(CiResult {
+                    statistic: observed.leading_rho,
+                    p_value: p,
+                    df: (px * py) as f64,
+                    ci: None,
+                })
             }
         }
     }
@@ -557,9 +567,11 @@ fn residualize_block(
     Ok(out)
 }
 
-/// Natural log of Wilks' Lambda for the two residual blocks (col-major `n×px`, `n×py`).
+/// Canonical dependence of two residual blocks (col-major `n×px`, `n×py`).
 ///
-/// `Λ = Π (1 − ρ_i²)` over all `min(px, py)` canonical correlations.
+/// `Λ = Π (1 − ρ_i²)` over all `min(px, py)` canonical correlations. The leading
+/// ρ and Λ are taken from the same unregularized whitened Gram matrix so the
+/// reported statistic and Wilks p-value cannot disagree on degeneracy.
 ///
 /// Computed by whitening each block against its own scatter matrix and taking the
 /// determinant of `I − A Aᵀ`, where `A = Lx⁻¹ Sxy Ly⁻ᵀ` is the whitened
@@ -575,13 +587,18 @@ fn residualize_block(
 ///
 /// `Λ` is invariant to a common divisor of the scatter matrices, so raw
 /// cross-products are used without scaling by `n`.
-fn wilks_lambda_ln(
+struct ResidualCanonical {
+    ln_lambda: f64,
+    leading_rho: f64,
+}
+
+fn residual_canonical(
     rx: &[f64],
     ry: &[f64],
     n: usize,
     px: usize,
     py: usize,
-) -> Result<f64, StatsError> {
+) -> Result<ResidualCanonical, StatsError> {
     let cross = |a: &[f64], pa: usize, b: &[f64], pb: usize| {
         let mut out = vec![0.0; pa * pb];
         for i in 0..pa {
@@ -664,155 +681,54 @@ fn wilks_lambda_ln(
     // working precision: the blocks are perfectly dependent. That is a valid
     // answer (Λ = 0, chi-square = +inf, p = 0), not an error, so floor Λ at the
     // smallest positive normal rather than propagating a failure.
-    match cholesky_spd(&eye_minus, k) {
-        Some(l) => Ok(chol_log_det(&l, k)),
-        None => Ok(f64::MIN_POSITIVE.ln()),
-    }
+    let ln_lambda = match cholesky_spd(&eye_minus, k) {
+        Some(l) => chol_log_det(&l, k),
+        None => f64::MIN_POSITIVE.ln(),
+    };
+    Ok(ResidualCanonical {
+        ln_lambda,
+        leading_rho: leading_psd_eigenvalue(&gram, k).sqrt().min(1.0),
+    })
 }
 
-/// First canonical correlation between residual blocks (col-major `n×px`, `n×py`).
-fn first_canonical_correlation(
-    rx: &[f64],
-    ry: &[f64],
-    n: usize,
-    px: usize,
-    py: usize,
-) -> Result<f64, StatsError> {
-    let (rho, _, _) = cca_leading(rx, ry, n, px, py)?;
-    Ok(rho)
-}
-
-/// Return (ρ, a_x, a_y) for the leading canonical pair via power iteration on
-/// Cxx^{-1} Cxy Cyy^{-1} Cyx.
-#[allow(clippy::too_many_lines)]
-fn cca_leading(
-    rx: &[f64],
-    ry: &[f64],
-    n: usize,
-    px: usize,
-    py: usize,
-) -> Result<(f64, Vec<f64>, Vec<f64>), StatsError> {
-    let denom = (n.saturating_sub(1)).max(1) as f64;
-    let mut cxx = vec![0.0; px * px];
-    let mut cyy = vec![0.0; py * py];
-    let mut cxy = vec![0.0; px * py];
-    for i in 0..px {
-        for j in 0..px {
-            let mut s = 0.0;
-            for r in 0..n {
-                s += rx[i * n + r] * rx[j * n + r];
-            }
-            cxx[i * px + j] = s / denom;
-        }
+/// Largest eigenvalue of a small symmetric Gram matrix via power iteration.
+fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> f64 {
+    if k == 0 {
+        return 0.0;
     }
-    for i in 0..py {
-        for j in 0..py {
-            let mut s = 0.0;
-            for r in 0..n {
-                s += ry[i * n + r] * ry[j * n + r];
-            }
-            cyy[i * py + j] = s / denom;
-        }
+    if k == 1 {
+        return gram[0].max(0.0);
     }
-    for i in 0..px {
-        for j in 0..py {
-            let mut s = 0.0;
-            for r in 0..n {
-                s += rx[i * n + r] * ry[j * n + r];
-            }
-            cxy[i * py + j] = s / denom;
-        }
-    }
-    // Regularize diagonals slightly for numerical stability.
-    for i in 0..px {
-        cxx[i * px + i] += 1e-8;
-    }
-    for i in 0..py {
-        cyy[i * py + i] += 1e-8;
-    }
-    let cxx_inv = invert_square(&cxx, px)
-        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
-    let cyy_inv = invert_square(&cyy, py)
-        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
-
-    // M = Cxx^{-1} Cxy Cyy^{-1} Cyx (px × px)
-    // temp = Cxy Cyy^{-1} (px × py)
-    let mut temp = vec![0.0; px * py];
-    for i in 0..px {
-        for j in 0..py {
-            let mut s = 0.0;
-            for k in 0..py {
-                s += cxy[i * py + k] * cyy_inv[k * py + j];
-            }
-            temp[i * py + j] = s;
-        }
-    }
-    // Cyx = Cxy'
-    // temp2 = temp * Cyx = temp * Cxy' (px × px)
-    let mut temp2 = vec![0.0; px * px];
-    for i in 0..px {
-        for j in 0..px {
-            let mut s = 0.0;
-            for k in 0..py {
-                s += temp[i * py + k] * cxy[j * py + k];
-            }
-            temp2[i * px + j] = s;
-        }
-    }
-    // M = Cxx^{-1} temp2
-    let mut m = vec![0.0; px * px];
-    for i in 0..px {
-        for j in 0..px {
-            let mut s = 0.0;
-            for k in 0..px {
-                s += cxx_inv[i * px + k] * temp2[k * px + j];
-            }
-            m[i * px + j] = s;
-        }
-    }
-
-    // Power iteration for leading eigenvector of M.
-    let mut a = vec![1.0 / (px as f64).sqrt(); px];
+    let mut v = vec![1.0 / (k as f64).sqrt(); k];
     let mut lambda = 0.0;
     for _ in 0..64 {
-        let mut w = vec![0.0; px];
-        for i in 0..px {
-            for j in 0..px {
-                w[i] += m[i * px + j] * a[j];
+        let mut w = vec![0.0; k];
+        for i in 0..k {
+            for j in 0..k {
+                w[i] += gram[i * k + j] * v[j];
             }
         }
-        lambda = w.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-15);
-        for i in 0..px {
-            a[i] = w[i] / lambda;
+        lambda = w.iter().map(|x| x * x).sum::<f64>().sqrt();
+        if lambda == 0.0 {
+            return 0.0;
+        }
+        for i in 0..k {
+            v[i] = w[i] / lambda;
         }
     }
-    // ρ = sqrt(λ) where λ is the eigenvalue of the CCA matrix (canonical correlation²).
-    let rho = lambda.sqrt().clamp(0.0, 1.0 - 1e-12);
-
-    // b ∝ Cyy^{-1} Cyx a
-    let mut cyx_a = vec![0.0; py];
-    for j in 0..py {
-        let mut s = 0.0;
-        for i in 0..px {
-            s += cxy[i * py + j] * a[i];
-        }
-        cyx_a[j] = s;
-    }
-    let mut b = vec![0.0; py];
-    for i in 0..py {
-        for j in 0..py {
-            b[i] += cyy_inv[i * py + j] * cyx_a[j];
-        }
-    }
-    let bn = b.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-15);
-    for v in &mut b {
-        *v /= bn;
-    }
-    Ok((rho, a, b))
+    lambda.max(0.0)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[allow(clippy::float_cmp)] // Exact midranks are integer or half-integer values.
+    fn review_ranks_preserve_distinct_values_under_rescaling() {
+        let mut ranks = [0.0; 4];
+        rank_column(&[3e-20, 1e-20, 1e-20, 2e-20], &mut ranks);
+        assert_eq!(ranks, [4.0, 1.5, 1.5, 3.0]);
+    }
+
     use super::*;
 
     #[test]
@@ -833,6 +749,20 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let out = RobustPartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 1e-3);
+    }
+
+    #[test]
+    fn review_weighted_correlation_is_scale_invariant() {
+        let x = [1.0, 1.0 + 1e-9, 1.0 + 2e-9];
+        let y = [2.0, 2.1, 2.2];
+        let w = [1.0, 1.0, 1.0];
+        let policy = KernelPolicy::default_policy();
+        let r1 = weighted_pearson(&policy, &x, &y, &w).expect("unit-scale correlation");
+        let scale = 1e-4;
+        let xs: Vec<f64> = x.iter().map(|v| v * scale).collect();
+        let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
+        let r2 = weighted_pearson(&policy, &xs, &ys, &w).expect("small-scale correlation");
+        assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
     }
 
     #[test]
@@ -926,6 +856,31 @@ mod tests {
             clean.results[0].statistic
         );
         assert!(dirty.results[0].statistic.is_finite());
+    }
+
+    #[test]
+    fn review_leading_rho_matches_wilks_when_one_canonical() {
+        let n = 120usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64) * 0.03).collect();
+        let y1: Vec<f64> = x.iter().map(|&v| 0.7 * v + 0.05 * v.sin()).collect();
+        let y2: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.11).cos()).collect();
+        let cols: [&[f64]; 3] = [&x, &y1, &y2];
+        let rx = residualize_block(&cols, &[0], &[], n).unwrap();
+        let ry = residualize_block(&cols, &[1, 2], &[], n).unwrap();
+        let canon = residual_canonical(&rx, &ry, n, 1, 2).unwrap();
+        let expected = (1.0 - canon.ln_lambda.exp()).max(0.0).sqrt();
+        assert!(
+            (canon.leading_rho - expected).abs() < 1e-12,
+            "rho={} wilks-implied={}",
+            canon.leading_rho,
+            expected
+        );
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(11);
+        let out = MultivariatePartialCorrelation::new()
+            .test_blocks(&cols, &[0], &[1, 2], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .unwrap();
+        assert!((out.statistic - canon.leading_rho).abs() < 1e-12);
     }
 
     #[test]

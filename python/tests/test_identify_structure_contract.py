@@ -19,12 +19,14 @@ def test_sustained_identification_preserves_explicit_window() -> None:
     assert sustained.status == pulse.status
 
 
-def test_incomplete_class_refuses_multi_step_identification() -> None:
+def test_incomplete_class_preserves_multi_step_identification() -> None:
     graph = antecedent.graph.TemporalCpdag.from_lagged_edges(["t", "y"], [("t", 1, "y", 0)])
-    with pytest.raises(antecedent.errors.CausalError, match="single-step"):
-        antecedent.identify(
-            graph=graph, query=antecedent.SustainedEffect("t", "y", window=(-2, -1))
-        )
+    identified = antecedent.identify(
+        graph=graph, query=antecedent.SustainedEffect("t", "y", window=(-2, -1))
+    )
+    assert len(identified.completion_keys) == 1
+    assert [node["offset"] for node in identified.certificate["treatments"]] == [-2, -1]
+    assert identified.certificate["cases"][0]["identification"]["estimands"]
 
 
 @pytest.mark.parametrize("interventions", [[]])

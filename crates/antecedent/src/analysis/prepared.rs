@@ -77,6 +77,8 @@ pub(crate) struct CachedCpdagIdentification {
 pub(crate) struct CachedTemporalClassIdentification {
     /// Generalized-adjustment envelope over TemporalDag completions.
     pub envelope: antecedent_identify::TemporalClassEnvelope,
+    /// Functional-specific certificates for every requested response or mediation horizon.
+    pub by_horizon: Vec<(u32, antecedent_identify::TemporalClassEnvelope)>,
 }
 
 /// One identified atom in a prepared static graph posterior.
@@ -1339,6 +1341,8 @@ impl Study {
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), None) => {
                 analysis.temporal_identification_cache =
                     self.prepare_temporal_mediation_identification()?.map(Arc::new);
+                analysis.temporal_class_identification_cache =
+                    self.prepare_temporal_class_identification()?.map(Arc::new);
             }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
@@ -1734,27 +1738,58 @@ impl Study {
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
         }
-        let CausalQuery::TemporalEffect(query) = &self.query else {
-            return Ok(None);
-        };
-        let identifier = self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let envelope = match self.graph.class() {
-            GraphClass::TemporalCpdag => {
-                let cpdag = self.graph.as_temporal_cpdag().ok_or_else(|| CausalError::Compile {
-                    message: "temporal class prepare missing TemporalCpdag".into(),
+        let query = match &self.query {
+            CausalQuery::TemporalEffect(query) => query.clone(),
+            CausalQuery::Response(response) => {
+                let temporal = response.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                    message: "temporal class response prepare requires TemporalResponseSpec".into(),
                 })?;
-                crate::strategy_table::identify_temporal_cpdag(identifier_id, cpdag, query)?
+                let (treatment, outcome) =
+                    response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                        message: "temporal class response has no treatment/outcome pair".into(),
+                    })?;
+                TemporalEffectQuery {
+                    treatment,
+                    outcome,
+                    policy: temporal.policy.clone(),
+                    control: Intervention::set(treatment, Value::f64(0.0)),
+                    active: Intervention::set(treatment, Value::f64(1.0)),
+                    horizon_steps: temporal.horizons.first().copied().unwrap_or(1),
+                    max_history_lag: temporal.max_history_lag,
+                    target_population: response.target_population.clone(),
+                }
             }
-            GraphClass::TemporalPag => {
-                let pag = self.graph.as_temporal_pag().ok_or_else(|| CausalError::Compile {
-                    message: "temporal class prepare missing TemporalPag".into(),
-                })?;
-                crate::strategy_table::identify_temporal_pag(identifier_id, pag, query)?
+            CausalQuery::Mediation(mediation)
+                if self.graph.class() == GraphClass::TemporalCpdag =>
+            {
+                let mut witness =
+                    TemporalEffectQuery::pulse(mediation.treatment, mediation.outcome, 1.0);
+                witness.horizon_steps = mediation.horizons.first().copied().unwrap_or(1);
+                witness
             }
             _ => return Ok(None),
         };
-        Ok(Some(CachedTemporalClassIdentification { envelope }))
+        let identifier = self.identifier.map_or(DEFAULT_PAG_IDENTIFIER, |id| id.as_str());
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let mut bundle = self.identify_temporal_class(identifier_id, &query)?;
+        let horizons: &[u32] = match &self.query {
+            CausalQuery::Response(response) => {
+                &response.temporal.as_ref().expect("temporal query").horizons
+            }
+            CausalQuery::Mediation(mediation) => &mediation.horizons,
+            _ => &[],
+        };
+        for &horizon in horizons {
+            let mut qh = query.clone();
+            qh.horizon_steps = horizon;
+            let identified = if horizon == query.horizon_steps {
+                bundle.envelope.clone()
+            } else {
+                self.identify_temporal_class(identifier_id, &qh)?.envelope
+            };
+            bundle.by_horizon.push((horizon, identified));
+        }
+        Ok(Some(bundle))
     }
 
     /// One `I(h)` per requested mediation horizon (path-product + that horizon's backdoor `Z`).
@@ -2161,9 +2196,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
         (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(q))
             if q.is_temporal() =>
         {
-            if analysis.graph.class() != GraphClass::TemporalDag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports temporal ResponseCurve only on TemporalDag",
+                    message: "PreparedStudy supports temporal ResponseCurve on TemporalDag, \
+                              TemporalCpdag, or TemporalPag",
                 });
             }
         }
@@ -2179,9 +2218,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
-            if analysis.graph.class() != GraphClass::TemporalDag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports TemporalMediationEffect only on TemporalDag",
+                    message: "PreparedStudy supports TemporalMediationEffect on TemporalDag or \
+                              TemporalCpdag",
                 });
             }
         }

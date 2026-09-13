@@ -2,8 +2,6 @@
 
 **Suite path:** `conformance/bayesian/temporal_prior_transfer`
 
-**Suite path:** `conformance/bayesian/temporal_prior_transfer`
-
 Same-design and mapped prior transfer ride licensed Bayesian temporal cells
 on the staged path (`prepare` → estimate). They are not a matrix axis.
 

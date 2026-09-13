@@ -7,12 +7,13 @@ every explicit/accepted and validation variant licensed in ``support_licensed.to
 
 from __future__ import annotations
 
-import json
 import pathlib
 from typing import Any
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 antecedent = pytest.importorskip("antecedent")
 
@@ -22,7 +23,7 @@ _ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 def _load_pin(name: str) -> dict[str, Any]:
     path = _ROOT / "conformance" / "estimate" / name / "expected.json"
-    return json.loads(path.read_text())
+    return load_json(path)
 
 
 _PAG_PIN = _load_pin("pag_ate_envelope")

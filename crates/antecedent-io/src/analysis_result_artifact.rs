@@ -104,6 +104,8 @@ pub enum StructuralWeightBasisWire {
     PosteriorProbability,
     /// Completion-enumeration weight.
     CompletionEnumeration,
+    /// Caller-declared mass over class members.
+    CallerSuppliedClassPrior,
 }
 
 /// One graph/completion response atom.
@@ -117,6 +119,12 @@ pub struct StructuralResponseAtomWire {
     pub identification_status: crate::IdentificationStatusWire,
     /// Numerical response when evaluable.
     pub value: Option<crate::ResponseValueWire>,
+    /// Completion-conditional posterior artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_artifact: Option<Vec<u8>>,
+    /// Full response with conditional sampling uncertainty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response: Option<crate::CausalResponseWire>,
 }
 
 /// Structural-mixture response metadata.
@@ -298,6 +306,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     if let Some(posterior) = &result.posterior_artifact {
         crate::decode_causal_posterior_bytes(posterior)?;
+    }
+    if let Some(structural) = &result.structural_response {
+        for atom in &structural.atoms {
+            if !atom.weight.is_finite() || atom.weight < 0.0 {
+                return Err(IoError::Convert(
+                    "structural atom weight must be finite and nonnegative".into(),
+                ));
+            }
+            if let Some(value) = &atom.value {
+                crate::response_value_from_wire(value)?;
+            }
+            if let Some(response) = &atom.response {
+                validate_response_result(response, variable_names.len())?;
+            }
+            if let Some(posterior) = &atom.posterior_artifact {
+                crate::decode_causal_posterior_bytes(posterior)?;
+            }
+        }
     }
     Ok(())
 }

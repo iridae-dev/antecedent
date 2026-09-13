@@ -141,10 +141,21 @@ impl super::Study {
                 }
             }
             if let Some(est) = &self.estimator {
-                if *est != EstimatorId::TemporalLinearAdjustment {
+                let multi_step = matches!(
+                    &self.query,
+                    CausalQuery::TemporalEffect(q)
+                        if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+                );
+                let bayesian = matches!(self.inference, crate::InferenceMode::Bayesian(_));
+                let ok = *est == EstimatorId::TemporalLinearAdjustment
+                    || (multi_step && *est == EstimatorId::TemporalSequentialGcomp)
+                    || (bayesian && !multi_step && *est == EstimatorId::BayesianTemporalGcomp);
+                if !ok {
                     return Err(CausalError::Compile {
                         message: format!(
-                            "temporal path only supports estimator \"temporal.linear.adjustment\"; got {est:?}"
+                            "temporal path only supports estimator \"temporal.linear.adjustment\" \
+                             (\"bayesian.temporal.gcomp\" under Bayesian inference, or \
+                             \"temporal.sequential.gcomp\" for multi-step Sustained); got {est:?}"
                         ),
                     });
                 }

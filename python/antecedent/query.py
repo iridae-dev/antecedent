@@ -371,7 +371,8 @@ class ResponseCurve:
 
     Keyword-only ``horizons`` / ``policy`` / ``max_history_lag`` attach a temporal
     dose × horizon surface (ADR 0021). When set, analysis requires series data and
-    a ``TemporalDag``. ``treatment_lag`` defaults to
+    a ``TemporalDag``, ``TemporalCpdag``, or ``TemporalPag``. Class graphs retain
+    per-completion responses and structural uncertainty. ``treatment_lag`` defaults to
     :attr:`temporal_response_spec.default_treatment_lag` (policy origin ``-lag``),
     matching :class:`PulseEffect` / :class:`SustainedEffect`.
     """
@@ -556,7 +557,8 @@ class InterventionResponse:
     """Mean outcome under an existing static, stochastic, or modified intervention.
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
-    (ADR 0021), licensed on ``TemporalDag`` only. Licensed policies are
+    (ADR 0021), licensed on ``TemporalDag``, ``TemporalCpdag``, and ``TemporalPag``.
+    Class graphs retain per-completion responses and structural uncertainty. Licensed policies are
     Soft(``constant``/``additive_shift``/``multiplicative``/``truncated_shift``) and ``Sequence`` of those overlays
     (multi-step on one variable, or joint at one time when every coordinate
     is identified). Multiplicative scales the structural assignment; truncated shift targets its

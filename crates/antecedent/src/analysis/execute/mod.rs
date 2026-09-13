@@ -90,8 +90,8 @@ pub(super) use crate::strategy_table::{
     DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
     estimate_provenance_step, estimate_static_effect, identify_admg, identify_cpdag, identify_pag,
     identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_with_rd, identify_temporal_cpdag, identify_temporal_pag,
-    require_identified, select_estimand, validate_static_pair,
+    identify_static_query_with_rd, identify_temporal_cpdag_configured,
+    identify_temporal_pag_configured, require_identified, select_estimand, validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
@@ -111,6 +111,10 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
+    /// Caller-supplied mass over incomplete-temporal class members.
+    pub(crate) class_prior: Option<crate::ClassPrior>,
+    /// Optional cap on TemporalCpdag / TemporalPag completion search.
+    pub(crate) max_completions: Option<usize>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
     /// Licensed vs allowlisted evidence status recorded at build. `None` when
@@ -184,6 +188,8 @@ impl std::fmt::Debug for Study {
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
+            .field("class_prior", &self.class_prior)
+            .field("max_completions", &self.max_completions)
             .field("structure_source", &self.structure_source)
             .field("support_status", &self.support_status)
             .field("query", &"<query>")

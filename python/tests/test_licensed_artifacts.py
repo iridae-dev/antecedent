@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 import pytest
 from antecedent import artifacts
 
+from _repo_text import load_toml
+
 _ROOT = Path(__file__).resolve().parents[2]
-_LICENSED = tomllib.loads((_ROOT / "parity" / "support_licensed.toml").read_text())
+_LICENSED = load_toml(_ROOT / "parity" / "support_licensed.toml")
 
 _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
     "AverageEffect": (

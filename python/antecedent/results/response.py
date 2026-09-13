@@ -77,9 +77,9 @@ class ResponseEnvelopeView:
     truncated_completions: int = 0
     enumeration_capped: bool = False
     mass_scope: Literal["full_class", "examined_completions"] = "full_class"
-    weight_basis: Literal["posterior_probability", "completion_enumeration"] = (
-        "completion_enumeration"
-    )
+    weight_basis: Literal[
+        "posterior_probability", "completion_enumeration", "caller_supplied_class_prior"
+    ] = "completion_enumeration"
     atom_keys: Sequence[int] = ()
     atom_weights: Sequence[float] = ()
     atom_statuses: Sequence[str] = ()

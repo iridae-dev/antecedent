@@ -257,6 +257,14 @@ pub(crate) struct AnalysisResult {
     pub(crate) allowlist_reason: Option<String>,
     #[pyo3(get)]
     pub(crate) allowlist_parent: Option<String>,
+    #[pyo3(get)]
+    pub(crate) structural_weight_basis: Option<String>,
+    #[pyo3(get)]
+    pub(crate) structural_identified_mass: Option<f64>,
+    #[pyo3(get)]
+    pub(crate) structural_unidentified_mass: Option<f64>,
+    #[pyo3(get)]
+    pub(crate) structural_unevaluable_mass: Option<f64>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -384,6 +392,9 @@ fn analyze_temporal_class(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
+    class_prior_ordered: Option<Vec<f64>>,
+    class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -420,6 +431,8 @@ fn analyze_temporal_class(
             prior_scale,
             prior_artifact.as_deref(),
         )?;
+        builder = apply_class_prior(builder, class_prior_ordered, class_prior_pairs)?;
+        builder = apply_max_completions(builder, max_completions);
         let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
@@ -445,6 +458,9 @@ fn analyze_temporal_class(
     n_draws=1000,
     prior_scale=10.0,
     prior_artifact=None,
+    class_prior_ordered=None,
+    class_prior_pairs=None,
+    max_completions=None,
     refute=None,
     validators=None,
     seed=1,
@@ -467,6 +483,9 @@ fn analyze_temporal_cpdag(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
+    class_prior_ordered: Option<Vec<f64>>,
+    class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -489,6 +508,9 @@ fn analyze_temporal_cpdag(
         n_draws,
         prior_scale,
         prior_artifact,
+        class_prior_ordered,
+        class_prior_pairs,
+        max_completions,
         refute,
         validators,
         seed,
@@ -515,6 +537,9 @@ fn analyze_temporal_cpdag(
     n_draws=1000,
     prior_scale=10.0,
     prior_artifact=None,
+    class_prior_ordered=None,
+    class_prior_pairs=None,
+    max_completions=None,
     refute=None,
     validators=None,
     seed=1,
@@ -537,6 +562,9 @@ fn analyze_temporal_pag(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
+    class_prior_ordered: Option<Vec<f64>>,
+    class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -559,6 +587,9 @@ fn analyze_temporal_pag(
         n_draws,
         prior_scale,
         prior_artifact,
+        class_prior_ordered,
+        class_prior_pairs,
+        max_completions,
         refute,
         validators,
         seed,
@@ -1751,11 +1782,14 @@ fn analysis_result_from_run(
             })
             .collect(),
     );
-    let estimator_id = if result.posterior.is_some() {
-        "bayesian.temporal.gcomp".to_string()
-    } else {
-        result.logical_plan.estimator.as_deref().unwrap_or("temporal.linear.adjustment").to_string()
-    };
+    // The compiled plan names the executed estimator; Bayesian temporal fits
+    // record `bayesian.temporal.gcomp` there, so no Python-side relabel is needed.
+    let estimator_id = result
+        .logical_plan
+        .estimator
+        .as_deref()
+        .unwrap_or(antecedent::EstimatorId::TemporalLinearAdjustment.as_str())
+        .to_string();
     let (
         posterior_effect_mean,
         posterior_effect_sd,
@@ -2040,7 +2074,62 @@ fn analysis_result_from_run(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
+        structural_weight_basis: result.structural_response.as_ref().map(|mixture| {
+            match mixture.weight_basis {
+                antecedent::result::StructuralWeightBasis::PosteriorProbability => {
+                    "posterior_probability".to_string()
+                }
+                antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
+                    "completion_enumeration".to_string()
+                }
+                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
+                    "caller_supplied_class_prior".to_string()
+                }
+                _ => "completion_enumeration".to_string(),
+            }
+        }),
+        structural_identified_mass: result
+            .structural_response
+            .as_ref()
+            .map(|mixture| mixture.identified_mass),
+        structural_unidentified_mass: result
+            .structural_response
+            .as_ref()
+            .map(|mixture| mixture.unidentified_mass),
+        structural_unevaluable_mass: result
+            .structural_response
+            .as_ref()
+            .map(|mixture| mixture.unevaluable_mass),
     })
+}
+
+pub(crate) fn apply_max_completions(
+    builder: StudyBuilder,
+    max_completions: Option<usize>,
+) -> StudyBuilder {
+    match max_completions {
+        Some(n) => builder.max_completions(n),
+        None => builder,
+    }
+}
+
+pub(crate) fn apply_class_prior(
+    builder: StudyBuilder,
+    ordered: Option<Vec<f64>>,
+    pairs: Option<Vec<(u64, f64)>>,
+) -> PyResult<StudyBuilder> {
+    match (ordered, pairs) {
+        (None, None) => Ok(builder),
+        (Some(masses), None) => {
+            Ok(builder.class_prior(antecedent::ClassPrior::from_ordered(masses).map_err(py_err)?))
+        }
+        (None, Some(pairs)) => {
+            Ok(builder.class_prior(antecedent::ClassPrior::from_pairs(pairs).map_err(py_err)?))
+        }
+        (Some(_), Some(_)) => Err(PyValueError::new_err(
+            "class prior accepts ordered masses or key/mass pairs, not both",
+        )),
+    }
 }
 
 pub(crate) fn apply_temporal_inference(

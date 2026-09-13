@@ -613,6 +613,14 @@ pub(crate) fn evidence_status_parts(
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
+    pub(crate) structural_weight_basis: Option<String>,
+    #[pyo3(get)]
+    pub(crate) structural_identified_mass: Option<f64>,
+    #[pyo3(get)]
+    pub(crate) structural_unidentified_mass: Option<f64>,
+    #[pyo3(get)]
+    pub(crate) structural_unevaluable_mass: Option<f64>,
+    #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]
     ate: f64,

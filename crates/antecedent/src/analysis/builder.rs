@@ -226,6 +226,10 @@ pub struct StudyBuilder {
     /// Alternative to [`Self::graph`]: a posterior over structures rather than one
     /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
     graph_posterior: Option<GraphPosterior>,
+    /// Caller-supplied mass over incomplete-temporal class members.
+    class_prior: Option<crate::ClassPrior>,
+    /// Optional cap on TemporalCpdag / TemporalPag completion search.
+    max_completions: Option<usize>,
     /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
     structure_source: Option<crate::support::StructureSource>,
     query: Option<CausalQuery>,
@@ -276,6 +280,8 @@ impl std::fmt::Debug for StudyBuilder {
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
+            .field("class_prior", &self.class_prior)
+            .field("max_completions", &self.max_completions)
             .field("structure_source", &self.structure_source)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
@@ -308,6 +314,8 @@ impl StudyBuilder {
             data,
             graph: None,
             graph_posterior: None,
+            class_prior: None,
+            max_completions: None,
             structure_source: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
@@ -401,6 +409,27 @@ impl StudyBuilder {
     #[must_use]
     pub fn graph_posterior(mut self, posterior: GraphPosterior) -> Self {
         self.graph_posterior = Some(posterior);
+        self
+    }
+
+    /// Supply mass over incomplete-temporal class members.
+    ///
+    /// This is not a graph posterior and not completion enumeration. Mutually
+    /// exclusive with [`Self::graph_posterior`]. A probability-weighted Bayesian
+    /// mixture requires this; without it the result is an identified set.
+    #[must_use]
+    pub fn class_prior(mut self, prior: crate::ClassPrior) -> Self {
+        self.class_prior = Some(prior);
+        self
+    }
+
+    /// Cap TemporalCpdag / TemporalPag completion search.
+    ///
+    /// A cap below the true class size cannot confer class-wide point
+    /// identification (`full_mass_scope`, `truncated_atoms`).
+    #[must_use]
+    pub fn max_completions(mut self, n: usize) -> Self {
+        self.max_completions = Some(n);
         self
     }
 
@@ -653,6 +682,13 @@ impl StudyBuilder {
             }
         }
         let data = self.data;
+        if self.class_prior.is_some() && self.graph_posterior.is_some() {
+            return Err(CausalError::Conflict {
+                what: "class_prior",
+                detail: "class_prior and graph_posterior are distinct structural-mass contracts; \
+                         supply exactly one",
+            });
+        }
         let (graph, graph_posterior) = match (self.graph, self.graph_posterior) {
             (Some(_), Some(_)) => {
                 return Err(CausalError::Conflict {
@@ -1009,6 +1045,24 @@ impl StudyBuilder {
                 _ => {}
             }
         }
+        if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
+            return Err(CausalError::Unsupported {
+                message: "class_prior is a structural probability over class members and \
+                          requires Bayesian inference; Frequentist incomplete-class Pulse \
+                          keeps enumeration-weighted ATE without treating those weights as \
+                          probabilities",
+            });
+        }
+        if self.class_prior.is_some()
+            && !matches!(
+                graph.class(),
+                crate::GraphClass::TemporalCpdag | crate::GraphClass::TemporalPag
+            )
+        {
+            return Err(CausalError::Unsupported {
+                message: "class_prior requires an incomplete temporal graph class",
+            });
+        }
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
@@ -1021,6 +1075,8 @@ impl StudyBuilder {
             data,
             graph,
             graph_posterior,
+            class_prior: self.class_prior,
+            max_completions: self.max_completions,
             structure_source: structure,
             support_status,
             query,
