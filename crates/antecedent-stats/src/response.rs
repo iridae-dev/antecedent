@@ -148,7 +148,7 @@ pub fn gaussian_local_quadratic_influence_with(
     at: f64,
     bandwidth: f64,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
-    fit_local_quadratic(workspace, x, y, at, bandwidth, true)
+    fit_local_quadratic(workspace, x, y, at, bandwidth, true, None)
 }
 
 /// Local quadratic after the caller has already refused non-finite `x`/`y`.
@@ -159,7 +159,37 @@ pub fn gaussian_local_quadratic_influence_prechecked(
     at: f64,
     bandwidth: f64,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
-    fit_local_quadratic(workspace, x, y, at, bandwidth, false)
+    fit_local_quadratic(workspace, x, y, at, bandwidth, false, None)
+}
+
+/// Local quadratic with observation weights in addition to the Gaussian kernel.
+/// Weights must sum to the number of observations (up to floating-point error).
+///
+/// # Errors
+/// Invalid weights or an unsupported local design.
+pub fn gaussian_local_quadratic_weighted(
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    weights: &[f64],
+) -> Result<LocalPolynomialPoint, StatsError> {
+    if weights.len() != x.len()
+        || weights.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || (weights.iter().sum::<f64>() - x.len() as f64).abs() > 1e-8 * x.len() as f64
+    {
+        return Err(StatsError::Shape { message: "invalid local quadratic weights" });
+    }
+    Ok(fit_local_quadratic(
+        &mut LocalQuadraticWorkspace::default(),
+        x,
+        y,
+        at,
+        bandwidth,
+        true,
+        Some(weights),
+    )?
+    .point)
 }
 
 fn fit_local_quadratic(
@@ -169,6 +199,7 @@ fn fit_local_quadratic(
     at: f64,
     bandwidth: f64,
     check_finite: bool,
+    observation_weights: Option<&[f64]>,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
     if x.len() != y.len() || x.len() < 3 {
         return Err(StatsError::Shape {
@@ -188,10 +219,10 @@ fn fit_local_quadratic(
     workspace.weights.reserve(x.len());
     let mut weight_sum = 0.0;
     let mut weight_sq_sum = 0.0;
-    for (&xi, &yi) in x.iter().zip(y) {
+    for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
         let dx = xi - at;
         let z = dx / bandwidth;
-        let w = (-0.5 * z * z).exp();
+        let w = (-0.5 * z * z).exp() * observation_weights.map_or(1.0, |w| w[i]);
         let row = [1.0, dx, dx * dx];
         for j in 0..3 {
             rhs[j] += w * row[j] * yi;
@@ -399,5 +430,23 @@ mod tests {
         assert_eq!(fit.influences.len(), x.len());
         assert!(fit.robust_standard_error.is_finite() && fit.robust_standard_error > 0.0);
         assert!(fit.influences.iter().sum::<f64>().abs() < 1e-10);
+    }
+    #[test]
+    fn weighted_local_quadratic_matches_repeated_rows() {
+        let x: Vec<f64> = (0..30).map(|i| f64::from(i) / 10.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| v.sin()).collect();
+        let weights: Vec<f64> = (0..30).map(|i| f64::from(i % 3)).collect();
+        let mut xr = Vec::new();
+        let mut yr = Vec::new();
+        for i in 0..30 {
+            for _ in 0..i % 3 {
+                xr.push(x[i]);
+                yr.push(y[i]);
+            }
+        }
+        let a = gaussian_local_quadratic_weighted(&x, &y, 1.2, 0.6, &weights).unwrap();
+        let b = gaussian_local_quadratic(&xr, &yr, 1.2, 0.6).unwrap();
+        assert!((a.first_derivative - b.first_derivative).abs() < 1e-12);
+        assert!((a.second_derivative - b.second_derivative).abs() < 1e-12);
     }
 }

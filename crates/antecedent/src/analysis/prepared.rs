@@ -1315,6 +1315,11 @@ impl Study {
                     build_graph_posterior_identification_cache(posterior, query, ctx)?,
                 ));
             }
+            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(query), Some(posterior)) => {
+                analysis.graph_posterior_identification_cache = Some(Arc::new(
+                    build_graph_posterior_identification_cache(posterior, &query.inner, ctx)?,
+                ));
+            }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(query),
@@ -2155,7 +2160,12 @@ pub(crate) fn identify_temporal_mediation_horizons(
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
         return match (&analysis.data, &analysis.query) {
-            (DataInput::Tabular(_), CausalQuery::AverageEffect(_) | CausalQuery::Response(_))
+            (
+                DataInput::Tabular(_),
+                CausalQuery::AverageEffect(_)
+                | CausalQuery::Response(_)
+                | CausalQuery::ConditionalEffect(_),
+            )
             | (
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
@@ -2163,8 +2173,8 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             _ => Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: "graph_posterior on the prepared handle is licensed only for \
-                    tabular AverageEffect/Response and series TemporalEffect or \
-                    TemporalMediationEffect",
+                    tabular AverageEffect/Response/ConditionalEffect and series \
+                    TemporalEffect or TemporalMediationEffect",
             }),
         };
     }

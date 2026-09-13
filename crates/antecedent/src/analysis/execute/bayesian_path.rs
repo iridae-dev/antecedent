@@ -45,7 +45,12 @@ impl super::Study {
 
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => BayesianConfig::laplace(),
+            InferenceMode::Frequentist => {
+                return Err(CausalError::Unsupported {
+                    message: "execute_bayesian requires inference=Bayesian; \
+                              estimator bayesian.gcomp cannot run under Frequentist",
+                });
+            }
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
@@ -213,7 +218,11 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => BayesianConfig::laplace(),
+            InferenceMode::Frequentist => {
+                return Err(CausalError::Unsupported {
+                    message: "execute_pag_bayesian requires inference=Bayesian",
+                });
+            }
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
@@ -225,7 +234,6 @@ impl super::Study {
         let mut keys = Vec::new();
         let mut fit_atoms = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
         for (i, case) in envelope.cases.iter().enumerate() {
             let key = i as u64 + 1;
@@ -248,7 +256,8 @@ impl super::Study {
         // so kept atoms are not prepared a second time. PAG keys are unique
         // (1..n); still use entry() so the stash is key-safe.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
-        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
+        let mut atom_priors = std::collections::HashMap::with_capacity(fit_atoms.len());
+        for (key, estimand, _) in &fit_atoms {
             let prep = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -257,11 +266,14 @@ impl super::Study {
                 est.prepare(data, estimand, query)
             }
             .map_err(CausalError::from)?;
-            if i == 0 {
-                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
-                envelope_prior = resolved;
+            // Per-completion filter: incompatible catalogs refuse rather than
+            // sharing the first atom's prior or falling back to isotropic.
+            let (resolved, conflict) =
+                resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+            if envelope_conflict.is_none() {
                 envelope_conflict = conflict;
             }
+            atom_priors.insert(*key, resolved);
             prepared.entry(*key).or_insert(prep);
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
@@ -286,7 +298,7 @@ impl super::Study {
             let Some(prep) = prepared.remove(&key) else {
                 continue;
             };
-            est.prior.clone_from(&envelope_prior);
+            est.prior = atom_priors.remove(&key).flatten();
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             let weight = identified_weight_for_key(&graphs, key);
@@ -467,6 +479,39 @@ impl super::Study {
                 );
                 logical.compile_physical(ctx)
             }
+            (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
+                let n_vars =
+                    u32::try_from(data.schema().len()).map_err(|_| CausalError::Compile {
+                        message: "too many variables for graph-posterior compile".into(),
+                    })?;
+                let stub = Dag::with_variables(n_vars);
+                let identifier = Arc::from("backdoor.adjustment");
+                let estimator = match &self.inference {
+                    InferenceMode::Frequentist => {
+                        Arc::from(EstimatorId::ConditionalLinearAdjustment.as_str())
+                    }
+                    InferenceMode::Bayesian(_) => {
+                        Arc::from(EstimatorId::BayesianConditional.as_str())
+                    }
+                };
+                let mut logical = compile_logical_static_ate(StaticAteCompileInput {
+                    data,
+                    graph: &stub,
+                    query: &q.inner,
+                    validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                })?;
+                logical.record.plan_id = Arc::from("static_conditional_graph_posterior");
+                logical.query = CausalQuery::ConditionalEffect(q.clone());
+                logical.record.discovery_algorithm = Some(
+                    self.graph_posterior
+                        .as_ref()
+                        .and_then(|gp| gp.algorithm.clone())
+                        .unwrap_or_else(|| Arc::from("graph_posterior")),
+                );
+                logical.compile_physical(ctx)
+            }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
@@ -528,7 +573,8 @@ impl super::Study {
             }
             _ => Err(CausalError::Unsupported {
                 message: "graph-posterior analysis supports tabular average-effect, \
-                          temporal-effect, or temporal-mediation queries only",
+                          tabular conditional-effect, temporal-effect, or temporal-mediation \
+                          queries only",
             }),
         }
     }
@@ -563,6 +609,7 @@ impl super::Study {
             }
         };
         let mut est = bayesian_gcomp(&cfg, ctx);
+        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
 
         let (identified, identify_cached) =
             if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
@@ -595,7 +642,14 @@ impl super::Study {
         // several atoms share an adjacency mask — keep the first prep per key.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
         for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
-            let prep = est.prepare(data, estimand, query).map_err(CausalError::from)?;
+            let prep = if conditional {
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                est.prepare_conditional(data, estimand, &q)
+            } else {
+                est.prepare(data, estimand, query)
+            }
+            .map_err(CausalError::from)?;
             if i == 0 {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
                 envelope_prior = resolved;
@@ -714,7 +768,11 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::BayesianGcomp,
+            estimator_id: if conditional {
+                EstimatorId::BayesianConditional
+            } else {
+                EstimatorId::BayesianGcomp
+            },
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached,
@@ -765,7 +823,12 @@ impl super::Study {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
         }
-        let estimator_id = EstimatorId::LinearAdjustmentAte;
+        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let estimator_id = if conditional {
+            EstimatorId::ConditionalLinearAdjustment
+        } else {
+            EstimatorId::LinearAdjustmentAte
+        };
         let estimator = estimator_id.as_str();
         let (identified, identify_cached) =
             if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
@@ -803,18 +866,26 @@ impl super::Study {
                 .estimator_spec
                 .clone()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
-            let estimate = estimate_static_effect(
-                &case_spec,
-                data,
-                &atom.estimand,
-                query,
-                atom.identification.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
-                ctx,
-                &mut case_ws,
-            )?;
+            let estimate = if conditional {
+                let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                ConditionalLinearAdjustment::new()
+                    .estimate(data, &atom.estimand, &q, ctx)
+                    .map_err(CausalError::from)?
+            } else {
+                estimate_static_effect(
+                    &case_spec,
+                    data,
+                    &atom.estimand,
+                    query,
+                    atom.identification.required_assumptions.clone(),
+                    self.bootstrap_replicates,
+                    self.overlap_policy,
+                    self.population_registry.as_ref(),
+                    ctx,
+                    &mut case_ws,
+                )?
+            };
             let w = identified_weight_for_key(&graphs, atom.key);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));

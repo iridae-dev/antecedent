@@ -316,6 +316,78 @@ pub(super) fn resolve_envelope_prior_anchor(
     resolve_bayesian_prior_with_conflict(cfg, prep, Some(ctx))
 }
 
+pub(super) fn response_functional_is_derivative(
+    functional: &antecedent_core::ResponseFunctional,
+) -> bool {
+    matches!(
+        functional,
+        antecedent_core::ResponseFunctional::AverageDerivative { .. }
+            | antecedent_core::ResponseFunctional::PointDerivative { .. }
+            | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+            | antecedent_core::ResponseFunctional::Jacobian { .. }
+    )
+}
+
+pub(super) fn bayesian_draw_count(inference: &InferenceMode) -> usize {
+    match inference {
+        InferenceMode::Bayesian(cfg) => cfg.n_draws.max(2),
+        InferenceMode::Frequentist => 0,
+    }
+}
+
+impl super::Study {
+    pub(super) fn estimate_functional_effect(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        identification: &IdentificationResult,
+        extra: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let est = FunctionalEffect {
+            bootstrap_replicates: self.bootstrap_replicates,
+            ..FunctionalEffect::new()
+        };
+        let prepared = est
+            .prepare(
+                data,
+                estimand,
+                &identification.arena,
+                identification.required_assumptions.clone(),
+                extra,
+            )
+            .map_err(CausalError::from)?;
+        if let InferenceMode::Bayesian(_) = &self.inference {
+            if let Some(cfg) = match &self.inference {
+                InferenceMode::Bayesian(c) => Some(c),
+                InferenceMode::Frequentist => None,
+            } {
+                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "functional Bayesian prior transfer requires a declared \
+                                  functional mapping; a backdoor coefficient artifact cannot \
+                                  be applied as an isotropic CPT prior",
+                    });
+                }
+            }
+            let posterior = est
+                .estimate_bayesian(
+                    &prepared,
+                    bayesian_draw_count(&self.inference),
+                    identification.status,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            let estimate = effect_from_posterior(&posterior)?;
+            Ok((estimate, Some(posterior)))
+        } else {
+            let mut ws = FunctionalDistributionWorkspace::default();
+            let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+            Ok((estimate, None))
+        }
+    }
+}
+
 pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
     matches!(
         query.policy,

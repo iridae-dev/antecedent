@@ -177,12 +177,27 @@ impl super::Study {
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     pub(super) fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(DEFAULT_IDENTIFIER_ID, DEFAULT_ESTIMATOR_ID)
+        let identifier = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
+        let estimator = if identifier == IdentifierId::GeneralId {
+            self.estimator
+                .filter(|id| *id != EstimatorId::BayesianGcomp)
+                .unwrap_or(EstimatorId::FunctionalEffect)
+        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            self.estimator.unwrap_or(EstimatorId::BayesianGcomp)
+        } else {
+            self.estimator.unwrap_or(DEFAULT_ESTIMATOR_ID)
+        };
+        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID)
+        let estimator = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianGcomp
+        } else {
+            DEFAULT_PAG_ESTIMATOR_ID
+        };
+        self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, estimator)
     }
 
     /// Incomplete TemporalCpdag/Pag pulse: envelope identifier + temporal linear estimator.
@@ -206,7 +221,12 @@ impl super::Study {
         {
             self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
         } else {
-            self.resolve_id_est_pair(DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_ADMG_ESTIMATOR_ID)
+            let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
+            let estimator = self
+                .estimator
+                .filter(|id| *id != EstimatorId::BayesianGcomp)
+                .unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
+            (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
         }
     }
 
@@ -227,15 +247,19 @@ impl super::Study {
 
     /// Resolve identifier/estimator for Distribution queries.
     pub(super) fn resolve_distribution_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(
-            DEFAULT_DISTRIBUTION_IDENTIFIER_ID,
-            DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
-        )
+        let identifier = self.identifier.unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER_ID);
+        let estimator = self
+            .estimator
+            .filter(|id| *id != EstimatorId::BayesianGcomp)
+            .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR_ID);
+        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
     /// Resolve the response estimator from the functional when the caller did not override it.
     pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if matches!(self.inference, InferenceMode::Bayesian(_))
+            && !response_functional_is_derivative(&query.functional)
+        {
             return (
                 Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
                 Arc::from(
@@ -295,7 +319,12 @@ impl super::Study {
 
     /// Resolve identifier/estimator for PathSpecific queries.
     pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID)
+        let identifier = self.identifier.unwrap_or(DEFAULT_PATH_IDENTIFIER_ID);
+        let estimator = self
+            .estimator
+            .filter(|id| *id != EstimatorId::BayesianGcomp)
+            .unwrap_or(DEFAULT_PATH_ESTIMATOR_ID);
+        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
     pub(super) fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), CausalError> {
@@ -344,6 +373,15 @@ impl super::Study {
                         }
                     }
                 }
+                (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
+                    match &self.inference {
+                        InferenceMode::Frequentist => self
+                            .execute_graph_posterior_frequentist(data, gp, &q.inner, physical, ctx),
+                        InferenceMode::Bayesian(_) => {
+                            self.execute_graph_posterior_bayesian(data, gp, &q.inner, physical, ctx)
+                        }
+                    }
+                }
                 (DataInput::Tabular(data), CausalQuery::Response(q)) => {
                     self.execute_graph_posterior_response(data, gp, q, physical, ctx)
                 }
@@ -363,7 +401,8 @@ impl super::Study {
                 }
                 _ => Err(CausalError::Unsupported {
                     message: "graph-posterior analysis supports tabular average-effect, \
-                              temporal-effect, or temporal-mediation queries only",
+                              tabular conditional-effect, temporal-effect, or \
+                              temporal-mediation queries only",
                 }),
             };
         }
@@ -444,12 +483,21 @@ impl super::Study {
                         self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
                     }
                 },
+                CausalQuery::ConditionalEffect(q) => match &self.inference {
+                    InferenceMode::Frequentist => {
+                        self.execute_graph_posterior_frequentist(data, gp, &q.inner, physical, ctx)
+                    }
+                    InferenceMode::Bayesian(_) => {
+                        self.execute_graph_posterior_bayesian(data, gp, &q.inner, physical, ctx)
+                    }
+                },
                 CausalQuery::Response(q) => {
                     self.execute_graph_posterior_response(data, gp, q, physical, ctx)
                 }
                 _ => Err(CausalError::Unsupported {
                     message: "graph-posterior analysis supports tabular average-effect, \
-                              temporal-effect, or temporal-mediation queries only",
+                              tabular conditional-effect, temporal-effect, or \
+                              temporal-mediation queries only",
                 }),
             };
         }

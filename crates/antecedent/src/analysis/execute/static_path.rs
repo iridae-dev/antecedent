@@ -27,6 +27,9 @@ impl super::Study {
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_bayesian(data, graph, query, physical, ctx);
         }
+        if matches!(estimator_id, EstimatorId::FunctionalEffect) {
+            return self.execute_functional_ate(data, graph, query, physical, ctx);
+        }
         if let Some(background) = self.tiered.clone() {
             return self.execute_tiered_average(
                 data,
@@ -325,8 +328,33 @@ impl super::Study {
                 identification.required_assumptions.clone(),
             )
             .map_err(CausalError::from)?;
-        let mut ws = FunctionalDistributionWorkspace::default();
-        let dist = est.estimate(&prepared, &[], &mut ws, ctx).map_err(CausalError::from)?;
+        let (dist, posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            if let InferenceMode::Bayesian(cfg) = &self.inference {
+                if cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
+                    || cfg.prior.is_some()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "functional Bayesian prior transfer requires a declared \
+                                  functional mapping; a backdoor coefficient artifact cannot \
+                                  be applied as an isotropic CPT prior",
+                    });
+                }
+            }
+            let (dist, posterior) = est
+                .estimate_bayesian(
+                    &prepared,
+                    &[],
+                    bayesian_draw_count(&self.inference),
+                    identification.status,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            (dist, Some(posterior))
+        } else {
+            let mut ws = FunctionalDistributionWorkspace::default();
+            (est.estimate(&prepared, &[], &mut ws, ctx).map_err(CausalError::from)?, None)
+        };
 
         let estimate = EffectEstimate::from_parts(
             dist.mean,
@@ -388,7 +416,13 @@ impl super::Study {
             bootstrap_replicates_ok: bootstrap_ok,
             cancelled,
             early_stopped,
-            extras: IdentifiedExecuteExtras::default(),
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
         }))
     }
 
@@ -429,21 +463,8 @@ impl super::Study {
 
         let mut extra = vec![query.treatment, query.outcome];
         extra.extend(query.path_nodes.iter().copied());
-        let est = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
-            ..FunctionalEffect::new()
-        };
-        let prepared = est
-            .prepare(
-                data,
-                &estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-                &extra,
-            )
-            .map_err(CausalError::from)?;
-        let mut ws = FunctionalDistributionWorkspace::default();
-        let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+        let (estimate, posterior) =
+            self.estimate_functional_effect(data, &estimand, &identification, &extra, ctx)?;
 
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
@@ -478,7 +499,95 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
+        }))
+    }
+
+    pub(super) fn execute_functional_ate(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let identifier = physical
+            .logical
+            .record
+            .identifier
+            .as_deref()
+            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
+        let estimator = physical
+            .logical
+            .record
+            .estimator
+            .as_deref()
+            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification = identify_static_query(
+                    identifier_id,
+                    graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                )?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
+        let (estimate, posterior) = self.estimate_functional_effect(
+            data,
+            &estimand,
+            &identification,
+            &[query.treatment, query.outcome],
+            ctx,
+        )?;
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, extra_diagnostics) = run_refuters(
+            data,
+            &estimand,
+            query,
+            &estimate,
+            &mut refute_ws,
+            None,
+            ctx,
+            self.refute,
+            estimator,
+            &self.custom_validators,
+            None,
+        )?;
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics,
+            refutations,
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
         }))
     }
 
@@ -957,15 +1066,53 @@ impl super::Study {
                     select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
                 Ok((identification, estimand))
             })?;
-        let mediation = antecedent_estimate::estimate_static_mediation(
-            data,
-            graph,
-            query,
-            identification.required_assumptions.clone(),
-            self.bootstrap_replicates,
-            &[],
-            ctx,
-        )?;
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if cfg.prior.is_some() || cfg.external_compose.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
+                });
+            }
+            if cfg.prior_artifact.is_some() && cfg.prior_mapping.is_none() {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
+                });
+            }
+        }
+        let (mediation, posterior) = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            let est = bayesian_gcomp(cfg, ctx);
+            let decoded = crate::inference::decode_prior_hydrate_source(cfg)?;
+            let bridge = decoded.as_ref().map(|d| antecedent_estimate::MediationPriorBridge {
+                mapping: &d.mapping,
+                quantities: &d.quantities,
+                mean: &d.mean,
+                sd: &d.sd,
+            });
+            let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+                data,
+                graph,
+                query,
+                identification.required_assumptions.clone(),
+                &[],
+                &est,
+                identification.status,
+                bridge,
+                ctx,
+            )?;
+            (mediation, Some(posterior))
+        } else {
+            (
+                antecedent_estimate::estimate_static_mediation(
+                    data,
+                    graph,
+                    query,
+                    identification.required_assumptions.clone(),
+                    self.bootstrap_replicates,
+                    &[],
+                    ctx,
+                )?,
+                None,
+            )
+        };
         let estimate = mediation.effect.clone();
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
@@ -994,11 +1141,19 @@ impl super::Study {
             distribution: None,
             mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: (self.bootstrap_replicates > 1)
-                .then_some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: posterior
+                .is_none()
+                .then_some(self.bootstrap_replicates)
+                .filter(|&n| n > 1),
             cancelled: false,
             early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
         }))
     }
 

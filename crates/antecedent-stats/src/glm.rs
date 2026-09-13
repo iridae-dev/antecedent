@@ -914,6 +914,30 @@ pub fn fit_multinomial_logit(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<MultinomialFit, StatsError> {
+    fit_multinomial_logit_weighted(design, None, backend, workspace, options)
+}
+
+/// Multinomial logit with nonnegative observation weights.
+///
+/// # Errors
+/// Invalid weights or any unweighted multinomial fit error.
+pub fn fit_multinomial_logit_weighted(
+    design: MultinomialDesignRef<'_>,
+    weights: Option<&[f64]>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<MultinomialFit, StatsError> {
+    if let Some(w) = weights {
+        let sum: f64 = w.iter().sum();
+        if w.len() != design.nrows
+            || w.iter().any(|v| !v.is_finite() || *v < 0.0)
+            || !sum.is_finite()
+            || sum <= 0.0
+        {
+            return Err(StatsError::Shape { message: "invalid multinomial observation weights" });
+        }
+    }
     let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
     if k == 0 {
         return Err(StatsError::Shape { message: "multinomial requires K ≥ 1" });
@@ -942,11 +966,11 @@ pub fn fit_multinomial_logit(
         });
     }
 
-    if k == 2 {
+    if k == 2 && weights.is_none() {
         return fit_multinomial_binary(design, backend, workspace, options);
     }
 
-    fit_multinomial_fisher(design, options)
+    fit_multinomial_fisher(design, options, weights)
 }
 
 fn fit_multinomial_binary(
@@ -979,6 +1003,7 @@ fn fit_multinomial_binary(
 fn fit_multinomial_fisher(
     design: MultinomialDesignRef<'_>,
     options: &GlmOptions,
+    weights: Option<&[f64]>,
 ) -> Result<MultinomialFit, StatsError> {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
     let n_free = k - 1;
@@ -1025,7 +1050,7 @@ fn fit_multinomial_fisher(
             }
             let yi = y_category[r] as usize;
             // In-loop deviance is for convergence only; final diagnostics recomputed below.
-            loop_deviance += -2.0 * pi[yi].max(1e-300).ln();
+            loop_deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi[yi].max(1e-300).ln();
 
             // Score and Fisher information over free categories 1..K-1.
             for j in 1..k {
@@ -1035,7 +1060,7 @@ fn fit_multinomial_fisher(
                 let jb = (j - 1) * ncols;
                 for c in 0..ncols {
                     let xc = x_colmajor[c * nrows + r];
-                    score[jb + c] += resid * xc;
+                    score[jb + c] += weights.map_or(1.0, |w| w[r]) * resid * xc;
                 }
                 for jp in 1..k {
                     let pjp = pi[jp];
@@ -1045,7 +1070,8 @@ fn fit_multinomial_fisher(
                         let xc1 = x_colmajor[c1 * nrows + r];
                         for c2 in 0..ncols {
                             let xc2 = x_colmajor[c2 * nrows + r];
-                            h[(jb + c1) * m + (jpb + c2)] += w * xc1 * xc2;
+                            h[(jb + c1) * m + (jpb + c2)] +=
+                                weights.map_or(1.0, |w| w[r]) * w * xc1 * xc2;
                         }
                     }
                 }
@@ -1086,7 +1112,7 @@ fn fit_multinomial_fisher(
     }
 
     // Diagnostics at the returned coefficients (not the pre-update scoring iterate).
-    let (deviance, separated) = multinomial_diagnostics_at(design, &beta_free);
+    let (deviance, separated) = multinomial_diagnostics_at(design, &beta_free, weights);
 
     let mut coefficients = vec![0.0; k * ncols];
     for j in 1..k {
@@ -1107,7 +1133,11 @@ fn fit_multinomial_fisher(
 }
 
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
-fn multinomial_diagnostics_at(design: MultinomialDesignRef<'_>, beta_free: &[f64]) -> (f64, bool) {
+fn multinomial_diagnostics_at(
+    design: MultinomialDesignRef<'_>,
+    beta_free: &[f64],
+    weights: Option<&[f64]>,
+) -> (f64, bool) {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
     let mut deviance = 0.0;
     let mut separated = false;
@@ -1141,7 +1171,7 @@ fn multinomial_diagnostics_at(design: MultinomialDesignRef<'_>, beta_free: &[f64
             }
         }
         let yi = y_category[r] as usize;
-        deviance += -2.0 * pi[yi].max(1e-300).ln();
+        deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi[yi].max(1e-300).ln();
     }
     (deviance, separated)
 }
@@ -1701,5 +1731,31 @@ mod tests {
             nb.deviance,
             nb_re
         );
+    }
+    #[test]
+    fn weighted_multinomial_matches_fractional_category_counts() {
+        for k in [2, 3] {
+            let x = vec![1.0; k];
+            let y: Vec<u32> = (0..k).map(|i| i as u32).collect();
+            let weights: Vec<f64> = (0..k).map(|i| i as f64 + 0.5).collect();
+            let fit = fit_multinomial_logit_weighted(
+                MultinomialDesignRef {
+                    x_colmajor: &x,
+                    nrows: k,
+                    ncols: 1,
+                    y_category: &y,
+                    n_categories: k,
+                },
+                Some(&weights),
+                &FaerBackend,
+                &mut LeastSquaresWorkspace::default(),
+                &GlmOptions::default(),
+            )
+            .unwrap();
+            assert!(fit.converged);
+            for j in 1..k {
+                assert!((fit.coefficients[j] - (weights[j] / weights[0]).ln()).abs() < 1e-5);
+            }
+        }
     }
 }
