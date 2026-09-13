@@ -2,19 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::too_many_lines
-)]
+#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
 
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, InterventionSequence, Lag, MechanismOverride,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, SequencedIntervention,
-    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue,
+    SequencedIntervention, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalPag};
@@ -95,12 +91,7 @@ fn soft_series() -> TimeSeriesData {
         .collect::<Vec<_>>();
     let w: Vec<f64> = (0..n).map(|i| ((i % 5) as f64) / 2.0 - 1.0).collect();
     TimeSeriesData::from_f64_columns(
-        [
-            ("t", t.as_slice()),
-            ("z", z.as_slice()),
-            ("y", y.as_slice()),
-            ("w", w.as_slice()),
-        ],
+        [("t", t.as_slice()), ("z", z.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
         1,
     )
     .unwrap()
@@ -148,7 +139,9 @@ fn two_step_sequence() -> CausalQuery {
             outcome: VariableId::from_raw(1),
             interventions: Arc::from([Intervention::Sequence(seq)]),
         })
-        .with_temporal(TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap()),
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1, 2], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
     )
 }
 
@@ -164,12 +157,7 @@ fn joint_series() -> TimeSeriesData {
         .collect();
     let w: Vec<f64> = (0..n).map(|i| ((i % 4) as f64) - 1.5).collect();
     TimeSeriesData::from_f64_columns(
-        [
-            ("a", a.as_slice()),
-            ("b", b.as_slice()),
-            ("y", y.as_slice()),
-            ("w", w.as_slice()),
-        ],
+        [("a", a.as_slice()), ("b", b.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
         1,
     )
     .unwrap()
@@ -203,7 +191,9 @@ fn joint_sequence_query() -> CausalQuery {
             outcome: VariableId::from_raw(2),
             interventions: Arc::from([Intervention::Sequence(seq)]),
         })
-        .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap()),
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
     )
 }
 
@@ -220,7 +210,9 @@ fn class_surface(result: &antecedent::StudyResult) -> Vec<f64> {
         ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(env)) => {
             env.lower.to_vec()
         }
-        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean.to_vec(),
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
+            mean.to_vec()
+        }
         other => panic!("unexpected class sequence estimate: {other:?}"),
     }
 }
@@ -255,11 +247,7 @@ fn two_completion_dose_horizon_sequence_matches_fixture() {
     let freq_atol = pin["tolerance"]["atol"].as_f64().unwrap();
     let data = dose_series();
     for inference in inferences() {
-        let atol = if matches!(inference, InferenceMode::Frequentist) {
-            freq_atol
-        } else {
-            0.12
-        };
+        let atol = if matches!(inference, InferenceMode::Frequentist) { freq_atol } else { 0.12 };
         let cpdag = run_class(data.clone(), dose_cpdag(), two_step_sequence(), inference.clone());
         assert_eq!(
             cpdag.certificate.as_ref().expect("certificate").graph_class,
@@ -290,13 +278,10 @@ fn two_completion_dose_horizon_sequence_matches_fixture() {
 fn two_completion_joint_sequence_matches_structural_level() {
     let data = joint_series();
     for inference in inferences() {
-        let result = run_class(data.clone(), joint_cpdag(), joint_sequence_query(), inference.clone());
+        let result =
+            run_class(data.clone(), joint_cpdag(), joint_sequence_query(), inference.clone());
         let got = class_surface(&result);
-        let atol = if matches!(inference, InferenceMode::Frequentist) {
-            1e-10
-        } else {
-            0.12
-        };
+        let atol = if matches!(inference, InferenceMode::Frequentist) { 1e-10 } else { 0.12 };
         assert!((got[0] - 7.0).abs() < atol, "{got:?}");
         assert_eq!(
             result.certificate.as_ref().expect("certificate").graph_class,
@@ -333,11 +318,7 @@ fn two_completion_soft_mean_mechanisms_match_fixture() {
             let pag = run_class(data.clone(), soft_pag(), query.clone(), inference);
             for result in [cpdag, pag] {
                 let got = class_surface(&result);
-                assert!(
-                    (got[0] - expected).abs() < atol,
-                    "case {index}: {} vs {expected}",
-                    got[0]
-                );
+                assert!((got[0] - expected).abs() < atol, "case {index}: {} vs {expected}", got[0]);
             }
         }
     }
@@ -358,7 +339,9 @@ fn bidirected_completion_misses_sequence_coordinate_and_keeps_the_class() {
             outcome: VariableId::from_raw(1),
             interventions: Arc::from([Intervention::Sequence(seq)]),
         })
-        .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap()),
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
     );
     let n = 400;
     let mut t = vec![0.0; n];
