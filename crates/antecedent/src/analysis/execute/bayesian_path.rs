@@ -1135,46 +1135,46 @@ impl super::Study {
                 message: "Frequentist DBN posterior has no estimable identified atom".into(),
             })?;
         let point = point_sum / point_mass;
-        let mut bootstrap = Vec::new();
-        let mut attempted = 0u32;
-        let n = data.row_count();
-        let block_length =
-            antecedent_data::circular_block_length(gp.max_lag.unwrap_or(1) as usize + 1, n);
-        let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
-        let mut index_scratch = Vec::with_capacity(n);
-        for replicate in 0..self.bootstrap_replicates {
-            if ctx.cancellation.is_cancelled() {
-                break;
-            }
-            attempted += 1;
-            let mut rng = ctx.rng.stream(0xDBF0_0000 + u64::from(replicate));
-            let sampled =
-                antecedent_data::resample_timeseries(data, plan, &mut rng, &mut index_scratch)
-                    .map_err(CausalError::from)?;
-            let mut sum = 0.0;
-            let mut failed = false;
-            for (atom, weight) in &contexts {
-                if let Ok(estimate) =
-                    fit_frequentist_dbn_atom(&sampled, gp, &vars, atom, query, ctx)
-                {
-                    sum += *weight * estimate.ate;
+        // Shared circular block over lag-aligned series times: every atom's design
+        // is prepared once on the original series and refit on the same resampled
+        // times, so no row pairs an outcome with lags from an unrelated block.
+        let designs = contexts
+            .iter()
+            .map(|(atom, _)| {
+                if is_multi_step_sustained(query) {
+                    TemporalAtomDesign::sequential(
+                        data,
+                        &crate::analysis::prepared::temporal_dag_from_dbn_atom(
+                            gp, atom.key, &vars,
+                        )?,
+                        &atom.indexer,
+                        &atom.estimand,
+                        query,
+                        atom.identification.status,
+                        ctx,
+                    )
                 } else {
-                    failed = true;
-                    break;
+                    TemporalAtomDesign::linear(
+                        data,
+                        &atom.estimand,
+                        query,
+                        &atom.indexer,
+                        None,
+                        ctx,
+                    )
                 }
-            }
-            if !failed && sum.is_finite() {
-                bootstrap.push(sum / point_mass);
-            }
-        }
-        let se = if bootstrap_has_enough_successes(bootstrap.len(), attempted as usize) {
-            let mean = bootstrap.iter().sum::<f64>() / bootstrap.len() as f64;
-            (bootstrap.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
-                / (bootstrap.len() - 1) as f64)
-                .sqrt()
-        } else {
-            f64::NAN
-        };
+            })
+            .collect::<Result<Vec<_>, CausalError>>()?;
+        let weights: Vec<f64> = contexts.iter().map(|(_, weight)| *weight).collect();
+        let block = shared_circular_block_mixture_se(
+            &designs.iter().collect::<Vec<_>>(),
+            &weights,
+            gp.max_lag.unwrap_or(1) as usize + 1,
+            self.bootstrap_replicates,
+            0xDBF0_0000,
+            ctx,
+        );
+        let se = block.se;
         if identified.graphs.unidentified_mass() > 0.0 {
             identification.status = IdentificationStatus::GraphDependent;
         }
@@ -1182,11 +1182,9 @@ impl super::Study {
             point,
             f64::NAN,
             se.is_finite().then_some(se),
+            (self.bootstrap_replicates > 0).then_some(block.completed),
             (self.bootstrap_replicates > 0)
-                .then_some(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
-            (self.bootstrap_replicates > 0).then_some(
-                attempted.saturating_sub(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
-            ),
+                .then_some(block.attempted.saturating_sub(block.completed)),
             ctx.cancellation.is_cancelled(),
             false,
             assumptions,
@@ -1265,11 +1263,13 @@ impl super::Study {
                     "fixed graph weights",
                     point_mass,
                     identified.graphs.unidentified_mass(),
-                    u32::try_from(bootstrap.len()).unwrap_or(u32::MAX),
-                    attempted,
+                    &block,
                 )
             ),
         ));
+        if se.is_finite() {
+            diagnostics.extend(short_series_warning(block.effective_rows));
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1289,8 +1289,7 @@ impl super::Study {
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: (self.bootstrap_replicates > 0)
-                .then_some(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
+            bootstrap_replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
             cancelled: ctx.cancellation.is_cancelled(),
             early_stopped: false,
             extras: IdentifiedExecuteExtras {

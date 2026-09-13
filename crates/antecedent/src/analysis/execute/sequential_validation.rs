@@ -79,6 +79,42 @@ impl EffectRefit for SequentialRefitter<'_> {
         )?
         .0)
     }
+
+    /// Frequentist refits evaluate the OLS contrast on lag-aligned rows of the
+    /// original series. Bayesian refits keep the posterior-mean refit on a
+    /// resampled series (no aligned-row posterior evaluation exists).
+    fn prepare_aligned(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<
+        Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>,
+    > {
+        if self.bayes.is_some() {
+            return None;
+        }
+        let mut time = self.time.clone();
+        time.length = data.row_count();
+        let prepared = TimeSeriesData::try_new(data.storage().clone(), time)
+            .map_err(antecedent_validate::ValidationError::from)
+            .and_then(|series| {
+                antecedent_estimate::SequentialContrastDesign::prepare(
+                    &series,
+                    &self.atom.graph,
+                    &self.atom.indexer,
+                    &self.atom.estimand,
+                    self.query,
+                    self.atom.status,
+                    ctx,
+                )
+                .map_err(antecedent_validate::ValidationError::from)
+            });
+        Some(prepared.map(|design| antecedent_validate::common::AlignedRefit {
+            rows: design.aligned_rows().rows,
+            structural_span: design.structural_span(),
+            estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
+        }))
+    }
 }
 
 type SequentialValidationResults =

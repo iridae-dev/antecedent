@@ -8,9 +8,19 @@
 //!
 //! Report id: `bootstrap.ci_coverage`.
 //!
+//! Static designs use an iid row bootstrap. One-series temporal designs resample
+//! circular blocks of consecutive *lag-aligned* rows of the design prepared once on
+//! the original series (single-window adjustment, and composed refitters that
+//! expose [`crate::common::EffectRefit::prepare_aligned`]), so every row keeps its
+//! lag window, and widen the percentile interval by the Kiefer–Vogelsang fixed-b
+//! factor, matching the circular-block interval the check is about.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+
+/// RNG stream base for the aligned-row block replicates.
+const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
 
 use std::sync::Arc;
 
@@ -25,8 +35,10 @@ use crate::common::{
 };
 use crate::error::ValidationError;
 
-/// IID row bootstrap of the whole `(T, Y, Z…)` design; "passes" if the original point estimate
-/// falls inside the percentile confidence interval of the resampled ATEs.
+/// Row bootstrap of the whole `(T, Y, Z…)` design (iid for static designs, circular
+/// blocks of lag-aligned rows with a fixed-b widening for one-series temporal designs);
+/// "passes" if the original point estimate falls inside the percentile confidence
+/// interval of the resampled ATEs.
 ///
 /// Each replicate refits with `estimator.bootstrap_replicates = 0` (per the internal `fit_once` path)
 /// so this never creates a nested bootstrap pool inside the resample loop.
@@ -60,6 +72,40 @@ impl BootstrapRefute {
         let time = temporal.time_index.ok_or(ValidationError::NotApplicable {
             message: "composed bootstrap requires a series time index",
         })?;
+        if let Some(aligned) =
+            problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
+        {
+            let mut aligned = aligned?;
+            let block =
+                antecedent_data::circular_block_length(aligned.structural_span, aligned.rows);
+            let boot = antecedent_estimate::row_block_bootstrap_vec(
+                aligned.rows,
+                block,
+                self.replicates,
+                BOOTSTRAP_REFUTE_STREAM,
+                ctx,
+                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+            );
+            if boot.cancelled {
+                return Err(ValidationError::Cancelled);
+            }
+            if boot.draws.len() < 2 {
+                return Err(ValidationError::estimation_msg(
+                    "bootstrap CI coverage: fewer than two block replicates could be fit",
+                ));
+            }
+            let scale = boot.fixed_b();
+            return Ok(coverage_report(
+                problem,
+                boot.column(0),
+                self.ci_level,
+                self.replicates,
+                scale,
+            ));
+        }
+        // Refitters without aligned-row evaluation (Bayesian composed refits)
+        // resample the raw series in circular blocks and rebuild lags; the
+        // interval is still widened by the fixed-b factor of that block length.
         let series =
             antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
         // Same block rule as the interval this refuter checks: the unfolded
@@ -95,7 +141,63 @@ impl BootstrapRefute {
                 .ate,
             );
         }
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+        let scale = antecedent_estimate::fixed_b_scale(length, n);
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, scale))
+    }
+
+    /// One-series temporal adjustment: circular blocks of consecutive lag-aligned
+    /// rows of the design prepared once on the original series (every row keeps
+    /// its lag window), the same construction as the interval this refuter checks.
+    fn refute_temporal_series(
+        &self,
+        problem: &RefutationProblem<'_>,
+        temporal: &crate::common::TemporalRefitContext<'_>,
+        time: &antecedent_data::TimeIndex,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
+        let series =
+            antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
+        let estimator = antecedent_estimate::TemporalLinearAdjustment::new()
+            .with_inner(forced_refit_estimator(&self.estimator));
+        let (prep, rows) = estimator
+            .prepare_aligned(
+                &series,
+                problem.estimand,
+                temporal.temporal_query,
+                temporal.indexer,
+                temporal.split,
+                temporal.kernel_policy,
+            )
+            .map_err(ValidationError::from)?;
+        let span = temporal.indexer.history() as usize + temporal.indexer.horizon() as usize;
+        let block = antecedent_data::circular_block_length(span.max(1), rows.rows);
+        let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
+        let mut y_boot = vec![0.0; rows.rows];
+        let boot = antecedent_estimate::row_block_bootstrap_vec(
+            rows.rows,
+            block,
+            self.replicates,
+            BOOTSTRAP_REFUTE_STREAM,
+            ctx,
+            |row_src| {
+                estimator
+                    .inner
+                    .ate_on_row_indices_into(&prep, workspace, row_src, &mut x_boot, &mut y_boot)
+                    .ok()
+                    .map(|ate| vec![ate])
+            },
+        );
+        if boot.cancelled {
+            return Err(ValidationError::Cancelled);
+        }
+        if boot.draws.len() < 2 {
+            return Err(ValidationError::estimation_msg(
+                "bootstrap CI coverage: fewer than two block replicates could be fit",
+            ));
+        }
+        let scale = boot.fixed_b();
+        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale))
     }
 
     /// Defaults: 200 replicates, 95% CI.
@@ -109,6 +211,7 @@ impl BootstrapRefute {
     /// # Errors
     ///
     /// Data or estimation failures.
+    #[allow(clippy::too_many_lines)]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -141,6 +244,11 @@ impl BootstrapRefute {
         }
         if problem.effect_refit.is_some() {
             return self.refute_composed(problem, workspace, ctx);
+        }
+        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
+            if let Some(time) = temporal.time_index {
+                return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
+            }
         }
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
@@ -203,7 +311,7 @@ impl BootstrapRefute {
                         &mut y_boot,
                     )?);
                 }
-                return Ok(coverage_report(problem, ates, self.ci_level, self.replicates));
+                return Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0));
             }
         }
         for _ in 0..self.replicates {
@@ -222,15 +330,21 @@ impl BootstrapRefute {
             )?;
             ates.push(est.ate);
         }
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+        // Panel temporal designs resample stacked rows iid here (no per-unit block
+        // or cluster plan yet); static designs are iid by construction.
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0))
     }
 }
 
+/// Percentile interval of the replicate ATEs, each endpoint's distance from the
+/// replicate mean multiplied by `scale` (the fixed-b factor of a circular-block
+/// bootstrap, so the checked interval matches the published one; `1.0` for iid).
 fn coverage_report(
     problem: &RefutationProblem<'_>,
     mut ates: Vec<f64>,
     ci_level: f64,
     replicates: u32,
+    scale: f64,
 ) -> RefutationReport {
     ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = ates.len();
@@ -238,9 +352,9 @@ fn coverage_report(
     let hi_frac = 1.0 - lo_frac;
     let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
     let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
-    let lo = ates[lo_idx];
-    let hi = ates[hi_idx];
     let mean_ate = ates.iter().sum::<f64>() / m as f64;
+    let lo = mean_ate - scale * (mean_ate - ates[lo_idx]);
+    let hi = mean_ate + scale * (ates[hi_idx] - mean_ate);
     let width = hi - lo;
     let passed = problem.original.ate >= lo && problem.original.ate <= hi;
     RefutationReport {

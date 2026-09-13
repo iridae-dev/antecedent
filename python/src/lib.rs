@@ -602,6 +602,23 @@ pub(crate) fn public_adjustment_set(
     }
 }
 
+/// Scalar identified set `[lower, upper]` of a class-aware result, its
+/// Imbens–Manski interval, and that interval's level (1.9, C-3).
+pub(crate) type IdentifiedSetFields = (Option<(f64, f64)>, Option<(f64, f64)>, Option<f64>);
+
+pub(crate) fn identified_set_fields(result: &antecedent::StudyResult) -> IdentifiedSetFields {
+    let Some(mixture) = result.structural_response.as_ref() else {
+        return (None, None, None);
+    };
+    let set = mixture
+        .identified_set
+        .as_ref()
+        .filter(|set| set.lower.len() == 1 && set.upper.len() == 1)
+        .map(|set| (set.lower[0], set.upper[0]));
+    let interval = mixture.identified_set_interval.as_ref();
+    (set, interval.map(|i| (i.lower, i.upper)), interval.map(|i| i.level))
+}
+
 pub(crate) fn evidence_status_parts(
     status: Option<antecedent::CellStatus>,
 ) -> (Option<String>, Option<String>, Option<String>) {
@@ -626,6 +643,15 @@ pub(crate) struct AteAnalysisResult {
     pub(crate) structural_unidentified_mass: Option<f64>,
     #[pyo3(get)]
     pub(crate) structural_unevaluable_mass: Option<f64>,
+    /// Scalar identified set `(lower, upper)` over identified completions.
+    #[pyo3(get)]
+    pub(crate) structural_identified_set: Option<(f64, f64)>,
+    /// Imbens–Manski interval for the identified set (covers the true
+    /// completion's effect at `structural_identified_set_interval_level`).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval: Option<(f64, f64)>,
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_level: Option<f64>,
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]

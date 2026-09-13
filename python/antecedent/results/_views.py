@@ -495,6 +495,12 @@ class AnalysisResult:
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
     structural_unevaluable_mass: float | None = None
+    #: Scalar identified set ``(lower, upper)`` over identified class completions.
+    structural_identified_set: tuple[float, float] | None = None
+    #: Imbens–Manski interval for the identified set: covers the true completion's
+    #: effect at ``structural_identified_set_interval_level`` (1.9, C-3).
+    structural_identified_set_interval: tuple[float, float] | None = None
+    structural_identified_set_interval_level: float | None = None
     _raw: Any = None
     _prepared: Any = None
     query: Any = None

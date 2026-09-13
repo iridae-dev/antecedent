@@ -970,6 +970,13 @@ fn dbn_mixture_functional_retains_unidentified_mass() {
 /// `Σ w̄_g se_g` (Cauchy–Schwarz: a frozen-weight mean can never exceed its
 /// largest atom SE, so "exceeds each atom's own SE" is read as exceeding each
 /// atom's weighted within-atom contribution and their independent combination).
+///
+/// The DBN atoms' estimates are only mildly correlated on this fixture
+/// (sampling correlation ≈ 0.17 between the adjusted and unadjusted slopes), so
+/// the shared SE sits a few percent above the independent combination. The
+/// 1.1× margin the CPDAG pin uses was only reachable while the raw-row resample
+/// inflated every mixture SE (1.9, F1); the strict inequality is what the
+/// positive cross-atom covariance implies.
 #[test]
 fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
     let data = confounded_series(N, B2, 0.0, 5);
@@ -984,7 +991,7 @@ fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
     let independent = ((wa * se_a).powi(2) + (wb * se_b).powi(2)).sqrt();
     eprintln!("DBN shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
     assert!(se > wa * se_a && se > wb * se_b);
-    assert!(se > 1.1 * independent, "shared SE {se} must exceed independent {independent}");
+    assert!(se > independent, "shared SE {se} must exceed independent {independent}");
     assert!(se <= wa * se_a + wb * se_b + 1e-12, "Cauchy–Schwarz bound violated");
 }
 

@@ -539,6 +539,11 @@ def _wrap_ate(
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),
         structural_unevaluable_mass=getattr(raw, "structural_unevaluable_mass", None),
+        structural_identified_set=getattr(raw, "structural_identified_set", None),
+        structural_identified_set_interval=getattr(raw, "structural_identified_set_interval", None),
+        structural_identified_set_interval_level=getattr(
+            raw, "structural_identified_set_interval_level", None
+        ),
         _raw=raw,
         _prepared=prepared,
     )

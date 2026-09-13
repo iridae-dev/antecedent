@@ -2323,6 +2323,7 @@ pub(crate) fn ate_result_from_analysis(
 
     let (evidence_status, allowlist_reason, allowlist_parent) =
         crate::evidence_status_parts(result.support_status);
+    let identified_set = crate::identified_set_fields(&result);
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
         result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
     let mediation_uncertainty = |slice: &antecedent_estimate::TemporalMediationSlice| match &slice
@@ -2368,6 +2369,9 @@ pub(crate) fn ate_result_from_analysis(
             .structural_response
             .as_ref()
             .map(|m| m.unevaluable_mass),
+        structural_identified_set: identified_set.0,
+        structural_identified_set_interval: identified_set.1,
+        structural_identified_set_interval_level: identified_set.2,
         certificate_json,
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
