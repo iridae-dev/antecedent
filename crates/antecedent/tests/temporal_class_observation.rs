@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    clippy::many_single_char_names,
+    clippy::type_complexity
+)]
 
 use std::sync::Arc;
 
