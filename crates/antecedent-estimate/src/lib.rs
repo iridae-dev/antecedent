@@ -109,7 +109,8 @@ pub use joint_if::{
 };
 pub use observation::{
     ObservationAdjustedOutcome, ObservationEstimatorOptions, ObservationMechanismEstimator,
-    SelectedOutcomeCorrection,
+    SelectedOutcomeCorrection, temporal_curve_outcome_regressors,
+    temporal_sequence_outcome_regressors,
 };
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
