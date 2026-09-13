@@ -172,6 +172,8 @@ pub struct MediationPriorBridge<'a> {
     pub mean: &'a [f64],
     /// Source posterior SDs, aligned to [`Self::quantities`].
     pub sd: &'a [f64],
+    /// Source treatment contrast `active − control` recorded on the artifact.
+    pub source_contrast: Option<f64>,
 }
 
 /// Bayesian linear natural effects: independent Gaussian mechanism posteriors,
@@ -198,6 +200,7 @@ pub fn estimate_static_mediation_bayesian(
     ctx: &ExecutionContext,
 ) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
     crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
+    let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
     if estimator.prior.is_some() {
         return Err(EstimationError::unsupported(
             "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
@@ -306,13 +309,18 @@ pub fn estimate_static_mediation_bayesian(
         };
         let mut node_est = estimator.clone();
         node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);
-        node_est.n_draws = estimator.n_draws.max(2);
+        node_est.n_draws = draws_n;
         // Independent mechanisms must all supply every composed draw.
 
         if let Some(bridge) = bridge {
-            if let Some(prior) =
-                hydrate_mechanism_prior(bridge, &coef_names, treatment_col, estimator.prior_scale)?
-            {
+            let is_outcome = i == query.outcome.as_usize();
+            if let Some(prior) = hydrate_mechanism_prior(
+                bridge,
+                &coef_names,
+                treatment_col,
+                estimator.prior_scale,
+                is_outcome,
+            )? {
                 node_est.prior = Some(prior);
                 hydrated.push(name_of(VariableId::from_raw(i as u32)));
             }
@@ -334,7 +342,6 @@ pub fn estimate_static_mediation_bayesian(
             "mapped prior did not bind any mediation mechanism",
         ));
     }
-    let draws_n = estimator.n_draws.max(2);
     let mut effect = Vec::with_capacity(draws_n);
     let mut totals = Vec::with_capacity(draws_n);
     let mut directs = Vec::with_capacity(draws_n);
@@ -382,9 +389,26 @@ pub fn estimate_static_mediation_bayesian(
             description: Arc::from(if hydrated.is_empty() {
                 "Independent Gaussian linear mechanism posteriors composed into natural effects; no treatment-mediator interaction; empirical complete rows fixed".to_string()
             } else {
+                let implied = match bridge {
+                    Some(MediationPriorBridge {
+                        mapping: HydrateMapping::EffectFunctional { source_quantity },
+                        quantities,
+                        mean,
+                        ..
+                    }) => quantities.iter().zip(mean.iter()).find_map(|(q, m)| {
+                        match q {
+                            PosteriorQuantityKind::Effect { name } if name.as_ref() == source_quantity.as_str() => {
+                                Some(*m)
+                            }
+                            _ => None,
+                        }
+                    }),
+                    _ => None,
+                };
                 format!(
-                    "Independent Gaussian linear mechanism posteriors composed into natural effects; mapped prior hydrated onto [{}]; unbound mechanisms keep isotropic prior_scale",
-                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", ")
+                    "Independent Gaussian linear mechanism posteriors composed into natural effects; mapped ATE/Δ prior hydrated onto outcome-mechanism [{}]{}; unbound mechanisms keep isotropic prior_scale",
+                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
+                    implied.map(|m| format!("; implied NDE/ATE mean {m}")).unwrap_or_default(),
                 )
             }),
         }),
@@ -407,6 +431,7 @@ pub fn estimate_static_mediation_bayesian(
             _ => 0.0,
         },
         early_stopped: false,
+        treatment_contrast: Some(delta),
     };
     let eq = posterior
         .effect_column()
@@ -431,13 +456,18 @@ fn hydrate_mechanism_prior(
     coef_names: &[Arc<str>],
     treatment_col: Option<usize>,
     prior_scale: f64,
+    outcome_mechanism: bool,
 ) -> Result<Option<PriorSet>, EstimationError> {
     let mut baseline = PriorSet::new();
     baseline.push(antecedent_prob::PriorSpec::GaussianCoefficients(
         antecedent_prob::GaussianCoefficientPrior::isotropic(coef_names.len(), prior_scale),
     ));
     match bridge.mapping {
-        HydrateMapping::EffectFunctional { .. } if treatment_col.is_none() => return Ok(None),
+        HydrateMapping::EffectFunctional { .. }
+            if !outcome_mechanism || treatment_col.is_none() =>
+        {
+            return Ok(None);
+        }
         HydrateMapping::NamedParameters { pairs } => {
             let names: std::collections::HashSet<&str> =
                 coef_names.iter().map(std::convert::AsRef::as_ref).collect();
@@ -455,6 +485,7 @@ fn hydrate_mechanism_prior(
         &baseline,
         coef_names,
         treatment_col,
+        bridge.source_contrast,
     ) {
         Ok(prior) => Ok(Some(prior)),
         Err(err)

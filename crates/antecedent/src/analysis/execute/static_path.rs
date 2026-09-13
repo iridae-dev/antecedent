@@ -345,7 +345,7 @@ impl super::Study {
                 .estimate_bayesian(
                     &prepared,
                     &[],
-                    bayesian_draw_count(&self.inference),
+                    bayesian_draw_count(&self.inference)?,
                     identification.status,
                     ctx,
                 )
@@ -1086,6 +1086,7 @@ impl super::Study {
                 quantities: &d.quantities,
                 mean: &d.mean,
                 sd: &d.sd,
+                source_contrast: d.source_contrast,
             });
             let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
                 data,

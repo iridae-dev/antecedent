@@ -393,9 +393,10 @@ impl FunctionalDistribution {
     }
 
     /// Bayesian-bootstrap posterior over the identified interventional
-    /// distribution: all CPT factors share one Dirichlet(1, ..., 1) row-law
-    /// draw; atom masses and the interventional mean are averages of those
-    /// functional evaluations.
+    /// distribution: all CPT factors share one Rubin Dirichlet(1, ..., 1)
+    /// row-law draw. Published atoms are the empirical point-estimate law;
+    /// the scalar posterior is E[functional(p)] under that row-weight
+    /// posterior.
     ///
     /// # Errors
     ///
@@ -416,10 +417,8 @@ impl FunctionalDistribution {
                 "functional Bayesian requires complete discrete rows",
             ));
         }
-        let draws = n_draws.max(2);
+        let draws = crate::require_bayesian_n_draws(n_draws)?;
         let mut values = Vec::with_capacity(draws);
-        let mut atom_sum: HashMap<(Vec<(VariableId, Value)>, Vec<(VariableId, Value)>), f64> =
-            HashMap::new();
         let mut rng = ctx.rng.stream(0xF01E_u64);
         for _ in 0..draws {
             if ctx.cancellation.is_cancelled() {
@@ -440,10 +439,6 @@ impl FunctionalDistribution {
                 return Err(EstimationError::stats_msg("functional Bayesian draw was non-finite"));
             }
             values.push(est.mean);
-            for atom in est.atoms.iter() {
-                let key = (atom.outcomes.to_vec(), atom.conditioning.to_vec());
-                *atom_sum.entry(key).or_insert(0.0) += atom.probability;
-            }
         }
         let posterior = functional_posterior(values, prepared.assumptions.clone(), identification)?;
         let mut out = point;
@@ -451,24 +446,11 @@ impl FunctionalDistribution {
             EstimationError::stats_msg("functional Bayesian posterior missing effect column")
         })?;
         out.assumptions = posterior.assumptions.clone();
+        // Scalar uncertainty is E[functional(p)]. Atoms stay the point-estimate
+        // law so they are one coherent distribution, not a Jensen-incoherent
+        // coordinatewise average of cells.
         out.mean = posterior.summaries.mean[eq];
         out.se_analytic = posterior.summaries.sd[eq];
-        let scale = draws as f64;
-        // Preserve the deterministic point-evaluation order in serialized output.
-        out.atoms = Arc::from(
-            out.atoms
-                .iter()
-                .map(|atom| DistributionAtom {
-                    outcomes: Arc::clone(&atom.outcomes),
-                    conditioning: Arc::clone(&atom.conditioning),
-                    probability: atom_sum
-                        .get(&(atom.outcomes.to_vec(), atom.conditioning.to_vec()))
-                        .copied()
-                        .unwrap_or(0.0)
-                        / scale,
-                })
-                .collect::<Vec<_>>(),
-        );
         Ok((out, posterior))
     }
 }
@@ -620,7 +602,8 @@ impl FunctionalEffect {
     }
 
     /// Bayesian bootstrap of the identified functional. All CPT factors are
-    /// derived from a shared Dirichlet(1, ..., 1) draw over empirical rows.
+    /// derived from a shared Rubin (1981) Dirichlet(1, ..., 1) draw over
+    /// empirical rows.
     /// Unobserved joint cells retain zero mass; this is an empirical-support
     /// posterior, not a positive pseudocount prior over unobserved categories.
     ///
@@ -640,7 +623,7 @@ impl FunctionalEffect {
                 "functional Bayesian requires complete discrete rows",
             ));
         }
-        let draws = n_draws.max(2);
+        let draws = crate::require_bayesian_n_draws(n_draws)?;
         let mut values = Vec::with_capacity(draws);
         let mut rng = ctx.rng.stream(0xF02E_u64);
         for _ in 0..draws {
@@ -895,7 +878,7 @@ fn functional_posterior(
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("functional.empirical_support_prior"),
-            description: Arc::from("Bayesian bootstrap of one observational row law; all factors share Dirichlet row masses. Unobserved joint cells have zero posterior mass; coefficient prior_scale and backend selection do not define this nonparametric posterior."),
+            description: Arc::from("Rubin Bayesian bootstrap of one observational row law; all factors share Dirichlet(1, ..., 1) row masses. Unobserved joint cells have zero posterior mass; coefficient prior_scale and backend selection do not define this nonparametric posterior."),
         }),
         source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("functional.dirichlet") },
         scope: antecedent_core::AssumptionScope::Estimation,
@@ -918,6 +901,7 @@ fn functional_posterior(
         assumptions,
         unidentified_mass: unidentified_mass_from_status(identification),
         early_stopped: false,
+        treatment_contrast: None,
     })
 }
 

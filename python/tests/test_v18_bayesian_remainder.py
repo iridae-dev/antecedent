@@ -52,7 +52,7 @@ def test_prior_transfer_fixtures_are_named():
     mixtures = _load("conformance/bayesian/known_truth_mixtures/expected.json")
     assert effect["compatibility_filter"] == "PriorCatalog.filter_compatible"
     assert response["target_cells"]["missing_mapping"] == "typed_refuse"
-    assert mediation["compatibility_filter"] == "per-mechanism hydrate"
+    assert mediation["compatibility_filter"] == "outcome-mechanism ATE/Δ hydrate"
     assert "static_average_effect" in mixtures
     catalog = PriorCatalog.from_sources(
         [
@@ -247,8 +247,12 @@ def test_bayesian_mediation_mapped_prior_is_used():
         seed=int(pin["seed"]),
     )
     assert transferred.posterior is not None
-    assert abs(transferred.effect - isotropic.effect) > pin["min_shift"]
-    assert pin["compatibility_filter"] == "per-mechanism hydrate"
+    text = " ".join(str(a) for a in transferred.assumptions)
+    assert "mapped ATE/Δ prior hydrated onto outcome-mechanism" in text
+    assert "implied NDE/ATE mean" in text
+    assert source.effect == pytest.approx(kinds["total"], abs=0.25)
+    assert isotropic.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
+    assert pin["compatibility_filter"] == "outcome-mechanism ATE/Δ hydrate"
 
 
 def test_staged_native_signatures_match_type_stubs():
