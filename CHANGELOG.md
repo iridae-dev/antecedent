@@ -14,9 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bayesian Pulse / Sustained on `TemporalCpdag` / `TemporalPag` without
   collapsing the class. A caller-supplied `ClassPrior` mixes at draw level;
   enumeration weights stay an identified set.
-- Multi-step Sustained, Sequence / Soft, and licensed observation pairs on
-  incomplete temporal classes. Bidirected MAG completions stay unevaluable
-  for sequential g-comp.
+- Multi-step Sustained, Sequence / Soft multiplicative / truncated-shift, and
+  licensed observation pairs on incomplete temporal classes. Bidirected MAG
+  completions stay unevaluable for sequential g-comp.
+- `StudyBuilder::max_completions` (and Python `max_completions=`) threads the
+  identifier search cap; a capped audit cannot claim class-wide identification
+  or publish a full-class mixture.
+- Mapped mechanism-prior transfer onto licensed TemporalCpdag Bayesian Pulse,
+  single-step Sustained, ResponseCurve, and mediation cells. Sequence transfer
+  stays refused.
 - Bayesian TemporalCpdag mediation identified sets; `identify()` on temporal
   Response and TemporalCpdag mediation returns a temporal envelope with
   completion fingerprints.
@@ -24,7 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Incomplete-class Frequentist observation adjustment retains the declared
-  observation claims on the response and identification assumptions.
+  observation claims on the response and identification assumptions, and
+  runs the same outer circular-block nuisance-refit TemporalDag uses. A
+  multi-completion identified set withholds the class band; complete-data
+  bands are not reused.
 - Class priors and stitched completion curves bind by completion fingerprint
   across horizons; a horizon that enumerates a different class membership
   refuses rather than misaligning masses positionally.

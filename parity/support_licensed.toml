@@ -160,7 +160,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
+limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation."
 
 [[cell]]
 query = "ResponseCurve"
@@ -184,7 +184,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per directed completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
+limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per directed completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation."
 
 [[cell]]
 query = "ResponseCurve"
@@ -208,7 +208,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "One-coordinate Set/Shift/Soft response under Pulse/single-step Sustained; completion-enumeration identified set."
+limitations = "Set/Shift/Soft (including multiplicative and truncated_shift) and multi-step / joint Sequence on Pulse or multi-step windows; completion-enumeration identified set. Nested Sequence stays refused. Bidirected MAG completions stay unevaluable for sequential g-comp (mass retained). Pins consume conformance/response/temporal_dose_horizon and temporal_soft_mean_mechanisms via crates/antecedent/tests/temporal_class_sequence_policies.rs."
 
 [[cell]]
 query = "InterventionResponse"
@@ -232,7 +232,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "One-coordinate Set/Shift/Soft response under Pulse/single-step Sustained; MAG-completion identified set."
+limitations = "Set/Shift/Soft (including multiplicative and truncated_shift) and multi-step / joint Sequence on Pulse or multi-step windows; MAG-completion identified set. Nested Sequence stays refused. Bidirected MAG completions stay unevaluable for sequential g-comp (mass retained). Pins consume conformance/response/temporal_dose_horizon and temporal_soft_mean_mechanisms via crates/antecedent/tests/temporal_class_sequence_policies.rs."
 
 [[cell]]
 query = "InterventionResponse"
@@ -2754,7 +2754,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_class_envelope"
 evidence_test = "crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
 evidence_assertion = "temporal_class_bayesian_pulse_with_class_prior_mixes"
-limitations = "Per identified TemporalDag/MAG completion: bayesian_temporal_gcomp. Without ClassPrior the result is an identified set plus atom posteriors; enumeration is not mixed. With ClassPrior, aggregate_effect_envelope mixes draws and retains unidentified mass. Runtime class stays incomplete. cheap/full run envelope refuters/PPC on the mixed contrast. Pins consume conformance/bayesian/temporal_class_envelope."
+limitations = "Per identified TemporalDag/MAG completion: bayesian_temporal_gcomp. Without ClassPrior the result is an identified set plus atom posteriors; enumeration is not mixed. With ClassPrior, aggregate_effect_envelope mixes draws and retains unidentified mass; the blended mean is identified-mass-only under default EnvelopeOptions. A capped completion search cannot confer class-wide identification (full_mass_scope, truncated_atoms) and cannot publish a full-class mixture. Runtime class stays incomplete. cheap/full run envelope refuters/PPC on the mixed contrast. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_class_prior_transfer; mechanism priors are not a class prior. Pins consume conformance/bayesian/temporal_class_envelope."
 
 [[cell]]
 query = "PulseEffect"
@@ -3066,7 +3066,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_class_envelope"
 evidence_test = "crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
 evidence_assertion = "temporal_class_bayesian_response_is_identified_set"
-limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. cheap/full stay n/a. Pins consume conformance/bayesian/temporal_class_envelope."
+limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. cheap/full stay n/a. Same-design and mapped prior transfer may ride via conformance/bayesian/temporal_class_prior_transfer; mechanism priors are not a class prior. Pins consume conformance/bayesian/temporal_class_envelope."
 
 [[cell]]
 query = "ResponseCurve"
@@ -3118,7 +3118,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_class_envelope"
 evidence_test = "crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
 evidence_assertion = "temporal_class_bayesian_response_is_identified_set"
-limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. cheap/full stay n/a. Pins consume conformance/bayesian/temporal_class_envelope."
+limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian, or sequential mechanism posteriors for Sequence / Soft multiplicative / truncated_shift. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. Nested Sequence and Sequence prior transfer stay refused. Bidirected MAG completions stay unevaluable (mass retained). cheap/full stay n/a. Pins consume conformance/bayesian/temporal_class_envelope and crates/antecedent/tests/temporal_class_sequence_policies.rs."
 
 [[cell]]
 query = "InterventionResponse"
@@ -3144,7 +3144,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_class_envelope"
 evidence_test = "crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
 evidence_assertion = "temporal_class_bayesian_response_is_identified_set"
-limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. cheap/full stay n/a. Pins consume conformance/bayesian/temporal_class_envelope."
+limitations = "Per horizon × completion: TemporalResponseEstimator::estimate_bayesian, or sequential mechanism posteriors for Sequence / Soft multiplicative / truncated_shift. Default is an identified set with CompletionEnumeration and estimate.envelope.response_posterior_not_mixed. A ClassPrior publishes conditional_on_identified only when every identified atom is aligned and unidentified mass is zero. Nested Sequence and Sequence prior transfer stay refused. Bidirected MAG completions stay unevaluable (mass retained). cheap/full stay n/a. Pins consume conformance/bayesian/temporal_class_envelope and crates/antecedent/tests/temporal_class_sequence_policies.rs."
 
 [[cell]]
 query = "InterventionResponse"
@@ -3169,7 +3169,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_class_bayesian_mediation_returns_identified_sets"
-limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs."
+limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Mapped mechanism-prior transfer binds per completion and cannot upgrade identification or invent class probabilities. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs and conformance/bayesian/temporal_class_prior_transfer."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -3181,7 +3181,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_class_bayesian_mediation_cheap_and_full_run"
-limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs."
+limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Mapped mechanism-prior transfer binds per completion and cannot upgrade identification or invent class probabilities. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs and conformance/bayesian/temporal_class_prior_transfer."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -3193,7 +3193,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_class_bayesian_mediation_cheap_and_full_run"
-limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs."
+limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Mapped mechanism-prior transfer binds per completion and cannot upgrade identification or invent class probabilities. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs and conformance/bayesian/temporal_class_prior_transfer."
 
 [[cell]]
 query = "TemporalMediationEffect"
