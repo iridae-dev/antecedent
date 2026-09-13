@@ -214,7 +214,7 @@ The following are current product boundaries or explicit matrix refusals:
 - no temporal graph-posterior response surface or Bayesian response bands over
   incomplete temporal classes; static DAG graph-posterior responses and
   Frequentist DBN Pulse/Sustained mixtures are licensed;
-- no Bayesian or partial-graph derivative cells;
+- no partial-graph derivative cells;
 - no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.

@@ -185,8 +185,10 @@ population. Unsupported observation mechanisms, observation assumptions, or
 population specifications are refused explicitly. Observation-adjusted
 Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
-responses, graph-posterior response mixtures, and multi-step temporal response
-policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md) and
+responses are described under
+[Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
+Graph-posterior response mixtures and multi-step temporal response policies
+remain refused. See the [1.3 evidence ledger](v1.3-evidence.md) and
 [1.4 evidence ledger](v1.4-evidence.md).
 
 ## Row-diagnostic export contract
@@ -265,39 +267,88 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The six derivative query types are licensed on Frequentist explicit or
-accepted DAGs at validation `none`; see the [support matrix](support-matrix.md)
-and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG
-derivative, graph-posterior, observation-adjusted, and cheap/full coordinates
-remain refused. Mean curves on `Cpdag` / `Pag` are a separate 1.4 cell, not a
-derivative license. The definitions below are the licensed Frequentist forms,
-not a license to run every constructor argument.
+The six derivative query types are licensed on explicit or accepted DAGs at
+validation `none`, under Frequentist and Bayesian inference; see the
+[support matrix](support-matrix.md) and [1.3 evidence ledger](v1.3-evidence.md).
+PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
+cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
+separate 1.4 cell, not a derivative license. The definitions below are the
+licensed forms, not a license to run every constructor argument. Repeated-
+sampling coverage of every published derivative interval is gated in
+`crates/antecedent/tests/v19_derivative_calibration.rs`.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
-- `PointDerivative(..., at=a)` is a local slope of that curve. It requires an
-  explicit `bandwidth` in `estimator_config`; Silverman's rule is a level/KDE
-  rate and is refused rather than silently oversmoothing `m'`. Evidence pins
-  first-order coordinates. Local intervals condition on the fitted nuisances
-  and that bandwidth.
+- `PointDerivative(..., at=a)` estimates the true slope `m'(a)` of that curve,
+  not a bandwidth-smoothed surrogate. It requires an explicit `bandwidth` in
+  `estimator_config`; Silverman's rule is a level/KDE rate and is refused
+  rather than silently oversmoothing `m'`. The point value is the
+  Kennedy-DR local-quadratic slope. The interval is robust bias-corrected
+  (Calonico–Cattaneo–Titiunik with the pilot bandwidth equal to the caller
+  bandwidth, which is numerically the local-cubic slope and its own
+  Eicker–White standard error). It is therefore centered at the bias-corrected
+  slope rather than at the point value, and `standard_error` is the
+  bias-corrected standard error; the diagnostic
+  `response.derivative_interval_bias_corrected` says so on every result that
+  publishes one. The conventional local-quadratic interval ignores the
+  `O(h² m‴)` smoothing bias of the slope and covered about 82% at a nominal
+  90% at an MSE-sized bandwidth on a curved response. The Frequentist interval
+  treats the cross-fitted pseudo-outcome as data and conditions on the caller
+  bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
   law; only observed-law weighting is licensed, via the Gaussian-score Riesz
-  representer. The known-truth fixture is a linear SCM, so it does not
-  independently stress a Gaussian treatment density.
+  representer. The representer assumes the treatment is homoskedastic Gaussian
+  given the adjustment set (additive mean). That assumption is load-bearing:
+  on a skewed, heteroskedastic treatment law with a nonlinear outcome the
+  interval's measured coverage collapses (recorded, not gated, by
+  `ade_skewed_heteroskedastic_treatment_probe`).
 - `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
   positive, and the fitted response at that point must be positive.
-  Like `PointDerivative`, it requires an explicit bandwidth. Log-outcome
-  intervals are withheld: a partial delta-method interval would understate
-  uncertainty.
+  Like `PointDerivative`, it requires an explicit bandwidth. The Frequentist
+  result withholds its interval (`response.derivative_interval_withheld`): a
+  delta-method interval would need the full level/slope covariance, and a
+  partial one would understate uncertainty.
 - `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
-  Both ride the same matrix cell.
+  Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
+  `|a|` times the bias-corrected slope interval; `log_scale="outcome"` and
+  every transformed second derivative withhold the interval, as for
+  elasticity.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
-  a shared complete-case row set. They are not doubly robust and publish no
-  interval. A Jacobian is row-major outcomes × treatments. A directional
-  query is the unnormalized inner product `∇m · d`. Differential missingness
-  across outcomes is refused.
+  a shared complete-case row set. The target surface is an unpenalized cubic
+  regression spline on the nuisance basis: a roughness penalty shrinks the
+  published gradient at first order (with quantile knots, even a linear
+  component), so `nuisance_lambda` regularizes nuisances only. They are not
+  doubly robust, and the Frequentist result publishes no interval. A Jacobian
+  is row-major outcomes × treatments. A directional query is the unnormalized
+  inner product `∇m · d`. Differential missingness across outcomes is refused.
+
+Bayesian derivatives keep the Frequentist estimator identities and replace
+the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in
+which every draw refits its nuisances:
+
+- `AverageDerivative` refits the additive-GAM outcome and the Gaussian
+  treatment law under the draw's weights and evaluates the weighted Riesz
+  score mean.
+- `PointDerivative`, `Elasticity`, and `SemiElasticity` rebuild the
+  cross-fitted Kennedy pseudo-outcome per draw (outcome and treatment
+  nuisances refit on each weighted training fold), then evaluate the weighted
+  local quadratic and its bias-corrected local cubic at the caller bandwidth.
+  The reported value is the posterior mean of the local-quadratic coordinate;
+  the credible interval and `standard_error` come from the bias-corrected
+  draws. Scale transforms are applied per draw, so elasticity and log-outcome
+  semi-elasticity intervals are published here even though the Frequentist
+  result withholds them. Held fixed across draws: the caller bandwidth, fold
+  assignment, spline knots, and penalty.
+- `ResponseJacobian` and `DirectionalDerivative` refit the unpenalized
+  additive regression spline per draw with fixed knots and publish pointwise
+  quantile bands. The band covers the derivative when the additive
+  components lie in (or are well approximated by) that spline space; sieve
+  approximation bias is not inside it.
+
+Coefficient priors and prior transfer are refused for derivatives: no mapping
+to the Riesz / local-polynomial / GAM parameterization exists.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid

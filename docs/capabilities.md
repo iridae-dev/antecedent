@@ -50,8 +50,8 @@ disclose that envelope SE omits between-atom variance pending 1.9
 calibration. Temporal PAG results retain MAG completions
 and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: Bayesian
-incomplete-class temporal cells, Bayesian
-and partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
+incomplete-class temporal cells,
+partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
 
@@ -225,8 +225,8 @@ and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 One-shot `discovery=` on response queries fails closed; discover and accept
 the structure before estimating a response.
 The list above is inventory. Derivative cells are licensed on explicit or
-accepted Frequentist DAGs at validation `none`; Bayesian and partial-graph
-derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
+accepted DAGs under Frequentist and Bayesian inference at validation `none`;
+partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
 licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
 with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
 inference with validation `none` via the same generalized-adjustment envelope
