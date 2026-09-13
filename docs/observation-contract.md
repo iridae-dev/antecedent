@@ -81,19 +81,22 @@ the contemporaneous column: the Cox/AIPW design uses Z at
 Until a pair is licensed, `compile_logical_temporal_response` refuses
 non-`Complete` with `temporal response observation pair is not licensed`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
-When bootstrap replicates are requested, observation-adjusted temporal curves
-and single Set/Shift responses report pointwise outer circular-block bootstrap
-intervals. Every replicate resamples blocks of lag-aligned outcome-time tuples
-(each carrying its own lagged conditioning and design values, so no row pairs
-values across a block junction), refits the selected/KM/Cox observation
-nuisance on them, reconstructs the pseudo-outcome, and refits every horizon.
-Replicate deviations carry the block-count `t_ν/z` and HC1 inflation.
-Observation-adjusted Sequence overlays publish no interval
-(`response.observation_sequence_band_withheld`): their only replicate reorders
-the raw series, and it measured 31–81% coverage for a nominal 95% band. The same joint replicates give a
-simultaneous band over the whole surface (support diagnostics
-`response.simultaneous_band.*`; see
+When bootstrap replicates are requested, observation-adjusted temporal curves,
+single Set/Shift responses, and Sequence overlays report outer circular-block
+bootstrap intervals. Every replicate resamples blocks of lag-aligned
+outcome-time tuples (each carrying its own lagged conditioning and design values,
+so no row pairs values across a block junction), refits the selected/KM/Cox
+observation nuisance on them, reconstructs the pseudo-outcome, and refits every
+horizon (curves, Set/Shift) or every unfolded sequential mechanism of every
+horizon (Sequence; the nuisance is refit once per lag at which the outcome enters
+the unfolded design). The pointwise band is `θ̂ ± 1.96·SE` of the replicates
+scaled by the response family's fixed-b and HC1 factors (block length
+`max(span, ceil(sqrt(n)))`; see
 [Temporal simultaneous bands](causal-responses.md#temporal-simultaneous-bands)).
+The same joint replicates give a simultaneous band over the whole surface
+(support diagnostics `response.simultaneous_band.*`). The 1.8 Sequence replicate
+reordered the raw series and measured 31–81% coverage for a nominal 95% band; it
+was replaced in 1.9 by the tuple-level refit.
 Complete-data analytic bands and Bayesian IPCW/KM/Cox bands are not substituted.
 
 

@@ -207,39 +207,58 @@ above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
 replicates are required; otherwise `response.simultaneous_band_withheld`
 explains why no band was published.
 
-- **Frequentist complete data.** Requested bootstrap replicates run a joint
-  circular-block bootstrap: each replicate draws block starts on the series time
-  axis, resamples time-aligned blocks of every horizon's lag-aligned rows (block
-  length `max(unfolded span, ceil(n^(1/3)))`), refits every horizon, and
-  recomputes the covariate averages. Replicate deviations from `θ̂` are scaled
-  by `t_ν / z` with `ν = 1.5·(rows/block − 1)` (the batch-means correction for
-  a variance estimated from few blocks) and by the HC1 factor
-  `sqrt(rows/(rows − p))`. Pointwise SEs are the (scaled)
-  replicate SD and the pointwise band is `θ̂ ± 1.96·SE`; both target the
-  population level `E[Y_h | do(A)]`. With zero replicates the pointwise band is
-  analytic (homoskedastic OLS plus the iid variance of the covariate average).
-  It treats lag-aligned rows as independent, which temporal designs rarely
-  satisfy, and no simultaneous band is published.
-- **Frequentist observation-adjusted.** For curves and single Set/Shift
-  responses, each outer replicate resamples blocks of lag-aligned outcome-time
-  tuples, refits the observation nuisance on exactly those tuples, and refits
-  every horizon on them. No replicate row pairs values across a block junction.
-  The same dispersion scaling applies. These draws give both the pointwise
-  percentile band and the simultaneous band. Observation-adjusted Sequence
-  overlays publish no band (`response.observation_sequence_band_withheld`):
-  their only available replicate reorders the raw series, which rebuilds lags
-  across block junctions, and it measured 31–81% coverage for a nominal 95%
-  band.
+The critical value is floored at the one-cell normal quantile, so the
+simultaneous band is never narrower than the pointwise band.
+
+Every Frequentist temporal response band (curves, Set/Shift/Soft, Sequence
+overlays, observation-adjusted surfaces, and TemporalCpdag/Pag completion atoms)
+uses one construction:
+
+1. a joint circular-block bootstrap of lag-aligned outcome-time tuples, with
+   block length `ℓ = max(unfolded span, ceil(sqrt(n)))`; every replicate row keeps
+   its own intact lag window, and every horizon of a replicate is refit on the
+   same calendar blocks;
+2. replicate deviations from `θ̂` scaled by the Kiefer–Vogelsang (2005) fixed-b
+   critical-value ratio for the Bartlett kernel at `b = ℓ/rows` (the correction the
+   plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
+   `sqrt(rows/(rows − p))`;
+3. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
+   simultaneous band above from the same scaled replicates.
+
+The block length is chosen for interval coverage, not for the mean-squared error
+of the variance. The circular-block variance behaves like a Bartlett-kernel
+long-run variance with bandwidth `ℓ`, and the testing-optimal Bartlett bandwidth
+grows like `n^{1/2}` (Sun, Phillips & Jin 2008). With the `n^{1/3}` rule of the
+scalar temporal effect resamplers, the kernel truncation bias left
+observation-adjusted bands under AR(1) `ρ = 0.5` residuals at 0.89–0.91 for nominal
+95%, and neither a `t_ν/z` batch-means factor nor longer blocks under that factor
+repaired it. The fixed-b factor carries the extra estimation noise of the longer
+block, so independent rows are not over-covered.
+
+- **Frequentist complete data.** Curves and single Set/Shift/Soft responses refit
+  every horizon and recompute the covariate (and, for shifts, treatment) averages
+  on each replicate. Multi-step and joint Sequence overlays refit every unfolded
+  sequential mechanism of every horizon on the resampled tuples and recompute the
+  root-node means. Both target the population level `E[Y_h | do(A)]`. With zero
+  replicates the curve / Set-Shift pointwise band is analytic (homoskedastic OLS
+  plus the iid variance of the covariate average). It treats lag-aligned rows as
+  independent, which temporal designs rarely satisfy, and no simultaneous band is
+  published; Sequence overlays publish no band without replicates.
+- **Frequentist observation-adjusted.** Each outer replicate additionally refits
+  the observation nuisance on exactly the resampled tuples and replaces the
+  outcome with the replicate pseudo-outcome: once for curves and Set/Shift, and
+  once per lag at which the outcome enters the unfolded design for Sequence
+  overlays (on the same blocks shifted to that lag). No replicate row pairs values
+  across a block junction. The raw-series replicate that 1.8 used for Sequence
+  overlays measured 31–81% coverage for a nominal 95% band and is gone.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the
   grid around the posterior mean: joint Gibbs draws for
   `estimate.temporal_observed_bayes`, and index-paired independent per-horizon
   draws (a product posterior) for `response.temporal.bayesian`.
-- **Not published.** Complete-data multi-step or joint Sequence overlays
-  (each horizon is bootstrapped or sampled separately; pointwise bands only),
-  observation-adjusted Sequence overlays (no band at all), and the class-level
-  TemporalCpdag/Pag identified set (no class band; each completion atom keeps
-  its own pointwise and simultaneous band, calibrated against that atom's own
-  probability limit).
+- **Not published.** Bayesian Sequence overlays (each horizon is sampled
+  separately; pointwise bands only) and the class-level TemporalCpdag/Pag
+  identified set (no class band; each completion atom keeps its own pointwise and
+  simultaneous band, calibrated against that atom's own probability limit).
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
