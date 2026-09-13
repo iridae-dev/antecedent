@@ -80,9 +80,14 @@ impl EffectRefit for SequentialRefitter<'_> {
         .0)
     }
 
-    /// Frequentist refits evaluate the OLS contrast on lag-aligned rows of the
-    /// original series. Bayesian refits keep the posterior-mean refit on a
-    /// resampled series (no aligned-row posterior evaluation exists).
+    /// Refits evaluate the OLS contrast on lag-aligned rows of the original series.
+    ///
+    /// For Bayesian refits under the default weakly informative isotropic prior
+    /// (multi-step prior transfer is refused) each stationary mechanism's
+    /// posterior mean is its OLS fit up to `O(κ/n)` shrinkage, so the replicate OLS
+    /// contrast is the resampling analogue of the posterior-mean refit — the same
+    /// check the single-window Bayesian path runs. An informative coefficient prior
+    /// has no aligned-row posterior-mean evaluation, and the check is not applicable.
     fn prepare_aligned(
         &self,
         data: &TabularData,
@@ -90,8 +95,11 @@ impl EffectRefit for SequentialRefitter<'_> {
     ) -> Option<
         Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>,
     > {
-        if self.bayes.is_some() {
-            return None;
+        if self.bayes.is_some_and(|bayes| bayes.prior.is_some()) {
+            return Some(Err(antecedent_validate::ValidationError::NotApplicable {
+                message: "a composed Bayesian contrast under an informative coefficient prior \
+                          has no lag-aligned posterior-mean refit",
+            }));
         }
         let mut time = self.time.clone();
         time.length = data.row_count();

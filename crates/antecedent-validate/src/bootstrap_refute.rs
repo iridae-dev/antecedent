@@ -13,7 +13,9 @@
 //! the original series (single-window adjustment, and composed refitters that
 //! expose [`crate::common::EffectRefit::prepare_aligned`]), so every row keeps its
 //! lag window, and widen the percentile interval by the Kiefer–Vogelsang fixed-b
-//! factor, matching the circular-block interval the check is about.
+//! factor, matching the circular-block interval the check is about. A composed
+//! refitter without lag-aligned evaluation is `NotApplicable`: a block bootstrap
+//! of the raw series would pair outcomes with regressors from unrelated blocks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -62,87 +64,46 @@ impl BootstrapRefute {
     fn refute_composed(
         &self,
         problem: &RefutationProblem<'_>,
-        workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        let n = problem.data.row_count();
         let temporal = problem.temporal.ok_or(ValidationError::NotApplicable {
             message: "composed bootstrap requires a temporal context",
         })?;
-        let time = temporal.time_index.ok_or(ValidationError::NotApplicable {
-            message: "composed bootstrap requires a series time index",
-        })?;
-        if let Some(aligned) =
-            problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
-        {
-            let mut aligned = aligned?;
-            let block =
-                antecedent_data::circular_block_length(aligned.structural_span, aligned.rows);
-            let boot = antecedent_estimate::row_block_bootstrap_vec(
-                aligned.rows,
-                block,
-                self.replicates,
-                BOOTSTRAP_REFUTE_STREAM,
-                ctx,
-                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
-            );
-            if boot.cancelled {
-                return Err(ValidationError::Cancelled);
-            }
-            if boot.draws.len() < 2 {
-                return Err(ValidationError::estimation_msg(
-                    "bootstrap CI coverage: fewer than two block replicates could be fit",
-                ));
-            }
-            let scale = boot.fixed_b();
-            return Ok(coverage_report(
-                problem,
-                boot.column(0),
-                self.ci_level,
-                self.replicates,
-                scale,
+        if temporal.time_index.is_none() {
+            return Err(ValidationError::NotApplicable {
+                message: "composed bootstrap requires a series time index",
+            });
+        }
+        // Rebuilding lags on a block-resampled raw series would pair, at every
+        // block junction, an outcome with regressors from an unrelated block, so a
+        // refitter without lag-aligned evaluation is not checked at all.
+        let Some(aligned) = problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
+        else {
+            return Err(ValidationError::NotApplicable {
+                message: "composed refitter has no lag-aligned evaluation; a block bootstrap \
+                          of the raw series would misalign lags at block junctions",
+            });
+        };
+        let mut aligned = aligned?;
+        let block = antecedent_data::circular_block_length(aligned.structural_span, aligned.rows);
+        let boot = antecedent_estimate::row_block_bootstrap_vec(
+            aligned.rows,
+            block,
+            self.replicates,
+            BOOTSTRAP_REFUTE_STREAM,
+            ctx,
+            |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+        );
+        if boot.cancelled {
+            return Err(ValidationError::Cancelled);
+        }
+        if boot.draws.len() < 2 {
+            return Err(ValidationError::estimation_msg(
+                "bootstrap CI coverage: fewer than two block replicates could be fit",
             ));
         }
-        // Refitters without aligned-row evaluation (Bayesian composed refits)
-        // resample the raw series in circular blocks and rebuild lags; the
-        // interval is still widened by the fixed-b factor of that block length.
-        let series =
-            antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
-        // Same block rule as the interval this refuter checks: the unfolded
-        // window (history + horizon slices) or ⌈n^{1/3}⌉, whichever is longer.
-        let length = antecedent_data::circular_block_length(
-            temporal.indexer.history() as usize + temporal.indexer.horizon() as usize,
-            n,
-        );
-        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
-        let mut indices = Vec::new();
-        let mut ates = Vec::new();
-        for _ in 0..self.replicates {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
-            let sampled = antecedent_data::resample_timeseries(
-                &series,
-                antecedent_data::ResamplingPlan::CircularBlock { length },
-                &mut rng,
-                &mut indices,
-            )?;
-            let table = antecedent_data::TabularData::new(sampled.storage().clone());
-            ates.push(
-                refit_effect(
-                    problem,
-                    &table,
-                    problem.estimand,
-                    &[],
-                    &self.estimator,
-                    workspace,
-                    ctx,
-                )?
-                .ate,
-            );
-        }
-        let scale = antecedent_estimate::fixed_b_scale(length, n);
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, scale))
+        let scale = boot.fixed_b();
+        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale))
     }
 
     /// One-series temporal adjustment: circular blocks of consecutive lag-aligned
@@ -243,7 +204,7 @@ impl BootstrapRefute {
             }
         }
         if problem.effect_refit.is_some() {
-            return self.refute_composed(problem, workspace, ctx);
+            return self.refute_composed(problem, ctx);
         }
         if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
             if let Some(time) = temporal.time_index {
