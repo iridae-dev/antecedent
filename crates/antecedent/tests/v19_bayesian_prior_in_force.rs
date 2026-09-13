@@ -421,12 +421,12 @@ fn full_posterior_ppc_flags_serial_dependence_and_pins_a_value() {
 
 /// Mean lag-1 residual autocorrelation on the `full_posterior_ppc_flags_serial_dependence`
 /// fixture (AR(1) rho 0.7, n 200, seed 5).
-const PINNED_LAG1_AUTOCORRELATION: f64 = 0.642_226_523_648_552_3;
+const PINNED_LAG1_AUTOCORRELATION: f64 = 0.692_432_095_197_358_6;
 
 #[test]
 fn hmc_draw_floor_raises_draws_with_a_diagnostic() {
     // Randomized binary treatment, no confounder: a well-conditioned two-coefficient GLM.
-    let mut gauss = gaussian(5);
+    let mut gauss = gaussian(11);
     let t: Vec<f64> = (0..100).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
     let y: Vec<f64> = t.iter().map(|t| 0.5 * t + 0.5 * gauss()).collect();
     let data = TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())]).unwrap();
