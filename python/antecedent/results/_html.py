@@ -215,7 +215,12 @@ def _validation_repr_html(self: ValidationView) -> str:
 def _posterior_repr_html(self: PosteriorView) -> str:
     try:
         if self.effect_mean is None:
-            body = '<div class="antecedent-ar-muted">No posterior computed.</div>'
+            message = (
+                f"Posterior computed with {self.n_draws} draws; scalar effect unavailable."
+                if self.n_draws is not None
+                else "No posterior computed."
+            )
+            body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
             return f'{_STYLE}<div class="antecedent-ar-card">{body}</div>'
         callout = _unidentified_callout_html(self.unidentified_mass)
         row = (

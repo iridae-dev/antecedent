@@ -246,6 +246,8 @@ pub fn estimate_static_mediation_bayesian(
         adaptive_draws: antecedent_core::AdaptiveDrawBudget::disabled(),
     };
     let mut hydrated = Vec::new();
+    let mut mechanism_assumptions = AssumptionSet::new();
+    let mut bound_targets = std::collections::HashSet::new();
     for &node in &order {
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::unsupported("static mediation cancelled"));
@@ -323,6 +325,7 @@ pub fn estimate_static_mediation_bayesian(
             )? {
                 node_est.prior = Some(prior);
                 hydrated.push(name_of(VariableId::from_raw(i as u32)));
+                bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
             }
         }
         let posterior = node_est.fit(
@@ -331,11 +334,32 @@ pub fn estimate_static_mediation_bayesian(
             &mut ws,
             &mechanism_ctx,
         )?;
+        // Retain the actual coefficient and residual priors, scoped to the
+        // mechanism whose likelihood consumed them (as in temporal composition).
+        mechanism_assumptions.entries.extend(posterior.assumptions.entries.iter().cloned().map(
+            |mut record| {
+                record.scope = AssumptionScope::Variables {
+                    variables: Arc::from([VariableId::from_raw(i as u32)]),
+                };
+                record
+            },
+        ));
         let mut parent_draws = Vec::with_capacity(parents.len());
         for j in 0..parents.len() {
             parent_draws.push(coefficient_draws(&posterior, j + 1)?);
         }
         mechanisms[i] = Some((parents.to_vec(), parent_draws));
+    }
+    if let Some(MediationPriorBridge {
+        mapping: HydrateMapping::NamedParameters { pairs }, ..
+    }) = bridge
+    {
+        if let Some((_, target)) = pairs.iter().find(|(_, target)| !bound_targets.contains(target))
+        {
+            return Err(EstimationError::stats_msg(format!(
+                "mapped prior target `{target}` did not bind any mediation mechanism"
+            )));
+        }
     }
     if bridge.is_some() && hydrated.is_empty() {
         return Err(EstimationError::unsupported(
@@ -383,11 +407,17 @@ pub fn estimate_static_mediation_bayesian(
     .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     let summaries = draws.summarize();
     let mut posterior_assumptions = point.effect.assumptions.clone();
+    posterior_assumptions.entries.extend(mechanism_assumptions.entries);
     posterior_assumptions.push(AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from("mediation.gaussian_product"),
             description: Arc::from(if hydrated.is_empty() {
                 "Independent Gaussian linear mechanism posteriors composed into natural effects; no treatment-mediator interaction; empirical complete rows fixed".to_string()
+            } else if !matches!(bridge, Some(MediationPriorBridge { mapping: HydrateMapping::EffectFunctional { .. }, .. })) {
+                format!(
+                    "Independent Gaussian linear mechanism posteriors composed into natural effects; declared coefficient mapping hydrated onto mechanisms [{}]; unbound coefficients and mechanisms keep isotropic prior_scale",
+                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
+                )
             } else {
                 let implied = match bridge {
                     Some(MediationPriorBridge {
@@ -471,9 +501,25 @@ fn hydrate_mechanism_prior(
         HydrateMapping::NamedParameters { pairs } => {
             let names: std::collections::HashSet<&str> =
                 coef_names.iter().map(std::convert::AsRef::as_ref).collect();
-            if !pairs.iter().any(|(_, target)| names.contains(target.as_str())) {
+            let local_pairs: Vec<_> = pairs
+                .iter()
+                .filter(|(_, target)| names.contains(target.as_str()))
+                .cloned()
+                .collect();
+            if local_pairs.is_empty() {
                 return Ok(None);
             }
+            return hydrate_prior(
+                &HydrateMapping::NamedParameters { pairs: local_pairs },
+                bridge.quantities,
+                bridge.mean,
+                bridge.sd,
+                &baseline,
+                coef_names,
+                treatment_col,
+                bridge.source_contrast,
+            )
+            .map(Some);
         }
         HydrateMapping::IdenticalCoefficientSubspace | HydrateMapping::EffectFunctional { .. } => {}
     }

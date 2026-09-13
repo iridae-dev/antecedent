@@ -1540,3 +1540,22 @@ impl super::Study {
 pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
     completed >= 2 && completed >= attempted.saturating_sub(completed)
 }
+
+// Aggregation consumes only effect draws. Keep each contributing model's
+// prior/estimation restrictions on the resulting mixture as well.
+pub(super) fn retain_envelope_assumptions(posterior: &mut CausalPosterior, atoms: &[EnvelopeAtomFit]) {
+    for atom in atoms {
+        posterior.assumptions.entries.extend(atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
+            match &mut record.assumption {
+                antecedent_core::Assumption::PriorRestriction(prior) => {
+                    prior.description = Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+                }
+                antecedent_core::Assumption::ParametricRestriction(model) => {
+                    model.description = Arc::from(format!("graph atom {}: {}", atom.key, model.description));
+                }
+                _ => {}
+            }
+            record
+        }));
+    }
+}

@@ -385,6 +385,8 @@ fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
             converged: meta.converged,
             hessian_condition: meta.hessian_condition,
             quantity_names: meta.quantities.iter().map(quantity_wire_name).collect(),
+            treatment_contrast: meta.treatment_contrast,
+            quantity_schema: Some(meta.quantities),
         })
     })
 }
@@ -393,21 +395,26 @@ fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
 #[pyfunction]
 fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
-        let quantities: Vec<PosteriorQuantityWire> = artifact
-            .quantity_names
-            .iter()
-            .map(|name| {
-                if name == "residual_variance" {
-                    PosteriorQuantityWire::ResidualVariance
-                } else if name.starts_with("coef_") {
-                    let index =
-                        name.strip_prefix("coef_").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
-                    PosteriorQuantityWire::Coefficient { index, name: None }
-                } else {
-                    PosteriorQuantityWire::Effect { name: name.clone() }
-                }
-            })
-            .collect();
+        let quantities: Vec<PosteriorQuantityWire> =
+            artifact.quantity_schema.clone().unwrap_or_else(|| {
+                artifact
+                    .quantity_names
+                    .iter()
+                    .map(|name| {
+                        if name == "residual_variance" {
+                            PosteriorQuantityWire::ResidualVariance
+                        } else if name.starts_with("coef_") {
+                            let index = name
+                                .strip_prefix("coef_")
+                                .and_then(|s| s.parse::<u32>().ok())
+                                .unwrap_or(0);
+                            PosteriorQuantityWire::Coefficient { index, name: None }
+                        } else {
+                            PosteriorQuantityWire::Effect { name: name.clone() }
+                        }
+                    })
+                    .collect()
+            });
         // Artifacts built via `PosteriorArtifact.from_moments` (no draws) round-trip as
         // summary-only: an empty draws payload signals `draws_encoding = "none"` rather
         // than a (nonsensical) zero-length full-draws section.
@@ -426,7 +433,7 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
             converged: artifact.converged,
             hessian_condition: artifact.hessian_condition,
             draws_encoding: draws_encoding.into(),
-            treatment_contrast: None,
+            treatment_contrast: artifact.treatment_contrast,
         };
         let art = encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION)
             .map_err(py_err)?;

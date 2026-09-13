@@ -55,11 +55,14 @@ pub struct DistributionAtom {
 /// Estimated interventional distribution P(Y | do(X)[, Z]).
 #[derive(Clone, Debug)]
 pub struct InterventionalDistributionEstimate {
-    /// Probability atoms over the outcome support.
+    /// Probability atoms over the outcome support. Bayesian estimates publish
+    /// posterior mean probabilities, aligned with the posterior atom columns.
     pub atoms: Arc<[DistributionAtom]>,
-    /// Interventional mean of the first numeric outcome when defined; otherwise NaN.
+    /// Interventional mean for one numeric outcome and one conditioning assignment;
+    /// otherwise NaN.
     pub mean: f64,
-    /// Analytic SE is not defined for the discrete plug-in (multinomial delta-method out of scope).
+    /// Posterior SD of the mean in Bayesian mode. Analytic SE is not defined for
+    /// the frequentist discrete plug-in (multinomial delta-method out of scope).
     pub se_analytic: f64,
     /// Bootstrap SE of the interventional mean when requested.
     pub se_bootstrap: Option<f64>,
@@ -394,9 +397,10 @@ impl FunctionalDistribution {
 
     /// Bayesian-bootstrap posterior over the identified interventional
     /// distribution: all CPT factors share one Rubin Dirichlet(1, ..., 1)
-    /// row-law draw. Published atoms are the empirical point-estimate law;
-    /// the scalar posterior is E[functional(p)] under that row-weight
-    /// posterior.
+    /// row-law draw. Published atoms are posterior mean probabilities, with
+    /// joint draws stored as `probability_atom_{i}` scalars in atom order.
+    /// A scalar mean effect is included only for a single numeric outcome at
+    /// one conditioning assignment; joint and conditional tables need no scalar.
     ///
     /// # Errors
     ///
@@ -418,9 +422,20 @@ impl FunctionalDistribution {
             ));
         }
         let draws = crate::require_bayesian_n_draws(n_draws)?;
-        let mut values = Vec::with_capacity(draws);
+        let has_mean = point.mean.is_finite();
+        let atom_offset = usize::from(has_mean);
+        let mut quantities = Vec::with_capacity(atom_offset + point.atoms.len());
+        if has_mean {
+            quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("functional") });
+        }
+        quantities.extend((0..point.atoms.len()).map(|i| PosteriorQuantityKind::Scalar {
+            name: Arc::from(format!("probability_atom_{i}")),
+        }));
+        let mut values = vec![0.0; draws * quantities.len()];
         let mut rng = ctx.rng.stream(0xF01E_u64);
-        for _ in 0..draws {
+        let mut draw_prepared = prepared.clone();
+        let mut draw_ws = FunctionalDistributionWorkspace::default();
+        for draw in 0..draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("functional Bayesian cancelled"));
             }
@@ -431,26 +446,48 @@ impl FunctionalDistribution {
                 &prepared.bootstrap_signatures,
                 &mut rng,
             )?;
-            let mut prep = prepared.clone();
-            prep.provider = provider;
-            let mut draw_ws = FunctionalDistributionWorkspace::default();
-            let est = self.estimate_point(&prep, conditioning_values, &mut draw_ws)?;
-            if !est.mean.is_finite() {
-                return Err(EstimationError::stats_msg("functional Bayesian draw was non-finite"));
+            draw_prepared.provider = provider;
+            let est = self.estimate_point(&draw_prepared, conditioning_values, &mut draw_ws)?;
+            if has_mean {
+                if !est.mean.is_finite() {
+                    return Err(EstimationError::stats_msg(
+                        "functional Bayesian mean was non-finite",
+                    ));
+                }
+                values[draw] = est.mean;
             }
-            values.push(est.mean);
+            if est.atoms.len() != point.atoms.len() {
+                return Err(EstimationError::stats_msg("functional Bayesian atom support changed"));
+            }
+            for (i, (atom, expected)) in est.atoms.iter().zip(point.atoms.iter()).enumerate() {
+                if atom.outcomes != expected.outcomes
+                    || atom.conditioning != expected.conditioning
+                    || !atom.probability.is_finite()
+                {
+                    return Err(EstimationError::stats_msg("functional Bayesian atom was invalid"));
+                }
+                values[(atom_offset + i) * draws + draw] = atom.probability;
+            }
         }
-        let posterior = functional_posterior(values, prepared.assumptions.clone(), identification)?;
+        let draws = PosteriorDraws::from_column_major(
+            PosteriorSchema { quantities: Arc::from(quantities) },
+            draws,
+            Arc::<[f64]>::from(values),
+        )
+        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+        let posterior =
+            functional_posterior_from_draws(draws, prepared.assumptions.clone(), identification);
         let mut out = point;
-        let eq = posterior.effect_column().ok_or_else(|| {
-            EstimationError::stats_msg("functional Bayesian posterior missing effect column")
-        })?;
         out.assumptions = posterior.assumptions.clone();
-        // Scalar uncertainty is E[functional(p)]. Atoms stay the point-estimate
-        // law so they are one coherent distribution, not a Jensen-incoherent
-        // coordinatewise average of cells.
-        out.mean = posterior.summaries.mean[eq];
-        out.se_analytic = posterior.summaries.sd[eq];
+        // Expectation is linear in the final probability table: averaging its
+        // cells preserves normalization and agrees with the scalar mean draws.
+        for (i, atom) in Arc::make_mut(&mut out.atoms).iter_mut().enumerate() {
+            atom.probability = posterior.summaries.mean[atom_offset + i];
+        }
+        if has_mean {
+            out.mean = posterior.summaries.mean[0];
+            out.se_analytic = posterior.summaries.sd[0];
+        }
         Ok((out, posterior))
     }
 }
@@ -872,9 +909,23 @@ fn unidentified_mass_from_status(status: IdentificationStatus) -> f64 {
 
 fn functional_posterior(
     values: Vec<f64>,
-    mut assumptions: AssumptionSet,
+    assumptions: AssumptionSet,
     identification: IdentificationStatus,
 ) -> Result<crate::CausalPosterior, EstimationError> {
+    let n = values.len();
+    let schema = PosteriorSchema {
+        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("functional") }]),
+    };
+    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
+        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    Ok(functional_posterior_from_draws(draws, assumptions, identification))
+}
+
+fn functional_posterior_from_draws(
+    draws: PosteriorDraws,
+    mut assumptions: AssumptionSet,
+    identification: IdentificationStatus,
+) -> crate::CausalPosterior {
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("functional.empirical_support_prior"),
@@ -884,14 +935,8 @@ fn functional_posterior(
         scope: antecedent_core::AssumptionScope::Estimation,
         status: antecedent_core::AssumptionStatus::Declared,
     });
-    let n = values.len();
-    let schema = PosteriorSchema {
-        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("functional") }]),
-    };
-    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     let summaries = draws.summarize();
-    Ok(crate::CausalPosterior {
+    crate::CausalPosterior {
         draws,
         summaries,
         identification,
@@ -902,7 +947,7 @@ fn functional_posterior(
         unidentified_mass: unidentified_mass_from_status(identification),
         early_stopped: false,
         treatment_contrast: None,
-    })
+    }
 }
 
 fn provider_from_columns(

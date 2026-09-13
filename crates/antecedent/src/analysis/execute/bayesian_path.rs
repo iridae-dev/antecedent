@@ -319,6 +319,7 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -702,6 +703,7 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -940,7 +942,7 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "identified_mass={total_w}, unidentified_mass={unidentified_mass}, atoms={}",
+                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, atoms={}",
                 refute_atoms.len()
             ),
         ));

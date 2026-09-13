@@ -249,37 +249,76 @@ fn distribution_bayesian_known_truth() {
     assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.08);
     let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
     assert!((mass - 1.0).abs() < 0.05, "bayesian atoms must be a coherent law, mass={mass}");
-    let freq = Study::tabular(data.clone())
-        .graph({
+    let posterior = result.posterior.as_ref().unwrap();
+    let atom_mean: f64 =
+        dist.atoms.iter().map(|a| a.probability * a.outcomes[0].1.as_f64().unwrap()).sum();
+    assert!((dist.mean - atom_mean).abs() < 1e-12);
+    assert_eq!(posterior.draws.n_quantities(), dist.atoms.len() + 1);
+    for draw in 0..posterior.draws.n_draws {
+        let p0 = posterior.draws.column(1).unwrap()[draw];
+        let p1 = posterior.draws.column(2).unwrap()[draw];
+        assert!((p0 + p1 - 1.0).abs() < 1e-12);
+        assert!((p1 - posterior.draws.column(0).unwrap()[draw]).abs() < 1e-12);
+    }
+
+    // A distribution need not have a scalar mean: the same licensed path
+    // must produce joint probability draws for joint outcomes and IDC tables.
+    for conditional in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
             let mut dag = Dag::with_variables(3);
             dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
             dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
             dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-            dag
-        })
-        .query(CausalQuery::Distribution(InterventionalDistributionQuery::new(
-            VariableId::from_raw(1),
-            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
-        )))
-        .inference(InferenceMode::Frequentist)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap()
-        .estimate(&data, &ctx)
-        .unwrap();
-    let freq_atoms = &freq.distribution.as_ref().unwrap().atoms;
-    assert_eq!(dist.atoms.len(), freq_atoms.len());
-    for (bayes_atom, freq_atom) in dist.atoms.iter().zip(freq_atoms.iter()) {
-        assert!(
-            (bayes_atom.probability - freq_atom.probability).abs() < 1e-12,
-            "Bayesian atoms must be the point-estimate law, not averaged cells: bayes={} freq={}",
-            bayes_atom.probability,
-            freq_atom.probability
-        );
+            let query = InterventionalDistributionQuery::new(
+                VariableId::from_raw(1),
+                [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+            );
+            let query = if conditional {
+                query.with_conditioning(Arc::from([VariableId::from_raw(2)]))
+            } else {
+                query.with_outcomes(Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]))
+            };
+            let result = Study::tabular(data.clone())
+                .graph(dag)
+                .query(CausalQuery::Distribution(query))
+                .inference(bayes())
+                .refute(suite)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate(&data, &ctx)
+                .unwrap();
+            let dist = result.distribution.as_ref().unwrap();
+            let posterior = result.posterior.as_ref().unwrap();
+            assert!(dist.mean.is_nan());
+            assert!(posterior.effect_column().is_none());
+            assert_eq!(posterior.draws.n_quantities(), dist.atoms.len());
+            for (i, atom) in dist.atoms.iter().enumerate() {
+                assert_eq!(atom.probability, posterior.summaries.mean[i]);
+                let group: Vec<_> = dist
+                    .atoms
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, a)| a.conditioning == atom.conditioning)
+                    .map(|(j, _)| j)
+                    .collect();
+                for draw in 0..posterior.draws.n_draws {
+                    let mass: f64 =
+                        group.iter().map(|&j| posterior.draws.column(j).unwrap()[draw]).sum();
+                    assert!((mass - 1.0).abs() < 1e-12);
+                }
+            }
+            if suite != RefuteSuite::None {
+                assert!(
+                    result
+                        .refutations
+                        .iter()
+                        .any(|r| r.refuter.as_ref() == "distribution.normalization")
+                );
+            }
+        }
     }
-    assert!(result.posterior.is_some());
 }
 
 #[test]
@@ -499,6 +538,12 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
         freq.diagnostics.iter().any(|d| d.message.contains("unidentified_mass=0.2")),
         "Frequentist mixture must publish the unidentified mass"
     );
+    assert!(
+        bayes.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, antecedent_core::Assumption::PriorRestriction(_))
+        }),
+        "graph mixtures must retain component priors"
+    );
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
     ))
@@ -671,6 +716,59 @@ fn static_mediation_mapped_prior_hydrates_mechanisms() {
         "source ATE {source_ate} must be the Δ-scaled NDE prior location"
     );
     assert_eq!(pin["compatibility_filter"].as_str().unwrap(), "outcome-mechanism ATE/Δ hydrate");
+    let mapping = antecedent_estimate::HydrateMapping::NamedParameters {
+        pairs: vec![("slope_t".into(), "coef_a".into()), ("slope_m".into(), "coef_m".into())],
+    };
+    let quantities = [
+        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") },
+        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_m") },
+    ];
+    let bridge = antecedent_estimate::MediationPriorBridge {
+        mapping: &mapping,
+        quantities: &quantities,
+        mean: &[3.0, 4.0],
+        sd: &[0.2, 0.3],
+        source_contrast: None,
+    };
+    let estimator =
+        antecedent_estimate::BayesianGComputationAte { n_draws: 64, ..Default::default() };
+    let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+        &data,
+        &dag,
+        &query,
+        antecedent_core::AssumptionSet::default(),
+        &[],
+        &estimator,
+        source.identification.status,
+        Some(bridge),
+        &ctx,
+    )
+    .unwrap();
+    for node in [1, 2] {
+        assert!(posterior.assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, antecedent_core::Assumption::PriorRestriction(prior)
+                if prior.id.as_ref() == "external_named_prior")
+                && matches!(&record.scope, antecedent_core::AssumptionScope::Variables { variables }
+                    if variables.as_ref() == [VariableId::from_raw(node)])
+        }), "mapped prior must survive composition for mechanism {node}");
+    }
+    assert!(!format!("{:?}", posterior.assumptions).contains("mapped ATE/Δ"));
+    let bad_mapping = antecedent_estimate::HydrateMapping::NamedParameters {
+        pairs: vec![("slope_t".into(), "coef_a".into()), ("slope_m".into(), "typo".into())],
+    };
+    let err = antecedent_estimate::estimate_static_mediation_bayesian(
+        &data,
+        &dag,
+        &query,
+        antecedent_core::AssumptionSet::default(),
+        &[],
+        &estimator,
+        source.identification.status,
+        Some(antecedent_estimate::MediationPriorBridge { mapping: &bad_mapping, ..bridge }),
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("typo"));
 }
 
 #[test]
@@ -686,6 +784,24 @@ fn bayesian_does_not_rewrite_functional_estimators() {
     let plan = study.compile(&ExecutionContext::for_tests(1)).unwrap();
     assert_eq!(plan.logical.record.estimator.as_deref(), Some("functional.effect"));
     assert_ne!(plan.logical.record.estimator.as_deref(), Some("bayesian.gcomp"));
+    for estimator_first in [false, true] {
+        let (data, dag, query) = path_fixture();
+        let builder = Study::tabular(data).graph(dag).inference(bayes()).refute(RefuteSuite::None);
+        let builder = if estimator_first {
+            builder
+                .estimator(antecedent::EstimatorId::BayesianGcomp)
+                .query(CausalQuery::PathSpecific(query))
+        } else {
+            builder
+                .query(CausalQuery::PathSpecific(query))
+                .estimator(antecedent::EstimatorId::BayesianGcomp)
+        };
+        let study = builder.build().unwrap();
+        assert!(
+            study.compile(&ExecutionContext::for_tests(1)).is_err(),
+            "an explicit incompatible estimator must not be silently replaced"
+        );
+    }
 }
 
 #[test]

@@ -444,7 +444,9 @@ impl StudyBuilder {
     #[must_use]
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
-        if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
+        if self.estimator_spec.is_none()
+            && matches!(self.estimator, Some(EstimatorId::BayesianGcomp))
+        {
             match &q {
                 CausalQuery::AverageEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
