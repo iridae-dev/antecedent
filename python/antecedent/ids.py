@@ -38,6 +38,7 @@ class Estimator(StrEnum):
     RD_SHARP = "rd.sharp"
     BAYESIAN_GCOMP = "bayesian.gcomp"
     TEMPORAL_LINEAR_ADJUSTMENT = "temporal.linear.adjustment"
+    BAYESIAN_TEMPORAL_GCOMP = "bayesian.temporal.gcomp"
     FUNCTIONAL_DISTRIBUTION = "functional.distribution"
     FUNCTIONAL_EFFECT = "functional.effect"
     BAYESIAN_CONDITIONAL = "conditional.bayesian"

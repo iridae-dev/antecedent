@@ -1774,11 +1774,14 @@ fn analysis_result_from_run(
             })
             .collect(),
     );
-    let estimator_id = if result.posterior.is_some() {
-        "bayesian.temporal.gcomp".to_string()
-    } else {
-        result.logical_plan.estimator.as_deref().unwrap_or("temporal.linear.adjustment").to_string()
-    };
+    // The compiled plan names the executed estimator; Bayesian temporal fits
+    // record `bayesian.temporal.gcomp` there, so no Python-side relabel is needed.
+    let estimator_id = result
+        .logical_plan
+        .estimator
+        .as_deref()
+        .unwrap_or(antecedent::EstimatorId::TemporalLinearAdjustment.as_str())
+        .to_string();
     let (
         posterior_effect_mean,
         posterior_effect_sd,

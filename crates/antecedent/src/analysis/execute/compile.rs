@@ -155,6 +155,9 @@ impl super::Study {
                 {
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+                } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
                 }
                 Ok(plan)
             }
@@ -224,14 +227,19 @@ impl super::Study {
                     .unit(0)
                     .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
                     .series;
-                compile_logical_temporal_effect_classified(
+                let mut plan = compile_logical_temporal_effect_classified(
                     data,
                     graph,
                     q,
                     self.split,
                     false,
                     DataClassification::Panel,
-                )
+                )?;
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    plan.record.estimator =
+                        Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+                }
+                Ok(plan)
             }
             (Some(AnalysisRoute::StaticAte), GraphClass::Pag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
@@ -639,6 +647,8 @@ impl super::Study {
         {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
         Ok(logical)

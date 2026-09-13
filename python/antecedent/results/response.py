@@ -79,7 +79,7 @@ class ResponseEnvelopeView:
     mass_scope: Literal["full_class", "examined_completions"] = "full_class"
     weight_basis: Literal[
         "posterior_probability", "completion_enumeration", "caller_supplied_class_prior"
-    ] = ("completion_enumeration")
+    ] = "completion_enumeration"
     atom_keys: Sequence[int] = ()
     atom_weights: Sequence[float] = ()
     atom_statuses: Sequence[str] = ()
