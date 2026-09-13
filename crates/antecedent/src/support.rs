@@ -705,15 +705,8 @@ mod tests {
     }
 
     #[test]
-    fn closed_v13_dag_remainders_are_named() {
+    fn remaining_closed_dag_cells_are_named() {
         let cases = [
-            (
-                "PointDerivative",
-                "explicit",
-                "Bayesian",
-                "none",
-                "Licensed derivative cells are Frequentist",
-            ),
             (
                 "AverageDerivative",
                 "graph_posterior",
@@ -722,25 +715,11 @@ mod tests {
                 "Graph-posterior derivative mixtures are not staged",
             ),
             (
-                "MediationEffect",
-                "explicit",
-                "Bayesian",
-                "none",
-                "Static natural mediation is Frequentist",
-            ),
-            (
                 "Counterfactual",
                 "accepted",
                 "Frequentist",
                 "none",
                 "Staged counterfactuals require an explicit Dag",
-            ),
-            (
-                "Counterfactual",
-                "explicit",
-                "Bayesian",
-                "none",
-                "Frequentist abduction-action-prediction",
             ),
             (
                 "Counterfactual",
@@ -961,23 +940,13 @@ mod tests {
             assert_eq!(classify(c), CellStatus::Licensed, "{validation}");
             refuse_if_not_applicable(c).unwrap();
         }
-        let status =
-            classify(cell("ConditionalEffect", "Dag", "graph_posterior", "Frequentist", "none"));
-        assert_eq!(status, CellStatus::Refused);
-        let err = refuse_if_not_applicable(cell(
-            "ConditionalEffect",
-            "Dag",
-            "graph_posterior",
-            "Frequentist",
-            "none",
-        ))
-        .unwrap_err();
-        assert!(
-            err.to_string().starts_with(
-                "refused: Frequentist graph-posterior mixing on DAG atoms is licensed"
-            ),
-            "{err}"
-        );
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["none", "cheap", "full"] {
+                let c = cell("ConditionalEffect", "Dag", "graph_posterior", inference, validation);
+                assert_eq!(classify(c), CellStatus::Licensed);
+                refuse_if_not_applicable(c).unwrap();
+            }
+        }
     }
 
     /// End-to-end: `Study::build` accepts the licensed Frequentist graph-posterior ATE cell.
@@ -1404,12 +1373,9 @@ mod tests {
         assert_eq!(trace.support_status.as_deref(), Some("licensed"));
     }
 
-    /// End-to-end: a now-enforced refused cell (`AverageEffect` on a bidirected
-    /// `Admg` under Bayesian inference — verified dead: `parity/support_closed.toml`
-    /// closes it, never returned a number before this change either) reports the
-    /// stable reason-backed refusal, not a free-form `Unsupported`.
+    /// A licensed ADMG Bayesian cell still requires identification of its graph.
     #[test]
-    fn build_refuses_admg_bayesian_with_closed_rule_error() {
+    fn admg_bayesian_bow_requires_identification() {
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1424,12 +1390,11 @@ mod tests {
             .inference(InferenceMode::Bayesian(crate::inference::BayesianConfig::conjugate()))
             .refute(RefuteSuite::None)
             .build()
+            .expect("ADMG Bayesian ATE is licensed")
+            .run(&antecedent_core::ExecutionContext::for_tests(1))
             .unwrap_err();
-        assert!(matches!(err, CausalError::Support { id: SupportRefusal::Refused, .. }), "{err}");
-        assert!(
-            err.to_string().starts_with("refused: General ID"),
-            "expected the reason-backed refusal message, got: {err}"
-        );
+        assert!(!matches!(err, CausalError::Support { .. }), "{err}");
+        assert!(err.to_string().to_lowercase().contains("identif"), "{err}");
     }
 
     #[test]
