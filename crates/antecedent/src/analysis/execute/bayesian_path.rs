@@ -71,6 +71,13 @@ impl super::Study {
         if let Some(summary) = conflict_summary {
             posterior = with_conflict_summary(posterior, summary);
         }
+        let likelihood =
+            if est.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+                antecedent_prob::BayesLikelihood::GaussianIdentity
+            } else {
+                est.likelihood
+            };
+        posterior.assumptions.push(gcomp_outcome_model_assumption(likelihood, conditional));
         let estimate = effect_from_posterior(&posterior)?;
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
@@ -2535,6 +2542,51 @@ fn compose_temporal_mediation_for_atom(
     use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
     compose_temporal_mediation(&posts[0], &posts[1], &atom.query, atom.composed.identification)
         .map_err(CausalError::from)
+}
+
+/// Declared outcome model behind a static `bayesian.gcomp` / conditional
+/// posterior (R-17). The credible interval is for the treatment contrast of
+/// that parametric regression; it is not a nonparametric interval for the
+/// causal effect when the outcome mean is nonlinear in the adjustment set or
+/// carries treatment × covariate interactions the design does not include
+/// (`tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe`).
+fn gcomp_outcome_model_assumption(
+    likelihood: antecedent_prob::BayesLikelihood,
+    conditional: bool,
+) -> antecedent_core::AssumptionRecord {
+    let family = match likelihood {
+        antecedent_prob::BayesLikelihood::GaussianIdentity => {
+            "Gaussian identity-link outcome regression with homoskedastic residuals"
+        }
+        antecedent_prob::BayesLikelihood::BernoulliLogit => "Bernoulli logit outcome regression",
+        antecedent_prob::BayesLikelihood::BernoulliProbit => "Bernoulli probit outcome regression",
+        antecedent_prob::BayesLikelihood::PoissonLog => "Poisson log-link outcome regression",
+    };
+    let design = if conditional {
+        "linear in the treatment, the declared modifier, their product, and each adjustment \
+         column"
+    } else {
+        "linear in the treatment and each adjustment column, with no treatment × covariate \
+         interaction"
+    };
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("bayesian.gcomp.linear_gaussian_outcome"),
+                description: Arc::from(format!(
+                    "{family}, {design}; the posterior and its credible interval are for the \
+                     treatment contrast of this model. A nonlinear covariate term or an \
+                     unmodelled treatment × covariate interaction biases that contrast and \
+                     the interval does not cover the causal effect"
+                )),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("bayesian.gcomp"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
 }
 
 pub(super) fn envelope_draws_from_posterior(

@@ -426,6 +426,45 @@ impl super::Study {
         }))
     }
 
+    /// Refuse a path-specific plug-in when some directed treatment → outcome path
+    /// falls outside the requested path set.
+    ///
+    /// `path_specific.natural` deletes the complementary treatment out-edges and
+    /// runs general ID on the surgical graph. Its factorization conditions the
+    /// outcome on the treatment as a predecessor, so `functional.effect` binds the
+    /// treatment to the active level in every factor and evaluates the *total*
+    /// effect, not the path-restricted natural effect (an edge g-formula would set
+    /// the complementary edges to the control level). With no complementary path
+    /// the two coincide, which is the only case evaluated here.
+    fn refuse_path_specific_with_complementary_paths(
+        graph: &Dag,
+        query: &antecedent_core::PathSpecificEffectQuery,
+    ) -> Result<(), CausalError> {
+        if query.path_nodes.is_empty() {
+            return Ok(());
+        }
+        let (paths, truncated) = graph.directed_paths_with_budget(
+            DenseNodeId::from_raw(query.treatment.raw()),
+            DenseNodeId::from_raw(query.outcome.raw()),
+            query.max_paths,
+            query.max_len,
+        )?;
+        let on_requested_paths = |path: &Vec<DenseNodeId>| {
+            let intermediates = &path[1..path.len().saturating_sub(1)];
+            query.path_nodes.iter().all(|node| intermediates.iter().any(|n| n.raw() == node.raw()))
+        };
+        if truncated || !paths.iter().all(on_requested_paths) {
+            return Err(CausalError::Unsupported {
+                message: "path-specific plug-in refused: a directed treatment-to-outcome path \
+                          avoids the requested path nodes, and the surgical-graph \
+                          functional.effect evaluates the total effect rather than the \
+                          path-restricted natural effect in that case (edge g-formula not yet \
+                          implemented)",
+            });
+        }
+        Ok(())
+    }
+
     /// Identify + plug-in estimate for a path-specific natural effect.
     pub(super) fn execute_path_specific(
         &self,
@@ -461,6 +500,7 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
 
+        Self::refuse_path_specific_with_complementary_paths(graph, query)?;
         let mut extra = vec![query.treatment, query.outcome];
         extra.extend(query.path_nodes.iter().copied());
         let (estimate, posterior) =
@@ -619,6 +659,7 @@ impl super::Study {
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
+        est.se_kind = rd.se_kind;
         let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
         let estimate = est
@@ -720,6 +761,8 @@ impl super::Study {
         )? {
             extra_diagnostics.push(diagnostic);
         }
+        extra_diagnostics
+            .extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1002,6 +1045,7 @@ impl super::Study {
         )? {
             diagnostics.push(diagnostic);
         }
+        diagnostics.extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             data,
@@ -1113,6 +1157,9 @@ impl super::Study {
             )
         };
         let estimate = mediation.effect.clone();
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let (cancelled, early_stopped) =
+            (estimate.bootstrap_cancelled, estimate.bootstrap_early_stopped);
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -1140,12 +1187,9 @@ impl super::Study {
             distribution: None,
             mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: posterior
-                .is_none()
-                .then_some(self.bootstrap_replicates)
-                .filter(|&n| n > 1),
-            cancelled: false,
-            early_stopped: false,
+            bootstrap_replicates_ok: bootstrap_ok,
+            cancelled,
+            early_stopped,
             extras: IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
