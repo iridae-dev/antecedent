@@ -1680,13 +1680,17 @@ pub(super) fn mix_support_reports(
         }
         warnings.extend(report.warnings.iter().cloned());
     }
-    antecedent_core::SupportReport {
+    let mut mixed = antecedent_core::SupportReport {
         status,
         query_region: first.query_region.clone(),
         diagnostics: first.diagnostics.clone(),
         warnings,
         point_status: first.point_status.clone(),
-    }
+    };
+    // A simultaneous band belongs to one atom's surface; it stays on that atom and
+    // never describes the mixed class report.
+    antecedent_estimate::clear_simultaneous_band(&mut mixed);
+    mixed
 }
 
 fn support_rank(status: antecedent_core::SupportStatus) -> u8 {

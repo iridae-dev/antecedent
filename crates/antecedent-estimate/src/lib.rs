@@ -142,8 +142,12 @@ pub use temporal_mediation::{
     TemporalMediationIdentifiedSet, TemporalMediationSlice, TemporalMediationUncertainty,
 };
 pub use temporal_response::{
-    TemporalInterventionPlan, TemporalResponseEstimator, plan_from_response_query,
-    plan_temporal_intervention,
+    MaxDeviationBand, PreparedTemporalSurface, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
+    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, SIMULTANEOUS_BAND_WITHHELD,
+    TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,
+    circular_block_positions, clear_simultaneous_band, inflate_replicates, max_deviation_band,
+    max_deviation_band_columns, plan_from_response_query, plan_temporal_intervention,
+    publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_sequential::{
     SequentialMechanismOverlay, SequentialNodeOverlay, estimate_sequence_mechanisms,

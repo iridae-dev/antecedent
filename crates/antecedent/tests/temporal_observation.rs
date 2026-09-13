@@ -398,8 +398,11 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     assert!(error.to_string().contains("output bytes"), "{error}");
 }
 
+/// 1.9: the raw-series outer bootstrap measured 31-81% coverage for a nominal 95%
+/// Sequence band (junction-contaminated lags), and the sequential engine has no
+/// tuple-level replicate, so requested replicates withhold the band explicitly.
 #[test]
-fn temporal_sequence_observation_outer_block_bootstrap_returns_pointwise_bands() {
+fn temporal_sequence_observation_band_is_withheld() {
     let pin = fixture();
     let ctx = ExecutionContext::for_tests(39);
     let (t, latent, selected, _, _, _) = generate(&pin);
@@ -444,18 +447,25 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_pointwise_bands()
         .run(&ctx)
         .unwrap();
     let response = result.response.as_ref().unwrap();
-    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
-        panic!("Sequence observation bootstrap must return pointwise bands");
-    };
-    assert_eq!(lower.len(), surface_of(&result).len());
-    assert_eq!(upper.len(), lower.len());
-    assert!(response.support.diagnostics.iter().any(|diagnostic| {
-        diagnostic.id.as_ref() == "response.observation_block_bootstrap"
-            && diagnostic.values[1] >= 2.0
-    }));
-    assert!(!response.support.warnings.iter().any(|warning| {
-        warning.code.as_ref() == "response.observation_joint_uncertainty_unavailable"
-    }));
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None));
+    assert!(!surface_of(&result).is_empty());
+    for code in [
+        "response.observation_sequence_band_withheld",
+        "response.observation_joint_uncertainty_unavailable",
+        "response.simultaneous_band_withheld",
+    ] {
+        assert!(
+            response.support.warnings.iter().any(|warning| warning.code.as_ref() == code),
+            "missing {code}"
+        );
+    }
+    assert!(
+        !response
+            .support
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.id.as_ref().starts_with("response.simultaneous_band."))
+    );
 }
 
 #[test]

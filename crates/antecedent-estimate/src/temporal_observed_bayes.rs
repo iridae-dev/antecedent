@@ -759,12 +759,19 @@ pub fn estimate_observed_temporal_response(
     let summaries = draws.summarize();
     let mut lower = Vec::new();
     let mut upper = Vec::new();
+    let mut columns = Vec::with_capacity(cells);
     for cell in 0..cells {
-        let mut x = draws.column(cell)?.to_vec();
+        let column = draws.column(cell)?;
+        columns.push(column);
+        let mut x = column.to_vec();
         x.sort_by(f64::total_cmp);
         lower.push(quantile(&x, 0.025));
         upper.push(quantile(&x, 0.975));
     }
+    // Every Gibbs iteration evaluates the whole grid, so draw r is one joint draw of
+    // the surface and the max-deviation band is a genuine joint credible band.
+    let simultaneous =
+        crate::temporal_response::max_deviation_band_columns(&summaries.mean, &columns, 0.95);
     let horizon_identification = temporal
         .horizons
         .iter()
@@ -796,7 +803,7 @@ pub fn estimate_observed_temporal_response(
             grid.chunks(dimension).map(|point| point[axis]).fold(f64::NEG_INFINITY, f64::max)
         })
         .collect::<Vec<_>>();
-    let response = CausalResponse {
+    let mut response = CausalResponse {
         estimand: query.functional.clone(),
         identification_status: status,
         estimate: ResponseIdentification::PointIdentified(if doses.is_none() && cells == 1 {
@@ -845,6 +852,13 @@ pub fn estimate_observed_temporal_response(
         horizon_identification: Some(horizon_identification.into()),
         interaction_structurally_zero: false,
     };
+    crate::temporal_response::publish_simultaneous_band(
+        &mut response.support,
+        simultaneous,
+        "simultaneous CREDIBLE band: max studentized deviation of the joint Gibbs draws of \
+         the whole grid around the posterior mean, under the Gaussian SEM, independent \
+         innovations and the declared trajectory ignorability",
+    );
     let posterior = CausalPosterior {
         draws,
         summaries,
