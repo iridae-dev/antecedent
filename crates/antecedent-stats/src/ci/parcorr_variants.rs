@@ -24,6 +24,7 @@ use super::types::{
 use crate::error::StatsError;
 use crate::gram::{chol_log_det, cholesky_spd, invert_square};
 
+#[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let n = col.len();
     let mut idx: Vec<usize> = (0..n).collect();
@@ -31,7 +32,7 @@ pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let mut i = 0usize;
     while i < n {
         let mut j = i;
-        while j + 1 < n && (col[idx[j + 1]] - col[idx[i]]).abs() < 1e-15 {
+        while j + 1 < n && col[idx[j + 1]] == col[idx[i]] {
             j += 1;
         }
         let first = (i + 1) as f64;
@@ -813,6 +814,14 @@ fn cca_leading(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[allow(clippy::float_cmp)] // Exact midranks are integer or half-integer values.
+    fn review_ranks_preserve_distinct_values_under_rescaling() {
+        let mut ranks = [0.0; 4];
+        rank_column(&[3e-20, 1e-20, 1e-20, 2e-20], &mut ranks);
+        assert_eq!(ranks, [4.0, 1.5, 1.5, 3.0]);
+    }
+
     use super::*;
 
     #[test]

@@ -679,6 +679,7 @@ fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
     Ok(())
 }
 
+#[allow(clippy::float_cmp)] // Only exactly constant data need an artificial knot domain.
 fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
     let mut sorted = x.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -688,8 +689,7 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
         return Err(StatsError::Shape { message: "non-finite predictor range" });
     }
     // Degenerate constant column: spread slightly so basis is defined.
-    let (xmin, xmax) =
-        if (xmax - xmin).abs() < 1e-15 { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
+    let (xmin, xmax) = if xmax == xmin { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
     let n_interior = n_basis.saturating_sub(CUBIC_ORDER);
     let mut knots = Vec::with_capacity(n_basis + CUBIC_ORDER);
     for _ in 0..CUBIC_ORDER {
@@ -716,17 +716,12 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
 /// Span-local Cox–de Boor evaluation: the knot span and the `CUBIC_ORDER`
 /// nonzero cubic basis values at `x` (all other basis functions are exactly 0).
 fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
-    // Clamp to open interval of the interior so the last basis is hit at xmax.
-    let eps = 1e-14;
+    // Evaluate the boundary on the last span, including caller-supplied knot
+    // vectors that are not clamped. An absolute epsilon moves small-unit
+    // inputs outside their knot domain.
     let left = knots[CUBIC_DEGREE];
     let right = knots[knots.len() - CUBIC_ORDER];
-    let xx = if x >= right {
-        right - eps
-    } else if x < left {
-        left
-    } else {
-        x
-    };
+    let xx = x.max(left).min(right);
 
     // Find knot span.
     let mut span = CUBIC_DEGREE;
@@ -738,6 +733,15 @@ fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) 
         if i == knots.len() - CUBIC_ORDER - 1 {
             span = i;
         }
+    }
+    if xx >= right {
+        // Quantile knots can repeat the boundary more than degree + 1 times
+        // for discrete covariates. Use the last nonempty interval; evaluating
+        // a zero-width trailing span would divide by zero.
+        span = (CUBIC_DEGREE..(knots.len() - CUBIC_ORDER))
+            .rev()
+            .find(|&i| knots[i] < right)
+            .unwrap_or(CUBIC_DEGREE);
     }
 
     // Basis of degree 0..3 on the local span (Piegl/Tiller style).
@@ -785,8 +789,8 @@ fn cubic_bspline_deriv_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_OR
         let dt1 = knots[i + CUBIC_ORDER] - knots[i + 1];
         let n2_i = if k == 0 { 0.0 } else { quadratic[k - 1] };
         let n2_ip1 = if k == CUBIC_DEGREE { 0.0 } else { quadratic[k] };
-        let t0 = if dt0.abs() <= f64::EPSILON { 0.0 } else { n2_i / dt0 };
-        let t1 = if dt1.abs() <= f64::EPSILON { 0.0 } else { n2_ip1 / dt1 };
+        let t0 = if dt0 == 0.0 { 0.0 } else { n2_i / dt0 };
+        let t1 = if dt1 == 0.0 { 0.0 } else { n2_ip1 / dt1 };
         ders[k] = (CUBIC_DEGREE as f64) * (t0 - t1);
     }
     (span, ders)
@@ -808,7 +812,7 @@ fn quadratic_nonzeros(x: f64, knots: &[f64], span: usize) -> [f64; CUBIC_ORDER] 
         let mut saved = 0.0;
         for r in 0..j {
             let denom = right[r + 1] + left[j - r];
-            let temp = if denom.abs() <= f64::EPSILON { 0.0 } else { ndu[r][j - 1] / denom };
+            let temp = if denom == 0.0 { 0.0 } else { ndu[r][j - 1] / denom };
             ndu[r][j] = saved + right[r + 1] * temp;
             saved = left[j - r] * temp;
         }
@@ -993,6 +997,41 @@ fn select_lambda_gcv(
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
+    #[test]
+    fn review_custom_unclamped_knots_preserve_boundary_basis() {
+        let knots: Vec<_> = (0..12).map(f64::from).collect();
+        let (_, actual) = cubic_bspline_nonzeros(8.0, &knots);
+        for (value, expected) in actual.iter().zip([0.0, 1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0]) {
+            assert!((value - expected).abs() < 1e-14);
+        }
+    }
+
+    #[test]
+    fn review_spline_basis_and_derivatives_respect_units() {
+        let x = linspace(30, -1.0, 1.0);
+        let (_, knots) = expand_bspline(&x, 8, None).unwrap();
+        for scale in [1e-20, 1.0, 1e20] {
+            let scaled_x: Vec<_> = x.iter().map(|v| v * scale).collect();
+            let (_, scaled_knots) = expand_bspline(&scaled_x, 8, None).unwrap();
+            for point in [-1.0, -0.3, 0.4, 1.0, 2.0] {
+                let (_, expected) = cubic_bspline_nonzeros(point, &knots);
+                let (_, actual) = cubic_bspline_nonzeros(point * scale, &scaled_knots);
+                let (_, expected_deriv) = cubic_bspline_deriv_nonzeros(point, &knots);
+                let (_, actual_deriv) = cubic_bspline_deriv_nonzeros(point * scale, &scaled_knots);
+                for i in 0..4 {
+                    assert!(
+                        (actual[i] - expected[i]).abs() < 1e-12,
+                        "basis scale={scale} point={point}"
+                    );
+                    assert!(
+                        (actual_deriv[i] * scale - expected_deriv[i]).abs() < 1e-11,
+                        "derivative scale={scale} point={point}"
+                    );
+                }
+            }
+        }
+    }
+
     use super::*;
     use crate::faer_backend::FaerBackend;
 

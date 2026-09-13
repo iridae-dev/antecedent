@@ -79,11 +79,10 @@ impl ConditionalIndependenceTest for BayesFactorCi {
         let mut results = Vec::with_capacity(nq);
         for q in request.queries {
             let log_bf = log_bf10_full(request, *q)?;
-            let p_dep = logistic_from_log_bf(log_bf);
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
                 statistic: log_bf,
-                p_value: (1.0 - p_dep).clamp(0.0, 1.0),
+                p_value: logistic_from_log_bf(-log_bf),
                 df,
                 ci: None,
             });
@@ -127,7 +126,7 @@ impl ConditionalIndependenceTest for PosteriorDependenceCi {
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
                 statistic: p_dep.clamp(0.0, 1.0),
-                p_value: (1.0 - p_dep).clamp(0.0, 1.0),
+                p_value: logistic_from_log_bf(-log_bf),
                 df,
                 ci: None,
             });
@@ -709,6 +708,9 @@ mod tests {
         let out = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic > 0.0, "log BF={}", out.results[0].statistic);
         assert!(out.results[0].p_value < 0.05);
+        let expected = (-out.results[0].statistic).exp();
+        assert!(expected > 0.0);
+        assert!((out.results[0].p_value / expected - 1.0).abs() < 1e-12);
     }
 
     #[test]

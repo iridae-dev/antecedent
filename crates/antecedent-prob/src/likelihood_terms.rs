@@ -43,12 +43,17 @@ pub fn poisson_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, P
 /// Bernoulli logit terms.
 #[must_use]
 pub fn logit_terms(y: f64, eta: f64, weight: f64) -> LikelihoodTerms {
-    let mu = 1.0 / (1.0 + (-eta).exp());
-    let v = (mu * (1.0 - mu)).max(1e-12);
+    let tail = (-eta.abs()).exp();
+    let denominator = 1.0 + tail;
+    let (mu, complement) = if eta >= 0.0 {
+        (1.0 / denominator, tail / denominator)
+    } else {
+        (tail / denominator, 1.0 / denominator)
+    };
     LikelihoodTerms {
-        log_value: weight * (y * eta - softplus(eta)),
-        score_eta: weight * (y - mu),
-        neg_hessian_eta: weight * v,
+        log_value: -weight * (y * softplus(-eta) + (1.0 - y) * softplus(eta)),
+        score_eta: weight * (y * complement - (1.0 - y) * mu),
+        neg_hessian_eta: weight * (tail / denominator / denominator),
     }
 }
 
@@ -125,7 +130,7 @@ pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, Pr
 }
 
 fn softplus(x: f64) -> f64 {
-    if x > 20.0 { x } else { (1.0 + x.exp()).ln() }
+    if x > 0.0 { x + (-x).exp().ln_1p() } else { x.exp().ln_1p() }
 }
 
 pub(crate) fn validate_design(
@@ -224,7 +229,7 @@ pub(crate) fn accumulate_likelihood(
     let ncols = design.ncols;
     grad.fill(0.0);
     neg_hess.fill(0.0);
-    let inv_sigma2 = 1.0 / gaussian_sigma2.max(1e-12);
+    let inv_sigma2 = gaussian_precision(likelihood, gaussian_sigma2)?;
 
     let mut separation = false;
     for r in 0..nrows {
@@ -305,7 +310,7 @@ pub(crate) fn log_posterior_value(
 ) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    let inv_sigma2 = 1.0 / gaussian_sigma2.max(1e-12);
+    let inv_sigma2 = gaussian_precision(likelihood, gaussian_sigma2)?;
     let mut ll = 0.0;
     for r in 0..nrows {
         let offset = design.offsets.map_or(0.0, |o| o[r]);
@@ -326,8 +331,71 @@ pub(crate) fn log_posterior_value(
     Ok(ll + lp)
 }
 
+fn gaussian_precision(likelihood: BayesLikelihood, variance: f64) -> Result<f64, ProbError> {
+    if likelihood != BayesLikelihood::GaussianIdentity {
+        return Ok(1.0);
+    }
+    let precision = 1.0 / variance;
+    if !variance.is_finite() || variance <= 0.0 || !precision.is_finite() {
+        return Err(ProbError::Numerical {
+            message: "Gaussian variance must be positive and have finite precision".into(),
+        });
+    }
+    Ok(precision)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn review_gaussian_likelihood_uses_the_requested_precision() {
+        let design = BayesDesignRef {
+            x_colmajor: &[1.0],
+            nrows: 1,
+            ncols: 1,
+            y: &[1e-10],
+            weights: None,
+            offsets: None,
+        };
+        let (mut grad, mut hessian, mut eta, mut work) = ([0.0], [0.0], [0.0], [0.0]);
+        accumulate_likelihood(
+            BayesLikelihood::GaussianIdentity,
+            design,
+            &[0.0],
+            &mut grad,
+            &mut hessian,
+            &mut eta,
+            &mut work,
+            1e-20,
+            true,
+        )
+        .unwrap();
+        assert!((grad[0] / 1e10 - 1.0).abs() < 1e-12);
+        assert!((hessian[0] / 1e20 - 1.0).abs() < 1e-12);
+        let prior = GaussianCoefficientPrior::isotropic(1, 1.0);
+        let value = log_posterior_value(
+            BayesLikelihood::GaussianIdentity,
+            design,
+            &[0.0],
+            &prior,
+            &[1.0],
+            &mut eta,
+            1e-20,
+        )
+        .unwrap();
+        assert!((value + 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn review_logit_terms_retain_representable_tails() {
+        let tail = (-40.0_f64).exp();
+        for (outcome, eta, score_sign) in [(1.0, 40.0, 1.0), (0.0, -40.0, -1.0)] {
+            let terms = logit_terms(outcome, eta, 1.0);
+            assert!((terms.log_value / -tail - 1.0).abs() < 1e-12);
+            assert!((terms.score_eta / (score_sign * tail) - 1.0).abs() < 1e-12);
+            assert!((terms.neg_hessian_eta / tail - 1.0).abs() < 1e-12);
+        }
+    }
+
     use super::*;
 
     fn fd_score(f: impl Fn(f64) -> f64, eta: f64) -> f64 {
