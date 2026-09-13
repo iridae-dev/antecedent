@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 1.9 calibration and robustness of licensed 1.6–1.8 cells (temporal
+  class-envelope and DBN mixture intervals, Bayesian coverage, mixture
+  functionals). See TODO §1.9.
+
 ## [1.8.0] — 2026-09-13
 
 ### Added
