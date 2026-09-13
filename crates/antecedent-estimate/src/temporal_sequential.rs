@@ -337,6 +337,14 @@ impl SequentialContrastDesign {
     pub fn influence(&self) -> Option<Vec<f64>> {
         self.setup.influence(&mut LeastSquaresWorkspace::default())
     }
+
+    /// Every mechanism's OLS normal-equation scores on the aligned rows
+    /// ([`crate::temporal_block::normal_equation_scores`]), for
+    /// [`crate::temporal_block::dependence_block_length`].
+    #[must_use]
+    pub fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
+        self.setup.normal_equation_scores()
+    }
 }
 
 /// Sequential g-computation of the interventional **level** under per-node
@@ -770,6 +778,26 @@ impl SequentialSetup {
         }
         score.iter().all(|s| s.is_finite()).then_some(score)
     }
+
+    /// [`crate::temporal_block::normal_equation_scores`] of every fitted mechanism.
+    fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
+        self.order
+            .iter()
+            .filter_map(|&i| self.designs[i].as_ref())
+            .filter_map(|d| {
+                crate::temporal_block::normal_equation_scores(
+                    &d.matrix, d.nrows, d.ncols, &d.outcome,
+                )
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// Every series [`crate::temporal_block::dependence_block_length`] sizes the
+    /// blocks on: the contrast influence plus every mechanism's normal-equation scores.
+    fn block_scores(&self, ls_ws: &mut LeastSquaresWorkspace) -> Vec<Vec<f64>> {
+        self.influence(ls_ws).into_iter().chain(self.normal_equation_scores()).collect()
+    }
 }
 
 /// Solve `A x = b` for a small symmetric positive-definite `A` (row-major `p×p`)
@@ -1033,10 +1061,11 @@ fn estimate_sequential(
     // unfolded window), every mechanism refit on the same rows, and the replicate
     // SD scaled by the Kiefer–Vogelsang fixed-b factor, as on the single-window
     // path ([`crate::temporal_block`]). Blocks are at least the unfolded span and
-    // lengthen when the contrast's estimating score is persistently dependent.
+    // lengthen when the contrast's estimating score, or any mechanism's
+    // normal-equation score, is persistently dependent.
     let block_length = if bootstrap_replicates > 0 {
-        let influence = setup.influence(&mut ls_ws);
-        let scores: Vec<&[f64]> = influence.as_deref().into_iter().collect();
+        let block_scores = setup.block_scores(&mut ls_ws);
+        let scores: Vec<&[f64]> = block_scores.iter().map(Vec::as_slice).collect();
         crate::temporal_block::dependence_block_length(setup.max_lag as usize + 1, setup.n, &scores)
     } else {
         0

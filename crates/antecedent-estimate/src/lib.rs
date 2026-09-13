@@ -143,7 +143,8 @@ pub use temporal_adjustment::{
 pub use temporal_block::{
     AlignedRows, MIN_EFFECTIVE_ROWS, RowBlockBootstrap, RowBlockDraws, aligned_block_bootstrap,
     common_time_window, dependence_block_length, effective_rows, fixed_b_scale,
-    politis_white_block_length, row_block_bootstrap, row_block_bootstrap_vec,
+    normal_equation_scores, politis_white_block_length, row_block_bootstrap,
+    row_block_bootstrap_vec,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationBlockSe,

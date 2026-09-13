@@ -411,7 +411,19 @@ impl TemporalLinearAdjustment {
         point.se_analytic = f64::NAN;
 
         let replicates = self.inner.bootstrap_replicates;
-        let scores: Vec<&[f64]> = point.influence.as_deref().into_iter().collect();
+        let normal_scores = crate::temporal_block::normal_equation_scores(
+            &prep.design.matrix,
+            rows,
+            prep.design.ncols,
+            &prep.design.outcome,
+        )
+        .unwrap_or_default();
+        let scores: Vec<&[f64]> = point
+            .influence
+            .as_deref()
+            .into_iter()
+            .chain(normal_scores.iter().map(Vec::as_slice))
+            .collect();
         let block_length =
             crate::temporal_block::dependence_block_length(structural_span, rows, &scores);
         let boot = (replicates > 0).then(|| {
