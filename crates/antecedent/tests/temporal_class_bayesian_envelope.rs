@@ -17,9 +17,10 @@ use antecedent::{
 use antecedent_core::{
     Assumption, AssumptionSet, CausalQuery, CausalSchemaBuilder, ContinuousDomain,
     ExecutionContext, GridSpec, IdentificationStatus, Intervention, InterventionSequence, Lag,
-    MeasurementSpec, ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
-    ResponseUncertainty, RoleHint, SequencedIntervention, SmallRoleSet, TemporalEffectQuery,
-    TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
+    MeasurementSpec, MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec,
+    ResponseFunctional, ResponseQuery, ResponseUncertainty, RoleHint, SequencedIntervention,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType,
+    VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -1086,4 +1087,449 @@ fn bayesian_temporal_pulse_reports_one_estimator_id_on_dag_and_class() {
         "bayesian.temporal.gcomp".parse::<antecedent::EstimatorId>().unwrap(),
         antecedent::EstimatorId::BayesianTemporalGcomp
     );
+}
+
+fn mixed_id_pag() -> TemporalPag {
+    // Shielded Z—T, the temporal lift of the static mixed-ID PAG: R@-1 → {Z,T}@-1,
+    // Z@-1 o-o T@-1, and both Z and T cause Y@0. Directed refinements identify;
+    // the latent Z↔T completion does not. Both masses stay on the envelope.
+    let mut g = TemporalPag::empty();
+    let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = g.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    let r1 = g.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    g.insert_directed(r1, z1).unwrap();
+    g.insert_directed(r1, t1).unwrap();
+    g.insert_circle_circle_with_middle(z1, t1, antecedent_graph::MiddleMark::Empty).unwrap();
+    g.insert_directed(z1, y0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g
+}
+
+fn mixed_id_series(n: usize) -> TimeSeriesData {
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    let mut r = vec![0.0; n];
+    for i in 0..n {
+        r[i] = ((i as f64) * 0.29).sin();
+        z[i] = 0.4 * r[i] + ((i as f64) * 0.13).cos();
+        t[i] = 0.3 + 0.5 * r[i] + 0.2 * z[i];
+        if i > 0 {
+            y[i] = 1.0 + 2.0 * t[i - 1] + 0.6 * z[i - 1];
+        }
+    }
+    TimeSeriesData::from_f64_columns(
+        [
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+            ("r", r.as_slice()),
+        ],
+        1,
+    )
+    .unwrap()
+}
+
+#[test]
+fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
+    let graph = antecedent::AcceptedGraph::temporal_pag(mixed_id_pag());
+    let antecedent::Identification::TemporalEnvelope { envelope, .. } =
+        identify(&graph, &pulse_query()).unwrap()
+    else {
+        panic!("mixed-ID TemporalPag Pulse returns an envelope");
+    };
+    let identified = envelope.envelope.cases.iter().filter(|case| {
+        case.result.status != IdentificationStatus::NotIdentified
+            && case.result.status != IdentificationStatus::GraphDependent
+            && !case.result.estimands.is_empty()
+    }).count();
+    let unidentified = envelope.envelope.cases.len() - identified;
+    assert!(identified >= 1, "need an identified completion: {:?}", envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>());
+    assert!(unidentified >= 1, "need unidentified mass: {:?}", envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>());
+    assert!(envelope.envelope.identified_weight.0 > 0.0);
+    assert!(envelope.envelope.unidentified_weight.0 > 0.0);
+
+    let n_cases = envelope.envelope.cases.len();
+    let masses: Vec<f64> = (0..n_cases)
+        .map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 })
+        .collect();
+    let prior = ClassPrior::from_ordered(masses).unwrap();
+    let result = Study::series(mixed_id_series(400))
+        .graph(mixed_id_pag())
+        .query(pulse_query())
+        .inference(bayes())
+        .class_prior(prior)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(13))
+        .unwrap();
+    let structural = result.structural_response.as_ref().expect("structural envelope");
+    assert_eq!(
+        structural.weight_basis,
+        antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior
+    );
+    assert!(structural.identified_mass > 0.0, "{}", structural.identified_mass);
+    assert!(structural.unidentified_mass > 0.0, "{}", structural.unidentified_mass);
+    assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-9);
+    assert!(result.posterior.is_some());
+    assert!(result.estimate.ate.is_finite());
+    let mixed = result.posterior.as_ref().unwrap();
+    assert!(mixed.unidentified_mass > 0.0, "unidentified mass must not be renormalized away");
+    assert_eq!(
+        result.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalPag
+    );
+}
+
+#[test]
+fn capped_audit_cannot_claim_class_wide_identification() {
+    let data = series_from_law(400, false);
+    let uncapped = identify(&antecedent::AcceptedGraph::from(cpdag()), &pulse_query()).unwrap();
+    assert!(uncapped.completion_keys().len() >= 2, "fixture must have two completions");
+
+    let mismatched = Study::series(data.clone())
+        .graph(cpdag())
+        .query(pulse_query())
+        .inference(bayes())
+        .class_prior(ClassPrior::from_ordered([0.5, 0.5]).unwrap())
+        .max_completions(1)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(7))
+        .unwrap_err();
+    assert!(
+        mismatched.to_string().contains("completions"),
+        "a full-class prior must not fill truncated completions: {mismatched}"
+    );
+
+    let bayes_capped = Study::series(data.clone())
+        .graph(cpdag())
+        .query(pulse_query())
+        .inference(bayes())
+        .class_prior(ClassPrior::from_ordered([1.0]).unwrap())
+        .max_completions(1)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(7))
+        .unwrap();
+    let structural = bayes_capped.structural_response.as_ref().expect("capped structural");
+    assert!(structural.truncated_atoms > 0, "capped search must record truncated_atoms");
+    assert!(!structural.full_mass_scope);
+    assert_ne!(
+        bayes_capped.identification.status,
+        IdentificationStatus::NonparametricallyIdentified
+    );
+    assert!(
+        bayes_capped.posterior.is_none(),
+        "a class prior must not publish a full-class mixture under a search cap"
+    );
+    assert!(
+        bayes_capped.diagnostics.iter().any(|d| {
+            d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed"
+        })
+    );
+    assert_eq!(
+        bayes_capped.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalCpdag
+    );
+
+    let freq_capped = Study::series(data)
+        .graph(cpdag())
+        .query(pulse_query())
+        .max_completions(1)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(7))
+        .unwrap();
+    let structural = freq_capped.structural_response.as_ref().expect("freq capped");
+    assert!(structural.truncated_atoms > 0);
+    assert!(!structural.full_mass_scope);
+    assert_ne!(
+        freq_capped.identification.status,
+        IdentificationStatus::NonparametricallyIdentified
+    );
+    assert_eq!(
+        freq_capped.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalCpdag
+    );
+}
+
+fn oriented_xy_cpdag() -> TemporalCpdag {
+    let mut g = TemporalCpdag::empty();
+    let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g
+}
+
+fn oriented_xyw_cpdag() -> TemporalCpdag {
+    let mut g = oriented_xy_cpdag();
+    let w0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(w0, y0).unwrap();
+    g
+}
+
+fn mediation_cpdag() -> TemporalCpdag {
+    let mut g = TemporalCpdag::empty();
+    let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g
+}
+
+fn series_xy(n: usize) -> TimeSeriesData {
+    let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
+    let y: Vec<f64> = (0..n).map(|i| if i == 0 { 0.0 } else { 0.9 * t[i - 1] }).collect();
+    TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1).unwrap()
+}
+
+fn series_xyw(n: usize) -> TimeSeriesData {
+    let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
+    let w: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.11).cos()).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| if i == 0 { 0.0 } else { 0.2 * t[i - 1] + 0.35 * w[i] })
+        .collect();
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+fn series_tmy(n: usize) -> TimeSeriesData {
+    let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
+    let m: Vec<f64> = (0..n).map(|i| if i == 0 { 0.0 } else { 0.6 * t[i - 1] }).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| if i == 0 { 0.0 } else { 0.4 * t[i - 1] + 0.5 * m[i] })
+        .collect();
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+fn fit_oriented_pulse(n: usize, n_draws: usize, seed: u64) -> (antecedent::StudyResult, Vec<u8>) {
+    let result = Study::series(series_xy(n))
+        .graph(oriented_xy_cpdag())
+        .query(pulse_query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(n_draws)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed))
+        .unwrap();
+    let bytes = antecedent::io::encode_causal_posterior_bytes(
+        result.posterior.as_ref().or_else(|| {
+            result.structural_response.as_ref()?.atoms[0].posterior.as_ref()
+        }).expect("source posterior"),
+        "source",
+    )
+    .unwrap();
+    (result, bytes)
+}
+
+#[test]
+fn mapped_transfer_onto_temporal_cpdag_cells() {
+    let pin = transfer_pin();
+    assert_eq!(
+        pin["source_cells"]["same_design_pulse"].as_str(),
+        Some("PulseEffect × TemporalCpdag × explicit × Bayesian × none")
+    );
+    assert_eq!(
+        pin["target_cells"]["mapped_coefficient_sustained"].as_str(),
+        Some("SustainedEffect × TemporalCpdag × explicit × Bayesian × none")
+    );
+    assert_eq!(
+        pin["target_cells"]["mapped_coefficient_response_curve"].as_str(),
+        Some("ResponseCurve × TemporalCpdag × explicit × Bayesian × none")
+    );
+    assert_eq!(
+        pin["target_cells"]["mapped_effect_functional"].as_str(),
+        Some("PulseEffect × TemporalCpdag × explicit × Bayesian × none")
+    );
+    assert_eq!(
+        pin["target_cells"]["mapped_mediation"].as_str(),
+        Some("TemporalMediationEffect × TemporalCpdag × explicit × Bayesian × none")
+    );
+    assert_eq!(pin["compatibility_filter"].as_str(), Some("PriorCatalog.filter_compatible"));
+
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let n_draws = usize::try_from(pin["n_draws"].as_u64().unwrap()).unwrap();
+    let seed = pin["seed"].as_u64().unwrap();
+    let (_, bytes) = fit_oriented_pulse(n, n_draws, seed);
+
+    let catalog = antecedent_io::PriorCatalog::from_sources(vec![
+        antecedent_io::PriorSourceRef::with_bytes(
+            antecedent_io::PriorSourceMeta::new(
+                "class-source",
+                antecedent_io::EstimandFingerprint::new("pulse", "t", "y"),
+                "NonparametricallyIdentified",
+            )
+            .with_design(vec![
+                antecedent_io::DesignVariableSummary::new(
+                    "t",
+                    antecedent_io::DesignVariableRole::Treatment,
+                ),
+                antecedent_io::DesignVariableSummary::new(
+                    "y",
+                    antecedent_io::DesignVariableRole::Outcome,
+                ),
+            ])
+            .with_mapping(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
+            bytes.clone(),
+        ),
+    ]);
+    let target = antecedent_io::TargetDesign::new(
+        antecedent_io::EstimandFingerprint::new("sustained", "t", "y"),
+        ["t", "y"],
+    );
+    assert!(catalog.require_usable(&target).is_ok());
+
+    let mut sustained = TemporalEffectQuery::sustained(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        -1,
+        1.0,
+    );
+    sustained.policy = TemporalPolicy::sustained(-1, -1);
+    sustained.horizon_steps = 1;
+    let transferred = Study::series(series_xy(n))
+        .graph(oriented_xy_cpdag())
+        .query(CausalQuery::TemporalEffect(sustained))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_artifact(
+                bytes.clone(),
+                Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
+            ),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed.wrapping_add(1)))
+        .unwrap();
+    assert_ne!(transferred.identification.status, IdentificationStatus::NotIdentified);
+    assert_eq!(
+        transferred.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalCpdag
+    );
+
+    let curve_query = CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    );
+    let curve = Study::series(series_xy(n))
+        .graph(oriented_xy_cpdag())
+        .query(curve_query)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_artifact(
+                bytes.clone(),
+                Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
+            ),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed.wrapping_add(2)))
+        .unwrap();
+    assert!(curve.response.is_some());
+    assert_ne!(curve.identification.status, IdentificationStatus::NotIdentified);
+
+    let mapped = Study::series(series_xyw(n))
+        .graph(oriented_xyw_cpdag())
+        .query(pulse_query())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_artifact(
+                bytes.clone(),
+                Some(antecedent_io::PriorMapping::EffectFunctional {
+                    source_quantity: "ate".into(),
+                }),
+            ),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed.wrapping_add(3)));
+    match mapped {
+        Ok(result) => {
+            assert_ne!(result.identification.status, IdentificationStatus::NotIdentified);
+            assert_eq!(
+                result.certificate.as_ref().expect("certificate").graph_class,
+                antecedent::GraphClass::TemporalCpdag
+            );
+        }
+        Err(error) => {
+            assert!(
+                !error.to_string().contains("NotIdentified"),
+                "mapped transfer must fail closed without flipping ID: {error}"
+            );
+        }
+    }
+
+    let mediation = Study::series(series_tmy(n))
+        .graph(mediation_cpdag())
+        .query(CausalQuery::Mediation(
+            MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                MediationContrast::Mediated,
+            )
+            .with_horizons(vec![1])
+            .unwrap(),
+        ))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_artifact(
+                bytes,
+                Some(antecedent_io::PriorMapping::EffectFunctional {
+                    source_quantity: "ate".into(),
+                }),
+            ),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed.wrapping_add(4)));
+    match mediation {
+        Ok(result) => {
+            assert_ne!(result.identification.status, IdentificationStatus::NotIdentified);
+            assert_eq!(
+                result.certificate.as_ref().expect("certificate").graph_class,
+                antecedent::GraphClass::TemporalCpdag
+            );
+            assert!(result.mediation.is_some() || result.mediation_grid.is_some());
+        }
+        Err(error) => {
+            assert!(
+                !error.to_string().contains("NotIdentified"),
+                "mediation transfer must fail closed without flipping ID: {error}"
+            );
+        }
+    }
 }
