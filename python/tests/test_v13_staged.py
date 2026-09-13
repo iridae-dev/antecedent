@@ -432,11 +432,11 @@ def test_v13_named_refusals():
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
         ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
         ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.8"):
         ac.analyze(data, graph=dag, query=cf, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
         ac.analyze(
             data,
             graph=dag,
@@ -453,7 +453,7 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
         ac.analyze(
             data,
             query=med,

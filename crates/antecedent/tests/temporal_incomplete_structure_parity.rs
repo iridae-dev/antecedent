@@ -202,10 +202,12 @@ fn bayesian_sustained_on_incompletable_accepted_temporal_structures_stays_refuse
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
-            .expect_err("Bayesian Sustained on incomplete TemporalCpdag/Pag stays refused");
+            .expect("Bayesian Sustained is licensed")
+            .run(&antecedent_core::ExecutionContext::for_tests(7))
+            .expect_err("invalid or unidentified completions cannot produce an estimate");
         assert!(
-            matches!(err, CausalError::Support { .. }),
-            "expected a support refusal, got {err}"
+            !matches!(err, CausalError::Support { .. }),
+            "expected a graph/identification failure, got {err}"
         );
     }
 }
