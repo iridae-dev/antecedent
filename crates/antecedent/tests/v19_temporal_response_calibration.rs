@@ -643,13 +643,11 @@ fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
 /// unselected outcomes are recorded as 0. Selection depends only on `T_{s-1}`, so the
 /// declared `OutcomeIndependentGiven([T])` (at the policy offset −1) holds.
 ///
-/// The selected-AIPW outcome nuisance conditions only on that declared set (`T_{s-1}`),
-/// so it omits `T_{s-2}`, which the unfolded Sequence design regresses on. The
-/// pseudo-outcome regression is then not orthogonal to the estimated selection
-/// probability, and its bootstrap is over-dispersed on independent rows (the iid band
-/// sits at the top of the acceptance band); an iid pairs bootstrap of the same estimator
-/// over-covers the same way, so this is a property of the observation nuisance, not of
-/// the block construction.
+/// The unfolded Sequence design regresses the pseudo-outcome on `T_{s-1}` and `T_{s-2}`,
+/// so the selected-AIPW outcome nuisance conditions on both (the selection model keeps
+/// the declared `T_{s-1}`). With the declared set alone the nuisance omitted `T_{s-2}`,
+/// the pseudo-outcome regression was not orthogonal to the estimated selection
+/// probability, and the iid band over-covered at the top of the acceptance band (0.983).
 fn selected_two_lag_series(rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let t = gaussian_vec(n, 0.8, seed);

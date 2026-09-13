@@ -1251,8 +1251,10 @@ impl super::Study {
                 });
             }
             let adjustment = contemporaneous_adjustment_variables(&aligned);
+            let outcome_regressors =
+                temporal_observation_outcome_regressors(query, graph, outcome, &aligned)?;
             let (series, adjusted) = ObservationMechanismEstimator::new(self.observation_options)
-                .adjust_temporal_series(data, query, &adjustment)
+                .adjust_temporal_series(data, query, &adjustment, &outcome_regressors)
                 .map_err(CausalError::from)?;
             append_temporal_observation_assumptions(
                 query,
@@ -1877,8 +1879,14 @@ impl super::Study {
                             message: "delayed entry is not licensed for temporal observation",
                         });
                     }
+                    let outcome_regressors =
+                        antecedent_estimate::temporal_curve_outcome_regressors(
+                            &qh,
+                            &[(&estimand, indexer)],
+                        )
+                        .map_err(CausalError::from)?;
                     let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
-                        .adjust_temporal_series(data, &qh, &adjustment)
+                        .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
                         .map_err(CausalError::from)?;
                     qh.observation = ObservationSpec::Complete;
                     qh.observation_assumptions = Arc::from([]);
@@ -2408,7 +2416,14 @@ impl super::Study {
                     } else {
                         Some(
                             ObservationMechanismEstimator::new(self.observation_options)
-                                .adjust_temporal_series(data, &qh, &adjustment)
+                                .adjust_temporal_series(
+                                    data,
+                                    &qh,
+                                    &adjustment,
+                                    &antecedent_estimate::temporal_sequence_outcome_regressors(
+                                        &dag, outcome,
+                                    ),
+                                )
                                 .map_err(CausalError::from)?
                                 .0,
                         )
@@ -4015,6 +4030,28 @@ fn horizon_adjustment_sets_differ(
     entries.iter().skip(1).any(|entry| named_adjustment_keys(entry) != first_z)
 }
 
+/// Downstream design columns of an observation-adjusted temporal response (offsets
+/// relative to the outcome time): the outcome mechanism's parents for a Sequence overlay,
+/// otherwise every horizon's lag-aligned treatment and adjustment columns.
+fn temporal_observation_outcome_regressors(
+    query: &ResponseQuery,
+    graph: &TemporalDag,
+    outcome: VariableId,
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+) -> Result<Vec<antecedent_core::TemporalNodeKey>, CausalError> {
+    let sequence = antecedent_estimate::plan_from_response_query(query)
+        .map_err(CausalError::from)?
+        .and_then(|plan| plan.mechanism_overlays())
+        .is_some();
+    if sequence {
+        return Ok(antecedent_estimate::temporal_sequence_outcome_regressors(graph, outcome));
+    }
+    let identifications: Vec<_> =
+        aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
+    antecedent_estimate::temporal_curve_outcome_regressors(query, &identifications)
+        .map_err(CausalError::from)
+}
+
 fn contemporaneous_adjustment_variables(
     entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
 ) -> Vec<VariableId> {
@@ -4366,28 +4403,47 @@ fn apply_class_observation_bootstrap(
         let targets: Vec<TupleObservationTarget<'_>> = atoms
             .iter()
             .zip(&identifications)
-            .map(|(atom, identification)| TupleObservationTarget {
-                query: &atom.observation_query,
-                adjustment: &atom.adjustment,
-                surface: match &atom.kind {
-                    ClassObservationKind::Curve => {
-                        TupleSurface::Curve { identifications: identification }
-                    }
-                    ClassObservationKind::Sequence {
-                        dag,
-                        overlays,
-                        outcome,
-                        outcome_offset,
-                        status,
-                    } => TupleSurface::Sequence {
-                        graph: dag,
-                        overlays,
-                        outcome: *outcome,
-                        horizons: vec![(&atom.estimand, &atom.indexer, *outcome_offset, *status)],
+            .map(|(atom, identification)| -> Result<TupleObservationTarget<'_>, CausalError> {
+                Ok(TupleObservationTarget {
+                    query: &atom.observation_query,
+                    adjustment: &atom.adjustment,
+                    outcome_regressors: match &atom.kind {
+                        ClassObservationKind::Curve => {
+                            antecedent_estimate::temporal_curve_outcome_regressors(
+                                &atom.observation_query,
+                                identification,
+                            )
+                            .map_err(CausalError::from)?
+                        }
+                        ClassObservationKind::Sequence { dag, outcome, .. } => {
+                            antecedent_estimate::temporal_sequence_outcome_regressors(dag, *outcome)
+                        }
                     },
-                },
+                    surface: match &atom.kind {
+                        ClassObservationKind::Curve => {
+                            TupleSurface::Curve { identifications: identification }
+                        }
+                        ClassObservationKind::Sequence {
+                            dag,
+                            overlays,
+                            outcome,
+                            outcome_offset,
+                            status,
+                        } => TupleSurface::Sequence {
+                            graph: dag,
+                            overlays,
+                            outcome: *outcome,
+                            horizons: vec![(
+                                &atom.estimand,
+                                &atom.indexer,
+                                *outcome_offset,
+                                *status,
+                            )],
+                        },
+                    },
+                })
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
         tuple_block_observation_replicates(
             source,
             &targets,
@@ -4651,6 +4707,11 @@ fn bootstrap_observation_adjusted_temporal_response(
     let target = TupleObservationTarget {
         query,
         adjustment: &adjustment,
+        outcome_regressors: antecedent_estimate::temporal_curve_outcome_regressors(
+            query,
+            &identifications,
+        )
+        .map_err(CausalError::from)?,
         surface: TupleSurface::Curve { identifications: &identifications },
     };
     single_target_observation_band(source, target, aligned, options, replicates, 0x0B5E_0000, ctx)
@@ -4693,6 +4754,9 @@ fn bootstrap_sequence_response(
     let target = TupleObservationTarget {
         query,
         adjustment: &adjustment,
+        outcome_regressors: antecedent_estimate::temporal_sequence_outcome_regressors(
+            graph, outcome,
+        ),
         surface: TupleSurface::Sequence { graph, overlays, outcome, horizons },
     };
     single_target_observation_band(source, target, aligned, options, replicates, 0x0B5E_5E00, ctx)
@@ -4755,6 +4819,9 @@ struct TupleObservationTarget<'a> {
     query: &'a ResponseQuery,
     /// Contemporaneous causal adjustment variables for the containment check.
     adjustment: &'a [VariableId],
+    /// Downstream design columns the selected-AIPW outcome nuisance conditions on
+    /// (offsets relative to the outcome time).
+    outcome_regressors: Vec<antecedent_core::TemporalNodeKey>,
     /// Surface refit on the resampled tuples.
     surface: TupleSurface<'a>,
 }
@@ -4830,20 +4897,24 @@ fn tuple_block_observation_replicates(
             source
         } else {
             adjusted_owned = observation
-                .adjust_temporal_series(source, target.query, target.adjustment)
+                .adjust_temporal_series(
+                    source,
+                    target.query,
+                    target.adjustment,
+                    &target.outcome_regressors,
+                )
                 .map_err(CausalError::from)?
                 .0;
             &adjusted_owned
         };
+        // Rows back from the outcome time that one observation row reads: the declared
+        // conditioning set at the policy offset and every outcome-model regressor.
         let observation_lag = if complete {
             0
         } else {
-            target
-                .query
-                .temporal
-                .as_ref()
-                .and_then(|temporal| temporal.treatment_offset().ok())
-                .map_or(0, |offset| offset.unsigned_abs() as usize)
+            observation
+                .observation_row_lag(target.query, &target.outcome_regressors)
+                .map_err(CausalError::from)?
         };
         let fitted = match &target.surface {
             TupleSurface::Curve { .. } if complete => {
@@ -4922,6 +4993,7 @@ fn tuple_block_observation_replicates(
                                 source,
                                 target.query,
                                 target.adjustment,
+                                &target.outcome_regressors,
                                 &anchors,
                             )
                             .ok()?;
@@ -4940,6 +5012,7 @@ fn tuple_block_observation_replicates(
                                         source,
                                         target.query,
                                         target.adjustment,
+                                        &target.outcome_regressors,
                                         &shifted,
                                     )
                                     .ok()?,

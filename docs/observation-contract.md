@@ -78,6 +78,26 @@ adjustment nodes map back through the temporal indexer). Nonempty Z is never
 the contemporaneous column: the Cox/AIPW design uses Z at
 `TemporalResponseSpec::treatment_offset()` (typically −1).
 
+The selected-AIPW outcome nuisance additionally conditions on every column of
+the downstream response regression that consumes the pseudo-outcome: each
+horizon's lag-aligned treatment and adjustment columns for curves and single
+Set/Shift responses, and the outcome mechanism's parents for Sequence overlays
+(for example the treatment at lags 1 and 2 when the outcome depends on both).
+The selection propensity keeps the declared Z at the policy offset. With the
+declared Z alone, a downstream regressor outside it (the treatment at a second
+lag, or at the horizon-2 lag of a curve) left the pseudo-outcome residual
+correlated with that regressor. The downstream fit then relied on the selection
+model alone and was first-order sensitive to its estimation error: it was not
+orthogonal in the estimated propensity, and the iid two-step Sequence band
+covered 0.983 of a nominal 0.95. With the design columns in the outcome model,
+`E[Y* | design] = E[Y | design, R = 1]` whatever the fitted propensity. That
+equals the latent regression when selection is ignorable given the design
+columns. The declared independence carries over to the design columns unless an
+extra column is a collider on a path between selection and outcome. The previous
+declared-Z-only nuisance needed that condition as well, plus selection that does
+not depend on the extra columns. Rows whose extra regressors would fall before the
+series start keep the declared-Z outcome model.
+
 Until a pair is licensed, `compile_logical_temporal_response` refuses
 non-`Complete` with `temporal response observation pair is not licensed`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
