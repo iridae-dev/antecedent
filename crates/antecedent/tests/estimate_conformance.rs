@@ -443,4 +443,31 @@ fn estimate_rd_sharp_recovers_jump() {
         "sharp RD must not claim identification reuse"
     );
     assert_recovers(&click, &expected);
+
+    // rd_design threads the analytic SE kind: HC1 changes the SE, not the jump,
+    // and drops the homoskedastic-SE assumption the default declares.
+    let robust = Study::tabular(data)
+        .graph(Dag::with_variables(3))
+        .query(rd_scm(3000, 25).1)
+        .identifier(IdentifierId::RdSharp)
+        .estimator(EstimatorId::RdSharp)
+        .rd_design(
+            antecedent::RdConfig::new(VariableId::from_raw(2), 0.0, 1.5)
+                .with_se_kind(antecedent_estimate::AnalyticSeKind::Hc1),
+        )
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let declares_homoskedastic = |r: &antecedent::StudyResult| {
+        r.estimate.assumptions.entries.iter().any(|a| {
+            matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == "rd.sharp.homoskedastic_se")
+        })
+    };
+    assert_eq!(robust.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+    assert!(robust.estimate.se_analytic.is_finite());
+    assert!((robust.estimate.se_analytic - result.estimate.se_analytic).abs() > 1e-9);
+    assert!(declares_homoskedastic(&result) && !declares_homoskedastic(&robust));
 }

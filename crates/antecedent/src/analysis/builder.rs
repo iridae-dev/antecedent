@@ -94,13 +94,30 @@ pub struct RdConfig {
     pub cutoff: f64,
     /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
     pub bandwidth: f64,
+    /// Analytic SE kind for the jump coefficient. `Homoskedastic` (default) assumes
+    /// a constant outcome variance inside the window; `Hc0`–`Hc3` use the residual
+    /// sandwich. Label-based kinds are refused at execute.
+    pub se_kind: antecedent_estimate::AnalyticSeKind,
 }
 
 impl RdConfig {
-    /// Construct an RD design configuration.
+    /// Construct an RD design configuration (homoskedastic analytic SE).
     #[must_use]
     pub const fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        Self { running_variable, cutoff, bandwidth }
+        Self {
+            running_variable,
+            cutoff,
+            bandwidth,
+            se_kind: antecedent_estimate::AnalyticSeKind::Homoskedastic,
+        }
+    }
+
+    /// Select the analytic SE kind (e.g. [`antecedent_estimate::AnalyticSeKind::Hc1`]
+    /// when the outcome variance may differ across the cutoff).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
     }
 }
 
@@ -690,7 +707,15 @@ impl StudyBuilder {
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
     pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        self.rd = Some(RdConfig { running_variable, cutoff, bandwidth });
+        self.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
+        self
+    }
+
+    /// Full `rd.sharp` design, including the analytic SE kind
+    /// ([`RdConfig::with_se_kind`]). Replaces any earlier [`Self::rd_config`].
+    #[must_use]
+    pub fn rd_design(mut self, config: RdConfig) -> Self {
+        self.rd = Some(config);
         self
     }
 

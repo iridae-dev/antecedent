@@ -1321,8 +1321,38 @@ impl super::Study {
             mixed.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
+        // Completions that disagree publish the completion identified set, not a
+        // mass-weighted summary, so the frozen-weight joint-IF SE has no reported
+        // point to attach to. Attaching it anyway left `se_analytic` describing a
+        // mixture the result never states (1.9 calibration finding).
+        let reports_mixed_point = matches!(
+            &mixed.estimate,
+            ResponseIdentification::PointIdentified(
+                ResponseValue::Scalar(_) | ResponseValue::Surface { .. }
+            ) | ResponseIdentification::PartiallyIdentified(
+                ResponseValue::Scalar(_) | ResponseValue::Surface { .. }
+            )
+        );
+        let identified_set_unbanded = !reports_mixed_point
+            && matches!(
+                &mixed.estimate,
+                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
+            );
+        if reports_mixed_point {
+            attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
+        }
         let mut diagnostics = vec![envelope_diag];
+        if identified_set_unbanded {
+            diagnostics.push(Diagnostic::new(
+                "estimate.envelope.response_identified_set_unbanded",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completions disagree, so the response is the completion identified set \
+                 (pointwise lower/upper over identified completions); no sampling band and no \
+                 scalar SE are published for it. Per-completion values and enumeration weights \
+                 are in structural_response; a frozen-weight mixture is not reported",
+            ));
+        }
         if envelope.cases.iter().any(|c| {
             c.result
                 .estimands
@@ -1337,7 +1367,7 @@ impl super::Study {
                  Shpitser–Pearl ID after generalized adjustment failed",
             ));
         }
-        if !estimate.se_analytic.is_finite() {
+        if !estimate.se_analytic.is_finite() && !identified_set_unbanded {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
         // Disclose only when the envelope actually dropped per-completion

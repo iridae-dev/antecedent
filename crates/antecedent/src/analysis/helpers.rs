@@ -768,6 +768,34 @@ pub(crate) fn conditional_thresholds(
     Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
 }
 
+/// Name the estimator that actually produced a ConditionalEffect exceedance or
+/// quantile on binary 0/1 arms.
+///
+/// The plan keeps `conditional.linear.adjustment` as its estimator id, but on
+/// binary arms the scalar, the arm CDFs, and their influence columns come from
+/// cross-fitted AIPW scores with the modifier added to the adjustment set
+/// (`ConditionalLinearAdjustment::estimate_with_arm_scores`), not from the
+/// `T×W` linear interaction model. Non-binary levels keep the linear plugin.
+pub(crate) fn conditional_score_estimator_diagnostic(
+    query: &ConditionalEffectQuery,
+) -> Option<Diagnostic> {
+    let functional = &query.inner.outcome_functional;
+    if functional.thresholds().is_none() && functional.quantile_level().is_none() {
+        return None;
+    }
+    let binary = matches!((&query.inner.control, &query.inner.active),
+        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
+        if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0));
+    binary.then(|| {
+        Diagnostic::new(
+            "estimate.conditional.crossfit_aipw_scores",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "binary-arm conditional exceedance/quantile: the scalar, arm CDFs, and influence columns are cross-fitted AIPW scores (logistic propensity and per-arm outcome regressions on the modifier plus the adjustment set, standardized over the observed modifier distribution), not the conditional.linear.adjustment T×W interaction model named in the plan; the analytic SE is the AIPW influence-function SE",
+        )
+    })
+}
+
 /// Publish the actual conditional grid, whose coordinates have no score-table payload.
 pub(crate) fn conditional_quantile_grid_diagnostic(
     data: &TabularData,
