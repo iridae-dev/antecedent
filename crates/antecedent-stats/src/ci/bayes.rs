@@ -537,8 +537,11 @@ fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
         cyy += dy * dy;
         cxy += dx * dy;
     }
+    if !(cxx > 0.0 && cyy > 0.0) {
+        return Some(0.0);
+    }
     let denom = (cxx * cyy).sqrt();
-    if denom <= f64::EPSILON {
+    if !denom.is_finite() || denom == 0.0 {
         return Some(0.0);
     }
     Some((cxy / denom).abs())
@@ -678,6 +681,18 @@ mod tests {
         let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
         let y: Vec<f64> = (0..n).map(|i| 2.0 * i as f64 + 0.01).collect();
         (x, y)
+    }
+
+    #[test]
+    fn review_pearson_abs_is_scale_invariant() {
+        let x = [1.0, 1.0 + 1e-9, 1.0 + 2e-9];
+        let y = [2.0, 2.1, 2.2];
+        let r1 = pearson_abs(&x, &y).unwrap();
+        let scale = 1e-4;
+        let xs: Vec<f64> = x.iter().map(|v| v * scale).collect();
+        let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
+        let r2 = pearson_abs(&xs, &ys).unwrap();
+        assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
     }
 
     #[test]
