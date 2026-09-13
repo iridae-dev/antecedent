@@ -193,14 +193,8 @@ def test_licensed_pulse_effect_temporal_dag_runs():
     assert result.evidence_status == "licensed"
 
 
-def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
-    """AverageEffect x Admg(bidirected) x Bayesian is a newly-enforced closure
-    (parity/support_closed.toml, 2026-08-19 addition): general ID is the only
-    identifier compile.rs wires for a bidirected ADMG, and it is not compatible
-    with the bayesian.gcomp estimator that inference=Bayesian selects. Reachable
-    from Python because AverageEffect x Admg passes a bare Admg graph straight
-    through to native support-matrix consultation. Licensed ConditionalEffect /
-    TemporalMediationEffect Bayesian cells now take the staged prepare path."""
+def test_admg_bayesian_average_effect_uses_functional_estimator():
+    """AverageEffect × Admg × Bayesian is licensed in 1.8 via functional.effect."""
     n = 300
     u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
     t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])
@@ -210,18 +204,17 @@ def test_newly_enforced_admg_bayesian_average_effect_raises_refused():
     admg = antecedent.Admg.from_edges(
         ["t", "m", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
     )
-    with pytest.raises(CausalUnsupportedError) as ei:
-        antecedent.analyze(
-            data,
-            graph=admg,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
-    msg = str(ei.value)
-    assert msg.startswith("refused: General ID"), msg
+    result = antecedent.analyze(
+        data,
+        graph=admg,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=64),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.plan.estimator == "functional.effect"
+    assert result.posterior is not None
 
 
 def test_path_specific_cheap_refute_runs_native_suite():

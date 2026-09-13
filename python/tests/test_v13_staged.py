@@ -431,19 +431,23 @@ def test_v13_named_refusals():
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
         ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
-        ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.8"):
-        ac.analyze(data, graph=dag, query=cf, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
-        ac.analyze(
-            data,
-            graph=dag,
-            query=ac.PointDerivative("a", "y", at=0.5),
-            inference=ac.Bayesian(),
-            estimator_config={"bandwidth": 0.35},
-            refute="none",
-        )
+    med_bayes = ac.analyze(
+        data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none"
+    )
+    assert med_bayes.posterior is not None
+    cf_bayes = ac.analyze(
+        data, graph=dag, query=cf, inference=ac.Bayesian(n_draws=32), refute="none"
+    )
+    assert cf_bayes.posterior is not None
+    deriv = ac.analyze(
+        data,
+        graph=dag,
+        query=ac.PointDerivative("a", "y", at=0.5),
+        inference=ac.Bayesian(n_draws=64),
+        estimator_config={"bandwidth": 0.35},
+        refute="none",
+    )
+    assert deriv.response is not None or deriv.ate is not None
     with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
         ac.analyze(
             data,
@@ -452,7 +456,7 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
+    with pytest.raises(CausalUnsupportedError, match="graph-posterior path and mediation"):
         ac.analyze(
             data,
             query=med,
