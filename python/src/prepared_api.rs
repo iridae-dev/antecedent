@@ -7,7 +7,7 @@ use std::sync::Arc;
 use antecedent::discovery::{
     BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior, discover_exact_dag_posterior,
 };
-use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, PreparedStudy, Study};
+use antecedent::{EstimatorId, IdentifierId, PreparedStudy, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
     Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
@@ -235,6 +235,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         refute=None,
         seed=1,
         bootstrap=50,
@@ -258,6 +261,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
@@ -266,6 +272,9 @@ impl PyPreparedAnalysis {
         accepted: bool,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     ) -> PyResult<Self> {
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
@@ -310,9 +319,15 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
-            if let Some(mode) = inference.as_deref() {
-                builder = apply_inference(builder, mode, n_draws, prior_scale)?;
-            }
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -434,6 +449,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         refute=None,
         seed=1,
         bootstrap=50,
@@ -456,6 +474,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
@@ -475,6 +496,9 @@ impl PyPreparedAnalysis {
             })?),
         };
         let pag = graph.pag;
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -503,9 +527,15 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
-            if let Some(mode) = inference.as_deref() {
-                builder = apply_inference(builder, mode, n_draws, prior_scale)?;
-            }
+            builder = apply_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -535,6 +565,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         refute=None,
         seed=1,
         bootstrap=50,
@@ -557,6 +590,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
         bootstrap: u32,
@@ -576,6 +612,9 @@ impl PyPreparedAnalysis {
             })?),
         };
         let cpdag = graph.cpdag;
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -604,9 +643,15 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
-            if let Some(mode) = inference.as_deref() {
-                builder = apply_inference(builder, mode, n_draws, prior_scale)?;
-            }
+            builder = apply_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -938,7 +983,8 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
         contrast="mediated", control_level=0.0, active_level=1.0, refute=None,
-        bootstrap=0, accepted=false, seed=1, threads=1))]
+        bootstrap=0, accepted=false, seed=1, threads=1, inference=None, n_draws=256,
+        prior_scale=10.0, prior_artifact=None, prior_mapping=None, composed_prior=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_kind(
         py: Python<'_>,
@@ -957,6 +1003,12 @@ impl PyPreparedAnalysis {
         accepted: bool,
         seed: u64,
         threads: u32,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let query = static_kind_query(
@@ -970,6 +1022,9 @@ impl PyPreparedAnalysis {
             active_level,
         )?;
         let suite = suite_from_refute(refute.as_ref())?;
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
         detach_catch(py, move || {
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder = if accepted {
@@ -977,12 +1032,17 @@ impl PyPreparedAnalysis {
             } else {
                 Study::tabular(data).graph(dag)
             };
-            let study = builder
-                .query(query)
-                .refute(suite)
-                .bootstrap_replicates(bootstrap)
-                .build()
-                .map_err(py_err)?;
+            let mut builder = builder.query(query).refute(suite).bootstrap_replicates(bootstrap);
+            builder = apply_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
+            )?;
+            let study = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -999,7 +1059,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
         direction=None, order=1, scale="identity", weighting="observed", bandwidth=None,
-        accepted=false, seed=1, threads=1))]
+        accepted=false, seed=1, threads=1, inference=None, n_draws=256, prior_scale=10.0))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_derivative(
         py: Python<'_>,
@@ -1018,6 +1078,9 @@ impl PyPreparedAnalysis {
         accepted: bool,
         seed: u64,
         threads: u32,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let scale = crate::response_api::parse_scale(scale)?;
@@ -1034,16 +1097,21 @@ impl PyPreparedAnalysis {
             } else {
                 Study::tabular(data).graph(dag)
             };
-            let study = builder
+            let mut builder = builder
                 .query(CausalQuery::Response(ResponseQuery::new(functional)))
                 .response_options(antecedent_estimate::ContinuousResponseOptions {
                     bandwidth,
                     ..Default::default()
                 })
                 .refute(antecedent::RefuteSuite::None)
-                .bootstrap_replicates(0)
-                .build()
-                .map_err(py_err)?;
+                .bootstrap_replicates(0);
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
+            let study = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -1071,6 +1139,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         seed=1,
         threads=1,
         latency=None,
@@ -1090,6 +1161,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
         threads: u32,
         latency: Option<String>,
@@ -1104,6 +1178,9 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1136,11 +1213,14 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
-            builder = apply_inference(
+            builder = apply_inference_transfer(
                 builder,
-                inference.as_deref().unwrap_or("frequentist"),
+                inference.as_deref(),
                 n_draws,
                 prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -2298,6 +2378,9 @@ impl PyPreparedAnalysis {
         inference=None,
         n_draws=1000,
         prior_scale=10.0,
+        prior_artifact=None,
+        prior_mapping=None,
+        composed_prior=None,
         seed=1,
         bootstrap=50,
         threads=1,
@@ -2320,6 +2403,9 @@ impl PyPreparedAnalysis {
         inference: Option<String>,
         n_draws: usize,
         prior_scale: f64,
+        prior_artifact: Option<Vec<u8>>,
+        prior_mapping: Option<&Bound<'_, PyDict>>,
+        composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
         bootstrap: u32,
         threads: u32,
@@ -2338,6 +2424,9 @@ impl PyPreparedAnalysis {
                 ))
             })?),
         };
+        let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
+        let composed_prior =
+            composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
 
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -2363,11 +2452,14 @@ impl PyPreparedAnalysis {
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
-            builder = apply_inference(
+            builder = apply_inference_transfer(
                 builder,
-                inference.as_deref().unwrap_or("frequentist"),
+                inference.as_deref(),
                 n_draws,
                 prior_scale,
+                prior_artifact.as_deref(),
+                prior_mapping,
+                composed_prior,
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
@@ -2452,6 +2544,9 @@ impl PyPreparedAnalysis {
                 inference,
                 n_draws,
                 prior_scale,
+                None,
+                None,
+                None,
                 suite,
                 seed,
                 bootstrap,
@@ -2533,6 +2628,9 @@ impl PyPreparedAnalysis {
                 inference,
                 n_draws,
                 prior_scale,
+                None,
+                None,
+                None,
                 suite,
                 seed,
                 bootstrap,
@@ -2564,6 +2662,9 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        inference=None,
+        n_draws=256,
+        prior_scale=10.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_path_specific(
@@ -2584,6 +2685,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
@@ -2625,6 +2729,12 @@ impl PyPreparedAnalysis {
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -2653,6 +2763,9 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        inference=None,
+        n_draws=256,
+        prior_scale=10.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_distribution(
@@ -2668,6 +2781,9 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        inference: Option<String>,
+        n_draws: usize,
+        prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
@@ -2708,6 +2824,12 @@ impl PyPreparedAnalysis {
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
+            builder = apply_inference(
+                builder,
+                inference.as_deref().unwrap_or("frequentist"),
+                n_draws,
+                prior_scale,
+            )?;
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -3220,6 +3342,9 @@ fn prepare_class_conditional(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     suite: antecedent::RefuteSuite,
     seed: u64,
     bootstrap: u32,
@@ -3272,11 +3397,14 @@ fn prepare_class_conditional(
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
         );
     }
-    builder = apply_inference(
+    builder = apply_inference_transfer(
         builder,
-        inference.as_deref().unwrap_or("frequentist"),
+        inference.as_deref(),
         n_draws,
         prior_scale,
+        prior_artifact.as_deref(),
+        prior_mapping,
+        composed_prior,
     )?;
     let analysis = builder.build().map_err(py_err)?;
     let ctx = py_execution_context_ext(
@@ -3296,24 +3424,27 @@ fn apply_inference(
     n_draws: usize,
     prior_scale: f64,
 ) -> PyResult<antecedent::StudyBuilder> {
-    match mode.to_ascii_lowercase().as_str() {
-        "bayesian" | "bayesian.laplace" | "laplace" => {
-            let cfg = BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale);
-            Ok(builder.inference(InferenceMode::Bayesian(cfg)))
-        }
-        "bayesian.conjugate" | "conjugate" => {
-            let cfg = BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale);
-            Ok(builder.inference(InferenceMode::Bayesian(cfg)))
-        }
-        "bayesian.hmc" | "hmc" => {
-            let cfg = BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale);
-            Ok(builder.inference(InferenceMode::Bayesian(cfg)))
-        }
-        "frequentist" => Ok(builder.inference(InferenceMode::Frequentist)),
-        other => Err(PyValueError::new_err(format!(
-            "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
-        ))),
-    }
+    apply_inference_transfer(builder, Some(mode), n_draws, prior_scale, None, None, None)
+}
+
+fn apply_inference_transfer(
+    builder: antecedent::StudyBuilder,
+    mode: Option<&str>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<&[u8]>,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+) -> PyResult<antecedent::StudyBuilder> {
+    crate::temporal_api::apply_temporal_inference_transfer(
+        builder,
+        Some(mode.unwrap_or("frequentist")),
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        prior_mapping,
+        composed_prior,
+    )
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
