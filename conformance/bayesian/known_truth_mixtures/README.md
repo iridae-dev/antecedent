@@ -13,6 +13,22 @@ under the licensed identifier, and cannot be upgraded to identified by a prior.
 The reported effect envelope is `E[tau | identified] = 2.625`; the separate
 `unidentified_mass` remains 0.2.
 
+The `static_response` block (1.9, D-2) pins the static graph-posterior
+`InterventionResponse` and `ResponseCurve` `conditional_on_identified` mean,
+Frequentist and Bayesian, with the same three atom masks. The Kennedy-DR curve
+needs a continuous treatment, so the frozen law puts `T` on 100 symmetric
+levels in `[-2, 2]`; every level carries the four rows `Z = 0.5T ± 0.5`,
+`Y = 1 + 2T + 1.5Z ± 0.05`, so within-level deviations cancel exactly. The
+unadjusted atom's curve is `1 + 2.75t`, the `Z`-adjusted atom's is `1 + 2t`,
+and `conditional_on_identified = (0.5·(1 + 2.75t) + 0.3·(1 + 2t)) / 0.8 =
+1 + 2.46875t`, with 0.2 unidentified mass kept separate. Multi-atom response
+uncertainty is declared unavailable, so this is a numeric pin, not a coverage
+claim. The Frequentist tolerance (0.05) absorbs the smoothing error of the
+Kennedy-DR curve and the GAM plug-in level on this exact linear law; the
+Bayesian linear-Gaussian response is within 0.01. Consumer:
+`crates/antecedent/tests/response_facade.rs`
+(`graph_posterior_response_known_truth_conditional_on_identified`).
+
 The temporal fixture uses `defect_t = 0.9 * pressure_{t-1}`.  A valid lag-one DBN
 atom has weight 0.7.  A second valid DBN atom adds the stationary autoregressive
 edge `pressure_{t-1} -> pressure_t` and has weight 0.3.  Its treatment ancestry
