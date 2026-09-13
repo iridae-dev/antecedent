@@ -160,7 +160,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or sampling band. Licensed 1.3/1.6 observation pairs ride per completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
+limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
 
 [[cell]]
 query = "ResponseCurve"
@@ -184,7 +184,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or sampling band. Licensed 1.3/1.6 observation pairs ride per directed completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
+limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per directed completion; complete-data bands are not reused. Delayed entry, interval, and truncation stay refused."
 
 [[cell]]
 query = "ResponseCurve"
