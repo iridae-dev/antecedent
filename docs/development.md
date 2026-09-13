@@ -184,8 +184,8 @@ Before merging the release PR:
 6. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.6.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.6.0...HEAD`, and release-status text matches
+Before tagging, confirm the dated 1.7.0 changelog section is present, Unreleased
+is empty, its comparison link is `v1.7.0...HEAD`, and release-status text matches
 the cut. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
@@ -195,16 +195,16 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.6.0
+bash scripts/set_version.sh 1.7.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.6.0"
+git commit -s -m "chore: bump version to 1.7.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.6.0
-git push origin v1.6.0
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.7.0
+git push origin v1.7.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -252,4 +252,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.6.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.7.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
