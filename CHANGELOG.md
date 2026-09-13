@@ -18,15 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`none`/`cheap`/`full`) via a shared identified-functional evaluator.
 - Bayesian static mediation (`cheap`/`full`) and counterfactuals (`none`).
 - Bayesian derivative family (`none`) on explicit/accepted Dag.
-- ConditionalEffect × Dag × graph_posterior for Frequentist and Bayesian,
-  retaining unidentified mass.
-- Staged prior transfer for static ATE/CATE, response mappings, and mapped
-  mediation mechanism hydrate; fail-closed incompatible catalogs.
+- ConditionalEffect × Dag × graph_posterior for Frequentist and Bayesian.
+  Published moments are E[τ | identified]; unidentified mass is a separate
+  axis.
+- Staged prior transfer for static ATE/CATE, response mappings, and
+  EffectFunctional ATE/Δ hydrate onto the outcome-mechanism NDE slope;
+  fail-closed incompatible catalogs.
 
 ### Fixed
 
 - Python prepare no longer refuses Bayesian path, distribution, mediation,
   counterfactual, or derivative cells.
+- Identity-link EffectFunctional maps ATE → β via `/Δ`; mediation binds only
+  the outcome mechanism. Bayesian ADE refits μ and α each draw (Rubin
+  Dirichlet(1,…,1)/Exp(1) weights). `n_draws < 2` is a typed refuse.
 
 ## [1.7.0] — 2026-09-13
 
