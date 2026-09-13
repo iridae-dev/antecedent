@@ -63,6 +63,17 @@ pub enum TemporalMediationUncertainty {
         /// Standard error, absent when the estimator cannot justify one.
         standard_error: Option<f64>,
     },
+    /// Shared circular-block bootstrap SEs for every contrast at this horizon.
+    ///
+    /// One raw-series circular-block replicate refits all three mechanism
+    /// regressions, so Total, Direct and Mediated SEs are mutually consistent.
+    /// `requested` repeats the requested contrast's SE.
+    FrequentistBlockBootstrap {
+        /// Requested contrast SE.
+        requested: Option<f64>,
+        /// Shared-replicate SEs for Total, Direct and Mediated.
+        block: crate::temporal_mediation::TemporalMediationBlockSe,
+    },
     /// Separate per-horizon posterior summaries. This is not a joint posterior
     /// over horizons.
     BayesianPointwise {
@@ -130,8 +141,10 @@ pub struct TemporalMediationEstimator {
     /// When true, [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
     /// are treated as their controlled counterparts (linear alias).
     pub allow_natural_controlled_alias: bool,
-    /// When true, publish the iid Sobel SE for the mediated contrast. Default false:
-    /// lagged rows are serially dependent, so the analytic SE is NaN unless this is set.
+    /// When true, publish iid analytic SEs for every contrast (homoskedastic OLS
+    /// coefficient SE for Total/Direct, Sobel for Mediated). Default false: lagged
+    /// rows of one series are serially dependent, so `se_analytic` is NaN for all
+    /// three contrasts unless this is set. The name is historical.
     pub allow_iid_sobel_se: bool,
 }
 
@@ -170,8 +183,8 @@ impl TemporalMediationEstimator {
         self
     }
 
-    /// Publish the iid Sobel SE for the mediated contrast (anti-conservative under serial
-    /// correlation). Default is to leave `se_analytic` as NaN for mediated effects.
+    /// Publish iid analytic SEs for every contrast (anti-conservative under serial
+    /// correlation). Default leaves `se_analytic` NaN for Total, Direct and Mediated.
     #[must_use]
     pub const fn with_allow_iid_sobel_se(mut self, allow: bool) -> Self {
         self.allow_iid_sobel_se = allow;
@@ -210,6 +223,10 @@ impl TemporalMediationEstimator {
     }
 
     /// Fit with graph-derived lagged baseline covariates and optional RCC columns.
+    ///
+    /// Point estimates only, plus iid analytic SEs when [`Self::allow_iid_sobel_se`]
+    /// is set (NaN otherwise, for every contrast). Dependence-honest uncertainty
+    /// comes from [`Self::estimate_with_block_bootstrap`].
     #[allow(clippy::too_many_arguments)] // Keep existing estimator entry points source-compatible.
     pub fn estimate_with_adjustment(
         &self,
@@ -220,6 +237,138 @@ impl TemporalMediationEstimator {
         extra: &[antecedent_core::VariableId],
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
+        let (mediator, delta) = self.validate(estimand, query)?;
+        let design = Self::prepare_design(data, mediator, query, adjustment, extra, ctx)?;
+        let fit = self.fit_design(&design, None, delta)?;
+        Ok(self.estimate_from_fit(query, &fit))
+    }
+
+    fn estimate_from_fit(
+        &self,
+        query: &MediationQuery,
+        fit: &ContrastFit,
+    ) -> TemporalMediationEstimate {
+        let (total, direct, mediated) = (fit.total, fit.direct, fit.mediated);
+
+        let point = match query.contrast {
+            MediationContrast::Total => total,
+            MediationContrast::Direct | MediationContrast::NaturalDirect => direct,
+            MediationContrast::Mediated | MediationContrast::NaturalIndirect => mediated,
+        };
+        // Lagged rows of one series are serially dependent, so every iid analytic
+        // SE (OLS coefficient SE for Total/Direct, Sobel for Mediated) is refused
+        // unless the caller opts in.
+        let se_analytic =
+            if self.allow_iid_sobel_se { fit.iid_se(query.contrast) } else { f64::NAN };
+
+        let mut assumptions = AssumptionSet::default();
+        if matches!(
+            query.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) {
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom {
+                    id: Arc::from("natural_controlled_alias"),
+                    description: Arc::from(
+                        "natural direct/indirect effects are aliased to controlled \
+                         direct/mediated effects under linear temporal mediation",
+                    ),
+                },
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("temporal_mediation"),
+                },
+                scope: antecedent_core::AssumptionScope::Estimation,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
+
+        TemporalMediationEstimate {
+            effect: EffectEstimate::new(
+                point,
+                se_analytic,
+                assumptions,
+                crate::overlap::OverlapPolicy::ExplicitOverride,
+            ),
+            total: Some(total),
+            direct: Some(direct),
+            mediated: Some(mediated),
+        }
+    }
+
+    /// Point estimates plus one shared circular-block bootstrap for Total, Direct
+    /// and Mediated.
+    ///
+    /// Each replicate resamples circular blocks of consecutive lag-aligned rows
+    /// ([`crate::temporal_block::row_block_bootstrap`], block length
+    /// [`antecedent_data::circular_block_length`] with structural span = deepest
+    /// design lag + 1) and refits all three mechanism regressions on it, so the
+    /// three contrast SEs come from the same replicates.
+    /// `effect.se_bootstrap` is the requested contrast's SE; iid analytic SEs keep
+    /// the [`Self::allow_iid_sobel_se`] gate.
+    ///
+    /// # Errors
+    ///
+    /// Validation or point-fit failures. Failed replicates are counted, not raised.
+    #[allow(clippy::too_many_arguments)]
+    pub fn estimate_with_block_bootstrap(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        adjustment: &[LaggedColumn],
+        replicates: u32,
+        stream_base: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<(TemporalMediationEstimate, TemporalMediationBlockSe), EstimationError> {
+        let (mediator, delta) = self.validate(estimand, query)?;
+        let design = Self::prepare_design(data, mediator, query, adjustment, &[], ctx)?;
+        let point = self.fit_design(&design, None, delta)?;
+        let mut estimate = self.estimate_from_fit(query, &point);
+        let structural_span = mediation_design_max_lag(query, adjustment) as usize + 1;
+        let mut block = TemporalMediationBlockSe {
+            total: None,
+            direct: None,
+            mediated: None,
+            replicates_ok: 0,
+            replicates_attempted: 0,
+            block_length: antecedent_data::circular_block_length(structural_span, design.n),
+            rows: design.n,
+            effective_rows: design.score_effective_rows(self.backend, &point),
+        };
+        if replicates > 0 {
+            let boot = crate::temporal_block::row_block_bootstrap::<3>(
+                design.n,
+                structural_span,
+                replicates,
+                stream_base,
+                ctx,
+                |rows| {
+                    self.fit_design(&design, Some(rows), delta)
+                        .ok()
+                        .map(|fit| [fit.total, fit.direct, fit.mediated])
+                },
+            );
+            let [total, direct, mediated] = [0, 1, 2].map(|k| boot.se_result(k));
+            block.total = total.se;
+            block.direct = direct.se;
+            block.mediated = mediated.se;
+            block.replicates_ok = total.replicates_ok;
+            block.replicates_attempted = boot.attempted;
+            let requested = match query.contrast {
+                MediationContrast::Total => total,
+                MediationContrast::Direct | MediationContrast::NaturalDirect => direct,
+                MediationContrast::Mediated | MediationContrast::NaturalIndirect => mediated,
+            };
+            estimate.effect = estimate.effect.with_bootstrap(Some(requested));
+        }
+        Ok((estimate, block))
+    }
+
+    fn validate(
+        &self,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+    ) -> Result<(antecedent_core::VariableId, f64), EstimationError> {
         query.validate()?;
         if matches!(
             query.contrast,
@@ -243,7 +392,6 @@ impl TemporalMediationEstimator {
                 "TemporalMediationEstimator supports exactly one mediator",
             ));
         }
-        let mediator = estimand.mediators[0];
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         let delta = active - control;
@@ -252,10 +400,20 @@ impl TemporalMediationEstimator {
                 "active and control treatment levels must differ",
             ));
         }
+        Ok((estimand.mediators[0], delta))
+    }
 
-        let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
+    /// Prepare the lag-aligned `[T, M, Y, adjustment…, extra…]` columns.
+    fn prepare_design(
+        data: &TimeSeriesData,
+        mediator: antecedent_core::VariableId,
+        query: &MediationQuery,
+        adjustment: &[LaggedColumn],
+        extra: &[antecedent_core::VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<MediationDesign, EstimationError> {
         let mut cols = vec![
-            LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag) },
+            LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag(query)) },
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
         ];
@@ -263,94 +421,190 @@ impl TemporalMediationEstimator {
         cols.extend(
             extra.iter().map(|&variable| LaggedColumn { variable, lag: Lag::CONTEMPORANEOUS }),
         );
+        let ncols = cols.len();
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
         let plan =
             data.plan_lagged_sample(max_lag, Arc::from(cols)).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
         let prep =
             plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?;
-        let t = prep.column(0);
-        let m = prep.column(1);
-        let y = prep.column(2);
         let n = prep.n;
         if n < 4 {
             return Err(EstimationError::data_msg("insufficient effective samples for mediation"));
         }
+        let mut columns = Vec::with_capacity(n * ncols);
+        for c in 0..ncols {
+            columns.extend_from_slice(prep.column(c));
+        }
+        Ok(MediationDesign { columns, n, n_extra: ncols - 3 })
+    }
 
-        let n_extra = adjustment.len() + extra.len();
-        let extras: Vec<_> = (0..n_extra).map(|i| prep.column(3 + i)).collect();
+    /// Fit the three mechanism regressions on the design, or on the replicate
+    /// rows `rows` (`rows[r]` = source row of replicate row `r`).
+    fn fit_design(
+        &self,
+        design: &MediationDesign,
+        rows: Option<&[usize]>,
+        delta: f64,
+    ) -> Result<ContrastFit, EstimationError> {
+        let n = design.n;
+        let gathered;
+        let columns = match rows {
+            None => &design.columns,
+            Some(rows) => {
+                gathered = design
+                    .columns
+                    .chunks_exact(n)
+                    .flat_map(|col| rows.iter().map(move |&r| col[r]))
+                    .collect::<Vec<f64>>();
+                &gathered
+            }
+        };
+        let column = |c: usize| &columns[c * n..(c + 1) * n];
+        let (t, m, y) = (column(0), column(1), column(2));
+        let n_extra = design.n_extra;
+        let extras: Vec<_> = (0..n_extra).map(|i| column(3 + i)).collect();
         // Stage 1: M ~ [1, T] → a = β_T
         let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m, &extras)?;
         // Stage 2: Y ~ [1, T, M] → c' = β_T (direct), b = β_M
         let (c_prime, b, design_b, sigma2_b) = ols_three_col(self.backend, t, m, y, &extras)?;
         // Reduced form: Y ~ [1, T] → c = total
         let (c, _intercept_y, design_c, sigma2_c) = ols_two_col(self.backend, t, y, &extras)?;
+        Ok(ContrastFit {
+            total: c * delta,
+            direct: c_prime * delta,
+            mediated: a * b * delta,
+            a,
+            b,
+            delta,
+            n,
+            n_extra,
+            designs: [design_a, design_b, design_c],
+            sigma2: [sigma2_a, sigma2_b, sigma2_c],
+        })
+    }
+}
 
-        let total = c * delta;
-        let direct = c_prime * delta;
-        let mediated = a * b * delta;
+/// Owned lag-aligned mediation columns `[T, M, Y, adjustment…, extra…]`, column-major.
+struct MediationDesign {
+    columns: Vec<f64>,
+    n: usize,
+    n_extra: usize,
+}
 
-        let point = match query.contrast {
-            MediationContrast::Total => total,
-            MediationContrast::Direct | MediationContrast::NaturalDirect => direct,
-            MediationContrast::Mediated | MediationContrast::NaturalIndirect => mediated,
-        };
+impl MediationDesign {
+    fn column(&self, c: usize) -> &[f64] {
+        &self.columns[c * self.n..(c + 1) * self.n]
+    }
 
-        let se_analytic = match query.contrast {
-            MediationContrast::Total => {
-                let var_c = coefficient_variance(&design_c, n, 2 + n_extra, 1, sigma2_c);
-                (var_c * delta * delta).max(0.0).sqrt()
+    /// Smallest [`crate::temporal_block::effective_rows`] over the Total, Direct and
+    /// Mediated estimating scores (residual × centered regressor; delta method for
+    /// the product), used to flag series too dependent for the block rule.
+    fn score_effective_rows(&self, backend: FaerBackend, fit: &ContrastFit) -> f64 {
+        let (t, m, y) = (self.column(0), self.column(1), self.column(2));
+        let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
+        let residuals = |regressors: &[&[f64]], outcome: &[f64]| -> Option<Vec<f64>> {
+            let mut design = vec![1.0; self.n];
+            for column in regressors.iter().chain(&extras) {
+                design.extend_from_slice(column);
             }
+            let ncols = 1 + regressors.len() + extras.len();
+            let coef = ols_fit(backend, &design, ncols, outcome).ok()?;
+            Some(
+                (0..self.n)
+                    .map(|r| {
+                        outcome[r]
+                            - (0..ncols).map(|c| design[c * self.n + r] * coef[c]).sum::<f64>()
+                    })
+                    .collect(),
+            )
+        };
+        let (Some(r_a), Some(r_b), Some(r_c)) =
+            (residuals(&[t], m), residuals(&[t, m], y), residuals(&[t], y))
+        else {
+            return f64::NAN;
+        };
+        let centered = |x: &[f64]| {
+            let mean = x.iter().sum::<f64>() / x.len() as f64;
+            x.iter().map(|v| v - mean).collect::<Vec<f64>>()
+        };
+        let (tc, mc) = (centered(t), centered(m));
+        let total: Vec<f64> = r_c.iter().zip(&tc).map(|(e, x)| e * x).collect();
+        let direct: Vec<f64> = r_b.iter().zip(&tc).map(|(e, x)| e * x).collect();
+        let mediated: Vec<f64> =
+            (0..self.n).map(|r| fit.b * r_a[r] * tc[r] + fit.a * r_b[r] * mc[r]).collect();
+        [total, direct, mediated]
+            .iter()
+            .map(|scores| crate::temporal_block::effective_rows(scores))
+            .fold(f64::INFINITY, f64::min)
+    }
+}
+
+/// Shared circular-block SEs for one temporal mediation horizon.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TemporalMediationBlockSe {
+    /// Total-effect SE.
+    pub total: Option<f64>,
+    /// Direct-effect SE.
+    pub direct: Option<f64>,
+    /// Mediated-effect SE.
+    pub mediated: Option<f64>,
+    /// Replicates where all three contrasts were finite.
+    pub replicates_ok: u32,
+    /// Replicates evaluated.
+    pub replicates_attempted: u32,
+    /// Circular-block length in lag-aligned rows.
+    pub block_length: usize,
+    /// Lag-aligned rows resampled.
+    pub rows: usize,
+    /// Smallest effective row count over the three contrasts' estimating scores
+    /// ([`crate::temporal_block::effective_rows`]).
+    pub effective_rows: f64,
+}
+
+fn treatment_lag(query: &MediationQuery) -> u32 {
+    query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1)
+}
+
+/// Deepest lag in the mediation design (treatment lag or an adjustment lag).
+fn mediation_design_max_lag(query: &MediationQuery, adjustment: &[LaggedColumn]) -> u32 {
+    adjustment.iter().map(|c| c.lag.raw()).fold(treatment_lag(query), u32::max)
+}
+
+/// Three mechanism fits on one prepared design.
+struct ContrastFit {
+    total: f64,
+    direct: f64,
+    mediated: f64,
+    a: f64,
+    b: f64,
+    delta: f64,
+    n: usize,
+    n_extra: usize,
+    /// Column-major designs for `M ~ T`, `Y ~ T + M`, `Y ~ T`.
+    designs: [Vec<f64>; 3],
+    sigma2: [f64; 3],
+}
+
+impl ContrastFit {
+    /// Homoskedastic iid SE for `contrast` (Sobel for the mediated product).
+    fn iid_se(&self, contrast: MediationContrast) -> f64 {
+        let (n, k, delta) = (self.n, self.n_extra, self.delta);
+        let [design_a, design_b, design_c] = &self.designs;
+        let [sigma2_a, sigma2_b, sigma2_c] = self.sigma2;
+        let var = match contrast {
+            MediationContrast::Total => coefficient_variance(design_c, n, 2 + k, 1, sigma2_c),
             MediationContrast::Direct | MediationContrast::NaturalDirect => {
-                let var_cp = coefficient_variance(&design_b, n, 3 + n_extra, 1, sigma2_b);
-                (var_cp * delta * delta).max(0.0).sqrt()
+                coefficient_variance(design_b, n, 3 + k, 1, sigma2_b)
             }
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
-                if self.allow_iid_sobel_se {
-                    let var_a = coefficient_variance(&design_a, n, 2 + n_extra, 1, sigma2_a);
-                    let var_b = coefficient_variance(&design_b, n, 3 + n_extra, 2, sigma2_b);
-                    // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
-                    // Valid only under iid rows (`allow_iid_sobel_se`).
-                    let var_ab = b * b * var_a + a * a * var_b;
-                    (var_ab * delta * delta).max(0.0).sqrt()
-                } else {
-                    f64::NAN
-                }
+                let var_a = coefficient_variance(design_a, n, 2 + k, 1, sigma2_a);
+                let var_b = coefficient_variance(design_b, n, 3 + k, 2, sigma2_b);
+                // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)).
+                self.b * self.b * var_a + self.a * self.a * var_b
             }
         };
-
-        let mut assumptions = AssumptionSet::default();
-        if matches!(
-            query.contrast,
-            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
-        ) {
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::Custom {
-                    id: Arc::from("natural_controlled_alias"),
-                    description: Arc::from(
-                        "natural direct/indirect effects are aliased to controlled \
-                         direct/mediated effects under linear temporal mediation",
-                    ),
-                },
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal_mediation"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
-        }
-
-        Ok(TemporalMediationEstimate {
-            effect: EffectEstimate::new(
-                point,
-                se_analytic,
-                assumptions,
-                crate::overlap::OverlapPolicy::ExplicitOverride,
-            ),
-            total: Some(total),
-            direct: Some(direct),
-            mediated: Some(mediated),
-        })
+        (var * delta * delta).max(0.0).sqrt()
     }
 }
 

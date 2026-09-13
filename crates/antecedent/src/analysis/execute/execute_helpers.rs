@@ -216,23 +216,6 @@ pub(super) fn nan_effect() -> EffectEstimate {
     )
 }
 
-pub(super) fn integer_cube_root_ceil(n: usize) -> usize {
-    if n <= 1 {
-        return n;
-    }
-    let mut low = 1usize;
-    let mut high = n;
-    while low < high {
-        let middle = low + (high - low) / 2;
-        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
-            high = middle;
-        } else {
-            low = middle + 1;
-        }
-    }
-    low
-}
-
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
 /// identified mass is flipped to Unidentified (never silent renormalize to 1).
 ///
@@ -521,7 +504,7 @@ pub(super) fn shared_circular_block_mixture_se(
 /// Block-length rule for the shared circular block: the structural lag span
 /// or `ceil(n^(1/3))`, whichever is longer, capped at `n`.
 pub(super) fn circular_block_length(structural_span: usize, n: usize) -> usize {
-    structural_span.max(integer_cube_root_ceil(n)).min(n).max(1)
+    antecedent_data::circular_block_length(structural_span, n)
 }
 
 /// [`shared_circular_block_mixture_se`] at an explicit block length (the

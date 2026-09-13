@@ -28,6 +28,25 @@ use crate::adjustment::{
 };
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::se::AnalyticSeKind;
+
+/// RNG stream base for the one-series circular-block row bootstrap.
+const TEMPORAL_BLOCK_STREAM: u64 = 0x7B10_C000_0000;
+
+/// How [`TemporalLinearAdjustment::fit_dependence_honest`] computed its SE.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TemporalDependenceSe {
+    /// Circular-block length in lag-aligned rows:
+    /// `max(history + horizon, ⌈n^{1/3}⌉) ≤ n`.
+    pub block_length: usize,
+    /// Lag-aligned rows in the fitted (and resampled) design.
+    pub rows: usize,
+    /// Effective rows of the treatment-coefficient score
+    /// ([`crate::temporal_block::effective_rows`]).
+    pub effective_rows: f64,
+    /// Bootstrap replicates evaluated (0 when none were requested).
+    pub replicates_attempted: u32,
+}
 
 /// Temporal linear adjustment for unfolded backdoor estimands.
 #[derive(Clone, Debug)]
@@ -288,7 +307,92 @@ impl TemporalLinearAdjustment {
         ))
     }
 
+    /// Fit one series' prepared design with dependence-honest uncertainty.
+    ///
+    /// Lag-aligned rows of one series are serially dependent (overlapping lag
+    /// windows, autocorrelated residuals, MA(h−1) errors at horizon h), so neither
+    /// the homoskedastic OLS SE nor an iid row bootstrap is valid here:
+    ///
+    /// - `se_bootstrap` (when `inner.bootstrap_replicates > 0`) is a circular-block
+    ///   bootstrap over consecutive lag-aligned rows
+    ///   ([`crate::temporal_block::row_block_bootstrap`]); each replicate refits the
+    ///   design. The block length is [`antecedent_data::circular_block_length`] of
+    ///   the unfolded window (`history + horizon` slices) and the row count.
+    /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
+    ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
+    ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
+    ///
+    /// `inner.se_kind` and the iid bootstrap of [`LinearAdjustmentAte`] are never used.
+    ///
+    /// `prep` comes from [`Self::prepare`] on one series (rows are consecutive in
+    /// time; under a split, the estimation window only); `indexer` is the
+    /// identification indexer that sets the structural span.
+    ///
+    /// # Errors
+    ///
+    /// Point-fit failures. Failed replicates are counted, not raised.
+    pub fn fit_dependence_honest(
+        &self,
+        prep: &PreparedEstimationProblem,
+        indexer: &TemporalIndexer,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        let rows = prep.design.nrows;
+        let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
+        let fitter = LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+            multiway_ids: None,
+            panel_times: None,
+            ..self.inner.clone()
+        };
+        let mut workspace = EstimationWorkspace::default();
+        let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
+        point.se_analytic = f64::NAN;
+
+        let replicates = self.inner.bootstrap_replicates;
+        let boot = (replicates > 0).then(|| {
+            let mut x_boot = vec![0.0; rows * prep.design.ncols];
+            let mut y_boot = vec![0.0; rows];
+            crate::temporal_block::row_block_bootstrap::<1>(
+                rows,
+                structural_span,
+                replicates,
+                TEMPORAL_BLOCK_STREAM,
+                ctx,
+                |row_src| {
+                    fitter
+                        .ate_on_row_indices_into(
+                            prep,
+                            &mut workspace,
+                            row_src,
+                            &mut x_boot,
+                            &mut y_boot,
+                        )
+                        .ok()
+                        .map(|ate| [ate])
+                },
+            )
+        });
+        let info = TemporalDependenceSe {
+            block_length: antecedent_data::circular_block_length(structural_span, rows),
+            rows,
+            effective_rows: point
+                .influence
+                .as_deref()
+                .map_or(f64::NAN, crate::temporal_block::effective_rows),
+            replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
+        };
+        Ok((point.with_bootstrap(boot.map(|b| b.se_result(0))), info))
+    }
+
     /// Fit using the shared linear-adjustment path.
+    ///
+    /// This is the iid path of [`LinearAdjustmentAte`] (homoskedastic analytic SE,
+    /// iid bootstrap over prepared rows). One-series temporal effects use
+    /// [`Self::fit_dependence_honest`] instead.
     ///
     /// # Errors
     ///

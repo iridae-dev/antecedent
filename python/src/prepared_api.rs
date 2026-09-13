@@ -3644,6 +3644,10 @@ fn mediation_grid_wire(
                 let uncertainty = match &slice.uncertainty {
                     antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
                         standard_error,
+                    }
+                    | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                        requested: standard_error,
+                        ..
                     } => antecedent_io::TemporalMediationUncertaintyWire::FrequentistPointwise {
                         standard_error: *standard_error,
                     },

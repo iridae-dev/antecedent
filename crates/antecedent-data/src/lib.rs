@@ -87,10 +87,10 @@ pub use pooled_frame::{
 pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
-    PermutationScheme, RaggedResampleIndexBatch, ResamplingPlan, fill_resample_index_batch,
-    fill_resample_indexes, fill_resample_indexes_grouped, fill_resample_weight_batch,
-    fill_resample_weights, resample_index_batch_ragged, resample_timeseries,
-    resample_timeseries_grouped,
+    PermutationScheme, RaggedResampleIndexBatch, ResamplingPlan, circular_block_length,
+    fill_resample_index_batch, fill_resample_indexes, fill_resample_indexes_grouped,
+    fill_resample_weight_batch, fill_resample_weights, integer_cube_root_ceil,
+    resample_index_batch_ragged, resample_timeseries, resample_timeseries_grouped,
 };
 pub use sample::{
     DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,

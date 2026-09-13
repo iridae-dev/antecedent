@@ -454,6 +454,7 @@ impl super::Study {
         // Bayesian fits keep the estimator (with the resolved prior in force) and the
         // lag-named, serial-dependence-tempered design so every check reuses both.
         let mut bayes_fit: Option<(BayesianTemporalGcomp, PreparedBayesianProblem)> = None;
+        let mut dependence_se = None;
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
                 let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
@@ -483,10 +484,18 @@ impl super::Study {
                 )
             }
             InferenceMode::Frequentist => {
-                let mut workspace = EstimationWorkspace::default();
-                let estimate = estimator
-                    .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
+                // One series: lagged rows are serially dependent, so the only SE is a
+                // fixed-b-scaled circular-block bootstrap over consecutive lag-aligned
+                // rows, never the iid OLS / iid row-bootstrap pair of the static estimator.
+                let (estimate, info) = estimator
+                    .fit_dependence_honest(
+                        &prep,
+                        &indexer,
+                        ctx,
+                        identification.required_assumptions.clone(),
+                    )
                     .map_err(CausalError::from)?;
+                dependence_se = Some(info);
                 (
                     estimate,
                     None,
@@ -500,6 +509,27 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
+        if let Some(info) = dependence_se.as_ref() {
+            diagnostics.extend(temporal_dependence_se_diagnostics(
+                info.block_length,
+                info.rows,
+                info.effective_rows,
+                &format!(
+                    "se_bootstrap refits the lag-aligned design on circular blocks of \
+                     consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
+                     ignores serial dependence and no HAC SE is calibrated for this cell{}",
+                    estimate.bootstrap_replicates_ok.unwrap_or(0),
+                    info.replicates_attempted,
+                    if info.replicates_attempted == 0 {
+                        "; request bootstrap_replicates > 0 for an interval"
+                    } else {
+                        ""
+                    },
+                ),
+            ));
+        }
+        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
+        let bootstrap_cancelled = estimate.bootstrap_cancelled;
         if physical
             .logical
             .record
@@ -623,8 +653,8 @@ impl super::Study {
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
+            bootstrap_replicates_ok,
+            cancelled: bootstrap_cancelled,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 certificate: Some(certificate),
@@ -689,13 +719,43 @@ impl super::Study {
         let single_horizon = clicks.len() == 1;
         let mut slices = Vec::with_capacity(clicks.len());
         let mut refutations = Vec::new();
+        let mut block_replicates_ok: Option<u32> = None;
+        let mut block_cancelled = false;
         for click in &clicks {
             require_identified(&click.identification)?;
             let mut qh = query.clone();
             qh.horizons = Arc::from([click.horizon]);
-            let mediation = est
-                .estimate_with_adjustment(data, &click.estimand, &qh, &click.adjustment, &[], ctx)
+            // iid analytic SEs stay NaN for every contrast; one shared circular-block
+            // bootstrap over lag-aligned rows supplies Total/Direct/Mediated SEs.
+            let (mediation, block) = est
+                .estimate_with_block_bootstrap(
+                    data,
+                    &click.estimand,
+                    &qh,
+                    &click.adjustment,
+                    self.bootstrap_replicates,
+                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(click.horizon) << 32),
+                    ctx,
+                )
                 .map_err(CausalError::from)?;
+            block_replicates_ok = Some(
+                block_replicates_ok
+                    .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
+            );
+            block_cancelled |= mediation.effect.bootstrap_cancelled;
+            let horizon_label =
+                if single_horizon { String::new() } else { format!("horizon {}: ", click.horizon) };
+            extra_diagnostics.extend(temporal_dependence_se_diagnostics(
+                block.block_length,
+                block.rows,
+                block.effective_rows,
+                &format!(
+                    "{horizon_label}iid analytic SEs are NaN for Total, Direct and Mediated; one \
+                     shared circular-block replicate of consecutive lag-aligned rows refits all \
+                     three mechanism regressions, {}/{} replicates",
+                    block.replicates_ok, block.replicates_attempted,
+                ),
+            ));
             if self.refute != RefuteSuite::None {
                 let mut reports =
                     antecedent_validate::mediation::refute_temporal_mediation_adjusted(
@@ -716,18 +776,27 @@ impl super::Study {
                 }
                 refutations.extend(reports);
             }
-            let standard_error =
-                mediation.effect.se_analytic.is_finite().then_some(mediation.effect.se_analytic);
+            let uncertainty = if block.replicates_attempted > 0 {
+                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                    requested: mediation.effect.se_bootstrap,
+                    block,
+                }
+            } else {
+                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                    standard_error: mediation
+                        .effect
+                        .se_analytic
+                        .is_finite()
+                        .then_some(mediation.effect.se_analytic),
+                }
+            };
             slices.push(antecedent_estimate::TemporalMediationSlice {
                 horizon: click.horizon,
                 identification_status: click.identification.status,
                 method: Arc::clone(&click.estimand.method),
                 adjustment: mediation_click_adjustment_keys(click),
                 estimate: mediation,
-                uncertainty:
-                    antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                        standard_error,
-                    },
+                uncertainty,
                 identified_set: None,
                 diagnostics: click.identification.diagnostics.clone(),
             });
@@ -788,8 +857,8 @@ impl super::Study {
             distribution: None,
             mediation,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
+            bootstrap_replicates_ok: block_replicates_ok.filter(|_| self.bootstrap_replicates > 0),
+            cancelled: block_cancelled,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 certificate,
@@ -4148,7 +4217,7 @@ fn apply_class_observation_bootstrap(
         .map(|atom| atom.indexer.history() as usize + atom.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n);
+    let block_length = antecedent_data::circular_block_length(structural_span, n);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
     let mut index_scratch = Vec::with_capacity(n);
     let mut atom_draws: Vec<Vec<Vec<f64>>> = vec![Vec::new(); atoms.len()];
@@ -4379,7 +4448,7 @@ fn bootstrap_observation_adjusted_temporal_response(
         .map(|entry| entry.indexer.history() as usize + entry.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n);
+    let block_length = antecedent_data::circular_block_length(structural_span, n);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
     let mut index_scratch = Vec::with_capacity(n);
     let mut draws: Vec<Vec<f64>> = Vec::new();
@@ -4454,7 +4523,7 @@ fn bootstrap_observation_adjusted_sequence_response(
         .map(|entry| entry.indexer.history() as usize + entry.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n);
+    let block_length = antecedent_data::circular_block_length(structural_span, n);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
     let mut index_scratch = Vec::with_capacity(n);
     let mut draws: Vec<Vec<f64>> = Vec::new();
@@ -4729,4 +4798,44 @@ mod observation_bootstrap_tests {
         let empty = summarize_observation_bootstrap(&[], 0, true);
         assert!(empty.cancelled && empty.lower.is_empty());
     }
+}
+
+/// RNG stream base for the temporal mediation shared circular-block bootstrap.
+const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
+
+/// Provenance for a one-series circular-block interval, plus a warning when the
+/// estimating score is too dependent for the block rule to be trusted.
+fn temporal_dependence_se_diagnostics(
+    block_length: usize,
+    rows: usize,
+    effective_rows: f64,
+    detail: &str,
+) -> Vec<Diagnostic> {
+    let scale = antecedent_estimate::fixed_b_scale(block_length, rows);
+    let mut out = vec![Diagnostic::new(
+        "estimate.temporal.circular_block_se",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "dependence-honest SE: circular-block length {block_length} = \
+             max(structural span, ceil(n^(1/3))) capped at n, n={rows} lag-aligned rows; \
+             replicate SD scaled by the Kiefer-Vogelsang fixed-b factor {scale:.4}; \
+             score effective rows {effective_rows:.0}; {detail}"
+        ),
+    )];
+    if effective_rows.is_nan() || effective_rows < antecedent_estimate::MIN_EFFECTIVE_ROWS {
+        out.push(Diagnostic::new(
+            "estimate.temporal.circular_block_se.short_series",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "estimating-score effective rows {effective_rows:.0} < {}: the series may be \
+                 too short for its serial dependence under the ceil(n^(1/3)) block rule, and \
+                 the circular-block interval may under-cover (the 1.9 calibration measured \
+                 down to 0.835 at nominal 0.90 below this floor)",
+                antecedent_estimate::MIN_EFFECTIVE_ROWS
+            ),
+        ));
+    }
+    out
 }
