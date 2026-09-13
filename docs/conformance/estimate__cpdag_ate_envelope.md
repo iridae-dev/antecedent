@@ -27,6 +27,17 @@ certify conditional adjustment and retains unidentified mass. The supported
 `Z -> T` completion estimates `0.40`; aggregate status is `GraphDependent`.
 Consumers: `class_aware_conditional_numeric_pins`.
 
+## Joint-IF SE (1.9)
+
+The Frequentist envelope SE is the joint influence-function SE of the
+equal-weight mixture on the shared rows, pinned at `0.0297936681639348`
+against `reference.py`, an independent numpy implementation (per-completion
+OLS, Frisch–Waugh influence with the treatment residualized on each
+completion's adjustment set). Before 1.9 the linear-adjustment influence only
+centred the treatment, which understated this SE (0.0259) whenever the
+adjustment set was correlated with the treatment. Run
+`python3 conformance/estimate/cpdag_ate_envelope/reference.py --check`.
+
 ## Expected summary
 
 Top-level keys: `bayesian, case, columns, conditional, contingency_table, frequentist, graph, identification, query, schema_version` (10 fields).
