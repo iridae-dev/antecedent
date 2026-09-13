@@ -1,0 +1,14 @@
+{
+  "fixture_id": "temporal_class_prior_transfer",
+  "compatibility_filter": "PriorCatalog.filter_compatible",
+  "n": 240,
+  "n_draws": 32,
+  "seed": 11,
+  "treatment": "t",
+  "outcome": "y",
+  "conflict_does_not_flip_identification": true,
+  "sequence_refuses": {
+    "message_contains": "isotropic per-mechanism priors"
+  },
+  "notes": "Mechanism prior transfer binds per TemporalCpdag completion. A conflict diagnostic does not change identification status. Multi-step Sequence transfer stays refused."
+}
