@@ -171,6 +171,52 @@ def test_class_curve_executes_without_collapsing_graph(inference) -> None:
     assert all(atom["response"] is not None for atom in atoms)
 
 
+def test_class_curve_prior_withholds_conditional_when_unidentified_mass() -> None:
+    from antecedent import artifacts
+
+    n = 400
+    index = np.arange(n, dtype=np.float64)
+    r = np.sin(index * 0.29)
+    z = 0.4 * r + np.cos(index * 0.13)
+    t = 0.3 + 0.5 * r + 0.2 * z
+    y = np.zeros(n, dtype=np.float64)
+    y[1:] = 1.0 + 2.0 * t[:-1] + 0.6 * z[:-1]
+    data = {"t": t, "y": y, "z": z, "r": r}
+    graph = antecedent.graph.TemporalPag.from_marked_lagged_edges(
+        ["t", "y", "z", "r"],
+        [
+            ("r", 1, "z", 1, "tail", "arrow"),
+            ("r", 1, "t", 1, "tail", "arrow"),
+            ("z", 1, "t", 1, "circle", "circle"),
+            ("z", 1, "y", 0, "tail", "arrow"),
+            ("t", 1, "y", 0, "tail", "arrow"),
+        ],
+    )
+    identified = antecedent.identify(
+        graph=graph,
+        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1, active_level=1.0),
+    )
+    n_cases = len(identified.completion_keys)
+    assert n_cases >= 2
+    masses = [0.4] + [0.6 / (n_cases - 1)] * (n_cases - 1)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=graph,
+        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1]),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+        class_prior=antecedent.ClassPrior.from_ordered(masses),
+        refute=False,
+        bootstrap=0,
+        seed=19,
+    )
+    result = prepared.estimate(data, seed=19)
+    assert result.envelope.weight_basis == "caller_supplied_class_prior"
+    assert result.envelope.unidentified_mass > 0.0
+    structural = artifacts.loads(prepared.export_artifact()).payload["structural_response"]
+    assert structural["unidentified_mass"] > 0.0
+    assert structural["conditional_on_identified"] is None
+
+
 def test_class_curve_prior_survives_artifact_roundtrip() -> None:
     from antecedent import artifacts
 

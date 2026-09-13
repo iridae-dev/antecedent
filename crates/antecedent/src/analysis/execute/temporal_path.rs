@@ -2335,7 +2335,7 @@ impl super::Study {
                         horizon,
                         observation_query,
                         kind: ClassObservationKind::Sequence {
-                            dag: dag.clone(),
+                            dag: Box::new(dag.clone()),
                             overlays: overlays.clone(),
                             outcome,
                             outcome_offset,
@@ -3523,6 +3523,13 @@ fn temporal_class_response_mean(
     if !full_mass_scope || n_horizons == 0 {
         return None;
     }
+    // Licensed contract: `conditional_on_identified` is published only when
+    // every identified atom is aligned *and* unidentified/unevaluable mass is
+    // zero. Renormalizing over identified atoms would hide retained class mass.
+    let (_, unidentified, unevaluable) = temporal_class_response_masses(atoms);
+    if unidentified > 0.0 || unevaluable > 0.0 {
+        return None;
+    }
     let n_cells = envelope.lower.len() / n_horizons;
     let mut mean = vec![0.0; envelope.lower.len()];
     let mut totals = vec![0.0; n_horizons];
@@ -3938,7 +3945,7 @@ fn summarize_observation_bootstrap(
 enum ClassObservationKind {
     Curve,
     Sequence {
-        dag: antecedent_graph::TemporalDag,
+        dag: Box<antecedent_graph::TemporalDag>,
         overlays: Vec<antecedent_estimate::SequentialMechanismOverlay>,
         outcome: VariableId,
         outcome_offset: i32,

@@ -1120,15 +1120,72 @@ fn mixed_id_series(n: usize) -> TimeSeriesData {
         }
     }
     TimeSeriesData::from_f64_columns(
-        [
-            ("t", t.as_slice()),
-            ("y", y.as_slice()),
-            ("z", z.as_slice()),
-            ("r", r.as_slice()),
-        ],
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice()), ("r", r.as_slice())],
         1,
     )
     .unwrap()
+}
+
+fn curve_query() -> CausalQuery {
+    CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0])),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    )
+}
+
+#[test]
+fn class_curve_prior_withholds_conditional_when_unidentified_mass() {
+    let graph = antecedent::AcceptedGraph::temporal_pag(mixed_id_pag());
+    let antecedent::Identification::TemporalEnvelope { envelope, .. } =
+        identify(&graph, &pulse_query()).unwrap()
+    else {
+        panic!("mixed-ID TemporalPag Pulse returns an envelope");
+    };
+    let identified = envelope
+        .envelope
+        .cases
+        .iter()
+        .filter(|case| {
+            case.result.status != IdentificationStatus::NotIdentified
+                && case.result.status != IdentificationStatus::GraphDependent
+                && !case.result.estimands.is_empty()
+        })
+        .count();
+    let unidentified = envelope.envelope.cases.len() - identified;
+    assert!(identified >= 1 && unidentified >= 1);
+    let n_cases = envelope.envelope.cases.len();
+    let masses: Vec<f64> =
+        (0..n_cases).map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 }).collect();
+    let result = Study::series(mixed_id_series(400))
+        .graph(mixed_id_pag())
+        .query(curve_query())
+        .inference(bayes())
+        .class_prior(ClassPrior::from_ordered(masses).unwrap())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(19))
+        .unwrap();
+    let structural = result.structural_response.as_ref().expect("structural envelope");
+    assert_eq!(
+        structural.weight_basis,
+        antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior
+    );
+    assert!(structural.identified_mass > 0.0, "{}", structural.identified_mass);
+    assert!(structural.unidentified_mass > 0.0, "{}", structural.unidentified_mass);
+    assert!(
+        structural.conditional_on_identified.is_none(),
+        "a ClassPrior must not publish a renormalized curve while unidentified mass remains"
+    );
 }
 
 #[test]
@@ -1139,21 +1196,33 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
     else {
         panic!("mixed-ID TemporalPag Pulse returns an envelope");
     };
-    let identified = envelope.envelope.cases.iter().filter(|case| {
-        case.result.status != IdentificationStatus::NotIdentified
-            && case.result.status != IdentificationStatus::GraphDependent
-            && !case.result.estimands.is_empty()
-    }).count();
+    let identified = envelope
+        .envelope
+        .cases
+        .iter()
+        .filter(|case| {
+            case.result.status != IdentificationStatus::NotIdentified
+                && case.result.status != IdentificationStatus::GraphDependent
+                && !case.result.estimands.is_empty()
+        })
+        .count();
     let unidentified = envelope.envelope.cases.len() - identified;
-    assert!(identified >= 1, "need an identified completion: {:?}", envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>());
-    assert!(unidentified >= 1, "need unidentified mass: {:?}", envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>());
+    assert!(
+        identified >= 1,
+        "need an identified completion: {:?}",
+        envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>()
+    );
+    assert!(
+        unidentified >= 1,
+        "need unidentified mass: {:?}",
+        envelope.envelope.cases.iter().map(|c| c.result.status).collect::<Vec<_>>()
+    );
     assert!(envelope.envelope.identified_weight.0 > 0.0);
     assert!(envelope.envelope.unidentified_weight.0 > 0.0);
 
     let n_cases = envelope.envelope.cases.len();
-    let masses: Vec<f64> = (0..n_cases)
-        .map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 })
-        .collect();
+    let masses: Vec<f64> =
+        (0..n_cases).map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 }).collect();
     let prior = ClassPrior::from_ordered(masses).unwrap();
     let result = Study::series(mixed_id_series(400))
         .graph(mixed_id_pag())
@@ -1231,9 +1300,10 @@ fn capped_audit_cannot_claim_class_wide_identification() {
         "a class prior must not publish a full-class mixture under a search cap"
     );
     assert!(
-        bayes_capped.diagnostics.iter().any(|d| {
-            d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed"
-        })
+        bayes_capped
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed" })
     );
     assert_eq!(
         bayes_capped.certificate.as_ref().expect("certificate").graph_class,
@@ -1299,9 +1369,8 @@ fn series_xy(n: usize) -> TimeSeriesData {
 fn series_xyw(n: usize) -> TimeSeriesData {
     let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
     let w: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.11).cos()).collect();
-    let y: Vec<f64> = (0..n)
-        .map(|i| if i == 0 { 0.0 } else { 0.2 * t[i - 1] + 0.35 * w[i] })
-        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| if i == 0 { 0.0 } else { 0.2 * t[i - 1] + 0.35 * w[i] }).collect();
     TimeSeriesData::from_f64_columns(
         [("t", t.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
         1,
@@ -1312,9 +1381,8 @@ fn series_xyw(n: usize) -> TimeSeriesData {
 fn series_tmy(n: usize) -> TimeSeriesData {
     let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
     let m: Vec<f64> = (0..n).map(|i| if i == 0 { 0.0 } else { 0.6 * t[i - 1] }).collect();
-    let y: Vec<f64> = (0..n)
-        .map(|i| if i == 0 { 0.0 } else { 0.4 * t[i - 1] + 0.5 * m[i] })
-        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| if i == 0 { 0.0 } else { 0.4 * t[i - 1] + 0.5 * m[i] }).collect();
     TimeSeriesData::from_f64_columns(
         [("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())],
         1,
@@ -1334,9 +1402,11 @@ fn fit_oriented_pulse(n: usize, n_draws: usize, seed: u64) -> (antecedent::Study
         .run(&ExecutionContext::for_tests(seed))
         .unwrap();
     let bytes = antecedent::io::encode_causal_posterior_bytes(
-        result.posterior.as_ref().or_else(|| {
-            result.structural_response.as_ref()?.atoms[0].posterior.as_ref()
-        }).expect("source posterior"),
+        result
+            .posterior
+            .as_ref()
+            .or_else(|| result.structural_response.as_ref()?.atoms[0].posterior.as_ref())
+            .expect("source posterior"),
         "source",
     )
     .unwrap();
@@ -1373,8 +1443,8 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
     let seed = pin["seed"].as_u64().unwrap();
     let (_, bytes) = fit_oriented_pulse(n, n_draws, seed);
 
-    let catalog = antecedent_io::PriorCatalog::from_sources(vec![
-        antecedent_io::PriorSourceRef::with_bytes(
+    let catalog =
+        antecedent_io::PriorCatalog::from_sources(vec![antecedent_io::PriorSourceRef::with_bytes(
             antecedent_io::PriorSourceMeta::new(
                 "class-source",
                 antecedent_io::EstimandFingerprint::new("pulse", "t", "y"),
@@ -1392,20 +1462,15 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
             ])
             .with_mapping(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
             bytes.clone(),
-        ),
-    ]);
+        )]);
     let target = antecedent_io::TargetDesign::new(
         antecedent_io::EstimandFingerprint::new("sustained", "t", "y"),
         ["t", "y"],
     );
     assert!(catalog.require_usable(&target).is_ok());
 
-    let mut sustained = TemporalEffectQuery::sustained(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-        -1,
-        1.0,
-    );
+    let mut sustained =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0);
     sustained.policy = TemporalPolicy::sustained(-1, -1);
     sustained.horizon_steps = 1;
     let transferred = Study::series(series_xy(n))
