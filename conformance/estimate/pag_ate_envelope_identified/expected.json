@@ -707,10 +707,10 @@
     "prior_scale": 10.0,
     "seed": 1,
     "expected_mean": 0.3755322225001672,
-    "expected_sd": 0.04064457779152801,
+    "expected_sd": 0.02183085569669244,
     "absolute_tolerance": 1e-10,
     "tolerance_class": "PosteriorDistribution",
-    "note": "Seeded output pins: exact envelope moments of the draw-level categorical mixture of per-completion conjugate posteriors over identified mass. The SD includes between-completion spread (a distribution over completion-specific effects), so it exceeds the Frequentist joint-IF SE of the mixture functional."
+    "note": "Seeded output pins. The draws are the posterior of the frozen-weight mixture functional over identified completions: each completion's conjugate posterior, rank-coupled across completions by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). The SD is therefore comparable to the Frequentist joint-IF SE, not the spread of completion-specific effects. The ConditionalEffect draws also carry the Bayesian-bootstrap uncertainty of the modifier mean."
   },
   "conditional": {
     "modifier": "x",
@@ -735,10 +735,10 @@
       "n_draws": 64,
       "prior_scale": 10.0,
       "seed": 1,
-      "expected_mean": 0.3770571649549748,
+      "expected_mean": 0.37720213089058047,
       "absolute_tolerance": 1e-10,
       "tolerance_class": "PosteriorDistribution",
-      "expected_sd": 0.03982493177014467
+      "expected_sd": 0.02027592757333499
     }
   }
 }
