@@ -39,21 +39,13 @@ impl super::Study {
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
             })?;
-        let est = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
-            ..FunctionalEffect::new()
-        };
-        let prepared = est
-            .prepare(
-                data,
-                &estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-                &[query.treatment, query.outcome],
-            )
-            .map_err(CausalError::from)?;
-        let mut ws = FunctionalDistributionWorkspace::default();
-        let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+        let (estimate, posterior) = self.estimate_functional_effect(
+            data,
+            &estimand,
+            &identification,
+            &[query.treatment, query.outcome],
+            ctx,
+        )?;
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, extra_diagnostics) = run_refuters(
@@ -88,7 +80,13 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
         }))
     }
 

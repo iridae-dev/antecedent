@@ -358,6 +358,45 @@ pub fn resolve_bayesian_prior_with_conflict(
     ))
 }
 
+/// Decoded artifact summaries for per-mechanism hydrate.
+#[derive(Clone, Debug)]
+pub struct DecodedPriorHydrate {
+    /// Mapping declared on the Bayesian config.
+    pub mapping: HydrateMapping,
+    /// Source posterior quantity kinds.
+    pub quantities: Vec<PosteriorQuantityKind>,
+    /// Source posterior means.
+    pub mean: Vec<f64>,
+    /// Source posterior SDs.
+    pub sd: Vec<f64>,
+}
+
+/// Decode a mapped prior artifact for per-mechanism hydrate.
+///
+/// Returns `None` when no artifact is set. A present artifact without a mapping
+/// is the caller's fail-closed case.
+///
+/// # Errors
+///
+/// Decode failures.
+pub fn decode_prior_hydrate_source(
+    cfg: &BayesianConfig,
+) -> Result<Option<DecodedPriorHydrate>, CausalError> {
+    let Some(bytes) = cfg.prior_artifact.as_ref() else {
+        return Ok(None);
+    };
+    let Some(mapping) = cfg.prior_mapping.as_ref() else {
+        return Ok(None);
+    };
+    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    Ok(Some(DecodedPriorHydrate {
+        mapping: hydrate_mapping_from_io(mapping),
+        quantities: wire_quantities_to_kinds(&wire.quantities),
+        mean: wire.mean,
+        sd: wire.sd,
+    }))
+}
+
 /// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
 ///
 /// # Errors

@@ -83,6 +83,11 @@ impl super::Study {
             };
             let Ok(response) = response else {
                 failed_mass += weight;
+                if let Some(slot) =
+                    atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key)
+                {
+                    slot.status = IdentificationStatus::NotIdentified;
+                }
                 continue;
             };
             let value =
@@ -166,9 +171,11 @@ impl super::Study {
             DiagnosticSeverity::Info,
             format!(
                 "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+                 failed_atom_mass={}; \
                  multiple-atom sampling uncertainty is omitted rather than coupling aligned draws",
                 identified_mass / total_mass,
-                unidentified_mass / total_mass
+                unidentified_mass / total_mass,
+                failed_mass / total_mass
             ),
         )];
         let plugin_scalar = match &conditional {
@@ -390,12 +397,37 @@ impl super::Study {
         }
         let mut response_scores = None;
         let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                return Err(CausalError::Unsupported { message: "Bayesian response prior transfer requires a response-specific mapping; only explicit coefficient or isotropic priors are supported" });
+            if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+                && cfg.prior_mapping.is_none()
+                && cfg.prior.is_none()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian response prior transfer requires a response-specific \
+                              mapping (dose/intervention coordinate to outcome-regression \
+                              coefficients); incompatible catalogs must not fall back to \
+                              isotropic priors",
+                });
             }
             let mut bayes = bayesian_gcomp(cfg, ctx);
-            bayes.prior.clone_from(&cfg.prior);
-            response_estimator.estimate_bayesian(&data_est, query, identification.status, identification.required_assumptions.clone(), &bayes, ctx)
+            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                let (outcome, treatments) = response_prior_targets(&query.functional)?;
+                let prep = response_estimator
+                    .prepare_linear_response_problem(&data_est, outcome, &treatments)
+                    .map_err(CausalError::from)?;
+                let (resolved, _) =
+                    crate::inference::resolve_bayesian_prior_with_conflict(cfg, &prep, Some(ctx))?;
+                bayes.prior = resolved;
+            } else {
+                bayes.prior.clone_from(&cfg.prior);
+            }
+            response_estimator.estimate_bayesian(
+                &data_est,
+                query,
+                identification.status,
+                identification.required_assumptions.clone(),
+                &bayes,
+                ctx,
+            )
         } else if query.observation == ObservationSpec::Complete {
             let (response, scores) = response_estimator
                 .estimate_identified_scored(
@@ -848,6 +880,39 @@ pub(super) fn response_primary_pair(
     })
 }
 
+fn response_prior_targets(
+    functional: &ResponseFunctional,
+) -> Result<(VariableId, Vec<VariableId>), CausalError> {
+    match functional {
+        ResponseFunctional::MeanCurve { outcome, treatment } => {
+            Ok((*outcome, vec![treatment.variable]))
+        }
+        ResponseFunctional::InterventionResponse { outcome, interventions } => {
+            let treatments = interventions
+                .iter()
+                .map(|intervention| {
+                    intervention.primary_variable().ok_or_else(|| CausalError::Compile {
+                        message: "response prior transfer requires an intervention coordinate"
+                            .into(),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok((*outcome, treatments))
+        }
+        ResponseFunctional::AverageDerivative { outcome, treatment, .. }
+        | ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
+            Ok((*outcome, vec![*treatment]))
+        }
+        ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
+        | ResponseFunctional::Jacobian { outcomes, treatments, .. } => {
+            let outcome = *outcomes.first().ok_or_else(|| CausalError::Compile {
+                message: "derivative prior transfer requires an outcome".into(),
+            })?;
+            Ok((outcome, treatments.to_vec()))
+        }
+    }
+}
+
 pub(crate) fn class_aware_response_supported(query: &ResponseQuery) -> bool {
     query.temporal.is_none()
         && !query.functional.treatment_ids().is_empty()
@@ -1088,15 +1153,31 @@ impl super::Study {
                 response_estimator.options = options.clone();
             }
             let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                if (cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+                    && cfg.prior_mapping.is_none()
+                    && cfg.prior.is_none()
+                {
                     return Err(CausalError::Unsupported {
                         message: "Bayesian class-aware response prior transfer requires a \
-                                  response-specific mapping; only explicit coefficient or \
-                                  isotropic priors are supported",
+                                  response-specific mapping; mappings are not a class prior \
+                                  and must not fall back to isotropic coefficients",
                     });
                 }
                 let mut bayes = bayesian_gcomp(cfg, ctx);
-                bayes.prior.clone_from(&cfg.prior);
+                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                    let (outcome, treatments) = response_prior_targets(&query.functional)?;
+                    let prep = response_estimator
+                        .prepare_linear_response_problem(&data_est, outcome, &treatments)
+                        .map_err(CausalError::from)?;
+                    let (resolved, _) = crate::inference::resolve_bayesian_prior_with_conflict(
+                        cfg,
+                        &prep,
+                        Some(ctx),
+                    )?;
+                    bayes.prior = resolved;
+                } else {
+                    bayes.prior.clone_from(&cfg.prior);
+                }
                 (
                     response_estimator
                         .estimate_bayesian(
