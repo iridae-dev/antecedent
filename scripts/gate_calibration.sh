@@ -15,15 +15,26 @@ run_ignored() {
 }
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
+# Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), no floor or exemption.
 run_ignored antecedent-estimate linear_adjustment_analytic_ci_coverage
 run_ignored antecedent-estimate linear_adjustment_hc1_ci_coverage
 run_ignored antecedent-estimate ipw_hajek_bootstrap_ci_coverage
 run_ignored antecedent-estimate ipw_hajek_analytic_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_analytic_conformance_scm_ci_coverage
 run_ignored antecedent-estimate aipw_analytic_ci_coverage
+run_ignored antecedent-estimate aipw_ate_hc1_ci_coverage
+run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
+run_ignored antecedent-estimate aipw_atc_hc1_ci_coverage
+run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
 run_ignored antecedent-estimate wald_iv_hc1_ci_coverage
+run_ignored antecedent-estimate iv_2sls_analytic_ci_coverage
+run_ignored antecedent-estimate iv_2sls_hc1_heteroskedastic_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc0_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc1_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
+run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
 
 run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
@@ -171,6 +182,37 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, iid and AR(1) residuals).
 cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
+
+echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
+run_static_remaining() {
+  local filter="$1"
+  echo "== antecedent: ${filter} =="
+  cargo test --release -p antecedent --test v19_static_calibration "$filter" \
+    -- --ignored --nocapture --exact
+}
+run_static_remaining response_curve_dag_frequentist_pointwise_nominal_90_coverage
+run_static_remaining response_curve_dag_frequentist_simultaneous_nominal_90_coverage
+run_static_remaining response_curve_dag_bayesian_pointwise_nominal_90_coverage
+run_static_remaining intervention_response_dag_frequentist_nominal_90_coverage
+run_static_remaining intervention_response_dag_bayesian_nominal_90_coverage
+run_static_remaining intervention_response_cell_aipw_nominal_95_coverage
+run_static_remaining class_response_cpdag_intervention_joint_if_nominal_90_coverage
+run_static_remaining class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage
+run_static_remaining mediation_nde_frequentist_nominal_90_coverage
+run_static_remaining mediation_nie_frequentist_nominal_90_coverage
+run_static_remaining mediation_nde_bayesian_nominal_90_coverage
+run_static_remaining mediation_nie_bayesian_nominal_90_coverage
+run_static_remaining path_specific_frequentist_nominal_90_coverage
+run_static_remaining path_specific_bayesian_nominal_90_coverage
+run_static_remaining interventional_distribution_bayesian_near_one_nominal_90_coverage
+run_static_remaining interventional_distribution_bayesian_near_zero_nominal_90_coverage
+run_static_remaining counterfactual_bayesian_mean_ite_nominal_90_coverage
+# Gates the correctly specified law; the misspecified outcomes are recorded only.
+run_static_remaining bayesian_gcomp_misspecification_probe
+# Out-of-assumption probes: coverage recorded, not gated.
+run_static_remaining response_curve_dag_frequentist_weak_overlap_probe
+run_static_remaining mediation_confounded_mediator_probe
+run_static_remaining interventional_distribution_frequentist_boundary_probe
 
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
