@@ -2125,10 +2125,20 @@ mod tests {
     ///
     /// Test-local on purpose — the calibration cases need a stream that is reproducible
     /// from a plain `u64` without pulling in the execution context's RNG plumbing.
+    ///
+    /// The seed is scrambled (SplitMix64 finalizer) first: seeding the LCG with the
+    /// raw replicate index makes the states of seeds `s` and `s + 1` differ by a fixed
+    /// `MUL^k` at every step, so consecutive calibration datasets form a lattice
+    /// rather than independent draws.
     fn box_muller_lcg(seed: u64) -> impl FnMut() -> f64 {
         const LCG_MUL: u64 = 6_364_136_223_846_793_005;
         const TWO_POW_53: f64 = (1u64 << 53) as f64;
-        let mut state = seed;
+        let mut state = {
+            let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        };
         let mut next_unit = move || {
             state = state.wrapping_mul(LCG_MUL).wrapping_add(1);
             ((state >> 11) as f64) / TWO_POW_53
@@ -2205,21 +2215,81 @@ mod tests {
         g
     }
 
-    fn interval_covers(post: &CausalPosterior, truth: f64, level: f64) -> bool {
-        let eq = post.effect_column().unwrap();
-        let col = post.draws.column(eq).unwrap();
-        let mut v = col.to_vec();
-        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let lo_p = (1.0 - level) / 2.0;
-        let hi_p = 1.0 - lo_p;
-        // `q` is a probability and `last >= 0`, so the rounded product is a valid
-        // index; the clamp makes that explicit for the boundary levels.
-        #[allow(clippy::cast_sign_loss)]
-        let at = |q: f64| {
+    /// Default replicate count for the 1.9 coverage gate (matches
+    /// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
+    const CALIBRATION_N_SIM: u32 = 400;
+
+    /// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for local smoke runs.
+    fn calibration_n_sim() -> u32 {
+        std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .filter(|&n| n > 0)
+            .unwrap_or(CALIBRATION_N_SIM)
+    }
+
+    /// Two-sided coverage tally: `level ± 3·MCSE`, `MCSE = sqrt(level(1-level)/n)`.
+    /// At 400 replicates and 90% that is `[0.855, 0.945]`, so under- and
+    /// over-coverage both fail.
+    struct CoverageGate {
+        name: &'static str,
+        level: f64,
+        covered: u32,
+        scored: u32,
+        length_sum: f64,
+    }
+
+    impl CoverageGate {
+        fn new(name: &'static str, level: f64) -> Self {
+            Self { name, level, covered: 0, scored: 0, length_sum: 0.0 }
+        }
+
+        /// Score the equal-tailed posterior interval of the effect column.
+        fn record(&mut self, post: &CausalPosterior, truth: f64) {
+            self.scored += 1;
+            let eq = post.effect_column().unwrap();
+            let col = post.draws.column(eq).unwrap();
+            let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
+            if v.len() < 2 {
+                return;
+            }
+            v.sort_by(f64::total_cmp);
+            let lo_p = (1.0 - self.level) / 2.0;
             let last = (v.len() - 1) as f64;
-            v[(last * q).round().clamp(0.0, last) as usize]
-        };
-        truth >= at(lo_p) && truth <= at(hi_p)
+            // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
+            #[allow(clippy::cast_sign_loss)]
+            let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
+            let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
+            self.length_sum += hi - lo;
+            if truth >= lo && truth <= hi {
+                self.covered += 1;
+            }
+        }
+
+        fn assert(&self) {
+            let n = f64::from(self.scored);
+            let rate = f64::from(self.covered) / n;
+            let mcse = (self.level * (1.0 - self.level) / n).sqrt();
+            let lo = (self.level - 3.0 * mcse).max(0.0);
+            let hi = (self.level + 3.0 * mcse).min(1.0);
+            eprintln!(
+                "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}] \
+                 mean_length={:.4} ({}/{} covered)",
+                self.name,
+                self.level,
+                self.length_sum / n,
+                self.covered,
+                self.scored
+            );
+            assert!(
+                rate >= lo && rate <= hi,
+                "{} {:.0}% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
+                self.name,
+                self.level * 100.0,
+                self.covered,
+                self.scored
+            );
+        }
     }
 
     #[test]
@@ -2230,9 +2300,9 @@ mod tests {
         use antecedent_graph::ensure_lagged;
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 80u32;
+        let n_sim = calibration_n_sim();
         let n = 160usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian pulse (conjugate, direct estimator)", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
@@ -2241,16 +2311,19 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 240,
-                seed: 21,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 240,
+                    seed: 21 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
             let data = noisy_lag1_pulse_series(n, 9_000 + u64::from(s));
             let prep = temporal
                 .prepare(
@@ -2272,18 +2345,9 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian pulse 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
         let _ = ensure_lagged;
     }
 
@@ -2294,9 +2358,9 @@ mod tests {
         use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 80u32;
+        let n_sim = calibration_n_sim();
         let n = 160usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian single-step sustained (conjugate)", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::sustained(
             VariableId::from_raw(0),
@@ -2310,16 +2374,19 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 240,
-                seed: 22,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 240,
+                    seed: 22 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
             let data = noisy_lag1_pulse_series(n, 11_000 + u64::from(s));
             let prep = temporal
                 .prepare(
@@ -2341,18 +2408,9 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian sustained 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
     }
 
     #[test]
@@ -2362,9 +2420,9 @@ mod tests {
         use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 80u32;
+        let n_sim = calibration_n_sim();
         let n = 160usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian multi-step sustained (conjugate)", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::sustained(
             VariableId::from_raw(0),
@@ -2377,14 +2435,17 @@ mod tests {
         .with_max_history_lag(Some(2));
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
-        let bayes = BayesianGComputationAte {
-            backend: BayesianBackendKind::ConjugateGaussian,
-            n_draws: 240,
-            seed: 23,
-            prior_scale: 8.0,
-            ..BayesianGComputationAte::new()
-        };
         for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 240,
+                seed: 23 + u64::from(s),
+                prior_scale: 8.0,
+                ..BayesianGComputationAte::new()
+            };
             let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
             let (_, posterior) = estimate_sustained_window(
                 &data,
@@ -2399,18 +2460,9 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-            if interval_covers(posterior.as_ref().unwrap(), 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(posterior.as_ref().unwrap(), 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian multi-step sustained 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
     }
 
     fn noisy_lag1_pulse_series_with_unit(
@@ -2482,9 +2534,15 @@ mod tests {
         seed: u64,
     ) -> antecedent_data::PanelData {
         use antecedent_data::{PanelData, PanelUnit};
+        // Random intercepts are redrawn per replicate: the hierarchical model's
+        // interval is for a random-effects population. A fixed intercept pattern
+        // (formerly `1.4·sin(0.37u)`) freezes the between-unit imbalance across
+        // replicates, so the interval, which correctly prices intercept variance,
+        // covered 100% at 400 replicates. SD ≈ 0.99 matches that pattern's spread.
+        let mut intercepts = box_muller_lcg(seed ^ 0x0E7F_0E7F);
         let units: Vec<PanelUnit> = (0..n_units)
             .map(|u| {
-                let unit_eff = 1.4 * ((u as f64) * 0.37).sin();
+                let unit_eff = 0.99 * intercepts();
                 PanelUnit {
                     unit_id: u as u32,
                     series: noisy_lag1_pulse_series_with_unit(
@@ -2506,10 +2564,10 @@ mod tests {
         use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 60u32;
+        let n_sim = calibration_n_sim();
         let n_units = 24usize;
         let t_len = 40usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian panel hierarchical", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
@@ -2518,17 +2576,23 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 200,
-                seed: 23,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
-            let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + u64::from(s));
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 200,
+                    seed: 23 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
+            // Unit `u` draws from `seed + 19·u`; a stride of 1000 keeps every
+            // replicate's units disjoint (a unit stride of 1 reused series
+            // across replicates, so they were not independent datasets).
+            let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * u64::from(s));
             let (prep, cluster_ids, _) = temporal
                 .prepare_panel(
                     &panel,
@@ -2550,18 +2614,9 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian panel hierarchical 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
     }
 
     #[test]
