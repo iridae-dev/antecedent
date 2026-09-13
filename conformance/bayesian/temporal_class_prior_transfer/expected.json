@@ -7,8 +7,18 @@
   "treatment": "t",
   "outcome": "y",
   "conflict_does_not_flip_identification": true,
+  "source_cells": {
+    "same_design_pulse": "PulseEffect × TemporalCpdag × explicit × Bayesian × none"
+  },
+  "target_cells": {
+    "mapped_coefficient_sustained": "SustainedEffect × TemporalCpdag × explicit × Bayesian × none",
+    "mapped_coefficient_response_curve": "ResponseCurve × TemporalCpdag × explicit × Bayesian × none",
+    "mapped_effect_functional": "PulseEffect × TemporalCpdag × explicit × Bayesian × none",
+    "mapped_mediation": "TemporalMediationEffect × TemporalCpdag × explicit × Bayesian × none",
+    "sequence_refuses_transfer": "InterventionResponse Sequence × TemporalCpdag × explicit × Bayesian × none"
+  },
   "sequence_refuses": {
     "message_contains": "isotropic per-mechanism priors"
   },
-  "notes": "Mechanism prior transfer binds per TemporalCpdag completion. A conflict diagnostic does not change identification status. Multi-step Sequence transfer stays refused."
+  "notes": "Mechanism prior transfer binds per TemporalCpdag completion. A conflict diagnostic does not change identification status. Multi-step Sequence transfer stays refused. Mapped IdenticalCoefficientSubspace and EffectFunctional ride licensed Pulse, single-step Sustained, ResponseCurve, and TemporalCpdag mediation cells. Mechanism priors are not a class prior and cannot invent class probabilities."
 }
