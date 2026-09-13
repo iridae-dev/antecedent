@@ -25,7 +25,29 @@ run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 
 run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
+run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
+
+echo "== 1.9 temporal / mixture interval coverage (antecedent) =="
+run_ignored_test() {
+  local filter="$1"
+  echo "== antecedent: ${filter} =="
+  cargo test -p antecedent --test v19_calibration "$filter" -- --ignored --nocapture
+}
+run_ignored_test frequentist_dbn_pulse_shared_block_nominal_90_coverage
+run_ignored_test frequentist_dbn_sustained_shared_block_nominal_90_coverage
+run_ignored_test frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage
+run_ignored_test frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage
+run_ignored_test frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage
+run_ignored_test frequentist_temporal_pag_pulse_envelope_nominal_90_coverage
+run_ignored_test bayesian_temporal_dag_multistep_sustained_nominal_90_coverage
+run_ignored_test bayesian_temporal_dag_response_curve_nominal_90_coverage
+run_ignored_test bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage
+run_ignored_test bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage
+run_ignored_test bayesian_temporal_pag_pulse_nominal_90_coverage
+run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
+run_ignored_test dbn_mixture_functional_retains_unidentified_mass
+run_ignored_test class_prior_mixture_functional_nominal_90_coverage
 
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \

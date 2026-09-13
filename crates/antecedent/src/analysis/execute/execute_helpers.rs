@@ -369,7 +369,10 @@ impl super::Study {
                 InferenceMode::Bayesian(c) => Some(c),
                 InferenceMode::Frequentist => None,
             } {
-                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some() {
+                if cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
+                    || cfg.prior.is_some()
+                {
                     return Err(CausalError::Unsupported {
                         message: "functional Bayesian prior transfer requires a declared \
                                   functional mapping; a backdoor coefficient artifact cannot \
@@ -462,6 +465,96 @@ pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
     )
 }
 
+/// Shared circular-block SE for a frozen-weight temporal class / DBN mixture.
+pub(super) struct SharedCircularBlockSe {
+    pub se: f64,
+    pub completed: u32,
+    pub attempted: u32,
+}
+
+/// One circular-block resample, then every contributing atom, then frozen weights.
+///
+/// Unidentified mass is not mixed. A replicate that cannot fit every atom is dropped
+/// rather than renormalized. The interval is for the reported aggregate.
+pub(super) fn shared_circular_block_mixture_se(
+    data: &TimeSeriesData,
+    structural_span: usize,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
+    mut mix: impl FnMut(&TimeSeriesData) -> Option<f64>,
+) -> SharedCircularBlockSe {
+    if replicates == 0 {
+        return SharedCircularBlockSe { se: f64::NAN, completed: 0, attempted: 0 };
+    }
+    let n = data.row_count();
+    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n).max(1);
+    let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
+    let mut index_scratch = Vec::with_capacity(n);
+    let mut bootstrap = Vec::new();
+    let mut attempted = 0u32;
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            break;
+        }
+        attempted += 1;
+        let mut rng = ctx.rng.stream(stream_base + u64::from(replicate));
+        let Ok(sampled) =
+            antecedent_data::resample_timeseries(data, plan, &mut rng, &mut index_scratch)
+        else {
+            continue;
+        };
+        if let Some(value) = mix(&sampled).filter(|value| value.is_finite()) {
+            bootstrap.push(value);
+        }
+    }
+    let se = if bootstrap_has_enough_successes(bootstrap.len(), attempted as usize) {
+        let mean = bootstrap.iter().sum::<f64>() / bootstrap.len() as f64;
+        (bootstrap.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
+            / (bootstrap.len() - 1) as f64)
+            .sqrt()
+    } else {
+        f64::NAN
+    };
+    SharedCircularBlockSe {
+        se,
+        completed: u32::try_from(bootstrap.len()).unwrap_or(u32::MAX),
+        attempted,
+    }
+}
+
+pub(super) fn envelope_shared_block_diagnostic(
+    identified_mass: f64,
+    unidentified_mass: f64,
+    completed: u32,
+    attempted: u32,
+) -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal_class.frequentist.shared_block",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "frozen completion weights; identified_mass={identified_mass}; \
+             unidentified_mass={unidentified_mass}; shared circular-block \
+             replicates={completed}; attempted={attempted}; between-atom sampling \
+             variance included; unidentified mass is not mixed into the SE; \
+             the interval is for the reported aggregate, not a distribution \
+             over graph-specific effects"
+        ),
+    )
+}
+
+pub(super) fn temporal_class_block_span<'a>(
+    indexers: impl IntoIterator<Item = &'a TemporalIndexer>,
+) -> usize {
+    indexers
+        .into_iter()
+        .map(|indexer| indexer.history() as usize + indexer.horizon() as usize)
+        .max()
+        .unwrap_or(1)
+        .max(1)
+}
+
 /// Embed complete-case influences into the original row universe before mixing.
 /// Equal vector lengths do not establish common observations.
 pub(super) fn static_aligned_influence(
@@ -505,8 +598,11 @@ pub(super) fn attach_class_conditional_functional_grid(
 ) -> Result<EffectEstimate, CausalError> {
     let _ = ctx;
     let Some(thresholds) = super::helpers::conditional_thresholds(
-        data, query, atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
-    )? else {
+        data,
+        query,
+        atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
+    )?
+    else {
         return Ok(estimate);
     };
     if atoms.is_empty() {
@@ -541,7 +637,8 @@ pub(super) fn attach_class_conditional_functional_grid(
             }
             let mut transformed_query = query.clone();
             transformed_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
-            let (_point, scores) = est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
+            let (_point, scores) =
+                est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
             arm0 += w * (1.0 - scores.means[0]);
             arm1 += w * (1.0 - scores.means[1]);
             mass += w;
@@ -557,12 +654,17 @@ pub(super) fn attach_class_conditional_functional_grid(
             }
             for arm in 0..2 {
                 let (events, supported) = super::helpers::tail_event_support(
-                    &scores.treatment, &scores.row_index, &y_orig, arm, threshold,
+                    &scores.treatment,
+                    &scores.row_index,
+                    &y_orig,
+                    arm,
+                    threshold,
                 );
                 minimum_events[arm] = minimum_events[arm].min(events);
                 supported_in_all[arm] &= supported;
-                let count = scores.treatment.iter()
-                    .filter(|&&t| (t - arm as f64).abs() <= 1e-12).count() as f64;
+                let count =
+                    scores.treatment.iter().filter(|&&t| (t - arm as f64).abs() <= 1e-12).count()
+                        as f64;
                 minimum_arm_counts[arm] = minimum_arm_counts[arm].min(count);
             }
         }
@@ -614,8 +716,10 @@ pub(super) fn attach_class_conditional_functional_grid(
     if thresholds.len() == 1 {
         // Scalar exceedance and its CDFs must describe the same fitted functional.
         out.ate = mixed_cdf[0] - mixed_cdf[1];
-        let contrast: Vec<_> = mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
-        out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
+        let contrast: Vec<_> =
+            mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
+        out.se_analytic =
+            antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
         out.influence = Some(contrast.into());
         out.se_bootstrap = None;
         out.simultaneous_interval = None;
@@ -636,7 +740,14 @@ pub(super) fn attach_class_conditional_functional_grid(
         out.simultaneous_interval = None;
     }
     if let Some(tau) = query.inner.outcome_functional.quantile_level() {
-        super::helpers::attach_conditional_quantile(&mut out, &thresholds, &raw_cdf, &mixed_columns, &threshold_supported, tau)?;
+        super::helpers::attach_conditional_quantile(
+            &mut out,
+            &thresholds,
+            &raw_cdf,
+            &mixed_columns,
+            &threshold_supported,
+            tau,
+        )?;
     }
     Ok(out)
 }
@@ -1464,7 +1575,9 @@ impl super::Study {
         });
         let is_quantile = match &self.query {
             CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
-            CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
+            CausalQuery::ConditionalEffect(q) => {
+                q.inner.outcome_functional.quantile_level().is_some()
+            }
             CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
             _ => false,
         };
@@ -1482,10 +1595,11 @@ impl super::Study {
         result.structural_response = extras.structural_response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
-        if !is_quantile && self
-            .tiered
-            .as_ref()
-            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+        if !is_quantile
+            && self
+                .tiered
+                .as_ref()
+                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
             if let DataInput::Tabular(data) = &self.data {
                 super::helpers::attach_tiered_evalue(
@@ -1543,19 +1657,26 @@ pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize)
 
 // Aggregation consumes only effect draws. Keep each contributing model's
 // prior/estimation restrictions on the resulting mixture as well.
-pub(super) fn retain_envelope_assumptions(posterior: &mut CausalPosterior, atoms: &[EnvelopeAtomFit]) {
+pub(super) fn retain_envelope_assumptions(
+    posterior: &mut CausalPosterior,
+    atoms: &[EnvelopeAtomFit],
+) {
     for atom in atoms {
-        posterior.assumptions.entries.extend(atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
-            match &mut record.assumption {
-                antecedent_core::Assumption::PriorRestriction(prior) => {
-                    prior.description = Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+        posterior.assumptions.entries.extend(
+            atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
+                match &mut record.assumption {
+                    antecedent_core::Assumption::PriorRestriction(prior) => {
+                        prior.description =
+                            Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+                    }
+                    antecedent_core::Assumption::ParametricRestriction(model) => {
+                        model.description =
+                            Arc::from(format!("graph atom {}: {}", atom.key, model.description));
+                    }
+                    _ => {}
                 }
-                antecedent_core::Assumption::ParametricRestriction(model) => {
-                    model.description = Arc::from(format!("graph atom {}: {}", atom.key, model.description));
-                }
-                _ => {}
-            }
-            record
-        }));
+                record
+            }),
+        );
     }
 }

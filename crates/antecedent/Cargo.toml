@@ -99,3 +99,7 @@ path = "../../examples/rust/class_preserving_cpdag.rs"
 [[bench]]
 name = "staged_handle"
 harness = false
+
+[[bench]]
+name = "dbn_posterior_pulse"
+harness = false

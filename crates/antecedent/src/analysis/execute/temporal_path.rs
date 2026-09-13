@@ -538,6 +538,7 @@ impl super::Study {
 
         // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
         let mut posterior = posterior;
+        let mut predictive_checks = Vec::new();
         if matches!(&self.inference, InferenceMode::Bayesian(_))
             && !matches!(self.refute, RefuteSuite::None)
         {
@@ -552,11 +553,13 @@ impl super::Study {
                 .check(&bprep, ctx)
                 .map_err(CausalError::from)?;
                 refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+                predictive_checks.push(prior_rep);
 
                 let post_rep = PosteriorPredictiveCheck::new()
                     .check(&bprep, post)
                     .map_err(CausalError::from)?;
                 refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+                predictive_checks.push(post_rep);
 
                 if matches!(self.refute, RefuteSuite::Full) {
                     let InferenceMode::Bayesian(cfg) = &self.inference else { unreachable!() };
@@ -614,6 +617,7 @@ impl super::Study {
                 estimate_provenance: Some(provenance_ids(estimate_artifact, estimate_op)),
                 posterior,
                 diagnostics: Some(diagnostics),
+                predictive_checks,
                 ..Default::default()
             },
         }))
@@ -2583,6 +2587,7 @@ impl super::Study {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
+        let mut fitted_atoms = Vec::new();
         let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
         for (i, (case, indexer)) in
             envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
@@ -2593,16 +2598,15 @@ impl super::Study {
                 continue;
             }
             let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let mut estimator = TemporalLinearAdjustment::new();
-            estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
-            estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-            let prep = estimator
-                .prepare(data, &estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
-                .map_err(CausalError::from)?;
-            let mut workspace = EstimationWorkspace::default();
-            let estimate = estimator
-                .fit(&prep, &mut workspace, ctx, case.result.required_assumptions.clone())
-                .map_err(CausalError::from)?;
+            let estimate = fit_frequentist_class_pulse_atom(
+                data,
+                query,
+                &estimand,
+                indexer,
+                case.result.required_assumptions.clone(),
+                self.split.as_ref(),
+                ctx,
+            )?;
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
@@ -2612,6 +2616,12 @@ impl super::Study {
                 primary_estimand = Some(estimand.clone());
                 assumptions = estimate.assumptions.clone();
             }
+            fitted_atoms.push(ClassPulseAtom {
+                weight: w,
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+                assumptions: case.result.required_assumptions.clone(),
+            });
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
                 weight: w,
@@ -2627,11 +2637,45 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "temporal class-aware envelope missing estimand".into(),
         })?;
-        let estimate = EffectEstimate::new(
+        let block = shared_circular_block_mixture_se(
+            data,
+            temporal_class_block_span(fitted_atoms.iter().map(|atom| &atom.indexer)),
+            self.bootstrap_replicates,
+            0xC1A5_5E00,
+            ctx,
+            |sampled| {
+                let mut sum = 0.0;
+                for atom in &fitted_atoms {
+                    let estimate = fit_frequentist_class_pulse_atom(
+                        sampled,
+                        query,
+                        &atom.estimand,
+                        &atom.indexer,
+                        atom.assumptions.clone(),
+                        self.split.as_ref(),
+                        ctx,
+                    )
+                    .ok()?;
+                    sum += atom.weight * estimate.ate;
+                }
+                Some(sum / total_w)
+            },
+        );
+        let se_analytic = mix_weighted_analytic_se(se_items);
+        let se_bootstrap = block.se.is_finite().then_some(block.se);
+        let estimate = EffectEstimate::from_parts(
             weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
+            se_analytic,
+            se_bootstrap,
+            (self.bootstrap_replicates > 0).then_some(block.completed),
+            (self.bootstrap_replicates > 0)
+                .then_some(block.attempted.saturating_sub(block.completed)),
+            ctx.cancellation.is_cancelled(),
+            false,
             assumptions,
             OverlapPolicy::ExplicitOverride,
+            None,
+            None,
         );
         let identification = envelope_to_identification_result_for(
             envelope,
@@ -2655,7 +2699,16 @@ impl super::Study {
             Some(data.time_index()),
         )?;
         diagnostics.extend(na_diagnostics);
-        diagnostics.push(envelope_se_omits_between_atom_variance());
+        if se_bootstrap.is_some() {
+            diagnostics.push(envelope_shared_block_diagnostic(
+                total_w,
+                envelope.unidentified_weight.0,
+                block.completed,
+                block.attempted,
+            ));
+        } else if fitted_atoms.len() > 1 {
+            diagnostics.push(envelope_se_omits_between_atom_variance());
+        }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -2674,7 +2727,7 @@ impl super::Study {
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
+            bootstrap_replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
             cancelled: ctx.cancellation.is_cancelled(),
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
@@ -2829,7 +2882,7 @@ impl super::Study {
                     query,
                     case.result.status,
                     assumptions,
-                    self.bootstrap_replicates,
+                    if bayes.is_some() { self.bootstrap_replicates } else { 0 },
                     bayes.as_ref(),
                     ctx,
                     Some(&mut mechanisms),
@@ -2905,15 +2958,62 @@ impl super::Study {
                 (nan_effect(), None)
             }
         } else if total_w > 0.0 {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
+            let block = shared_circular_block_mixture_se(
+                data,
+                temporal_class_block_span(seq_atoms.iter().map(|atom| &atom.indexer)),
+                self.bootstrap_replicates,
+                0x5E0C_1A55,
+                ctx,
+                |sampled| {
+                    let mut sum = 0.0;
+                    for atom in &seq_atoms {
+                        let (estimate, _) =
+                            antecedent_estimate::temporal_sequential::estimate_sustained_window(
+                                sampled,
+                                &atom.graph,
+                                &atom.indexer,
+                                &atom.estimand,
+                                query,
+                                atom.status,
+                                atom.estimate.assumptions.clone(),
+                                0,
+                                None,
+                                ctx,
+                            )
+                            .ok()?;
+                        sum += atom.weight * estimate.ate;
+                    }
+                    Some(sum / total_w)
+                },
+            );
+            let se_analytic = mix_weighted_analytic_se(
+                seq_atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
+            );
+            let se_bootstrap = block.se.is_finite().then_some(block.se);
+            if se_bootstrap.is_some() {
+                diagnostics.push(envelope_shared_block_diagnostic(
+                    total_w,
+                    envelope.unidentified_weight.0,
+                    block.completed,
+                    block.attempted,
+                ));
+            } else if seq_atoms.len() > 1 {
+                diagnostics.push(envelope_se_omits_between_atom_variance());
+            }
             (
-                EffectEstimate::new(
+                EffectEstimate::from_parts(
                     weighted_ate / total_w,
-                    mix_weighted_analytic_se(
-                        seq_atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
-                    ),
+                    se_analytic,
+                    se_bootstrap,
+                    (self.bootstrap_replicates > 0).then_some(block.completed),
+                    (self.bootstrap_replicates > 0)
+                        .then_some(block.attempted.saturating_sub(block.completed)),
+                    ctx.cancellation.is_cancelled(),
+                    false,
                     seq_atoms[0].estimate.assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
+                    None,
+                    None,
                 ),
                 None,
             )
@@ -2975,6 +3075,7 @@ impl super::Study {
         structural.unevaluable_mass = unevaluable_weight / total;
         structural.unidentified_mass =
             (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
+        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -2990,7 +3091,7 @@ impl super::Study {
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
+            bootstrap_replicates_ok,
             cancelled: ctx.cancellation.is_cancelled(),
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
@@ -3950,6 +4051,33 @@ enum ClassObservationKind {
         outcome: VariableId,
         outcome_offset: i32,
     },
+}
+
+struct ClassPulseAtom {
+    weight: f64,
+    estimand: IdentifiedEstimand,
+    indexer: TemporalIndexer,
+    assumptions: antecedent_core::AssumptionSet,
+}
+
+fn fit_frequentist_class_pulse_atom(
+    data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    assumptions: antecedent_core::AssumptionSet,
+    split: Option<&DiscoveryEstimationSplit>,
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, CausalError> {
+    let mut estimator = TemporalLinearAdjustment::new();
+    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
+    let prep = estimator
+        .prepare(data, estimand, query, indexer, split, &ctx.kernel_policy)
+        .map_err(CausalError::from)?;
+    estimator
+        .fit(&prep, &mut EstimationWorkspace::default(), ctx, assumptions)
+        .map_err(CausalError::from)
 }
 
 struct ClassObservationAtom {

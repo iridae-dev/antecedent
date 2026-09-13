@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     Lag, MeasurementSpec, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue,
@@ -689,5 +689,48 @@ fn horizon_support_is_per_cell_not_union() {
     assert_eq!(
         path_support.point_status.as_ref().map(AsRef::as_ref),
         Some([SupportStatus::Supported, SupportStatus::OutsideEmpiricalSupport].as_slice())
+    );
+}
+
+#[test]
+fn bayesian_horizon_support_matches_frequentist_geometry() {
+    let fixture = horizon_support_fixture();
+    let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let t: Vec<f64> = (0..n)
+        .map(|i| if i >= n.saturating_sub(7) { 10.0 } else { 0.05 * (i as f64).sin() })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * i.checked_sub(1).map_or(0.0, |j| t[j])
+                + 3.0 * i.checked_sub(2).map_or(0.0, |j| t[j])
+        })
+        .collect();
+    let (data, graph) = series(&["t", "y"], vec![t, y], &[(0, 1, 1, 0), (0, 2, 1, 0)]);
+    let doses = f64s(&fixture["contract"]["dose_grid"]);
+    let query = mean_curve_query(&doses, &fixture);
+    let result = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(11))
+        .unwrap();
+    let support = &result.response.as_ref().unwrap().support;
+    let expected: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| parse_status(value.as_str().unwrap()))
+        .collect();
+    assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected.as_slice()));
+    assert!(
+        support
+            .diagnostics
+            .iter()
+            .any(|d| d.id.as_ref() == "response.temporal.horizon_treatment_range"),
+        "Bayesian temporal curves must publish the same per-horizon support geometry"
     );
 }
