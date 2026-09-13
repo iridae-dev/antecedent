@@ -129,6 +129,10 @@ fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGr
     }
 }
 
+/// Marker: the study structure came from [`StudyBuilder::graph`].
+#[derive(Clone, Copy, Debug)]
+struct CallerGraph;
+
 /// A caller graph and a tier background both describe the study structure.
 fn tiered_graph_conflict() -> CausalError {
     CausalError::Conflict {
@@ -271,9 +275,9 @@ pub struct StudyBuilder {
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     tiered: Option<antecedent_graph::TieredBackground>,
-    /// Whether [`Self::graph`] was called. A caller graph and a tier background
+    /// Set when [`Self::graph`] is called. A caller graph and a tier background
     /// are two sources of truth for one structure; build refuses the pair.
-    graph_from_caller: bool,
+    caller_graph: Option<CallerGraph>,
     /// Refused at build: coarsened continuous coordinate is not a point CDE.
     continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
@@ -291,7 +295,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
-            .field("graph_from_caller", &self.graph_from_caller)
+            .field("caller_graph", &self.caller_graph)
             .field("graph_posterior", &self.graph_posterior)
             .field("class_prior", &self.class_prior)
             .field("max_completions", &self.max_completions)
@@ -349,7 +353,7 @@ impl StudyBuilder {
             population_registry: None,
             custom_validators: Vec::new(),
             tiered: None,
-            graph_from_caller: false,
+            caller_graph: None,
             continuous_cell: None,
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
@@ -376,7 +380,7 @@ impl StudyBuilder {
         let (graph, source) = structure.into_graph_input();
         self.graph = Some(graph);
         self.structure_source = Some(source);
-        self.graph_from_caller = true;
+        self.caller_graph = Some(CallerGraph);
         self
     }
 
@@ -398,7 +402,7 @@ impl StudyBuilder {
         mut self,
         background: antecedent_graph::TieredBackground,
     ) -> Result<Self, CausalError> {
-        if self.graph_from_caller {
+        if self.caller_graph.is_some() {
             return Err(tiered_graph_conflict());
         }
         let schema = match &self.data {
@@ -731,7 +735,7 @@ impl StudyBuilder {
                 }
             }
         }
-        if self.graph_from_caller && self.tiered.is_some() {
+        if self.caller_graph.is_some() && self.tiered.is_some() {
             return Err(tiered_graph_conflict());
         }
         let data = self.data;

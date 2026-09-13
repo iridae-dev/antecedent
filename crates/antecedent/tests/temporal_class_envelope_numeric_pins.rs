@@ -353,6 +353,7 @@ fn identified_pag_pin() -> serde_json::Value {
 
 /// Deterministic series of `identified_pag.json` (`law`), rebuilt exactly by
 /// `identified_pag_reference.py`.
+#[allow(clippy::many_single_char_names)]
 fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
     let names: Vec<&str> =
@@ -436,7 +437,7 @@ fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
     g
 }
 
-/// R-10: positive multi-completion TemporalPag evidence for Frequentist Pulse
+/// R-10: positive multi-completion `TemporalPag` evidence for Frequentist Pulse
 /// and single-step Sustained. Six of seven stationary MAG completions identify
 /// at two different lag-1 effects (adjust `z@-1`: 1.96; adjust nothing: 2.72);
 /// the reported point is their equal-weight mixture, pinned against the numpy
