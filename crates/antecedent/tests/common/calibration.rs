@@ -152,7 +152,7 @@ pub fn quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
     Some((at(lo_p), at(1.0 - lo_p)))
 }
 
-/// SplitMix64 finalizer: decorrelates nearby integer seeds.
+/// `SplitMix64` finalizer: decorrelates nearby integer seeds.
 #[must_use]
 pub fn mix_seed(seed: u64) -> u64 {
     let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);

@@ -476,7 +476,7 @@ frequentist_dbn_ar1!(
 // Frequentist temporal class envelopes (shared circular block)
 // ---------------------------------------------------------------------------
 
-fn frequentist_cpdag_case(name: &str, query: TemporalEffectQuery, rho: f64, n: usize, seed: u64) {
+fn frequentist_cpdag_case(name: &str, query: &TemporalEffectQuery, rho: f64, n: usize, seed: u64) {
     let truth = fixtures::cpdag_completion_truths(rho).iter().sum::<f64>() / 2.0;
     let mut tally = FreqTally::new(name, truth);
     for s in 0..n_sim() {
@@ -503,7 +503,7 @@ fn frequentist_cpdag_case(name: &str, query: TemporalEffectQuery, rho: f64, n: u
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
-    frequentist_cpdag_case("frequentist TemporalCpdag Pulse", pulse_query(), 0.0, N, 13_000);
+    frequentist_cpdag_case("frequentist TemporalCpdag Pulse", &pulse_query(), 0.0, N, 13_000);
 }
 
 #[test]
@@ -511,7 +511,7 @@ fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
 fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist TemporalCpdag Sustained",
-        single_sustained(),
+        &single_sustained(),
         0.0,
         N,
         14_000,
@@ -523,7 +523,7 @@ fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist TemporalCpdag Pulse AR(1) rho=0.5 n=160",
-        pulse_query(),
+        &pulse_query(),
         0.5,
         160,
         36_000,
@@ -535,7 +535,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist TemporalCpdag Pulse AR(1) rho=0.9 n=400",
-        pulse_query(),
+        &pulse_query(),
         0.9,
         400,
         37_000,
@@ -547,7 +547,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_nominal_90_coverage() {
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist TemporalCpdag Pulse AR(1) rho=0.5 n=60",
-        pulse_query(),
+        &pulse_query(),
         0.5,
         60,
         38_000,
@@ -669,7 +669,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
 
 fn bayesian_cpdag_class_prior_case(
     name: &str,
-    query: TemporalEffectQuery,
+    query: &TemporalEffectQuery,
     masses: [f64; 2],
     seed: u64,
 ) {
@@ -697,7 +697,7 @@ fn bayesian_cpdag_class_prior_case(
 fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "Bayesian TemporalCpdag Pulse class-prior",
-        pulse_query(),
+        &pulse_query(),
         [0.5, 0.5],
         19_000,
     );
@@ -708,7 +708,7 @@ fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
 fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "Bayesian TemporalCpdag Sustained class-prior",
-        single_sustained(),
+        &single_sustained(),
         [0.5, 0.5],
         20_000,
     );
@@ -720,7 +720,7 @@ fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
 fn class_prior_mixture_functional_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "class-prior mixture functional [0.3, 0.7]",
-        pulse_query(),
+        &pulse_query(),
         [0.3, 0.7],
         22_000,
     );
@@ -777,7 +777,7 @@ fn bayesian_dbn_posterior_pulse_nominal_90_coverage() {
     tally.assert();
 }
 
-/// A TemporalCpdag mediation result publishes no blended interval: the
+/// A `TemporalCpdag` mediation result publishes no blended interval: the
 /// aggregate estimate is NaN and each completion keeps its own composed
 /// posterior (`structural_response.atoms[i].posterior`). What is reported is
 /// therefore calibrated per completion, each against its own `θ_g` (equal

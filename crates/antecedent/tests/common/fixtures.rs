@@ -1,8 +1,8 @@
 //! Heterogeneous multi-atom calibration fixtures (1.9, R-15 / R-17 / R-18).
 //!
 //! Every fixture pairs a linear-Gaussian data-generating process with a graph
-//! object carrying several atoms. The DBN and TemporalCpdag fixtures have
-//! identified atoms that *disagree*; the TemporalPag and mediation fixtures
+//! object carrying several atoms. The DBN and `TemporalCpdag` fixtures have
+//! identified atoms that *disagree*; the `TemporalPag` and mediation fixtures
 //! document why theirs do not (see each). Truths are the probability limits
 //! of each atom's estimator under the DGP (`θ_g`), derived analytically from
 //! the population covariance of the regressors the atom's estimand adjusts for.
