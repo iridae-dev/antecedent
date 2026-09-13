@@ -5,11 +5,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Coverage tests run 400 replicates each (two-sided level ± 3·MCSE band), so the
+# gate builds in release; a debug build is ~50x slower with identical numbers.
 run_ignored() {
   local pkg="$1"
   local filter="$2"
   echo "== ${pkg}: ${filter} =="
-  cargo test -p "$pkg" --lib "$filter" -- --ignored --nocapture
+  cargo test --release -p "$pkg" --lib "$filter" -- --ignored --nocapture
 }
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
@@ -32,22 +34,37 @@ echo "== 1.9 temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test -p antecedent --test v19_calibration "$filter" -- --ignored --nocapture
+  cargo test --release -p antecedent --test v19_calibration "$filter" -- --ignored --exact --nocapture
 }
 run_ignored_test frequentist_dbn_pulse_shared_block_nominal_90_coverage
 run_ignored_test frequentist_dbn_sustained_shared_block_nominal_90_coverage
 run_ignored_test frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage
+run_ignored_test frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage
+run_ignored_test frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage
+run_ignored_test frequentist_dbn_pulse_ar1_rho09_n400_nominal_90_coverage
+run_ignored_test frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage
+run_ignored_test frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage
+run_ignored_test frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage
+run_ignored_test frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage
 run_ignored_test frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage
 run_ignored_test frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage
+run_ignored_test frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage
+run_ignored_test frequentist_temporal_cpdag_pulse_ar1_rho09_n400_nominal_90_coverage
+run_ignored_test frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage
 run_ignored_test frequentist_temporal_pag_pulse_envelope_nominal_90_coverage
+run_ignored_test bayesian_temporal_dag_pulse_staged_nominal_90_coverage
 run_ignored_test bayesian_temporal_dag_multistep_sustained_nominal_90_coverage
-run_ignored_test bayesian_temporal_dag_response_curve_nominal_90_coverage
+run_ignored_test bayesian_temporal_dag_response_curve_pointwise_band_coverage
 run_ignored_test bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage
 run_ignored_test bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage
-run_ignored_test bayesian_temporal_pag_pulse_nominal_90_coverage
-run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
-run_ignored_test dbn_mixture_functional_retains_unidentified_mass
 run_ignored_test class_prior_mixture_functional_nominal_90_coverage
+run_ignored_test bayesian_temporal_pag_pulse_nominal_90_coverage
+run_ignored_test bayesian_dbn_posterior_pulse_nominal_90_coverage
+run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
+run_ignored_test bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage
+
+echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the rule) =="
+run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
 
 echo "== 1.9 static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
