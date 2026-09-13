@@ -59,6 +59,15 @@ def render_fixture(fix: Path) -> str:
         "",
     ]
     if rest:
+        rest_lines = rest.splitlines()
+        while rest_lines and not rest_lines[0].strip():
+            rest_lines.pop(0)
+        if rest_lines and rest_lines[0].startswith("**Suite path:**"):
+            rest_lines = rest_lines[1:]
+            while rest_lines and not rest_lines[0].strip():
+                rest_lines.pop(0)
+        rest = "\n".join(rest_lines).strip()
+    if rest:
         parts.extend([rest, ""])
     parts.extend(
         [
