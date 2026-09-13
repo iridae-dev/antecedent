@@ -5202,8 +5202,10 @@ fn temporal_dependence_se_diagnostics(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "dependence-honest SE: circular-block length {block_length} = \
-             max(structural span, ceil(n^(1/3))) capped at n, n={rows} lag-aligned rows; \
+            "dependence-honest SE: circular-block length {block_length} (at least \
+             max(structural span, ceil(n^(1/3))), capped at n; the single-window effect \
+             path lengthens it for a persistently dependent estimating score), \
+             n={rows} lag-aligned rows; \
              replicate SD scaled by the Kiefer-Vogelsang fixed-b factor {scale:.4}; \
              score effective rows {effective_rows:.0}; {detail}"
         ),

@@ -37,7 +37,9 @@ const TEMPORAL_BLOCK_STREAM: u64 = 0x7B10_C000_0000;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TemporalDependenceSe {
     /// Circular-block length in lag-aligned rows:
-    /// `max(history + horizon, ⌈n^{1/3}⌉) ≤ n`.
+    /// [`crate::temporal_block::dependence_block_length`] of the unfolded window
+    /// and the treatment-coefficient score — at least `max(history + horizon, ⌈n^{1/3}⌉)`,
+    /// lengthened for a persistently dependent score.
     pub block_length: usize,
     /// Lag-aligned rows in the fitted (and resampled) design.
     pub rows: usize,
@@ -368,9 +370,12 @@ impl TemporalLinearAdjustment {
     ///
     /// - `se_bootstrap` (when `inner.bootstrap_replicates > 0`) is a circular-block
     ///   bootstrap over consecutive lag-aligned rows
-    ///   ([`crate::temporal_block::row_block_bootstrap`]); each replicate refits the
-    ///   design. The block length is [`antecedent_data::circular_block_length`] of
-    ///   the unfolded window (`history + horizon` slices) and the row count.
+    ///   ([`crate::temporal_block::row_block_bootstrap_vec`]); each replicate refits
+    ///   the design. The block length is
+    ///   [`crate::temporal_block::dependence_block_length`]: at least
+    ///   [`antecedent_data::circular_block_length`] of the unfolded window
+    ///   (`history + horizon` slices) and the row count, lengthened when the
+    ///   treatment-coefficient score is persistently dependent.
     /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
     ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
     ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
@@ -406,12 +411,15 @@ impl TemporalLinearAdjustment {
         point.se_analytic = f64::NAN;
 
         let replicates = self.inner.bootstrap_replicates;
+        let scores: Vec<&[f64]> = point.influence.as_deref().into_iter().collect();
+        let block_length =
+            crate::temporal_block::dependence_block_length(structural_span, rows, &scores);
         let boot = (replicates > 0).then(|| {
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
             let mut y_boot = vec![0.0; rows];
-            crate::temporal_block::row_block_bootstrap::<1>(
+            crate::temporal_block::row_block_bootstrap_vec(
                 rows,
-                structural_span,
+                block_length,
                 replicates,
                 TEMPORAL_BLOCK_STREAM,
                 ctx,
@@ -425,12 +433,12 @@ impl TemporalLinearAdjustment {
                             &mut y_boot,
                         )
                         .ok()
-                        .map(|ate| [ate])
+                        .map(|ate| vec![ate])
                 },
             )
         });
         let info = TemporalDependenceSe {
-            block_length: antecedent_data::circular_block_length(structural_span, rows),
+            block_length,
             rows,
             effective_rows: point
                 .influence
