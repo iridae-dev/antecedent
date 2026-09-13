@@ -420,8 +420,9 @@ fn full_posterior_ppc_flags_serial_dependence_and_pins_a_value() {
 }
 
 /// Mean lag-1 residual autocorrelation on the `full_posterior_ppc_flags_serial_dependence`
-/// fixture (AR(1) rho 0.7, n 200, seed 5).
-const PINNED_LAG1_AUTOCORRELATION: f64 = 0.692_432_095_197_358_6;
+/// fixture (AR(1) rho 0.7, n 200, seed 5). The posterior draws depend on the
+/// tempering factor, so a change to its estimator moves this pin.
+const PINNED_LAG1_AUTOCORRELATION: f64 = 0.692_847_876_779_409_1;
 
 #[test]
 fn hmc_draw_floor_raises_draws_with_a_diagnostic() {

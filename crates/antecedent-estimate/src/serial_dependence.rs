@@ -24,12 +24,27 @@
 //! cell of a temporal response at one horizon); `κ̂` is then the largest of their
 //! ratios.
 //!
-//! `κ̂` uses AR(1) prewhitening of the score (with the Kendall small-sample bias
-//! correction of `ρ̂`) followed by a Bartlett (Newey–West) kernel with the
-//! rule-of-thumb bandwidth `⌊4 (n/100)^{2/9}⌋`, then recolouring by
-//! `1/(1 − ρ̂)²` (Andrews & Monahan 1992). It is floored at `1` (the correction
-//! never narrows the iid posterior) and capped so at least `ncols + 2`
-//! effective rows remain.
+//! `κ̂ = max(κ̂_HAC · f_b², κ̂_AR)`:
+//!
+//! - `κ̂_HAC` uses AR(1) prewhitening of the score (with the Kendall small-sample
+//!   bias correction of `ρ̂`) followed by a Bartlett (Newey–West) kernel with the
+//!   rule-of-thumb bandwidth `M = ⌊4 (n/100)^{2/9}⌋`, then recolouring by
+//!   `1/(1 − ρ̂)²` (Andrews & Monahan 1992). It is robust to the form of the
+//!   dependence but noisy in short series, and a posterior scaled by a noisy
+//!   variance ratio under-covers; `f_b` is the Kiefer–Vogelsang fixed-b factor
+//!   of bandwidth `M + 1` ([`crate::temporal_block::fixed_b_scale`]), the same
+//!   correction the Frequentist circular-block SEs carry.
+//! - `κ̂_AR = w'Γ̂w / (γ̂₀ w'w)` is the variance ratio of `c'β̂` given the realized
+//!   design when the residual is AR(1) with the Kendall-corrected `ρ̂` of the OLS
+//!   residuals. It is far less noisy and accounts for the realized regressor
+//!   path, but assumes AR(1)-type residual dependence.
+//!
+//! The larger of the two never narrows the robust estimate. In the 1.9
+//! calibration (AR(1) residuals, n = 60–400) the prewhitened ratio alone had
+//! log-SD 0.2–0.4 and left nominal-90% intervals at 0.848–0.860 for n ≤ 160;
+//! the combination put them at 0.877–0.922. `κ̂` is floored at `1` (the
+//! correction never narrows the iid posterior) and capped so at least
+//! `ncols + 2` effective rows remain.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -100,8 +115,16 @@ impl DependenceScope {
 pub struct TemperingFactor {
     /// Applied factor `κ̂` (rows weighted `1/κ̂`), after the floor and cap.
     pub kappa: f64,
-    /// Long-run-variance ratio before the floor / cap.
+    /// Combined ratio before the floor / cap:
+    /// `max(hac_ratio · fixed_b², ar_ratio)`.
     pub raw_ratio: f64,
+    /// AR(1)-prewhitened Bartlett long-run-variance ratio of the targeted score.
+    pub hac_ratio: f64,
+    /// Kiefer–Vogelsang fixed-b SE factor of the Bartlett bandwidth
+    /// ([`crate::temporal_block::fixed_b_scale`]); `hac_ratio` is scaled by its square.
+    pub fixed_b: f64,
+    /// AR(1)-residual quadratic-form ratio conditional on the realized design.
+    pub ar_ratio: f64,
     /// Bartlett bandwidth on the prewhitened score.
     pub bandwidth: usize,
     /// Design rows.
@@ -123,10 +146,13 @@ impl TemperingFactor {
     #[must_use]
     pub fn note(&self) -> Arc<str> {
         Arc::from(format!(
-            "{DEPENDENCE_NOTE_PREFIX} kappa={:.6} raw_ratio={:.6} n={} n_eff={:.3} bandwidth={} \
-             scope={} capped={}",
+            "{DEPENDENCE_NOTE_PREFIX} kappa={:.6} raw_ratio={:.6} hac_ratio={:.6} fixed_b={:.6} \
+             ar_ratio={:.6} n={} n_eff={:.3} bandwidth={} scope={} capped={}",
             self.kappa,
             self.raw_ratio,
+            self.hac_ratio,
+            self.fixed_b,
+            self.ar_ratio,
             self.nrows,
             self.effective_rows(),
             self.bandwidth,
@@ -140,14 +166,17 @@ impl TemperingFactor {
     pub fn description(&self) -> Arc<str> {
         Arc::from(format!(
             "generalized (power) posterior with a serial-dependence correction: the Gaussian \
-             likelihood on {} time-ordered rows is tempered by 1/kappa with kappa = {:.4} \
-             (AR(1)-prewhitened Newey-West long-run-variance ratio of the {} score, bandwidth \
-             {}, floored at 1{}); effective rows {:.1}; the prior keeps full weight; \
-             heteroskedasticity and mean misspecification are not corrected",
+             likelihood on {} time-ordered rows is tempered by 1/kappa with kappa = {:.4}, the \
+             larger of the AR(1)-prewhitened Newey-West long-run-variance ratio of the {} score \
+             (bandwidth {}) scaled by the squared fixed-b factor {:.4}, and the AR(1)-residual \
+             variance ratio of the same combination given the design; floored at 1{}; \
+             effective rows {:.1}; the prior keeps full weight; heteroskedasticity and mean \
+             misspecification are not corrected",
             self.nrows,
             self.kappa,
             self.scope,
             self.bandwidth,
+            self.fixed_b,
             if self.capped { ", capped" } else { "" },
             self.effective_rows()
         ))
@@ -182,6 +211,9 @@ pub fn long_run_tempering_factor(
     let floor = TemperingFactor {
         kappa: 1.0,
         raw_ratio: 1.0,
+        hac_ratio: 1.0,
+        fixed_b: 1.0,
+        ar_ratio: 1.0,
         bandwidth,
         nrows: n,
         capped: false,
@@ -233,17 +265,27 @@ pub fn long_run_tempering_factor(
             xtx[b * p + a] = dot;
         }
     }
-    let mut raw_ratio = f64::NAN;
+    let fixed_b = crate::temporal_block::fixed_b_scale(bandwidth + 1, n);
+    // The direction with the largest combined ratio drives κ̂; its components are
+    // reported alongside it.
+    let (mut raw_ratio, mut hac_ratio, mut ar_ratio) = (f64::NAN, f64::NAN, f64::NAN);
     for c in &directions {
         let v = solve_spd(&xtx, c, p)
             .ok_or_else(|| EstimationError::stats_msg("long-run tempering: singular X'X"))?;
-        let influence: Vec<f64> = (0..n)
-            .map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>() * residuals[t])
-            .collect();
-        let ratio = long_run_variance_ratio(&influence, bandwidth);
-        if ratio.is_finite() {
-            // `f64::max` ignores the initial NaN.
-            raw_ratio = raw_ratio.max(ratio);
+        // w_t = x_t'(X'X)⁻¹c: the weight of row t in c'β̂; w_t·ê_t is its influence.
+        let weights: Vec<f64> =
+            (0..n).map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>()).collect();
+        let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(w, e)| w * e).collect();
+        let hac = long_run_variance_ratio(&influence, bandwidth);
+        let ar = ar1_quadratic_ratio(&weights, &residuals);
+        if !hac.is_finite() || !ar.is_finite() {
+            continue;
+        }
+        let combined = (hac * fixed_b * fixed_b).max(ar);
+        if raw_ratio.is_nan() || combined > raw_ratio {
+            raw_ratio = combined;
+            hac_ratio = hac;
+            ar_ratio = ar;
         }
     }
     if !raw_ratio.is_finite() {
@@ -251,7 +293,40 @@ pub fn long_run_tempering_factor(
     }
     let cap = (n as f64 / (p + 2) as f64).max(1.0);
     let kappa = raw_ratio.clamp(1.0, cap);
-    Ok(TemperingFactor { kappa, raw_ratio, capped: raw_ratio > cap, ..floor })
+    Ok(TemperingFactor {
+        kappa,
+        raw_ratio,
+        hac_ratio,
+        fixed_b,
+        ar_ratio,
+        capped: raw_ratio > cap,
+        ..floor
+    })
+}
+
+/// Bias-corrected lag-1 autocorrelation of `s` (Kendall 1954:
+/// `E[ρ̂] ≈ ρ − (1 + 3ρ)/n`), clamped to `±MAX_PREWHITEN_RHO`.
+fn kendall_rho(s: &[f64]) -> f64 {
+    let (num, den) =
+        s.windows(2).fold((0.0, 0.0), |(num, den), w| (num + w[1] * w[0], den + w[0] * w[0]));
+    let rho_hat = if den > 0.0 { num / den } else { 0.0 };
+    (rho_hat + (1.0 + 3.0 * rho_hat) / s.len() as f64).clamp(-MAX_PREWHITEN_RHO, MAX_PREWHITEN_RHO)
+}
+
+/// Variance ratio of `Σ w_t e_t` under AR(1) residuals, conditional on the
+/// realized weights: `w'Γw / (γ₀ w'w) = 1 + 2 Σ_{s<t} ρ̂^{t−s} w_s w_t / w'w`,
+/// with `ρ̂` the [`kendall_rho`] of the OLS residuals.
+fn ar1_quadratic_ratio(weights: &[f64], residuals: &[f64]) -> f64 {
+    let rho = kendall_rho(residuals);
+    let (mut carry, mut cross, mut norm) = (0.0, 0.0, 0.0);
+    for (t, &w) in weights.iter().enumerate() {
+        if t > 0 {
+            carry = rho * (carry + weights[t - 1]);
+        }
+        cross += w * carry;
+        norm += w * w;
+    }
+    if norm > 0.0 { 1.0 + 2.0 * cross / norm } else { 1.0 }
 }
 
 /// Solve `A v = b` for symmetric positive-definite `A` (row-major, `p × p`) by Cholesky.
@@ -298,12 +373,7 @@ fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
     if gamma0 <= 0.0 || !gamma0.is_finite() {
         return 1.0;
     }
-    let (num, den) =
-        s.windows(2).fold((0.0, 0.0), |(num, den), w| (num + w[1] * w[0], den + w[0] * w[0]));
-    let rho_hat = if den > 0.0 { num / den } else { 0.0 };
-    // Kendall (1954): E[ρ̂] ≈ ρ − (1 + 3ρ)/n; undo the downward small-sample bias.
-    let rho =
-        (rho_hat + (1.0 + 3.0 * rho_hat) / n as f64).clamp(-MAX_PREWHITEN_RHO, MAX_PREWHITEN_RHO);
+    let rho = kendall_rho(s);
     let u: Vec<f64> = s.windows(2).map(|w| w[1] - rho * w[0]).collect();
     let m = u.len();
     let lags = bandwidth.min(m.saturating_sub(1));
@@ -346,15 +416,41 @@ mod tests {
 
     #[test]
     fn iid_rows_centre_on_one() {
-        let mut ratios = Vec::new();
+        let (mut hac, mut ar) = (Vec::new(), Vec::new());
         for seed in 0..40 {
             let f = long_run_tempering_factor(&design(400, 0.0, seed), &DependenceScope::Treatment)
                 .unwrap();
             assert!(f.kappa >= 1.0);
-            ratios.push(f.raw_ratio);
+            assert!(f.fixed_b > 1.0 && f.fixed_b < 1.05, "fixed-b at n = 400: {}", f.fixed_b);
+            let combined = (f.hac_ratio * f.fixed_b * f.fixed_b).max(f.ar_ratio);
+            assert!((f.raw_ratio - combined).abs() < 1e-12);
+            hac.push(f.hac_ratio);
+            ar.push(f.ar_ratio);
         }
-        let mean = ratios.iter().sum::<f64>() / ratios.len() as f64;
-        assert!((mean - 1.0).abs() < 0.12, "iid long-run ratio should centre on 1, got {mean}");
+        for (name, ratios) in [("prewhitened HAC", hac), ("AR(1) quadratic", ar)] {
+            let mean = ratios.iter().sum::<f64>() / ratios.len() as f64;
+            assert!((mean - 1.0).abs() < 0.12, "iid {name} ratio should centre on 1, got {mean}");
+        }
+    }
+
+    #[test]
+    fn ar1_quadratic_ratio_matches_the_closed_form() {
+        // Constant-sign weights under ρ: 1 + 2 Σ_{k≥1} (1 − k/n) ρ^k.
+        let n = 50;
+        let weights = vec![1.0; n];
+        let mut residuals = Vec::with_capacity(n);
+        let mut e = 0.0;
+        for t in 0..n {
+            e = 0.6 * e + if t % 3 == 0 { 1.0 } else { -0.4 };
+            residuals.push(e);
+        }
+        let rho = kendall_rho(&residuals);
+        let expected = 1.0
+            + 2.0 * (1..n).map(|k| (1.0 - k as f64 / n as f64) * rho.powf(k as f64)).sum::<f64>();
+        assert!((ar1_quadratic_ratio(&weights, &residuals) - expected).abs() < 1e-9);
+        // Alternating weights flip the sign of every odd lag.
+        let alternating: Vec<f64> = (0..n).map(|t| if t % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        assert!(ar1_quadratic_ratio(&alternating, &residuals) < 1.0 || rho <= 0.0);
     }
 
     #[test]
