@@ -308,6 +308,7 @@ pub fn estimate_static_mediation_bayesian(
             overlap: OverlapPolicy::ExplicitOverride,
             coef_names: Some(Arc::from(coef_names.clone())),
             unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
         };
         let mut node_est = estimator.clone();
         node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);

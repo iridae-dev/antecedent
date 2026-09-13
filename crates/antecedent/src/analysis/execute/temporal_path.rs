@@ -451,10 +451,18 @@ impl super::Study {
             .prepare(data, &estimand, query, &indexer, self.split.as_ref(), &ctx.kernel_policy)
             .map_err(CausalError::from)?;
 
+        // Bayesian fits keep the estimator (with the resolved prior in force) and the
+        // lag-named, serial-dependence-tempered design so every check reuses both.
+        let mut bayes_fit: Option<(BayesianTemporalGcomp, PreparedBayesianProblem)> = None;
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
                 let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let names = antecedent_estimate::temporal_coefficient_names(
+                    data, &estimand, query, &indexer,
+                )
+                .map_err(CausalError::from)?;
+                let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                    .map_err(CausalError::from)?;
                 let (resolved_prior, conflict_summary) =
                     resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
                 bayes.inner.prior = resolved_prior;
@@ -466,6 +474,7 @@ impl super::Study {
                     posterior = with_conflict_summary(posterior, summary);
                 }
                 let estimate = effect_from_posterior(&posterior)?;
+                bayes_fit = Some((bayes, bprep));
                 (
                     estimate,
                     Some(posterior),
@@ -537,41 +546,50 @@ impl super::Study {
         diagnostics.extend(na_diagnostics);
 
         // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
+        // Both run against the resolved prior in force and the fitted (tempered) design.
         let mut posterior = posterior;
         let mut predictive_checks = Vec::new();
-        if matches!(&self.inference, InferenceMode::Bayesian(_))
-            && !matches!(self.refute, RefuteSuite::None)
-        {
-            if let Some(ref post) = posterior {
+        if !matches!(self.refute, RefuteSuite::None) {
+            if let (Some((bayes, bprep)), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
                 const PPC_ALPHA: f64 = 0.05;
-                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
                 let prior_rep = PriorPredictiveCheck {
                     n_sims: 200,
                     seed: ctx.rng.master_seed(),
                     ..PriorPredictiveCheck::new()
                 }
-                .check(&bprep, ctx)
+                .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
                 .map_err(CausalError::from)?;
                 refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
                 predictive_checks.push(prior_rep);
 
-                let post_rep = PosteriorPredictiveCheck::new()
-                    .check(&bprep, post)
-                    .map_err(CausalError::from)?;
+                // `full` adds the lag-1 residual-autocorrelation discrepancy (C-4).
+                let post_rep = if matches!(self.refute, RefuteSuite::Full) {
+                    PosteriorPredictiveCheck::new().check_temporal(
+                        bprep,
+                        post,
+                        ctx.rng.master_seed(),
+                    )
+                } else {
+                    PosteriorPredictiveCheck::new().check(bprep, post)
+                }
+                .map_err(CausalError::from)?;
                 refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
                 predictive_checks.push(post_rep);
 
                 if matches!(self.refute, RefuteSuite::Full) {
                     let InferenceMode::Bayesian(cfg) = &self.inference else { unreachable!() };
-                    posterior = Some(apply_temporal_prior_sensitivity(
+                    let mut ws = BayesianGCompWorkspace::default();
+                    let (summary, sens) = evaluate_bayesian_prior_sensitivity(
                         cfg,
-                        &bprep,
+                        &bayes.inner,
+                        bprep,
                         identification.status,
                         post,
-                        estimate.ate,
+                        &mut ws,
                         ctx,
-                        &mut refutations,
-                    )?);
+                    )?;
+                    refutations.push(sens.to_report(&summary, estimate.ate));
+                    posterior = Some(with_prior_sensitivity(post.clone(), summary));
                 }
             }
         }
@@ -913,16 +931,9 @@ impl super::Study {
                 refutations.extend(reports);
 
                 for (i, (prep, post)) in preparations.iter().zip(&mechanisms).enumerate() {
-                    let prior = estimator.prior.clone().unwrap_or_else(|| {
-                        let mut prior = PriorSet::weakly_informative(prep.design.ncols);
-                        prior.specs = vec![antecedent_prob::PriorSpec::GaussianCoefficients(
-                            antecedent_prob::GaussianCoefficientPrior::isotropic(
-                                prep.design.ncols,
-                                cfg.prior_scale,
-                            ),
-                        )];
-                        prior
-                    });
+                    // Mediation refuses prior transfer, so the isotropic mechanism
+                    // prior is the prior in force.
+                    let prior = estimator.prior_in_force(prep.design.ncols);
                     let prior_rep = PriorPredictiveCheck::new()
                         .check_with_prior(prep, &prior, ctx)
                         .map_err(CausalError::from)?;
@@ -961,8 +972,10 @@ impl super::Study {
                     sds.push(post.summaries.sd[0]);
                 }
                 let summary = antecedent_prob::PriorSensitivitySummary {
+                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
                     prior_scales: sensitivity.scales.clone(),
                     alphas: Arc::from([]),
+                    variance_multipliers: Arc::from([]),
                     effect_means: Arc::from(means),
                     effect_sds: Arc::from(sds),
                 };
@@ -3204,7 +3217,11 @@ impl super::Study {
             let prep = estimator
                 .prepare(data, estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
                 .map_err(CausalError::from)?;
-            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+            let names =
+                antecedent_estimate::temporal_coefficient_names(data, estimand, query, indexer)
+                    .map_err(CausalError::from)?;
+            let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                .map_err(CausalError::from)?;
             let (resolved, conflict) = resolve_envelope_prior_anchor(cfg, &bprep, ctx)?;
             bayes.inner.prior = resolved;
             let mut posterior =
@@ -3242,6 +3259,7 @@ impl super::Study {
                 weight: *weight,
                 estimand: estimand.clone(),
                 indexer: Some(indexer.clone()),
+                prior: bayes.inner.prior.clone(),
             });
         }
         if atoms.is_empty() {
@@ -3279,6 +3297,7 @@ impl super::Study {
                 EnvelopeOptions::default(),
             )
             .map_err(CausalError::from)?;
+            merge_posterior_notes(&mut mixed, atoms.iter().map(|atom| &atom.posterior));
             if let Some(summary) = envelope_conflict {
                 mixed = with_conflict_summary(mixed, summary);
             }
@@ -3343,8 +3362,8 @@ impl super::Study {
             refutations.extend(reports);
             diagnostics.extend(na_diagnostics);
             let mut atom_posterior = atom.posterior.clone();
-            let mut atom_estimator = bayes.inner.clone();
-            atom_estimator.prior = resolve_envelope_prior_anchor(cfg, &atom.prep, ctx)?.0;
+            let atom_estimator =
+                BayesianGComputationAte { prior: atom.prior.clone(), ..bayes.inner.clone() };
             predictive_checks.extend(run_envelope_bayesian_full_validation(
                 self.refute,
                 cfg,

@@ -19,8 +19,8 @@ use antecedent_estimate::{
 use antecedent_identify::IdentificationStatus;
 use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use antecedent_prob::{
-    ExternalPriorSource, HessianFactorization, PriorSensitivitySummary, PriorSet,
-    compose_external_priors_with_alphas,
+    ExternalPriorSource, HessianFactorization, PriorSensitivityFamily, PriorSensitivitySummary,
+    PriorSet, PriorSpec, compose_external_priors_with_alphas,
 };
 use antecedent_stats::GlmFamily;
 
@@ -63,6 +63,32 @@ pub struct PredictiveCheckReport {
     pub dispersion_tails: [f64; 2],
     /// Number of predictive simulations.
     pub n_sims: u32,
+    /// Temporal discrepancy axis (lag-1 residual autocorrelation) on time-ordered
+    /// designs; `None` for exchangeable rows and for prior checks.
+    pub serial: Option<SerialDiscrepancy>,
+}
+
+/// Posterior predictive check of serial dependence in the outcome residual.
+///
+/// Discrepancy `T(y, β) = Σ_t r_t r_{t-1} / Σ_t r_t²` with `r = y − Xβ` (lag-1
+/// residual autocorrelation). For each posterior draw the realized value uses the
+/// observed outcome; the replicated value uses a replicate drawn from the iid
+/// Gaussian likelihood (`T` is scale-free, so the residual scale cancels). A small
+/// p-value says the rows are not exchangeable under the fitted mean — the
+/// misspecification the serial-dependence correction of temporal Bayesian
+/// intervals exists for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SerialDiscrepancy {
+    /// Residual lag the statistic uses (always `1`).
+    pub lag: u32,
+    /// Mean realized lag-1 residual autocorrelation over posterior draws.
+    pub observed: f64,
+    /// Mean replicated lag-1 residual autocorrelation (≈ `−1/n` under iid rows).
+    pub predictive_mean: f64,
+    /// Two-sided posterior predictive p-value.
+    pub p_value: f64,
+    /// Lower / upper inclusive Monte Carlo tails `P(T_rep ≤ T_obs)`, `P(T_rep ≥ T_obs)`.
+    pub tails: [f64; 2],
 }
 
 impl PredictiveCheckReport {
@@ -80,8 +106,11 @@ impl PredictiveCheckReport {
         };
         let mean_ok = self.p_value.is_finite() && self.p_value >= alpha;
         let dispersion_ok = self.dispersion_p_value.is_finite() && self.dispersion_p_value >= alpha;
-        let passed = mean_ok && dispersion_ok;
-        let comparison = self.p_value.min(self.dispersion_p_value);
+        let serial_ok = self.serial.is_none_or(|s| s.p_value.is_finite() && s.p_value >= alpha);
+        let passed = mean_ok && dispersion_ok && serial_ok;
+        let comparison = self.serial.map_or(self.p_value.min(self.dispersion_p_value), |serial| {
+            self.p_value.min(self.dispersion_p_value).min(serial.p_value)
+        });
         RefutationReport {
             refuter: Arc::from(name),
             original_ate,
@@ -91,23 +120,33 @@ impl PredictiveCheckReport {
             passed,
             failure_condition: if passed {
                 None
-            } else if !mean_ok && !dispersion_ok {
-                Some(Arc::from(format!(
-                    "predictive check failed on mean (p={} < alpha={alpha}) and dispersion \
-                     (p={} < alpha={alpha})",
-                    self.p_value, self.dispersion_p_value
-                )))
-            } else if !mean_ok {
-                Some(Arc::from(format!(
-                    "predictive check failed (p={} < alpha={alpha})",
-                    self.p_value
-                )))
             } else {
-                Some(Arc::from(format!(
-                    "predictive dispersion check failed (p={} < alpha={alpha}); predictive spread \
-                     does not match observed spread even though the mean matches",
-                    self.dispersion_p_value
-                )))
+                let base = if mean_ok && dispersion_ok {
+                    None
+                } else if !mean_ok && !dispersion_ok {
+                    Some(format!(
+                        "predictive check failed on mean (p={} < alpha={alpha}) and dispersion \
+                         (p={} < alpha={alpha})",
+                        self.p_value, self.dispersion_p_value
+                    ))
+                } else if !mean_ok {
+                    Some(format!("predictive check failed (p={} < alpha={alpha})", self.p_value))
+                } else {
+                    Some(format!(
+                        "predictive dispersion check failed (p={} < alpha={alpha}); predictive \
+                         spread does not match observed spread even though the mean matches",
+                        self.dispersion_p_value
+                    ))
+                };
+                let serial = self.serial.filter(|_| !serial_ok).map(|serial| {
+                    format!(
+                        "posterior predictive serial-dependence check failed: lag-{} residual \
+                         autocorrelation {:.4} vs replicated {:.4} (p={} < alpha={alpha}); rows \
+                         are not exchangeable under the iid likelihood",
+                        serial.lag, serial.observed, serial.predictive_mean, serial.p_value
+                    )
+                });
+                Some(Arc::from(base.into_iter().chain(serial).collect::<Vec<_>>().join("; ")))
             },
             replicates: self.n_sims,
         }
@@ -170,6 +209,30 @@ impl PredictiveCheckReport {
             }
             n_sims = n_sims.max(report.n_sims);
         }
+        // The temporal axis mixes only when every contributing atom carries it.
+        let serial = if atoms.iter().all(|(_, report)| report.serial.is_some()) {
+            let mut observed_serial = 0.0;
+            let mut predictive_serial = 0.0;
+            let mut tails = [0.0; 2];
+            for &&(w, report) in &atoms {
+                let serial = report.serial.expect("checked above");
+                let weight = (w / max_weight) / total;
+                observed_serial += weight * serial.observed;
+                predictive_serial += weight * serial.predictive_mean;
+                for tail in 0..2 {
+                    tails[tail] += weight * serial.tails[tail];
+                }
+            }
+            Some(SerialDiscrepancy {
+                lag: 1,
+                observed: observed_serial,
+                predictive_mean: predictive_serial,
+                p_value: (2.0 * tails[0].min(tails[1])).min(1.0),
+                tails,
+            })
+        } else {
+            None
+        };
         // Centered total variance retains small spread around large locations.
         // Hypot also avoids squaring away representable tiny/large SDs.
         let mut predictive_sd = 0.0_f64;
@@ -191,6 +254,7 @@ impl PredictiveCheckReport {
             dispersion_p_value: (2.0 * dispersion_tails[0].min(dispersion_tails[1])).min(1.0),
             dispersion_tails,
             n_sims,
+            serial,
         })
     }
 }
@@ -374,18 +438,105 @@ impl PosteriorPredictiveCheck {
             n_draws as u32,
         ))
     }
+
+    /// [`Self::check`] plus the temporal [`SerialDiscrepancy`] axis.
+    ///
+    /// Design rows must be in time order (lag-aligned temporal designs are).
+    /// `seed` drives the replicated residuals.
+    ///
+    /// # Errors
+    ///
+    /// Missing coefficients / empty draws, or fewer than three rows.
+    pub fn check_temporal(
+        &self,
+        problem: &PreparedBayesianProblem,
+        posterior: &CausalPosterior,
+        seed: u64,
+    ) -> Result<PredictiveCheckReport, ValidationError> {
+        let mut report = self.check(problem, posterior)?;
+        report.serial = Some(serial_discrepancy(problem, posterior, self.n_sims, seed)?);
+        Ok(report)
+    }
+}
+
+/// Lag-1 autocorrelation `Σ r_t r_{t-1} / Σ r_t²` (0 for a zero vector).
+fn lag1_autocorrelation(r: &[f64]) -> f64 {
+    let den: f64 = r.iter().map(|v| v * v).sum();
+    if den <= 0.0 || !den.is_finite() {
+        return 0.0;
+    }
+    r.windows(2).map(|w| w[0] * w[1]).sum::<f64>() / den
+}
+
+fn serial_discrepancy(
+    problem: &PreparedBayesianProblem,
+    posterior: &CausalPosterior,
+    n_sims: u32,
+    seed: u64,
+) -> Result<SerialDiscrepancy, ValidationError> {
+    let n = problem.design.nrows;
+    let p = problem.design.ncols;
+    if n < 3 {
+        return Err(ValidationError::estimation_msg("serial PPC needs at least three rows"));
+    }
+    let n_draws = posterior.draws.n_draws.min(n_sims as usize);
+    if n_draws == 0 {
+        return Err(ValidationError::estimation_msg("no posterior draws for serial PPC"));
+    }
+    let mut rng = CausalRng::from_seed(seed ^ 0x5E71_A1D0_C0DE_0001);
+    let mut beta = vec![0.0; p];
+    let mut resid = vec![0.0; n];
+    let mut replicate = vec![0.0; n];
+    let (mut observed_sum, mut predictive_sum) = (0.0, 0.0);
+    let (mut below, mut above) = (0usize, 0usize);
+    for d in 0..n_draws {
+        for (c, slot) in beta.iter_mut().enumerate() {
+            *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
+        }
+        for (r, out) in resid.iter_mut().enumerate() {
+            let fitted: f64 =
+                beta.iter().enumerate().map(|(c, b)| problem.design.matrix[c * n + r] * b).sum();
+            *out = problem.design.outcome[r] - fitted;
+        }
+        for value in &mut replicate {
+            *value = standard_normal(&mut rng);
+        }
+        let t_obs = lag1_autocorrelation(&resid);
+        let t_rep = lag1_autocorrelation(&replicate);
+        observed_sum += t_obs;
+        predictive_sum += t_rep;
+        below += usize::from(t_rep <= t_obs);
+        above += usize::from(t_rep >= t_obs);
+    }
+    let draws = n_draws as f64;
+    let tails = [(1.0 + below as f64) / (1.0 + draws), (1.0 + above as f64) / (1.0 + draws)];
+    Ok(SerialDiscrepancy {
+        lag: 1,
+        observed: observed_sum / draws,
+        predictive_mean: predictive_sum / draws,
+        p_value: (2.0 * tails[0].min(tails[1])).min(1.0),
+        tails,
+    })
 }
 
 /// Default max relative range of effect means across the prior-sensitivity grid.
 pub const DEFAULT_MAX_RELATIVE_PRIOR_RANGE: f64 = 0.5;
 
-/// Prior sensitivity grid: isotropic scales **or** external α multipliers.
+/// Prior sensitivity grid: isotropic scales, external α multipliers, **or**
+/// variance multipliers around the resolved prior in force.
+///
+/// Exactly one grid is non-empty. [`Self::evaluate`] (isotropic) is only the
+/// right grid when no prior was supplied; a staged / transferred prior uses
+/// [`Self::evaluate_resolved_prior`] and a prior-bank compose uses
+/// [`Self::evaluate_external_alpha`].
 #[derive(Clone, Debug)]
 pub struct PriorSensitivity {
     /// Prior scales (σ of isotropic Gaussian coefficient prior). Empty in α mode.
     pub scales: Arc<[f64]>,
     /// Multipliers on post-conflict applied alphas. Empty in isotropic scale mode.
     pub alphas: Arc<[f64]>,
+    /// Multipliers on the resolved prior's coefficient variances (means kept).
+    pub variance_multipliers: Arc<[f64]>,
     /// Fail when `(max−min) / scale` exceeds this, where `scale` is
     /// `max(|means…|, |original_ate|, ε)`.
     pub max_relative_range: f64,
@@ -413,6 +564,21 @@ impl PriorSensitivity {
         Self {
             scales: Arc::from(vec![0.5, 1.0, 2.0, 5.0, 10.0, 20.0]),
             alphas: Arc::from([]),
+            variance_multipliers: Arc::from([]),
+            max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
+        }
+    }
+
+    /// Standard resolved-prior grid: coefficient variances × `{0.25, 0.5, 1, 2, 4, 10}`.
+    ///
+    /// Multiplier `1` reproduces the prior in force; smaller multipliers tighten it
+    /// around its own means, larger ones weaken it.
+    #[must_use]
+    pub fn standard_resolved_grid() -> Self {
+        Self {
+            scales: Arc::from([]),
+            alphas: Arc::from([]),
+            variance_multipliers: Arc::from(vec![0.25, 0.5, 1.0, 2.0, 4.0, 10.0]),
             max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
         }
     }
@@ -425,12 +591,83 @@ impl PriorSensitivity {
         Self {
             scales: Arc::from([]),
             alphas: Arc::from(vec![0.0, 0.25, 0.5, 0.75, 1.0]),
+            variance_multipliers: Arc::from([]),
             max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
         }
     }
 
     fn grid_len(&self) -> usize {
-        if self.alphas.is_empty() { self.scales.len() } else { self.alphas.len() }
+        if !self.variance_multipliers.is_empty() {
+            self.variance_multipliers.len()
+        } else if self.alphas.is_empty() {
+            self.scales.len()
+        } else {
+            self.alphas.len()
+        }
+    }
+
+    /// Refit at each variance multiplier around the resolved prior in force.
+    ///
+    /// `estimator.prior` must be the prior the reported posterior used. Coefficient
+    /// means are kept; every coefficient variance is multiplied by the grid value;
+    /// residual-variance and restriction specs are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Empty grid, no resolved prior on `estimator`, invalid multipliers, or fit failures.
+    pub fn evaluate_resolved_prior(
+        &self,
+        estimator: &BayesianGComputationAte,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(PriorSensitivitySummary, Vec<CausalPosterior>), ValidationError> {
+        if self.variance_multipliers.is_empty() {
+            return Err(ValidationError::estimation_msg(
+                "prior sensitivity variance-multiplier grid is empty",
+            ));
+        }
+        let resolved = estimator.prior.as_ref().ok_or_else(|| {
+            ValidationError::estimation_msg(
+                "resolved-prior sensitivity requires the prior in force (estimator.prior is unset)",
+            )
+        })?;
+        let mut means = Vec::with_capacity(self.variance_multipliers.len());
+        let mut sds = Vec::with_capacity(self.variance_multipliers.len());
+        let mut posts = Vec::with_capacity(self.variance_multipliers.len());
+        for &mult in self.variance_multipliers.iter() {
+            if !mult.is_finite() || mult <= 0.0 {
+                return Err(ValidationError::estimation_msg(
+                    "prior sensitivity variance multiplier must be finite and positive",
+                ));
+            }
+            let est = BayesianGComputationAte {
+                n_draws: estimator.n_draws.min(200),
+                prior: Some(scale_coefficient_variances(resolved, mult)?),
+                ..estimator.clone()
+            };
+            let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
+                ValidationError::estimation_msg(format!("prior sensitivity fit failed: {e}"))
+            })?;
+            let eq = post.effect_column().ok_or_else(|| {
+                ValidationError::estimation_msg("missing effect column in sensitivity fit")
+            })?;
+            means.push(post.summaries.mean[eq]);
+            sds.push(post.summaries.sd[eq]);
+            posts.push(post);
+        }
+        Ok((
+            PriorSensitivitySummary {
+                family: PriorSensitivityFamily::ResolvedPriorVariance,
+                prior_scales: Arc::from([]),
+                alphas: Arc::from([]),
+                variance_multipliers: Arc::clone(&self.variance_multipliers),
+                effect_means: Arc::from(means),
+                effect_sds: Arc::from(sds),
+            },
+            posts,
+        ))
     }
 
     /// Refit Bayesian g-comp at each prior scale; return sensitivity summary.
@@ -458,11 +695,8 @@ impl PriorSensitivity {
             let est = BayesianGComputationAte {
                 prior_scale: scale,
                 n_draws: estimator.n_draws.min(200),
-                seed: estimator.seed,
-                backend: estimator.backend,
-                likelihood: estimator.likelihood,
-                overlap: estimator.overlap,
                 prior: None,
+                ..estimator.clone()
             };
             let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
                 ValidationError::estimation_msg(format!("prior sensitivity fit failed: {e}"))
@@ -476,8 +710,10 @@ impl PriorSensitivity {
         }
         Ok((
             PriorSensitivitySummary {
+                family: PriorSensitivityFamily::IsotropicScale,
                 prior_scales: Arc::clone(&self.scales),
                 alphas: Arc::from([]),
+                variance_multipliers: Arc::from([]),
                 effect_means: Arc::from(means),
                 effect_sds: Arc::from(sds),
             },
@@ -533,13 +769,9 @@ impl PriorSensitivity {
                 ValidationError::estimation_msg(format!("prior sensitivity compose failed: {e}"))
             })?;
             let est = BayesianGComputationAte {
-                prior_scale: estimator.prior_scale,
                 n_draws: estimator.n_draws.min(200),
-                seed: estimator.seed,
-                backend: estimator.backend,
-                likelihood: estimator.likelihood,
-                overlap: estimator.overlap,
                 prior: Some(composed.prior),
+                ..estimator.clone()
             };
             let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
                 ValidationError::estimation_msg(format!("prior sensitivity α fit failed: {e}"))
@@ -553,8 +785,10 @@ impl PriorSensitivity {
         }
         Ok((
             PriorSensitivitySummary {
+                family: PriorSensitivityFamily::ExternalAlpha,
                 prior_scales: Arc::from([]),
                 alphas: Arc::clone(&self.alphas),
+                variance_multipliers: Arc::from([]),
                 effect_means: Arc::from(means),
                 effect_sds: Arc::from(sds),
             },
@@ -588,8 +822,11 @@ impl PriorSensitivity {
             max / denom - min / denom
         };
         let passed = relative.is_finite() && relative <= self.max_relative_range;
-        let kind =
-            if summary.alphas.is_empty() { "prior_sensitivity" } else { "prior_sensitivity_alpha" };
+        let kind = match summary.family {
+            PriorSensitivityFamily::IsotropicScale => "prior_sensitivity",
+            PriorSensitivityFamily::ExternalAlpha => "prior_sensitivity_alpha",
+            PriorSensitivityFamily::ResolvedPriorVariance => "prior_sensitivity_resolved_prior",
+        };
         RefutationReport {
             refuter: Arc::from(kind),
             original_ate,
@@ -608,6 +845,24 @@ impl PriorSensitivity {
             replicates: u32::try_from(self.grid_len()).unwrap_or(u32::MAX),
         }
     }
+}
+
+/// Copy of `prior` with every Gaussian coefficient variance multiplied by `mult`.
+fn scale_coefficient_variances(prior: &PriorSet, mult: f64) -> Result<PriorSet, ValidationError> {
+    let mut scaled = prior.clone();
+    let mut found = false;
+    for spec in &mut scaled.specs {
+        if let PriorSpec::GaussianCoefficients(coef) = spec {
+            coef.variance = coef.variance.iter().map(|v| v * mult).collect();
+            found = true;
+        }
+    }
+    if !found {
+        return Err(ValidationError::estimation_msg(
+            "resolved prior has no Gaussian coefficient block to perturb",
+        ));
+    }
+    Ok(scaled)
 }
 
 fn summarize_check(
@@ -643,6 +898,7 @@ fn summarize_check(
         dispersion_p_value: 1.0,
         dispersion_tails: [1.0, 1.0],
         n_sims,
+        serial: None,
     }
 }
 
@@ -696,6 +952,7 @@ fn summarize_predictive_check(
         dispersion_p_value: disp_report.p_value,
         dispersion_tails: disp_report.location_tails,
         n_sims,
+        serial: None,
     }
 }
 
@@ -721,6 +978,7 @@ mod tests {
                 alphas: Arc::from([]),
                 effect_means: Arc::from([scale, 2.0 * scale]),
                 effect_sds: Arc::from([scale, scale]),
+                ..PriorSensitivitySummary::default()
             };
             let report = sensitivity.to_report(&summary, scale);
             assert!((report.comparison - 0.5).abs() < 1e-12);
@@ -769,6 +1027,7 @@ mod tests {
             dispersion_p_value: 0.4,
             dispersion_tails: [0.2, 0.8],
             n_sims: 200,
+            serial: None,
         }
     }
 
@@ -956,8 +1215,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let sens = PriorSensitivity {
             scales: Arc::from(vec![1.0, 10.0, 50.0]),
-            alphas: Arc::from([]),
-            max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
+            ..PriorSensitivity::standard_grid()
         };
         let (summary, posts) = sens
             .evaluate(

@@ -146,26 +146,34 @@ pub(super) fn validate_sequential(
             reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
         }
         if let Some(estimator) = bayes.filter(|_| suite != RefuteSuite::None) {
+            // Multi-step prior transfer is refused before fitting, so the isotropic
+            // per-mechanism prior (`prior_scale`) is the prior in force. Refuse rather
+            // than validate against a prior the mechanisms were not fitted under.
+            if estimator.prior.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "multi-step sustained validation requires isotropic per-mechanism priors",
+                });
+            }
             for mechanism in &atom.mechanisms {
-                let prior = PriorSet {
-                    specs: vec![antecedent_prob::PriorSpec::GaussianCoefficients(
-                        antecedent_prob::GaussianCoefficientPrior::isotropic(
-                            mechanism.prepared.design.ncols,
-                            estimator.prior_scale,
-                        ),
-                    )],
-                    contrast: None,
-                    categorical: Vec::new(),
-                    restrictions: Vec::new(),
-                };
+                let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
                 let prior = PriorPredictiveCheck {
                     n_sims: 200,
                     seed: ctx.rng.master_seed(),
                     ..PriorPredictiveCheck::new()
                 }
                 .check_with_prior(&mechanism.prepared, &prior, ctx)?;
-                let post = PosteriorPredictiveCheck::new()
-                    .check(&mechanism.prepared, &mechanism.posterior)?;
+                // Mechanism rows are time-ordered: `full` adds the lag-1 residual
+                // autocorrelation discrepancy (C-4).
+                let post = if suite == RefuteSuite::Full {
+                    PosteriorPredictiveCheck::new().check_temporal(
+                        &mechanism.prepared,
+                        &mechanism.posterior,
+                        ctx.rng.master_seed(),
+                    )?
+                } else {
+                    PosteriorPredictiveCheck::new()
+                        .check(&mechanism.prepared, &mechanism.posterior)?
+                };
                 priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
                 posts.entry(mechanism.variable).or_default().push((atom.weight, post));
             }
@@ -193,10 +201,11 @@ pub(super) fn validate_sequential(
                 sensitivity.push((
                     atom.weight,
                     antecedent_prob::PriorSensitivitySummary {
+                        family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
                         prior_scales: Arc::clone(&grid.scales),
-                        alphas: Arc::from([]),
                         effect_means: means.into(),
                         effect_sds: sds.into(),
+                        ..Default::default()
                     },
                 ));
             }

@@ -1152,7 +1152,15 @@ pub(crate) fn projection_diagnostic(full_cols: usize, projected_cols: usize) -> 
     ))
 }
 
-/// Full-suite prior sensitivity: α-grid when external compose is present, else isotropic scale.
+/// Full-suite prior sensitivity around the prior actually in force.
+///
+/// - external prior-bank compose → α-multiplier grid on the post-conflict alphas;
+/// - any other resolved prior on `est` (explicit `cfg.prior`, a transferred
+///   `cfg.prior_artifact`) → variance-multiplier grid around that prior;
+/// - no prior supplied → isotropic scale grid (the isotropic prior *is* the prior in force).
+///
+/// `est.prior` must hold the resolved prior the reported posterior used; the
+/// summary's [`antecedent_prob::PriorSensitivityFamily`] records which family was perturbed.
 pub(crate) fn evaluate_bayesian_prior_sensitivity(
     cfg: &crate::inference::BayesianConfig,
     est: &antecedent_estimate::BayesianGComputationAte,
@@ -1182,6 +1190,11 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
                 ExternalAlphaSensitivity { sources: &ext.sources, alphas_applied: &alphas_applied },
             )
             .map_err(CausalError::from)?;
+        Ok((summary, sens))
+    } else if est.prior.is_some() {
+        let sens = PriorSensitivity::standard_resolved_grid();
+        let (summary, _) =
+            sens.evaluate_resolved_prior(est, prep, status, ws, ctx).map_err(CausalError::from)?;
         Ok((summary, sens))
     } else {
         let sens = PriorSensitivity::standard_grid();

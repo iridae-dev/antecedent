@@ -386,11 +386,15 @@ def _wrap_ate(
         alphas_raw = getattr(raw, "prior_sensitivity_alphas", None)
         scales_raw = getattr(raw, "prior_sensitivity_scales", None)
         sds = getattr(raw, "prior_sensitivity_sds", None)
+        multipliers_raw = getattr(raw, "prior_sensitivity_variance_multipliers", None)
+        family = getattr(raw, "prior_sensitivity_family", None)
         prior_sensitivity = PriorSensitivityReport(
             scales=list(scales_raw or ()),
             effect_means=list(means),
             effect_sds=list(sds or ()),
             alphas=None if alphas_raw is None else list(alphas_raw),
+            variance_multipliers=None if multipliers_raw is None else list(multipliers_raw),
+            family=str(family) if family is not None else "isotropic_scale",
         )
     certificate_json = getattr(raw, "certificate_json", None)
     mediation_grid = None
