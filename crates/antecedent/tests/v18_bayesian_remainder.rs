@@ -6,13 +6,14 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery, DerivativeScale,
     DerivativeWeighting, ExecutionContext, Intervention, InterventionalDistributionQuery,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, ResponseFunctional, ResponseQuery,
-    ResponseValue, Value, VariableId,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -413,52 +414,148 @@ fn mediation_and_counterfactual_bayesian_pins() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
 }
 
+/// Known-truth pins for all six Bayesian derivative functionals on explicit and
+/// accepted DAGs (`conformance/response/staged_derivatives`): each asserts the
+/// point value and that the published credible interval brackets the truth.
+#[allow(clippy::many_single_char_names)]
 #[test]
 fn derivative_bayesian_pins() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/staged_derivatives/expected.json"
     ))
     .unwrap();
+    let tolerance = pin["tolerance"].as_f64().unwrap();
     let a: Vec<_> = (0..400)
         .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
         .collect();
     let b: Vec<_> = (0..400).map(|i| (f64::from(i) * 1.13).cos()).collect();
     let y: Vec<_> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let v: Vec<_> = a.iter().zip(&b).map(|(a, b)| 1.0 + 0.25 * a + 1.5 * b).collect();
     let data = TabularData::from_f64_columns([
         ("a", a.as_slice()),
         ("b", b.as_slice()),
         ("y", y.as_slice()),
+        ("v", v.as_slice()),
     ])
     .unwrap();
-    let mut graph = Dag::with_variables(3);
-    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let ctx = ExecutionContext::for_tests(18);
-    let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(0, 2), (0, 3), (1, 2), (1, 3)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let ids =
+        |xs: &[u32]| -> Arc<[VariableId]> { xs.iter().map(|&x| VariableId::from_raw(x)).collect() };
+    let point = |scale| ResponseFunctional::PointDerivative {
         outcome: VariableId::from_raw(2),
         treatment: VariableId::from_raw(0),
-        weighting: DerivativeWeighting::Observed,
-    });
-    let result = Study::tabular(data.clone())
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .inference(bayes())
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap()
-        .estimate(&data, &ctx)
-        .unwrap();
-    assert_ne!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
-    assert_ne!(result.logical_plan.estimator.as_deref(), Some("response.bayesian"));
-    match result.response.as_ref().unwrap().estimate {
-        antecedent_core::ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => {
-            assert!(
-                (v - pin["average"].as_f64().unwrap()).abs() < pin["tolerance"].as_f64().unwrap()
+        at: 2.0,
+        order: 1,
+        scale,
+    };
+    let cases = [
+        ("point", point(DerivativeScale::Identity)),
+        ("elasticity", point(DerivativeScale::LogLog)),
+        ("semi_treatment", point(DerivativeScale::LogTreatment)),
+        ("semi_outcome", point(DerivativeScale::LogOutcome)),
+        (
+            "average",
+            ResponseFunctional::AverageDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                weighting: DerivativeWeighting::Observed,
+            },
+        ),
+        (
+            "jacobian",
+            ResponseFunctional::Jacobian {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                scale: DerivativeScale::Identity,
+            },
+        ),
+        (
+            "directional",
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                direction: Arc::from([1.0, 2.0]),
+            },
+        ),
+    ];
+    let ctx = ExecutionContext::for_tests(18);
+    for (key, functional) in cases {
+        let truth: Vec<f64> = pin[key].as_f64().map_or_else(
+            || pin[key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect(),
+            |x| vec![x],
+        );
+        for accepted in [false, true] {
+            let builder = if accepted {
+                Study::tabular(data.clone()).graph(AcceptedGraph::from(graph.clone()))
+            } else {
+                Study::tabular(data.clone()).graph(graph.clone())
+            };
+            let result = builder
+                .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+                .response_options(ContinuousResponseOptions {
+                    bandwidth: Some(0.35),
+                    ..Default::default()
+                })
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate(&data, &ctx)
+                .unwrap();
+            let label = format!("{key} accepted={accepted}");
+            assert_ne!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"), "{label}");
+            assert_ne!(
+                result.logical_plan.estimator.as_deref(),
+                Some("response.bayesian"),
+                "{label}"
             );
+            let response = result.response.as_ref().unwrap();
+            let ResponseIdentification::PointIdentified(value) = &response.estimate else {
+                panic!("{label}: unidentified")
+            };
+            let got = match value {
+                ResponseValue::Scalar(x) => vec![*x],
+                ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values) => {
+                    values.to_vec()
+                }
+                other => panic!("{label}: unexpected {other:?}"),
+            };
+            let (lower, upper): (Vec<f64>, Vec<f64>) = match &response.uncertainty {
+                ResponseUncertainty::Scalar { lower, upper, .. } => (vec![*lower], vec![*upper]),
+                ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
+                    (lower.to_vec(), upper.to_vec())
+                }
+                other => {
+                    panic!("{label}: Bayesian derivative must publish an interval, got {other:?}")
+                }
+            };
+            assert_eq!(got.len(), truth.len(), "{label}");
+            for j in 0..truth.len() {
+                assert!(
+                    (got[j] - truth[j]).abs() < tolerance,
+                    "{label}[{j}]: {} != {}",
+                    got[j],
+                    truth[j]
+                );
+                // The fixture is noise-free, so a credible interval may be a
+                // numerical sliver; allow one ulp-scale slack around the truth.
+                let slack = 1e-9 * truth[j].abs().max(1.0);
+                assert!(
+                    lower[j] - slack <= truth[j] && truth[j] <= upper[j] + slack,
+                    "{label}[{j}]: credible interval [{}, {}] misses truth {}",
+                    lower[j],
+                    upper[j],
+                    truth[j]
+                );
+            }
         }
-        _ => panic!("expected scalar ADE"),
     }
 }
 
