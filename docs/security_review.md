@@ -1,7 +1,7 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-11
-Scope: workspace crates + `python` extension (package version **1.6.0**)
+Date: 2026-09-13
+Scope: workspace crates + `python` extension (package version **1.7.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
@@ -55,6 +55,15 @@ metadata. Lockfile changes are workspace version updates; no external
 dependency, unsafe block, or workflow permission was added. Prior metadata uses
 the existing checksummed, size-bounded artifact container; the catalog API
 filters incompatible transfer metadata before the caller requests hydration.
+
+The 1.7.0 diff adds caller-supplied class priors, class-preserving Bayesian
+temporal execution on `TemporalCpdag` / `TemporalPag`, a completion-search cap,
+and shared numerical corrections in `antecedent-stats`, `antecedent-prob`, and
+`antecedent-validate`. Lockfile changes are workspace version updates only; no
+external dependency, unsafe block, artifact decoder, or workflow permission was
+added. Class priors are validated (finite, nonnegative, positive total, no
+duplicate keys) before any arithmetic, and structural atoms reuse the existing
+checksummed, size-bounded posterior artifact container.
 
 ## Unsafe code policy
 
