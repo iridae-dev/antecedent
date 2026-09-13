@@ -191,6 +191,11 @@ class PosteriorView:
 
     def __repr__(self) -> str:
         if self.effect_mean is None:
+            if self.n_draws is not None:
+                return (
+                    f"<PosteriorView n_draws={self.n_draws} backend={self.backend!r} "
+                    "scalar_effect=unavailable>"
+                )
             return "<PosteriorView empty>"
         parts = [
             f"mean={fmt_float(self.effect_mean)}",
@@ -237,7 +242,7 @@ class PosteriorView:
                 f"draws — use np.asarray(result.posterior) and np.quantile(...) instead"
             )
         if self.q025 is None or self.q975 is None:
-            raise ValueError("PosteriorView has no quantiles (posterior was not computed)")
+            raise ValueError("PosteriorView has no scalar-effect quantiles")
         return (self.q025, self.q975)
 
 

@@ -425,6 +425,23 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    treatment_contrast: float | None
+    def __init__(
+        self,
+        n_draws: int,
+        mean: list[float],
+        sd: list[float],
+        q025: list[float],
+        q975: list[float],
+        draws: list[float],
+        backend_id: str,
+        identification: str,
+        quantity_names: list[str],
+        unidentified_mass: float = 0.0,
+        converged: bool = True,
+        hessian_condition: float = ...,
+        treatment_contrast: float | None = None,
+    ) -> None: ...
     def __array__(
         self,
         dtype: Any = None,
@@ -443,6 +460,7 @@ class PosteriorArtifact:
         unidentified_mass: float = 0.0,
         converged: bool = True,
         hessian_condition: float = ...,
+        treatment_contrast: float | None = None,
     ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:

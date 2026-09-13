@@ -1801,16 +1801,16 @@ fn analysis_result_from_run(
         posterior_artifact,
         posterior_unidentified_mass,
     ) = if let Some(post) = result.posterior.as_ref() {
-        let eq = post.effect_column().unwrap_or(0);
+        let eq = post.effect_column();
         let artifact = None;
-        let p_below = post.probability_below(0.0).map_err(py_err)?;
+        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
         (
-            Some(post.summaries.mean[eq]),
-            Some(post.summaries.sd[eq]),
-            Some(post.summaries.q025[eq]),
-            Some(post.summaries.q975[eq]),
+            eq.map(|i| post.summaries.mean[i]),
+            eq.map(|i| post.summaries.sd[i]),
+            eq.map(|i| post.summaries.q025[i]),
+            eq.map(|i| post.summaries.q975[i]),
             Some(post.draws.n_draws),
-            Some(p_below),
+            p_below,
             Some(post.diagnostics.backend_id.to_string()),
             artifact,
             Some(post.unidentified_mass),

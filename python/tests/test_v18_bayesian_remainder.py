@@ -271,3 +271,38 @@ def test_staged_native_signatures_match_type_stubs():
                 inspect.signature(getattr(_native.PreparedAnalysis, method.name)).parameters
             )
             assert declared == actual, method.name
+
+
+@pytest.mark.parametrize("refute", ["none", "cheap", "full"])
+@pytest.mark.parametrize("accepted", [False, True])
+def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted):
+    from antecedent.inference import decode_posterior_artifact
+
+    rows = np.array([(t, y, z) for t in [0.0, 1.0] for y in [0.0, 1.0] for z in [0.0, 1.0]] * 40)
+    data = dict(zip(["t", "y", "z"], rows.T, strict=True))
+    graph = ac.Dag.from_edges(list(data), [("z", "t"), ("z", "y"), ("t", "y")])
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=ac.AcceptedGraph(graph) if accepted else graph,
+        query=ac.InterventionalDistribution("y", interventions={"t": 1.0}, conditioning=["z"]),
+        inference=ac.Bayesian(n_draws=64),
+        refute=refute,
+    )
+    result = prepared.estimate(data)
+    assert result.effect is None
+    assert result.posterior is not None
+    assert result.posterior.n_draws == 64
+    assert result.posterior.effect_mean is None
+    assert result.posterior.effect_sd is None
+    assert result.posterior.p_below_zero is None
+    assert "empty" not in repr(result.posterior)
+    assert "No posterior computed" not in result.posterior._repr_html_()
+    posterior = decode_posterior_artifact(prepared.export_artifact())
+    assert posterior.n_draws == 64
+    assert list(posterior.quantity_names) == [f"probability_atom_{i}" for i in range(4)]
+    draws = np.asarray(posterior).reshape((64, 4), order="F")
+    assert np.all(np.isfinite(draws))
+    assert np.all((draws >= 0) & (draws <= 1))
+    # Atom order is conditioning assignment, then outcome support.
+    assert np.allclose(draws[:, :2].sum(axis=1), 1.0)
+    assert np.allclose(draws[:, 2:].sum(axis=1), 1.0)

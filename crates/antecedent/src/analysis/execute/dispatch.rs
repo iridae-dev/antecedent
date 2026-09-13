@@ -180,7 +180,7 @@ impl super::Study {
         let identifier = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
         let estimator = if identifier == IdentifierId::GeneralId {
             self.estimator
-                .filter(|id| *id != EstimatorId::BayesianGcomp)
+                .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
                 .unwrap_or(EstimatorId::FunctionalEffect)
         } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
             self.estimator.unwrap_or(EstimatorId::BayesianGcomp)
@@ -224,7 +224,7 @@ impl super::Study {
             let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
             let estimator = self
                 .estimator
-                .filter(|id| *id != EstimatorId::BayesianGcomp)
+                .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
                 .unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
             (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
         }
@@ -250,7 +250,7 @@ impl super::Study {
         let identifier = self.identifier.unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER_ID);
         let estimator = self
             .estimator
-            .filter(|id| *id != EstimatorId::BayesianGcomp)
+            .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
             .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR_ID);
         (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
@@ -322,7 +322,7 @@ impl super::Study {
         let identifier = self.identifier.unwrap_or(DEFAULT_PATH_IDENTIFIER_ID);
         let estimator = self
             .estimator
-            .filter(|id| *id != EstimatorId::BayesianGcomp)
+            .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
             .unwrap_or(DEFAULT_PATH_ESTIMATOR_ID);
         (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
