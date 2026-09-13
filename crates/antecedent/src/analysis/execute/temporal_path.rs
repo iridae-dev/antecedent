@@ -1456,7 +1456,7 @@ impl super::Study {
     fn execute_temporal_sequence_response(
         &self,
         data: &TimeSeriesData,
-        _source_data: &TimeSeriesData,
+        source_data: &TimeSeriesData,
         graph: &TemporalDag,
         query: &ResponseQuery,
         temporal: &antecedent_core::TemporalResponseSpec,
@@ -1534,7 +1534,8 @@ impl super::Study {
                 overlays,
                 entry.identification.status,
                 assumptions.clone(),
-                if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates },
+                // Frequentist bands: the joint tuple bootstrap below.
+                0,
                 bayes.as_ref(),
                 ctx,
             )
@@ -1613,8 +1614,9 @@ impl super::Study {
         antecedent_estimate::publish_simultaneous_band(
             &mut support,
             Err(antecedent_estimate::EstimationError::unsupported(
-                "complete-data Sequence overlays are bootstrapped or sampled one horizon at a \
-                 time, so there is no joint replicate surface",
+                "Sequence overlays publish a simultaneous band only from the Frequentist joint \
+                 tuple bootstrap (request bootstrap replicates); Bayesian Sequence overlays are \
+                 sampled one horizon at a time, so there is no joint draw surface",
             )),
             "",
         );
@@ -1654,12 +1656,31 @@ impl super::Study {
         };
         if let Some(adjusted) = observation_adjusted {
             apply_temporal_observation_result(&mut response, adjusted);
-            if self.bootstrap_replicates > 0 {
-                withhold_sequence_observation_band(
-                    &mut response.support,
-                    self.bootstrap_replicates,
-                );
-            }
+        }
+        // Frequentist bands come from one joint tuple bootstrap of the whole Sequence
+        // surface (observation nuisance refit per replicate when the query carries one).
+        if bayes.is_none() && self.bootstrap_replicates > 0 {
+            let band = bootstrap_sequence_response(
+                source_data,
+                query,
+                graph,
+                overlays,
+                outcome,
+                aligned,
+                self.observation_options,
+                self.bootstrap_replicates,
+                ctx,
+            )?;
+            apply_tuple_bootstrap_band(
+                &mut response,
+                &band,
+                self.bootstrap_replicates,
+                if observation_adjusted.is_some() {
+                    TupleBandSource::Observation
+                } else {
+                    TupleBandSource::CompleteSequence
+                },
+            );
         }
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
@@ -2426,7 +2447,13 @@ impl super::Study {
                         adjustment,
                         horizon,
                         observation_query,
-                        kind: ClassObservationKind::Sequence,
+                        kind: ClassObservationKind::Sequence {
+                            dag: Box::new(dag.clone()),
+                            overlays: overlays.clone(),
+                            outcome,
+                            outcome_offset,
+                            status: case.result.status,
+                        },
                     });
                 }
                 if primary_estimand.is_none() {
@@ -4085,14 +4112,18 @@ struct ObservationBootstrapBand {
 /// Construction text for the observation-adjusted outer bootstrap simultaneous band.
 const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of the outer \
      circular-block bootstrap replicates of the whole observation-adjusted surface around the \
-     full-sample estimate; curve / Set-Shift replicates resample blocks of lag-aligned \
-     outcome-time tuples, refit the observation nuisance on them and refit every horizon, with \
-     the t_ν/z block-count inflation; Sequence replicates resample the raw series";
+     full-sample estimate; every replicate resamples blocks of lag-aligned outcome-time tuples \
+     (block length max(span, ceil(sqrt(n)))), refits the observation nuisance on them and refits \
+     every horizon (curve / Set-Shift) or every unfolded sequential mechanism (Sequence); \
+     replicate deviations carry the Kiefer-Vogelsang fixed-b factor and the HC1 factor";
 
-// Match the estimator bootstrap policy: fewer than two successes or more
-// than half failed attempts cannot justify a reported interval.
+/// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
+///
+/// Matches the estimator bootstrap policy: fewer than two successes or more than half
+/// failed attempts cannot justify a reported interval.
 fn summarize_observation_bootstrap(
     draws: &[Vec<f64>],
+    center: &[f64],
     attempted: u32,
     cancelled: bool,
 ) -> ObservationBootstrapBand {
@@ -4105,19 +4136,30 @@ fn summarize_observation_bootstrap(
         attempted,
         cancelled,
     };
-    if !bootstrap_has_enough_successes(completed as usize, attempted as usize) {
+    if !bootstrap_has_enough_successes(completed as usize, attempted as usize)
+        || draws.iter().any(|draw| draw.len() != center.len())
+        || center.iter().any(|value| !value.is_finite())
+    {
         return band;
     }
+    let z = antecedent_stats::normal_ppf(0.975);
     let mut values = Vec::with_capacity(draws.len());
-    for cell in 0..draws[0].len() {
+    for (cell, &mid) in center.iter().enumerate() {
         values.clear();
         values.extend(draws.iter().map(|draw| draw[cell]));
-        values.sort_by(f64::total_cmp);
-        band.lower.push(empirical_quantile(&values, 0.025));
-        band.upper.push(empirical_quantile(&values, 0.975));
+        let sd = sample_sd(&values);
+        band.lower.push(mid - z * sd);
+        band.upper.push(mid + z * sd);
     }
     band.draws = draws.to_vec();
     band
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn sample_sd(values: &[f64]) -> f64 {
+    let n = values.len() as f64;
+    let mean = values.iter().sum::<f64>() / n;
+    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
 }
 
 /// Full-sample point surface of a response, in the mean layout.
@@ -4140,8 +4182,14 @@ fn response_point_values(response: &CausalResponse) -> Option<Vec<f64>> {
 #[derive(Clone)]
 enum ClassObservationKind {
     Curve,
-    /// Sequence overlay atom: its observation band is withheld.
-    Sequence,
+    /// Sequence overlay atom: refit through the unfolded sequential engine.
+    Sequence {
+        dag: Box<TemporalDag>,
+        overlays: Vec<antecedent_estimate::SequentialMechanismOverlay>,
+        outcome: VariableId,
+        outcome_offset: i32,
+        status: IdentificationStatus,
+    },
 }
 
 struct ClassPulseAtom {
@@ -4218,27 +4266,8 @@ fn apply_class_observation_bootstrap(
         .map(|atom| atom.indexer.history() as usize + atom.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    if atoms.iter().any(|atom| !matches!(atom.kind, ClassObservationKind::Curve)) {
-        // Sequence overlays have no tuple-level replicate; see
-        // `withhold_sequence_observation_band`.
-        for atom in atoms {
-            if let Some(atom_response) =
-                structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
-            {
-                withhold_sequence_observation_band(&mut atom_response.support, replicates);
-            }
-        }
-        withhold_sequence_observation_band(&mut response.support, replicates);
-        diagnostics.push(Diagnostic::new(
-            SEQUENCE_OBSERVATION_BAND_WITHHELD,
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            SEQUENCE_OBSERVATION_BAND_REASON,
-        ));
-        return Ok(false);
-    }
-    // Curve atoms resample lag-aligned outcome-time tuples.
-    let (replicate_values, attempted) = {
+    // Every atom (curve or Sequence) resamples the same lag-aligned outcome-time tuples.
+    let (replicate_values, attempted, points) = {
         let identifications: Vec<[(&IdentifiedEstimand, &TemporalIndexer); 1]> =
             atoms.iter().map(|atom| [(&atom.estimand, &atom.indexer)]).collect();
         let targets: Vec<TupleObservationTarget<'_>> = atoms
@@ -4247,7 +4276,23 @@ fn apply_class_observation_bootstrap(
             .map(|(atom, identification)| TupleObservationTarget {
                 query: &atom.observation_query,
                 adjustment: &atom.adjustment,
-                identifications: identification,
+                surface: match &atom.kind {
+                    ClassObservationKind::Curve => {
+                        TupleSurface::Curve { identifications: identification }
+                    }
+                    ClassObservationKind::Sequence {
+                        dag,
+                        overlays,
+                        outcome,
+                        outcome_offset,
+                        status,
+                    } => TupleSurface::Sequence {
+                        graph: dag,
+                        overlays,
+                        outcome: *outcome,
+                        horizons: vec![(&atom.estimand, &atom.indexer, *outcome_offset, *status)],
+                    },
+                },
             })
             .collect();
         tuple_block_observation_replicates(
@@ -4263,6 +4308,28 @@ fn apply_class_observation_bootstrap(
     let mut atom_draws: Vec<Vec<Vec<f64>>> = vec![Vec::new(); atoms.len()];
     let mut class_draws: Vec<Vec<f64>> = Vec::new();
     let class_len = cells_per_horizon.saturating_mul(n_horizons);
+    // Frozen-weight mix of per-atom surfaces into the class layout.
+    let mix = |per_atom: &[Option<&Vec<f64>>]| -> Option<Vec<f64>> {
+        let mut mixed = vec![0.0; class_len];
+        let mut totals = vec![0.0; n_horizons];
+        for (atom, values) in atoms.iter().zip(per_atom) {
+            let values = (*values)?;
+            if atom.horizon_index >= n_horizons || values.len() != cells_per_horizon {
+                return None;
+            }
+            totals[atom.horizon_index] += atom.weight;
+            for (cell, value) in values.iter().enumerate() {
+                mixed[cell * n_horizons + atom.horizon_index] += atom.weight * value;
+            }
+        }
+        if !totals.iter().all(|&total| total > 0.0) {
+            return None;
+        }
+        for (index, value) in mixed.iter_mut().enumerate() {
+            *value /= totals[index % n_horizons];
+        }
+        Some(mixed)
+    };
 
     for replicate_atom_values in &replicate_values {
         for (atom_i, values) in replicate_atom_values.iter().enumerate() {
@@ -4273,35 +4340,20 @@ fn apply_class_observation_bootstrap(
             }
         }
         if apply_class_band && class_len > 0 {
-            let mut mixed = vec![0.0; class_len];
-            let mut totals = vec![0.0; n_horizons];
-            let mut complete = true;
-            for (atom_i, atom) in atoms.iter().enumerate() {
-                let Some(values) = replicate_atom_values[atom_i].as_ref() else {
-                    complete = false;
-                    break;
-                };
-                if atom.horizon_index >= n_horizons || values.len() != cells_per_horizon {
-                    complete = false;
-                    break;
-                }
-                totals[atom.horizon_index] += atom.weight;
-                for (cell, value) in values.iter().enumerate() {
-                    mixed[cell * n_horizons + atom.horizon_index] += atom.weight * value;
-                }
-            }
-            if complete && totals.iter().all(|&total| total > 0.0) {
-                for (index, value) in mixed.iter_mut().enumerate() {
-                    *value /= totals[index % n_horizons];
-                }
-                class_draws.push(mixed);
-            }
+            let per_atom: Vec<Option<&Vec<f64>>> =
+                replicate_atom_values.iter().map(Option::as_ref).collect();
+            class_draws.extend(mix(&per_atom));
         }
     }
 
     let cancelled = ctx.cancellation.is_cancelled();
     for (atom_i, atom) in atoms.iter().enumerate() {
-        let band = summarize_observation_bootstrap(&atom_draws[atom_i], attempted, cancelled);
+        let band = summarize_observation_bootstrap(
+            &atom_draws[atom_i],
+            &points[atom_i],
+            attempted,
+            cancelled,
+        );
         if let Some(atom_response) =
             structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
         {
@@ -4326,7 +4378,8 @@ fn apply_class_observation_bootstrap(
     }
 
     if apply_class_band {
-        let band = summarize_observation_bootstrap(&class_draws, attempted, cancelled);
+        let center = mix(&points.iter().map(Some).collect::<Vec<_>>()).unwrap_or_default();
+        let band = summarize_observation_bootstrap(&class_draws, &center, attempted, cancelled);
         apply_observation_bootstrap(response, &band, replicates);
         Ok(!band.lower.is_empty())
     } else {
@@ -4355,56 +4408,87 @@ fn apply_class_observation_bootstrap(
     }
 }
 
-/// Warning code when an observation-adjusted Sequence band is withheld.
-const SEQUENCE_OBSERVATION_BAND_WITHHELD: &str = "response.observation_sequence_band_withheld";
-
-/// Why observation-adjusted Sequence overlays publish no band.
-const SEQUENCE_OBSERVATION_BAND_REASON: &str = "observation-adjusted Sequence overlays publish \
-     no interval: their outer bootstrap could only reorder the raw series, which rebuilds lags \
-     across block junctions and measured 31-81% coverage for a nominal 95% band \
-     (v19_temporal_response_calibration); the unfolded sequential engine has no tuple-level \
-     replicate, and complete-data bands are not reused";
-
-/// Withhold the observation-adjusted Sequence band (pointwise and simultaneous).
-fn withhold_sequence_observation_band(
-    support: &mut antecedent_core::SupportReport,
-    requested: u32,
-) {
-    antecedent_estimate::publish_simultaneous_band(
-        support,
-        Err(antecedent_estimate::EstimationError::unsupported(
-            "observation-adjusted Sequence overlays have no dependence-honest replicate",
-        )),
-        "",
-    );
-    support.warnings.push(Diagnostic::new(
-        SEQUENCE_OBSERVATION_BAND_WITHHELD,
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Warning,
-        format!("{SEQUENCE_OBSERVATION_BAND_REASON} ({requested} replicates requested)"),
-    ));
+/// Which tuple bootstrap produced an [`ObservationBootstrapBand`], for its diagnostics.
+#[derive(Clone, Copy)]
+enum TupleBandSource {
+    /// Outer bootstrap refitting the observation nuisance.
+    Observation,
+    /// Complete-data Sequence overlays (no observation nuisance).
+    CompleteSequence,
 }
+
+impl TupleBandSource {
+    const fn counts_id(self) -> &'static str {
+        match self {
+            Self::Observation => "response.observation_block_bootstrap",
+            Self::CompleteSequence => "response.sequence_block_bootstrap",
+        }
+    }
+
+    const fn counts_detail(self) -> &'static str {
+        match self {
+            Self::Observation => {
+                "requested, completed, cancellation, and attempted counts for the outer \
+                 circular-block bootstrap; each attempt refits observation nuisances and all \
+                 horizon models; bands require two successes and at most half failed attempts"
+            }
+            Self::CompleteSequence => {
+                "requested, completed, cancellation, and attempted counts for the joint \
+                 circular-block tuple bootstrap; each attempt refits every unfolded sequential \
+                 mechanism of every horizon; bands require two successes and at most half \
+                 failed attempts"
+            }
+        }
+    }
+
+    const fn construction(self) -> &'static str {
+        match self {
+            Self::Observation => OBSERVATION_SIMULTANEOUS_CONSTRUCTION,
+            Self::CompleteSequence => SEQUENCE_SIMULTANEOUS_CONSTRUCTION,
+        }
+    }
+}
+
+/// Construction text for the complete-data Sequence joint tuple bootstrap band.
+const SEQUENCE_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of the joint \
+     circular-block bootstrap replicates of the whole Sequence surface around the full-sample \
+     estimate; every replicate resamples blocks of lag-aligned outcome-time tuples (block length \
+     max(span, ceil(sqrt(n)))), refits every unfolded sequential mechanism of every horizon and \
+     recomputes the root-node means; replicate deviations carry the Kiefer-Vogelsang fixed-b \
+     factor and the HC1 factor";
 
 fn apply_observation_bootstrap(
     response: &mut CausalResponse,
     bootstrap: &ObservationBootstrapBand,
     requested: u32,
 ) {
+    apply_tuple_bootstrap_band(response, bootstrap, requested, TupleBandSource::Observation);
+}
+
+fn apply_tuple_bootstrap_band(
+    response: &mut CausalResponse,
+    bootstrap: &ObservationBootstrapBand,
+    requested: u32,
+    source: TupleBandSource,
+) {
     if bootstrap.lower.is_empty() {
         antecedent_estimate::publish_simultaneous_band(
             &mut response.support,
             Err(antecedent_estimate::EstimationError::unsupported(
-                "the observation bootstrap produced too few successful replicates",
+                "the tuple bootstrap produced too few successful replicates",
             )),
             "",
         );
         response.support.warnings.push(Diagnostic::new(
-            "response.observation_bootstrap_insufficient",
+            match source {
+                TupleBandSource::Observation => "response.observation_bootstrap_insufficient",
+                TupleBandSource::CompleteSequence => "response.sequence_bootstrap_insufficient",
+            },
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             format!(
-                "observation bootstrap band withheld: {} of {} attempted replicates succeeded; \
-                     at least two successes and at most half failed attempts are required",
+                "bootstrap band withheld: {} of {} attempted replicates succeeded; at least two \
+                 successes and at most half failed attempts are required",
                 bootstrap.completed, bootstrap.attempted
             ),
         ));
@@ -4424,7 +4508,7 @@ fn apply_observation_bootstrap(
         let simultaneous = response_point_values(response)
             .ok_or_else(|| {
                 antecedent_estimate::EstimationError::unsupported(
-                    "the observation-adjusted response has no single point surface",
+                    "the response has no single point surface",
                 )
             })
             .and_then(|center| {
@@ -4433,22 +4517,18 @@ fn apply_observation_bootstrap(
         antecedent_estimate::publish_simultaneous_band(
             &mut response.support,
             simultaneous,
-            OBSERVATION_SIMULTANEOUS_CONSTRUCTION,
+            source.construction(),
         );
     }
     response.support.diagnostics.push(antecedent_core::SupportDiagnostic {
-        id: Arc::from("response.observation_block_bootstrap"),
+        id: Arc::from(source.counts_id()),
         values: Arc::from([
             f64::from(requested),
             f64::from(bootstrap.completed),
             f64::from(bootstrap.cancelled),
             f64::from(bootstrap.attempted),
         ]),
-        detail: Arc::from(
-            "requested, completed, cancellation, and attempted counts for the outer \
-             circular-block bootstrap; each attempt refits observation nuisances and all \
-             horizon models; bands require two successes and at most half failed attempts",
-        ),
+        detail: Arc::from(source.counts_detail()),
     });
 }
 
@@ -4475,47 +4555,167 @@ fn bootstrap_observation_adjusted_temporal_response(
     let adjustment = contemporaneous_adjustment_variables(aligned);
     let identifications =
         aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect::<Vec<_>>();
+    let target = TupleObservationTarget {
+        query,
+        adjustment: &adjustment,
+        surface: TupleSurface::Curve { identifications: &identifications },
+    };
+    single_target_observation_band(source, target, aligned, options, replicates, 0x0B5E_0000, ctx)
+        .map(Some)
+}
+
+/// Joint circular-block tuple bootstrap of a Sequence overlay surface.
+///
+/// Each replicate resamples blocks of lag-aligned outcome-time tuples and refits every
+/// unfolded sequential mechanism of every horizon on them through
+/// [`antecedent_estimate::PreparedSequenceLevel`], recomputing root-node means. For an
+/// observation-adjusted query, every replicate also refits the observation nuisance on
+/// the resampled tuples (once per lag at which the outcome enters the unfolded design)
+/// and replaces those outcome columns with the replicate pseudo-outcomes; a complete-data
+/// query keeps its recorded outcomes.
+#[allow(clippy::too_many_arguments)]
+fn bootstrap_sequence_response(
+    source: &TimeSeriesData,
+    query: &ResponseQuery,
+    graph: &TemporalDag,
+    overlays: &[antecedent_estimate::SequentialMechanismOverlay],
+    outcome: VariableId,
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    options: antecedent_estimate::ObservationEstimatorOptions,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<ObservationBootstrapBand, CausalError> {
+    let adjustment = contemporaneous_adjustment_variables(aligned);
+    let horizons = aligned
+        .iter()
+        .map(|entry| {
+            (
+                &entry.estimand,
+                &entry.indexer,
+                i32::try_from(entry.horizon.saturating_sub(1)).unwrap_or(i32::MAX),
+                entry.identification.status,
+            )
+        })
+        .collect();
+    let target = TupleObservationTarget {
+        query,
+        adjustment: &adjustment,
+        surface: TupleSurface::Sequence { graph, overlays, outcome, horizons },
+    };
+    single_target_observation_band(source, target, aligned, options, replicates, 0x0B5E_5E00, ctx)
+}
+
+fn single_target_observation_band(
+    source: &TimeSeriesData,
+    target: TupleObservationTarget<'_>,
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    options: antecedent_estimate::ObservationEstimatorOptions,
+    replicates: u32,
+    stream: u64,
+    ctx: &ExecutionContext,
+) -> Result<ObservationBootstrapBand, CausalError> {
     let structural_span = aligned
         .iter()
         .map(|entry| entry.indexer.history() as usize + entry.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    let (replicate_values, attempted) = tuple_block_observation_replicates(
+    let (replicate_values, attempted, mut points) = tuple_block_observation_replicates(
         source,
-        &[TupleObservationTarget {
-            query,
-            adjustment: &adjustment,
-            identifications: &identifications,
-        }],
+        &[target],
         structural_span,
         options,
         replicates,
-        0x0B5E_0000,
+        stream,
         ctx,
     )?;
     let draws: Vec<Vec<f64>> =
         replicate_values.into_iter().filter_map(|mut values| values.pop().flatten()).collect();
-    Ok(Some(summarize_observation_bootstrap(&draws, attempted, ctx.cancellation.is_cancelled())))
+    let center = points.pop().unwrap_or_default();
+    Ok(summarize_observation_bootstrap(&draws, &center, attempted, ctx.cancellation.is_cancelled()))
 }
 
 /// `values[replicate][target]` joint replicate surfaces (`None` where a target's
-/// refit failed) and the number of attempted replicates.
-type TupleReplicates = (Vec<Vec<Option<Vec<f64>>>>, u32);
+/// refit failed), the number of attempted replicates, and each target's full-sample
+/// surface.
+type TupleReplicates = (Vec<Vec<Option<Vec<f64>>>>, u32, Vec<Vec<f64>>);
 
-/// One surface refit by [`tuple_block_observation_bootstrap`].
+/// What a [`TupleObservationTarget`] refits on every replicate.
+enum TupleSurface<'a> {
+    /// Curve / single Set-Shift: one identified estimand per horizon of the query.
+    Curve {
+        /// One identified estimand per horizon of the query.
+        identifications: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    },
+    /// Sequence overlays on the unfolded sequential engine, one level per horizon.
+    Sequence {
+        graph: &'a TemporalDag,
+        overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+        outcome: VariableId,
+        /// `(estimand, indexer, outcome offset, identification status)` per horizon.
+        horizons: Vec<(&'a IdentifiedEstimand, &'a TemporalIndexer, i32, IdentificationStatus)>,
+    },
+}
+
+/// One surface refit by [`tuple_block_observation_replicates`].
 struct TupleObservationTarget<'a> {
     /// Observation-bearing response query (its own horizons).
     query: &'a ResponseQuery,
     /// Contemporaneous causal adjustment variables for the containment check.
     adjustment: &'a [VariableId],
-    /// One identified estimand per horizon of `query`.
-    identifications: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    /// Surface refit on the resampled tuples.
+    surface: TupleSurface<'a>,
+}
+
+/// A [`TupleObservationTarget`] fitted once on the full observation-adjusted series.
+enum PreparedTupleTarget {
+    Curve(antecedent_estimate::PreparedTemporalSurface),
+    Sequence {
+        levels: Vec<antecedent_estimate::PreparedSequenceLevel>,
+        outcome: VariableId,
+        /// Distinct lags at which the outcome enters any horizon's tuple.
+        outcome_lags: Vec<u32>,
+    },
+}
+
+impl PreparedTupleTarget {
+    fn point(&self) -> Vec<f64> {
+        match self {
+            Self::Curve(surface) => surface.point(),
+            Self::Sequence { levels, .. } => {
+                levels.iter().map(antecedent_estimate::PreparedSequenceLevel::point).collect()
+            }
+        }
+    }
+
+    fn parameters(&self) -> usize {
+        match self {
+            Self::Curve(surface) => surface.max_parameters(),
+            Self::Sequence { levels, .. } => levels
+                .iter()
+                .map(antecedent_estimate::PreparedSequenceLevel::max_parameters)
+                .max()
+                .unwrap_or(0),
+        }
+    }
+
+    /// Earliest anchor whose tuple and every lagged observation row exist.
+    fn first_anchor(&self, observation_lag: usize) -> usize {
+        match self {
+            Self::Curve(surface) => surface.first_common_anchor().max(observation_lag),
+            Self::Sequence { levels, outcome_lags, .. } => levels
+                .iter()
+                .map(antecedent_estimate::PreparedSequenceLevel::first_anchor)
+                .max()
+                .unwrap_or(0)
+                .max(outcome_lags.iter().max().map_or(0, |&lag| lag as usize) + observation_lag),
+        }
+    }
 }
 
 /// Shared tuple-level outer bootstrap: every target is refit on the same resampled
-/// anchors in each replicate, so per-target draws are jointly distributed. Returns
-/// `values[replicate][target]` (`None` where that target's refit failed) and the number
-/// of attempted replicates.
+/// anchors in each replicate, so per-target draws are jointly distributed. Replicate
+/// deviations from each target's full-sample surface carry the response family's
+/// fixed-b dispersion factor ([`antecedent_estimate::block_dispersion_inflation`]).
 fn tuple_block_observation_replicates(
     source: &TimeSeriesData,
     targets: &[TupleObservationTarget<'_>],
@@ -4529,40 +4729,86 @@ fn tuple_block_observation_replicates(
     let mut prepared = Vec::with_capacity(targets.len());
     let mut first_anchor = 0usize;
     for target in targets {
-        let (adjusted, _) = observation
-            .adjust_temporal_series(source, target.query, target.adjustment)
-            .map_err(CausalError::from)?;
-        let mut working = target.query.clone();
-        working.observation = ObservationSpec::Complete;
-        working.observation_assumptions = Arc::from([]);
-        let surface = TemporalResponseEstimator::new()
-            .prepare_surface(&adjusted, target.identifications, &working, ctx)
-            .map_err(CausalError::from)?;
-        let observation_lag = target
-            .query
-            .temporal
-            .as_ref()
-            .and_then(|temporal| temporal.treatment_offset().ok())
-            .map_or(0, |offset| offset.unsigned_abs() as usize);
-        first_anchor = first_anchor.max(surface.first_common_anchor()).max(observation_lag);
-        prepared.push(surface);
+        // A complete-data target (Sequence only) refits on the source tuples with no
+        // observation nuisance; an observation-bearing one on the adjusted series.
+        let complete = target.query.observation == ObservationSpec::Complete;
+        let adjusted_owned;
+        let fit_data = if complete {
+            source
+        } else {
+            adjusted_owned = observation
+                .adjust_temporal_series(source, target.query, target.adjustment)
+                .map_err(CausalError::from)?
+                .0;
+            &adjusted_owned
+        };
+        let observation_lag = if complete {
+            0
+        } else {
+            target
+                .query
+                .temporal
+                .as_ref()
+                .and_then(|temporal| temporal.treatment_offset().ok())
+                .map_or(0, |offset| offset.unsigned_abs() as usize)
+        };
+        let fitted = match &target.surface {
+            TupleSurface::Curve { .. } if complete => {
+                return Err(CausalError::Unsupported {
+                    message: "complete-data curves use the surface estimator's joint bootstrap",
+                });
+            }
+            TupleSurface::Curve { identifications } => {
+                let mut working = target.query.clone();
+                working.observation = ObservationSpec::Complete;
+                working.observation_assumptions = Arc::from([]);
+                PreparedTupleTarget::Curve(
+                    TemporalResponseEstimator::new()
+                        .prepare_surface(fit_data, identifications, &working, ctx)
+                        .map_err(CausalError::from)?,
+                )
+            }
+            TupleSurface::Sequence { graph, overlays, outcome, horizons } => {
+                let levels = horizons
+                    .iter()
+                    .map(|&(estimand, indexer, outcome_offset, status)| {
+                        antecedent_estimate::prepare_sequence_level(
+                            fit_data,
+                            graph,
+                            indexer,
+                            estimand,
+                            *outcome,
+                            outcome_offset,
+                            overlays,
+                            status,
+                            ctx,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(CausalError::from)?;
+                // Complete data: nothing to refit, the stored outcome columns stand.
+                let mut outcome_lags: Vec<u32> = if complete {
+                    Vec::new()
+                } else {
+                    levels.iter().flat_map(|level| level.lags_of(*outcome)).collect()
+                };
+                outcome_lags.sort_unstable();
+                outcome_lags.dedup();
+                PreparedTupleTarget::Sequence { levels, outcome: *outcome, outcome_lags }
+            }
+        };
+        first_anchor = first_anchor.max(fitted.first_anchor(observation_lag));
+        prepared.push(fitted);
     }
     let m = source.row_count().saturating_sub(first_anchor);
     let block = antecedent_estimate::temporal_block_length(structural_span, m);
-    // Same block-count dispersion correction as the complete-data surface bootstrap:
-    // replicate deviations from the full-sample surface are scaled by t_ν/z.
-    let parameters = prepared
-        .iter()
-        .map(antecedent_estimate::PreparedTemporalSurface::max_parameters)
-        .max()
-        .unwrap_or(0);
-    let inflation = antecedent_estimate::block_dispersion_inflation(m, block, parameters, 0.95);
-    let points: Vec<Vec<f64>> =
-        prepared.iter().map(antecedent_estimate::PreparedTemporalSurface::point).collect();
+    let parameters = prepared.iter().map(PreparedTupleTarget::parameters).max().unwrap_or(0);
+    let inflation = antecedent_estimate::block_dispersion_inflation(m, block, parameters);
+    let points: Vec<Vec<f64>> = prepared.iter().map(PreparedTupleTarget::point).collect();
     let mut out = Vec::new();
     let mut attempted = 0u32;
     for replicate in 0..replicates {
-        if ctx.cancellation.is_cancelled() || m < 2 {
+        if ctx.cancellation.is_cancelled() || m < 3 {
             break;
         }
         attempted += 1;
@@ -4575,11 +4821,55 @@ fn tuple_block_observation_replicates(
             .iter()
             .zip(&prepared)
             .zip(&points)
-            .map(|((target, surface), point)| {
-                let outcomes = observation
-                    .adjust_temporal_anchors(source, target.query, target.adjustment, &anchors)
-                    .ok()?;
-                let values = surface.replicate(&anchors, &outcomes).ok()??;
+            .map(|((target, fitted), point)| {
+                let values = match fitted {
+                    PreparedTupleTarget::Curve(surface) => {
+                        let outcomes = observation
+                            .adjust_temporal_anchors(
+                                source,
+                                target.query,
+                                target.adjustment,
+                                &anchors,
+                            )
+                            .ok()?;
+                        surface.replicate(&anchors, &outcomes).ok()??
+                    }
+                    PreparedTupleTarget::Sequence { levels, outcome, outcome_lags } => {
+                        // One observation refit per lag at which the outcome enters the
+                        // tuple, on the same blocks shifted to that lag.
+                        let mut by_lag = Vec::with_capacity(outcome_lags.len());
+                        for &lag in outcome_lags {
+                            let shifted: Vec<usize> =
+                                anchors.iter().map(|&anchor| anchor - lag as usize).collect();
+                            by_lag.push(
+                                observation
+                                    .adjust_temporal_anchors(
+                                        source,
+                                        target.query,
+                                        target.adjustment,
+                                        &shifted,
+                                    )
+                                    .ok()?,
+                            );
+                        }
+                        let replacements: Vec<antecedent_estimate::SequenceColumnReplacement<'_>> =
+                            outcome_lags
+                                .iter()
+                                .zip(&by_lag)
+                                .map(|(&lag, values)| {
+                                    antecedent_estimate::SequenceColumnReplacement {
+                                        variable: *outcome,
+                                        lag,
+                                        values,
+                                    }
+                                })
+                                .collect();
+                        levels
+                            .iter()
+                            .map(|level| level.replicate(&anchors, &replacements).ok()?)
+                            .collect::<Option<Vec<f64>>>()?
+                    }
+                };
                 if !values.iter().all(|value| value.is_finite()) {
                     return None;
                 }
@@ -4591,16 +4881,7 @@ fn tuple_block_observation_replicates(
             .collect();
         out.push(values);
     }
-    Ok((out, attempted))
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn empirical_quantile(sorted: &[f64], probability: f64) -> f64 {
-    let position = probability.clamp(0.0, 1.0) * (sorted.len().saturating_sub(1)) as f64;
-    let lower = position.floor() as usize;
-    let upper = position.ceil() as usize;
-    let fraction = position - lower as f64;
-    sorted[lower] * (1.0 - fraction) + sorted[upper] * fraction
+    Ok((out, attempted, points))
 }
 
 /// Hydrate a shared coefficient prior into the unfolded design at every horizon.
@@ -4790,7 +5071,7 @@ mod observation_bootstrap_tests {
 
     #[test]
     fn excessive_failures_withhold_band_but_retain_counts() {
-        let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], 5, false);
+        let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], &[2.0], 5, false);
         assert!(band.lower.is_empty());
         assert!(band.upper.is_empty());
         assert_eq!(band.completed, 2);
@@ -4799,12 +5080,14 @@ mod observation_bootstrap_tests {
 
     #[test]
     fn cancelled_bootstrap_keeps_attempted_denominator_and_status() {
-        let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], 2, true);
+        let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], &[2.5], 2, true);
         assert!(band.cancelled);
         assert_eq!(band.completed, 2);
-        assert!((band.lower[0] - 1.05).abs() < 1e-12);
-        assert!((band.upper[0] - 2.95).abs() < 1e-12);
-        let empty = summarize_observation_bootstrap(&[], 0, true);
+        // center ± z·SD with SD = sqrt(2) around the full-sample point, not the draw mean.
+        let half = antecedent_stats::normal_ppf(0.975) * 2f64.sqrt();
+        assert!((band.lower[0] - (2.5 - half)).abs() < 1e-12);
+        assert!((band.upper[0] - (2.5 + half)).abs() < 1e-12);
+        let empty = summarize_observation_bootstrap(&[], &[], 0, true);
         assert!(empty.cancelled && empty.lower.is_empty());
     }
 }

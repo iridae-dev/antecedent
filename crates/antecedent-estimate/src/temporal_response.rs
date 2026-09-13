@@ -219,7 +219,11 @@ fn max_deviation_band_by(
     maxima.sort_by(f64::total_cmp);
     let b = maxima.len();
     let rank = ((level * (b as f64 + 1.0)).ceil() as usize).clamp(1, b);
-    let critical = maxima[rank - 1];
+    // A band over the whole grid is never narrower than the one-cell normal band
+    // `center ± z·scale`: with strongly correlated cells and few distinct blocks the
+    // Monte Carlo rank can fall below `z`, which would publish a "simultaneous" band
+    // inside the pointwise one.
+    let critical = maxima[rank - 1].max(normal_ppf(0.5 + level / 2.0));
     Ok(MaxDeviationBand {
         level,
         critical,
@@ -295,33 +299,44 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
     support.warnings.retain(|warning| warning.code.as_ref() != SIMULTANEOUS_BAND_WITHHELD);
 }
 
-/// Circular-block length shared with the other temporal resamplers:
-/// `max(structural span, ceil(n^{1/3}))`, capped at `n`.
+/// Circular-block length of the temporal response family:
+/// `max(structural span, ceil(sqrt(n)))`, capped at `n`.
+///
+/// Response bands are read at a fixed critical value, so the block length is chosen for
+/// interval coverage rather than for the mean-squared error of the variance: the
+/// circular-block variance is (asymptotically) a Bartlett-kernel long-run variance with
+/// bandwidth `ℓ`, whose testing-optimal bandwidth grows like `n^{1/2}` (Sun, Phillips &
+/// Jin 2008, Bartlett characteristic exponent `q = 1`), not like the MSE-optimal
+/// `n^{1/3}` used by the scalar temporal effect resamplers. A shorter block leaves an
+/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})` the
+/// 1.9 calibration measured 0.89–0.91 coverage of nominal 95% level bands under AR(1)
+/// ρ = 0.5 residuals at n = 160. The estimation noise the longer block adds is carried by
+/// the fixed-b factor of [`block_dispersion_inflation`].
 #[must_use]
 pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
-    antecedent_data::circular_block_length(structural_span, n)
+    let root = (n as f64).sqrt().ceil() as usize;
+    structural_span.max(root).min(n).max(1)
 }
 
-/// Small-sample inflation for circular-block bootstrap dispersion.
+/// Dispersion factor applied to circular-block replicate deviations.
 ///
-/// A block-bootstrap variance behaves like an overlapping-batch-means variance: it is
-/// estimated from about `rows / block` block means, with effective degrees of freedom
-/// `ν = 1.5·(rows/block − 1)` (Meketon–Schmeiser), and it misses the tail of the
-/// autocovariance beyond one block. Replicate deviations around the full-sample
-/// estimate are scaled by `t_{ν,(1+level)/2} / z_{(1+level)/2}`, the same correction a
-/// batch-means interval applies (`ν` is floored at 1, so a series of barely one block is
-/// inflated heavily rather than trusted), and by the HC1 factor `sqrt(rows/(rows − p))`
-/// for the `p` fitted coefficients (a resampled regression's dispersion behaves like
-/// the HC0 sandwich, which is biased down by about `p/rows`).
+/// `fixed_b_scale(block, rows) · sqrt(rows / (rows − p))`:
+/// - the Kiefer–Vogelsang (2005) fixed-b critical-value ratio for the Bartlett kernel at
+///   `b = block / rows` ([`crate::temporal_block::fixed_b_scale`], the same correction
+///   the plain `TemporalDag` Pulse / Sustained SE uses), so `estimate ± 1.96·SD` is the
+///   fixed-b interval: it carries the downward bias and the sampling noise of a variance
+///   estimated from `rows / block` blocks, and stays nominal on independent rows for any
+///   `b`;
+/// - the HC1 factor for the `p` fitted coefficients (a resampled regression's dispersion
+///   behaves like the HC0 sandwich, biased down by about `p/rows`).
+///
+/// The polynomial is the two-sided 95% fixed-b critical value; every temporal response
+/// band is a 95% band.
 #[must_use]
-pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize, level: f64) -> f64 {
-    let blocks = rows as f64 / block.max(1) as f64;
-    let df = (1.5 * (blocks - 1.0)).max(1.0);
-    let p = 0.5 + level / 2.0;
-    let t_ratio = antecedent_stats::student_t_ppf(p, df) / normal_ppf(p);
+pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize) -> f64 {
     let hc1 =
         if rows > parameters + 1 { (rows as f64 / (rows - parameters) as f64).sqrt() } else { 1.0 };
-    let ratio = t_ratio * hc1;
+    let ratio = crate::temporal_block::fixed_b_scale(block, rows) * hc1;
     if ratio.is_finite() && ratio >= 1.0 { ratio } else { 1.0 }
 }
 
@@ -468,27 +483,26 @@ fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -
 const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = "max-studentized deviation of the joint circular-block \
      bootstrap replicates of the whole dose × horizon surface around the full-sample estimate; \
      each replicate resamples time-aligned blocks of lag-aligned rows (block length max(span, \
-     ceil(n^(1/3)))), refits every horizon and recomputes the covariate averages; replicate \
-     deviations carry the t_ν/z block-count inflation, ν = 1.5·(rows/block − 1), and the HC1 \
+     ceil(sqrt(n)))), refits every horizon and recomputes the covariate averages; replicate \
+     deviations carry the Kiefer-Vogelsang fixed-b factor for b = block/rows and the HC1 \
      factor sqrt(rows/(rows − p))";
 
-fn block_bootstrap_assumption(block_length: usize) -> AssumptionRecord {
+fn block_bootstrap_assumption(block_length: usize, rows: usize, factor: f64) -> AssumptionRecord {
     AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from("temporal_response.block_bootstrap"),
             description: Arc::from(format!(
                 "Pointwise SEs are the SD of the g-computed level over a joint circular-block \
                  bootstrap of lag-aligned rows (block length {block_length} = max(unfolded span, \
-                 ceil(n^(1/3)))); one replicate refits every horizon on the same time-aligned \
-                 blocks and recomputes covariate averages, so the band targets the population \
-                 level under serially dependent rows whose dependence decays within a block. \
-                 Replicate deviations are inflated by t_ν/z with ν = 1.5·(rows/block − 1) (the \
-                 batch-means correction for estimating the variance from few blocks) and by \
-                 the HC1 factor sqrt(rows/(rows − p)). The \
-                 pointwise band is mean ± 1.96·SE of the inflated replicates. The simultaneous \
-                 band (support diagnostics response.simultaneous_band.*) is the \
-                 max-studentized deviation over the whole dose × horizon grid from the same \
-                 replicates."
+                 ceil(sqrt(n))), n = {rows} rows); one replicate refits every horizon on the same \
+                 time-aligned blocks and recomputes covariate averages, so the band targets the \
+                 population level under serially dependent rows whose dependence decays within \
+                 a block. Replicate deviations are scaled by {factor:.4}: the Kiefer-Vogelsang \
+                 fixed-b critical-value ratio for b = block/rows (the variance is estimated from \
+                 few blocks) times the HC1 factor sqrt(rows/(rows − p)). The pointwise band is \
+                 mean ± 1.96·SE of the scaled replicates. The simultaneous band (support \
+                 diagnostics response.simultaneous_band.*) is the max-studentized deviation over \
+                 the whole dose × horizon grid from the same replicates."
             )),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -1135,13 +1149,16 @@ impl TemporalResponseEstimator {
 }
 
 impl FittedSurface {
-    /// Block-count dispersion inflation for this surface's bootstrap.
+    /// Fewest lag-aligned rows over the fitted horizons.
+    fn rows(&self) -> usize {
+        self.horizons.iter().map(|fitted| fitted.prepared.design.nrows).min().unwrap_or(0)
+    }
+
+    /// Fixed-b dispersion factor for this surface's bootstrap.
     fn inflation(&self) -> f64 {
-        let rows =
-            self.horizons.iter().map(|fitted| fitted.prepared.design.nrows).min().unwrap_or(0);
         let parameters =
             self.horizons.iter().map(|fitted| fitted.prepared.design.ncols).max().unwrap_or(0);
-        block_dispersion_inflation(rows, self.block_length, parameters, 0.95)
+        block_dispersion_inflation(self.rows(), self.block_length, parameters)
     }
 
     /// Point values, pointwise 95% band and (bootstrap only) joint replicate draws
@@ -1190,7 +1207,11 @@ impl FittedSurface {
     ) -> AssumptionSet {
         support.warnings.extend(self.se_provenance.warning(replicates));
         if let Some(draws) = &cells.draws {
-            assumptions.push(block_bootstrap_assumption(self.block_length));
+            assumptions.push(block_bootstrap_assumption(
+                self.block_length,
+                self.rows(),
+                self.inflation(),
+            ));
             publish_simultaneous_band(
                 support,
                 max_deviation_band(&cells.mean, draws, 0.95),
@@ -3134,7 +3155,7 @@ mod tests {
         assert_eq!(sim_hi.len(), mean.len());
         assert!((critical[0] - 0.95).abs() < 1e-12);
         assert!((critical[2] - 80.0).abs() < 1e-12);
-        assert!(critical[1] > normal_ppf(0.975), "sup-t critical {} ≤ z", critical[1]);
+        assert!(critical[1] >= normal_ppf(0.975), "sup-t critical {} < z", critical[1]);
         for cell in 0..mean.len() {
             assert!(sim_lo[cell] <= lower[cell] && upper[cell] <= sim_hi[cell], "cell {cell}");
             let half_pointwise = mean[cell] - lower[cell];
@@ -3189,22 +3210,26 @@ mod tests {
         }
         // Circular wrap at the end of each horizon's own row circle.
         assert_eq!(&short[5..10], &[15, 16, 17, 0, 1]);
-        assert_eq!(temporal_block_length(3, 160), 6);
-        assert_eq!(temporal_block_length(9, 160), 9);
-        assert_eq!(temporal_block_length(1, 125), 5);
+        // max(span, ceil(sqrt(n))), capped at n.
+        assert_eq!(temporal_block_length(3, 160), 13);
+        assert_eq!(temporal_block_length(20, 160), 20);
+        assert_eq!(temporal_block_length(1, 144), 12);
+        assert_eq!(temporal_block_length(9, 4), 4);
     }
 
     #[test]
-    fn block_dispersion_inflation_is_the_batch_means_t_ratio() {
-        // 159 rows in blocks of 6: ν = 1.5·(26.5 − 1) = 38.25.
-        // with 3 coefficients: HC1 factor sqrt(159/156).
-        let expected = antecedent_stats::student_t_ppf(0.975, 38.25) / normal_ppf(0.975)
-            * (159.0_f64 / 156.0).sqrt();
-        assert!((block_dispersion_inflation(159, 6, 3, 0.95) - expected).abs() < 1e-12);
-        assert!(expected > 1.03 && expected < 1.06, "{expected}");
-        assert!((block_dispersion_inflation(1_000_000, 10, 3, 0.95) - 1.0).abs() < 1e-3);
-        // Barely one block: ν floors at 1 (Cauchy critical value), never "no inflation".
-        assert!(block_dispersion_inflation(6, 6, 2, 0.95) > 6.0);
+    fn block_dispersion_inflation_is_the_fixed_b_ratio_times_hc1() {
+        // 159 rows in blocks of 13, 3 coefficients: KV fixed-b ratio at b = 13/159 times
+        // the HC1 factor sqrt(159/156).
+        let b = 13.0 / 159.0;
+        let kv = (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96;
+        let expected = kv * (159.0_f64 / 156.0).sqrt();
+        assert!((block_dispersion_inflation(159, 13, 3) - expected).abs() < 1e-12);
+        assert!(expected > 1.13 && expected < 1.14, "{expected}");
+        // Long series with short blocks: no inflation to speak of.
+        assert!((block_dispersion_inflation(1_000_000, 1_000, 3) - 1.0).abs() < 2e-3);
+        // Barely one block: the b = 1 critical value, never "no inflation".
+        assert!(block_dispersion_inflation(6, 6, 2) > 1.9);
         let center = [1.0, 2.0];
         let mut draws = vec![vec![2.0, 1.0]];
         inflate_replicates(&center, &mut draws, 1.5);
@@ -3237,5 +3262,11 @@ mod tests {
         assert!(max_deviation_band(&center, &draws[..39], 0.95).is_err());
         let flat: Vec<Vec<f64>> = (0..50).map(|r| vec![f64::from(r), 10.0]).collect();
         assert!(max_deviation_band(&center, &flat, 0.95).is_err());
+        // Perfectly correlated, light-tailed (uniform) cells: the Monte Carlo rank sits near
+        // 1.65 SD, below z; the band is floored at the one-cell normal band.
+        let uniform: Vec<Vec<f64>> =
+            (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r) - 49.0]).collect();
+        let floored = max_deviation_band(&center, &uniform, 0.95).unwrap();
+        assert!((floored.critical - normal_ppf(0.975)).abs() < 1e-12, "{}", floored.critical);
     }
 }
