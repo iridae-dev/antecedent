@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "n_draws": 64,
+  "seed": 18,
+  "min_shift": 0.15,
+  "compatibility_filter": "per-mechanism hydrate",
+  "source_cell": "AverageEffect × Dag × explicit × Bayesian × none",
+  "target_cells": {
+    "mapped_nde": "MediationEffect × Dag × explicit × Bayesian × none",
+    "missing_mapping": "typed_refuse"
+  }
+}
