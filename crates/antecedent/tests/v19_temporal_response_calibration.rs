@@ -2,12 +2,16 @@
 //!
 //! Cells: `ResponseCurve` / `InterventionResponse` × `TemporalDag` (Frequentist and
 //! Bayesian), the observation-adjusted pair path, a horizon-dependent adjustment-set
-//! surface, and the per-completion atoms of `TemporalCpdag` / `TemporalPag` identified
-//! sets. Every DGP is linear-Gaussian, so the truth of the reported functional is
-//! analytic. Frequentist surfaces are calibrated against the population level
-//! `E[Y_h | do(A)]`; the Bayesian `response.temporal.bayesian` bands are declared
-//! conditional on the observed covariate average and are calibrated against that
-//! functional evaluated with the true coefficients.
+//! surface, a two-step `Sequence` overlay (complete data and observation-adjusted), and
+//! the per-completion atoms of `TemporalCpdag` / `TemporalPag` identified sets. Every
+//! Frequentist band is the response family's joint circular-block bootstrap of
+//! lag-aligned tuples (block `max(span, ceil(sqrt(n)))`, fixed-b and HC1 scaling); every
+//! bootstrap cell uses the same 199 replicates. Every DGP is linear-Gaussian, so the
+//! truth of the reported functional is analytic. Frequentist surfaces are calibrated
+//! against the population level `E[Y_h | do(A)]`; the Bayesian
+//! `response.temporal.bayesian` bands are declared conditional on the observed
+//! covariate average and are calibrated against that functional evaluated with the true
+//! coefficients.
 //!
 //! Each grid cell's pointwise band is tallied separately; the simultaneous band
 //! (`response.simultaneous_band.*`) is tallied once per surface as "covers every cell".
@@ -54,7 +58,6 @@ const N: usize = 160;
 const BURN: usize = 10;
 const LEVEL: f64 = 0.95;
 const BOOT: u32 = 199;
-const OBS_BOOT: u32 = 99;
 const DRAWS: usize = 400;
 const RHO_AR1: f64 = 0.5;
 /// Lag-1 and lag-2 treatment effects of the dose × horizon DGP.
@@ -476,6 +479,59 @@ fn frequentist_temporal_dag_intervention_response_ar1_nominal_95_coverage() {
     frequentist_intervention_coverage(RHO_AR1, 193_000);
 }
 
+/// Two-step Sequence `Set(T@-2 := 0.5)` then `Set(T@-1 := 1)` over horizons 1 and 2.
+fn two_step_sequence() -> Intervention {
+    let step = |level: f64, at: i32| antecedent_core::SequencedIntervention {
+        intervention: Intervention::set(VariableId::from_raw(0), Value::f64(level)),
+        temporal: TemporalPolicy::pulse(at),
+    };
+    Intervention::Sequence(antecedent_core::InterventionSequence::new(vec![
+        step(0.5, -2),
+        step(1.0, -1),
+    ]))
+}
+
+/// Truth of [`two_step_sequence`] on the dose × horizon DGP: h = 1 is
+/// `1 + 2·1 + 1.5·0.5 = 3.75`; h = 2 (outcome one step later, `T@0` left at its factual
+/// law with mean 0) is `1 + 2·0 + 1.5·1 = 2.5`.
+const SEQUENCE_TRUTH: [f64; 2] = [3.75, 2.5];
+
+/// Complete-data multi-step Sequence on the unfolded sequential engine: one joint
+/// circular-block tuple bootstrap of the whole horizon surface.
+fn frequentist_sequence_coverage(rho: f64, seed_base: u64) {
+    let label = noise_label(rho);
+    let labels: Vec<String> = HORIZONS.iter().map(|h| format!("seq,h={h}")).collect();
+    let mut boot = SurfaceTallies::new(
+        &format!("freq TemporalDag Sequence tuple block-bootstrap {label}"),
+        &labels,
+    );
+    for s in 0..n_sim() {
+        let seed = seed_base + u64::from(s);
+        let result = run(
+            dose_horizon_series(rho, seed),
+            dose_horizon_dag(),
+            intervention_query(two_step_sequence(), &HORIZONS),
+            InferenceMode::Frequentist,
+            BOOT,
+            seed,
+        );
+        boot.record(result.response.as_ref().expect("Sequence path"), &SEQUENCE_TRUTH);
+    }
+    assert_all(&boot.all());
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_sequence_iid_nominal_95_coverage() {
+    frequentist_sequence_coverage(0.0, 208_000);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_sequence_ar1_nominal_95_coverage() {
+    frequentist_sequence_coverage(RHO_AR1, 209_000);
+}
+
 // ---------------------------------------------------------------------------
 // Bayesian TemporalDag InterventionResponse
 // ---------------------------------------------------------------------------
@@ -553,7 +609,7 @@ fn observation_coverage(rho: f64, seed_base: u64) {
             dag(&[(0, 1, 1, 0)]),
             query,
             InferenceMode::Frequentist,
-            OBS_BOOT,
+            BOOT,
             seed,
         );
         let response = result.response.as_ref().expect("observation-adjusted surface");
@@ -576,6 +632,87 @@ fn frequentist_temporal_observation_selected_iid_nominal_95_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
     observation_coverage(RHO_AR1, 197_000);
+}
+
+// ---------------------------------------------------------------------------
+// Observation-adjusted multi-step Sequence: Selected × OutcomeIndependentGiven([T])
+// ---------------------------------------------------------------------------
+
+/// Two-lag selected-outcome pair: `T ~ N(0, 0.8²)`, latent
+/// `Y_s = 1 + 2 T_{s-1} + 1.5 T_{s-2} + e_s`, `P(R_s = 1) = logistic(0.4 + 0.8 T_{s-1})`;
+/// unselected outcomes are recorded as 0. Selection depends only on `T_{s-1}`, so the
+/// declared `OutcomeIndependentGiven([T])` (at the policy offset −1) holds.
+///
+/// The selected-AIPW outcome nuisance conditions only on that declared set (`T_{s-1}`),
+/// so it omits `T_{s-2}`, which the unfolded Sequence design regresses on. The
+/// pseudo-outcome regression is then not orthogonal to the estimated selection
+/// probability, and its bootstrap is over-dispersed on independent rows (the iid band
+/// sits at the top of the acceptance band); an iid pairs bootstrap of the same estimator
+/// over-covers the same way, so this is a property of the observation nuisance, not of
+/// the block construction.
+fn selected_two_lag_series(rho: f64, seed: u64) -> TimeSeriesData {
+    let n = N + BURN;
+    let t = gaussian_vec(n, 0.8, seed);
+    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
+    let mut coin = uniform(seed ^ 0x5E2);
+    let mut y = vec![0.0; n];
+    let mut r = vec![0.0; n];
+    for s in 0..n {
+        let latent = 1.0 + BETA[0] * lagged(&t, s, 1) + BETA[1] * lagged(&t, s, 2) + e[s];
+        let p = 1.0 / (1.0 + (-(0.4 + 0.8 * lagged(&t, s, 1))).exp());
+        if coin() < p {
+            r[s] = 1.0;
+            y[s] = latent;
+        }
+    }
+    series(&[("t", &t), ("y", &y), ("r", &r)])
+}
+
+/// [`two_step_sequence`] under the selected pair (truth [`SEQUENCE_TRUTH`]). Every outer
+/// replicate refits the selected-AIPW nuisance and every unfolded sequential mechanism on
+/// the same resampled outcome-time tuples.
+fn observation_sequence_coverage(rho: f64, seed_base: u64) {
+    let label = noise_label(rho);
+    let labels: Vec<String> = HORIZONS.iter().map(|h| format!("seq,h={h}")).collect();
+    let mut tallies = SurfaceTallies::new(
+        &format!("freq TemporalDag Selected-AIPW Sequence outer block-bootstrap {label}"),
+        &labels,
+    );
+    let id = VariableId::from_raw;
+    for s in 0..n_sim() {
+        let seed = seed_base + u64::from(s);
+        let query = intervention_query(two_step_sequence(), &HORIZONS).with_observation(
+            ObservationSpec::Selected { latent: id(1), observed: id(1), indicator: id(2) },
+            [ObservationAssumption::OutcomeIndependentGiven(Arc::from([id(0)]))],
+        );
+        let result = run(
+            selected_two_lag_series(rho, seed),
+            dose_horizon_dag(),
+            query,
+            InferenceMode::Frequentist,
+            BOOT,
+            seed,
+        );
+        let response = result.response.as_ref().expect("observation-adjusted Sequence");
+        assert_eq!(
+            response.provenance_id.as_ref(),
+            "estimate.temporal_response.observation_adjusted"
+        );
+        tallies.record(response, &SEQUENCE_TRUTH);
+    }
+    assert_all(&tallies.all());
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_observation_sequence_iid_nominal_95_coverage() {
+    observation_sequence_coverage(0.0, 206_000);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_observation_sequence_ar1_nominal_95_coverage() {
+    observation_sequence_coverage(RHO_AR1, 207_000);
 }
 
 // ---------------------------------------------------------------------------

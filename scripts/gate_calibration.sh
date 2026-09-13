@@ -180,7 +180,8 @@ run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
 echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
 # One invocation runs every ignored test in the file (Frequentist / Bayesian
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
-# TemporalCpdag / TemporalPag completion atoms, iid and AR(1) residuals).
+# TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
+# complete and observation-adjusted data, iid and AR(1) residuals).
 cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
 echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
