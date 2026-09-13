@@ -897,6 +897,7 @@ fn prior_bank_catalog() {
             converged: true,
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: Some(1.0),
         };
         let draws = vec![0.0f64; n_q * 2];
         let art = encode_posterior_artifact(&meta, &draws, id, "0.1.0").unwrap();
@@ -1177,8 +1178,15 @@ fn prior_bank_effect_map() {
     let baseline_prior = PriorSet::weakly_informative(4);
     let mapping = hydrate_mapping_from_io(&PriorMapping::IdenticalCoefficientSubspace);
     assert!(
-        hydrate_prior_from_posterior_bytes(&bytes, &mapping, &baseline_prior, &names, Some(1))
-            .is_err(),
+        hydrate_prior_from_posterior_bytes(
+            &bytes,
+            &mapping,
+            &baseline_prior,
+            &names,
+            Some(1),
+            None
+        )
+        .is_err(),
         "identical mapping should fail on ncols mismatch"
     );
 }

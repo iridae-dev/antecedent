@@ -34,7 +34,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, LeastSquaresWorkspace,
-    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, gaussian_density,
+    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, fit_gam_weighted, gaussian_density,
     gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
 };
 
@@ -530,7 +530,7 @@ impl ContinuousResponseEstimator {
         self.validate(query, identification_status)?;
         let mut assumptions = with_estimation_assumptions(assumptions, &query.functional);
         let level = self.options.confidence_level;
-        let draws_n = estimator.n_draws.max(2);
+        let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
         let (value, uncertainty, support, assumption_id, assumption_text, provenance) = match &query
             .functional
         {
@@ -542,8 +542,6 @@ impl ContinuousResponseEstimator {
                 }
                 let sample =
                     CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
-                let AverageDerivativeScores { scores, .. } =
-                    self.cross_fitted_ade_scores(&sample)?;
                 let (_, _, support) =
                     self.average_derivative(data, *outcome, *treatment, weighting)?;
                 let mut rng = ctx.rng.stream(0xADEB_0001);
@@ -552,15 +550,16 @@ impl ContinuousResponseEstimator {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
                     }
-                    values.push(weighted_bootstrap_mean(&scores, &mut rng)?);
+                    let weights = bootstrap_weights(sample.len(), &mut rng);
+                    values.push(self.weighted_plugin_ade(&sample, &weights)?);
                 }
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
                     ResponseValue::Scalar(mean),
                     scalar_uncertainty(sd, level, lo, hi),
                     support,
-                    "bayesian.derivative.riesz_bootstrap",
-                    "Bayesian bootstrap of the Gaussian-score Riesz ADE scores; estimator identity stays response.riesz_ade",
+                    "bayesian.derivative.riesz_weighted_plugin",
+                    "Each Rubin Bayesian-bootstrap draw refits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights, then evaluates the weighted Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w). This is not a frozen-score reweight of the first-fit φ_i. Estimator identity stays response.riesz_ade",
                     "estimate.response.riesz_ade",
                 )
             }
@@ -1461,6 +1460,93 @@ impl ContinuousResponseEstimator {
         Ok(AverageDerivativeScores { scores, riesz_weights })
     }
 
+    /// Weighted-plugin ADE: refit outcome and treatment nuisances under
+    /// Dirichlet/Exp(1) row weights, then evaluate the weighted Riesz score
+    /// mean (derivative plus score times residual).
+    fn weighted_plugin_ade(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+    ) -> Result<f64, EstimationError> {
+        if weights.len() != sample.len() {
+            return Err(EstimationError::stats_msg("ADE weights length must match complete rows"));
+        }
+        let mut gam_ws = GamWorkspace::default();
+        let outcome_fit = self.fit_outcome_weighted(sample, weights, &mut gam_ws)?;
+        let treatment_fit = self.fit_treatment_weighted(sample, weights, &mut gam_ws)?;
+        let sigma = treatment_sigma_weighted(sample, weights, treatment_fit.as_ref())?;
+        let treatment_mean_constant = weighted_mean(&sample.treatments, weights)?;
+        let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+            EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+        })?;
+        let mut row = vec![0.0; sample.raw_cols];
+        let mut adj_row = vec![0.0; sample.adjustment_cols];
+        let mut num = 0.0;
+        let mut den = 0.0;
+        for (i, &weight) in weights.iter().enumerate() {
+            sample.write_raw_row(i, &mut row);
+            let mu = predict_one(&outcome_fit, &row)?;
+            let derivative = outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
+            let treatment_mean = match treatment_fit.as_ref() {
+                Some(fit) => {
+                    sample.write_adjustment_row(i, &mut adj_row);
+                    predict_one(fit, &adj_row)?
+                }
+                None => treatment_mean_constant,
+            };
+            let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
+            let phi = derivative + alpha * (sample.outcome[i] - mu);
+            num += weight * phi;
+            den += weight;
+        }
+        if !den.is_finite() || den <= 0.0 || !num.is_finite() {
+            return Err(EstimationError::stats_msg("weighted ADE plugin was non-finite"));
+        }
+        Ok(num / den)
+    }
+
+    fn fit_outcome_weighted(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+        workspace: &mut GamWorkspace,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        let x = sample.raw_all();
+        fit_additive_weighted(
+            &x,
+            sample.len(),
+            sample.raw_cols,
+            &sample.outcome,
+            weights,
+            self.options.nuisance_basis,
+            self.options.nuisance_lambda,
+            workspace,
+        )
+    }
+
+    fn fit_treatment_weighted(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+        workspace: &mut GamWorkspace,
+    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
+        if sample.adjustment_cols == 0 {
+            return Ok(None);
+        }
+        let x = sample.adjustment_all();
+        fit_additive_weighted(
+            &x,
+            sample.len(),
+            sample.adjustment_cols,
+            &sample.treatments,
+            weights,
+            self.options.nuisance_basis,
+            self.options.nuisance_lambda,
+            workspace,
+        )
+        .map(Some)
+    }
+
     fn plugin_gradient(
         &self,
         sample: &CompleteSample,
@@ -1616,23 +1702,6 @@ fn with_estimation_assumptions(
         status: AssumptionStatus::Declared,
     });
     assumptions
-}
-
-fn weighted_bootstrap_mean(values: &[f64], rng: &mut CausalRng) -> Result<f64, EstimationError> {
-    if values.is_empty() {
-        return Err(EstimationError::stats_msg("Bayesian bootstrap of an empty score vector"));
-    }
-    let mut num = 0.0;
-    let mut den = 0.0;
-    for &value in values {
-        let weight = (-rng.next_f64().max(f64::MIN_POSITIVE).ln()).max(0.0);
-        num += weight * value;
-        den += weight;
-    }
-    if den <= 0.0 {
-        return Err(EstimationError::stats_msg("Bayesian bootstrap weights were zero"));
-    }
-    Ok(num / den)
 }
 
 fn bootstrap_weights(n: usize, rng: &mut CausalRng) -> Vec<f64> {
@@ -1828,6 +1897,17 @@ impl CompleteSample {
     fn treatment_column_range(&self, col: usize) -> (f64, f64) {
         range(&self.treatment_matrix[col * self.len()..(col + 1) * self.len()])
     }
+
+    fn raw_all(&self) -> Vec<f64> {
+        let mut out = Vec::with_capacity(self.len() * self.raw_cols);
+        out.extend_from_slice(&self.treatment_matrix);
+        out.extend_from_slice(&self.adjustment);
+        out
+    }
+
+    fn adjustment_all(&self) -> Vec<f64> {
+        self.adjustment.clone()
+    }
 }
 
 fn fit_additive(
@@ -1864,6 +1944,53 @@ fn fit_additive(
     Ok(fit)
 }
 
+fn fit_additive_weighted(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    weights: &[f64],
+    basis: usize,
+    lambda: f64,
+    workspace: &mut GamWorkspace,
+) -> Result<antecedent_stats::GamFit, EstimationError> {
+    let specs: Vec<SmoothSpec> =
+        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
+    let fit = fit_gam_weighted(
+        x,
+        nrows,
+        ncols,
+        y,
+        &specs,
+        &GamOptions { max_iter: 500, tol: 1e-6 },
+        Some(weights),
+        &FaerBackend,
+        workspace,
+    )?;
+    if !fit.converged {
+        return Err(EstimationError::unsupported(
+            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
+        ));
+    }
+    Ok(fit)
+}
+
+fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, EstimationError> {
+    if values.len() != weights.len() || values.is_empty() {
+        return Err(EstimationError::stats_msg("weighted mean requires matching nonempty slices"));
+    }
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for (value, weight) in values.iter().zip(weights) {
+        num += *weight * *value;
+        den += *weight;
+    }
+    if !den.is_finite() || den <= 0.0 || !num.is_finite() {
+        return Err(EstimationError::stats_msg("weighted mean was non-finite"));
+    }
+    Ok(num / den)
+}
+
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
     Ok(fit.predict_row(raw_row)?)
 }
@@ -1890,6 +2017,39 @@ fn treatment_sigma(
     if !sigma.is_finite() || sigma <= f64::EPSILON {
         return Err(EstimationError::unsupported(
             "Gaussian treatment nuisance has degenerate residual variance",
+        ));
+    }
+    Ok(sigma)
+}
+
+fn treatment_sigma_weighted(
+    sample: &CompleteSample,
+    weights: &[f64],
+    fit: Option<&antecedent_stats::GamFit>,
+) -> Result<f64, EstimationError> {
+    let n_eff: f64 = weights.iter().sum();
+    let (rss, denominator) = if let Some(fit) = fit {
+        let rss = fit
+            .residuals
+            .iter()
+            .zip(weights)
+            .map(|(residual, weight)| weight * residual * residual)
+            .sum::<f64>();
+        (rss, (n_eff - fit.edf_approx).max(1.0))
+    } else {
+        let mean = weighted_mean(&sample.treatments, weights)?;
+        let rss = sample
+            .treatments
+            .iter()
+            .zip(weights)
+            .map(|(treatment, weight)| weight * (treatment - mean).powi(2))
+            .sum::<f64>();
+        (rss, (n_eff - 1.0).max(1.0))
+    };
+    let sigma = (rss / denominator).sqrt();
+    if !sigma.is_finite() || sigma <= f64::EPSILON {
+        return Err(EstimationError::unsupported(
+            "weighted Gaussian treatment nuisance has degenerate residual variance",
         ));
     }
     Ok(sigma)
@@ -3302,6 +3462,70 @@ mod tests {
                 .iter()
                 .any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
         );
+    }
+
+    #[test]
+    fn bayesian_ade_refits_nuisances_not_frozen_scores() {
+        let (data, a, y, x) = confounded_curve(240);
+        let estimator = ContinuousResponseEstimator::new([x]);
+        let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+        let frozen = estimator.cross_fitted_ade_scores(&sample).unwrap();
+        let mut weights = vec![1.0; sample.len()];
+        for (i, weight) in weights.iter_mut().enumerate() {
+            *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
+        }
+        let plugin = estimator.weighted_plugin_ade(&sample, &weights).unwrap();
+        let frozen_mean =
+            frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
+                / weights.iter().sum::<f64>();
+        assert!(
+            (plugin - frozen_mean).abs() > 1e-3,
+            "weighted-plugin ADE must move with refitted μ,α; plugin={plugin} frozen={frozen_mean}"
+        );
+
+        let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
+            outcome: y,
+            treatment: a,
+            weighting: DerivativeWeighting::Observed,
+        });
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(8);
+        let response = estimator
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &antecedent_core::ExecutionContext::for_tests(18),
+            )
+            .unwrap();
+        assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
+        assert!(
+            response.assumptions.entries.iter().any(|record| match &record.assumption {
+                Assumption::ParametricRestriction(restriction) =>
+                    restriction.description.contains("not a frozen-score reweight"),
+                _ => false,
+            }),
+            "Bayesian ADE must record the refit assumption: {:?}",
+            response.assumptions
+        );
+        for n_draws in [0, 1] {
+            let too_few = crate::BayesianGComputationAte::new().with_n_draws(n_draws);
+            let err = estimator
+                .estimate_bayesian(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &too_few,
+                    &antecedent_core::ExecutionContext::for_tests(18),
+                )
+                .unwrap_err();
+            assert!(
+                err.to_string().contains("n_draws >= 2"),
+                "n_draws={n_draws} must refuse: {err}"
+            );
+        }
     }
 
     #[test]

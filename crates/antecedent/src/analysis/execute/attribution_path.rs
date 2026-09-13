@@ -41,7 +41,7 @@ impl super::Study {
         let base_model = fitted.model.clone();
         let ite = counterfactual_ite(fitted.model, data, treatment, outcome, active, control, ctx)?;
         let (estimate, posterior, ite) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            let n_draws = bayesian_draw_count(&self.inference);
+            let n_draws = bayesian_draw_count(&self.inference)?;
             let mut values = Vec::with_capacity(n_draws);
             let mut unit_sum = vec![0.0; ite.unit_effects.len()];
             let mut rng = ctx.rng.stream(0x0CF0);
@@ -386,5 +386,6 @@ fn counterfactual_posterior(
         assumptions,
         unidentified_mass: 0.0,
         early_stopped: false,
+        treatment_contrast: None,
     })
 }

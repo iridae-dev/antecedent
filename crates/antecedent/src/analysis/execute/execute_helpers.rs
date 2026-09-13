@@ -328,10 +328,17 @@ pub(super) fn response_functional_is_derivative(
     )
 }
 
-pub(super) fn bayesian_draw_count(inference: &InferenceMode) -> usize {
+pub(super) fn bayesian_draw_count(inference: &InferenceMode) -> Result<usize, CausalError> {
     match inference {
-        InferenceMode::Bayesian(cfg) => cfg.n_draws.max(2),
-        InferenceMode::Frequentist => 0,
+        InferenceMode::Bayesian(cfg) => {
+            if cfg.n_draws < 2 {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
+                });
+            }
+            Ok(cfg.n_draws)
+        }
+        InferenceMode::Frequentist => Ok(0),
     }
 }
 
@@ -373,7 +380,7 @@ impl super::Study {
             let posterior = est
                 .estimate_bayesian(
                     &prepared,
-                    bayesian_draw_count(&self.inference),
+                    bayesian_draw_count(&self.inference)?,
                     identification.status,
                     ctx,
                 )

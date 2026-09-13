@@ -248,10 +248,37 @@ fn distribution_bayesian_known_truth() {
     let dist = result.distribution.as_ref().unwrap();
     assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.08);
     let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
-    assert!(
-        (mass - 1.0).abs() < 0.05,
-        "bayesian atoms must be a posterior distribution, mass={mass}"
-    );
+    assert!((mass - 1.0).abs() < 0.05, "bayesian atoms must be a coherent law, mass={mass}");
+    let freq = Study::tabular(data.clone())
+        .graph({
+            let mut dag = Dag::with_variables(3);
+            dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+            dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+            dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+            dag
+        })
+        .query(CausalQuery::Distribution(InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        )))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let freq_atoms = &freq.distribution.as_ref().unwrap().atoms;
+    assert_eq!(dist.atoms.len(), freq_atoms.len());
+    for (bayes_atom, freq_atom) in dist.atoms.iter().zip(freq_atoms.iter()) {
+        assert!(
+            (bayes_atom.probability - freq_atom.probability).abs() < 1e-12,
+            "Bayesian atoms must be the point-estimate law, not averaged cells: bayes={} freq={}",
+            bayes_atom.probability,
+            freq_atom.probability
+        );
+    }
     assert!(result.posterior.is_some());
 }
 
@@ -472,16 +499,42 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
         freq.diagnostics.iter().any(|d| d.message.contains("unidentified_mass=0.2")),
         "Frequentist mixture must publish the unidentified mass"
     );
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let unidentified = pin["static_average_effect"]["expected_unidentified_mass"].as_f64().unwrap();
+    let cate_tol = pin["static_average_effect"]["effect_abs_tolerance"].as_f64().unwrap();
     assert!(
-        bayes.posterior.as_ref().is_some_and(|p| (p.unidentified_mass - 0.2).abs() < 1e-9),
+        bayes.posterior.as_ref().is_some_and(|p| (p.unidentified_mass - unidentified).abs() < 1e-9),
         "bayes mass {:?}",
         bayes.posterior.as_ref().map(|p| p.unidentified_mass)
     );
     assert!(
-        (freq.estimate.ate - bayes.estimate.ate).abs() > 1e-15
-            || freq.posterior.as_ref().map(|p| p.draws.n_draws)
-                != bayes.posterior.as_ref().map(|p| p.draws.n_draws)
+        bayes.posterior.as_ref().is_some_and(|p| p.assumptions.entries.iter().any(|a| {
+            matches!(
+                &a.assumption,
+                antecedent_core::Assumption::ParametricRestriction(r)
+                    if r.id.as_ref() == "envelope.conditional_on_identification"
+            )
+        })),
+        "Bayesian envelope must record that E[τ] is conditional on identification"
     );
+    // Both identified CATE atoms recover the structural slope 2 on Y = 2T + 2Z.
+    // Published moments are the identified-atom BMA, not a 100% mixture and not
+    // the ATE number 2.625 from the same fixture.
+    assert!(
+        (bayes.estimate.ate - 2.0).abs() < cate_tol,
+        "Bayesian CATE mixture mean must be the identified-atom BMA, got {}",
+        bayes.estimate.ate
+    );
+    let bayes_post = bayes.posterior.as_ref().unwrap();
+    assert_ne!(
+        bayes_post.diagnostics.backend_id.as_ref(),
+        freq.posterior.as_ref().map_or("", |p| p.diagnostics.backend_id.as_ref()),
+        "Bayesian graph-posterior CATE must not be a silent Frequentist reuse"
+    );
+    assert_ne!(bayes.logical_plan.estimator.as_deref(), freq.logical_plan.estimator.as_deref());
 }
 
 #[test]
@@ -597,26 +650,27 @@ fn static_mediation_mapped_prior_hydrates_mechanisms() {
     assert!(transferred.posterior.is_some());
     let assumptions = format!("{:?}", transferred.posterior.as_ref().unwrap().assumptions);
     assert!(
-        assumptions.contains("hydrated"),
-        "mapped prior must hydrate at least one mechanism: {assumptions}"
+        assumptions.contains("mapped ATE/Δ prior hydrated onto outcome-mechanism"),
+        "EffectFunctional must bind only the outcome-mechanism NDE slope: {assumptions}"
     );
-    let isotropic = Study::tabular(data)
-        .graph(dag)
-        .query(CausalQuery::Mediation(query))
-        .inference(bayes())
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
     assert!(
-        (transferred.estimate.ate - isotropic.estimate.ate).abs()
-            > pin["min_shift"].as_f64().unwrap(),
-        "mapped treatment-coefficient prior must move NDE; transferred={} isotropic={}",
-        transferred.estimate.ate,
-        isotropic.estimate.ate
+        assumptions.contains("[y]"),
+        "only the outcome mechanism may receive the mapped ATE/Δ prior: {assumptions}"
     );
-    assert_eq!(pin["compatibility_filter"].as_str().unwrap(), "per-mechanism hydrate");
+    assert!(
+        !assumptions.contains("[y, m]") && !assumptions.contains("[m, y]"),
+        "mediator mechanism must keep isotropic prior_scale: {assumptions}"
+    );
+    let source_ate = source.estimate.ate;
+    assert!(
+        assumptions.contains("implied NDE/ATE mean"),
+        "Δ-scaled slope prior must record implied NDE = source ATE ({source_ate}); assumptions={assumptions}"
+    );
+    assert!(
+        (source_ate - kinds["total"].as_f64().unwrap()).abs() < 0.25,
+        "source ATE {source_ate} must be the Δ-scaled NDE prior location"
+    );
+    assert_eq!(pin["compatibility_filter"].as_str().unwrap(), "outcome-mechanism ATE/Δ hydrate");
 }
 
 #[test]
@@ -947,9 +1001,9 @@ fn static_mediation_small_draw_requests_have_finite_uncertainty() {
         Arc::from([VariableId::from_raw(1)]),
         MediationContrast::NaturalIndirect,
     );
-    for n_draws in [0, 1, 2] {
+    for n_draws in [0, 1] {
         let estimator = antecedent_estimate::BayesianGComputationAte::new().with_n_draws(n_draws);
-        let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+        let err = antecedent_estimate::estimate_static_mediation_bayesian(
             &data,
             &dag,
             &query,
@@ -960,10 +1014,27 @@ fn static_mediation_small_draw_requests_have_finite_uncertainty() {
             None,
             &ctx,
         )
-        .unwrap();
-        assert_eq!(posterior.draws.n_draws, 2);
-        assert!(posterior.summaries.sd.iter().all(|v| v.is_finite()));
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("n_draws >= 2"),
+            "n_draws={n_draws} must refuse silent rewrite: {err}"
+        );
     }
+    let estimator = antecedent_estimate::BayesianGComputationAte::new().with_n_draws(2);
+    let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+        &data,
+        &dag,
+        &query,
+        antecedent_core::AssumptionSet::default(),
+        &[],
+        &estimator,
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(posterior.draws.n_draws, 2);
+    assert!(posterior.summaries.sd.iter().all(|v| v.is_finite()));
 }
 
 #[test]
