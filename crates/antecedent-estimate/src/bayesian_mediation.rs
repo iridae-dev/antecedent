@@ -74,6 +74,7 @@ pub fn prepare_temporal_mediation_adjusted(
             overlap: OverlapPolicy::ExplicitOverride,
             coef_names: None,
             unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
         })
     };
     let covs: Vec<_> = adjustment

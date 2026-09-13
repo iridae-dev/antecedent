@@ -377,15 +377,18 @@ fn prior_sensitivity_from_result(result: &antecedent::StudyResult) -> PriorSensi
         if let Some(sens) = post.prior_sensitivity.as_ref() {
             let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
             let alphas = sens.alphas.iter().copied().collect::<Vec<_>>();
+            let multipliers = sens.variance_multipliers.iter().copied().collect::<Vec<_>>();
             return (
                 if scales.is_empty() { None } else { Some(scales) },
                 if alphas.is_empty() { None } else { Some(alphas) },
                 Some(sens.effect_means.iter().copied().collect()),
                 Some(sens.effect_sds.iter().copied().collect()),
+                Some(sens.family.as_str().to_string()),
+                if multipliers.is_empty() { None } else { Some(multipliers) },
             );
         }
     }
-    (None, None, None, None)
+    (None, None, None, None, None, None)
 }
 
 fn conflict_summary_from_result(result: &antecedent::StudyResult) -> ConflictSummaryFields {
@@ -2180,6 +2183,8 @@ pub(crate) fn ate_result_from_analysis(
         prior_sensitivity_alphas,
         prior_sensitivity_means,
         prior_sensitivity_sds,
+        prior_sensitivity_family,
+        prior_sensitivity_variance_multipliers,
     ) = prior_sensitivity_from_result(&result);
     let (conflict_source_ids, conflict_alphas_requested, conflict_alphas_applied) =
         conflict_summary_from_result(&result);
@@ -2431,6 +2436,8 @@ pub(crate) fn ate_result_from_analysis(
         prior_sensitivity_alphas,
         prior_sensitivity_means,
         prior_sensitivity_sds,
+        prior_sensitivity_family,
+        prior_sensitivity_variance_multipliers,
         conflict_source_ids,
         conflict_alphas_requested,
         conflict_alphas_applied,

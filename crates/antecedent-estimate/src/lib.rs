@@ -44,6 +44,7 @@ pub mod response;
 pub mod retarget;
 pub mod scores;
 pub mod se;
+pub mod serial_dependence;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
 pub mod temporal_observed_bayes;
@@ -64,8 +65,9 @@ pub use antecedent_expr::EstimandMethod;
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
-    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,
-    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_names_from_design,
+    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
+    HMC_DRAW_FLOOR_NOTE_PREFIX, HMC_MIN_DRAWS, HydrateMapping, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, coefficient_names_from_design, hmc_draw_floor_from_notes,
     hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
     nonidentified_with_prior, require_bayesian_n_draws,
 };
@@ -119,7 +121,14 @@ pub use scores::{
 };
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
-pub use temporal_adjustment::TemporalLinearAdjustment;
+pub use serial_dependence::{
+    DEPENDENCE_ASSUMPTION_ID, DEPENDENCE_NOTE_PREFIX, DependenceScope, SerialDependence,
+    TemperingFactor, long_run_tempering_factor, tempering_kappa_from_notes,
+};
+pub use temporal_adjustment::{
+    TEMPORAL_COEF_LAG_MARKER, TemporalLinearAdjustment, is_temporal_coefficient_name,
+    temporal_coefficient_names,
+};
 pub use temporal_mediation::{
     MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationEstimate,
     TemporalMediationEstimator, TemporalMediationGrid, TemporalMediationIdentifiedSet,

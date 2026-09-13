@@ -144,17 +144,48 @@ impl InferenceDiagnostics {
     }
 }
 
+/// Which prior family a prior-sensitivity grid perturbed.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum PriorSensitivityFamily {
+    /// Isotropic `N(0, scale²)` coefficient priors over `prior_scales`. Used only
+    /// when no prior was supplied, so the isotropic prior is the prior in force.
+    #[default]
+    IsotropicScale,
+    /// External power-prior α multipliers over `alphas` (prior bank compose).
+    ExternalAlpha,
+    /// The resolved prior in force (explicit / transferred) with its coefficient
+    /// variances multiplied by `variance_multipliers`; means kept.
+    ResolvedPriorVariance,
+}
+
+impl PriorSensitivityFamily {
+    /// Stable snake_case tag.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::IsotropicScale => "isotropic_scale",
+            Self::ExternalAlpha => "external_alpha",
+            Self::ResolvedPriorVariance => "resolved_prior_variance",
+        }
+    }
+}
+
 /// Optional prior-sensitivity summary attached to a causal posterior.
 ///
-/// Mode-select: isotropic scale grid (`prior_scales` non-empty, `alphas` empty)
-/// or external power-prior α-multiplier grid (`alphas` non-empty, `prior_scales`
-/// empty). `effect_means` / `effect_sds` always align with the active grid.
+/// Mode-select by [`Self::family`]: isotropic scale grid (`prior_scales`), external
+/// power-prior α-multiplier grid (`alphas`), or a variance-multiplier grid around the
+/// resolved prior in force (`variance_multipliers`). Exactly the family's grid is
+/// non-empty; `effect_means` / `effect_sds` always align with it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PriorSensitivitySummary {
+    /// Which prior family was perturbed.
+    pub family: PriorSensitivityFamily,
     /// Prior scale grid evaluated (isotropic mode).
     pub prior_scales: Arc<[f64]>,
     /// External α multipliers applied to post-conflict `alphas_applied` (bank mode).
     pub alphas: Arc<[f64]>,
+    /// Multipliers on the resolved prior's coefficient variances (resolved-prior mode).
+    pub variance_multipliers: Arc<[f64]>,
     /// Posterior mean of the primary effect at each grid point.
     pub effect_means: Arc<[f64]>,
     /// Posterior SD of the primary effect at each grid point.

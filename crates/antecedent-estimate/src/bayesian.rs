@@ -38,6 +38,9 @@ use antecedent_stats::{
 use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::serial_dependence::{
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, long_run_tempering_factor,
+};
 use crate::util::require_explicit_override;
 
 /// Posterior mean and equal-tail interval of a linear response level.
@@ -84,7 +87,29 @@ pub(crate) fn linear_response_summary(
 
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
 /// is reachable on typical Gaussian GLMs.
-const HMC_MIN_DRAWS: usize = 3_000;
+pub const HMC_MIN_DRAWS: usize = 3_000;
+
+/// Stable prefix of the inference-diagnostics note recorded when [`HMC_MIN_DRAWS`]
+/// raised the requested draw count (`requested=<n> used=<m>`).
+pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
+
+/// `(requested, used)` draw counts when the HMC draw floor raised the request.
+#[must_use]
+pub fn hmc_draw_floor_from_notes(notes: &[Arc<str>]) -> Option<(usize, usize)> {
+    notes.iter().find_map(|note| {
+        let rest = note.strip_prefix(HMC_DRAW_FLOOR_NOTE_PREFIX)?;
+        let mut requested = None;
+        let mut used = None;
+        for kv in rest.split_whitespace() {
+            if let Some(v) = kv.strip_prefix("requested=") {
+                requested = v.parse().ok();
+            } else if let Some(v) = kv.strip_prefix("used=") {
+                used = v.parse().ok();
+            }
+        }
+        Some((requested?, used?))
+    })
+}
 
 /// Causal posterior over an identified functional.
 #[derive(Clone, Debug)]
@@ -615,6 +640,22 @@ impl BayesianGComputationAte {
         self
     }
 
+    /// The coefficient prior [`Self::fit`] uses on a design with `ncols` columns:
+    /// the explicit [`Self::prior`] when set, otherwise the isotropic
+    /// `N(0, prior_scale²)` prior. Predictive checks and sensitivity grids must
+    /// use this rather than a fresh default so they describe the prior in force.
+    #[must_use]
+    pub fn prior_in_force(&self, ncols: usize) -> PriorSet {
+        self.prior.clone().unwrap_or_else(|| PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(
+                antecedent_prob::GaussianCoefficientPrior::isotropic(ncols, self.prior_scale),
+            )],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        })
+    }
+
     /// Prepare from data + identified estimand (same IR as frequentist adjustment).
     ///
     /// # Errors
@@ -687,6 +728,7 @@ impl BayesianGComputationAte {
             overlap: self.overlap,
             coef_names: Some(coef_names),
             unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
         })
     }
 
@@ -762,7 +804,35 @@ impl BayesianGComputationAte {
             overlap: prep.overlap,
             coef_names: None,
             unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
         }
+    }
+
+    /// Adapt a lag-aligned temporal Pulse / single-step Sustained design for Bayesian fit.
+    ///
+    /// Unlike [`Self::from_prepared_estimation`], the problem carries lag-aware durable
+    /// coefficient names (see [`crate::temporal_adjustment::temporal_coefficient_names`])
+    /// so prior transfer binds by lag, and it declares
+    /// [`SerialDependence::LongRunTempering`] on the treatment score.
+    ///
+    /// # Errors
+    ///
+    /// `coef_names` does not match the design width.
+    pub fn from_prepared_temporal(
+        prep: &PreparedEstimationProblem,
+        coef_names: Arc<[Arc<str>]>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
+        if coef_names.len() != prep.design.ncols {
+            return Err(EstimationError::stats_msg(format!(
+                "temporal coefficient names ({}) do not match design columns ({})",
+                coef_names.len(),
+                prep.design.ncols
+            )));
+        }
+        let mut problem = Self::from_prepared_estimation(prep);
+        problem.coef_names = Some(coef_names);
+        problem.serial_dependence = SerialDependence::LongRunTempering(DependenceScope::Treatment);
+        Ok(problem)
     }
 
     /// Fit mechanism + evaluate ATE g-computation posterior.
@@ -780,7 +850,7 @@ impl BayesianGComputationAte {
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, EstimationError> {
         let sequential = self.prior.is_some();
-        let prior = if let Some(p) = &self.prior {
+        if let Some(p) = &self.prior {
             if let Some(coef) = p.gaussian_coefficients() {
                 if coef.len() != problem.design.ncols {
                     return Err(EstimationError::stats_msg(format!(
@@ -794,20 +864,8 @@ impl BayesianGComputationAte {
                     "sequential prior missing GaussianCoefficients entry",
                 ));
             }
-            p.clone()
-        } else {
-            PriorSet {
-                specs: vec![PriorSpec::GaussianCoefficients(
-                    antecedent_prob::GaussianCoefficientPrior::isotropic(
-                        problem.design.ncols,
-                        self.prior_scale,
-                    ),
-                )],
-                contrast: None,
-                categorical: Vec::new(),
-                restrictions: Vec::new(),
-            }
-        };
+        }
+        let prior = self.prior_in_force(problem.design.ncols);
         let mut assumptions = AssumptionSet::new();
         let source = if sequential {
             AssumptionSource::Artifact
@@ -850,6 +908,49 @@ impl BayesianGComputationAte {
             BayesianBackendKind::Hmc => requested_draws.max(HMC_MIN_DRAWS),
             _ => requested_draws,
         };
+        let mut extra_notes: Vec<Arc<str>> = Vec::new();
+        if max_draws > requested_draws {
+            extra_notes.push(Arc::from(format!(
+                "{HMC_DRAW_FLOOR_NOTE_PREFIX} requested={requested_draws} used={max_draws}"
+            )));
+        }
+        // Time-ordered rows: temper the likelihood by the long-run-variance ratio
+        // of the targeted slope scores (generalized posterior; see serial_dependence).
+        let tempering = match &problem.serial_dependence {
+            SerialDependence::Iid => None,
+            SerialDependence::LongRunTempering(scope) => {
+                if problem.unit_ids.is_some() {
+                    return Err(EstimationError::unsupported(
+                        "long-run tempering applies to one time-ordered series, not stacked \
+                         panel units",
+                    ));
+                }
+                Some(long_run_tempering_factor(&problem.design, scope)?)
+            }
+        };
+        let tempering_weights: Option<Vec<f64>> = tempering
+            .filter(|factor| factor.kappa > 1.0)
+            .map(|factor| vec![factor.kappa.recip(); problem.design.nrows]);
+        if let Some(factor) = tempering {
+            extra_notes.push(factor.note());
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::ParametricRestriction(
+                    antecedent_core::ParametricAssumption {
+                        id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
+                        description: factor.description(),
+                    },
+                ),
+                source: AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from(if factor.scope == "treatment" {
+                        "bayesian_temporal_gcomp"
+                    } else {
+                        "temporal.sequential.gcomp"
+                    }),
+                },
+                scope: AssumptionScope::Estimation,
+                status: AssumptionStatus::Declared,
+            });
+        }
         let adaptive = ctx.adaptive_draws;
         // Adaptive redraws append samples from the fitted Gaussian covariance. Unknown-variance
         // GaussianIdentity is routed by the Laplace backend to the exact conjugate NIG posterior,
@@ -898,7 +999,7 @@ impl BayesianGComputationAte {
             nrows: problem.design.nrows,
             ncols: problem.design.ncols,
             y: y_fit,
-            weights: None,
+            weights: tempering_weights.as_deref(),
             offsets: None,
         };
 
@@ -940,6 +1041,8 @@ impl BayesianGComputationAte {
         if !fit.diagnostics.allows_posterior() {
             return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
         }
+        let mut fit = fit;
+        fit.diagnostics.notes.extend(extra_notes);
 
         let t_col = problem
             .design
@@ -1339,6 +1442,18 @@ pub struct PreparedBayesianProblem {
     pub coef_names: Option<Arc<[Arc<str>]>>,
     /// Optional unit / cluster ids aligned to design rows (panel Bayesian GLS).
     pub unit_ids: Option<Vec<u32>>,
+    /// Row-dependence model. [`SerialDependence::Iid`] for exchangeable rows; temporal
+    /// Pulse / Sustained designs use [`SerialDependence::LongRunTempering`].
+    pub serial_dependence: SerialDependence,
+}
+
+impl PreparedBayesianProblem {
+    /// Set the row-dependence model (see [`crate::serial_dependence`]).
+    #[must_use]
+    pub fn with_serial_dependence(mut self, dependence: SerialDependence) -> Self {
+        self.serial_dependence = dependence;
+        self
+    }
 }
 
 /// Workspace for Bayesian g-comp.

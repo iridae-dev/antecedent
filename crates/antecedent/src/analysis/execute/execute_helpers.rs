@@ -426,6 +426,8 @@ pub(super) struct EnvelopeAtomFit {
     pub weight: f64,
     pub estimand: IdentifiedEstimand,
     pub indexer: Option<TemporalIndexer>,
+    /// Resolved coefficient prior this atom was fitted under (`None` = isotropic).
+    pub prior: Option<PriorSet>,
 }
 
 /// Estimand, mass, and the atom's own fitted effect needed to mix Frequentist or
@@ -941,7 +943,16 @@ pub(super) fn mix_prior_sensitivity_summaries(
 ) -> Option<antecedent_prob::PriorSensitivitySummary> {
     let first = items.first()?.1;
     let n = first.effect_means.len();
-    if n == 0 || items.iter().any(|(_, s)| s.effect_means.len() != n) {
+    // Grids of different families (or different grids) are not comparable points.
+    if n == 0
+        || items.iter().any(|(_, s)| {
+            s.effect_means.len() != n
+                || s.family != first.family
+                || s.prior_scales != first.prior_scales
+                || s.alphas != first.alphas
+                || s.variance_multipliers != first.variance_multipliers
+        })
+    {
         return None;
     }
     let mut w_sum = 0.0;
@@ -968,8 +979,10 @@ pub(super) fn mix_prior_sensitivity_summaries(
         sds[i] = (second[i] / w_sum - means[i] * means[i]).max(0.0).sqrt();
     }
     Some(antecedent_prob::PriorSensitivitySummary {
+        family: first.family,
         prior_scales: Arc::clone(&first.prior_scales),
         alphas: Arc::clone(&first.alphas),
+        variance_multipliers: Arc::clone(&first.variance_multipliers),
         effect_means: Arc::from(means),
         effect_sds: Arc::from(sds),
     })
@@ -1002,10 +1015,9 @@ pub(super) fn run_envelope_bayesian_full_validation(
     let mut prior_items = Vec::with_capacity(atoms.len());
     let mut post_items = Vec::with_capacity(atoms.len());
     for atom in atoms {
-        let ppc_prior = est
-            .prior
-            .clone()
-            .unwrap_or_else(|| PriorSet::weakly_informative(atom.prep.design.ncols));
+        // Each atom's checks use the prior that atom was actually fitted under.
+        let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
+        let ppc_prior = atom_est.prior_in_force(atom.prep.design.ncols);
         let prior_rep = PriorPredictiveCheck {
             n_sims: 200,
             seed: ctx.rng.master_seed(),
@@ -1013,9 +1025,17 @@ pub(super) fn run_envelope_bayesian_full_validation(
         }
         .check_with_prior(&atom.prep, &ppc_prior, ctx)
         .map_err(CausalError::from)?;
-        let post_rep = PosteriorPredictiveCheck::new()
-            .check(&atom.prep, &atom.posterior)
-            .map_err(CausalError::from)?;
+        // Temporal atoms (lag indexer present) add the serial-dependence discrepancy
+        // under `full`; exchangeable static rows keep the two-axis check.
+        let post_rep = if matches!(refute, RefuteSuite::Full) && atom.indexer.is_some() {
+            PosteriorPredictiveCheck::new()
+                .check_temporal(&atom.prep, &atom.posterior, ctx.rng.master_seed())
+                .map_err(CausalError::from)?
+        } else {
+            PosteriorPredictiveCheck::new()
+                .check(&atom.prep, &atom.posterior)
+                .map_err(CausalError::from)?
+        };
         prior_items.push((atom.weight, prior_rep));
         post_items.push((atom.weight, post_rep));
     }
@@ -1037,9 +1057,10 @@ pub(super) fn run_envelope_bayesian_full_validation(
         // so keep the first one rather than paying for a second full evaluation.
         let mut grid = None;
         for atom in atoms {
+            let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
             let (summary, sens) = evaluate_bayesian_prior_sensitivity(
                 cfg,
-                est,
+                &atom_est,
                 &atom.prep,
                 atom.status,
                 &atom.posterior,
@@ -1383,6 +1404,78 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
     Ok(dag)
 }
 
+/// Copy inference notes from `sources` onto `target` (deduplicated), so a mixture or
+/// composed posterior still records its atoms' dependence correction / draw floor.
+pub(super) fn merge_posterior_notes<'a>(
+    target: &mut CausalPosterior,
+    sources: impl IntoIterator<Item = &'a CausalPosterior>,
+) {
+    for source in sources {
+        for note in &source.diagnostics.notes {
+            if !target.diagnostics.notes.contains(note) {
+                target.diagnostics.notes.push(Arc::clone(note));
+            }
+        }
+    }
+}
+
+/// Result diagnostics derived from posterior inference notes.
+///
+/// - `estimate.bayesian.temporal.dependence_correction`: the likelihood was tempered
+///   for serial dependence (R-9); lists every fitted `κ̂`.
+/// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
+///   draw count (B-5).
+pub(super) fn posterior_note_diagnostics<'a>(
+    posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
+) -> Vec<Diagnostic> {
+    let mut kappas = Vec::new();
+    let mut floors = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for post in posteriors {
+        for note in &post.diagnostics.notes {
+            if !seen.insert(Arc::clone(note)) {
+                continue;
+            }
+            let single = std::slice::from_ref(note);
+            if let Some(kappa) = antecedent_estimate::tempering_kappa_from_notes(single) {
+                kappas.push(kappa);
+            }
+            if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
+                floors.push(floor);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if !kappas.is_empty() {
+        let list = kappas.iter().map(|k| format!("{k:.3}")).collect::<Vec<_>>().join(", ");
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.dependence_correction",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "generalized (power) posterior with a serial-dependence correction: each \
+                 Gaussian likelihood on time-ordered rows is tempered by 1/kappa, kappa = the \
+                 AR(1)-prewhitened Newey-West long-run-variance ratio of the targeted slope \
+                 score, floored at 1 (kappa = [{list}] over {} fit(s)); this corrects serial \
+                 dependence in the outcome residual, not heteroskedasticity or a misspecified mean",
+                kappas.len()
+            ),
+        ));
+    }
+    if let Some(&(requested, used)) = floors.first() {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.hmc_draw_floor",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            format!(
+                "HMC draw floor raised n_draws from {requested} to {used} so the MCMC \
+                 publication gate (R-hat <= 1.01, bulk/tail ESS >= 100 per chain) is reachable"
+            ),
+        ));
+    }
+    out
+}
+
 pub(super) fn bayesian_gcomp(
     cfg: &BayesianConfig,
     ctx: &ExecutionContext,
@@ -1409,11 +1502,9 @@ pub(super) fn apply_temporal_prior_sensitivity(
 ) -> Result<antecedent_estimate::CausalPosterior, CausalError> {
     let mut est = bayesian_temporal_gcomp(cfg, ctx);
     let mut ws = BayesianGCompWorkspace::default();
-    if let Some(ext) = cfg.external_compose.as_ref() {
-        est.inner.prior = Some(ext.composed.prior.clone());
-    } else {
-        est.inner.prior = resolve_bayesian_prior(cfg, bprep)?;
-    }
+    // Same resolution (and conflict shrink) as the fit, so the grid perturbs the
+    // prior in force rather than a fresh isotropic one.
+    est.inner.prior = resolve_bayesian_prior_with_conflict(cfg, bprep, Some(ctx))?.0;
     let (summary, sens) = evaluate_bayesian_prior_sensitivity(
         cfg, &est.inner, bprep, status, posterior, &mut ws, ctx,
     )?;
@@ -1572,6 +1663,17 @@ impl super::Study {
         }
         push_aipw_score_kind(&mut diagnostics, args.estimator_id, &args.estimate);
         push_grid_scalar_cleared(&mut diagnostics, &args.estimate);
+        let structural_posteriors = extras
+            .structural_response
+            .iter()
+            .flat_map(|mixture| mixture.atoms.iter().filter_map(|atom| atom.posterior.as_ref()));
+        for diagnostic in
+            posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
+        {
+            if diagnostics.iter().all(|d| d.code != diagnostic.code) {
+                diagnostics.push(diagnostic);
+            }
+        }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)

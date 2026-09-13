@@ -73,8 +73,14 @@ pub(crate) fn parse_within_tier(
 
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
-type PriorSensitivityFields =
-    (Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>);
+type PriorSensitivityFields = (
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<String>,
+    Option<Vec<f64>>,
+);
 type ConflictSummaryFields = (Option<Vec<String>>, Option<Vec<f64>>, Option<Vec<f64>>);
 
 use std::any::Any;
@@ -749,6 +755,13 @@ pub(crate) struct AteAnalysisResult {
     prior_sensitivity_means: Option<Vec<f64>>,
     #[pyo3(get)]
     prior_sensitivity_sds: Option<Vec<f64>>,
+    /// Perturbed prior family: `isotropic_scale`, `external_alpha`, or
+    /// `resolved_prior_variance`.
+    #[pyo3(get)]
+    prior_sensitivity_family: Option<String>,
+    /// Variance multipliers around the resolved prior (resolved-prior family only).
+    #[pyo3(get)]
+    prior_sensitivity_variance_multipliers: Option<Vec<f64>>,
     #[pyo3(get)]
     conflict_source_ids: Option<Vec<String>>,
     #[pyo3(get)]

@@ -395,6 +395,7 @@ impl ContinuousResponseEstimator {
             overlap: crate::OverlapPolicy::ExplicitOverride,
             coef_names: None,
             unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
         };
         let posterior = estimator.fit(
             &prep,
@@ -836,6 +837,7 @@ impl ContinuousResponseEstimator {
             overlap: crate::OverlapPolicy::ExplicitOverride,
             coef_names: None,
             unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
         })
     }
 

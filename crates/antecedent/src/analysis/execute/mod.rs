@@ -64,7 +64,7 @@ pub(super) use crate::gcm::{
     fit_gcm, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
-    BayesianConfig, InferenceMode, resolve_bayesian_prior, resolve_bayesian_prior_with_conflict,
+    BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
 };
 pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,

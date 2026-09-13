@@ -329,6 +329,59 @@ fn refuse_multi_step_schedule(
     }
 }
 
+/// Marker between a variable name and its lag in temporal coefficient names
+/// (`coef_pressure@lag1`). Names carrying it bind prior transfer by lag.
+pub const TEMPORAL_COEF_LAG_MARKER: &str = "@lag";
+
+/// Whether a durable coefficient name carries a temporal lag coordinate.
+#[must_use]
+pub fn is_temporal_coefficient_name(name: &str) -> bool {
+    name.contains(TEMPORAL_COEF_LAG_MARKER)
+}
+
+/// Durable, lag-aware coefficient names for the design [`TemporalLinearAdjustment::prepare`]
+/// builds: `intercept`, `coef_<treatment>@lag<k>`, then `coef_<covariate>@lag<k>` in
+/// adjustment order. Lags are relative to the design's sample anchor (the latest queried
+/// outcome), i.e. they are the regression coordinates a transferred coefficient binds to.
+///
+/// # Errors
+///
+/// The same offset / indexer failures as `prepare`.
+pub fn temporal_coefficient_names(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    indexer: &TemporalIndexer,
+) -> Result<Arc<[Arc<str>]>, EstimationError> {
+    use antecedent_data::TableView;
+    let schema = data.schema();
+    let name = |id: VariableId| {
+        schema.get(id).map_or_else(|_| format!("var_{}", id.raw()), |v| v.name.as_ref().to_string())
+    };
+    let sample_anchor = query.outcome_offset().max(0);
+    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
+    let mut names: Vec<Arc<str>> = vec![
+        Arc::from("intercept"),
+        Arc::from(format!(
+            "coef_{}{TEMPORAL_COEF_LAG_MARKER}{}",
+            name(query.treatment),
+            t_lag.raw()
+        )),
+    ];
+    for &dense_var in estimand.adjustment_set.iter() {
+        let key = indexer
+            .key_of(dense_var.raw())
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        let lag = offset_to_lag(key.offset - sample_anchor)?;
+        names.push(Arc::from(format!(
+            "coef_{}{TEMPORAL_COEF_LAG_MARKER}{}",
+            name(key.variable),
+            lag.raw()
+        )));
+    }
+    Ok(Arc::from(names))
+}
+
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
         return Err(EstimationError::unsupported(

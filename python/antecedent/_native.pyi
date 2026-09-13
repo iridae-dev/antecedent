@@ -118,6 +118,8 @@ class AteAnalysisResult:
     prior_sensitivity_alphas: list[float] | None
     prior_sensitivity_means: list[float] | None
     prior_sensitivity_sds: list[float] | None
+    prior_sensitivity_family: str | None
+    prior_sensitivity_variance_multipliers: list[float] | None
     conflict_source_ids: list[str] | None
     conflict_alphas_requested: list[float] | None
     conflict_alphas_applied: list[float] | None

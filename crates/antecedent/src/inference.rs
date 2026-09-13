@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::BayesianBackendKind;
-use antecedent_estimate::{HydrateMapping, PreparedBayesianProblem, hydrate_prior};
+use antecedent_estimate::{
+    HydrateMapping, PreparedBayesianProblem, hydrate_prior, is_temporal_coefficient_name,
+};
 use antecedent_io::PosteriorQuantityWire;
 use antecedent_io::PriorMapping;
 use antecedent_io::{decode_posterior_artifact, extract_prior_source_meta, read_and_migrate};
@@ -346,6 +348,7 @@ pub fn resolve_bayesian_prior_with_conflict(
     let names = coef_names_for_problem(prep);
     let baseline = PriorSet::weakly_informative(prep.design.ncols);
     let treatment_col = prep.design.treatment_column();
+    require_lag_aware_transfer(bytes, &mapping, &names, treatment_col)?;
     Ok((
         Some(hydrate_prior_from_posterior_bytes(
             bytes,
@@ -357,6 +360,92 @@ pub fn resolve_bayesian_prior_with_conflict(
         )?),
         None,
     ))
+}
+
+/// Fail closed when a transfer onto a temporal (lag-named) design cannot be verified
+/// to bind the same lagged coefficients.
+///
+/// Temporal Pulse / Sustained designs carry lag-aware coefficient names
+/// (`coef_<var>@lag<k>`). Identical-subspace transfer binds by position, and
+/// effect-functional transfer binds the source effect onto the target treatment
+/// coefficient, so both require the source to carry the same lag coordinates:
+///
+/// - identical subspace: source coefficient names must equal the target's;
+/// - effect functional: the source must carry the target's treatment coefficient
+///   (same variable at the same lag);
+/// - a source without coefficient names (pre-1.9 temporal artifacts) is refused;
+/// - [`HydrateMapping::NamedParameters`] is the explicit bridge and is always allowed
+///   (hydrate validates the names).
+///
+/// Static (non-temporal) targets keep the legacy rules.
+fn require_lag_aware_transfer(
+    bytes: &[u8],
+    mapping: &HydrateMapping,
+    target_names: &[Arc<str>],
+    treatment_col: Option<usize>,
+) -> Result<(), CausalError> {
+    if !target_names.iter().any(|name| is_temporal_coefficient_name(name)) {
+        return Ok(());
+    }
+    if matches!(mapping, HydrateMapping::NamedParameters { .. }) {
+        return Ok(());
+    }
+    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    let source_names: Vec<Option<&str>> = wire
+        .quantities
+        .iter()
+        .filter_map(|q| match q {
+            PosteriorQuantityWire::Coefficient { name, .. } => Some(name.as_deref()),
+            _ => None,
+        })
+        .collect();
+    let target_list = target_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+    if source_names.iter().any(Option::is_none) {
+        return Err(CausalError::Compile {
+            message: format!(
+                "temporal prior transfer refused: the source posterior carries no lag-aware \
+                 coefficient names (pre-1.9 artifact), so its lag structure cannot be checked \
+                 against the target [{target_list}]; refit the source or declare \
+                 PriorMapping::NamedParameters"
+            ),
+        });
+    }
+    let source_names: Vec<&str> = source_names.into_iter().flatten().collect();
+    let source_list = source_names.join(", ");
+    match mapping {
+        HydrateMapping::IdenticalCoefficientSubspace => {
+            if source_names.len() != target_names.len()
+                || source_names.iter().zip(target_names).any(|(s, t)| *s != t.as_ref())
+            {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal prior transfer refused: identical-subspace mapping binds by \
+                         position, but source coefficients [{source_list}] differ from target \
+                         [{target_list}] (lag structure or covariates); declare \
+                         PriorMapping::NamedParameters"
+                    ),
+                });
+            }
+        }
+        HydrateMapping::EffectFunctional { .. } => {
+            let treatment = treatment_col
+                .and_then(|col| target_names.get(col))
+                .map(AsRef::as_ref)
+                .unwrap_or_default();
+            if !source_names.contains(&treatment) {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal prior transfer refused: effect-functional mapping onto \
+                         `{treatment}` needs a source fitted at the same treatment lag, but the \
+                         source coefficients are [{source_list}]; declare \
+                         PriorMapping::NamedParameters"
+                    ),
+                });
+            }
+        }
+        HydrateMapping::NamedParameters { .. } => {}
+    }
+    Ok(())
 }
 
 /// Decoded artifact summaries for mapped-prior hydrate.

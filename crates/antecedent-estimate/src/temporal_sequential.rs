@@ -31,6 +31,7 @@ use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
+use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
 use crate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
@@ -126,7 +127,10 @@ enum SequentialEval {
 /// order, overwriting **every** treatment-time node in the sustained window.
 /// Frequentist uncertainty uses a shared moving-block row bootstrap across all
 /// equations. Bayesian uncertainty uses independent Gaussian priors across
-/// stationary mechanisms, sharing each coefficient draw across its time copies.
+/// stationary mechanisms, sharing each coefficient draw across its time copies;
+/// each mechanism's Gaussian likelihood is tempered by its long-run-variance
+/// ratio ([`crate::serial_dependence`]), so the composed interval is a
+/// generalized posterior with a serial-dependence correction.
 pub fn estimate_sustained_window(
     data: &TimeSeriesData,
     graph: &TemporalDag,
@@ -534,6 +538,36 @@ fn estimate_sequential(
         Ok(coefficients)
     };
     if let Some(estimator) = bayesian {
+        // Sustained contrasts temper each stationary mechanism by the long-run-variance
+        // ratio of the contrast's own linear combination of that mechanism's
+        // coefficients: the gradient of the composed contrast, summed over the
+        // mechanism's unfolded time copies (coefficient positions are stable across
+        // copies). The contrast is linear in each coefficient, so central differences
+        // at the OLS fit are exact up to rounding.
+        let contrast_gradient = match eval {
+            SequentialEval::Contrast { .. } => fit_ols(None).ok().map(|base| {
+                let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
+                    std::collections::HashMap::new();
+                for &i in &order {
+                    if base[i].is_empty() {
+                        continue;
+                    }
+                    let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
+                    let entry =
+                        gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
+                    for k in 0..base[i].len().min(entry.len()) {
+                        let h = 1e-6 * base[i][k].abs().max(1.0);
+                        let mut up = base.clone();
+                        let mut down = base.clone();
+                        up[i][k] += h;
+                        down[i][k] -= h;
+                        entry[k] += (propagate(&up) - propagate(&down)) / (2.0 * h);
+                    }
+                }
+                gradients
+            }),
+            SequentialEval::Level => None,
+        };
         let mut mechanism_posts = vec![None; dag.node_count()];
         let mut mechanism_of = vec![0; dag.node_count()];
         let mut mechanisms: Vec<(VariableId, Vec<LaggedColumn>, usize)> = Vec::new();
@@ -594,6 +628,27 @@ fn estimate_sequential(
                     overlap: OverlapPolicy::ExplicitOverride,
                     coef_names: None,
                     unit_ids: None,
+                    // Sustained contrasts are licensed cells whose stated model is the
+                    // serial-dependence-corrected generalized posterior; Sequence levels
+                    // keep the disclosed iid likelihood.
+                    serial_dependence: match eval {
+                        SequentialEval::Contrast { .. } => {
+                            // Without an OLS gradient (rank-deficient unfolded design) the
+                            // sum of slopes stands in for the contrast direction.
+                            let direction = contrast_gradient
+                                .as_ref()
+                                .and_then(|g| g.get(&child.variable).cloned())
+                                .unwrap_or_else(|| {
+                                    (0..=parent_columns.len())
+                                        .map(|k| if k == 0 { 0.0 } else { 1.0 })
+                                        .collect()
+                                });
+                            SerialDependence::LongRunTempering(DependenceScope::Direction(
+                                Arc::from(direction),
+                            ))
+                        }
+                        SequentialEval::Level => SerialDependence::Iid,
+                    },
                 };
                 let mut est = estimator.clone();
                 est.seed = est.seed.wrapping_add(u64::from(child.variable.raw()));
@@ -665,6 +720,11 @@ fn estimate_sequential(
         posterior.draws = draws;
         for post in mechanism_posts.iter().flatten().skip(1) {
             posterior.assumptions.entries.extend(post.assumptions.entries.iter().cloned());
+            for note in &post.diagnostics.notes {
+                if !posterior.diagnostics.notes.contains(note) {
+                    posterior.diagnostics.notes.push(Arc::clone(note));
+                }
+            }
         }
         posterior.assumptions.entries.extend(assumptions.entries);
         let effect = EffectEstimate::new(

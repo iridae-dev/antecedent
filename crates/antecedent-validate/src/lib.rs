@@ -33,7 +33,7 @@ pub use bayesian_checks::{
     DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, McmcDiagnosticsCheck,
     PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
     PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck, PriorSensitivity, SbcReport,
-    SimulationBasedCalibration, with_prior_sensitivity,
+    SerialDiscrepancy, SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};

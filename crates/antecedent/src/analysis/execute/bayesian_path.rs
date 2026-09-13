@@ -115,10 +115,7 @@ impl super::Study {
         let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
-            let ppc_prior = est
-                .prior
-                .clone()
-                .unwrap_or_else(|| PriorSet::weakly_informative(prep.design.ncols));
+            let ppc_prior = est.prior_in_force(prep.design.ncols);
             let prior_rep = PriorPredictiveCheck {
                 n_sims: 200,
                 seed: ctx.rng.master_seed(),
@@ -310,6 +307,7 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
+                prior: est.prior.clone(),
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -693,6 +691,7 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
+                prior: envelope_prior.clone(),
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -1443,7 +1442,17 @@ impl super::Study {
                 prepare_demoted += 1;
                 continue;
             };
-            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+            let Ok(names) =
+                antecedent_estimate::temporal_coefficient_names(data, &estimand, query, &indexer)
+            else {
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                prepare_demoted += 1;
+                continue;
+            };
+            let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                .map_err(CausalError::from)?;
             if envelope_prior.is_none() {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
                 envelope_prior = resolved;
@@ -1473,6 +1482,7 @@ impl super::Study {
                     weight: identified_weight_for_key(&identified.graphs, key),
                     estimand,
                     indexer: Some(indexer),
+                    prior: envelope_prior.clone(),
                 });
             } else {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
@@ -1514,6 +1524,14 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        merge_posterior_notes(
+            &mut posterior,
+            atoms.iter().map(|atom| &atom.posterior).chain(
+                sequential_atoms
+                    .iter()
+                    .flat_map(|atom| atom.mechanisms.iter().map(|m| &m.posterior)),
+            ),
+        );
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -2443,8 +2461,10 @@ fn run_dbn_mediation_bayesian_validation(
             owned.push((
                 atom.weight,
                 antecedent_prob::PriorSensitivitySummary {
+                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
                     prior_scales: sensitivity.scales.clone(),
                     alphas: Arc::from([]),
+                    variance_multipliers: Arc::from([]),
                     effect_means: Arc::from(means),
                     effect_sds: Arc::from(sds),
                 },

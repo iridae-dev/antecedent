@@ -289,17 +289,28 @@ class PredictiveCheckReport:
 class PriorSensitivityReport:
     """Prior sensitivity grid (Bayesian + ``refute="full"``).
 
-    Isotropic mode fills ``scales``; external prior-bank mode fills ``alphas``
-    (multipliers on post-conflict applied α). Exactly one mode is active.
+    ``family`` names the perturbed prior: ``"isotropic_scale"`` fills ``scales``
+    (only when no prior was supplied, so the isotropic prior is the prior in
+    force); ``"external_alpha"`` fills ``alphas`` (multipliers on post-conflict
+    applied α); ``"resolved_prior_variance"`` fills ``variance_multipliers``
+    (multipliers on the staged / transferred prior's coefficient variances).
+    Exactly one mode is active.
     """
 
     scales: list[float]
     effect_means: list[float]
     effect_sds: list[float]
     alphas: list[float] | None = None
+    variance_multipliers: list[float] | None = None
+    family: str = "isotropic_scale"
 
     def __repr__(self) -> str:
-        mode = "alphas" if self.alphas is not None else "scales"
+        if self.variance_multipliers is not None:
+            mode = "variance_multipliers"
+        elif self.alphas is not None:
+            mode = "alphas"
+        else:
+            mode = "scales"
         return f"<PriorSensitivityReport mode={mode!r} n={len(self.effect_means)}>"
 
 
