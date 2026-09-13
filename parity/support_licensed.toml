@@ -25,7 +25,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_frequentist_shared_block_bootstrap"
-limitations = "Each identified DBN atom uses its own I(h), with fixed posterior graph weights and unidentified mass retained. When requested, uncertainty refits every contributing atom on the same circular-block replicate before mixing; it is not a sum of atom variances."
+limitations = "Each identified DBN atom uses its own I(h), with fixed posterior graph weights and unidentified mass retained. When requested, uncertainty refits every contributing atom on the same circular-block replicate before mixing; it is not a sum of atom variances. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "PulseEffect"
@@ -89,7 +89,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
-limitations = "The existing linear temporal mediation identifier runs independently on every valid TemporalDag completion and horizon. Completion-specific effects are returned as identified sets, never an enumeration-weighted mean. TemporalPag latent-confounded natural mediation is not claimed."
+limitations = "The existing linear temporal mediation identifier runs independently on every valid TemporalDag completion and horizon. Completion-specific effects are returned as identified sets, never an enumeration-weighted mean. TemporalPag latent-confounded natural mediation is not claimed. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -101,7 +101,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
-limitations = "Cheap mediation refuters run on every identified completion and horizon against that completion's point effect. The reported result remains a completion identified set, not an enumeration-weighted mean."
+limitations = "Cheap mediation refuters run on every identified completion and horizon against that completion's point effect. The reported result remains a completion identified set, not an enumeration-weighted mean. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -113,7 +113,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
-limitations = "Full adds contiguous-window stability to the cheap per-completion mediation refuters. The reported result remains a completion identified set."
+limitations = "Full adds contiguous-window stability to the cheap per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -125,7 +125,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
-limitations = "Accepted structure shares the explicit TemporalCpdag completion identified-set evaluator."
+limitations = "Accepted structure shares the explicit TemporalCpdag completion identified-set evaluator. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -137,7 +137,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
-limitations = "Accepted TemporalCpdag cheap suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set."
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -149,7 +149,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
-limitations = "Accepted TemporalCpdag full suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set."
+limitations = "Accepted TemporalCpdag full suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
 
 [[cell]]
 query = "ResponseCurve"
@@ -161,7 +161,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation."
+limitations = "Pulse/single-step Sustained. Per-horizon completion-enumeration identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "ResponseCurve"
@@ -185,7 +185,7 @@ staged = true
 evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
 evidence_assertion = "temporal_class_response_returns_completion_identified_set"
-limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per directed completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation."
+limitations = "Pulse/single-step Sustained. Per-horizon MAG-completion identified set; no weighted mean or class-level sampling band; requested replicates ride each retained completion atom. Licensed 1.3/1.6 observation pairs ride per directed completion; Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused. Evidence: crates/antecedent/tests/temporal_class_observation.rs; conformance/response/temporal_class_observation. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "ResponseCurve"
@@ -258,7 +258,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_frequentist_shared_block_bootstrap"
-limitations = "Single- and multi-step sustained policies use per-atom temporal adjustment/sequential g-computation. Fixed graph weights are mixed inside each shared circular-block replicate. Multi-step cheap/full are exercised in crates/antecedent/tests/dbn_sustained_validation.rs, including actual sequential perturbations and circular-block bootstrap checks."
+limitations = "Single- and multi-step sustained policies use per-atom temporal adjustment/sequential g-computation. Fixed graph weights are mixed inside each shared circular-block replicate. Multi-step cheap/full are exercised in crates/antecedent/tests/dbn_sustained_validation.rs, including actual sequential perturbations and circular-block bootstrap checks. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "ResponseCurve"
@@ -422,7 +422,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. Licensed 1.3 observation pairs (Selected × OutcomeIndependentGiven, left/right KM and Cox IPCW) ride this cell and consume conformance/response/temporal_observation, not observation_primitives. IndependentGiven(Z) lag-aligns Z at the policy treatment offset. Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay. Delayed entry, interval/truncation, and cheap/full stay refused. TemporalCpdag/Pag observation rides the same licensed pairs per completion and consumes conformance/response/temporal_class_observation; complete-data bands are not reused. Bayesian observation uses its own Gaussian observed-data likelihood route, not IPCW."
+limitations = "TemporalResponseSpec is required. Primary pin is temporal_dose_horizon. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon empirical support on temporal_horizon_support. Licensed 1.3 observation pairs (Selected × OutcomeIndependentGiven, left/right KM and Cox IPCW) ride this cell and consume conformance/response/temporal_observation, not observation_primitives. IndependentGiven(Z) lag-aligns Z at the policy treatment offset. Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay. Delayed entry, interval/truncation, and cheap/full stay refused. TemporalCpdag/Pag observation rides the same licensed pairs per completion and consumes conformance/response/temporal_class_observation; complete-data bands are not reused. Bayesian observation uses its own Gaussian observed-data likelihood route, not IPCW. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "ResponseCurve"
@@ -624,7 +624,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), single-step Sequence, and multi-step Sequence([Set(1), Set(1)]) → [6, 4] on temporal_dose_horizon (same unfolded sequential g-comp as multi-step Sustained; identifier remains temporal.backdoor.unfolded; not a last-step collapse). Joint single-time Sequence is licensed when every coordinate is identified. Soft multiplicative scales the structural assignment. Soft truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Extra-family evidence: conformance/response/temporal_soft_mean_mechanisms. Nested Sequence remains refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support. Licensed 1.3 observation pairs ride Set/Soft/Sequence on this cell and consume conformance/response/temporal_observation (right-censor Set(0.5) pin). Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay."
+limitations = "TemporalResponseSpec is required. Known-truth execution covers Set(1), Soft(constant=1), Soft(additive_shift=1), single-step Sequence, and multi-step Sequence([Set(1), Set(1)]) → [6, 4] on temporal_dose_horizon (same unfolded sequential g-comp as multi-step Sustained; identifier remains temporal.backdoor.unfolded; not a last-step collapse). Joint single-time Sequence is licensed when every coordinate is identified. Soft multiplicative scales the structural assignment. Soft truncated_shift defines the population-mean-targeting shift f_policy=f+clip(mu+delta,l,u)-mu, mu=E[f] under preceding interventions, preserving parent effects and innovations; outcomes are not clipped. Extra-family evidence: conformance/response/temporal_soft_mean_mechanisms. Nested Sequence remains refused. Identification (Z@-1, temporal.backdoor.unfolded) and the structural estimate are additionally pinned on temporal_confounded_pulse; per-horizon support on temporal_horizon_support. Licensed 1.3 observation pairs ride Set/Soft/Sequence on this cell and consume conformance/response/temporal_observation (right-censor Set(0.5) pin). Unlicensed non-Complete pairs refuse at compile. Requested observation-adjusted uncertainty uses an outer circular-block bootstrap that refits the observation nuisance and every horizon or Sequence overlay. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 
 [[cell]]
 query = "InterventionResponse"
@@ -646,7 +646,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on temporal_dose_horizon via shared adjustment machinery. Identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast 2 are additionally pinned on temporal_confounded_pulse. Prepared TemporalEffect identification reuse is required. Pulse, single-step Sustained, and the dose × horizon surface share the Study bootstrap / replicate contract; surface SEs are the bootstrap SD of the g-computed level when replicates > 0, otherwise the analytic OLS linear-functional SE."
+limitations = "Dispatches through execute_temporal to TemporalLinearAdjustment directly, not by slicing a ResponseCurve surface; agrees numerically with surface[active]-surface[control] at the pulse lag and horizon on temporal_dose_horizon via shared adjustment machinery. Identification (Z@-1, temporal.backdoor.unfolded) and the structural contrast 2 are additionally pinned on temporal_confounded_pulse. Prepared TemporalEffect identification reuse is required. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -657,7 +657,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares temporal_dose_horizon, with identification and the structural estimate additionally pinned on temporal_confounded_pulse."
+limitations = "Same temporal-backdoor + linear adjustment path as explicit TemporalDag Pulse; projection equivalence shares temporal_dose_horizon, with identification and the structural estimate additionally pinned on temporal_confounded_pulse. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -668,7 +668,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -679,7 +679,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers."
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -690,7 +690,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number."
+limitations = "Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the pulse projection, not the E-value number. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -701,7 +701,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers."
+limitations = "Full adds the ATE-shaped refuter suite; the fixture pins the pulse projection, not the refuter numbers. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "PulseEffect"
@@ -778,7 +778,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist uncertainty uses a shared moving-block bootstrap. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -789,7 +789,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Frequentist uncertainty uses a shared moving-block bootstrap. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step windows additionally use temporal.sequential.gcomp: every treatment offset is intervened on, on an identified unfolded linear-additive Dag, AllObserved complete rows, no split. Extra evidence: conformance/bayesian/response_surfaces and conformance/bayesian/release_12_moments. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -800,7 +800,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -811,7 +811,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -822,7 +822,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Cheap suite runs only sensitivity.evalue; OverlapRefuter is NotApplicable on a temporal-unfolded design (per-run skip surfaced as a refute.validator.not_applicable diagnostic, not the support matrix's not_applicable). The fixture pins the sustained projection, not the E-value number. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -833,7 +833,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
-limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits."
+limitations = "Single-step sustained uses the existing identified temporal adjustment design and its known-truth fixture. Multi-step cheap/full refit the actual sequential model; single-regression sensitivity formulas are explicitly inapplicable, with sequential unobserved-confounder perturbations available. Full adds the ATE-shaped refuter suite; the fixture pins the sustained projection, not the refuter numbers. Additional multi-step evidence: crates/antecedent/tests/dbn_sustained_validation.rs pins full-window effects and actual perturbation refits. Multi-step Frequentist uncertainty resamples circular blocks of consecutive lag-aligned rows shared across mechanisms (block = max(max lag + 1, ⌈n^{1/3}⌉) rows, capped at n); that replicate SD is not fixed-b scaled and has no AR(1) coverage gate. Frequentist uncertainty: se_bootstrap is a circular-block bootstrap over consecutive lag-aligned rows (each replicate refits the design; block = max(history + horizon, ⌈n^{1/3}⌉) rows, capped at n), scaled by the Kiefer–Vogelsang fixed-b factor; se_analytic is NaN because the iid OLS SE ignores serial dependence and a Newey–West SE at that bandwidth measured 0.82–0.88 at nominal 0.90; with zero replicates no SE is published. Assumes the estimating score's serial dependence is short relative to that block: below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series (AR(1) ρ = 0.9 residuals at n = 60 and 160 measured 0.835–0.855). Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs (iid and AR(1) residuals, horizons 1 and 2)."
 
 [[cell]]
 query = "SustainedEffect"
@@ -921,7 +921,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -932,7 +932,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
 query = "AverageEffect"
@@ -1396,7 +1396,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalCpdag stays TemporalCpdag, including a fully oriented supplied graph. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Incomplete TemporalCpdag stays TemporalCpdag, including a fully oriented supplied graph. Completions are TemporalDag MEC members; each is identified with temporal.backdoor.unfolded and estimated with temporal.linear.adjustment, then mass-weighted. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1406,7 +1406,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag uses the same mass-weighted temporal-backdoor envelope as explicit. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag uses the same mass-weighted temporal-backdoor envelope as explicit. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1416,7 +1416,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass; OverlapRefuter is NotApplicable on a temporal-unfolded design. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass; OverlapRefuter is NotApplicable on a temporal-unfolded design. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1426,7 +1426,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point, not the refuter numbers. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point, not the refuter numbers. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1436,7 +1436,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalCpdag"
@@ -1446,7 +1446,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1456,7 +1456,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1466,7 +1466,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1476,7 +1476,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1486,7 +1486,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1496,7 +1496,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1506,7 +1506,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1516,7 +1516,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Single-step Sustained shares the TemporalCpdag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Single-step Sustained shares the TemporalCpdag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1526,7 +1526,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1536,7 +1536,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite on each completion against its own Sustained effect, mixed by completion mass, including multi-step sequential refits per directed completion. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Cheap suite on each completion against its own Sustained effect, mixed by completion mass, including multi-step sequential refits per directed completion. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1546,7 +1546,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1556,7 +1556,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1566,7 +1566,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalCpdag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalCpdag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1576,7 +1576,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Single-step Sustained shares the TemporalPag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Single-step Sustained shares the TemporalPag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1586,7 +1586,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1596,7 +1596,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Cheap suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1606,7 +1606,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1616,7 +1616,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1626,7 +1626,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Admg"
@@ -2271,7 +2271,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -2282,7 +2282,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -2293,7 +2293,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -2304,7 +2304,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
-limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty retains the existing linear mechanism estimator. No general mediation or calibrated refuter claim."
+limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
 query = "PulseEffect"
