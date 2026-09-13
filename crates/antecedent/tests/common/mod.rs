@@ -4,3 +4,4 @@
 
 pub mod calibration;
 pub mod fixtures;
+pub mod lagged_ols;

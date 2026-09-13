@@ -9,7 +9,11 @@
     clippy::many_single_char_names
 )]
 
+mod common;
+
 use std::sync::Arc;
+
+use common::lagged_ols::{Eval, lagged_ols_level};
 
 use antecedent::{
     BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study, identify,
@@ -18,9 +22,9 @@ use antecedent_core::{
     Assumption, AssumptionSet, CausalQuery, CausalSchemaBuilder, ContinuousDomain,
     ExecutionContext, GridSpec, IdentificationStatus, Intervention, InterventionSequence, Lag,
     MeasurementSpec, MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec,
-    ResponseFunctional, ResponseQuery, ResponseUncertainty, RoleHint, SequencedIntervention,
-    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType,
-    VariableId,
+    ResponseFunctional, ResponseQuery, ResponseUncertainty, ResponseValue, RoleHint,
+    SequencedIntervention, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
+    Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -270,41 +274,149 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
 
 #[test]
 fn temporal_class_bayesian_response_is_identified_set() {
-    let pin = pin();
-    let data = series_from_law(usize::try_from(pin["n"].as_u64().unwrap()).unwrap(), false);
-    let query = CausalQuery::Response(
-        ResponseQuery::new(ResponseFunctional::MeanCurve {
-            outcome: VariableId::from_raw(1),
-            treatment: ContinuousDomain::new(
-                VariableId::from_raw(0),
-                GridSpec::Values(Arc::from([0.0, 1.0])),
-            ),
-        })
-        .with_temporal(
-            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
-        ),
-    );
-    let result = Study::series(data)
-        .graph(cpdag())
-        .query(query)
-        .inference(bayes())
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
+    // Deterministic law with aperiodic wiggles: r → {z, t}, z → t, {t, z}@-1 → y.
+    let n = 300;
+    let mut columns = vec![vec![0.0; n]; 4];
+    for i in 0..n {
+        let s = i as f64;
+        columns[3][i] = (s * 0.29).sin();
+        columns[2][i] = 0.4 * columns[3][i] + (s * 0.13).cos() + 0.3 * (s * 1.7).sin();
+        columns[0][i] = 0.3 + 0.5 * columns[3][i] + 0.2 * columns[2][i] + 0.4 * (s * 2.3).cos();
+        if i > 0 {
+            columns[1][i] =
+                1.0 + 2.0 * columns[0][i - 1] + 0.6 * columns[2][i - 1] + 0.1 * (s * 0.77).sin();
+        }
+    }
+    let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+    let series = |with_r: bool| {
+        let names = ["t", "y", "z", "r"];
+        let used = if with_r { 4 } else { 3 };
+        TimeSeriesData::from_f64_columns(
+            (0..used).map(|i| (names[i], columns[i].as_slice())).collect::<Vec<_>>(),
+            1,
+        )
         .unwrap()
-        .run(&ExecutionContext::for_tests(17))
-        .unwrap();
-    let structural = result.structural_response.as_ref().expect("response set");
-    assert_eq!(
-        structural.weight_basis,
-        antecedent::result::StructuralWeightBasis::CompletionEnumeration
-    );
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| { d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed" })
-    );
+    };
+    let temporal = || TemporalResponseSpec::new(vec![1u32, 2], TemporalPolicy::pulse(-1), None);
+    let queries = [
+        (
+            "curve",
+            CausalQuery::Response(
+                ResponseQuery::new(ResponseFunctional::MeanCurve {
+                    outcome: VariableId::from_raw(1),
+                    treatment: ContinuousDomain::new(
+                        VariableId::from_raw(0),
+                        GridSpec::Values(Arc::from([0.0, 1.0])),
+                    ),
+                })
+                .with_temporal(temporal().unwrap()),
+            ),
+            vec![Eval::Dose(0.0), Eval::Dose(1.0)],
+        ),
+        (
+            "set",
+            CausalQuery::Response(
+                ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                    outcome: VariableId::from_raw(1),
+                    interventions: Arc::from([Intervention::set(
+                        VariableId::from_raw(0),
+                        Value::f64(1.0),
+                    )]),
+                })
+                .with_temporal(temporal().unwrap()),
+            ),
+            vec![Eval::Dose(1.0)],
+        ),
+    ];
+    let graphs = [("cpdag", series(false)), ("pag", series(true))];
+    let horizons = [1u32, 2];
+    // Near-flat coefficient prior: each atom's posterior mean is its OLS g-computation
+    // up to Monte Carlo error of the draws.
+    let inference =
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(1000.0));
+    for (class, data) in &graphs {
+        for (accepted, (kind, query, evals)) in
+            [false, true].into_iter().flat_map(|a| queries.iter().map(move |q| (a, q)))
+        {
+            let label = format!("{class}/{kind}/accepted={accepted}");
+            let builder = Study::series(data.clone());
+            let builder = match (*class, accepted) {
+                ("cpdag", false) => builder.graph(cpdag()),
+                ("cpdag", true) => builder.graph(antecedent::AcceptedGraph::from(cpdag())),
+                (_, false) => builder.graph(mixed_id_pag()),
+                (_, true) => builder.graph(antecedent::AcceptedGraph::from(mixed_id_pag())),
+            };
+            let result = builder
+                .query(query.clone())
+                .inference(inference.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(17))
+                .unwrap();
+            let structural = result.structural_response.as_ref().expect("response set");
+            assert_eq!(
+                structural.weight_basis,
+                antecedent::result::StructuralWeightBasis::CompletionEnumeration
+            );
+            assert!(structural.conditional_on_identified.is_none());
+            assert!(
+                result.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed"
+                })
+            );
+            let envelope = structural.identified_set.as_ref().expect("identified set");
+            let mut distinct_h1 = std::collections::BTreeSet::new();
+            for (h_index, &horizon) in horizons.iter().enumerate() {
+                let mut surfaces = Vec::new();
+                for atom in structural.atoms.iter().filter(|atom| {
+                    usize::try_from(atom.graph_key >> 32).unwrap() == h_index
+                        && atom.value.is_some()
+                }) {
+                    let response = atom.response.as_ref().expect("atom posterior response");
+                    assert_eq!(
+                        response.provenance_id.as_ref(),
+                        "estimate.response.temporal.bayesian"
+                    );
+                    let adjustment: Vec<(usize, i32)> =
+                        response.horizon_identification.as_ref().expect("atom identification")[0]
+                            .adjustment
+                            .iter()
+                            .map(|key| (key.variable.raw() as usize, key.offset))
+                            .collect();
+                    let Some(ResponseValue::Surface { mean, .. }) = atom.value.as_ref() else {
+                        panic!("{label}: atom value is not a surface");
+                    };
+                    for (got, &eval) in mean.iter().zip(evals) {
+                        let want = lagged_ols_level(&refs, 1, 0, -1, horizon, &adjustment, eval);
+                        assert!(
+                            (got - want).abs() < 0.01,
+                            "{label} h={horizon} adj={adjustment:?}: posterior mean {got} vs OLS {want}"
+                        );
+                    }
+                    if h_index == 0 {
+                        distinct_h1.insert(adjustment);
+                    }
+                    surfaces.push(mean.to_vec());
+                }
+                assert!(!surfaces.is_empty(), "{label} h={horizon}: no identified atom");
+                for cell in 0..evals.len() {
+                    let lo = surfaces.iter().map(|s| s[cell]).fold(f64::INFINITY, f64::min);
+                    let hi = surfaces.iter().map(|s| s[cell]).fold(f64::NEG_INFINITY, f64::max);
+                    let at = cell * horizons.len() + h_index;
+                    assert!((envelope.lower[at] - lo).abs() < 1e-12, "{label} lower[{at}]");
+                    assert!((envelope.upper[at] - hi).abs() < 1e-12, "{label} upper[{at}]");
+                }
+            }
+            let expected_h1: std::collections::BTreeSet<Vec<(usize, i32)>> = if *class == "cpdag" {
+                [vec![], vec![(2, -1)]].into_iter().collect()
+            } else {
+                [vec![(2, -1)]].into_iter().collect()
+            };
+            assert_eq!(distinct_h1, expected_h1, "{label}: completion adjustment sets at h=1");
+        }
+    }
 }
 
 #[test]
