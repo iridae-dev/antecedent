@@ -77,6 +77,24 @@ run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal
 run_static_mixture_test static_graph_posterior_bayesian_ate_bma_nominal_90_coverage
 run_static_mixture_test static_graph_posterior_bayesian_cate_bma_nominal_90_coverage
 
+echo "== 1.9 derivative-family interval coverage (antecedent) =="
+run_ignored_derivative() {
+  local filter="$1"
+  echo "== antecedent: ${filter} =="
+  cargo test --release -p antecedent --test v19_derivative_calibration "$filter" -- --ignored --nocapture --exact
+}
+run_ignored_derivative ade_frequentist_gaussian_treatment_nominal_90_coverage
+run_ignored_derivative ade_bayesian_gaussian_treatment_nominal_90_coverage
+run_ignored_derivative ade_skewed_heteroskedastic_treatment_probe
+run_ignored_derivative point_derivative_frequentist_curvature_nominal_90_coverage
+run_ignored_derivative point_derivative_bayesian_curvature_nominal_90_coverage
+run_ignored_derivative semi_elasticity_log_treatment_frequentist_nominal_90_coverage
+run_ignored_derivative semi_elasticity_log_treatment_bayesian_nominal_90_coverage
+run_ignored_derivative semi_elasticity_log_outcome_bayesian_nominal_90_coverage
+run_ignored_derivative elasticity_bayesian_nominal_90_coverage
+run_ignored_derivative response_jacobian_bayesian_nominal_90_coverage
+run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
+
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
