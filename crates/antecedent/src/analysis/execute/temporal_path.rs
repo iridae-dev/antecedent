@@ -1703,6 +1703,8 @@ impl super::Study {
         let mut diagnostics = Vec::new();
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
         let mut horizon_fingerprints: Vec<Vec<u64>> = Vec::new();
+        let mut observation_atoms = Vec::new();
+        let mut class_observation_band_applied = false;
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query = TemporalEffectQuery {
                 treatment,
@@ -1747,6 +1749,8 @@ impl super::Study {
                 let mut temporal_h = temporal.clone();
                 temporal_h.horizons = Arc::from([horizon]);
                 qh.temporal = Some(temporal_h);
+                let observation_query = qh.clone();
+                let adjustment = class_atom_adjustment(&estimand, indexer);
                 let series_owned = if qh.observation == ObservationSpec::Complete
                     || matches!(self.inference, InferenceMode::Bayesian(_))
                 {
@@ -1757,13 +1761,6 @@ impl super::Study {
                             message: "delayed entry is not licensed for temporal observation",
                         });
                     }
-                    let adjustment: Vec<VariableId> = estimand
-                        .adjustment_set
-                        .iter()
-                        .filter_map(|&dense| {
-                            indexer.key_of(dense.raw()).ok().map(|key| key.variable)
-                        })
-                        .collect();
                     let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
                         .adjust_temporal_series(data, &qh, &adjustment)
                         .map_err(CausalError::from)?;
@@ -1903,6 +1900,21 @@ impl super::Study {
                 structural_atoms.last_mut().expect("response atom").response =
                     Some(response.clone());
                 supports.push(response.support);
+                if series_owned.is_some() && matches!(self.inference, InferenceMode::Frequentist) {
+                    observation_atoms.push(ClassObservationAtom {
+                        atom_index: structural_atoms.len() - 1,
+                        horizon_index,
+                        estimand: estimand.clone(),
+                        indexer: indexer.clone(),
+                        status: case.result.status,
+                        assumptions: case.result.required_assumptions.clone(),
+                        weight: weights[case_index],
+                        adjustment,
+                        horizon,
+                        observation_query,
+                        kind: ClassObservationKind::Curve,
+                    });
+                }
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand);
                     primary_identification = Some(case.result.clone());
@@ -1976,7 +1988,7 @@ impl super::Study {
             })
             .collect::<Option<Vec<_>>>()
             .map(Arc::from);
-        let response = CausalResponse {
+        let mut response = CausalResponse {
             estimand: query.functional.clone(),
             identification_status: if incomplete {
                 IdentificationStatus::GraphDependent
@@ -2013,6 +2025,33 @@ impl super::Study {
             ),
             interaction_structurally_zero: false,
         };
+        if query.observation != ObservationSpec::Complete
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.bootstrap_replicates > 0
+        {
+            let identified_cases = structural_atoms
+                .iter()
+                .filter(|atom| atom.value.is_some())
+                .map(|atom| atom.graph_key & 0xFFFF_FFFF)
+                .collect::<std::collections::BTreeSet<_>>();
+            let apply_class_band = identified_cases.len() == 1
+                && full_mass_scope
+                && unidentified_mass == 0.0
+                && unevaluable_mass == 0.0;
+            class_observation_band_applied = apply_class_observation_bootstrap(
+                data,
+                &observation_atoms,
+                &mut structural_atoms,
+                &mut response,
+                &mut diagnostics,
+                cells_per_horizon,
+                n_horizons,
+                apply_class_band,
+                self.observation_options,
+                self.bootstrap_replicates,
+                ctx,
+            )?;
+        }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "temporal class response missing estimand".into(),
         })?;
@@ -2106,9 +2145,14 @@ impl super::Study {
                     truncated_atoms,
                 }),
                 diagnostics: Some(diagnostics),
-                // The class-level identified set carries no band; requested
-                // replicates ride the retained completion atoms instead.
-                bootstrap_replicates_requested: Some(None),
+                // Observation circular-block bands ride the class response when a
+                // single completion identifies; otherwise requested replicates
+                // stay on the atoms and the class band is withheld.
+                bootstrap_replicates_requested: Some(if class_observation_band_applied {
+                    Some(self.bootstrap_replicates)
+                } else {
+                    None
+                }),
                 ..Default::default()
             },
         }))
@@ -2161,7 +2205,9 @@ impl super::Study {
         let mut truncated_atoms = 0usize;
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
         let mut horizon_fingerprints: Vec<Vec<u64>> = Vec::new();
-        let diagnostics = vec![Diagnostic::new(
+        let mut observation_atoms = Vec::new();
+        let mut class_observation_band_applied = false;
+        let mut diagnostics = vec![Diagnostic::new(
             "estimate.temporal.sequence_overlay",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
@@ -2220,6 +2266,8 @@ impl super::Study {
                     select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
                 let mut qh = query.clone();
                 qh.temporal.as_mut().expect("temporal query").horizons = Arc::from([horizon]);
+                let observation_query = qh.clone();
+                let adjustment = class_atom_adjustment(&estimand, indexer);
                 let (effect, posterior) = if query.observation != ObservationSpec::Complete
                     && bayes.is_some()
                 {
@@ -2242,13 +2290,6 @@ impl super::Study {
                     let adjusted = if query.observation == ObservationSpec::Complete {
                         None
                     } else {
-                        let adjustment: Vec<_> = estimand
-                            .adjustment_set
-                            .iter()
-                            .filter_map(|dense| {
-                                indexer.key_of(dense.raw()).ok().map(|key| key.variable)
-                            })
-                            .collect();
                         Some(
                             ObservationMechanismEstimator::new(self.observation_options)
                                 .adjust_temporal_series(data, &qh, &adjustment)
@@ -2281,6 +2322,26 @@ impl super::Study {
                     status: case.result.status,
                     value: Some(ResponseValue::Scalar(effect.ate)),
                 });
+                if query.observation != ObservationSpec::Complete && bayes.is_none() {
+                    observation_atoms.push(ClassObservationAtom {
+                        atom_index: structural_atoms.len() - 1,
+                        horizon_index,
+                        estimand: estimand.clone(),
+                        indexer: indexer.clone(),
+                        status: case.result.status,
+                        assumptions: case.result.required_assumptions.clone(),
+                        weight: weights[case_index],
+                        adjustment,
+                        horizon,
+                        observation_query,
+                        kind: ClassObservationKind::Sequence {
+                            dag: dag.clone(),
+                            overlays: overlays.clone(),
+                            outcome,
+                            outcome_offset,
+                        },
+                    });
+                }
                 if primary_estimand.is_none() {
                     primary_estimand = Some(estimand);
                     primary_identification = Some(case.result.clone());
@@ -2310,7 +2371,7 @@ impl super::Study {
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(query, &mut assumptions);
         }
-        let response = CausalResponse {
+        let mut response = CausalResponse {
             estimand: query.functional.clone(),
             identification_status: if incomplete {
                 IdentificationStatus::GraphDependent
@@ -2361,6 +2422,42 @@ impl super::Study {
             ),
             interaction_structurally_zero: false,
         };
+        if query.observation != ObservationSpec::Complete
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.bootstrap_replicates > 0
+        {
+            let identified_cases = structural_atoms
+                .iter()
+                .filter(|atom| atom.value.is_some())
+                .map(|atom| atom.graph_key & 0xFFFF_FFFF)
+                .collect::<std::collections::BTreeSet<_>>();
+            let apply_class_band = identified_cases.len() == 1
+                && full_mass_scope
+                && unidentified_mass == 0.0
+                && unevaluable_mass == 0.0;
+            class_observation_band_applied = apply_class_observation_bootstrap(
+                data,
+                &observation_atoms,
+                &mut structural_atoms,
+                &mut response,
+                &mut diagnostics,
+                1,
+                temporal.horizons.len(),
+                apply_class_band,
+                self.observation_options,
+                self.bootstrap_replicates,
+                ctx,
+            )?;
+        }
+        if query.observation != ObservationSpec::Complete {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_class.observation_no_complete_band",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "observation is adjusted per completion; complete-data bands are not reused \
+                 and joint observation/curve bands stay unavailable",
+            ));
+        }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "class-aware Sequence missing estimand".into(),
         })?;
@@ -2429,7 +2526,11 @@ impl super::Study {
                     truncated_atoms,
                 }),
                 diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: Some(None),
+                bootstrap_replicates_requested: Some(if class_observation_band_applied {
+                    Some(self.bootstrap_replicates)
+                } else {
+                    None
+                }),
                 ..Default::default()
             },
         }))
@@ -3227,18 +3328,22 @@ impl super::Study {
                 });
             }
         }
+        let mut config = antecedent_identify::GeneralizedAdjustmentConfig::default();
+        if let Some(max) = self.max_completions {
+            config.max_completions = max;
+        }
         let mut envelope = match self.graph.class() {
             GraphClass::TemporalCpdag => {
                 let cpdag = self.graph.as_temporal_cpdag().ok_or_else(|| CausalError::Compile {
                     message: "TemporalCpdag execute missing supplied graph".into(),
                 })?;
-                identify_temporal_cpdag(identifier_id, cpdag, query)?
+                identify_temporal_cpdag_configured(identifier_id, cpdag, query, config)?
             }
             GraphClass::TemporalPag => {
                 let pag = self.graph.as_temporal_pag().ok_or_else(|| CausalError::Compile {
                     message: "TemporalPag execute missing supplied graph".into(),
                 })?;
-                identify_temporal_pag(identifier_id, pag, query)?
+                identify_temporal_pag_configured(identifier_id, pag, query, config)?
             }
             _ => {
                 return Err(CausalError::Unsupported {
@@ -3426,7 +3531,7 @@ fn temporal_class_response_mean(
             continue;
         }
         if !identification_status_ok_for_case(atom.status) {
-            return None;
+            continue;
         }
         let values: &[f64] = match atom.value.as_ref()? {
             ResponseValue::Scalar(value) => std::slice::from_ref(value),
@@ -3827,6 +3932,227 @@ fn summarize_observation_bootstrap(
         band.upper.push(empirical_quantile(&values, 0.975));
     }
     band
+}
+
+#[derive(Clone)]
+enum ClassObservationKind {
+    Curve,
+    Sequence {
+        dag: antecedent_graph::TemporalDag,
+        overlays: Vec<antecedent_estimate::SequentialMechanismOverlay>,
+        outcome: VariableId,
+        outcome_offset: i32,
+    },
+}
+
+struct ClassObservationAtom {
+    atom_index: usize,
+    horizon_index: usize,
+    estimand: IdentifiedEstimand,
+    indexer: TemporalIndexer,
+    status: IdentificationStatus,
+    assumptions: antecedent_core::AssumptionSet,
+    weight: f64,
+    adjustment: Vec<VariableId>,
+    #[allow(dead_code)]
+    horizon: u32,
+    observation_query: ResponseQuery,
+    kind: ClassObservationKind,
+}
+
+fn class_atom_adjustment(
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+) -> Vec<VariableId> {
+    estimand
+        .adjustment_set
+        .iter()
+        .filter_map(|&dense| indexer.key_of(dense.raw()).ok().map(|key| key.variable))
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_class_observation_bootstrap(
+    source: &TimeSeriesData,
+    atoms: &[ClassObservationAtom],
+    structural_atoms: &mut [crate::result::StructuralResponseAtom],
+    response: &mut CausalResponse,
+    diagnostics: &mut Vec<Diagnostic>,
+    cells_per_horizon: usize,
+    n_horizons: usize,
+    apply_class_band: bool,
+    options: antecedent_estimate::ObservationEstimatorOptions,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<bool, CausalError> {
+    if replicates == 0 || atoms.is_empty() {
+        return Ok(false);
+    }
+    let n = source.row_count();
+    let structural_span = atoms
+        .iter()
+        .map(|atom| atom.indexer.history() as usize + atom.indexer.horizon() as usize)
+        .max()
+        .unwrap_or(1);
+    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n);
+    let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
+    let mut index_scratch = Vec::with_capacity(n);
+    let mut atom_draws: Vec<Vec<Vec<f64>>> = vec![Vec::new(); atoms.len()];
+    let mut class_draws: Vec<Vec<f64>> = Vec::new();
+    let mut attempted = 0u32;
+    let class_len = cells_per_horizon.saturating_mul(n_horizons);
+
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            break;
+        }
+        attempted += 1;
+        let mut rng = ctx.rng.stream(0x0C1A_5500 + u64::from(replicate));
+        let sampled =
+            antecedent_data::resample_timeseries(source, plan, &mut rng, &mut index_scratch)
+                .map_err(CausalError::from)?;
+        let mut replicate_atom_values: Vec<Option<Vec<f64>>> = vec![None; atoms.len()];
+        for (atom_i, atom) in atoms.iter().enumerate() {
+            let Ok((adjusted, _)) = ObservationMechanismEstimator::new(options)
+                .adjust_temporal_series(&sampled, &atom.observation_query, &atom.adjustment)
+            else {
+                continue;
+            };
+            let values = match &atom.kind {
+                ClassObservationKind::Curve => {
+                    let mut working = atom.observation_query.clone();
+                    working.observation = ObservationSpec::Complete;
+                    working.observation_assumptions = Arc::from([]);
+                    let estimator = TemporalResponseEstimator::new();
+                    let Ok(fitted) = estimator.estimate(
+                        &adjusted,
+                        &[(&atom.estimand, &atom.indexer)],
+                        &working,
+                        atom.status,
+                        atom.assumptions.clone(),
+                        ctx,
+                    ) else {
+                        continue;
+                    };
+                    match fitted.estimate {
+                        ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
+                            vec![value]
+                        }
+                        ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                            mean,
+                            ..
+                        }) => mean.to_vec(),
+                        _ => continue,
+                    }
+                }
+                ClassObservationKind::Sequence { dag, overlays, outcome, outcome_offset } => {
+                    let Ok((effect, _)) = antecedent_estimate::estimate_sequence_mechanisms(
+                        &adjusted,
+                        dag,
+                        &atom.indexer,
+                        &atom.estimand,
+                        *outcome,
+                        *outcome_offset,
+                        overlays,
+                        atom.status,
+                        atom.assumptions.clone(),
+                        0,
+                        None,
+                        ctx,
+                    ) else {
+                        continue;
+                    };
+                    vec![effect.ate]
+                }
+            };
+            if values.iter().copied().all(f64::is_finite)
+                && atom_draws[atom_i].first().is_none_or(|first| first.len() == values.len())
+            {
+                atom_draws[atom_i].push(values.clone());
+                replicate_atom_values[atom_i] = Some(values);
+            }
+        }
+        if apply_class_band && class_len > 0 {
+            let mut mixed = vec![0.0; class_len];
+            let mut totals = vec![0.0; n_horizons];
+            let mut complete = true;
+            for (atom_i, atom) in atoms.iter().enumerate() {
+                let Some(values) = replicate_atom_values[atom_i].as_ref() else {
+                    complete = false;
+                    break;
+                };
+                if atom.horizon_index >= n_horizons || values.len() != cells_per_horizon {
+                    complete = false;
+                    break;
+                }
+                totals[atom.horizon_index] += atom.weight;
+                for (cell, value) in values.iter().enumerate() {
+                    mixed[cell * n_horizons + atom.horizon_index] += atom.weight * value;
+                }
+            }
+            if complete && totals.iter().all(|&total| total > 0.0) {
+                for (index, value) in mixed.iter_mut().enumerate() {
+                    *value /= totals[index % n_horizons];
+                }
+                class_draws.push(mixed);
+            }
+        }
+    }
+
+    let cancelled = ctx.cancellation.is_cancelled();
+    for (atom_i, atom) in atoms.iter().enumerate() {
+        let band = summarize_observation_bootstrap(&atom_draws[atom_i], attempted, cancelled);
+        if let Some(atom_response) =
+            structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
+        {
+            apply_observation_bootstrap(atom_response, &band, replicates);
+        } else if let Some(structural) = structural_atoms.get_mut(atom.atom_index) {
+            if let Some(value) = structural.value.clone() {
+                let mut stub = CausalResponse {
+                    estimand: response.estimand.clone(),
+                    identification_status: structural.status,
+                    estimate: ResponseIdentification::PointIdentified(value),
+                    uncertainty: ResponseUncertainty::None,
+                    support: response.support.clone(),
+                    assumptions: atom.assumptions.clone(),
+                    provenance_id: Arc::from("estimate.temporal_response.class_atom"),
+                    horizon_identification: None,
+                    interaction_structurally_zero: false,
+                };
+                apply_observation_bootstrap(&mut stub, &band, replicates);
+                structural.response = Some(stub);
+            }
+        }
+    }
+
+    if apply_class_band {
+        let band = summarize_observation_bootstrap(&class_draws, attempted, cancelled);
+        apply_observation_bootstrap(response, &band, replicates);
+        Ok(!band.lower.is_empty())
+    } else {
+        diagnostics.push(Diagnostic::new(
+            "estimate.temporal_class.observation_class_band_withheld",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "class-level observation band is withheld on a multi-completion identified set; \
+             each completion atom retains its outer circular-block band; complete-data bands \
+             are not reused",
+        ));
+        response.support.diagnostics.push(antecedent_core::SupportDiagnostic {
+            id: Arc::from("response.observation_block_bootstrap"),
+            values: Arc::from([
+                f64::from(replicates),
+                0.0,
+                f64::from(u32::from(cancelled)),
+                f64::from(attempted),
+            ]),
+            detail: Arc::from(
+                "requested, completed class-band, cancellation, and attempted counts; the \
+                 class band is withheld; atoms retain per-completion circular-block bands",
+            ),
+        });
+        Ok(false)
+    }
 }
 
 fn apply_observation_bootstrap(

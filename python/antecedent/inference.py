@@ -111,6 +111,10 @@ def _class_prior_kwargs(prior: ClassPrior | None) -> dict[str, Any]:
     return {"class_prior_pairs": list(prior.pairs or ())}
 
 
+def _max_completions_kwargs(max_completions: int | None) -> dict[str, Any]:
+    return {} if max_completions is None else {"max_completions": int(max_completions)}
+
+
 __all__ = [
     "Bayesian",
     "ClassPrior",

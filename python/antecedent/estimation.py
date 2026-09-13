@@ -66,7 +66,13 @@ from .errors import (
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
-from .inference import Bayesian, ClassPrior, Frequentist, _class_prior_kwargs
+from .inference import (
+    Bayesian,
+    ClassPrior,
+    Frequentist,
+    _class_prior_kwargs,
+    _max_completions_kwargs,
+)
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -1466,6 +1472,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
         class_prior: ClassPrior | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1640,6 +1647,7 @@ class PreparedAnalysis:
                     query.outcome,
                     **temporal_kwargs,
                     **class_prior_kw,
+                    **_max_completions_kwargs(max_completions),
                     **transfer_kw,
                 )
             elif isinstance(graph, TemporalPag):
@@ -1651,6 +1659,7 @@ class PreparedAnalysis:
                     query.outcome,
                     **temporal_kwargs,
                     **class_prior_kw,
+                    **_max_completions_kwargs(max_completions),
                     **transfer_kw,
                 )
             else:
@@ -1697,6 +1706,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
                 **_class_prior_kwargs(class_prior),
+                **_max_completions_kwargs(max_completions),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
@@ -1728,6 +1738,7 @@ class PreparedAnalysis:
                 threads=threads,
                 structure_accepted=structure_accepted,
                 class_prior=class_prior,
+                max_completions=max_completions,
             )
         if isinstance(query, AverageEffect) and isinstance(graph, Pag):
             inference = inference or Frequentist()
@@ -2713,6 +2724,7 @@ class PreparedAnalysis:
         threads: int,
         structure_accepted: bool,
         class_prior: ClassPrior | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis:
         if refute not in (False, "none", Refute.NONE):
             raise CausalUnsupportedError(
@@ -2770,6 +2782,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
                 **_class_prior_kwargs(class_prior),
+                **_max_completions_kwargs(max_completions),
                 **observation_kwargs,
             )
             return cls(native, kind="intervention_response", query=query)
@@ -2793,6 +2806,7 @@ class PreparedAnalysis:
             accepted=structure_accepted,
             class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
             **_class_prior_kwargs(class_prior),
+            **_max_completions_kwargs(max_completions),
             **observation_kwargs,
         )
         return cls(native, kind="response_curve", query=query)

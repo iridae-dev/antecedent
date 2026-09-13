@@ -394,6 +394,7 @@ fn analyze_temporal_class(
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
     class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -431,6 +432,7 @@ fn analyze_temporal_class(
             prior_artifact.as_deref(),
         )?;
         builder = apply_class_prior(builder, class_prior_ordered, class_prior_pairs)?;
+        builder = apply_max_completions(builder, max_completions);
         let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
@@ -458,6 +460,7 @@ fn analyze_temporal_class(
     prior_artifact=None,
     class_prior_ordered=None,
     class_prior_pairs=None,
+    max_completions=None,
     refute=None,
     validators=None,
     seed=1,
@@ -482,6 +485,7 @@ fn analyze_temporal_cpdag(
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
     class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -506,6 +510,7 @@ fn analyze_temporal_cpdag(
         prior_artifact,
         class_prior_ordered,
         class_prior_pairs,
+        max_completions,
         refute,
         validators,
         seed,
@@ -534,6 +539,7 @@ fn analyze_temporal_cpdag(
     prior_artifact=None,
     class_prior_ordered=None,
     class_prior_pairs=None,
+    max_completions=None,
     refute=None,
     validators=None,
     seed=1,
@@ -558,6 +564,7 @@ fn analyze_temporal_pag(
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
     class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -582,6 +589,7 @@ fn analyze_temporal_pag(
         prior_artifact,
         class_prior_ordered,
         class_prior_pairs,
+        max_completions,
         refute,
         validators,
         seed,
@@ -2093,6 +2101,16 @@ fn analysis_result_from_run(
             .as_ref()
             .map(|mixture| mixture.unevaluable_mass),
     })
+}
+
+pub(crate) fn apply_max_completions(
+    builder: StudyBuilder,
+    max_completions: Option<usize>,
+) -> StudyBuilder {
+    match max_completions {
+        Some(n) => builder.max_completions(n),
+        None => builder,
+    }
 }
 
 pub(crate) fn apply_class_prior(
